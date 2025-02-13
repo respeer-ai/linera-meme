@@ -45,6 +45,31 @@ for DeFi applications on Linera.
 
 ## PoW Microchain
 
+ResPeer designs a unique meme token solution on Linera, specifically for the DeFi ecosystem.
+
+There is a type of microchain that can be controlled by multiple chain owners. This type of microchain can operate in two modes: Single-Leader and Multi-Leader.
+
+When operating in Single-Leader mode, a leader is elected from the chain owners according to preset round and weight parameters. The elected leader
+proposes new blocks and submits them to validators. However, Single-Leader mode has a potential issue: if the elected leader is offline during their
+round, the round will time out and advance to the next round. This timeout is implemented with an evacuation algorithm that lacks an upper limit.
+Consequently, if the offline chain owner cannot resume processing in time due to hardware failure or other unexpected issues, the microchain will be frozen.
+
+In Multi-Leader mode, every chain owner can propose and submit blocks at any time. However, if multiple blocks are created at the same height,
+all proposed blocks will be rejected, and the system will fall back to Single-Leader mode to elect a single leader to propose the new block.
+There is no round timeout in Multi-Leader mode; any owner can propose their own block at any time.
+
+Therefore, we have developed some new ideas regarding Multi-Leader microchains. Could we determine the unique block proposer using a Proof of Work,
+Proof of Stake, or other mathematical algorithm? If the applications running on these microchains issue their own tokens and distribute token
+rewards to block proposers, then we could establish a new method for issuing a minable meme token. Meme tokens on traditional blockchains are
+typically implemented as smart contracts, with new tokens minted upon user deposit. The value of these meme tokens depends solely on the appeal
+of the stories created by their originators. A minable meme token introduces a new value anchor, and also broadens the application scenarios for
+Linera. Meme creators can still easily create memes. Simultaneously, the meme tokens can have intrinsic value derived from mining production.
+The unique set of Linera validators ensures the security of the meme token, while fairness is ensured at the application layer.
+
+The PoW microchain will be implemented as a pluggable subnet. This enables tailored DeFi application and microchain functionalities within Linera.
+Applications that need to provide service to public users will no longer depend on chain owners' liveness; instead, they will be driven by a publicly
+decentralized set of owners.
+
 ## Functionalities and Plans
 
 ## Tokenomics of Meme Creators / Traders / Miners
