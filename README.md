@@ -45,8 +45,6 @@ for DeFi applications on Linera.
 
 ## PoW Microchain
 
-ResPeer designs a unique meme token solution on Linera, specifically for the DeFi ecosystem.
-
 There is a type of microchain that can be controlled by multiple chain owners. This type of microchain can operate in two modes: Single-Leader and Multi-Leader.
 
 When operating in Single-Leader mode, a leader is elected from the chain owners according to preset round and weight parameters. The elected leader
