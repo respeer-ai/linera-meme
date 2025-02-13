@@ -72,4 +72,34 @@ decentralized set of owners.
 
 ## Functionalities and Plans
 
+### Stage 1: SingleLeader Round Robin
+
+- [ ] Meme Proxy framework
+- [ ] Miner registration and beneficiary account
+- [ ] Create meme chain and set application permission to allow meme proxy only
+- [ ] Create meme application on the meme chain
+- [ ] Update meme chain permissions to mandatory meme application only
+- [ ] Meme application fungible token
+- [ ] Meme application block rewards distribution
+
+### Stage 2: MultiLeader Round Robin
+
+- [ ] Election leader with round robin - Election result must be same at each (round, height)
+
+### Stage 3: Permissionless PoW/PoS Round
+
+- [ ] Fix PoW difficulty
+- [ ] PoW leader election - Election result must be same at each (round, height)
+- [ ] Dynamic PoW difficulty
+- [ ] PoS leader election - Election result must be same at each (round, height)
+
+### Stage 4: Meme Creation Configuration
+
+- [ ] Configure leader election method
+- [ ] Configure block rewards / decay strategy
+- [ ] Configure genesis miners airdrop strategy
+- [ ] Configure initial liquidity pool strategy
+- [ ] Configure developers lock strategy
+- [ ] Configure whitelist lock strategy
+
 ## Tokenomics of Meme Creators / Traders / Miners
