@@ -103,3 +103,13 @@ decentralized set of owners.
 - [ ] Configure whitelist lock strategy
 
 ## Tokenomics of Meme Creators / Traders / Miners
+
+Meme creators can design their own tokens based on their unique vision.
+
+Creators can configure the leader election method (PoW, PoS, etc.) for their meme token and even customize the PoW algorithm.
+Perhaps one day, we can empower meme creators to define their own PoW or PoS algorithms. However, for now, we will simply
+allow them to select from a set of preset algorithms to lower the barrier to entry.
+
+In addition to the leader election algorithm, creators can configure the initial liquidity pool strategy, locking mechanisms,
+and other parameters. Created meme tokens will then be listed on the Linera Swap DEX. Community members can join the meme
+chain and propose blocks to earn block rewards.
