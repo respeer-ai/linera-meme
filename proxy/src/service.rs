@@ -1,15 +1,14 @@
+// Copyright (c) Zefchain Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
 mod state;
 
 use std::sync::Arc;
 
-use async_graphql::{EmptySubscription, Object, Schema};
-use linera_sdk::{
-    base::WithServiceAbi, graphql::GraphQLMutationRoot, views::View, Service, ServiceRuntime,
-};
-
-use proxy::Operation;
+use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use linera_sdk::{base::WithServiceAbi, views::View, Service, ServiceRuntime};
 
 use self::state::ProxyState;
 
@@ -37,17 +36,30 @@ impl Service for ProxyService {
         }
     }
 
-    async fn handle_query(&self, query: Self::Query) -> Self::QueryResponse {
-        Schema::build(
+    async fn handle_query(&self, request: Request) -> Response {
+        let schema = Schema::build(
             QueryRoot {
                 value: *self.state.value.get(),
             },
-            Operation::mutation_root(self.runtime.clone()),
+            MutationRoot {
+                runtime: self.runtime.clone(),
+            },
             EmptySubscription,
         )
-        .finish()
-        .execute(query)
-        .await
+        .finish();
+        schema.execute(request).await
+    }
+}
+
+struct MutationRoot {
+    runtime: Arc<ServiceRuntime<ProxyService>>,
+}
+
+#[Object]
+impl MutationRoot {
+    async fn increment(&self, value: u64) -> [u8; 0] {
+        self.runtime.schedule_operation(&value);
+        []
     }
 }
 
@@ -75,7 +87,7 @@ mod tests {
 
     #[test]
     fn query() {
-        let value = 60u64;
+        let value = 61_098_721_u64;
         let runtime = Arc::new(ServiceRuntime::<ProxyService>::new());
         let mut state = ProxyState::load(runtime.root_view_storage_context())
             .blocking_wait()
@@ -90,7 +102,7 @@ mod tests {
             .now_or_never()
             .expect("Query should not await anything");
 
-        let expected = Response::new(Value::from_json(json!({"value": 60})).unwrap());
+        let expected = Response::new(Value::from_json(json!({"value" : 61_098_721})).unwrap());
 
         assert_eq!(response, expected)
     }

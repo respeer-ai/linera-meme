@@ -1,18 +1,22 @@
 [package]
 name = "proxy"
 version = "0.1.0"
+authors = ["ResPeer <contact@respeer.ai>"]
 edition = "2021"
 
 [dependencies]
 async-graphql.workspace = true
-linera-sdk.workspace = true
 futures.workspace = true
-serde.workspace = true
+linera-sdk.workspace = true
 serde_json.workspace = true
 
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+linera-sdk = { workspace = true, features = ["test", "wasmer"] }
+tokio = { workspace = true, features = ["rt", "sync"] }
+
 [dev-dependencies]
-linera-sdk.workspace = true
-tokio.workspace = true
+assert_matches.workspace = true
+linera-sdk = { workspace = true, features = ["test"] }
 
 [[bin]]
 name = "proxy_contract"
@@ -21,9 +25,3 @@ path = "src/contract.rs"
 [[bin]]
 name = "proxy_service"
 path = "src/service.rs"
-
-[profile.release]
-debug = true
-lto = true
-opt-level = 'z'
-strip = 'debuginfo'
