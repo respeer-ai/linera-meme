@@ -1,4 +1,4 @@
-![image](webui/src/assets/LineraMeme.png)
+![image](webui/src/assets/LineraMeme.svg)
 
 # Linera Meme Microchain
 
