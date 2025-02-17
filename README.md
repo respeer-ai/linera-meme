@@ -1,4 +1,8 @@
+![image](webui/src/assets/LineraMeme.png)
+
 # Linera Meme Microchain
+
+[![Test](https://github.com/respeer-ai/linera-meme/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/respeer-ai/linera-meme/actions/workflows/test.yml)
 
 ## Table of Contents
 - [Microchain Introduction](#)

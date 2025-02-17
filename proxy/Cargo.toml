@@ -1,0 +1,29 @@
+[package]
+name = "proxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-graphql.workspace = true
+linera-sdk.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+linera-sdk.workspace = true
+tokio.workspace = true
+
+[[bin]]
+name = "proxy_contract"
+path = "src/contract.rs"
+
+[[bin]]
+name = "proxy_service"
+path = "src/service.rs"
+
+[profile.release]
+debug = true
+lto = true
+opt-level = 'z'
+strip = 'debuginfo'

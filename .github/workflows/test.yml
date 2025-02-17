@@ -1,0 +1,31 @@
+name: Cargo Build & Test
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Linera Meme - latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - beta
+          - nightly
+    steps:
+      - uses: actions/checkout@v3
+      - run: rustup target add wasm32-unknown-unknown
+      - run: rustup toolchain install nightly --allow-downgrade -c rustfmt
+      - run: rustup component add rustfmt
+      - run: rustup component add rustfmt --toolchain nightly
+      - run: cd ../linera-protocol; cargo build -p linera-sdk --bin linera-wasm-test-runner --release
+      - run: cargo build --verbose
+      - run: mkdir -p target/release
+      - run: cp -v ../linera-protocol/target/release/linera-wasm-test-runner target/release
+      - run: cargo test --verbose --target wasm32-unknown-unknown
+      - run: cargo fmt --all -- --check
