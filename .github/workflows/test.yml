@@ -23,10 +23,11 @@ jobs:
       - run: rustup toolchain install nightly --allow-downgrade -c rustfmt
       - run: rustup component add rustfmt
       - run: rustup component add rustfmt --toolchain nightly
-      - run: git clone https://github.com/linera-io/linera-protocol.git
+      - run: git clone https://github.com/linera-io/linera-protocol.git ../linera-protocol
       - run: cd ../linera-protocol; cargo build -p linera-sdk --bin linera-wasm-test-runner --release
       - run: cargo build --verbose
       - run: mkdir -p target/release
       - run: cp -v ../linera-protocol/target/release/linera-wasm-test-runner target/release
       - run: cargo test --verbose --target wasm32-unknown-unknown
       - run: cargo fmt --all -- --check
+      - run: rm ../linera-protocol -rf
