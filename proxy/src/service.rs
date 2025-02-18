@@ -78,6 +78,14 @@ impl QueryRoot {
     async fn meme_bytecode_id(&self) -> BytecodeId {
         self.state.meme_bytecode_id.get().unwrap()
     }
+
+    async fn genesis_miners(&self) -> Vec<Owner> {
+        self.state
+            .genesis_miners
+            .indices()
+            .await
+            .expect("Failed get genesis miners")
+    }
 }
 
 #[cfg(test)]

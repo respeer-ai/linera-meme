@@ -14,6 +14,7 @@ serde_json = { version = "1.0" }
 tokio = { version = "1.40", features = ["rt", "sync"] }
 assert_matches = "1.5.0"
 thiserror = "^1.0.65"
+log = "0.4.21"
 
 abi = { path = "./abi" }
 
