@@ -17,9 +17,14 @@ async fn single_chain_test() {
         TestValidator::with_current_bytecode::<proxy::ProxyAbi, (), u64>().await;
     let mut chain = validator.new_chain().await;
 
-    let initial_state = 42u64;
+    let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
     let application_id = chain
-        .create_application(bytecode_id, (), initial_state, vec![])
+        .create_application(
+            bytecode_id,
+            (),
+            InstantiationArgument { meme_bytecode_id },
+            vec![],
+        )
         .await;
 
     let increment = 15u64;

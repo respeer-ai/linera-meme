@@ -113,7 +113,7 @@ mod tests {
             .expect("Query should not await anything");
 
         let expected =
-            Response::new(Value::from_json(json!({"memeByteCodeId" : 61_098_721})).unwrap());
+            Response::new(Value::from_json(json!({"memeBytecodeId": meme_bytecode_id})).unwrap());
 
         assert_eq!(response, expected)
     }
