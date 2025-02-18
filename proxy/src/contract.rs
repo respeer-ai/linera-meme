@@ -5,12 +5,12 @@
 
 mod state;
 
-use proxy::ProxyAbi;
 use linera_sdk::{
     base::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
+use proxy::ProxyAbi;
 
 use self::state::ProxyState;
 
