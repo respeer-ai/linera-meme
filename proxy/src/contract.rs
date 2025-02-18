@@ -48,7 +48,10 @@ impl Contract for ProxyContract {
             .runtime
             .authenticated_signer()
             .expect("Invalid creator");
-        self.state.initantiate(argument, owner).await;
+        self.state
+            .initantiate(argument, owner)
+            .await
+            .expect("Failed instantiate");
     }
 
     async fn execute_operation(&mut self, operation: ProxyOperation) -> ProxyResponse {
@@ -114,6 +117,7 @@ impl Contract for ProxyContract {
         match message {
             ProxyMessage::ProposeAddGenesisMiner { owner } => self
                 .on_msg_propose_add_genesis_miner(owner)
+                .await
                 .expect("Failed MSG: propose add genesis miner"),
             ProxyMessage::ApproveAddGenesisMiner { owner } => self
                 .on_msg_approve_add_genesis_miner(owner)
@@ -169,6 +173,10 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.runtime
+            .prepare_message(ProxyMessage::ProposeAddGenesisMiner { owner })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
     }
 
@@ -228,8 +236,8 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_msg_propose_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        Ok(())
+    async fn on_msg_propose_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+        self.state.add_genesis_miner(owner).await
     }
 
     fn on_msg_approve_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {

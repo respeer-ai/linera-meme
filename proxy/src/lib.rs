@@ -7,6 +7,7 @@ use linera_sdk::{
     base::{BytecodeId, ContractAbi, Owner, ServiceAbi},
     graphql::GraphQLMutationRoot,
 };
+use linera_views::views::ViewError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -125,4 +126,7 @@ pub struct InstantiationArgument {
 
 #[derive(Debug, Error)]
 #[allow(dead_code)]
-pub enum ProxyError {}
+pub enum ProxyError {
+    #[error(transparent)]
+    ViewError(#[from] ViewError),
+}
