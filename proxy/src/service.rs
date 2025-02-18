@@ -80,11 +80,18 @@ impl QueryRoot {
     }
 
     async fn genesis_miners(&self) -> Vec<Owner> {
+        let mut miners = Vec::new();
         self.state
             .genesis_miners
-            .indices()
+            .for_each_index_value(|owner, need_approvals| {
+                if need_approvals.into_owned() == 0 {
+                    miners.push(owner);
+                }
+                Ok(())
+            })
             .await
-            .expect("Failed get genesis miners")
+            .expect("Failed get genesis miners");
+        miners
     }
 }
 
