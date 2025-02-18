@@ -8,6 +8,7 @@ mod state;
 use abi::meme::InstantiationArgument as MemeInstantiationArgument;
 use linera_sdk::{
     base::{Owner, WithContractAbi},
+    ensure,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -52,7 +53,11 @@ impl Contract for ProxyContract {
     }
 
     async fn execute_operation(&mut self, operation: ProxyOperation) -> ProxyResponse {
-        // All operations will be run on user chain side
+        // All operations must be run on user chain side
+        if self.runtime.chain_id() == self.runtime.application_id().creation.chain_id {
+            panic!("Operation must not be run on creation chain");
+        }
+
         match operation {
             ProxyOperation::ProposeAddGenesisMiner { owner } => self
                 .on_op_propose_add_genesis_miner(owner)
@@ -102,7 +107,11 @@ impl Contract for ProxyContract {
     }
 
     async fn execute_message(&mut self, message: ProxyMessage) {
-        // All operations will be run on creation chain side
+        // All messages must be run on creation chain side
+        if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
+            panic!("Operation must be run on creation chain");
+        }
+
         match message {
             ProxyMessage::ProposeAddGenesisMiner { owner } => self
                 .on_msg_propose_add_genesis_miner(owner)
