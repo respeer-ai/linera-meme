@@ -83,8 +83,9 @@ impl QueryRoot {
         let mut miners = Vec::new();
         self.state
             .genesis_miners
-            .for_each_index_value(|owner, need_approvals| {
-                if need_approvals.into_owned() == 0 {
+            .for_each_index_value(|owner, approval| {
+                let approval = approval.into_owned();
+                if approval.approvers.len() >= approval.least_approvals {
                     miners.push(owner);
                 }
                 Ok(())

@@ -121,6 +121,7 @@ impl Contract for ProxyContract {
                 .expect("Failed MSG: propose add genesis miner"),
             ProxyMessage::ApproveAddGenesisMiner { owner } => self
                 .on_msg_approve_add_genesis_miner(owner)
+                .await
                 .expect("Failed MSG: approve add genesis miner"),
 
             ProxyMessage::ProposeRemoveGenesisMiner { owner } => self
@@ -184,6 +185,10 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.runtime
+            .prepare_message(ProxyMessage::ApproveAddGenesisMiner { owner })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
     }
 
@@ -240,8 +245,10 @@ impl ProxyContract {
         self.state.add_genesis_miner(owner).await
     }
 
-    fn on_msg_approve_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        Ok(())
+    async fn on_msg_approve_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+        self.state
+            .approve_genesis_miner(owner, self.runtime.authenticated_signer().unwrap())
+            .await
     }
 
     fn on_msg_propose_remove_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
