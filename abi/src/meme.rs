@@ -1,9 +1,10 @@
 use crate::store_type::StoreType;
+use async_graphql::InputObject;
 use linera_sdk::base::{Amount, ApplicationId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
 pub struct Metadata {
     pub logo_store_type: StoreType,
     pub logo: String,
@@ -15,14 +16,14 @@ pub struct Metadata {
     pub github: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
 pub struct Mint {
     pub initial_currency: Amount,
     pub fixed_currency: bool,
     pub swap_application_id: ApplicationId,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
 pub struct Meme {
     pub initial_supply: Amount,
     pub name: String,
@@ -31,7 +32,7 @@ pub struct Meme {
     pub metadata: Metadata,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub meme: Meme,
     pub mint: Option<Mint>,

@@ -10,7 +10,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use proxy::ProxyAbi;
+use proxy::{InstantiationArgument, ProxyAbi, ProxyError, ProxyOperation, ProxyResponse};
 
 use self::state::ProxyState;
 
@@ -27,7 +27,7 @@ impl WithContractAbi for ProxyContract {
 
 impl Contract for ProxyContract {
     type Message = ();
-    type InstantiationArgument = u64;
+    type InstantiationArgument = InstantiationArgument;
     type Parameters = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
@@ -37,17 +37,19 @@ impl Contract for ProxyContract {
         ProxyContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, value: u64) {
+    async fn instantiate(&mut self, argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        self.state.value.set(value);
+        let owner = self
+            .runtime
+            .authenticated_signer()
+            .expect("Invalid creator");
+        self.state.initantiate(argument, owner).await;
     }
 
-    async fn execute_operation(&mut self, operation: u64) -> u64 {
-        let new_value = self.state.value.get() + operation;
-        self.state.value.set(new_value);
-        new_value
+    async fn execute_operation(&mut self, operation: ProxyOperation) -> ProxyResponse {
+        ProxyResponse::Ok
     }
 
     async fn execute_message(&mut self, _message: ()) {
@@ -62,59 +64,24 @@ impl Contract for ProxyContract {
 #[cfg(test)]
 mod tests {
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Contract, ContractRuntime};
+    use linera_sdk::{
+        base::BytecodeId, util::BlockingWait, views::View, Contract, ContractRuntime,
+    };
+    use proxy::InstantiationArgument;
+    use std::str::FromStr;
 
     use super::{ProxyContract, ProxyState};
 
     #[test]
-    fn operation() {
-        let initial_value = 72_u64;
-        let mut proxy = create_and_instantiate_proxy(initial_value);
-
-        let increment = 42_308_u64;
-
-        let response = proxy
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of proxy operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*proxy.state.value.get(), initial_value + increment);
-    }
+    fn operation() {}
 
     #[test]
-    #[should_panic(expected = "Proxy application doesn't support any cross-chain messages")]
-    fn message() {
-        let initial_value = 72_u64;
-        let mut proxy = create_and_instantiate_proxy(initial_value);
-
-        proxy
-            .execute_message(())
-            .now_or_never()
-            .expect("Execution of proxy operation should not await anything");
-    }
+    fn message() {}
 
     #[test]
-    fn cross_application_call() {
-        let initial_value = 2_845_u64;
-        let mut proxy = create_and_instantiate_proxy(initial_value);
+    fn cross_application_call() {}
 
-        let increment = 8_u64;
-
-        let response = proxy
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of proxy operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*proxy.state.value.get(), expected_value);
-    }
-
-    fn create_and_instantiate_proxy(initial_value: u64) -> ProxyContract {
+    fn create_and_instantiate_proxy() -> ProxyContract {
         let runtime = ContractRuntime::new().with_application_parameters(());
         let mut contract = ProxyContract {
             state: ProxyState::load(runtime.root_view_storage_context())
@@ -123,12 +90,17 @@ mod tests {
             runtime,
         };
 
+        let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+
         contract
-            .instantiate(initial_value)
+            .instantiate(InstantiationArgument { meme_bytecode_id })
             .now_or_never()
             .expect("Initialization of proxy state should not await anything");
 
-        assert_eq!(*contract.state.value.get(), initial_value);
+        assert_eq!(
+            contract.state.meme_bytecode_id.get().unwrap(),
+            meme_bytecode_id
+        );
 
         contract
     }

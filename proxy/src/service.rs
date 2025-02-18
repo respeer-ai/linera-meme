@@ -8,12 +8,17 @@ mod state;
 use std::sync::Arc;
 
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
-use linera_sdk::{base::WithServiceAbi, views::View, Service, ServiceRuntime};
+use linera_sdk::{
+    base::{BytecodeId, Owner, WithServiceAbi},
+    views::View,
+    Service, ServiceRuntime,
+};
+use proxy::ProxyOperation;
 
 use self::state::ProxyState;
 
 pub struct ProxyService {
-    state: ProxyState,
+    state: Arc<ProxyState>,
     runtime: Arc<ServiceRuntime<Self>>,
 }
 
@@ -31,7 +36,7 @@ impl Service for ProxyService {
             .await
             .expect("Failed to load state");
         ProxyService {
-            state,
+            state: Arc::new(state),
             runtime: Arc::new(runtime),
         }
     }
@@ -39,7 +44,7 @@ impl Service for ProxyService {
     async fn handle_query(&self, request: Request) -> Response {
         let schema = Schema::build(
             QueryRoot {
-                value: *self.state.value.get(),
+                state: self.state.clone(),
             },
             MutationRoot {
                 runtime: self.runtime.clone(),
@@ -57,20 +62,21 @@ struct MutationRoot {
 
 #[Object]
 impl MutationRoot {
-    async fn increment(&self, value: u64) -> [u8; 0] {
-        self.runtime.schedule_operation(&value);
+    async fn propose_add_genesis_miner(&self, owner: Owner) -> [u8; 0] {
+        self.runtime
+            .schedule_operation(&ProxyOperation::ProposeAddGenesisMiner { owner });
         []
     }
 }
 
 struct QueryRoot {
-    value: u64,
+    state: Arc<ProxyState>,
 }
 
 #[Object]
 impl QueryRoot {
-    async fn value(&self) -> &u64 {
-        &self.value
+    async fn meme_bytecode_id(&self) -> BytecodeId {
+        self.state.meme_bytecode_id.get().unwrap()
     }
 }
 
@@ -80,29 +86,34 @@ mod tests {
 
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Service, ServiceRuntime};
+    use linera_sdk::{base::BytecodeId, util::BlockingWait, views::View, Service, ServiceRuntime};
     use serde_json::json;
+    use std::str::FromStr;
 
     use super::{ProxyService, ProxyState};
 
     #[test]
     fn query() {
-        let value = 61_098_721_u64;
+        let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
         let runtime = Arc::new(ServiceRuntime::<ProxyService>::new());
         let mut state = ProxyState::load(runtime.root_view_storage_context())
             .blocking_wait()
             .expect("Failed to read from mock key value store");
-        state.value.set(value);
+        state.meme_bytecode_id.set(Some(meme_bytecode_id));
 
-        let service = ProxyService { state, runtime };
-        let request = Request::new("{ value }");
+        let service = ProxyService {
+            state: Arc::new(state),
+            runtime,
+        };
+        let request = Request::new("{ memeBytecodeId }");
 
         let response = service
             .handle_query(request)
             .now_or_never()
             .expect("Query should not await anything");
 
-        let expected = Response::new(Value::from_json(json!({"value" : 61_098_721})).unwrap());
+        let expected =
+            Response::new(Value::from_json(json!({"memeByteCodeId" : 61_098_721})).unwrap());
 
         assert_eq!(response, expected)
     }
