@@ -30,6 +30,7 @@ impl ProxyState {
         owner: Owner,
     ) -> Result<(), ProxyError> {
         self.meme_bytecode_id.set(Some(argument.meme_bytecode_id));
+        self.operators.insert(&argument.operator, false)?;
         Ok(self.operators.insert(&owner, false)?)
     }
 

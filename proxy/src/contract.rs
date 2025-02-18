@@ -296,7 +296,10 @@ impl ProxyContract {
 mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::BytecodeId, util::BlockingWait, views::View, Contract, ContractRuntime,
+        base::{BytecodeId, Owner},
+        util::BlockingWait,
+        views::View,
+        Contract, ContractRuntime,
     };
     use proxy::InstantiationArgument;
     use std::str::FromStr;
@@ -322,9 +325,15 @@ mod tests {
         };
 
         let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let operator =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
 
         contract
-            .instantiate(InstantiationArgument { meme_bytecode_id })
+            .instantiate(InstantiationArgument {
+                meme_bytecode_id,
+                operator,
+            })
             .now_or_never()
             .expect("Initialization of proxy state should not await anything");
 

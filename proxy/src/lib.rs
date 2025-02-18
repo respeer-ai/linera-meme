@@ -122,6 +122,7 @@ pub enum ProxyResponse {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InstantiationArgument {
     pub meme_bytecode_id: BytecodeId,
+    pub operator: Owner,
 }
 
 #[derive(Debug, Error)]
