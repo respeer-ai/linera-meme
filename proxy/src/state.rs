@@ -12,7 +12,12 @@ use proxy::InstantiationArgument;
 #[view(context = "ViewStorageContext")]
 pub struct ProxyState {
     pub meme_bytecode_id: RegisterView<Option<BytecodeId>>,
+    /// Operator and banned
     pub operators: MapView<Owner, bool>,
+    /// Genesis miner and its approvals
+    pub genesis_miners: MapView<Owner, u8>,
+    /// Miners and mining chains (ignore permissionless chain)
+    pub miners: MapView<Owner, u32>,
 }
 
 #[allow(dead_code)]

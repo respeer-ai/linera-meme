@@ -51,14 +51,65 @@ pub enum ProxyOperation {
         meme_instantiation_argument: MemeInstantiationArgument,
     },
 
-    ProposeOperator {
+    ProposeAddOperator {
         owner: Owner,
     },
-    ApproveOperator {
+    ApproveAddOperator {
         owner: Owner,
     },
 
-    SubscribeEvent,
+    ProposeBanOperator {
+        owner: Owner,
+    },
+    ApproveBanOperator {
+        owner: Owner,
+    },
+
+    Subscribe,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum ProxyMessage {
+    ProposeAddGenesisMiner {
+        owner: Owner,
+    },
+    ApproveAddGenesisMiner {
+        owner: Owner,
+    },
+
+    ProposeRemoveGenesisMiner {
+        owner: Owner,
+    },
+    ApproveRemoveGenesisMiner {
+        owner: Owner,
+    },
+
+    RegisterMiner {
+        owner: Owner,
+    },
+    DeregisterMiner {
+        owner: Owner,
+    },
+
+    CreateMeme {
+        meme_instantiation_argument: MemeInstantiationArgument,
+    },
+
+    ProposeAddOperator {
+        owner: Owner,
+    },
+    ApproveAddOperator {
+        owner: Owner,
+    },
+
+    ProposeBanOperator {
+        owner: Owner,
+    },
+    ApproveBanOperator {
+        owner: Owner,
+    },
+
+    Subscribe,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
