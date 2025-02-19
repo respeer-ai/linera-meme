@@ -126,9 +126,11 @@ impl Contract for ProxyContract {
 
             ProxyMessage::ProposeRemoveGenesisMiner { owner } => self
                 .on_msg_propose_remove_genesis_miner(owner)
+                .await
                 .expect("Failed MSG: propose remove genesis miner"),
             ProxyMessage::ApproveRemoveGenesisMiner { owner } => self
                 .on_msg_approve_remove_genesis_miner(owner)
+                .await
                 .expect("Failed MSG: approve remove genesis miner"),
 
             ProxyMessage::RegisterMiner { owner } => self
@@ -196,6 +198,10 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.runtime
+            .prepare_message(ProxyMessage::ProposeRemoveGenesisMiner { owner })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
     }
 
@@ -203,6 +209,10 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.runtime
+            .prepare_message(ProxyMessage::ApproveRemoveGenesisMiner { owner })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
     }
 
@@ -256,12 +266,25 @@ impl ProxyContract {
             .await
     }
 
-    fn on_msg_propose_remove_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    async fn on_msg_propose_remove_genesis_miner(
+        &mut self,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
+        self.state.remove_genesis_miner(owner).await?;
+        let signer = self.runtime.authenticated_signer().unwrap();
+        if self.state.validate_operator(signer).await? {
+            return self.state.approve_remove_genesis_miner(owner, signer).await;
+        }
         Ok(())
     }
 
-    fn on_msg_approve_remove_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        Ok(())
+    async fn on_msg_approve_remove_genesis_miner(
+        &mut self,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
+        self.state
+            .approve_remove_genesis_miner(owner, self.runtime.authenticated_signer().unwrap())
+            .await
     }
 
     fn on_msg_register_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
