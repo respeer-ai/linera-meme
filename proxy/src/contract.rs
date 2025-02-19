@@ -242,12 +242,17 @@ impl ProxyContract {
     }
 
     async fn on_msg_propose_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        self.state.add_genesis_miner(owner).await
+        self.state.add_genesis_miner(owner).await?;
+        let signer = self.runtime.authenticated_signer().unwrap();
+        if self.state.validate_operator(signer).await? {
+            return self.state.approve_add_genesis_miner(owner, signer).await;
+        }
+        Ok(())
     }
 
     async fn on_msg_approve_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
         self.state
-            .approve_genesis_miner(owner, self.runtime.authenticated_signer().unwrap())
+            .approve_add_genesis_miner(owner, self.runtime.authenticated_signer().unwrap())
             .await
     }
 

@@ -130,4 +130,7 @@ pub struct InstantiationArgument {
 pub enum ProxyError {
     #[error(transparent)]
     ViewError(#[from] ViewError),
+
+    #[error("Not exists")]
+    NotExists,
 }
