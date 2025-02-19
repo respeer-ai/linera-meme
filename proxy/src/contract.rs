@@ -57,7 +57,7 @@ impl Contract for ProxyContract {
     async fn execute_operation(&mut self, operation: ProxyOperation) -> ProxyResponse {
         // All operations must be run on user chain side
         if self.runtime.chain_id() == self.runtime.application_id().creation.chain_id {
-            panic!("Messages must only be run on creation chain");
+            panic!("Operations must not be run on creation chain");
         }
 
         match operation {
@@ -324,27 +324,67 @@ impl ProxyContract {
 mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{BytecodeId, Owner},
+        base::{ApplicationId, BytecodeId, ChainId, Owner},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
     };
-    use proxy::InstantiationArgument;
+    use proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse};
     use std::str::FromStr;
 
     use super::{ProxyContract, ProxyState};
 
     #[test]
-    fn operation() {}
+    #[should_panic(expected = "Operations must not be run on creation chain")]
+    fn operation() {
+        let mut proxy = create_and_instantiate_proxy();
+
+        let owner =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
+
+        let response = proxy
+            .execute_operation(ProxyOperation::ProposeAddGenesisMiner { owner })
+            .now_or_never()
+            .expect("Execution of proxy operation should not await anything");
+
+        assert!(matches!(response, ProxyResponse::Ok));
+    }
 
     #[test]
-    fn message() {}
+    fn message() {
+        // let mut proxy = create_and_instantiate_proxy();
+
+        // let owner =
+        //     Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+        //         .unwrap();
+
+        // proxy
+        //     .execute_message(ProxyMessage::ProposeAddGenesisMiner { owner })
+        //     .await;
+
+        // assert_eq!(proxy.state.genesis_miners.contains_key(&owner).await, true);
+    }
 
     #[test]
     fn cross_application_call() {}
 
     fn create_and_instantiate_proxy() -> ProxyContract {
-        let runtime = ContractRuntime::new().with_application_parameters(());
+        let operator =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
+        let chain_id =
+            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+                .unwrap();
+        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let application_id = ApplicationId::from_str(application_id_str)
+            .unwrap()
+            .with_abi::<ProxyAbi>();
+        let runtime = ContractRuntime::new()
+            .with_application_parameters(())
+            .with_authenticated_signer(operator)
+            .with_chain_id(chain_id)
+            .with_application_id(application_id);
         let mut contract = ProxyContract {
             state: ProxyState::load(runtime.root_view_storage_context())
                 .blocking_wait()
@@ -353,9 +393,6 @@ mod tests {
         };
 
         let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
-        let operator =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
 
         contract
             .instantiate(InstantiationArgument {
