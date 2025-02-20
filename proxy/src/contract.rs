@@ -144,6 +144,7 @@ impl Contract for ProxyContract {
                 meme_instantiation_argument,
             } => self
                 .on_msg_create_meme(meme_instantiation_argument)
+                .await
                 .expect("Failed MSG: create meme"),
 
             ProxyMessage::ProposeAddOperator { owner } => self
@@ -226,8 +227,14 @@ impl ProxyContract {
 
     fn on_op_create_meme(
         &mut self,
-        meme: MemeInstantiationArgument,
+        meme_instantiation_argument: MemeInstantiationArgument,
     ) -> Result<ProxyResponse, ProxyError> {
+        self.runtime
+            .prepare_message(ProxyMessage::CreateMeme {
+                meme_instantiation_argument,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
     }
 
@@ -295,7 +302,13 @@ impl ProxyContract {
         Ok(())
     }
 
-    fn on_msg_create_meme(&mut self, meme: MemeInstantiationArgument) -> Result<(), ProxyError> {
+    async fn on_msg_create_meme(
+        &mut self,
+        meme: MemeInstantiationArgument,
+    ) -> Result<(), ProxyError> {
+        // 1: create a new chain which allow and mandary proxy
+        // 2: create new meme application on created chain
+        // 3: change application permissions of created chain to meme application only
         Ok(())
     }
 
@@ -351,19 +364,27 @@ mod tests {
         assert!(matches!(response, ProxyResponse::Ok));
     }
 
-    #[test]
-    fn message() {
-        // let mut proxy = create_and_instantiate_proxy();
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message() {
+        let mut proxy = create_and_instantiate_proxy();
 
-        // let owner =
-        //     Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-        //         .unwrap();
+        let owner =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
 
-        // proxy
-        //     .execute_message(ProxyMessage::ProposeAddGenesisMiner { owner })
-        //     .await;
+        proxy
+            .execute_message(ProxyMessage::ProposeAddGenesisMiner { owner })
+            .await;
 
-        // assert_eq!(proxy.state.genesis_miners.contains_key(&owner).await, true);
+        assert_eq!(
+            proxy
+                .state
+                .genesis_miners
+                .contains_key(&owner)
+                .await
+                .unwrap(),
+            true
+        );
     }
 
     #[test]
