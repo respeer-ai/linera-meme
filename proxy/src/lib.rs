@@ -93,7 +93,12 @@ pub enum ProxyMessage {
     },
 
     CreateMeme {
-        meme_instantiation_argument: MemeInstantiationArgument,
+        instantiation_argument: MemeInstantiationArgument,
+    },
+    CreateMemeExt {
+        creator: Owner,
+        bytecode_id: BytecodeId,
+        instantiation_argument: MemeInstantiationArgument,
     },
 
     ProposeAddOperator {

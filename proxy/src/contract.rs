@@ -146,6 +146,14 @@ impl Contract for ProxyContract {
                 .on_msg_create_meme(meme_instantiation_argument)
                 .await
                 .expect("Failed MSG: create meme"),
+            ProxyMessage::CreateMemeExt {
+                creator,
+                bytecode_id,
+                instantiation_argument,
+            } => self
+                .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument)
+                .await
+                .expect("Failed MSG: create meme ext"),
 
             ProxyMessage::ProposeAddOperator { owner } => self
                 .on_msg_propose_add_operator(owner)
@@ -302,14 +310,87 @@ impl ProxyContract {
         Ok(())
     }
 
-    async fn on_msg_create_meme(
+    async fn meme_chain_owner_weights(&self) -> Result<Vec<(Owner, usize)>, ProxyError> {
+        let mut owner_weights = Vec::new();
+
+        for owner in self.state.genesis_miners().await? {
+            owner_weights.push((owner, 200))
+        }
+        for owner in self.state.miners().await? {
+            owner_weights.push((owner, 100))
+        }
+
+        owner_weights
+    }
+
+    async fn create_meme_chain(&mut self) -> Result<(MessageId, ChainId), ProxyError> {
+        let ownership = ChainOwnership::multiple(
+            self.meme_chain_owner_weights().await?,
+            100,
+            TimeoutConfig::default(),
+        );
+        let application_id = self.runtime.application_id();
+        let permissions = ApplicationPermissions::new_single(application_id.forget_abi());
+        self.runtime
+            .open_chain(ownership, permissions, Amount::from_tokens(1))
+    }
+
+    async fn on_creation_chain_msg_create_meme(
         &mut self,
         meme: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         // 1: create a new chain which allow and mandary proxy
-        // 2: create new meme application on created chain
-        // 3: change application permissions of created chain to meme application only
+        let (message_id, chain_id) = self.create_meme_chain().await?;
+
+        let bytecode_id = self.state.meme_bytecode_id().await?;
+        let creator = self.runtime.authenticated_signer().unwrap();
+
+        // 2: Send create meme message to target chain
+        self.runtime
+            .prepare_message(ProxyMessage::CreateMemeExt {
+                creator,
+                bytecode_id,
+                meme,
+            })
+            .with_authentication()
+            .send_to(chain_id);
         Ok(())
+    }
+
+    async fn create_meme_application(
+        &mut self,
+        bytecode_id: BytecodeId,
+        meme: MemeInstantiationArgument,
+    ) -> Result<ApplicationId, ProxyError> {
+        // It should be always run on target chain
+        let application_id = self.runtime.create_application(bytecode_id, (), meme);
+    }
+
+    async fn on_meme_chain_msg_create_meme(
+        &mut self,
+        creator: Owner,
+        bytecode_id: BytecodeId,
+        meme: MemeInstantiationArgument,
+    ) -> Result<(), ProxyError> {
+        // 1: Create meme application
+        self.create_meme_application(bytecode_id, meme).await?;
+        // 2: change application permissions of created chain to meme application only
+    }
+
+    async fn on_msg_create_meme(
+        &mut self,
+        meme: MemeInstantiationArgument,
+    ) -> Result<(), ProxyError> {
+        self.on_creation_chain_msg_create_meme(meme)
+    }
+
+    async fn on_msg_create_meme_ext(
+        &mut self,
+        creator: Owner,
+        bytecode_id: BytecodeId,
+        meme: MemeInstantiationArgument,
+    ) -> Result<(), ProxyError> {
+        self.on_meme_chain_msg_create_meme(creator, bytecode_idt, meme)
     }
 
     fn on_msg_propose_add_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
@@ -349,7 +430,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Operations must not be run on creation chain")]
-    fn operation() {
+    fn op_propose_add_genesis_miner() {
         let mut proxy = create_and_instantiate_proxy();
 
         let owner =
@@ -365,7 +446,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn message() {
+    async fn msg_propose_add_genesis_miner() {
         let mut proxy = create_and_instantiate_proxy();
 
         let owner =

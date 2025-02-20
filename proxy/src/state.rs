@@ -79,6 +79,10 @@ impl ProxyState {
         Ok(miners)
     }
 
+    pub(crate) async fn miners(&self) -> Result<Vec<Owner>, ProxyError> {
+        self.miners.indices().await?
+    }
+
     pub(crate) async fn validate_operator(&self, owner: Owner) -> Result<bool, ProxyError> {
         Ok(self.operators.contains_key(&owner).await?)
     }
@@ -109,5 +113,9 @@ impl ProxyState {
             return Ok(self.genesis_miners.remove(&owner)?);
         }
         Ok(self.removing_genesis_miners.insert(&owner, miner)?)
+    }
+
+    pub(crate) async fn meme_bytecode_id(&self) -> BytecodeId {
+        *self.meme_bytecode_id.get()
     }
 }
