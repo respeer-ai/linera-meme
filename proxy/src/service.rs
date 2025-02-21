@@ -62,9 +62,9 @@ struct MutationRoot {
 
 #[Object]
 impl MutationRoot {
-    async fn propose_add_genesis_miner(&self, owner: Owner) -> [u8; 0] {
+    async fn propose_add_genesis_miner(&self, owner: Owner, endpoint: Option<String>) -> [u8; 0] {
         self.runtime
-            .schedule_operation(&ProxyOperation::ProposeAddGenesisMiner { owner });
+            .schedule_operation(&ProxyOperation::ProposeAddGenesisMiner { owner, endpoint });
         []
     }
 }

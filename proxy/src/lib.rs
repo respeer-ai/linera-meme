@@ -1,6 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use abi::approval::Approval;
 use abi::meme::InstantiationArgument as MemeInstantiationArgument;
 use async_graphql::{Request, Response};
 use linera_sdk::{
@@ -24,11 +25,23 @@ impl ServiceAbi for ProxyAbi {
 }
 
 /// We don't set any chain for owner because it may be stored on-chain in future
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+pub struct Miner {
+    pub endpoint: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+pub struct GenesisMiner {
+    pub endpoint: Option<String>,
+    pub approval: Approval,
+}
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum ProxyOperation {
     ProposeAddGenesisMiner {
         owner: Owner,
+        // Endpoint is used to notify new chain to miner
+        endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
         owner: Owner,
@@ -41,12 +54,11 @@ pub enum ProxyOperation {
         owner: Owner,
     },
 
+    // Miner can only register from their client
     RegisterMiner {
-        owner: Owner,
+        endpoint: Option<String>,
     },
-    DeregisterMiner {
-        owner: Owner,
-    },
+    DeregisterMiner,
 
     CreateMeme {
         meme_instantiation_argument: MemeInstantiationArgument,
@@ -71,6 +83,7 @@ pub enum ProxyOperation {
 pub enum ProxyMessage {
     ProposeAddGenesisMiner {
         owner: Owner,
+        endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
         owner: Owner,
@@ -84,11 +97,9 @@ pub enum ProxyMessage {
     },
 
     RegisterMiner {
-        owner: Owner,
+        endpoint: Option<String>,
     },
-    DeregisterMiner {
-        owner: Owner,
-    },
+    DeregisterMiner,
 
     CreateMeme {
         instantiation_argument: MemeInstantiationArgument,

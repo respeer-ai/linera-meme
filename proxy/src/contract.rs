@@ -65,8 +65,8 @@ impl Contract for ProxyContract {
         }
 
         match operation {
-            ProxyOperation::ProposeAddGenesisMiner { owner } => self
-                .on_op_propose_add_genesis_miner(owner)
+            ProxyOperation::ProposeAddGenesisMiner { owner, endpoint } => self
+                .on_op_propose_add_genesis_miner(owner, endpoint)
                 .expect("Failed OP: propose add genesis miner"),
             ProxyOperation::ApproveAddGenesisMiner { owner } => self
                 .on_op_approve_add_genesis_miner(owner)
@@ -79,11 +79,11 @@ impl Contract for ProxyContract {
                 .on_op_approve_remove_genesis_miner(owner)
                 .expect("Failed OP: approve remove genesis miner"),
 
-            ProxyOperation::RegisterMiner { owner } => self
-                .on_op_register_miner(owner)
+            ProxyOperation::RegisterMiner { endpoint } => self
+                .on_op_register_miner(endpoint)
                 .expect("Failed OP: register miner"),
-            ProxyOperation::DeregisterMiner { owner } => self
-                .on_op_deregister_miner(owner)
+            ProxyOperation::DeregisterMiner => self
+                .on_op_deregister_miner()
                 .expect("Failed OP: deregister miner"),
 
             ProxyOperation::CreateMeme {
@@ -115,8 +115,8 @@ impl Contract for ProxyContract {
         }
 
         match message {
-            ProxyMessage::ProposeAddGenesisMiner { owner } => self
-                .on_msg_propose_add_genesis_miner(owner)
+            ProxyMessage::ProposeAddGenesisMiner { owner, endpoint } => self
+                .on_msg_propose_add_genesis_miner(owner, endpoint)
                 .await
                 .expect("Failed MSG: propose add genesis miner"),
             ProxyMessage::ApproveAddGenesisMiner { owner } => self
@@ -133,11 +133,11 @@ impl Contract for ProxyContract {
                 .await
                 .expect("Failed MSG: approve remove genesis miner"),
 
-            ProxyMessage::RegisterMiner { owner } => self
-                .on_msg_register_miner(owner)
+            ProxyMessage::RegisterMiner { endpoint } => self
+                .on_msg_register_miner(endpoint)
                 .expect("Failed MSG: register miner"),
-            ProxyMessage::DeregisterMiner { owner } => self
-                .on_msg_deregister_miner(owner)
+            ProxyMessage::DeregisterMiner => self
+                .on_msg_deregister_miner()
                 .expect("Failed MSG: deregister miner"),
 
             ProxyMessage::CreateMeme {
@@ -179,9 +179,10 @@ impl ProxyContract {
     fn on_op_propose_add_genesis_miner(
         &mut self,
         owner: Owner,
+        endpoint: Option<String>,
     ) -> Result<ProxyResponse, ProxyError> {
         self.runtime
-            .prepare_message(ProxyMessage::ProposeAddGenesisMiner { owner })
+            .prepare_message(ProxyMessage::ProposeAddGenesisMiner { owner, endpoint })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
@@ -220,11 +221,14 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_register_miner(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_register_miner(
+        &mut self,
+        endpoint: Option<String>,
+    ) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_deregister_miner(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_deregister_miner(&mut self) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
@@ -257,8 +261,12 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    async fn on_msg_propose_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        self.state.add_genesis_miner(owner).await?;
+    async fn on_msg_propose_add_genesis_miner(
+        &mut self,
+        owner: Owner,
+        endpoint: Option<String>,
+    ) -> Result<(), ProxyError> {
+        self.state.add_genesis_miner(owner, endpoint).await?;
         let signer = self.runtime.authenticated_signer().unwrap();
         if self.state.validate_operator(signer).await? {
             return self.state.approve_add_genesis_miner(owner, signer).await;
@@ -293,11 +301,11 @@ impl ProxyContract {
             .await
     }
 
-    fn on_msg_register_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    fn on_msg_register_miner(&mut self, endpoint: Option<String>) -> Result<(), ProxyError> {
         Ok(())
     }
 
-    fn on_msg_deregister_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    fn on_msg_deregister_miner(&mut self) -> Result<(), ProxyError> {
         Ok(())
     }
 

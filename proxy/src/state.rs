@@ -3,10 +3,10 @@
 
 use abi::approval::Approval;
 use linera_sdk::{
-    base::{BytecodeId, Owner},
+    base::{BytecodeId, ChainId, Owner, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
-use proxy::{InstantiationArgument, ProxyError};
+use proxy::{GenesisMiner, InstantiationArgument, Miner, ProxyError};
 use std::collections::HashMap;
 
 /// The application state.
@@ -17,11 +17,13 @@ pub struct ProxyState {
     /// Operator and banned
     pub operators: MapView<Owner, bool>,
     /// Genesis miner and approvals it should get
-    pub genesis_miners: MapView<Owner, Approval>,
+    pub genesis_miners: MapView<Owner, GenesisMiner>,
     /// Removing candidates of genesis miner
     pub removing_genesis_miners: MapView<Owner, Approval>,
     /// Miners and mining chains (ignore permissionless chain)
-    pub miners: MapView<Owner, u32>,
+    pub miners: MapView<Owner, Miner>,
+    /// Chains aleady created
+    pub chains: MapView<ChainId, Timestamp>,
 }
 
 #[allow(dead_code)]
@@ -44,10 +46,16 @@ impl ProxyState {
         })
     }
 
-    pub(crate) async fn add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    pub(crate) async fn add_genesis_miner(
+        &mut self,
+        owner: Owner,
+        endpoint: Option<String>,
+    ) -> Result<(), ProxyError> {
         if !self.genesis_miners.contains_key(&owner).await? {
             let approval = self.initial_approval().await?;
-            return Ok(self.genesis_miners.insert(&owner, approval)?);
+            return Ok(self
+                .genesis_miners
+                .insert(&owner, GenesisMiner { endpoint, approval })?);
         }
         Ok(())
     }
@@ -58,18 +66,18 @@ impl ProxyState {
         signer: Owner,
     ) -> Result<(), ProxyError> {
         let mut miner = self.genesis_miners.get(&owner).await?.unwrap();
-        if miner.approvers.contains_key(&signer) {
+        if miner.approval.approvers.contains_key(&signer) {
             return Ok(());
         }
-        miner.approvers.insert(signer, true);
+        miner.approval.approvers.insert(signer, true);
         Ok(self.genesis_miners.insert(&owner, miner)?)
     }
 
     pub(crate) async fn genesis_miners(&self) -> Result<Vec<Owner>, ProxyError> {
         let mut miners = Vec::new();
         self.genesis_miners
-            .for_each_index_value(|owner, approval| {
-                let approval = approval.into_owned();
+            .for_each_index_value(|owner, miner| {
+                let approval = miner.into_owned().approval;
                 if approval.approvers.len() >= approval.least_approvals {
                     miners.push(owner);
                 }
