@@ -5,7 +5,10 @@ use abi::approval::Approval;
 use abi::meme::InstantiationArgument as MemeInstantiationArgument;
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{BytecodeId, ChangeApplicationPermissionsError, ContractAbi, Owner, ServiceAbi},
+    base::{
+        BytecodeId, ChainId, ChangeApplicationPermissionsError, ContractAbi, MessageId, Owner,
+        ServiceAbi, Timestamp,
+    },
     graphql::GraphQLMutationRoot,
 };
 use linera_views::views::ViewError;
@@ -25,15 +28,25 @@ impl ServiceAbi for ProxyAbi {
 }
 
 /// We don't set any chain for owner because it may be stored on-chain in future
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Miner {
+    pub owner: Owner,
     pub endpoint: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GenesisMiner {
+    pub owner: Owner,
     pub endpoint: Option<String>,
     pub approval: Approval,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Chain {
+    pub chain_id: ChainId,
+    pub message_id: MessageId,
+    pub created_at: Timestamp,
 }
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]

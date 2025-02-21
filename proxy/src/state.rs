@@ -3,10 +3,10 @@
 
 use abi::approval::Approval;
 use linera_sdk::{
-    base::{BytecodeId, ChainId, Owner, Timestamp},
+    base::{BytecodeId, ChainId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
-use proxy::{GenesisMiner, InstantiationArgument, Miner, ProxyError};
+use proxy::{Chain, GenesisMiner, InstantiationArgument, Miner, ProxyError};
 use std::collections::HashMap;
 
 /// The application state.
@@ -23,7 +23,7 @@ pub struct ProxyState {
     /// Miners and mining chains (ignore permissionless chain)
     pub miners: MapView<Owner, Miner>,
     /// Chains aleady created
-    pub chains: MapView<ChainId, Timestamp>,
+    pub chains: MapView<ChainId, Chain>,
 }
 
 #[allow(dead_code)]
@@ -53,9 +53,14 @@ impl ProxyState {
     ) -> Result<(), ProxyError> {
         if !self.genesis_miners.contains_key(&owner).await? {
             let approval = self.initial_approval().await?;
-            return Ok(self
-                .genesis_miners
-                .insert(&owner, GenesisMiner { endpoint, approval })?);
+            return Ok(self.genesis_miners.insert(
+                &owner,
+                GenesisMiner {
+                    owner,
+                    endpoint,
+                    approval,
+                },
+            )?);
         }
         Ok(())
     }
