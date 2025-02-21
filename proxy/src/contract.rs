@@ -354,7 +354,10 @@ impl ProxyContract {
             })
             .with_authentication()
             .send_to(chain_id);
-        Ok(())
+
+        self.state
+            .create_chain(chain_id, message_id, self.runtime.system_time())
+            .await
     }
 
     fn create_meme_application(

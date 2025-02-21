@@ -3,7 +3,7 @@
 
 use abi::approval::Approval;
 use linera_sdk::{
-    base::{BytecodeId, ChainId, Owner},
+    base::{BytecodeId, ChainId, MessageId, Owner, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use proxy::{Chain, GenesisMiner, InstantiationArgument, Miner, ProxyError};
@@ -130,5 +130,21 @@ impl ProxyState {
 
     pub(crate) async fn meme_bytecode_id(&self) -> BytecodeId {
         self.meme_bytecode_id.get().unwrap()
+    }
+
+    pub(crate) async fn create_chain(
+        &mut self,
+        chain_id: ChainId,
+        message_id: MessageId,
+        timestamp: Timestamp,
+    ) -> Result<(), ProxyError> {
+        Ok(self.chains.insert(
+            &chain_id,
+            Chain {
+                chain_id,
+                message_id,
+                created_at: timestamp,
+            },
+        )?)
     }
 }
