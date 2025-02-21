@@ -156,7 +156,6 @@ impl Contract for ProxyContract {
                 instantiation_argument,
             } => self
                 .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument)
-                .await
                 .expect("Failed MSG: create meme ext"),
 
             ProxyMessage::ProposeAddOperator { owner } => self
@@ -362,34 +361,41 @@ impl ProxyContract {
         Ok(())
     }
 
-    async fn create_meme_application(
+    fn create_meme_application(
         &mut self,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
-    ) -> Result<ApplicationId, ProxyError> {
+    ) -> ApplicationId {
         // It should be always run on target chain
-        Ok(self
-            .runtime
+        self.runtime
             .create_application::<ProxyAbi, MemeParameters, MemeInstantiationArgument>(
                 bytecode_id,
                 &MemeParameters {},
                 &instantiation_argument,
                 vec![],
             )
-            .forget_abi())
+            .forget_abi()
     }
 
-    async fn on_meme_chain_msg_create_meme(
+    fn change_application_permissions(
+        &mut self,
+        application_id: ApplicationId,
+    ) -> Result<(), ProxyError> {
+        Ok(self
+            .runtime
+            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
+    }
+
+    fn on_meme_chain_msg_create_meme(
         &mut self,
         creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         // 1: Create meme application
-        self.create_meme_application(bytecode_id, instantiation_argument)
-            .await?;
+        let application_id = self.create_meme_application(bytecode_id, instantiation_argument);
         // 2: change application permissions of created chain to meme application only
-        Ok(())
+        self.change_application_permissions(application_id)
     }
 
     async fn on_msg_create_meme(
@@ -399,14 +405,13 @@ impl ProxyContract {
         self.on_creation_chain_msg_create_meme(meme).await
     }
 
-    async fn on_msg_create_meme_ext(
+    fn on_msg_create_meme_ext(
         &mut self,
         creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         self.on_meme_chain_msg_create_meme(creator, bytecode_id, instantiation_argument)
-            .await
     }
 
     fn on_msg_propose_add_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
