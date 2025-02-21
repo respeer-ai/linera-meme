@@ -9,8 +9,8 @@ use abi::meme::InstantiationArgument as MemeInstantiationArgument;
 use abi::meme::Parameters as MemeParameters;
 use linera_sdk::{
     base::{
-        Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId, ChainOwnership,
-        MessageId, Owner, TimeoutConfig, WithContractAbi,
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
+        ChainOwnership, MessageId, Owner, TimeoutConfig, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -18,6 +18,7 @@ use linera_sdk::{
 use proxy::{
     InstantiationArgument, ProxyAbi, ProxyError, ProxyMessage, ProxyOperation, ProxyResponse,
 };
+use std::str::FromStr;
 
 use self::state::ProxyState;
 
@@ -236,6 +237,19 @@ impl ProxyContract {
         &mut self,
         meme_instantiation_argument: MemeInstantiationArgument,
     ) -> Result<ProxyResponse, ProxyError> {
+        // Fix amount token will be transferred to meme chain as fee
+        let creator = self.runtime.authenticated_signer().unwrap();
+        let chain_id = self.runtime.application_id().creation.chain_id;
+        let application_id = self.runtime.application_id().forget_abi();
+        self.runtime.transfer(
+            Some(AccountOwner::User(creator)),
+            Account {
+                chain_id,
+                owner: Some(AccountOwner::Application(application_id)),
+            },
+            Amount::from_str("1").unwrap(),
+        );
+
         self.runtime
             .prepare_message(ProxyMessage::CreateMeme {
                 instantiation_argument: meme_instantiation_argument,
