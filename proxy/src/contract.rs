@@ -451,7 +451,10 @@ mod tests {
                 .unwrap();
 
         let response = proxy
-            .execute_operation(ProxyOperation::ProposeAddGenesisMiner { owner, endpoint: None })
+            .execute_operation(ProxyOperation::ProposeAddGenesisMiner {
+                owner,
+                endpoint: None,
+            })
             .now_or_never()
             .expect("Execution of proxy operation should not await anything");
 
@@ -467,7 +470,10 @@ mod tests {
                 .unwrap();
 
         proxy
-            .execute_message(ProxyMessage::ProposeAddGenesisMiner { owner, endpoint: None })
+            .execute_message(ProxyMessage::ProposeAddGenesisMiner {
+                owner,
+                endpoint: None,
+            })
             .await;
 
         assert_eq!(
@@ -479,6 +485,15 @@ mod tests {
                 .unwrap(),
             true
         );
+
+        let miner = proxy
+            .state
+            .genesis_miners
+            .get(&owner)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(miner.endpoint, None);
     }
 
     #[test]

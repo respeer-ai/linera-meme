@@ -56,7 +56,10 @@ async fn multi_chain_test() {
         .add_block(|block| {
             block.with_operation(
                 application_id,
-                proxy::ProxyOperation::ProposeAddGenesisMiner { owner, endpoint: None },
+                proxy::ProxyOperation::ProposeAddGenesisMiner {
+                    owner,
+                    endpoint: None,
+                },
             );
         })
         .await;
