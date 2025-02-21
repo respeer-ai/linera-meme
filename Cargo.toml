@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "proxy",
+    "meme",
     "abi",
 ]
 resolver = "2"
@@ -18,6 +19,7 @@ thiserror = "^1.0.65"
 log = "0.4.21"
 
 abi = { path = "./abi" }
+meme = { path = "./meme" }
 
 [profile.release]
 debug = true

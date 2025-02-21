@@ -1,5 +1,5 @@
 [package]
-name = "proxy"
+name = "meme"
 version = "0.1.0"
 authors = ["ResPeer <contact@respeer.ai>"]
 edition = "2021"
@@ -8,13 +8,7 @@ edition = "2021"
 async-graphql.workspace = true
 futures.workspace = true
 linera-sdk.workspace = true
-linera-views.workspace = true
-serde.workspace = true
 serde_json.workspace = true
-abi.workspace = true
-thiserror.workspace = true
-log.workspace = true
-meme.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 linera-sdk = { workspace = true, features = ["test", "wasmer"] }
@@ -25,9 +19,9 @@ assert_matches.workspace = true
 linera-sdk = { workspace = true, features = ["test"] }
 
 [[bin]]
-name = "proxy_contract"
+name = "meme_contract"
 path = "src/contract.rs"
 
 [[bin]]
-name = "proxy_service"
+name = "meme_service"
 path = "src/service.rs"
