@@ -5,12 +5,16 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
+use abi::{
+    meme::{InstantiationArgument as MemeInstantiationArgument, Meme, Metadata, Mint},
+    store_type::StoreType,
+};
 use linera_sdk::{
-    base::{ApplicationId, BytecodeId, Owner},
+    base::{Amount, Owner},
     test::{Medium, MessageAction, QueryOutcome, TestValidator},
 };
-use meme::MemeAbi;
 use serde_json::json;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 /// Test setting a proxy and testing its coherency across microchains.
@@ -94,5 +98,57 @@ async fn multi_chain_test() {
         .graphql_query(application_id, "query { genesisMiners }")
         .await;
     let expected = json!({"genesisMiners": [owner]});
+    assert_eq!(response, expected);
+
+    let certificate = meme_chain
+        .add_block(|block| {
+            block.with_operation(
+                application_id,
+                proxy::ProxyOperation::CreateMeme {
+                    meme_instantiation_argument: MemeInstantiationArgument {
+                        meme: Meme {
+                            name: "Test Token".to_string(),
+                            ticker: "LTT".to_string(),
+                            decimals: 6,
+                            initial_supply: Amount::from_tokens(21000000),
+                            metadata: Metadata {
+                                logo_store_type: StoreType::S3,
+                                logo: "Test Logo".to_string(),
+                                description: "Test token description".to_string(),
+                                twitter: None,
+                                telegram: None,
+                                discord: None,
+                                website: None,
+                                github: None,
+                            },
+                        },
+                        mint: Some(Mint {
+                            fixed_currency: true,
+                            initial_currency: Amount::from_str("0.0000001").unwrap(),
+                        }),
+                        fee_percent: Some(Amount::from_str("0.2").unwrap()),
+                        blob_gateway_application_id: None,
+                        ams_application_id: None,
+                        swap_application_id: None,
+                        initial_balances: HashMap::new(),
+                    },
+                },
+            );
+        })
+        .await;
+    proxy_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(application_id, "query { chains }")
+        .await;
+    let expected = json!({"chains": [owner]});
     assert_eq!(response, expected);
 }

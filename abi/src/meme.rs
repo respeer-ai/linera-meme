@@ -21,7 +21,6 @@ pub struct Metadata {
 pub struct Mint {
     pub initial_currency: Amount,
     pub fixed_currency: bool,
-    pub swap_application_id: ApplicationId,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
