@@ -1,4 +1,5 @@
 use crate::store_type::StoreType;
+use async_graphql::scalar;
 use async_graphql::InputObject;
 use linera_sdk::base::{Amount, ApplicationId};
 use serde::{Deserialize, Serialize};
@@ -42,3 +43,8 @@ pub struct InstantiationArgument {
     pub swap_application_id: Option<ApplicationId>,
     pub initial_balances: HashMap<String, Amount>,
 }
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub struct Parameters {}
+
+scalar!(Parameters);

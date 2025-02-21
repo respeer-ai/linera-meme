@@ -80,7 +80,7 @@ impl ProxyState {
     }
 
     pub(crate) async fn miners(&self) -> Result<Vec<Owner>, ProxyError> {
-        self.miners.indices().await?
+        Ok(self.miners.indices().await?)
     }
 
     pub(crate) async fn validate_operator(&self, owner: Owner) -> Result<bool, ProxyError> {
@@ -116,6 +116,6 @@ impl ProxyState {
     }
 
     pub(crate) async fn meme_bytecode_id(&self) -> BytecodeId {
-        *self.meme_bytecode_id.get()
+        self.meme_bytecode_id.get().unwrap()
     }
 }
