@@ -105,10 +105,6 @@ impl Contract for ProxyContract {
             ProxyOperation::ApproveBanOperator { owner } => self
                 .on_op_approve_ban_operator(owner)
                 .expect("Failed OP: approve ban operator"),
-
-            ProxyOperation::Subscribe => {
-                self.on_op_subscribe().expect("Failed OP: subscribe event")
-            }
         }
     }
 
@@ -171,10 +167,6 @@ impl Contract for ProxyContract {
             ProxyMessage::ApproveBanOperator { owner } => self
                 .on_msg_approve_ban_operator(owner)
                 .expect("Failed MSG: approve ban operator"),
-
-            ProxyMessage::Subscribe => self
-                .on_msg_subscribe()
-                .expect("Failed MSG: subscribe event"),
         }
     }
 
@@ -262,10 +254,6 @@ impl ProxyContract {
     }
 
     fn on_op_approve_ban_operator(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
-        Ok(ProxyResponse::Ok)
-    }
-
-    fn on_op_subscribe(&mut self) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
@@ -427,10 +415,6 @@ impl ProxyContract {
     }
 
     fn on_msg_approve_ban_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        Ok(())
-    }
-
-    fn on_msg_subscribe(&mut self) -> Result<(), ProxyError> {
         Ok(())
     }
 }

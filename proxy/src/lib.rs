@@ -65,8 +65,6 @@ pub enum ProxyOperation {
     ApproveBanOperator {
         owner: Owner,
     },
-
-    Subscribe,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -114,8 +112,6 @@ pub enum ProxyMessage {
     ApproveBanOperator {
         owner: Owner,
     },
-
-    Subscribe,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
