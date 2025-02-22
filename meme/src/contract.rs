@@ -10,7 +10,8 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use meme::MemeAbi;
+use meme::{MemeAbi, MemeOperation, MemeResponse};
+use abi::meme::InstantiationArgument;
 
 use self::state::MemeState;
 
@@ -27,7 +28,7 @@ impl WithContractAbi for MemeContract {
 
 impl Contract for MemeContract {
     type Message = ();
-    type InstantiationArgument = u64;
+    type InstantiationArgument = InstantiationArgument;
     type Parameters = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
@@ -37,17 +38,15 @@ impl Contract for MemeContract {
         MemeContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, value: u64) {
+    async fn instantiate(&mut self, instantiation_argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        self.state.value.set(value);
+        self.state.instantiate(instantiation_argument).await;
     }
 
-    async fn execute_operation(&mut self, operation: u64) -> u64 {
-        let new_value = self.state.value.get() + operation;
-        self.state.value.set(new_value);
-        new_value
+    async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
+        MemeResponse::Ok
     }
 
     async fn execute_message(&mut self, _message: ()) {
