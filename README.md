@@ -104,6 +104,10 @@ decentralized set of owners.
 - [ ] Configure developers lock strategy
 - [ ] Configure whitelist lock strategy
 
+### Stage 5: Meme Chain Open Eco-system
+
+- [ ] Build open eco-system for meme chain to let user define their proxy with exists miners
+
 ## Tokenomics of Meme Creators / Traders / Miners
 
 Meme creators can design their own tokens based on their unique vision.

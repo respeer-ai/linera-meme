@@ -1,7 +1,7 @@
 use crate::store_type::StoreType;
 use async_graphql::scalar;
 use async_graphql::InputObject;
-use linera_sdk::base::{Amount, ApplicationId};
+use linera_sdk::base::{Amount, ApplicationId, AccountOwner};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -26,6 +26,7 @@ pub struct Mint {
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
 pub struct Meme {
     pub initial_supply: Amount,
+    pub total_supply: Amount,
     pub name: String,
     pub ticker: String,
     pub decimals: u8,
@@ -40,7 +41,7 @@ pub struct InstantiationArgument {
     pub blob_gateway_application_id: Option<ApplicationId>,
     pub ams_application_id: Option<ApplicationId>,
     pub swap_application_id: Option<ApplicationId>,
-    pub initial_balances: HashMap<String, Amount>,
+    pub initial_balances: HashMap<AccountOwner, Amount>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

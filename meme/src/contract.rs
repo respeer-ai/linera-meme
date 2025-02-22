@@ -5,13 +5,13 @@
 
 mod state;
 
+use abi::meme::InstantiationArgument;
 use linera_sdk::{
     base::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
 use meme::{MemeAbi, MemeOperation, MemeResponse};
-use abi::meme::InstantiationArgument;
 
 use self::state::MemeState;
 

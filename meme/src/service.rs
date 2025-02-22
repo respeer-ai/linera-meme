@@ -8,12 +8,17 @@ mod state;
 use std::sync::Arc;
 
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
-use linera_sdk::{base::WithServiceAbi, views::View, Service, ServiceRuntime};
+use linera_sdk::{
+    base::{AccountOwner, Amount, WithServiceAbi},
+    views::View,
+    Service, ServiceRuntime,
+};
+use meme::MemeOperation;
 
 use self::state::MemeState;
 
 pub struct MemeService {
-    state: MemeState,
+    state: Arc<MemeState>,
     runtime: Arc<ServiceRuntime<Self>>,
 }
 
@@ -31,7 +36,7 @@ impl Service for MemeService {
             .await
             .expect("Failed to load state");
         MemeService {
-            state,
+            state: Arc::new(state),
             runtime: Arc::new(runtime),
         }
     }
@@ -39,7 +44,7 @@ impl Service for MemeService {
     async fn handle_query(&self, request: Request) -> Response {
         let schema = Schema::build(
             QueryRoot {
-                value: *self.state.value.get(),
+                state: self.state.clone(),
             },
             MutationRoot {
                 runtime: self.runtime.clone(),
@@ -57,20 +62,21 @@ struct MutationRoot {
 
 #[Object]
 impl MutationRoot {
-    async fn increment(&self, value: u64) -> [u8; 0] {
-        self.runtime.schedule_operation(&value);
+    async fn transfer(&self, to: AccountOwner, amount: Amount) -> [u8; 0] {
+        self.runtime
+            .schedule_operation(&MemeOperation::Transfer { to, amount });
         []
     }
 }
 
 struct QueryRoot {
-    value: u64,
+    state: Arc<MemeState>,
 }
 
 #[Object]
 impl QueryRoot {
-    async fn value(&self) -> &u64 {
-        &self.value
+    async fn total_supply(&self) -> Amount {
+        self.state.meme.get().as_ref().unwrap().total_supply
     }
 }
 

@@ -3,7 +3,7 @@
 
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{ContractAbi, ServiceAbi, AccountOwner, Amount},
+    base::{AccountOwner, Amount, ContractAbi, ServiceAbi},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};
@@ -22,10 +22,7 @@ impl ServiceAbi for MemeAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
-    Transfer {
-        to: AccountOwner,
-        amount: Amount,
-    }
+    Transfer { to: AccountOwner, amount: Amount },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
