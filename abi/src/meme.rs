@@ -1,7 +1,7 @@
 use crate::store_type::StoreType;
 use async_graphql::scalar;
 use async_graphql::InputObject;
-use linera_sdk::base::{Amount, ApplicationId, AccountOwner};
+use linera_sdk::base::{AccountOwner, Amount, ApplicationId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

@@ -82,6 +82,10 @@ impl QueryRoot {
     async fn genesis_miners(&self) -> Vec<Owner> {
         self.state.genesis_miners().await.unwrap()
     }
+
+    async fn count_chains(&self) -> usize {
+        self.state.chains.count().await.unwrap()
+    }
 }
 
 #[cfg(test)]

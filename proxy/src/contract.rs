@@ -18,7 +18,6 @@ use linera_sdk::{
 use proxy::{
     InstantiationArgument, ProxyAbi, ProxyError, ProxyMessage, ProxyOperation, ProxyResponse,
 };
-use std::str::FromStr;
 
 use self::state::ProxyState;
 
@@ -88,9 +87,10 @@ impl Contract for ProxyContract {
                 .expect("Failed OP: deregister miner"),
 
             ProxyOperation::CreateMeme {
+                fee_budget,
                 meme_instantiation_argument,
             } => self
-                .on_op_create_meme(meme_instantiation_argument)
+                .on_op_create_meme(fee_budget, meme_instantiation_argument)
                 .expect("Failed OP: create meme"),
 
             ProxyOperation::ProposeAddOperator { owner } => self
@@ -142,9 +142,10 @@ impl Contract for ProxyContract {
                 .expect("Failed MSG: deregister miner"),
 
             ProxyMessage::CreateMeme {
+                fee_budget,
                 instantiation_argument,
             } => self
-                .on_msg_create_meme(instantiation_argument)
+                .on_msg_create_meme(fee_budget, instantiation_argument)
                 .await
                 .expect("Failed MSG: create meme"),
             ProxyMessage::CreateMemeExt {
@@ -235,23 +236,29 @@ impl ProxyContract {
 
     fn on_op_create_meme(
         &mut self,
+        fee_budget: Option<Amount>,
         meme_instantiation_argument: MemeInstantiationArgument,
     ) -> Result<ProxyResponse, ProxyError> {
         // Fix amount token will be transferred to meme chain as fee
         let creator = self.runtime.authenticated_signer().unwrap();
         let chain_id = self.runtime.application_id().creation.chain_id;
         let application_id = self.runtime.application_id().forget_abi();
-        self.runtime.transfer(
-            Some(AccountOwner::User(creator)),
-            Account {
-                chain_id,
-                owner: Some(AccountOwner::Application(application_id)),
-            },
-            Amount::from_str("1").unwrap(),
-        );
+        let fee_budget = fee_budget.unwrap_or(Amount::ONE);
+
+        if fee_budget > Amount::ZERO {
+            self.runtime.transfer(
+                Some(AccountOwner::User(creator)),
+                Account {
+                    chain_id,
+                    owner: Some(AccountOwner::Application(application_id)),
+                },
+                fee_budget,
+            );
+        }
 
         self.runtime
             .prepare_message(ProxyMessage::CreateMeme {
+                fee_budget,
                 instantiation_argument: meme_instantiation_argument,
             })
             .with_authentication()
@@ -336,7 +343,10 @@ impl ProxyContract {
         Ok(owner_weights)
     }
 
-    async fn create_meme_chain(&mut self) -> Result<(MessageId, ChainId), ProxyError> {
+    async fn create_meme_chain(
+        &mut self,
+        fee_budget: Amount,
+    ) -> Result<(MessageId, ChainId), ProxyError> {
         let ownership = ChainOwnership::multiple(
             self.meme_chain_owner_weights().await?,
             100,
@@ -344,17 +354,16 @@ impl ProxyContract {
         );
         let application_id = self.runtime.application_id();
         let permissions = ApplicationPermissions::new_single(application_id.forget_abi());
-        Ok(self
-            .runtime
-            .open_chain(ownership, permissions, Amount::from_tokens(1)))
+        Ok(self.runtime.open_chain(ownership, permissions, fee_budget))
     }
 
     async fn on_creation_chain_msg_create_meme(
         &mut self,
+        fee_budget: Amount,
         instantiation_argument: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         // 1: create a new chain which allow and mandary proxy
-        let (message_id, chain_id) = self.create_meme_chain().await?;
+        let (message_id, chain_id) = self.create_meme_chain(fee_budget).await?;
 
         let bytecode_id = self.state.meme_bytecode_id().await;
         let creator = self.runtime.authenticated_signer().unwrap();
@@ -413,9 +422,11 @@ impl ProxyContract {
 
     async fn on_msg_create_meme(
         &mut self,
+        fee_budget: Amount,
         meme: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
-        self.on_creation_chain_msg_create_meme(meme).await
+        self.on_creation_chain_msg_create_meme(fee_budget, meme)
+            .await
     }
 
     fn on_msg_create_meme_ext(

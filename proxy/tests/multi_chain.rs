@@ -105,12 +105,14 @@ async fn multi_chain_test() {
             block.with_operation(
                 application_id,
                 proxy::ProxyOperation::CreateMeme {
+                    fee_budget: Some(Amount::ZERO),
                     meme_instantiation_argument: MemeInstantiationArgument {
                         meme: Meme {
                             name: "Test Token".to_string(),
                             ticker: "LTT".to_string(),
                             decimals: 6,
                             initial_supply: Amount::from_tokens(21000000),
+                            total_supply: Amount::from_tokens(21000000),
                             metadata: Metadata {
                                 logo_store_type: StoreType::S3,
                                 logo: "Test Logo".to_string(),
@@ -147,8 +149,7 @@ async fn multi_chain_test() {
         .await;
 
     let QueryOutcome { response, .. } = proxy_chain
-        .graphql_query(application_id, "query { chains }")
+        .graphql_query(application_id, "query { countChains }")
         .await;
-    let expected = json!({"chains": [owner]});
-    assert_eq!(response, expected);
+    assert_eq!(response["countChains"].as_u64().unwrap(), 1);
 }

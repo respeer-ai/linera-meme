@@ -6,8 +6,8 @@ use abi::meme::InstantiationArgument as MemeInstantiationArgument;
 use async_graphql::{Request, Response};
 use linera_sdk::{
     base::{
-        BytecodeId, ChainId, ChangeApplicationPermissionsError, ContractAbi, MessageId, Owner,
-        ServiceAbi, Timestamp,
+        Amount, BytecodeId, ChainId, ChangeApplicationPermissionsError, ContractAbi, MessageId,
+        Owner, ServiceAbi, Timestamp,
     },
     graphql::GraphQLMutationRoot,
 };
@@ -74,6 +74,7 @@ pub enum ProxyOperation {
     DeregisterMiner,
 
     CreateMeme {
+        fee_budget: Option<Amount>,
         meme_instantiation_argument: MemeInstantiationArgument,
     },
 
@@ -115,6 +116,7 @@ pub enum ProxyMessage {
     DeregisterMiner,
 
     CreateMeme {
+        fee_budget: Amount,
         instantiation_argument: MemeInstantiationArgument,
     },
     CreateMemeExt {
