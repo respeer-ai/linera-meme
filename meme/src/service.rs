@@ -84,31 +84,72 @@ impl QueryRoot {
 mod tests {
     use std::sync::Arc;
 
+    use abi::{
+        meme::{InstantiationArgument, Meme, Metadata, Mint},
+        store_type::StoreType,
+    };
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Service, ServiceRuntime};
+    use linera_sdk::{base::Amount, util::BlockingWait, views::View, Service, ServiceRuntime};
     use serde_json::json;
+    use std::collections::HashMap;
+    use std::str::FromStr;
 
     use super::{MemeService, MemeState};
 
-    #[test]
-    fn query() {
-        let value = 61_098_721_u64;
+    #[tokio::test(flavor = "multi_thread")]
+    async fn query() {
         let runtime = Arc::new(ServiceRuntime::<MemeService>::new());
         let mut state = MemeState::load(runtime.root_view_storage_context())
             .blocking_wait()
             .expect("Failed to read from mock key value store");
-        state.value.set(value);
 
-        let service = MemeService { state, runtime };
-        let request = Request::new("{ value }");
+        let instantiation_argument = InstantiationArgument {
+            meme: Meme {
+                name: "Test Token".to_string(),
+                ticker: "LTT".to_string(),
+                decimals: 6,
+                initial_supply: Amount::from_tokens(21000000),
+                total_supply: Amount::from_tokens(21000000),
+                metadata: Metadata {
+                    logo_store_type: StoreType::S3,
+                    logo: "Test Logo".to_string(),
+                    description: "Test token description".to_string(),
+                    twitter: None,
+                    telegram: None,
+                    discord: None,
+                    website: None,
+                    github: None,
+                },
+            },
+            mint: Some(Mint {
+                fixed_currency: true,
+                initial_currency: Amount::from_str("0.0000001").unwrap(),
+            }),
+            fee_percent: Some(Amount::from_str("0.2").unwrap()),
+            blob_gateway_application_id: None,
+            ams_application_id: None,
+            swap_application_id: None,
+            initial_balances: HashMap::new(),
+        };
+
+        state.instantiate(instantiation_argument.clone()).await;
+
+        let service = MemeService {
+            state: Arc::new(state),
+            runtime,
+        };
+        let request = Request::new("{ totalSupply }");
 
         let response = service
             .handle_query(request)
             .now_or_never()
             .expect("Query should not await anything");
 
-        let expected = Response::new(Value::from_json(json!({"value" : 61_098_721})).unwrap());
+        let expected = Response::new(
+            Value::from_json(json!({"totalSupply" : instantiation_argument.meme.total_supply}))
+                .unwrap(),
+        );
 
         assert_eq!(response, expected)
     }

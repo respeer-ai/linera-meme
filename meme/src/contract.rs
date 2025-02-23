@@ -60,60 +60,34 @@ impl Contract for MemeContract {
 
 #[cfg(test)]
 mod tests {
+    use abi::{
+        meme::{InstantiationArgument, Meme, Metadata, Mint},
+        store_type::StoreType,
+    };
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Contract, ContractRuntime};
+    use linera_sdk::{base::Amount, util::BlockingWait, views::View, Contract, ContractRuntime};
+    use std::collections::HashMap;
+    use std::str::FromStr;
 
     use super::{MemeContract, MemeState};
 
     #[test]
-    fn operation() {
-        let initial_value = 72_u64;
-        let mut counter = create_and_instantiate_counter(initial_value);
-
-        let increment = 42_308_u64;
-
-        let response = counter
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of counter operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*counter.state.value.get(), initial_value + increment);
-    }
+    fn operation() {}
 
     #[test]
     #[should_panic(expected = "Meme application doesn't support any cross-chain messages")]
     fn message() {
-        let initial_value = 72_u64;
-        let mut counter = create_and_instantiate_counter(initial_value);
+        let mut meme = create_and_instantiate_meme();
 
-        counter
-            .execute_message(())
+        meme.execute_message(())
             .now_or_never()
-            .expect("Execution of counter operation should not await anything");
+            .expect("Execution of meme operation should not await anything");
     }
 
     #[test]
-    fn cross_application_call() {
-        let initial_value = 2_845_u64;
-        let mut counter = create_and_instantiate_counter(initial_value);
+    fn cross_application_call() {}
 
-        let increment = 8_u64;
-
-        let response = counter
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of counter operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*counter.state.value.get(), expected_value);
-    }
-
-    fn create_and_instantiate_counter(initial_value: u64) -> MemeContract {
+    fn create_and_instantiate_meme() -> MemeContract {
         let runtime = ContractRuntime::new().with_application_parameters(());
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
@@ -122,12 +96,52 @@ mod tests {
             runtime,
         };
 
-        contract
-            .instantiate(initial_value)
-            .now_or_never()
-            .expect("Initialization of counter state should not await anything");
+        let instantiation_argument = InstantiationArgument {
+            meme: Meme {
+                name: "Test Token".to_string(),
+                ticker: "LTT".to_string(),
+                decimals: 6,
+                initial_supply: Amount::from_tokens(21000000),
+                total_supply: Amount::from_tokens(21000000),
+                metadata: Metadata {
+                    logo_store_type: StoreType::S3,
+                    logo: "Test Logo".to_string(),
+                    description: "Test token description".to_string(),
+                    twitter: None,
+                    telegram: None,
+                    discord: None,
+                    website: None,
+                    github: None,
+                },
+            },
+            mint: Some(Mint {
+                fixed_currency: true,
+                initial_currency: Amount::from_str("0.0000001").unwrap(),
+            }),
+            fee_percent: Some(Amount::from_str("0.2").unwrap()),
+            blob_gateway_application_id: None,
+            ams_application_id: None,
+            swap_application_id: None,
+            initial_balances: HashMap::new(),
+        };
 
-        assert_eq!(*contract.state.value.get(), initial_value);
+        contract
+            .instantiate(instantiation_argument.clone())
+            .now_or_never()
+            .expect("Initialization of meme state should not await anything");
+
+        assert_eq!(
+            *contract.state.meme.get().as_ref().unwrap(),
+            instantiation_argument.meme
+        );
+        assert_eq!(
+            *contract.state.mint.get().as_ref().unwrap(),
+            instantiation_argument.mint.unwrap()
+        );
+        assert_eq!(
+            *contract.state.fee_percent.get().as_ref().unwrap(),
+            instantiation_argument.fee_percent.unwrap()
+        );
 
         contract
     }
