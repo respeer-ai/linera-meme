@@ -349,7 +349,7 @@ impl ProxyContract {
     ) -> Result<(MessageId, ChainId), ProxyError> {
         let ownership = ChainOwnership::multiple(
             self.meme_chain_owner_weights().await?,
-            100,
+            0, // TODO: run in single leader mode firstly, will be updated when multi leader mode done
             TimeoutConfig::default(),
         );
         let application_id = self.runtime.application_id();
