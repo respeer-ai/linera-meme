@@ -41,6 +41,7 @@ pub struct InstantiationArgument {
     pub blob_gateway_application_id: Option<ApplicationId>,
     pub ams_application_id: Option<ApplicationId>,
     pub swap_application_id: Option<ApplicationId>,
+    pub proxy_application_id: Option<ApplicationId>,
     pub initial_balances: HashMap<AccountOwner, Amount>,
 }
 

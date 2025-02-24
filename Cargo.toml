@@ -20,6 +20,7 @@ log = "0.4.21"
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }
+proxy = { path = "./proxy" }
 
 [profile.release]
 debug = true

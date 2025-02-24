@@ -12,6 +12,7 @@ use linera_sdk::{
     Contract, ContractRuntime,
 };
 use meme::{MemeAbi, MemeError, MemeOperation, MemeResponse};
+use proxy::{ProxyAbi, ProxyOperation};
 
 use self::state::MemeState;
 
@@ -44,6 +45,8 @@ impl Contract for MemeContract {
 
         let owner = self.runtime.authenticated_signer().unwrap();
         self.state.instantiate(owner, instantiation_argument).await;
+
+        self.change_application_permissions().await
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -80,6 +83,19 @@ impl Contract for MemeContract {
 }
 
 impl MemeContract {
+    async fn change_application_permissions(&mut self) {
+        let application_id = self.runtime.application_id().forget_abi();
+        let call = ProxyOperation::ChangeApplicationPermissions { application_id };
+        let proxy_application_id = self
+            .state
+            .proxy_application_id()
+            .await
+            .with_abi::<ProxyAbi>();
+        let _ = self
+            .runtime
+            .call_application(true, proxy_application_id, &call);
+    }
+
     fn on_op_transfer(
         &mut self,
         to: AccountOwner,
@@ -207,6 +223,7 @@ mod tests {
             blob_gateway_application_id: None,
             ams_application_id: None,
             swap_application_id: None,
+            proxy_application_id: None,
             initial_balances: HashMap::new(),
         };
 

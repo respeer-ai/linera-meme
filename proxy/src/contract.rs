@@ -239,13 +239,16 @@ impl ProxyContract {
     fn on_op_create_meme(
         &mut self,
         fee_budget: Option<Amount>,
-        meme_instantiation_argument: MemeInstantiationArgument,
+        mut meme_instantiation_argument: MemeInstantiationArgument,
     ) -> Result<ProxyResponse, ProxyError> {
         // Fix amount token will be transferred to meme chain as fee
         let creator = self.runtime.authenticated_signer().unwrap();
         let chain_id = self.runtime.application_id().creation.chain_id;
         let application_id = self.runtime.application_id().forget_abi();
         let fee_budget = fee_budget.unwrap_or(Amount::ONE);
+
+        meme_instantiation_argument.proxy_application_id =
+            Some(self.runtime.application_id().forget_abi());
 
         if fee_budget > Amount::ZERO {
             self.runtime.transfer(

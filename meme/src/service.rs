@@ -135,6 +135,7 @@ mod tests {
             blob_gateway_application_id: None,
             ams_application_id: None,
             swap_application_id: None,
+            proxy_application_id: None,
             initial_balances: HashMap::new(),
         };
 
