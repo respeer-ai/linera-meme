@@ -140,11 +140,12 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Amount, Owner},
+        base::{Amount, ApplicationId, ChainId, Owner},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
     };
+    use meme::MemeAbi;
     use std::collections::HashMap;
     use std::str::FromStr;
 
@@ -170,8 +171,18 @@ mod tests {
         let operator =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
+        let chain_id =
+            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+                .unwrap();
+        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let application_id = ApplicationId::from_str(application_id_str)
+            .unwrap()
+            .with_abi::<MemeAbi>();
         let runtime = ContractRuntime::new()
             .with_application_parameters(())
+            .with_can_change_application_permissions(true)
+            .with_chain_id(chain_id)
+            .with_application_id(application_id)
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
