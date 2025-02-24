@@ -7,7 +7,7 @@ mod state;
 
 use abi::meme::InstantiationArgument;
 use linera_sdk::{
-    base::{AccountOwner, Amount, Owner, WithContractAbi},
+    base::{AccountOwner, Amount, ApplicationPermissions, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -45,6 +45,9 @@ impl Contract for MemeContract {
 
         let owner = self.runtime.authenticated_signer().unwrap();
         self.state.instantiate(owner, instantiation_argument).await;
+
+        self.change_application_permissions()
+            .expect("Failed change application permissions")
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -80,6 +83,13 @@ impl Contract for MemeContract {
 }
 
 impl MemeContract {
+    fn change_application_permissions(&mut self) -> Result<(), MemeError> {
+        let application_id = self.runtime.application_id().forget_abi();
+        Ok(self
+            .runtime
+            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
+    }
+
     fn on_op_transfer(
         &mut self,
         to: AccountOwner,

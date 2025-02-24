@@ -399,15 +399,6 @@ impl ProxyContract {
             .forget_abi()
     }
 
-    fn change_application_permissions(
-        &mut self,
-        application_id: ApplicationId,
-    ) -> Result<(), ProxyError> {
-        Ok(self
-            .runtime
-            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
-    }
-
     fn on_meme_chain_msg_create_meme(
         &mut self,
         creator: Owner,
@@ -415,9 +406,8 @@ impl ProxyContract {
         instantiation_argument: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         // 1: Create meme application
-        let application_id = self.create_meme_application(bytecode_id, instantiation_argument);
-        // 2: change application permissions of created chain to meme application only
-        self.change_application_permissions(application_id)
+        let _ = self.create_meme_application(bytecode_id, instantiation_argument);
+        Ok(())
     }
 
     async fn on_msg_create_meme(

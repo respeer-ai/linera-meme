@@ -3,7 +3,9 @@
 
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ContractAbi, Owner, ServiceAbi},
+    base::{
+        AccountOwner, Amount, ChangeApplicationPermissionsError, ContractAbi, Owner, ServiceAbi,
+    },
     graphql::GraphQLMutationRoot,
     views::ViewError,
 };
@@ -60,4 +62,7 @@ pub enum MemeResponse {
 pub enum MemeError {
     #[error(transparent)]
     ViewError(#[from] ViewError),
+
+    #[error(transparent)]
+    ChangeApplicationPermissionsError(#[from] ChangeApplicationPermissionsError),
 }

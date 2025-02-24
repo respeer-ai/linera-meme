@@ -5,10 +5,7 @@ use abi::approval::Approval;
 use abi::meme::InstantiationArgument as MemeInstantiationArgument;
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{
-        Amount, BytecodeId, ChainId, ChangeApplicationPermissionsError, ContractAbi, MessageId,
-        Owner, ServiceAbi, Timestamp,
-    },
+    base::{Amount, BytecodeId, ChainId, ContractAbi, MessageId, Owner, ServiceAbi, Timestamp},
     graphql::GraphQLMutationRoot,
 };
 use linera_views::views::ViewError;
@@ -157,9 +154,6 @@ pub struct InstantiationArgument {
 pub enum ProxyError {
     #[error(transparent)]
     ViewError(#[from] ViewError),
-
-    #[error(transparent)]
-    ChangeApplicationPermissionsError(#[from] ChangeApplicationPermissionsError),
 
     #[error("Not exists")]
     NotExists,
