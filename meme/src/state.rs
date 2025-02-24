@@ -3,7 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Meme, Mint};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ApplicationId},
+    base::{AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
@@ -12,6 +12,8 @@ use std::collections::HashMap;
 #[derive(RootView)]
 #[view(context = "ViewStorageContext")]
 pub struct MemeState {
+    pub owner: RegisterView<Option<Owner>>,
+
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
     pub mint: RegisterView<Option<Mint>>,
@@ -28,7 +30,8 @@ pub struct MemeState {
 
 #[allow(dead_code)]
 impl MemeState {
-    pub(crate) async fn instantiate(&mut self, argument: InstantiationArgument) {
+    pub(crate) async fn instantiate(&mut self, owner: Owner, argument: InstantiationArgument) {
+        self.owner.set(Some(owner));
         self.meme.set(Some(argument.meme));
         self.mint.set(argument.mint);
         self.fee_percent.set(argument.fee_percent);

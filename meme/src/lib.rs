@@ -22,7 +22,29 @@ impl ServiceAbi for MemeAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
-    Transfer { to: AccountOwner, amount: Amount },
+    Transfer {
+        to: AccountOwner,
+        amount: Amount,
+    },
+    TransferFrom {
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    },
+    Approve {
+        spender: AccountOwner,
+        amount: Amount,
+    },
+    BalanceOf {
+        owner: AccountOwner,
+    },
+    Mint {
+        to: Option<AccountOwner>,
+        amount: Amount,
+    },
+    TransferOwhership {
+        new_owner: AccountOwner,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

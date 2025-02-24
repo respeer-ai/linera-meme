@@ -42,7 +42,8 @@ impl Contract for MemeContract {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        self.state.instantiate(instantiation_argument).await;
+        let owner = self.runtime.authenticated_signer().unwrap();
+        self.state.instantiate(owner, instantiation_argument).await;
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -65,7 +66,12 @@ mod tests {
         store_type::StoreType,
     };
     use futures::FutureExt as _;
-    use linera_sdk::{base::Amount, util::BlockingWait, views::View, Contract, ContractRuntime};
+    use linera_sdk::{
+        base::{Amount, Owner},
+        util::BlockingWait,
+        views::View,
+        Contract, ContractRuntime,
+    };
     use std::collections::HashMap;
     use std::str::FromStr;
 
@@ -88,7 +94,12 @@ mod tests {
     fn cross_application_call() {}
 
     fn create_and_instantiate_meme() -> MemeContract {
-        let runtime = ContractRuntime::new().with_application_parameters(());
+        let operator =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
+        let runtime = ContractRuntime::new()
+            .with_application_parameters(())
+            .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
                 .blocking_wait()

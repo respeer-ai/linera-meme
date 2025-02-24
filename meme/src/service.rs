@@ -90,7 +90,12 @@ mod tests {
     };
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
-    use linera_sdk::{base::Amount, util::BlockingWait, views::View, Service, ServiceRuntime};
+    use linera_sdk::{
+        base::{Amount, Owner},
+        util::BlockingWait,
+        views::View,
+        Service, ServiceRuntime,
+    };
     use serde_json::json;
     use std::collections::HashMap;
     use std::str::FromStr;
@@ -133,7 +138,12 @@ mod tests {
             initial_balances: HashMap::new(),
         };
 
-        state.instantiate(instantiation_argument.clone()).await;
+        let owner =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
+        state
+            .instantiate(owner, instantiation_argument.clone())
+            .await;
 
         let service = MemeService {
             state: Arc::new(state),
