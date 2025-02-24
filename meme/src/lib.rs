@@ -3,10 +3,12 @@
 
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ContractAbi, ServiceAbi},
+    base::{AccountOwner, Amount, ContractAbi, Owner, ServiceAbi},
     graphql::GraphQLMutationRoot,
+    views::ViewError,
 };
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub struct MemeAbi;
 
@@ -42,8 +44,8 @@ pub enum MemeOperation {
         to: Option<AccountOwner>,
         amount: Amount,
     },
-    TransferOwhership {
-        new_owner: AccountOwner,
+    TransferOwnership {
+        new_owner: Owner,
     },
 }
 
@@ -51,4 +53,11 @@ pub enum MemeOperation {
 pub enum MemeResponse {
     #[default]
     Ok,
+}
+
+#[derive(Debug, Error)]
+#[allow(dead_code)]
+pub enum MemeError {
+    #[error(transparent)]
+    ViewError(#[from] ViewError),
 }

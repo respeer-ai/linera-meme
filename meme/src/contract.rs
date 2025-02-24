@@ -7,11 +7,11 @@ mod state;
 
 use abi::meme::InstantiationArgument;
 use linera_sdk::{
-    base::WithContractAbi,
+    base::{AccountOwner, Amount, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use meme::{MemeAbi, MemeOperation, MemeResponse};
+use meme::{MemeAbi, MemeError, MemeOperation, MemeResponse};
 
 use self::state::MemeState;
 
@@ -35,6 +35,7 @@ impl Contract for MemeContract {
         let state = MemeState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load state");
+        // TODO: change application permissions
         MemeContract { state, runtime }
     }
 
@@ -47,7 +48,26 @@ impl Contract for MemeContract {
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
-        MemeResponse::Ok
+        match operation {
+            MemeOperation::Transfer { to, amount } => self
+                .on_op_transfer(to, amount)
+                .expect("Failed OP: transfer"),
+            MemeOperation::TransferFrom { from, to, amount } => self
+                .on_op_transfer_from(from, to, amount)
+                .expect("Failed OP: trasnfer from"),
+            MemeOperation::Approve { spender, amount } => self
+                .on_op_approve(spender, amount)
+                .expect("Failed OP: approve"),
+            MemeOperation::BalanceOf { owner } => self
+                .on_call_balance_of(owner)
+                .expect("Failed Call: balance of"),
+            MemeOperation::Mint { to, amount } => {
+                self.on_op_mint(to, amount).expect("Failed OP: mint")
+            }
+            MemeOperation::TransferOwnership { new_owner } => self
+                .on_op_transfer_ownership(new_owner)
+                .expect("Failed OP: transfer ownership"),
+        }
     }
 
     async fn execute_message(&mut self, _message: ()) {
@@ -56,6 +76,49 @@ impl Contract for MemeContract {
 
     async fn store(mut self) {
         self.state.save().await.expect("Failed to save state");
+    }
+}
+
+impl MemeContract {
+    fn on_op_transfer(
+        &mut self,
+        to: AccountOwner,
+        amount: Amount,
+    ) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
+    }
+
+    fn on_op_transfer_from(
+        &mut self,
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    ) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
+    }
+
+    fn on_op_approve(
+        &mut self,
+        spender: AccountOwner,
+        amount: Amount,
+    ) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
+    }
+
+    fn on_call_balance_of(&mut self, to: AccountOwner) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
+    }
+
+    fn on_op_mint(
+        &mut self,
+        to: Option<AccountOwner>,
+        amount: Amount,
+    ) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
+    }
+
+    fn on_op_transfer_ownership(&mut self, owner: Owner) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
     }
 }
 
