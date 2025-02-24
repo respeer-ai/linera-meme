@@ -46,7 +46,7 @@ impl MemeState {
         self.proxy_application_id.set(argument.proxy_application_id);
     }
 
-    pub(crate) async fn proxy_application_id(&self) -> ApplicationId {
-        self.proxy_application_id.get().unwrap()
+    pub(crate) async fn proxy_application_id(&self) -> Option<ApplicationId> {
+        *self.proxy_application_id.get()
     }
 }

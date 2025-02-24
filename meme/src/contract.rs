@@ -84,16 +84,15 @@ impl Contract for MemeContract {
 
 impl MemeContract {
     async fn change_application_permissions(&mut self) {
-        let application_id = self.runtime.application_id().forget_abi();
-        let call = ProxyOperation::ChangeApplicationPermissions { application_id };
-        let proxy_application_id = self
-            .state
-            .proxy_application_id()
-            .await
-            .with_abi::<ProxyAbi>();
-        let _ = self
-            .runtime
-            .call_application(true, proxy_application_id, &call);
+        if let Some(proxy_application_id) = self.state.proxy_application_id().await {
+            let application_id = self.runtime.application_id().forget_abi();
+            let call = ProxyOperation::ChangeApplicationPermissions { application_id };
+            let _ = self.runtime.call_application(
+                true,
+                proxy_application_id.with_abi::<ProxyAbi>(),
+                &call,
+            );
+        }
     }
 
     fn on_op_transfer(
