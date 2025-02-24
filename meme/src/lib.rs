@@ -3,7 +3,7 @@
 
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ContractAbi, Owner, ServiceAbi},
+    base::{AccountOwner, Amount, ContractAbi, CryptoHash, Owner, ServiceAbi},
     graphql::GraphQLMutationRoot,
     views::ViewError,
 };
@@ -46,6 +46,9 @@ pub enum MemeOperation {
     },
     TransferOwnership {
         new_owner: Owner,
+    },
+    Mine {
+        nonce: CryptoHash,
     },
 }
 

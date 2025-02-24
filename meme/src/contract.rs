@@ -7,7 +7,7 @@ mod state;
 
 use abi::meme::InstantiationArgument;
 use linera_sdk::{
-    base::{AccountOwner, Amount, ApplicationPermissions, Owner, WithContractAbi},
+    base::{AccountOwner, Amount, ApplicationPermissions, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -50,7 +50,7 @@ impl Contract for MemeContract {
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
-        // TODO: Can only be run on users chain
+        // TODO: Can only be run on users chain except Mine
         match operation {
             MemeOperation::Transfer { to, amount } => self
                 .on_op_transfer(to, amount)
@@ -70,6 +70,8 @@ impl Contract for MemeContract {
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
                 .expect("Failed OP: transfer ownership"),
+            // Mine can only be run on creation chain
+            MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
         }
     }
 
@@ -133,6 +135,10 @@ impl MemeContract {
     }
 
     fn on_op_transfer_ownership(&mut self, owner: Owner) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::Ok)
+    }
+
+    fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
     }
 }
