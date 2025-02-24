@@ -5,8 +5,7 @@
 
 mod state;
 
-use abi::meme::InstantiationArgument as MemeInstantiationArgument;
-use abi::meme::Parameters as MemeParameters;
+use abi::meme::{InstantiationArgument as MemeInstantiationArgument, Parameters as MemeParameters};
 use linera_sdk::{
     base::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
@@ -106,6 +105,9 @@ impl Contract for ProxyContract {
             ProxyOperation::ApproveBanOperator { owner } => self
                 .on_op_approve_ban_operator(owner)
                 .expect("Failed OP: approve ban operator"),
+            ProxyOperation::ChangeApplicationPermissions { application_id } => self
+                .on_call_change_application_permissions(application_id)
+                .expect("Failed Call: change application permissions"),
         }
     }
 
@@ -406,7 +408,7 @@ impl ProxyContract {
         instantiation_argument: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         // 1: Create meme application
-        let _ = self.create_meme_application(bytecode_id, instantiation_argument);
+        let application_id = self.create_meme_application(bytecode_id, instantiation_argument);
         Ok(())
     }
 
@@ -442,6 +444,23 @@ impl ProxyContract {
 
     fn on_msg_approve_ban_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
         Ok(())
+    }
+
+    fn change_application_permissions(
+        &mut self,
+        application_id: ApplicationId,
+    ) -> Result<(), ProxyError> {
+        Ok(self
+            .runtime
+            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
+    }
+
+    fn on_call_change_application_permissions(
+        &mut self,
+        application_id: ApplicationId,
+    ) -> Result<ProxyResponse, ProxyError> {
+        self.change_application_permissions(application_id)?;
+        Ok(ProxyResponse::Ok)
     }
 }
 

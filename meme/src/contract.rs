@@ -35,7 +35,6 @@ impl Contract for MemeContract {
         let state = MemeState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load state");
-        // TODO: change application permissions
         MemeContract { state, runtime }
     }
 
@@ -45,12 +44,10 @@ impl Contract for MemeContract {
 
         let owner = self.runtime.authenticated_signer().unwrap();
         self.state.instantiate(owner, instantiation_argument).await;
-
-        self.change_application_permissions()
-            .expect("Failed change application permissions")
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
+        // TODO: Can only be run on users chain
         match operation {
             MemeOperation::Transfer { to, amount } => self
                 .on_op_transfer(to, amount)
@@ -83,13 +80,6 @@ impl Contract for MemeContract {
 }
 
 impl MemeContract {
-    fn change_application_permissions(&mut self) -> Result<(), MemeError> {
-        let application_id = self.runtime.application_id().forget_abi();
-        Ok(self
-            .runtime
-            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
-    }
-
     fn on_op_transfer(
         &mut self,
         to: AccountOwner,
