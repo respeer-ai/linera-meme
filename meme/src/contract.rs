@@ -252,13 +252,29 @@ mod tests {
         views::View,
         Contract, ContractRuntime,
     };
-    use meme::MemeAbi;
+    use meme::{MemeAbi, MemeOperation, MemeResponse};
     use std::str::FromStr;
 
     use super::{MemeContract, MemeState};
 
     #[test]
-    fn operation() {}
+    fn creation_chain_operation() {}
+
+    #[test]
+    #[should_panic(expected = "Operations must be run on right chain")]
+    fn user_chain_operation() {
+        let mut proxy = create_and_instantiate_meme();
+
+        let response = proxy
+            .execute_operation(MemeOperation::Mint {
+                to: None,
+                amount: Amount::from_tokens(1),
+            })
+            .now_or_never()
+            .expect("Execution of proxy operation should not await anything");
+
+        assert!(matches!(response, MemeResponse::Ok));
+    }
 
     #[test]
     fn message() {}
