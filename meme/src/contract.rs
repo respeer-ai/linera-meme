@@ -247,26 +247,26 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString},
+        base::{AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
     };
-    use meme::{MemeAbi, MemeOperation, MemeResponse};
+    use meme::{MemeAbi, MemeMessage, MemeOperation, MemeResponse};
     use std::str::FromStr;
 
     use super::{MemeContract, MemeState};
 
     #[test]
     fn creation_chain_operation() {
-        let mut proxy = create_and_instantiate_meme();
+        let mut meme = create_and_instantiate_meme();
 
-        let response = proxy
+        let response = meme
             .execute_operation(MemeOperation::Mine {
                 nonce: CryptoHash::new(&TestString::new("aaaa")),
             })
             .now_or_never()
-            .expect("Execution of proxy operation should not await anything");
+            .expect("Execution of meme operation should not await anything");
 
         assert!(matches!(response, MemeResponse::Ok));
     }
@@ -274,21 +274,67 @@ mod tests {
     #[test]
     #[should_panic(expected = "Operations must be run on right chain")]
     fn user_chain_operation() {
-        let mut proxy = create_and_instantiate_meme();
+        let mut meme = create_and_instantiate_meme();
 
-        let response = proxy
+        let response = meme
             .execute_operation(MemeOperation::Mint {
                 to: None,
                 amount: Amount::from_tokens(1),
             })
             .now_or_never()
-            .expect("Execution of proxy operation should not await anything");
+            .expect("Execution of meme operation should not await anything");
 
         assert!(matches!(response, MemeResponse::Ok));
     }
 
-    #[test]
-    fn message() {}
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message() {
+        let mut meme = create_and_instantiate_meme();
+
+        let to = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+        let amount = Amount::from_tokens(1);
+        meme.execute_message(MemeMessage::Mint { to: None, amount })
+            .await;
+
+        assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
+
+        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
+        let application = AccountOwner::Application(meme.runtime.application_id().forget_abi());
+        let owner_balance = meme.runtime.owner_balance(application);
+        assert_eq!(owner_balance, Amount::ZERO); // Message don't transfer native tokens, it's done in operation
+
+        let to = AccountOwner::User(
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03")
+                .unwrap(),
+        );
+        meme.execute_message(MemeMessage::Mint {
+            to: Some(to),
+            amount,
+        })
+        .await;
+
+        assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
+
+        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
+        let owner_balance = meme.runtime.owner_balance(application);
+        assert_eq!(owner_balance, Amount::ZERO);
+
+        meme.execute_message(MemeMessage::Mint {
+            to: Some(to),
+            amount,
+        })
+        .await;
+
+        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
+        assert_eq!(balance, amount.try_mul(2 as u128).unwrap());
+
+        let owner_balance = meme.runtime.owner_balance(application);
+        assert_eq!(owner_balance, Amount::ZERO);
+    }
 
     #[test]
     fn cross_application_call() {}
@@ -304,11 +350,13 @@ mod tests {
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<MemeAbi>();
+        let application = AccountOwner::Application(application_id.forget_abi());
         let runtime = ContractRuntime::new()
             .with_application_parameters(())
             .with_can_change_application_permissions(true)
             .with_chain_id(chain_id)
             .with_application_id(application_id)
+            .with_owner_balance(application, Amount::ZERO)
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
