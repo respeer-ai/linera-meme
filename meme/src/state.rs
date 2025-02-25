@@ -3,7 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Meme, Mint};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ApplicationId, Owner},
+    base::{Account, AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -14,6 +14,7 @@ use std::collections::HashMap;
 #[view(context = "ViewStorageContext")]
 pub struct MemeState {
     pub owner: RegisterView<Option<Owner>>,
+    pub holder: RegisterView<Option<AccountOwner>>,
 
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
@@ -62,6 +63,7 @@ impl MemeState {
         self.proxy_application_id.set(argument.proxy_application_id);
 
         self.balances.insert(&application, initial_supply)?;
+        self.holder.set(Some(application));
 
         Ok(())
     }
@@ -76,5 +78,32 @@ impl MemeState {
 
     pub(crate) async fn ams_application_id(&self) -> Option<ApplicationId> {
         *self.ams_application_id.get()
+    }
+
+    async fn transfer(
+        &mut self,
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let from_balance = self.balances.get(&from).await?.unwrap();
+
+        assert!(from_balance >= amount, "Insufficient balance");
+
+        let to_balance = if let Some(balance) = self.balances.get(&to).await? {
+            balance.try_add(amount)?
+        } else {
+            amount
+        };
+
+        self.balances.insert(&from, from_balance.try_sub(amount)?)?;
+        self.balances.insert(&to, to_balance)?;
+        Ok(())
+    }
+
+    pub(crate) async fn mint(&mut self, to: AccountOwner, amount: Amount) -> Result<(), MemeError> {
+        self.transfer(self.holder.get().unwrap(), to, amount).await
     }
 }

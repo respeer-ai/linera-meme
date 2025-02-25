@@ -3,7 +3,7 @@
 
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ContractAbi, CryptoHash, Owner, ServiceAbi},
+    base::{AccountOwner, Amount, ArithmeticError, ContractAbi, CryptoHash, Owner, ServiceAbi},
     graphql::GraphQLMutationRoot,
     views::ViewError,
 };
@@ -85,6 +85,9 @@ pub enum MemeResponse {
 pub enum MemeError {
     #[error(transparent)]
     ViewError(#[from] ViewError),
+
+    #[error(transparent)]
+    ArithmeticError(#[from] ArithmeticError),
 
     #[error("Inconsistent balance")]
     InconsistentBalance,

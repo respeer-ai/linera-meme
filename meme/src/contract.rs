@@ -7,7 +7,7 @@ mod state;
 
 use abi::meme::InstantiationArgument;
 use linera_sdk::{
-    base::{AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
+    base::{Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -96,9 +96,10 @@ impl Contract for MemeContract {
             MemeMessage::Approve { spender, amount } => self
                 .on_msg_approve(spender, amount)
                 .expect("Failed MSG: approve"),
-            MemeMessage::Mint { to, amount } => {
-                self.on_msg_mint(to, amount).expect("Failed MSG: mint")
-            }
+            MemeMessage::Mint { to, amount } => self
+                .on_msg_mint(to, amount)
+                .await
+                .expect("Failed MSG: mint"),
             MemeMessage::TransferOwnership { new_owner } => self
                 .on_msg_transfer_ownership(new_owner)
                 .expect("Failed MSG: transfer ownership"),
@@ -175,6 +176,25 @@ impl MemeContract {
         to: Option<AccountOwner>,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
+        let owner = self.runtime.authenticated_signer().unwrap();
+        let application_id = self.runtime.application_id().forget_abi();
+        let chain_id = self.runtime.application_id().creation.chain_id;
+
+        // TODO: add mint fee
+
+        self.runtime.transfer(
+            Some(AccountOwner::User(owner)),
+            Account {
+                chain_id,
+                owner: Some(AccountOwner::Application(application_id)),
+            },
+            amount,
+        );
+
+        self.runtime
+            .prepare_message(MemeMessage::Mint { to, amount })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(MemeResponse::Ok)
     }
 
@@ -203,8 +223,15 @@ impl MemeContract {
         Ok(())
     }
 
-    fn on_msg_mint(&mut self, to: Option<AccountOwner>, amount: Amount) -> Result<(), MemeError> {
-        Ok(())
+    async fn on_msg_mint(
+        &mut self,
+        to: Option<AccountOwner>,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        let to = to.unwrap_or(AccountOwner::User(
+            self.runtime.authenticated_signer().unwrap(),
+        ));
+        Ok(self.state.mint(to, amount).await?)
     }
 
     fn on_msg_transfer_ownership(&mut self, owner: Owner) -> Result<(), MemeError> {
