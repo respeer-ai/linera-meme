@@ -37,9 +37,6 @@ pub enum MemeOperation {
         spender: AccountOwner,
         amount: Amount,
     },
-    BalanceOf {
-        owner: AccountOwner,
-    },
     Mint {
         to: Option<AccountOwner>,
         amount: Amount,
@@ -50,6 +47,31 @@ pub enum MemeOperation {
     Mine {
         nonce: CryptoHash,
     },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum MemeMessage {
+    Transfer {
+        to: AccountOwner,
+        amount: Amount,
+    },
+    TransferFrom {
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    },
+    Approve {
+        spender: AccountOwner,
+        amount: Amount,
+    },
+    Mint {
+        to: Option<AccountOwner>,
+        amount: Amount,
+    },
+    TransferOwnership {
+        new_owner: Owner,
+    },
+    // Mine is only run on creation chain so we don't need a message
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

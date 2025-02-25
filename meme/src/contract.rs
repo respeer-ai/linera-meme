@@ -11,7 +11,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use meme::{MemeAbi, MemeError, MemeOperation, MemeResponse};
+use meme::{MemeAbi, MemeError, MemeMessage, MemeOperation, MemeResponse};
 use proxy::{ProxyAbi, ProxyOperation};
 
 use self::state::MemeState;
@@ -28,7 +28,7 @@ impl WithContractAbi for MemeContract {
 }
 
 impl Contract for MemeContract {
-    type Message = ();
+    type Message = MemeMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = ();
 
@@ -70,26 +70,39 @@ impl Contract for MemeContract {
             MemeOperation::Approve { spender, amount } => self
                 .on_op_approve(spender, amount)
                 .expect("Failed OP: approve"),
-            MemeOperation::BalanceOf { owner } => self
-                .on_call_balance_of(owner)
-                .expect("Failed Call: balance of"),
             MemeOperation::Mint { to, amount } => {
                 self.on_op_mint(to, amount).expect("Failed OP: mint")
             }
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
                 .expect("Failed OP: transfer ownership"),
-            // Mine can only be run on creation chain
             MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
         }
     }
 
-    async fn execute_message(&mut self, _message: ()) {
+    async fn execute_message(&mut self, message: MemeMessage) {
         // All messages must be run on creation chain side
         if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
             panic!("Messages must only be run on creation chain");
         }
-        panic!("Meme application doesn't support any cross-chain messages");
+
+        match message {
+            MemeMessage::Transfer { to, amount } => self
+                .on_msg_transfer(to, amount)
+                .expect("Failed MSG: transfer"),
+            MemeMessage::TransferFrom { from, to, amount } => self
+                .on_msg_transfer_from(from, to, amount)
+                .expect("Failed MSG: trasnfer from"),
+            MemeMessage::Approve { spender, amount } => self
+                .on_msg_approve(spender, amount)
+                .expect("Failed MSG: approve"),
+            MemeMessage::Mint { to, amount } => {
+                self.on_msg_mint(to, amount).expect("Failed MSG: mint")
+            }
+            MemeMessage::TransferOwnership { new_owner } => self
+                .on_msg_transfer_ownership(new_owner)
+                .expect("Failed MSG: transfer ownership"),
+        }
     }
 
     async fn store(mut self) {
@@ -127,6 +140,7 @@ impl MemeContract {
             MemeOperation::Mine { .. } => {
                 self.runtime.chain_id() == self.runtime.application_id().creation.chain_id
             }
+            MemeOperation::TransferOwnership { .. } => true,
             _ => self.runtime.chain_id() != self.runtime.application_id().creation.chain_id,
         }
     }
@@ -156,10 +170,6 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    fn on_call_balance_of(&mut self, to: AccountOwner) -> Result<MemeResponse, MemeError> {
-        Ok(MemeResponse::Ok)
-    }
-
     fn on_op_mint(
         &mut self,
         to: Option<AccountOwner>,
@@ -174,6 +184,31 @@ impl MemeContract {
 
     fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
+    }
+
+    fn on_msg_transfer(&mut self, to: AccountOwner, amount: Amount) -> Result<(), MemeError> {
+        Ok(())
+    }
+
+    fn on_msg_transfer_from(
+        &mut self,
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        Ok(())
+    }
+
+    fn on_msg_approve(&mut self, spender: AccountOwner, amount: Amount) -> Result<(), MemeError> {
+        Ok(())
+    }
+
+    fn on_msg_mint(&mut self, to: Option<AccountOwner>, amount: Amount) -> Result<(), MemeError> {
+        Ok(())
+    }
+
+    fn on_msg_transfer_ownership(&mut self, owner: Owner) -> Result<(), MemeError> {
+        Ok(())
     }
 }
 
@@ -199,14 +234,7 @@ mod tests {
     fn operation() {}
 
     #[test]
-    #[should_panic(expected = "Meme application doesn't support any cross-chain messages")]
-    fn message() {
-        let mut meme = create_and_instantiate_meme();
-
-        meme.execute_message(())
-            .now_or_never()
-            .expect("Execution of meme operation should not await anything");
-    }
+    fn message() {}
 
     #[test]
     fn cross_application_call() {}
