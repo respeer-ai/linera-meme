@@ -50,7 +50,9 @@ impl Contract for MemeContract {
             .await
             .expect("Failed instantiate");
 
-        self.change_application_permissions().await
+        self.register_application().await;
+        self.register_logo().await;
+        self.change_application_permissions().await;
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -96,6 +98,18 @@ impl Contract for MemeContract {
 }
 
 impl MemeContract {
+    async fn register_application(&mut self) {
+        if let Some(ams_application_id) = self.state.ams_application_id().await {
+            // TODO: register application to ams
+        }
+    }
+
+    async fn register_logo(&mut self) {
+        if let Some(blob_gateway_application_id) = self.state.blob_gateway_application_id().await {
+            // TODO: register application logo to blob gateway
+        }
+    }
+
     async fn change_application_permissions(&mut self) {
         if let Some(proxy_application_id) = self.state.proxy_application_id().await {
             let application_id = self.runtime.application_id().forget_abi();
