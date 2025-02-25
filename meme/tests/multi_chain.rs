@@ -10,8 +10,8 @@ use abi::{
     store_type::StoreType,
 };
 use linera_sdk::{
-    base::Amount,
-    test::{QueryOutcome, TestValidator},
+    base::{AccountOwner, Amount, Owner},
+    test::{Medium, MessageAction, QueryOutcome, TestValidator},
 };
 use std::str::FromStr;
 
@@ -20,10 +20,12 @@ use std::str::FromStr;
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn single_chain_test() {
+async fn multi_chain_test() {
     let (validator, bytecode_id) =
         TestValidator::with_current_bytecode::<meme::MemeAbi, (), InstantiationArgument>().await;
-    let mut chain = validator.new_chain().await;
+
+    let mut meme_chain = validator.new_chain().await;
+    let user_chain = validator.new_chain().await;
 
     let instantiation_argument = InstantiationArgument {
         meme: Meme {
@@ -54,15 +56,49 @@ async fn single_chain_test() {
         proxy_application_id: None,
     };
 
-    let application_id = chain
+    let application_id = meme_chain
         .create_application(bytecode_id, (), instantiation_argument.clone(), vec![])
         .await;
+    let application = AccountOwner::Application(application_id.forget_abi());
 
-    let QueryOutcome { response, .. } = chain
+    user_chain.register_application(application_id).await;
+
+    let QueryOutcome { response, .. } = meme_chain
         .graphql_query(application_id, "query { totalSupply }")
         .await;
     assert_eq!(
         Amount::from_str(response["totalSupply"].as_str().unwrap()).unwrap(),
         instantiation_argument.meme.total_supply
     );
+
+    let amount = Amount::from_tokens(1);
+
+    let certificate = user_chain
+        .add_block(|block| {
+            block.with_operation(
+                application_id,
+                meme::MemeOperation::Mint { to: None, amount },
+            );
+        })
+        .await;
+    meme_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+
+    let owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
+
+    let query = format!("query {{ balanceOf(owner: {}) }}", owner);
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        amount
+    );
+
+    // TODO: check application balance
 }
