@@ -247,7 +247,7 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Amount, ApplicationId, ChainId, Owner},
+        base::{Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -258,7 +258,18 @@ mod tests {
     use super::{MemeContract, MemeState};
 
     #[test]
-    fn creation_chain_operation() {}
+    fn creation_chain_operation() {
+        let mut proxy = create_and_instantiate_meme();
+
+        let response = proxy
+            .execute_operation(MemeOperation::Mine {
+                nonce: CryptoHash::new(&TestString::new("aaaa")),
+            })
+            .now_or_never()
+            .expect("Execution of proxy operation should not await anything");
+
+        assert!(matches!(response, MemeResponse::Ok));
+    }
 
     #[test]
     #[should_panic(expected = "Operations must be run on right chain")]
