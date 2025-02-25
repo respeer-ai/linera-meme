@@ -63,4 +63,7 @@ pub enum MemeResponse {
 pub enum MemeError {
     #[error(transparent)]
     ViewError(#[from] ViewError),
+
+    #[error("Inconsistent balance")]
+    InconsistentBalance,
 }

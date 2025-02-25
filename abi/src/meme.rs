@@ -1,9 +1,8 @@
 use crate::store_type::StoreType;
 use async_graphql::scalar;
 use async_graphql::InputObject;
-use linera_sdk::base::{AccountOwner, Amount, ApplicationId};
+use linera_sdk::base::{Amount, ApplicationId};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
 pub struct Metadata {
@@ -42,7 +41,6 @@ pub struct InstantiationArgument {
     pub ams_application_id: Option<ApplicationId>,
     pub swap_application_id: Option<ApplicationId>,
     pub proxy_application_id: Option<ApplicationId>,
-    pub initial_balances: HashMap<AccountOwner, Amount>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

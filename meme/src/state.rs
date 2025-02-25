@@ -6,6 +6,7 @@ use linera_sdk::{
     base::{AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
+use meme::MemeError;
 use std::collections::HashMap;
 
 /// The application state.
@@ -27,13 +28,28 @@ pub struct MemeState {
     // Account information
     pub balances: MapView<AccountOwner, Amount>,
     pub allowances: MapView<AccountOwner, HashMap<AccountOwner, Amount>>,
-    pub locked_allowances: MapView<AccountOwner, Amount>,
 }
+
+/// If the owner would like to create pool of this token to swap fairly, it
+/// should mint from the application balance then create
 
 #[allow(dead_code)]
 impl MemeState {
-    pub(crate) async fn instantiate(&mut self, owner: Owner, argument: InstantiationArgument) {
+    pub(crate) async fn instantiate(
+        &mut self,
+        owner: Owner,
+        application: AccountOwner,
+        mut argument: InstantiationArgument,
+    ) -> Result<(), MemeError> {
         self.owner.set(Some(owner));
+
+        assert!(
+            argument.meme.initial_supply > Amount::ZERO,
+            "Invalid initial supply"
+        );
+        let initial_supply = argument.meme.initial_supply;
+
+        argument.meme.total_supply = argument.meme.initial_supply;
 
         self.meme.set(Some(argument.meme));
         self.mint.set(argument.mint);
@@ -44,6 +60,10 @@ impl MemeState {
         self.ams_application_id.set(argument.ams_application_id);
         self.swap_application_id.set(argument.swap_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
+
+        self.balances.insert(&application, initial_supply)?;
+
+        Ok(())
     }
 
     pub(crate) async fn proxy_application_id(&self) -> Option<ApplicationId> {

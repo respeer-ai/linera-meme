@@ -44,7 +44,11 @@ impl Contract for MemeContract {
         self.runtime.application_parameters();
 
         let owner = self.runtime.authenticated_signer().unwrap();
-        self.state.instantiate(owner, instantiation_argument).await;
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        self.state
+            .instantiate(owner, application, instantiation_argument)
+            .await
+            .expect("Failed instantiate");
 
         self.change_application_permissions().await
     }
