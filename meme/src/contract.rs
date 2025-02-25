@@ -7,7 +7,7 @@ mod state;
 
 use abi::meme::InstantiationArgument;
 use linera_sdk::{
-    base::{AccountOwner, Amount, ApplicationPermissions, CryptoHash, Owner, WithContractAbi},
+    base::{AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -50,7 +50,10 @@ impl Contract for MemeContract {
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
-        // TODO: Can only be run on users chain except Mine
+        if !self.operation_executable(&operation) {
+            panic!("Operations must be run on right chain");
+        }
+
         match operation {
             MemeOperation::Transfer { to, amount } => self
                 .on_op_transfer(to, amount)
@@ -76,6 +79,10 @@ impl Contract for MemeContract {
     }
 
     async fn execute_message(&mut self, _message: ()) {
+        // All messages must be run on creation chain side
+        if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
+            panic!("Messages must only be run on creation chain");
+        }
         panic!("Meme application doesn't support any cross-chain messages");
     }
 
@@ -94,6 +101,15 @@ impl MemeContract {
                 proxy_application_id.with_abi::<ProxyAbi>(),
                 &call,
             );
+        }
+    }
+
+    fn operation_executable(&mut self, operation: &MemeOperation) -> bool {
+        match operation {
+            MemeOperation::Mine { .. } => {
+                self.runtime.chain_id() == self.runtime.application_id().creation.chain_id
+            }
+            _ => self.runtime.chain_id() != self.runtime.application_id().creation.chain_id,
         }
     }
 
