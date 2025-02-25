@@ -14,7 +14,6 @@ use linera_sdk::{
     test::{Medium, MessageAction, QueryOutcome, TestValidator},
 };
 use serde_json::json;
-use std::collections::HashMap;
 use std::str::FromStr;
 
 /// Test setting a proxy and testing its coherency across microchains.
@@ -133,7 +132,6 @@ async fn multi_chain_test() {
                         ams_application_id: None,
                         swap_application_id: None,
                         proxy_application_id: None,
-                        initial_balances: HashMap::new(),
                     },
                 },
             );

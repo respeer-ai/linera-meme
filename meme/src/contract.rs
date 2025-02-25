@@ -177,7 +177,6 @@ mod tests {
         Contract, ContractRuntime,
     };
     use meme::MemeAbi;
-    use std::collections::HashMap;
     use std::str::FromStr;
 
     use super::{MemeContract, MemeState};
@@ -249,7 +248,6 @@ mod tests {
             ams_application_id: None,
             swap_application_id: None,
             proxy_application_id: None,
-            initial_balances: HashMap::new(),
         };
 
         contract

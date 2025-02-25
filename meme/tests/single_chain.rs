@@ -13,7 +13,6 @@ use linera_sdk::{
     base::Amount,
     test::{QueryOutcome, TestValidator},
 };
-use std::collections::HashMap;
 use std::str::FromStr;
 
 /// Test setting a counter and testing its coherency across microchains.
@@ -53,7 +52,6 @@ async fn single_chain_test() {
         ams_application_id: None,
         swap_application_id: None,
         proxy_application_id: None,
-        initial_balances: HashMap::new(),
     };
 
     let application_id = chain
