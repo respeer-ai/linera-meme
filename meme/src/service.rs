@@ -45,6 +45,7 @@ impl Service for MemeService {
         let schema = Schema::build(
             QueryRoot {
                 state: self.state.clone(),
+                runtime: self.runtime.clone(),
             },
             MutationRoot {
                 runtime: self.runtime.clone(),
@@ -71,6 +72,7 @@ impl MutationRoot {
 
 struct QueryRoot {
     state: Arc<MemeState>,
+    runtime: Arc<ServiceRuntime<MemeService>>,
 }
 
 #[Object]
@@ -81,6 +83,10 @@ impl QueryRoot {
 
     async fn balance_of(&self, owner: AccountOwner) -> Amount {
         self.state.balances.get(&owner).await.unwrap().unwrap()
+    }
+
+    async fn native_balance_of(&self, owner: AccountOwner) -> Amount {
+        self.runtime.owner_balance(owner)
     }
 }
 

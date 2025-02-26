@@ -124,5 +124,11 @@ async fn multi_chain_test() {
         amount
     );
 
-    // TODO: check application balance
+    let query = format!("query {{ nativeBalanceOf(owner: \"{}\") }}", application);
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["nativeBalanceOf"].as_str().unwrap()).unwrap(),
+        amount
+    );
+    // TODO: can we get native balance from chain directly here ?
 }

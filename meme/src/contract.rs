@@ -181,6 +181,8 @@ impl MemeContract {
         let chain_id = self.runtime.application_id().creation.chain_id;
 
         // TODO: add mint fee
+        // TODO: get currency
+        // TODO: calculate mint amount
 
         self.runtime.transfer(
             Some(AccountOwner::User(owner)),
