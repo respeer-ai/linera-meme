@@ -257,9 +257,9 @@ mod tests {
 
     use super::{MemeContract, MemeState};
 
-    #[test]
-    fn creation_chain_operation() {
-        let mut meme = create_and_instantiate_meme();
+    #[tokio::test(flavor = "multi_thread")]
+    async fn creation_chain_operation() {
+        let mut meme = create_and_instantiate_meme().await;
 
         let response = meme
             .execute_operation(MemeOperation::Mine {
@@ -271,10 +271,10 @@ mod tests {
         assert!(matches!(response, MemeResponse::Ok));
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread")]
     #[should_panic(expected = "Operations must be run on right chain")]
-    fn user_chain_operation() {
-        let mut meme = create_and_instantiate_meme();
+    async fn user_chain_operation() {
+        let mut meme = create_and_instantiate_meme().await;
 
         let response = meme
             .execute_operation(MemeOperation::Mint {
@@ -289,7 +289,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn message() {
-        let mut meme = create_and_instantiate_meme();
+        let mut meme = create_and_instantiate_meme().await;
 
         let to = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
         let amount = Amount::from_tokens(1);
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn cross_application_call() {}
 
-    fn create_and_instantiate_meme() -> MemeContract {
+    async fn create_and_instantiate_meme() -> MemeContract {
         let operator =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
@@ -410,6 +410,26 @@ mod tests {
         assert_eq!(
             *contract.state.fee_percent.get().as_ref().unwrap(),
             instantiation_argument.fee_percent.unwrap()
+        );
+        assert_eq!(
+            contract
+                .state
+                .balances
+                .contains_key(&application)
+                .await
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            contract
+                .state
+                .balances
+                .get(&application)
+                .await
+                .as_ref()
+                .unwrap()
+                .unwrap(),
+            instantiation_argument.meme.initial_supply
         );
 
         contract
