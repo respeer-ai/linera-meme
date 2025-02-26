@@ -5,7 +5,7 @@
 
 mod state;
 
-use abi::meme::InstantiationArgument;
+use abi::meme::{InstantiationArgument, Liquidity};
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
@@ -199,7 +199,7 @@ impl MemeContract {
 #[cfg(test)]
 mod tests {
     use abi::{
-        meme::{InstantiationArgument, Meme, Metadata, Mint},
+        meme::{InstantiationArgument, Liquidity, Meme, Metadata},
         store_type::StoreType,
     };
     use futures::FutureExt as _;
@@ -232,10 +232,14 @@ mod tests {
     #[should_panic(expected = "Operations must be run on right chain")]
     async fn user_chain_operation() {
         let mut meme = create_and_instantiate_meme().await;
+        let to = AccountOwner::User(
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03")
+                .unwrap(),
+        );
 
         let response = meme
-            .execute_operation(MemeOperation::Mint {
-                to: None,
+            .execute_operation(MemeOperation::Transfer {
+                to,
                 amount: Amount::from_tokens(1),
             })
             .now_or_never()
@@ -250,47 +254,13 @@ mod tests {
 
         let to = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
         let amount = Amount::from_tokens(1);
-        meme.execute_message(MemeMessage::Mint { to: None, amount })
+        meme.execute_message(MemeMessage::Transfer { to, amount })
             .await;
 
         assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
 
         let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
         assert_eq!(balance, amount);
-
-        let application = AccountOwner::Application(meme.runtime.application_id().forget_abi());
-        let owner_balance = meme.runtime.owner_balance(application);
-        assert_eq!(owner_balance, Amount::ZERO); // Message don't transfer native tokens, it's done in operation
-
-        let to = AccountOwner::User(
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03")
-                .unwrap(),
-        );
-        meme.execute_message(MemeMessage::Mint {
-            to: Some(to),
-            amount,
-        })
-        .await;
-
-        assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
-
-        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
-        assert_eq!(balance, amount);
-
-        let owner_balance = meme.runtime.owner_balance(application);
-        assert_eq!(owner_balance, Amount::ZERO);
-
-        meme.execute_message(MemeMessage::Mint {
-            to: Some(to),
-            amount,
-        })
-        .await;
-
-        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
-        assert_eq!(balance, amount.try_mul(2 as u128).unwrap());
-
-        let owner_balance = meme.runtime.owner_balance(application);
-        assert_eq!(owner_balance, Amount::ZERO);
     }
 
     #[test]
@@ -340,7 +310,10 @@ mod tests {
                     github: None,
                 },
             },
-            fee_percent: Some(Amount::from_str("0.2").unwrap()),
+            initial_liquidity: Liquidity {
+                fungible_amount: Amount::from_tokens(10000000),
+                native_amount: Amount::from_tokens(10),
+            },
             blob_gateway_application_id: None,
             ams_application_id: None,
             swap_application_id: None,
@@ -355,10 +328,6 @@ mod tests {
         assert_eq!(
             *contract.state.meme.get().as_ref().unwrap(),
             instantiation_argument.meme
-        );
-        assert_eq!(
-            *contract.state.fee_percent.get().as_ref().unwrap(),
-            instantiation_argument.fee_percent.unwrap()
         );
         assert_eq!(
             contract

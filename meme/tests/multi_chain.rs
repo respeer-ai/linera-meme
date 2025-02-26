@@ -6,7 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument, Meme, Metadata},
+    meme::{InstantiationArgument, Liquidity, Meme, Metadata},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -71,7 +71,10 @@ async fn multi_chain_test() {
                 github: None,
             },
         },
-        fee_percent: Some(Amount::from_str("0.2").unwrap()),
+        initial_liquidity: Liquidity {
+            fungible_amount: Amount::from_tokens(10000000),
+            native_amount: Amount::from_tokens(10),
+        },
         blob_gateway_application_id: None,
         ams_application_id: None,
         swap_application_id: None,
