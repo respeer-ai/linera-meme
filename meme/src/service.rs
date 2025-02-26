@@ -78,6 +78,10 @@ impl QueryRoot {
     async fn total_supply(&self) -> Amount {
         self.state.meme.get().as_ref().unwrap().total_supply
     }
+
+    async fn balance_of(&self, owner: AccountOwner) -> Amount {
+        self.state.balances.get(&owner).await.unwrap().unwrap()
+    }
 }
 
 #[cfg(test)]

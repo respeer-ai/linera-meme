@@ -10,8 +10,8 @@ use abi::{
     store_type::StoreType,
 };
 use linera_sdk::{
-    base::{AccountOwner, Amount, Owner},
-    test::{Medium, MessageAction, QueryOutcome, TestValidator},
+    base::{Account, AccountOwner, Amount, ChainId, Owner},
+    test::{Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;
 
@@ -24,8 +24,34 @@ async fn multi_chain_test() {
     let (validator, bytecode_id) =
         TestValidator::with_current_bytecode::<meme::MemeAbi, (), InstantiationArgument>().await;
 
+    let admin_chain = validator.get_chain(&ChainId::root(0));
     let mut meme_chain = validator.new_chain().await;
     let user_chain = validator.new_chain().await;
+
+    let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
+    let user_owner = AccountOwner::User(Owner::from(user_chain.public_key()));
+
+    let certificate = admin_chain
+        .add_block(|block| {
+            block.with_native_token_transfer(
+                None,
+                Recipient::Account(Account {
+                    chain_id: user_chain.id(),
+                    owner: Some(user_owner),
+                }),
+                Amount::from_tokens(10),
+            );
+        })
+        .await;
+    user_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
 
     let instantiation_argument = InstantiationArgument {
         meme: Meme {
@@ -91,9 +117,7 @@ async fn multi_chain_test() {
         })
         .await;
 
-    let owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
-
-    let query = format!("query {{ balanceOf(owner: {}) }}", owner);
+    let query = format!("query {{ balanceOf(owner: \"{}\") }}", user_owner);
     let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
