@@ -136,10 +136,6 @@ mod tests {
                     github: None,
                 },
             },
-            mint: Some(Mint {
-                fixed_currency: true,
-                initial_currency: Amount::from_str("0.0000001").unwrap(),
-            }),
             fee_percent: Some(Amount::from_str("0.2").unwrap()),
             blob_gateway_application_id: None,
             ams_application_id: None,

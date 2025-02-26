@@ -37,10 +37,6 @@ pub enum MemeOperation {
         spender: AccountOwner,
         amount: Amount,
     },
-    Mint {
-        to: Option<AccountOwner>,
-        amount: Amount,
-    },
     TransferOwnership {
         new_owner: Owner,
     },
@@ -62,10 +58,6 @@ pub enum MemeMessage {
     },
     Approve {
         spender: AccountOwner,
-        amount: Amount,
-    },
-    Mint {
-        to: Option<AccountOwner>,
         amount: Amount,
     },
     TransferOwnership {

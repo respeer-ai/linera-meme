@@ -53,6 +53,8 @@ impl Contract for MemeContract {
         self.register_application().await;
         self.register_logo().await;
         self.change_application_permissions().await;
+
+        // TODO: create pool with all supply directly
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -70,9 +72,6 @@ impl Contract for MemeContract {
             MemeOperation::Approve { spender, amount } => self
                 .on_op_approve(spender, amount)
                 .expect("Failed OP: approve"),
-            MemeOperation::Mint { to, amount } => {
-                self.on_op_mint(to, amount).expect("Failed OP: mint")
-            }
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
                 .expect("Failed OP: transfer ownership"),
@@ -96,10 +95,6 @@ impl Contract for MemeContract {
             MemeMessage::Approve { spender, amount } => self
                 .on_msg_approve(spender, amount)
                 .expect("Failed MSG: approve"),
-            MemeMessage::Mint { to, amount } => self
-                .on_msg_mint(to, amount)
-                .await
-                .expect("Failed MSG: mint"),
             MemeMessage::TransferOwnership { new_owner } => self
                 .on_msg_transfer_ownership(new_owner)
                 .expect("Failed MSG: transfer ownership"),
@@ -171,35 +166,6 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    fn on_op_mint(
-        &mut self,
-        to: Option<AccountOwner>,
-        amount: Amount,
-    ) -> Result<MemeResponse, MemeError> {
-        let owner = self.runtime.authenticated_signer().unwrap();
-        let application_id = self.runtime.application_id().forget_abi();
-        let chain_id = self.runtime.application_id().creation.chain_id;
-
-        // TODO: add mint fee
-        // TODO: get currency
-        // TODO: calculate mint amount
-
-        self.runtime.transfer(
-            Some(AccountOwner::User(owner)),
-            Account {
-                chain_id,
-                owner: Some(AccountOwner::Application(application_id)),
-            },
-            amount,
-        );
-
-        self.runtime
-            .prepare_message(MemeMessage::Mint { to, amount })
-            .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
-        Ok(MemeResponse::Ok)
-    }
-
     fn on_op_transfer_ownership(&mut self, owner: Owner) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
     }
@@ -223,17 +189,6 @@ impl MemeContract {
 
     fn on_msg_approve(&mut self, spender: AccountOwner, amount: Amount) -> Result<(), MemeError> {
         Ok(())
-    }
-
-    async fn on_msg_mint(
-        &mut self,
-        to: Option<AccountOwner>,
-        amount: Amount,
-    ) -> Result<(), MemeError> {
-        let to = to.unwrap_or(AccountOwner::User(
-            self.runtime.authenticated_signer().unwrap(),
-        ));
-        Ok(self.state.mint(to, amount).await?)
     }
 
     fn on_msg_transfer_ownership(&mut self, owner: Owner) -> Result<(), MemeError> {
@@ -385,10 +340,6 @@ mod tests {
                     github: None,
                 },
             },
-            mint: Some(Mint {
-                fixed_currency: true,
-                initial_currency: Amount::from_str("0.0000001").unwrap(),
-            }),
             fee_percent: Some(Amount::from_str("0.2").unwrap()),
             blob_gateway_application_id: None,
             ams_application_id: None,
@@ -404,10 +355,6 @@ mod tests {
         assert_eq!(
             *contract.state.meme.get().as_ref().unwrap(),
             instantiation_argument.meme
-        );
-        assert_eq!(
-            *contract.state.mint.get().as_ref().unwrap(),
-            instantiation_argument.mint.unwrap()
         );
         assert_eq!(
             *contract.state.fee_percent.get().as_ref().unwrap(),

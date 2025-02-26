@@ -17,9 +17,9 @@ pub struct Metadata {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
-pub struct Mint {
-    pub initial_currency: Amount,
-    pub fixed_currency: bool,
+pub struct Liquidity {
+    pub fungible_amount: Amount,
+    pub native_amount: Amount,
 }
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
@@ -35,8 +35,7 @@ pub struct Meme {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub meme: Meme,
-    pub mint: Option<Mint>,
-    pub fee_percent: Option<Amount>,
+    pub initial_liquidity: Liquidity,
     pub blob_gateway_application_id: Option<ApplicationId>,
     pub ams_application_id: Option<ApplicationId>,
     pub swap_application_id: Option<ApplicationId>,

@@ -6,7 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument, Meme, Metadata, Mint},
+    meme::{InstantiationArgument, Meme, Metadata},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -71,10 +71,6 @@ async fn multi_chain_test() {
                 github: None,
             },
         },
-        mint: Some(Mint {
-            fixed_currency: true,
-            initial_currency: Amount::from_str("0.0000001").unwrap(),
-        }),
         fee_percent: Some(Amount::from_str("0.2").unwrap()),
         blob_gateway_application_id: None,
         ams_application_id: None,
@@ -98,24 +94,6 @@ async fn multi_chain_test() {
     );
 
     let amount = Amount::from_tokens(1);
-
-    let certificate = user_chain
-        .add_block(|block| {
-            block.with_operation(
-                application_id,
-                meme::MemeOperation::Mint { to: None, amount },
-            );
-        })
-        .await;
-    meme_chain
-        .add_block(move |block| {
-            block.with_messages_from_by_medium(
-                &certificate,
-                &Medium::Direct,
-                MessageAction::Accept,
-            );
-        })
-        .await;
 
     let query = format!("query {{ balanceOf(owner: \"{}\") }}", user_owner);
     let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
