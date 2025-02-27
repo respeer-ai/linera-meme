@@ -2,6 +2,7 @@
 members = [
     "proxy",
     "meme",
+    "swap",
     "abi",
 ]
 resolver = "2"
@@ -23,6 +24,7 @@ log = "0.4.21"
 abi = { path = "./abi" }
 meme = { path = "./meme" }
 proxy = { path = "./proxy" }
+swap = { path = "./swap" }
 
 [profile.release]
 debug = true
