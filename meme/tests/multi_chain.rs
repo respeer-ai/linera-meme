@@ -6,7 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme, MemeAbi, Metadata},
+    meme::{InstantiationArgument, Liquidity, Meme, MemeAbi, MemeOperation, Metadata},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -30,6 +30,7 @@ async fn multi_chain_test() {
 
     let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
     let user_owner = AccountOwner::User(Owner::from(user_chain.public_key()));
+    let user_balance = Amount::from_tokens(1278);
 
     let certificate = admin_chain
         .add_block(|block| {
@@ -39,7 +40,7 @@ async fn multi_chain_test() {
                     chain_id: user_chain.id(),
                     owner: Some(user_owner),
                 }),
-                Amount::from_tokens(10),
+                user_balance,
             );
         })
         .await;
@@ -52,6 +53,7 @@ async fn multi_chain_test() {
             );
         })
         .await;
+    user_chain.handle_received_messages().await;
 
     let instantiation_argument = InstantiationArgument {
         meme: Meme {
@@ -111,4 +113,45 @@ async fn multi_chain_test() {
         Amount::ZERO,
     );
     // TODO: can we get native balance from chain directly here ?
+
+    let allowance = Amount::from_tokens(1);
+    let certificate = user_chain
+        .add_block(|block| {
+            block.with_operation(
+                application_id,
+                MemeOperation::Approve {
+                    spender: meme_owner,
+                    amount: allowance,
+                    rfq_application: None,
+                },
+            );
+        })
+        .await;
+    meme_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
+
+    // We won't success here due to user_owner don't have any meme balance
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        user_owner, meme_owner
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        Amount::ZERO,
+    );
+
+    // TODO: approve allowance with meme chain
+
+    // TODO: create pool in swap application
+    // TODO: purchase meme with user chain
+    // TODO: add liquidity with user chain
 }

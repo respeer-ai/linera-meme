@@ -88,6 +88,10 @@ impl QueryRoot {
     async fn native_balance_of(&self, owner: AccountOwner) -> Amount {
         self.runtime.owner_balance(owner)
     }
+
+    async fn allowance_of(&self, owner: AccountOwner, spender: AccountOwner) -> Amount {
+        self.state.allowance_of(owner, spender).await
+    }
 }
 
 #[cfg(test)]

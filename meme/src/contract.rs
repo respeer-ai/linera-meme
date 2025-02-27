@@ -185,6 +185,9 @@ impl MemeContract {
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<MemeResponse, MemeError> {
+        if AccountOwner::User(self.runtime.authenticated_signer().unwrap()) == spender {
+            return Err(MemeError::InvalidOwner);
+        }
         self.runtime
             .prepare_message(MemeMessage::Approve {
                 spender,
@@ -539,6 +542,50 @@ mod tests {
             rfq_application: None,
         })
         .await;
+
+        assert_eq!(
+            meme.state.allowances.contains_key(&from).await.unwrap(),
+            false
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(expected = "Failed MSG: approve: InvalidOwner")]
+    async fn message_approve_meme_owner_self_insufficient_balance() {
+        let mut meme = create_and_instantiate_meme().await;
+        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+
+        let amount = Amount::from_tokens(100);
+        let allowance = Amount::from_tokens(220);
+
+        meme.state.initialize_balance(from, amount).await.unwrap();
+
+        assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
+        // It won't panic here, it'll approved from application balance
+        meme.execute_message(MemeMessage::Approve {
+            spender: from,
+            amount: allowance,
+            rfq_application: None,
+        })
+        .await;
+
+        assert_eq!(
+            meme.state.allowances.contains_key(&from).await.unwrap(),
+            false
+        );
+        assert_eq!(
+            meme.state
+                .allowances
+                .get(&from)
+                .await
+                .unwrap()
+                .unwrap()
+                .contains_key(&from),
+            false
+        );
     }
 
     #[test]

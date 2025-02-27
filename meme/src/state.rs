@@ -131,8 +131,18 @@ impl MemeState {
         spender: AccountOwner,
         amount: Amount,
     ) -> Result<(), MemeError> {
-        let owner_balance = self.balances.get(&owner).await?.expect("Invalid owner");
+        // Self approve is not allowed
+        if owner == spender {
+            return Err(MemeError::InvalidOwner);
+        }
+        // Approve application balance to meme creator is not allowed
+        if owner == self.holder.get().unwrap()
+            && spender == AccountOwner::User(self.owner.get().unwrap())
+        {
+            return Err(MemeError::InvalidOwner);
+        }
 
+        let owner_balance = self.balance_of(owner).await;
         if owner_balance < amount {
             return Err(MemeError::InsufficientFunds);
         }
@@ -160,6 +170,16 @@ impl MemeState {
     pub(crate) async fn balance_of(&self, owner: AccountOwner) -> Amount {
         match self.balances.get(&owner).await.unwrap() {
             Some(amount) => amount,
+            _ => Amount::ZERO,
+        }
+    }
+
+    pub(crate) async fn allowance_of(&self, owner: AccountOwner, spender: AccountOwner) -> Amount {
+        match self.allowances.get(&owner).await.unwrap() {
+            Some(allowances) => match allowances.get(&spender) {
+                Some(&amount) => amount,
+                _ => Amount::ZERO,
+            },
             _ => Amount::ZERO,
         }
     }
