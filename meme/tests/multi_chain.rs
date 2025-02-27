@@ -6,8 +6,12 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme, MemeAbi, MemeOperation, Metadata},
+    meme::{
+        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
+        MemeOperation, Metadata,
+    },
     store_type::StoreType,
+    swap::SwapAbi,
 };
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, ChainId, Owner},
@@ -21,12 +25,13 @@ use std::str::FromStr;
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_chain_test() {
-    let (validator, bytecode_id) =
-        TestValidator::with_current_bytecode::<MemeAbi, (), InstantiationArgument>().await;
+    let (validator, meme_bytecode_id) =
+        TestValidator::with_current_bytecode::<MemeAbi, (), MemeInstantiationArgument>().await;
 
     let admin_chain = validator.get_chain(&ChainId::root(0));
     let mut meme_chain = validator.new_chain().await;
     let user_chain = validator.new_chain().await;
+    let swap_chain = validator.new_chain().await;
 
     let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
     let user_owner = AccountOwner::User(Owner::from(user_chain.public_key()));
@@ -55,7 +60,12 @@ async fn multi_chain_test() {
         .await;
     user_chain.handle_received_messages().await;
 
-    let instantiation_argument = InstantiationArgument {
+    let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
+    let swap_application_id = meme_chain
+        .create_application::<SwapAbi, (), ()>(swap_bytecode_id, (), (), vec![])
+        .await;
+
+    let meme_instantiation_argument = MemeInstantiationArgument {
         meme: Meme {
             name: "Test Token".to_string(),
             ticker: "LTT".to_string(),
@@ -80,34 +90,42 @@ async fn multi_chain_test() {
         blob_gateway_application_id: None,
         ams_application_id: None,
         proxy_application_id: None,
-        swap_application_id: None,
+        swap_application_id: Some(swap_application_id.forget_abi()),
         virtual_initial_liquidity: true,
     };
 
-    let application_id = meme_chain
-        .create_application(bytecode_id, (), instantiation_argument.clone(), vec![])
+    let meme_application_id = meme_chain
+        .create_application(
+            meme_bytecode_id,
+            (),
+            meme_instantiation_argument.clone(),
+            vec![],
+        )
         .await;
-    let application = AccountOwner::Application(application_id.forget_abi());
+    let meme_application = AccountOwner::Application(meme_application_id.forget_abi());
 
-    user_chain.register_application(application_id).await;
+    user_chain.register_application(meme_application_id).await;
 
     let QueryOutcome { response, .. } = meme_chain
-        .graphql_query(application_id, "query { totalSupply }")
+        .graphql_query(meme_application_id, "query { totalSupply }")
         .await;
     assert_eq!(
         Amount::from_str(response["totalSupply"].as_str().unwrap()).unwrap(),
-        instantiation_argument.meme.total_supply
+        meme_instantiation_argument.meme.total_supply
     );
 
     let query = format!("query {{ balanceOf(owner: \"{}\") }}", user_owner);
-    let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::ZERO,
     );
 
-    let query = format!("query {{ nativeBalanceOf(owner: \"{}\") }}", application);
-    let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
+    let query = format!(
+        "query {{ nativeBalanceOf(owner: \"{}\") }}",
+        meme_application
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
         Amount::from_str(response["nativeBalanceOf"].as_str().unwrap()).unwrap(),
         Amount::ZERO,
@@ -118,7 +136,7 @@ async fn multi_chain_test() {
     let certificate = user_chain
         .add_block(|block| {
             block.with_operation(
-                application_id,
+                meme_application_id,
                 MemeOperation::Approve {
                     spender: meme_owner,
                     amount: allowance,
@@ -143,7 +161,7 @@ async fn multi_chain_test() {
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
         user_owner, meme_owner
     );
-    let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
         Amount::ZERO,
