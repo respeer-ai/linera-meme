@@ -5,7 +5,10 @@
 
 mod state;
 
-use abi::meme::{InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeResponse};
+use abi::{
+    meme::{InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeResponse},
+    swap::{SwapAbi, SwapOperation},
+};
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, ApplicationId, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
@@ -54,8 +57,8 @@ impl Contract for MemeContract {
         self.register_logo().await;
         self.change_application_permissions().await;
 
-        // TODO: create pool with all supply directly
-        // TODO: check initial liquidity
+        // When the meme application is created, initial liquidity should already be funded
+        self.create_liquidity_pool().await;
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -133,6 +136,31 @@ impl MemeContract {
     async fn register_logo(&mut self) {
         if let Some(blob_gateway_application_id) = self.state.blob_gateway_application_id().await {
             // TODO: register application logo to blob gateway
+        }
+    }
+
+    async fn create_liquidity_pool(&mut self) {
+        if let Some(swap_application_id) = self.state.swap_application_id().await {
+            let liquidity = self.state.initial_liquidity().await;
+
+            let call = SwapOperation::AddLiquidity {
+                token_0: self.runtime.application_id().forget_abi(),
+                token_1: None,
+                amount_0_desired: liquidity.fungible_amount,
+                amount_1_desired: liquidity.native_amount,
+                amount_0_min: liquidity.fungible_amount,
+                amount_1_min: liquidity.native_amount,
+                // Only for creator to initialize pool
+                virtual_liquidity: Some(self.state.virtual_initial_liquidity().await),
+                // TODO: let meme creator set their beneficiary
+                to: None,
+                deadline: None,
+            };
+            let _ = self.runtime.call_application(
+                true,
+                swap_application_id.with_abi::<SwapAbi>(),
+                &call,
+            );
         }
     }
 

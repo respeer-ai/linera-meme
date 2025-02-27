@@ -32,7 +32,7 @@ pub enum SwapOperation {
         // Only for creator to initialize pool
         virtual_liquidity: Option<bool>,
         to: Option<AccountOwner>,
-        deadline: Timestamp,
+        deadline: Option<Timestamp>,
     },
     RemoveLiquidity {
         token_0: ApplicationId,
@@ -41,7 +41,7 @@ pub enum SwapOperation {
         amount_0_min: Amount,
         amount_1_min: Amount,
         to: Option<AccountOwner>,
-        deadline: Timestamp,
+        deadline: Option<Timestamp>,
     },
     Swap {
         token_0: ApplicationId,
@@ -51,7 +51,7 @@ pub enum SwapOperation {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<AccountOwner>,
-        deadline: Timestamp,
+        deadline: Option<Timestamp>,
     },
 }
 

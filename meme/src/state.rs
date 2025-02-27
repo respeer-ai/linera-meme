@@ -1,7 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::meme::{InstantiationArgument, Meme};
+use abi::meme::{InstantiationArgument, Liquidity, Meme};
 use linera_sdk::{
     base::{AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
@@ -18,11 +18,13 @@ pub struct MemeState {
 
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
+    pub initial_liquidity: RegisterView<Option<Liquidity>>,
 
     pub blob_gateway_application_id: RegisterView<Option<ApplicationId>>,
     pub ams_application_id: RegisterView<Option<ApplicationId>>,
     pub proxy_application_id: RegisterView<Option<ApplicationId>>,
     pub swap_application_id: RegisterView<Option<ApplicationId>>,
+    pub virtual_initial_liquidity: RegisterView<bool>,
 
     // Account information
     pub balances: MapView<AccountOwner, Amount>,
@@ -42,15 +44,11 @@ impl MemeState {
         self.owner.set(Some(owner));
 
         assert!(
-            argument.meme.initial_supply > Amount::ZERO,
-            "Invalid initial supply"
-        );
-        assert!(
-            argument.initial_liquidity.fungible_amount > Amount::ZERO,
+            argument.initial_liquidity.fungible_amount >= Amount::ZERO,
             "Invalid initial liquidity"
         );
         assert!(
-            argument.initial_liquidity.native_amount > Amount::ZERO,
+            argument.initial_liquidity.native_amount >= Amount::ZERO,
             "Invalid initial liquidity"
         );
         assert!(
@@ -60,12 +58,15 @@ impl MemeState {
 
         argument.meme.total_supply = argument.meme.initial_supply;
         self.meme.set(Some(argument.meme.clone()));
+        self.initial_liquidity.set(Some(argument.initial_liquidity));
 
         self.blob_gateway_application_id
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
         self.swap_application_id.set(argument.swap_application_id);
+        self.virtual_initial_liquidity
+            .set(argument.virtual_initial_liquidity);
 
         self.balances
             .insert(&application, argument.meme.initial_supply)?;
@@ -182,5 +183,13 @@ impl MemeState {
             },
             _ => Amount::ZERO,
         }
+    }
+
+    pub(crate) async fn virtual_initial_liquidity(&self) -> bool {
+        *self.virtual_initial_liquidity.get()
+    }
+
+    pub(crate) async fn initial_liquidity(&self) -> Liquidity {
+        self.initial_liquidity.get().as_ref().unwrap().clone()
     }
 }
