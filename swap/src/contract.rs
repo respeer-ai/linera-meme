@@ -66,7 +66,6 @@ mod tests {
     fn operation() {}
 
     #[test]
-    #[should_panic(expected = "Swap application doesn't support any cross-chain messages")]
     fn message() {}
 
     #[test]

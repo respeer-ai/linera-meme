@@ -619,6 +619,14 @@ mod tests {
     #[test]
     fn cross_application_call() {}
 
+    fn mock_application_call(
+        _authenticated: bool,
+        _application_id: ApplicationId,
+        _operation: Vec<u8>,
+    ) -> Vec<u8> {
+        vec![0]
+    }
+
     async fn create_and_instantiate_meme() -> MemeContract {
         let operator =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
@@ -643,6 +651,7 @@ mod tests {
             .with_application_id(application_id)
             .with_owner_balance(application, Amount::ZERO)
             .with_authenticated_caller_id(swap_application_id)
+            .with_call_application_handler(mock_application_call)
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
