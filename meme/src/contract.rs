@@ -7,7 +7,7 @@ mod state;
 
 use abi::meme::{InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeResponse};
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
+    base::{Account, AccountOwner, Amount, ApplicationId, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -103,6 +103,7 @@ impl Contract for MemeContract {
                 rfq_application,
             } => self
                 .on_msg_approve(spender, amount, rfq_application)
+                .await
                 .expect("Failed MSG: approve"),
             MemeMessage::Approved { rfq_application } => self
                 .on_msg_approved(rfq_application)
@@ -183,6 +184,14 @@ impl MemeContract {
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<MemeResponse, MemeError> {
+        self.runtime
+            .prepare_message(MemeMessage::Approve {
+                spender,
+                amount,
+                rfq_application,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(MemeResponse::Ok)
     }
 
@@ -208,21 +217,54 @@ impl MemeContract {
         Ok(())
     }
 
-    fn on_msg_approve(
+    async fn on_msg_approve(
         &mut self,
         spender: AccountOwner,
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {
+        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+
+        match self.state.approve(owner, spender, amount).await {
+            Ok(_) => {
+                // If it's rfq request, we should notify approved to rfq chain
+                if let Some(rfq_application) = rfq_application {
+                    if let Some(AccountOwner::Application(application_id)) = rfq_application.owner {
+                        self.runtime
+                            .prepare_message(MemeMessage::Approved {
+                                rfq_application: application_id,
+                            })
+                            .with_authentication()
+                            .send_to(rfq_application.chain_id);
+                    }
+                }
+            }
+            _ => {
+                // If it's rfq request, we should notify approved to rfq chain
+                if let Some(rfq_application) = rfq_application {
+                    if let Some(AccountOwner::Application(application_id)) = rfq_application.owner {
+                        self.runtime
+                            .prepare_message(MemeMessage::Rejected {
+                                rfq_application: application_id,
+                            })
+                            .with_authentication()
+                            .send_to(rfq_application.chain_id);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
-    fn on_msg_approved(&mut self, rfq_application: Option<Account>) -> Result<(), MemeError> {
+    fn on_msg_approved(&mut self, rfq_application: ApplicationId) -> Result<(), MemeError> {
+        // Run on rfq chain
         // TODO: call approved to rfq_application
         Ok(())
     }
 
-    fn on_msg_rejected(&mut self, rfq_application: Option<Account>) -> Result<(), MemeError> {
+    fn on_msg_rejected(&mut self, rfq_application: ApplicationId) -> Result<(), MemeError> {
+        // Run on rfq chain
         // TODO: call rejected to rfq_application
         Ok(())
     }

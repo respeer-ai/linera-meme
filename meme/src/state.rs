@@ -120,4 +120,29 @@ impl MemeState {
         self.balances.insert(&from, from_balance.try_sub(amount)?)?;
         Ok(self.balances.insert(&to, to_balance)?)
     }
+
+    pub(crate) async fn approve(
+        &mut self,
+        owner: AccountOwner,
+        spender: AccountOwner,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        let owner_balance = self.balances.get(&owner).await?.expect("Invalid owner");
+        assert!(owner_balance >= amount, "Insufficient balance");
+
+        let mut allowances = if let Some(_allowances) = self.allowances.get(&owner).await? {
+            _allowances
+        } else {
+            HashMap::new()
+        };
+
+        let spender_allowance = if let Some(allowance) = allowances.get(&spender) {
+            allowance.try_add(amount)?
+        } else {
+            amount
+        };
+
+        allowances.insert(spender, spender_allowance);
+        Ok(self.allowances.insert(&owner, allowances)?)
+    }
 }

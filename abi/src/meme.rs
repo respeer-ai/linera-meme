@@ -103,10 +103,10 @@ pub enum MemeMessage {
         rfq_application: Option<Account>,
     },
     Approved {
-        rfq_application: Option<Account>,
+        rfq_application: ApplicationId,
     },
     Rejected {
-        rfq_application: Option<Account>,
+        rfq_application: ApplicationId,
     },
     TransferOwnership {
         new_owner: Owner,
