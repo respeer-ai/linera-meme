@@ -57,7 +57,6 @@ impl MemeState {
             "Invalid initial supply"
         );
 
-        let initial_supply = argument.meme.initial_supply;
         argument.meme.total_supply = argument.meme.initial_supply;
 
         self.meme.set(Some(argument.meme.clone()));

@@ -55,6 +55,7 @@ impl Contract for MemeContract {
         self.change_application_permissions().await;
 
         // TODO: create pool with all supply directly
+        // TODO: check initial liquidity
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -329,7 +330,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn message() {
+    async fn message_transfer() {
         let mut meme = create_and_instantiate_meme().await;
         let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
         let amount = Amount::from_tokens(1);
@@ -351,6 +352,148 @@ mod tests {
         assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
         let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
         assert_eq!(balance, amount);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_approve_owner_success() {
+        let mut meme = create_and_instantiate_meme().await;
+        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+
+        let amount = Amount::from_tokens(100);
+        let allowance = Amount::from_tokens(22);
+
+        let spender = AccountOwner::User(
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                .unwrap(),
+        );
+
+        meme.state.initialize_balance(from, amount).await.unwrap();
+
+        assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
+        meme.execute_message(MemeMessage::Approve {
+            spender,
+            amount: allowance,
+            rfq_application: None,
+        })
+        .await;
+
+        assert_eq!(
+            meme.state.allowances.contains_key(&from).await.unwrap(),
+            true
+        );
+        assert_eq!(
+            meme.state
+                .allowances
+                .get(&from)
+                .await
+                .unwrap()
+                .unwrap()
+                .contains_key(&spender),
+            true
+        );
+        let balance = *meme
+            .state
+            .allowances
+            .get(&from)
+            .await
+            .unwrap()
+            .unwrap()
+            .get(&spender)
+            .unwrap();
+        assert_eq!(balance, allowance);
+
+        meme.execute_message(MemeMessage::Approve {
+            spender,
+            amount: allowance,
+            rfq_application: None,
+        })
+        .await;
+
+        let balance = *meme
+            .state
+            .allowances
+            .get(&from)
+            .await
+            .unwrap()
+            .unwrap()
+            .get(&spender)
+            .unwrap();
+        assert_eq!(balance, allowance.try_mul(2).unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_approve_holder_success() {
+        let mut meme = create_and_instantiate_meme().await;
+        let from = AccountOwner::Application(meme.runtime.application_id().forget_abi());
+        let allowance = Amount::from_tokens(10000);
+
+        let spender = AccountOwner::User(
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                .unwrap(),
+        );
+
+        meme.execute_message(MemeMessage::Approve {
+            spender,
+            amount: allowance,
+            rfq_application: None,
+        })
+        .await;
+
+        assert_eq!(
+            meme.state.allowances.contains_key(&from).await.unwrap(),
+            true
+        );
+        assert_eq!(
+            meme.state
+                .allowances
+                .get(&from)
+                .await
+                .unwrap()
+                .unwrap()
+                .contains_key(&spender),
+            true
+        );
+        let balance = *meme
+            .state
+            .allowances
+            .get(&from)
+            .await
+            .unwrap()
+            .unwrap()
+            .get(&spender)
+            .unwrap();
+        assert_eq!(balance, allowance);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(expected = "Insufficient balance")]
+    async fn message_approve_insufficient_balance() {
+        let mut meme = create_and_instantiate_meme().await;
+        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+
+        let amount = Amount::from_tokens(100);
+        let allowance = Amount::from_tokens(220);
+
+        let spender = AccountOwner::User(
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                .unwrap(),
+        );
+
+        meme.state.initialize_balance(from, amount).await.unwrap();
+
+        assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
+        meme.execute_message(MemeMessage::Approve {
+            spender,
+            amount: allowance,
+            rfq_application: None,
+        })
+        .await;
     }
 
     #[test]

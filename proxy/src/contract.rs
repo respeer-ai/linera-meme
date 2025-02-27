@@ -236,30 +236,84 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
+    fn fund_creation_chain_proxy_application(&mut self, amount: Amount) {
+        assert!(amount <= Amount::ZERO, "Invalid fund amount");
+
+        let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let chain_id = self.runtime.application_id().creation.chain_id;
+        let application_id = self.runtime.application_id().forget_abi();
+
+        let owner_balance = self.runtime.owner_balance(creator);
+        let chain_balance = self.runtime.chain_balance();
+
+        let from_owner_balance = if amount <= owner_balance {
+            amount
+        } else {
+            owner_balance
+        };
+        let from_chain_balance = if amount <= owner_balance {
+            Amount::ZERO
+        } else {
+            amount.try_sub(owner_balance).expect("Invalid amount")
+        };
+
+        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
+        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+
+        if from_owner_balance > Amount::ZERO {
+            self.runtime.transfer(
+                Some(creator),
+                Account {
+                    chain_id,
+                    owner: Some(AccountOwner::Application(application_id)),
+                },
+                from_owner_balance,
+            );
+        }
+        if from_chain_balance > Amount::ZERO {
+            self.runtime.transfer(
+                None,
+                Account {
+                    chain_id,
+                    owner: Some(AccountOwner::Application(application_id)),
+                },
+                from_chain_balance,
+            );
+        }
+    }
+
+    fn fund_proxy_chain_fee_budget(&mut self, fee_budget: Amount) {
+        if fee_budget <= Amount::ZERO {
+            return;
+        }
+        self.fund_creation_chain_proxy_application(fee_budget);
+    }
+
+    fn fund_proxy_chain_initial_liquidity(
+        &mut self,
+        meme_instantiation_argument: MemeInstantiationArgument,
+    ) {
+        if meme_instantiation_argument.virtual_initial_liquidity {
+            return;
+        }
+        self.fund_creation_chain_proxy_application(
+            meme_instantiation_argument.initial_liquidity.native_amount,
+        );
+    }
+
     fn on_op_create_meme(
         &mut self,
         fee_budget: Option<Amount>,
         mut meme_instantiation_argument: MemeInstantiationArgument,
     ) -> Result<ProxyResponse, ProxyError> {
-        // Fix amount token will be transferred to meme chain as fee
-        let creator = self.runtime.authenticated_signer().unwrap();
-        let chain_id = self.runtime.application_id().creation.chain_id;
-        let application_id = self.runtime.application_id().forget_abi();
-        let fee_budget = fee_budget.unwrap_or(Amount::ONE);
-
         meme_instantiation_argument.proxy_application_id =
             Some(self.runtime.application_id().forget_abi());
 
-        if fee_budget > Amount::ZERO {
-            self.runtime.transfer(
-                Some(AccountOwner::User(creator)),
-                Account {
-                    chain_id,
-                    owner: Some(AccountOwner::Application(application_id)),
-                },
-                fee_budget,
-            );
-        }
+        // Fund proxy application on the creation chain, it'll fund meme chain for fee and
+        // initial liquidity
+        let fee_budget = fee_budget.unwrap_or(Amount::ONE);
+        self.fund_proxy_chain_fee_budget(fee_budget);
+        self.fund_proxy_chain_initial_liquidity(meme_instantiation_argument.clone());
 
         self.runtime
             .prepare_message(ProxyMessage::CreateMeme {
@@ -362,6 +416,33 @@ impl ProxyContract {
         Ok(self.runtime.open_chain(ownership, permissions, fee_budget))
     }
 
+    fn fund_meme_chain_initial_liquidity(
+        &mut self,
+        meme_chain_id: ChainId,
+        instantiation_argument: MemeInstantiationArgument,
+    ) {
+        if instantiation_argument.virtual_initial_liquidity {
+            return;
+        }
+
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        let balance = self.runtime.owner_balance(application);
+        let native_amount = instantiation_argument.initial_liquidity.native_amount;
+        assert!(
+            balance >= native_amount,
+            "Proxy application should already funded"
+        );
+
+        self.runtime.transfer(
+            Some(application),
+            Account {
+                chain_id: meme_chain_id,
+                owner: None,
+            },
+            native_amount,
+        );
+    }
+
     async fn on_creation_chain_msg_create_meme(
         &mut self,
         fee_budget: Amount,
@@ -369,6 +450,9 @@ impl ProxyContract {
     ) -> Result<(), ProxyError> {
         // 1: create a new chain which allow and mandary proxy
         let (message_id, chain_id) = self.create_meme_chain(fee_budget).await?;
+
+        // Fund created meme chain with initial liquidity
+        self.fund_meme_chain_initial_liquidity(chain_id, instantiation_argument.clone());
 
         let bytecode_id = self.state.meme_bytecode_id().await;
         let creator = self.runtime.authenticated_signer().unwrap();
