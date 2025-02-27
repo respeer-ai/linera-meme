@@ -78,6 +78,8 @@ async fn multi_chain_test() {
         blob_gateway_application_id: None,
         ams_application_id: None,
         proxy_application_id: None,
+        swap_application_id: None,
+        virtual_initial_liquidity: true,
     };
 
     let application_id = meme_chain

@@ -22,6 +22,7 @@ pub struct MemeState {
     pub blob_gateway_application_id: RegisterView<Option<ApplicationId>>,
     pub ams_application_id: RegisterView<Option<ApplicationId>>,
     pub proxy_application_id: RegisterView<Option<ApplicationId>>,
+    pub swap_application_id: RegisterView<Option<ApplicationId>>,
 
     // Account information
     pub balances: MapView<AccountOwner, Amount>,
@@ -58,13 +59,13 @@ impl MemeState {
         );
 
         argument.meme.total_supply = argument.meme.initial_supply;
-
         self.meme.set(Some(argument.meme.clone()));
 
         self.blob_gateway_application_id
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
+        self.swap_application_id.set(argument.swap_application_id);
 
         self.balances
             .insert(&application, argument.meme.initial_supply)?;
@@ -97,6 +98,10 @@ impl MemeState {
         *self.ams_application_id.get()
     }
 
+    pub(crate) async fn swap_application_id(&self) -> Option<ApplicationId> {
+        *self.swap_application_id.get()
+    }
+
     pub(crate) async fn transfer(
         &mut self,
         from: AccountOwner,
@@ -127,7 +132,10 @@ impl MemeState {
         amount: Amount,
     ) -> Result<(), MemeError> {
         let owner_balance = self.balances.get(&owner).await?.expect("Invalid owner");
-        assert!(owner_balance >= amount, "Insufficient balance");
+
+        if owner_balance < amount {
+            return Err(MemeError::InsufficientFunds);
+        }
 
         let mut allowances = if let Some(_allowances) = self.allowances.get(&owner).await? {
             _allowances
@@ -143,5 +151,16 @@ impl MemeState {
 
         allowances.insert(spender, spender_allowance);
         Ok(self.allowances.insert(&owner, allowances)?)
+    }
+
+    pub(crate) async fn owner(&mut self) -> Owner {
+        self.owner.get().unwrap()
+    }
+
+    pub(crate) async fn balance_of(&self, owner: AccountOwner) -> Amount {
+        match self.balances.get(&owner).await.unwrap() {
+            Some(amount) => amount,
+            _ => Amount::ZERO,
+        }
     }
 }

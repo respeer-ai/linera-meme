@@ -29,6 +29,8 @@ pub enum SwapOperation {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: Option<bool>,
         to: Option<AccountOwner>,
         deadline: Timestamp,
     },

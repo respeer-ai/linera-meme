@@ -82,10 +82,7 @@ impl QueryRoot {
     }
 
     async fn balance_of(&self, owner: AccountOwner) -> Amount {
-        match self.state.balances.get(&owner).await.unwrap() {
-            Some(amount) => amount,
-            _ => Amount::ZERO,
-        }
+        self.state.balance_of(owner).await
     }
 
     async fn native_balance_of(&self, owner: AccountOwner) -> Amount {
@@ -121,6 +118,8 @@ mod tests {
             .blocking_wait()
             .expect("Failed to read from mock key value store");
 
+        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000008";
+        let application_id = ApplicationId::from_str(application_id_str).unwrap();
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
                 name: "Test Token".to_string(),
@@ -146,6 +145,8 @@ mod tests {
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,
+            swap_application_id: Some(application_id),
+            virtual_initial_liquidity: true,
         };
 
         let owner =

@@ -218,43 +218,88 @@ impl MemeContract {
         Ok(())
     }
 
+    async fn formalize_approve_owner(&mut self, amount: Amount) -> Result<AccountOwner, MemeError> {
+        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let balance = self.state.balance_of(owner).await;
+        if balance >= amount {
+            return Ok(owner);
+        }
+
+        let meme_owner = AccountOwner::User(self.state.owner().await);
+        // Normal user must approve from their own balance
+        if owner != meme_owner {
+            return Err(MemeError::InvalidOwner);
+        }
+
+        if let Some(caller_application_id) = self.runtime.authenticated_caller_id() {
+            if let Some(swap_application_id) = self.state.swap_application_id().await {
+                // If call from meme owner, and swap application, then approve from application
+                // balance
+                if caller_application_id != swap_application_id {
+                    return Err(MemeError::InvalidOwner);
+                }
+
+                let owner = AccountOwner::Application(self.runtime.application_id().forget_abi());
+                let balance = self.state.balance_of(owner).await;
+                if balance >= amount {
+                    return Ok(owner);
+                }
+            }
+        }
+
+        return Err(MemeError::InvalidOwner);
+    }
+
+    fn notify_rfq_chain_approved(&mut self, rfq_application: Account) {
+        let AccountOwner::Application(application_id) = rfq_application.owner.unwrap() else {
+            todo!()
+        };
+        self.runtime
+            .prepare_message(MemeMessage::Approved {
+                rfq_application: application_id,
+            })
+            .with_authentication()
+            .send_to(rfq_application.chain_id);
+    }
+
+    fn notify_rfq_chain_rejected(&mut self, rfq_application: Account) {
+        let AccountOwner::Application(application_id) = rfq_application.owner.unwrap() else {
+            todo!()
+        };
+        self.runtime
+            .prepare_message(MemeMessage::Rejected {
+                rfq_application: application_id,
+            })
+            .with_authentication()
+            .send_to(rfq_application.chain_id);
+    }
+
     async fn on_msg_approve(
         &mut self,
         spender: AccountOwner,
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {
-        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        // Normally user will approve from their own balance
+        // Meme creator can approve from their own balance or application balance
+        let Ok(owner) = self.formalize_approve_owner(amount).await else {
+            if rfq_application.is_some() {
+                self.notify_rfq_chain_rejected(rfq_application.unwrap());
+            }
+            return Ok(());
+        };
 
-        match self.state.approve(owner, spender, amount).await {
-            Ok(_) => {
-                // If it's rfq request, we should notify approved to rfq chain
-                if let Some(rfq_application) = rfq_application {
-                    if let Some(AccountOwner::Application(application_id)) = rfq_application.owner {
-                        self.runtime
-                            .prepare_message(MemeMessage::Approved {
-                                rfq_application: application_id,
-                            })
-                            .with_authentication()
-                            .send_to(rfq_application.chain_id);
-                    }
-                }
-            }
-            _ => {
-                // If it's rfq request, we should notify approved to rfq chain
-                if let Some(rfq_application) = rfq_application {
-                    if let Some(AccountOwner::Application(application_id)) = rfq_application.owner {
-                        self.runtime
-                            .prepare_message(MemeMessage::Rejected {
-                                rfq_application: application_id,
-                            })
-                            .with_authentication()
-                            .send_to(rfq_application.chain_id);
-                    }
-                }
-            }
+        // No matter we can or not fulfill the request, we always need to notity rfq chain
+        let rc = self.state.approve(owner, spender, amount).await;
+        let Some(rfq_application) = rfq_application else {
+            return rc;
+        };
+
+        if rc.is_ok() {
+            self.notify_rfq_chain_approved(rfq_application)
+        } else {
+            self.notify_rfq_chain_rejected(rfq_application)
         }
-
         Ok(())
     }
 
@@ -469,7 +514,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[should_panic(expected = "Insufficient balance")]
     async fn message_approve_insufficient_balance() {
         let mut meme = create_and_instantiate_meme().await;
         let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
@@ -488,6 +532,7 @@ mod tests {
         let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
         assert_eq!(balance, amount);
 
+        // It won't panic here, it'll approved from application balance
         meme.execute_message(MemeMessage::Approve {
             spender,
             amount: allowance,
@@ -506,17 +551,23 @@ mod tests {
         let chain_id =
             ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
                 .unwrap();
+
         let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<MemeAbi>();
         let application = AccountOwner::Application(application_id.forget_abi());
+
+        let swap_application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000002";
+        let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
+
         let runtime = ContractRuntime::new()
             .with_application_parameters(())
             .with_can_change_application_permissions(true)
             .with_chain_id(chain_id)
             .with_application_id(application_id)
             .with_owner_balance(application, Amount::ZERO)
+            .with_authenticated_caller_id(swap_application_id)
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
@@ -550,6 +601,8 @@ mod tests {
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,
+            swap_application_id: Some(swap_application_id),
+            virtual_initial_liquidity: true,
         };
 
         contract

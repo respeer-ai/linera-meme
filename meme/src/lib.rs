@@ -15,4 +15,10 @@ pub enum MemeError {
 
     #[error("Inconsistent balance")]
     InconsistentBalance,
+
+    #[error("Insufficient funds")]
+    InsufficientFunds,
+
+    #[error("Invalid owner")]
+    InvalidOwner,
 }
