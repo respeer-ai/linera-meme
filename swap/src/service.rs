@@ -7,20 +7,21 @@ mod state;
 
 use std::sync::Arc;
 
+use abi::swap::router::SwapAbi;
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{base::WithServiceAbi, views::View, Service, ServiceRuntime};
 
 use self::state::SwapState;
 
 pub struct SwapService {
-    state: SwapState,
+    state: Arc<SwapState>,
     runtime: Arc<ServiceRuntime<Self>>,
 }
 
 linera_sdk::service!(SwapService);
 
 impl WithServiceAbi for SwapService {
-    type Abi = abi::swap::SwapAbi;
+    type Abi = SwapAbi;
 }
 
 impl Service for SwapService {
@@ -31,7 +32,7 @@ impl Service for SwapService {
             .await
             .expect("Failed to load state");
         SwapService {
-            state,
+            state: Arc::new(state),
             runtime: Arc::new(runtime),
         }
     }
@@ -39,7 +40,8 @@ impl Service for SwapService {
     async fn handle_query(&self, request: Request) -> Response {
         let schema = Schema::build(
             QueryRoot {
-                value: *self.state.value.get(),
+                state: self.state.clone(),
+                runtime: self.runtime.clone(),
             },
             MutationRoot {
                 runtime: self.runtime.clone(),
@@ -64,13 +66,14 @@ impl MutationRoot {
 }
 
 struct QueryRoot {
-    value: u64,
+    state: Arc<SwapState>,
+    runtime: Arc<ServiceRuntime<SwapService>>,
 }
 
 #[Object]
 impl QueryRoot {
-    async fn value(&self) -> &u64 {
-        &self.value
+    async fn pool_id(&self) -> &u64 {
+        self.state.pool_id.get()
     }
 }
 

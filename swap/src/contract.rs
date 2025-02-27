@@ -5,7 +5,7 @@
 
 mod state;
 
-use abi::swap::{SwapAbi, SwapOperation, SwapResponse};
+use abi::swap::router::{SwapAbi, SwapOperation, SwapResponse};
 use linera_sdk::{
     base::WithContractAbi,
     views::{RootView, View},
