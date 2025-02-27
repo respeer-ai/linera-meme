@@ -3,7 +3,7 @@
 
 use async_graphql::{Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ContractAbi, CryptoHash, Owner, ServiceAbi},
+    base::{AccountOwner, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};
@@ -22,24 +22,34 @@ impl ServiceAbi for SwapAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum SwapOperation {
-    Transfer {
-        to: AccountOwner,
-        amount: Amount,
+    AddLiquidity {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        to: Option<AccountOwner>,
+        deadline: Timestamp,
     },
-    TransferFrom {
-        from: AccountOwner,
-        to: AccountOwner,
-        amount: Amount,
+    RemoveLiquidity {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        liquidity: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        to: Option<AccountOwner>,
+        deadline: Timestamp,
     },
-    Approve {
-        spender: AccountOwner,
-        amount: Amount,
-    },
-    TransferOwnership {
-        new_owner: Owner,
-    },
-    Mine {
-        nonce: CryptoHash,
+    Swap {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<AccountOwner>,
+        deadline: Timestamp,
     },
 }
 

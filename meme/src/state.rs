@@ -3,7 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Meme};
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, Owner},
+    base::{AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -14,13 +14,13 @@ use std::collections::HashMap;
 #[view(context = "ViewStorageContext")]
 pub struct MemeState {
     pub owner: RegisterView<Option<Owner>>,
+    pub holder: RegisterView<Option<AccountOwner>>,
 
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
 
     pub blob_gateway_application_id: RegisterView<Option<ApplicationId>>,
     pub ams_application_id: RegisterView<Option<ApplicationId>>,
-    pub swap_application_id: RegisterView<Option<ApplicationId>>,
     pub proxy_application_id: RegisterView<Option<ApplicationId>>,
 
     // Account information
@@ -56,10 +56,6 @@ impl MemeState {
             argument.meme.initial_supply >= argument.initial_liquidity.fungible_amount,
             "Invalid initial supply"
         );
-        assert!(
-            argument.swap_application_id.is_some(),
-            "Invalid swap application"
-        );
 
         let initial_supply = argument.meme.initial_supply;
         argument.meme.total_supply = argument.meme.initial_supply;
@@ -69,23 +65,25 @@ impl MemeState {
         self.blob_gateway_application_id
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
-        self.swap_application_id.set(argument.swap_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
 
-        self.balances.insert(
-            &application,
-            argument
-                .meme
-                .initial_supply
-                .try_sub(argument.initial_liquidity.fungible_amount)?,
-        )?;
-        let swap_application = AccountOwner::Application(argument.swap_application_id.unwrap());
-        self.allowances.insert(
-            &application,
-            HashMap::from([(swap_application, argument.initial_liquidity.fungible_amount)]),
-        )?;
+        self.balances
+            .insert(&application, argument.meme.initial_supply)?;
+        self.holder.set(Some(application));
 
         Ok(())
+    }
+
+    pub(crate) async fn initialize_balance(
+        &mut self,
+        owner: AccountOwner,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        let holder = self.holder.get().unwrap();
+        let balance = self.balances.get(&holder).await?.unwrap();
+        assert!(balance >= amount, "Insufficient balance");
+        self.balances.insert(&holder, balance)?;
+        Ok(self.balances.insert(&owner, amount)?)
     }
 
     pub(crate) async fn proxy_application_id(&self) -> Option<ApplicationId> {
@@ -100,17 +98,14 @@ impl MemeState {
         *self.ams_application_id.get()
     }
 
-    pub(crate) async fn swap_application_id(&self) -> Option<ApplicationId> {
-        *self.swap_application_id.get()
-    }
-
-    async fn transfer(
+    pub(crate) async fn transfer(
         &mut self,
         from: AccountOwner,
         to: AccountOwner,
         amount: Amount,
     ) -> Result<(), MemeError> {
         assert!(amount > Amount::ZERO, "Invalid amount");
+        assert!(from != to, "Self transfer");
 
         let from_balance = self.balances.get(&from).await?.unwrap();
 
@@ -123,7 +118,6 @@ impl MemeState {
         };
 
         self.balances.insert(&from, from_balance.try_sub(amount)?)?;
-        self.balances.insert(&to, to_balance)?;
-        Ok(())
+        Ok(self.balances.insert(&to, to_balance)?)
     }
 }

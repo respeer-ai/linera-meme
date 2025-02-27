@@ -1,7 +1,11 @@
 use crate::store_type::StoreType;
-use async_graphql::scalar;
-use async_graphql::InputObject;
-use linera_sdk::base::{Amount, ApplicationId};
+use async_graphql::{scalar, InputObject, Request, Response};
+use linera_sdk::{
+    base::{
+        Account, AccountOwner, Amount, ApplicationId, ContractAbi, CryptoHash, Owner, ServiceAbi,
+    },
+    graphql::GraphQLMutationRoot,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
@@ -38,7 +42,6 @@ pub struct InstantiationArgument {
     pub initial_liquidity: Liquidity,
     pub blob_gateway_application_id: Option<ApplicationId>,
     pub ams_application_id: Option<ApplicationId>,
-    pub swap_application_id: Option<ApplicationId>,
     pub proxy_application_id: Option<ApplicationId>,
 }
 
@@ -46,3 +49,73 @@ pub struct InstantiationArgument {
 pub struct Parameters {}
 
 scalar!(Parameters);
+
+pub struct MemeAbi;
+
+impl ContractAbi for MemeAbi {
+    type Operation = MemeOperation;
+    type Response = MemeResponse;
+}
+
+impl ServiceAbi for MemeAbi {
+    type Query = Request;
+    type QueryResponse = Response;
+}
+
+#[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
+pub enum MemeOperation {
+    Transfer {
+        to: AccountOwner,
+        amount: Amount,
+    },
+    TransferFrom {
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    },
+    Approve {
+        spender: AccountOwner,
+        amount: Amount,
+        rfq_application: Option<Account>,
+    },
+    TransferOwnership {
+        new_owner: Owner,
+    },
+    Mine {
+        nonce: CryptoHash,
+    },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum MemeMessage {
+    Transfer {
+        to: AccountOwner,
+        amount: Amount,
+    },
+    TransferFrom {
+        from: AccountOwner,
+        to: AccountOwner,
+        amount: Amount,
+    },
+    Approve {
+        spender: AccountOwner,
+        amount: Amount,
+        rfq_application: Option<Account>,
+    },
+    Approved {
+        rfq_application: Option<Account>,
+    },
+    Rejected {
+        rfq_application: Option<Account>,
+    },
+    TransferOwnership {
+        new_owner: Owner,
+    },
+    // Mine is only run on creation chain so we don't need a message
+}
+
+#[derive(Debug, Deserialize, Serialize, Default)]
+pub enum MemeResponse {
+    #[default]
+    Ok,
+}

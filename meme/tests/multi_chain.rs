@@ -6,7 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme, Metadata},
+    meme::{InstantiationArgument, Liquidity, Meme, MemeAbi, Metadata},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -22,7 +22,7 @@ use std::str::FromStr;
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_chain_test() {
     let (validator, bytecode_id) =
-        TestValidator::with_current_bytecode::<meme::MemeAbi, (), InstantiationArgument>().await;
+        TestValidator::with_current_bytecode::<MemeAbi, (), InstantiationArgument>().await;
 
     let admin_chain = validator.get_chain(&ChainId::root(0));
     let mut meme_chain = validator.new_chain().await;
@@ -77,7 +77,6 @@ async fn multi_chain_test() {
         },
         blob_gateway_application_id: None,
         ams_application_id: None,
-        swap_application_id: None,
         proxy_application_id: None,
     };
 
@@ -96,20 +95,18 @@ async fn multi_chain_test() {
         instantiation_argument.meme.total_supply
     );
 
-    let amount = Amount::from_tokens(1);
-
     let query = format!("query {{ balanceOf(owner: \"{}\") }}", user_owner);
     let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        amount
+        Amount::ZERO,
     );
 
     let query = format!("query {{ nativeBalanceOf(owner: \"{}\") }}", application);
     let QueryOutcome { response, .. } = meme_chain.graphql_query(application_id, query).await;
     assert_eq!(
         Amount::from_str(response["nativeBalanceOf"].as_str().unwrap()).unwrap(),
-        amount
+        Amount::ZERO,
     );
     // TODO: can we get native balance from chain directly here ?
 }

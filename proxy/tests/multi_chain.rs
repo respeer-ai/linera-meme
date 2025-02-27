@@ -6,7 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument as MemeInstantiationArgument, Meme, Metadata, Mint},
+    meme::{InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, Metadata},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -14,7 +14,6 @@ use linera_sdk::{
     test::{Medium, MessageAction, QueryOutcome, TestValidator},
 };
 use serde_json::json;
-use std::str::FromStr;
 
 /// Test setting a proxy and testing its coherency across microchains.
 ///
@@ -123,10 +122,12 @@ async fn multi_chain_test() {
                                 github: None,
                             },
                         },
-                        fee_percent: Some(Amount::from_str("0.2").unwrap()),
+                        initial_liquidity: Liquidity {
+                            fungible_amount: Amount::from_tokens(10000000),
+                            native_amount: Amount::from_tokens(10),
+                        },
                         blob_gateway_application_id: None,
                         ams_application_id: None,
-                        swap_application_id: None,
                         proxy_application_id: None,
                     },
                 },

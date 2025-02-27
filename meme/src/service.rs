@@ -7,13 +7,13 @@ mod state;
 
 use std::sync::Arc;
 
+use abi::meme::{MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     base::{AccountOwner, Amount, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
-use meme::MemeOperation;
 
 use self::state::MemeState;
 
@@ -25,7 +25,7 @@ pub struct MemeService {
 linera_sdk::service!(MemeService);
 
 impl WithServiceAbi for MemeService {
-    type Abi = meme::MemeAbi;
+    type Abi = MemeAbi;
 }
 
 impl Service for MemeService {
@@ -82,7 +82,10 @@ impl QueryRoot {
     }
 
     async fn balance_of(&self, owner: AccountOwner) -> Amount {
-        self.state.balances.get(&owner).await.unwrap().unwrap()
+        match self.state.balances.get(&owner).await.unwrap() {
+            Some(amount) => amount,
+            _ => Amount::ZERO,
+        }
     }
 
     async fn native_balance_of(&self, owner: AccountOwner) -> Amount {
@@ -142,7 +145,6 @@ mod tests {
             },
             blob_gateway_application_id: None,
             ams_application_id: None,
-            swap_application_id: None,
             proxy_application_id: None,
         };
 

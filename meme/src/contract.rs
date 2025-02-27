@@ -5,13 +5,13 @@
 
 mod state;
 
-use abi::meme::{InstantiationArgument, Liquidity};
+use abi::meme::{InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeResponse};
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use meme::{MemeAbi, MemeError, MemeMessage, MemeOperation, MemeResponse};
+use meme::MemeError;
 use proxy::{ProxyAbi, ProxyOperation};
 
 use self::state::MemeState;
@@ -69,8 +69,12 @@ impl Contract for MemeContract {
             MemeOperation::TransferFrom { from, to, amount } => self
                 .on_op_transfer_from(from, to, amount)
                 .expect("Failed OP: trasnfer from"),
-            MemeOperation::Approve { spender, amount } => self
-                .on_op_approve(spender, amount)
+            MemeOperation::Approve {
+                spender,
+                amount,
+                rfq_application,
+            } => self
+                .on_op_approve(spender, amount, rfq_application)
                 .expect("Failed OP: approve"),
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
@@ -88,13 +92,24 @@ impl Contract for MemeContract {
         match message {
             MemeMessage::Transfer { to, amount } => self
                 .on_msg_transfer(to, amount)
+                .await
                 .expect("Failed MSG: transfer"),
             MemeMessage::TransferFrom { from, to, amount } => self
                 .on_msg_transfer_from(from, to, amount)
                 .expect("Failed MSG: trasnfer from"),
-            MemeMessage::Approve { spender, amount } => self
-                .on_msg_approve(spender, amount)
+            MemeMessage::Approve {
+                spender,
+                amount,
+                rfq_application,
+            } => self
+                .on_msg_approve(spender, amount, rfq_application)
                 .expect("Failed MSG: approve"),
+            MemeMessage::Approved { rfq_application } => self
+                .on_msg_approved(rfq_application)
+                .expect("Failed MSG: approved"),
+            MemeMessage::Rejected { rfq_application } => self
+                .on_msg_rejected(rfq_application)
+                .expect("Failed MSG: rejected"),
             MemeMessage::TransferOwnership { new_owner } => self
                 .on_msg_transfer_ownership(new_owner)
                 .expect("Failed MSG: transfer ownership"),
@@ -146,6 +161,10 @@ impl MemeContract {
         to: AccountOwner,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
+        self.runtime
+            .prepare_message(MemeMessage::Transfer { to, amount })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(MemeResponse::Ok)
     }
 
@@ -162,6 +181,7 @@ impl MemeContract {
         &mut self,
         spender: AccountOwner,
         amount: Amount,
+        rfq_application: Option<Account>,
     ) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
     }
@@ -174,8 +194,9 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    fn on_msg_transfer(&mut self, to: AccountOwner, amount: Amount) -> Result<(), MemeError> {
-        Ok(())
+    async fn on_msg_transfer(&mut self, to: AccountOwner, amount: Amount) -> Result<(), MemeError> {
+        let from = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        self.state.transfer(from, to, amount).await
     }
 
     fn on_msg_transfer_from(
@@ -187,7 +208,22 @@ impl MemeContract {
         Ok(())
     }
 
-    fn on_msg_approve(&mut self, spender: AccountOwner, amount: Amount) -> Result<(), MemeError> {
+    fn on_msg_approve(
+        &mut self,
+        spender: AccountOwner,
+        amount: Amount,
+        rfq_application: Option<Account>,
+    ) -> Result<(), MemeError> {
+        Ok(())
+    }
+
+    fn on_msg_approved(&mut self, rfq_application: Option<Account>) -> Result<(), MemeError> {
+        // TODO: call approved to rfq_application
+        Ok(())
+    }
+
+    fn on_msg_rejected(&mut self, rfq_application: Option<Account>) -> Result<(), MemeError> {
+        // TODO: call rejected to rfq_application
         Ok(())
     }
 
@@ -199,7 +235,10 @@ impl MemeContract {
 #[cfg(test)]
 mod tests {
     use abi::{
-        meme::{InstantiationArgument, Liquidity, Meme, Metadata},
+        meme::{
+            InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
+            MemeResponse, Metadata,
+        },
         store_type::StoreType,
     };
     use futures::FutureExt as _;
@@ -209,7 +248,6 @@ mod tests {
         views::View,
         Contract, ContractRuntime,
     };
-    use meme::{MemeAbi, MemeMessage, MemeOperation, MemeResponse};
     use std::str::FromStr;
 
     use super::{MemeContract, MemeState};
@@ -251,14 +289,24 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn message() {
         let mut meme = create_and_instantiate_meme().await;
-
-        let to = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
         let amount = Amount::from_tokens(1);
+
+        let to = AccountOwner::User(
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                .unwrap(),
+        );
+
+        meme.state.initialize_balance(from, amount).await.unwrap();
+
+        assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
         meme.execute_message(MemeMessage::Transfer { to, amount })
             .await;
 
         assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
-
         let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
         assert_eq!(balance, amount);
     }
@@ -316,7 +364,6 @@ mod tests {
             },
             blob_gateway_application_id: None,
             ams_application_id: None,
-            swap_application_id: None,
             proxy_application_id: None,
         };
 
