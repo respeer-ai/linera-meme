@@ -69,6 +69,31 @@ impl Contract for SwapContract {
                     deadline,
                 )
                 .expect("Failed OP: add liquidity"),
+            SwapOperation::LiquidityFundApproved {
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+                deadline,
+            } => self
+                .on_op_liquidity_fund_approved(
+                    token_0,
+                    token_1,
+                    amount_0_desired,
+                    amount_1_desired,
+                    amount_0_min,
+                    amount_1_min,
+                    // Only for creator to initialize pool
+                    virtual_liquidity,
+                    to,
+                    deadline,
+                )
+                .expect("Failed OP: liquidity fund approved"),
             SwapOperation::RemoveLiquidity {
                 token_0,
                 token_1,
@@ -113,8 +138,13 @@ impl Contract for SwapContract {
     }
 
     async fn execute_message(&mut self, message: SwapMessage) {
+        // All messages must be run on creation chain side
+        if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
+            panic!("Messages must only be run on creation chain");
+        }
+
         match message {
-            SwapMessage::AddLiquidity {
+            SwapMessage::LiquidityFundApproved {
                 token_0,
                 token_1,
                 amount_0_desired,
@@ -126,7 +156,7 @@ impl Contract for SwapContract {
                 to,
                 deadline,
             } => self
-                .on_msg_add_liquidity(
+                .on_msg_liquidity_fund_approved(
                     token_0,
                     token_1,
                     amount_0_desired,
@@ -139,7 +169,7 @@ impl Contract for SwapContract {
                     deadline,
                 )
                 .await
-                .expect("Failed MSG: add liquidity"),
+                .expect("Failed MSG: liquidity fund approved"),
             SwapMessage::RemoveLiquidity {
                 token_0,
                 token_1,
@@ -219,6 +249,10 @@ impl SwapContract {
         return true;
     }
 
+    fn request_liquidity_funds(&mut self) -> Result<(), SwapError> {
+        Ok(())
+    }
+
     fn on_op_add_liquidity(
         &mut self,
         token_0: ApplicationId,
@@ -235,20 +269,27 @@ impl SwapContract {
         let virtual_liquidity =
             self.formalize_virtual_liquidity(token_0, token_1, virtual_liquidity);
 
-        self.runtime
-            .prepare_message(SwapMessage::AddLiquidity {
-                token_0,
-                token_1,
-                amount_0_desired,
-                amount_1_desired,
-                amount_0_min,
-                amount_1_min,
-                virtual_liquidity,
-                to,
-                deadline,
-            })
-            .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+        // Request liquidity funds in rfq chain
+        // If success, rfq application will call LiquidityFundApproved then we can create pool or
+        // add liquidity
+        self.request_liquidity_funds()?;
+
+        Ok(SwapResponse::Ok)
+    }
+
+    fn on_op_liquidity_fund_approved(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<SwapResponse, SwapError> {
         Ok(SwapResponse::Ok)
     }
 
@@ -291,6 +332,9 @@ impl SwapContract {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
+        // 1: Create rfq chain
+        // 2: Create rfq application on rfq chain
+        // 3: Transfer native liquidity to rfq application
         Ok(())
     }
 
@@ -308,10 +352,13 @@ impl SwapContract {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
+        // 1: Create rfq chain
+        // 2: Create rfq application on rfq chain
+        // 3: Transfer native liquidity to rfq application
         Ok(())
     }
 
-    async fn on_msg_add_liquidity(
+    async fn on_msg_liquidity_fund_approved(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -324,6 +371,7 @@ impl SwapContract {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
+        // Fund is ready, create liquidity pool
         if let Some(pool) = self.state.get_pool_exchangable(token_0, token_1).await? {
             self.pool_chain_add_liquidity(
                 pool.pool_application,

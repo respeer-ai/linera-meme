@@ -34,6 +34,18 @@ pub enum SwapOperation {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
+    LiquidityFundApproved {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    },
     RemoveLiquidity {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -63,7 +75,7 @@ pub enum SwapResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SwapMessage {
-    AddLiquidity {
+    LiquidityFundApproved {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0_desired: Amount,
