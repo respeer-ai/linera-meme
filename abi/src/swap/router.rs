@@ -123,3 +123,8 @@ pub struct Pool {
     pub token_1: Option<ApplicationId>,
     pub pool_application: Account,
 }
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
+pub struct InstantiationArgument {
+    pub liquidity_rfq_bytecode_id: BytecodeId,
+}

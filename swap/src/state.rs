@@ -1,7 +1,10 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::swap::{router::Pool, transaction::Transaction};
+use abi::swap::{
+    router::{InstantiationArgument, Pool},
+    transaction::Transaction,
+};
 use linera_sdk::{
     base::{ApplicationId, BytecodeId},
     views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
@@ -25,6 +28,11 @@ pub struct SwapState {
 
 #[allow(dead_code)]
 impl SwapState {
+    pub(crate) async fn instantiate(&mut self, argument: InstantiationArgument) {
+        self.liquidity_rfq_bytecode_id
+            .set(Some(argument.liquidity_rfq_bytecode_id));
+    }
+
     pub(crate) async fn get_pool(
         &self,
         token_0: ApplicationId,

@@ -5,7 +5,7 @@
 
 mod state;
 
-use abi::swap::router::{SwapAbi, SwapMessage, SwapOperation, SwapResponse};
+use abi::swap::router::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapResponse};
 use linera_sdk::{
     base::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
@@ -31,7 +31,7 @@ impl WithContractAbi for SwapContract {
 
 impl Contract for SwapContract {
     type Message = SwapMessage;
-    type InstantiationArgument = ();
+    type InstantiationArgument = InstantiationArgument;
     type Parameters = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
@@ -41,9 +41,11 @@ impl Contract for SwapContract {
         SwapContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, _value: ()) {
+    async fn instantiate(&mut self, argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
+
+        self.state.instantiate(argument);
     }
 
     async fn execute_operation(&mut self, operation: SwapOperation) -> SwapResponse {
@@ -489,8 +491,12 @@ impl SwapContract {
 
 #[cfg(test)]
 mod tests {
+    use abi::swap::router::InstantiationArgument;
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Contract, ContractRuntime};
+    use linera_sdk::{
+        base::BytecodeId, util::BlockingWait, views::View, Contract, ContractRuntime,
+    };
+    use std::str::FromStr;
 
     use super::{SwapContract, SwapState};
 
@@ -512,8 +518,11 @@ mod tests {
             runtime,
         };
 
+        let bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
         contract
-            .instantiate(())
+            .instantiate(InstantiationArgument {
+                liquidity_rfq_bytecode_id: bytecode_id,
+            })
             .now_or_never()
             .expect("Initialization of swap state should not await anything");
 
