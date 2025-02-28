@@ -494,7 +494,10 @@ mod tests {
     use abi::swap::router::{InstantiationArgument, SwapAbi, SwapOperation, SwapResponse};
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Amount, ApplicationId, BytecodeId, ChainOwnership, Owner},
+        base::{
+            Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainOwnership, MessageId,
+            Owner,
+        },
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -542,10 +545,19 @@ mod tests {
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<SwapAbi>();
-        let runtime = ContractRuntime::new()
+        let mut runtime = ContractRuntime::new()
             .with_application_parameters(())
             .with_application_id(application_id)
             .with_chain_ownership(ChainOwnership::single(owner));
+
+        let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
+        runtime.add_expected_open_chain_call(
+            ChainOwnership::single(owner),
+            ApplicationPermissions::new_single(application_id.forget_abi()),
+            Amount::from_tokens(10),
+            message_id,
+        );
+
         let mut contract = SwapContract {
             state: SwapState::load(runtime.root_view_storage_context())
                 .blocking_wait()
