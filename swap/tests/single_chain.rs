@@ -5,7 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::swap::SwapAbi;
+use abi::swap::router::SwapAbi;
 use linera_sdk::test::{QueryOutcome, TestValidator};
 
 /// Test setting a swap and testing its coherency across microchains.

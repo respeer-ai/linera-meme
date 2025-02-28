@@ -11,7 +11,7 @@ use abi::{
         MemeOperation, Metadata,
     },
     store_type::StoreType,
-    swap::SwapAbi,
+    swap::router::SwapAbi,
 };
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, ChainId, Owner},

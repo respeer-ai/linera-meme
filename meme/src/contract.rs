@@ -7,7 +7,7 @@ mod state;
 
 use abi::{
     meme::{InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeResponse},
-    swap::{SwapAbi, SwapOperation},
+    swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, ApplicationId, CryptoHash, Owner, WithContractAbi},
