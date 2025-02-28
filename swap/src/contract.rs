@@ -5,12 +5,13 @@
 
 mod state;
 
-use abi::swap::router::{SwapAbi, SwapOperation, SwapResponse};
+use abi::swap::router::{SwapAbi, SwapMessage, SwapOperation, SwapResponse};
 use linera_sdk::{
-    base::WithContractAbi,
+    base::{Account, AccountOwner, Amount, ApplicationId, Timestamp, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
+use swap::SwapError;
 
 use self::state::SwapState;
 
@@ -26,7 +27,7 @@ impl WithContractAbi for SwapContract {
 }
 
 impl Contract for SwapContract {
-    type Message = ();
+    type Message = SwapMessage;
     type InstantiationArgument = ();
     type Parameters = ();
 
@@ -37,21 +38,360 @@ impl Contract for SwapContract {
         SwapContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, value: ()) {
+    async fn instantiate(&mut self, _value: ()) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
     }
 
     async fn execute_operation(&mut self, operation: SwapOperation) -> SwapResponse {
-        SwapResponse::Ok
+        match operation {
+            SwapOperation::AddLiquidity {
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+                deadline,
+            } => self
+                .on_op_add_liquidity(
+                    token_0,
+                    token_1,
+                    amount_0_desired,
+                    amount_1_desired,
+                    amount_0_min,
+                    amount_1_min,
+                    virtual_liquidity,
+                    to,
+                    deadline,
+                )
+                .expect("Failed OP: add liquidity"),
+            SwapOperation::RemoveLiquidity {
+                token_0,
+                token_1,
+                liquidity,
+                amount_0_min,
+                amount_1_min,
+                to,
+                deadline,
+            } => self
+                .on_op_remove_liquidity(
+                    token_0,
+                    token_1,
+                    liquidity,
+                    amount_0_min,
+                    amount_1_min,
+                    to,
+                    deadline,
+                )
+                .expect("Failed OP: remove liquidity"),
+            SwapOperation::Swap {
+                token_0,
+                token_1,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                deadline,
+            } => self
+                .on_op_swap(
+                    token_0,
+                    token_1,
+                    amount_0_in,
+                    amount_1_in,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    deadline,
+                )
+                .expect("Failed OP: swap"),
+        }
     }
 
-    async fn execute_message(&mut self, _message: ()) {
-        panic!("Swap application doesn't support any cross-chain messages");
+    async fn execute_message(&mut self, message: SwapMessage) {
+        match message {
+            SwapMessage::AddLiquidity {
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+                deadline,
+            } => self
+                .on_msg_add_liquidity(
+                    token_0,
+                    token_1,
+                    amount_0_desired,
+                    amount_1_desired,
+                    amount_0_min,
+                    amount_1_min,
+                    // Only for creator to initialize pool
+                    virtual_liquidity,
+                    to,
+                    deadline,
+                )
+                .await
+                .expect("Failed MSG: add liquidity"),
+            SwapMessage::RemoveLiquidity {
+                token_0,
+                token_1,
+                liquidity,
+                amount_0_min,
+                amount_1_min,
+                to,
+                deadline,
+            } => self
+                .on_msg_remove_liquidity(
+                    token_0,
+                    token_1,
+                    liquidity,
+                    amount_0_min,
+                    amount_1_min,
+                    to,
+                    deadline,
+                )
+                .await
+                .expect("Failed MSG: remove liquidity"),
+            SwapMessage::Swap {
+                token_0,
+                token_1,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                deadline,
+            } => self
+                .on_msg_swap(
+                    token_0,
+                    token_1,
+                    amount_0_in,
+                    amount_1_in,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    deadline,
+                )
+                .await
+                .expect("Failed MSG: swap"),
+        }
     }
 
     async fn store(mut self) {
         self.state.save().await.expect("Failed to save state");
+    }
+}
+
+impl SwapContract {
+    fn formalize_virtual_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        virtual_liquidity: Option<bool>,
+    ) -> bool {
+        let Some(virtual_liquidity) = virtual_liquidity else {
+            return false;
+        };
+        if !virtual_liquidity {
+            return false;
+        }
+        if token_1.is_none() {
+            return false;
+        }
+
+        let Some(caller_application_id) = self.runtime.authenticated_caller_id() else {
+            return false;
+        };
+        if caller_application_id != token_0 {
+            return false;
+        }
+        if self.runtime.chain_id() != token_0.creation.chain_id {
+            return false;
+        }
+        return true;
+    }
+
+    fn on_op_add_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: Option<bool>,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<SwapResponse, SwapError> {
+        let virtual_liquidity =
+            self.formalize_virtual_liquidity(token_0, token_1, virtual_liquidity);
+
+        self.runtime
+            .prepare_message(SwapMessage::AddLiquidity {
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                virtual_liquidity,
+                to,
+                deadline,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+        Ok(SwapResponse::Ok)
+    }
+
+    fn on_op_remove_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        liquidity: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<SwapResponse, SwapError> {
+        Ok(SwapResponse::Ok)
+    }
+
+    fn on_op_swap(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<SwapResponse, SwapError> {
+        Ok(SwapResponse::Ok)
+    }
+
+    fn pool_chain_add_liquidity(
+        &mut self,
+        pool_application: Account,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<(), SwapError> {
+        Ok(())
+    }
+
+    // Pool application is run on its own chain
+    fn create_pool(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<(), SwapError> {
+        Ok(())
+    }
+
+    async fn on_msg_add_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<(), SwapError> {
+        if let Some(pool) = self.state.get_pool_exchangable(token_0, token_1).await? {
+            self.pool_chain_add_liquidity(
+                pool.pool_application,
+                if pool.token_0 == token_0 {
+                    amount_0_desired
+                } else {
+                    amount_1_desired
+                },
+                if pool.token_0 == token_0 {
+                    amount_1_desired
+                } else {
+                    amount_0_desired
+                },
+                if pool.token_0 == token_0 {
+                    amount_0_min
+                } else {
+                    amount_1_min
+                },
+                if pool.token_0 == token_0 {
+                    amount_1_min
+                } else {
+                    amount_0_min
+                },
+                virtual_liquidity,
+                to,
+                deadline,
+            )
+        } else {
+            self.create_pool(
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+                deadline,
+            )
+        }
+    }
+
+    async fn on_msg_remove_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        liquidity: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<(), SwapError> {
+        Ok(())
+    }
+
+    async fn on_msg_swap(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<(), SwapError> {
+        Ok(())
     }
 }
 
