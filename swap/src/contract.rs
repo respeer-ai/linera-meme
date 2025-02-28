@@ -7,7 +7,10 @@ mod state;
 
 use abi::swap::router::{SwapAbi, SwapMessage, SwapOperation, SwapResponse};
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, Timestamp, WithContractAbi},
+    base::{
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
+        MessageId, Timestamp, WithContractAbi,
+    },
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -68,7 +71,11 @@ impl Contract for SwapContract {
                     to,
                     deadline,
                 )
+                .await
                 .expect("Failed OP: add liquidity"),
+            SwapOperation::ChangeRfqPermissions { application_id } => self
+                .on_call_change_rfq_permissions(application_id)
+                .expect("Failed OP: change rfq permissions"),
             SwapOperation::LiquidityFundApproved {
                 token_0,
                 token_1,
@@ -144,6 +151,9 @@ impl Contract for SwapContract {
         }
 
         match message {
+            SwapMessage::CreateRfq { rfq_bytecode_id } => self
+                .on_msg_create_rfq(rfq_bytecode_id)
+                .expect("Failed MSG: create rfq"),
             SwapMessage::LiquidityFundApproved {
                 token_0,
                 token_1,
@@ -249,11 +259,32 @@ impl SwapContract {
         return true;
     }
 
-    fn request_liquidity_funds(&mut self) -> Result<(), SwapError> {
+    fn create_rfq_chain(&mut self) -> Result<(MessageId, ChainId), SwapError> {
+        let ownership = self.runtime.chain_ownership();
+        let application_id = self.runtime.application_id();
+        let permissions = ApplicationPermissions::new_single(application_id.forget_abi());
+        Ok(self
+            .runtime
+            .open_chain(ownership, permissions, Amount::from_tokens(1)))
+    }
+
+    async fn request_liquidity_funds(&mut self) -> Result<(), SwapError> {
+        // 1: Create rfq chain
+        let (message_id, chain_id) = self.create_rfq_chain()?;
+        // 2: Create rfq application
+        let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
+
+        self.runtime
+            .prepare_message(SwapMessage::CreateRfq {
+                rfq_bytecode_id: bytecode_id,
+            })
+            .with_authentication()
+            .send_to(chain_id);
+
         Ok(())
     }
 
-    fn on_op_add_liquidity(
+    async fn on_op_add_liquidity(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -272,8 +303,23 @@ impl SwapContract {
         // Request liquidity funds in rfq chain
         // If success, rfq application will call LiquidityFundApproved then we can create pool or
         // add liquidity
-        self.request_liquidity_funds()?;
+        // TODO: it may should be run on creation chain to use swap's owners
+        self.request_liquidity_funds().await?;
 
+        Ok(SwapResponse::Ok)
+    }
+
+    fn change_rfq_permissions(&mut self, application_id: ApplicationId) -> Result<(), SwapError> {
+        Ok(self
+            .runtime
+            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
+    }
+
+    fn on_call_change_rfq_permissions(
+        &mut self,
+        application_id: ApplicationId,
+    ) -> Result<SwapResponse, SwapError> {
+        self.change_rfq_permissions(application_id)?;
         Ok(SwapResponse::Ok)
     }
 
@@ -327,14 +373,10 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
-        // 1: Create rfq chain
-        // 2: Create rfq application on rfq chain
-        // 3: Transfer native liquidity to rfq application
+        // 1: Call pool application to add liquidity
         Ok(())
     }
 
@@ -352,9 +394,12 @@ impl SwapContract {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
-        // 1: Create rfq chain
-        // 2: Create rfq application on rfq chain
-        // 3: Transfer native liquidity to rfq application
+        // 1: Create pool chain
+        // 2: Create pool application with initial liquidity
+        Ok(())
+    }
+
+    fn on_msg_create_rfq(&mut self, rfq_bytecode_id: BytecodeId) -> Result<(), SwapError> {
         Ok(())
     }
 
@@ -395,7 +440,6 @@ impl SwapContract {
                 } else {
                     amount_0_min
                 },
-                virtual_liquidity,
                 to,
                 deadline,
             )

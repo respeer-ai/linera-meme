@@ -3,7 +3,7 @@
 
 use async_graphql::{InputObject, Request, Response};
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
+    base::{Account, AccountOwner, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp, BytecodeId},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,9 @@ pub enum SwapOperation {
         virtual_liquidity: Option<bool>,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
+    },
+    ChangeRfqPermissions {
+        application_id: ApplicationId,
     },
     LiquidityFundApproved {
         token_0: ApplicationId,
@@ -75,6 +78,9 @@ pub enum SwapResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SwapMessage {
+    CreateRfq {
+        rfq_bytecode_id: BytecodeId,
+    },
     LiquidityFundApproved {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,

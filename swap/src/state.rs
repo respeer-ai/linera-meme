@@ -3,7 +3,7 @@
 
 use abi::swap::{router::Pool, transaction::Transaction};
 use linera_sdk::{
-    base::ApplicationId,
+    base::{ApplicationId, BytecodeId},
     views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
@@ -20,6 +20,7 @@ pub struct SwapState {
     pub pool_meme_natives: MapView<u64, ApplicationId>,
     pub last_transactions: QueueView<Transaction>,
     pub transaction_id: RegisterView<u64>,
+    pub liquidity_rfq_bytecode_id: RegisterView<Option<BytecodeId>>,
 }
 
 #[allow(dead_code)]
@@ -52,5 +53,9 @@ impl SwapState {
         };
 
         self.get_pool(token_1, Some(token_0)).await
+    }
+
+    pub(crate) async fn liquidity_rfq_bytecode_id(&self) -> BytecodeId {
+        self.liquidity_rfq_bytecode_id.get().unwrap()
     }
 }
