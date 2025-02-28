@@ -554,7 +554,7 @@ mod tests {
         runtime.add_expected_open_chain_call(
             ChainOwnership::single(owner),
             ApplicationPermissions::new_single(application_id.forget_abi()),
-            Amount::from_tokens(10),
+            Amount::from_tokens(1),
             message_id,
         );
 
