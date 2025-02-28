@@ -11,7 +11,7 @@ use abi::{
         MemeOperation, MemeParameters, Metadata,
     },
     store_type::StoreType,
-    swap::router::SwapAbi,
+    swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
 };
 use linera_sdk::{
     base::{Account, AccountOwner, Amount, ChainId, Owner},
@@ -86,9 +86,17 @@ async fn multi_chain_test() {
         .await;
     meme_chain.handle_received_messages().await;
 
+    let liquidity_rfq_bytecode_id = swap_chain.publish_bytecodes_in("../liquidity-rfq").await;
     let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
     let swap_application_id = meme_chain
-        .create_application::<SwapAbi, (), ()>(swap_bytecode_id, (), (), vec![])
+        .create_application::<SwapAbi, (), SwapInstantiationArgument>(
+            swap_bytecode_id,
+            (),
+            SwapInstantiationArgument {
+                liquidity_rfq_bytecode_id,
+            },
+            vec![],
+        )
         .await;
 
     let meme_instantiation_argument = MemeInstantiationArgument {
