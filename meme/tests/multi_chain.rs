@@ -8,7 +8,7 @@
 use abi::{
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
-        MemeOperation, Metadata,
+        MemeOperation, MemeParameters, Metadata,
     },
     store_type::StoreType,
     swap::router::SwapAbi,
@@ -26,7 +26,9 @@ use std::str::FromStr;
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_chain_test() {
     let (validator, meme_bytecode_id) =
-        TestValidator::with_current_bytecode::<MemeAbi, (), MemeInstantiationArgument>().await;
+        TestValidator::with_current_bytecode::<MemeAbi, MemeParameters, MemeInstantiationArgument>(
+        )
+        .await;
 
     let admin_chain = validator.get_chain(&ChainId::root(0));
     let mut meme_chain = validator.new_chain().await;
@@ -35,7 +37,7 @@ async fn multi_chain_test() {
 
     let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
     let user_owner = AccountOwner::User(Owner::from(user_chain.public_key()));
-    let user_balance = Amount::from_tokens(1278);
+    let balance = Amount::from_tokens(1278);
 
     let certificate = admin_chain
         .add_block(|block| {
@@ -45,7 +47,7 @@ async fn multi_chain_test() {
                     chain_id: user_chain.id(),
                     owner: Some(user_owner),
                 }),
-                user_balance,
+                balance,
             );
         })
         .await;
@@ -59,6 +61,30 @@ async fn multi_chain_test() {
         })
         .await;
     user_chain.handle_received_messages().await;
+
+    // Fund meme chain to create rfq chain
+    let certificate = admin_chain
+        .add_block(|block| {
+            block.with_native_token_transfer(
+                None,
+                Recipient::Account(Account {
+                    chain_id: meme_chain.id(),
+                    owner: None,
+                }),
+                balance,
+            );
+        })
+        .await;
+    meme_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
 
     let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
     let swap_application_id = meme_chain
@@ -97,7 +123,7 @@ async fn multi_chain_test() {
     let meme_application_id = meme_chain
         .create_application(
             meme_bytecode_id,
-            (),
+            MemeParameters {},
             meme_instantiation_argument.clone(),
             vec![],
         )

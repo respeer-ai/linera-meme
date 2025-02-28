@@ -48,9 +48,9 @@ pub struct InstantiationArgument {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub struct Parameters {}
+pub struct MemeParameters {}
 
-scalar!(Parameters);
+scalar!(MemeParameters);
 
 pub struct MemeAbi;
 

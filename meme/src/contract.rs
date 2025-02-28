@@ -6,7 +6,9 @@
 mod state;
 
 use abi::{
-    meme::{InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeResponse},
+    meme::{
+        InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeParameters, MemeResponse,
+    },
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
@@ -33,7 +35,7 @@ impl WithContractAbi for MemeContract {
 impl Contract for MemeContract {
     type Message = MemeMessage;
     type InstantiationArgument = InstantiationArgument;
-    type Parameters = ();
+    type Parameters = MemeParameters;
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = MemeState::load(runtime.root_view_storage_context())
@@ -356,7 +358,7 @@ mod tests {
     use abi::{
         meme::{
             InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
-            MemeResponse, Metadata,
+            MemeParameters, MemeResponse, Metadata,
         },
         store_type::StoreType,
     };
@@ -645,7 +647,7 @@ mod tests {
         let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
 
         let runtime = ContractRuntime::new()
-            .with_application_parameters(())
+            .with_application_parameters(MemeParameters {})
             .with_can_change_application_permissions(true)
             .with_chain_id(chain_id)
             .with_application_id(application_id)

@@ -5,7 +5,7 @@
 
 mod state;
 
-use abi::meme::{InstantiationArgument as MemeInstantiationArgument, Parameters as MemeParameters};
+use abi::meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters};
 use linera_sdk::{
     base::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
