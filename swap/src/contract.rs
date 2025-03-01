@@ -5,7 +5,10 @@
 
 mod state;
 
-use abi::swap::router::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapResponse};
+use abi::swap::{
+    liquidity_rfq::{LiquidityRfqAbi, LiquidityRfqParameters},
+    router::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapResponse},
+};
 use linera_sdk::{
     base::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
@@ -402,6 +405,17 @@ impl SwapContract {
     }
 
     fn on_msg_create_rfq(&mut self, rfq_bytecode_id: BytecodeId) -> Result<(), SwapError> {
+        // Run on rfq chain
+
+        let _ = self
+            .runtime
+            .create_application::<LiquidityRfqAbi, LiquidityRfqParameters, ()>(
+                rfq_bytecode_id,
+                &LiquidityRfqParameters {},
+                &(),
+                vec![],
+            );
+
         Ok(())
     }
 
