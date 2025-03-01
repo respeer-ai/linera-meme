@@ -5,6 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
+use abi::swap::liquidity_rfq::LiquidityRfqAbi;
 use linera_sdk::test::{QueryOutcome, TestValidator};
 
 /// Test setting a liquidity rfq and testing its coherency across microchains.
@@ -14,7 +15,7 @@ use linera_sdk::test::{QueryOutcome, TestValidator};
 #[tokio::test(flavor = "multi_thread")]
 async fn single_chain_test() {
     let (validator, bytecode_id) =
-        TestValidator::with_current_bytecode::<liquidity_rfq::LiquidityRfqAbi, (), u64>().await;
+        TestValidator::with_current_bytecode::<LiquidityRfqAbi, (), u64>().await;
     let mut chain = validator.new_chain().await;
 
     let initial_state = 42u64;

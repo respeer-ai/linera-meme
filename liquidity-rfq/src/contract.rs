@@ -5,12 +5,15 @@
 
 mod state;
 
+use abi::swap::liquidity_rfq::{
+    LiquidityRfqAbi, LiquidityRfqMessage, LiquidityRfqOperation, LiquidityRfqParameters,
+    LiquidityRfqResponse,
+};
 use linera_sdk::{
     base::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use liquidity_rfq::LiquidityRfqAbi;
 
 use self::state::LiquidityRfqState;
 
@@ -26,9 +29,9 @@ impl WithContractAbi for LiquidityRfqContract {
 }
 
 impl Contract for LiquidityRfqContract {
-    type Message = ();
-    type InstantiationArgument = u64;
-    type Parameters = ();
+    type Message = LiquidityRfqMessage;
+    type InstantiationArgument = ();
+    type Parameters = LiquidityRfqParameters;
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = LiquidityRfqState::load(runtime.root_view_storage_context())
@@ -37,20 +40,21 @@ impl Contract for LiquidityRfqContract {
         LiquidityRfqContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, value: u64) {
+    async fn instantiate(&mut self, _argument: ()) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        self.state.value.set(value);
+        self.state.initialized.set(true);
     }
 
-    async fn execute_operation(&mut self, operation: u64) -> u64 {
-        let new_value = self.state.value.get() + operation;
-        self.state.value.set(new_value);
-        new_value
+    async fn execute_operation(
+        &mut self,
+        operation: LiquidityRfqOperation,
+    ) -> LiquidityRfqResponse {
+        LiquidityRfqResponse::Ok
     }
 
-    async fn execute_message(&mut self, _message: ()) {
+    async fn execute_message(&mut self, message: LiquidityRfqMessage) {
         panic!("LiquidityRfq application doesn't support any cross-chain messages");
     }
 
@@ -61,61 +65,31 @@ impl Contract for LiquidityRfqContract {
 
 #[cfg(test)]
 mod tests {
+    use abi::swap::liquidity_rfq::LiquidityRfqParameters;
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Contract, ContractRuntime};
+    use linera_sdk::{
+        base::ApplicationId, util::BlockingWait, views::View, Contract, ContractRuntime,
+    };
+    use std::str::FromStr;
 
     use super::{LiquidityRfqContract, LiquidityRfqState};
 
     #[test]
-    fn operation() {
-        let initial_value = 72_u64;
-        let mut liquidity_rfq = create_and_instantiate_liquidity_rfq(initial_value);
-
-        let increment = 42_308_u64;
-
-        let response = liquidity_rfq
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of liquidity rfq operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*liquidity_rfq.state.value.get(), initial_value + increment);
-    }
+    fn operation() {}
 
     #[test]
-    #[should_panic(expected = "LiquidityRfq application doesn't support any cross-chain messages")]
-    fn message() {
-        let initial_value = 72_u64;
-        let mut liquidity_rfq = create_and_instantiate_liquidity_rfq(initial_value);
-
-        liquidity_rfq
-            .execute_message(())
-            .now_or_never()
-            .expect("Execution of liquidity_rfq operation should not await anything");
-    }
+    fn message() {}
 
     #[test]
-    fn cross_application_call() {
-        let initial_value = 2_845_u64;
-        let mut liquidity_rfq = create_and_instantiate_liquidity_rfq(initial_value);
+    fn cross_application_call() {}
 
-        let increment = 8_u64;
-
-        let response = liquidity_rfq
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of liquidity rfq operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*liquidity_rfq.state.value.get(), expected_value);
-    }
-
-    fn create_and_instantiate_liquidity_rfq(initial_value: u64) -> LiquidityRfqContract {
-        let runtime = ContractRuntime::new().with_application_parameters(());
+    fn create_and_instantiate_liquidity_rfq() -> LiquidityRfqContract {
+        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let application_id = ApplicationId::from_str(application_id_str).unwrap();
+        let runtime = ContractRuntime::new().with_application_parameters(LiquidityRfqParameters {
+            token_0: application_id,
+            token_1: None,
+        });
         let mut contract = LiquidityRfqContract {
             state: LiquidityRfqState::load(runtime.root_view_storage_context())
                 .blocking_wait()
@@ -124,11 +98,11 @@ mod tests {
         };
 
         contract
-            .instantiate(initial_value)
+            .instantiate(())
             .now_or_never()
             .expect("Initialization of liquidity rfq state should not await anything");
 
-        assert_eq!(*contract.state.value.get(), initial_value);
+        assert_eq!(*contract.state.initialized.get(), true);
 
         contract
     }

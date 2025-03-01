@@ -26,6 +26,12 @@ pub enum LiquidityRfqOperation {
     FundFailure,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum LiquidityRfqMessage {
+    FundSuccess,
+    FundFailure,
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub enum LiquidityRfqResponse {
     #[default]
@@ -33,6 +39,9 @@ pub enum LiquidityRfqResponse {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub struct LiquidityRfqParameters {}
+pub struct LiquidityRfqParameters {
+    pub token_0: ApplicationId,
+    pub token_1: Option<ApplicationId>,
+}
 
 scalar!(LiquidityRfqParameters);
