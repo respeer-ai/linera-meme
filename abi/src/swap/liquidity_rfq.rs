@@ -22,14 +22,12 @@ impl ServiceAbi for LiquidityRfqAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum LiquidityRfqOperation {
-    FundSuccess,
-    FundFailure,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub enum LiquidityRfqMessage {
-    FundSuccess,
-    FundFailure,
+    Approved {
+        token: ApplicationId,
+    },
+    Rejected {
+        token: ApplicationId,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

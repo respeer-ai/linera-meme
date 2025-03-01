@@ -8,8 +8,7 @@ mod state;
 use abi::{
     meme::{MemeAbi, MemeOperation},
     swap::liquidity_rfq::{
-        LiquidityRfqAbi, LiquidityRfqMessage, LiquidityRfqOperation, LiquidityRfqParameters,
-        LiquidityRfqResponse,
+        LiquidityRfqAbi, LiquidityRfqOperation, LiquidityRfqParameters, LiquidityRfqResponse,
     },
 };
 use linera_sdk::{
@@ -17,6 +16,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
+use liquidity_rfq::LiquidityRfqError;
 
 use self::state::LiquidityRfqState;
 
@@ -32,7 +32,7 @@ impl WithContractAbi for LiquidityRfqContract {
 }
 
 impl Contract for LiquidityRfqContract {
-    type Message = LiquidityRfqMessage;
+    type Message = ();
     type InstantiationArgument = ();
     type Parameters = LiquidityRfqParameters;
 
@@ -59,10 +59,17 @@ impl Contract for LiquidityRfqContract {
         &mut self,
         operation: LiquidityRfqOperation,
     ) -> LiquidityRfqResponse {
-        LiquidityRfqResponse::Ok
+        match operation {
+            LiquidityRfqOperation::Approved { token } => {
+                self.on_op_approved(token).expect("Failed OP: approved")
+            }
+            LiquidityRfqOperation::Rejected { token } => {
+                self.on_op_rejected(token).expect("Failed OP: rejected")
+            }
+        }
     }
 
-    async fn execute_message(&mut self, message: LiquidityRfqMessage) {
+    async fn execute_message(&mut self, _message: ()) {
         panic!("LiquidityRfq application doesn't support any cross-chain messages");
     }
 
@@ -105,6 +112,20 @@ impl LiquidityRfqContract {
         let token_0 = self.token_0();
         self.approve_token_liquidity_funds(token_0);
     }
+
+    fn on_op_approved(
+        &mut self,
+        token: ApplicationId,
+    ) -> Result<LiquidityRfqResponse, LiquidityRfqError> {
+        Ok(LiquidityRfqResponse::Ok)
+    }
+
+    fn on_op_rejected(
+        &mut self,
+        token: ApplicationId,
+    ) -> Result<LiquidityRfqResponse, LiquidityRfqError> {
+        Ok(LiquidityRfqResponse::Ok)
+    }
 }
 
 #[cfg(test)]
@@ -134,7 +155,7 @@ mod tests {
         let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str).unwrap();
         let router_application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000001";
-        let router_application_id = ApplicationId::from_str(application_id_str).unwrap();
+        let router_application_id = ApplicationId::from_str(router_application_id_str).unwrap();
         let runtime = ContractRuntime::new().with_application_parameters(LiquidityRfqParameters {
             token_0: application_id,
             token_1: None,
