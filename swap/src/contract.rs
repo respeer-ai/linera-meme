@@ -78,9 +78,6 @@ impl Contract for SwapContract {
                 )
                 .await
                 .expect("Failed OP: add liquidity"),
-            SwapOperation::ChangeRfqPermissions { application_id } => self
-                .on_call_change_rfq_permissions(application_id)
-                .expect("Failed OP: change rfq permissions"),
             SwapOperation::LiquidityFundApproved {
                 token_0,
                 token_1,
@@ -264,18 +261,38 @@ impl SwapContract {
         return true;
     }
 
-    fn create_rfq_chain(&mut self) -> Result<(MessageId, ChainId), SwapError> {
+    fn create_rfq_chain(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+    ) -> Result<(MessageId, ChainId), SwapError> {
+        // It should allow router and meme applications
         let ownership = self.runtime.chain_ownership();
-        let application_id = self.runtime.application_id();
-        let permissions = ApplicationPermissions::new_single(application_id.forget_abi());
+
+        let router_application_id = self.runtime.application_id().forget_abi();
+        let mut application_ids = vec![token_0, router_application_id];
+        if let Some(token_1) = token_1 {
+            application_ids.push(token_1);
+        }
+
+        let permissions = ApplicationPermissions {
+            execute_operations: Some(application_ids),
+            mandatory_applications: vec![],
+            close_chain: vec![router_application_id],
+            change_application_permissions: vec![router_application_id],
+        };
         Ok(self
             .runtime
             .open_chain(ownership, permissions, Amount::from_tokens(1)))
     }
 
-    async fn request_liquidity_funds(&mut self) -> Result<(), SwapError> {
+    async fn request_liquidity_funds(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+    ) -> Result<(), SwapError> {
         // 1: Create rfq chain
-        let (message_id, chain_id) = self.create_rfq_chain()?;
+        let (message_id, chain_id) = self.create_rfq_chain(token_0, token_1)?;
         // 2: Create rfq application
         let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
 
@@ -309,22 +326,8 @@ impl SwapContract {
         // If success, rfq application will call LiquidityFundApproved then we can create pool or
         // add liquidity
         // TODO: it may should be run on creation chain to use swap's owners
-        self.request_liquidity_funds().await?;
+        self.request_liquidity_funds(token_0, token_1).await?;
 
-        Ok(SwapResponse::Ok)
-    }
-
-    fn change_rfq_permissions(&mut self, application_id: ApplicationId) -> Result<(), SwapError> {
-        Ok(self
-            .runtime
-            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
-    }
-
-    fn on_call_change_rfq_permissions(
-        &mut self,
-        application_id: ApplicationId,
-    ) -> Result<SwapResponse, SwapError> {
-        self.change_rfq_permissions(application_id)?;
         Ok(SwapResponse::Ok)
     }
 
@@ -565,9 +568,19 @@ mod tests {
             .with_chain_ownership(ChainOwnership::single(owner));
 
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
+        let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
+
+        let permissions = ApplicationPermissions {
+            execute_operations: Some(vec![meme_1, application_id.forget_abi()]),
+            mandatory_applications: vec![],
+            close_chain: vec![application_id.forget_abi()],
+            change_application_permissions: vec![application_id.forget_abi()],
+        };
+
         runtime.add_expected_open_chain_call(
             ChainOwnership::single(owner),
-            ApplicationPermissions::new_single(application_id.forget_abi()),
+            permissions,
             Amount::from_tokens(1),
             message_id,
         );

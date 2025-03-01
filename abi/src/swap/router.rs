@@ -37,9 +37,6 @@ pub enum SwapOperation {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
-    ChangeRfqPermissions {
-        application_id: ApplicationId,
-    },
     LiquidityFundApproved {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
