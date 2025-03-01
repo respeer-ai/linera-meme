@@ -42,6 +42,9 @@ pub enum LiquidityRfqResponse {
 pub struct LiquidityRfqParameters {
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
+    pub amount_0: Amount,
+    pub amount_1: Option<Amount>,
+    pub router_application_id: ApplicationId,
 }
 
 scalar!(LiquidityRfqParameters);
