@@ -43,22 +43,24 @@ impl MemeState {
     ) -> Result<(), MemeError> {
         self.owner.set(Some(owner));
 
-        assert!(
-            argument.initial_liquidity.fungible_amount >= Amount::ZERO,
-            "Invalid initial liquidity"
-        );
-        assert!(
-            argument.initial_liquidity.native_amount >= Amount::ZERO,
-            "Invalid initial liquidity"
-        );
-        assert!(
-            argument.meme.initial_supply >= argument.initial_liquidity.fungible_amount,
-            "Invalid initial supply"
-        );
+        if let Some(ref liquidity) = argument.initial_liquidity {
+            assert!(
+                liquidity.fungible_amount >= Amount::ZERO,
+                "Invalid initial liquidity"
+            );
+            assert!(
+                liquidity.native_amount >= Amount::ZERO,
+                "Invalid initial liquidity"
+            );
+            assert!(
+                argument.meme.initial_supply >= liquidity.fungible_amount,
+                "Invalid initial supply"
+            );
+        }
 
         argument.meme.total_supply = argument.meme.initial_supply;
         self.meme.set(Some(argument.meme.clone()));
-        self.initial_liquidity.set(Some(argument.initial_liquidity));
+        self.initial_liquidity.set(argument.initial_liquidity);
 
         self.blob_gateway_application_id
             .set(argument.blob_gateway_application_id);
@@ -189,7 +191,7 @@ impl MemeState {
         *self.virtual_initial_liquidity.get()
     }
 
-    pub(crate) async fn initial_liquidity(&self) -> Liquidity {
-        self.initial_liquidity.get().as_ref().unwrap().clone()
+    pub(crate) async fn initial_liquidity(&self) -> Option<Liquidity> {
+        self.initial_liquidity.get().clone()
     }
 }

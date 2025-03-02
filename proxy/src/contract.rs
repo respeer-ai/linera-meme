@@ -296,9 +296,10 @@ impl ProxyContract {
         if meme_instantiation_argument.virtual_initial_liquidity {
             return;
         }
-        self.fund_creation_chain_proxy_application(
-            meme_instantiation_argument.initial_liquidity.native_amount,
-        );
+        let Some(liquidity) = meme_instantiation_argument.initial_liquidity else {
+            return;
+        };
+        self.fund_creation_chain_proxy_application(liquidity.native_amount);
     }
 
     fn on_op_create_meme(
@@ -427,7 +428,11 @@ impl ProxyContract {
 
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
         let balance = self.runtime.owner_balance(application);
-        let native_amount = instantiation_argument.initial_liquidity.native_amount;
+        let Some(liquidity) = instantiation_argument.initial_liquidity else {
+            return;
+        };
+
+        let native_amount = liquidity.native_amount;
         assert!(
             balance >= native_amount,
             "Proxy application should already funded"

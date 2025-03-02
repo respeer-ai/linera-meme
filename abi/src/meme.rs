@@ -39,7 +39,7 @@ pub struct Meme {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub meme: Meme,
-    pub initial_liquidity: Liquidity,
+    pub initial_liquidity: Option<Liquidity>,
     pub blob_gateway_application_id: Option<ApplicationId>,
     pub ams_application_id: Option<ApplicationId>,
     pub proxy_application_id: Option<ApplicationId>,

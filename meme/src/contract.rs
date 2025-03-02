@@ -142,28 +142,32 @@ impl MemeContract {
     }
 
     async fn create_liquidity_pool(&mut self) {
-        if let Some(swap_application_id) = self.state.swap_application_id().await {
-            let liquidity = self.state.initial_liquidity().await;
-
-            let call = SwapOperation::AddLiquidity {
-                token_0: self.runtime.application_id().forget_abi(),
-                token_1: None,
-                amount_0_desired: liquidity.fungible_amount,
-                amount_1_desired: liquidity.native_amount,
-                amount_0_min: liquidity.fungible_amount,
-                amount_1_min: liquidity.native_amount,
-                // Only for creator to initialize pool
-                virtual_liquidity: Some(self.state.virtual_initial_liquidity().await),
-                // TODO: let meme creator set their beneficiary
-                to: None,
-                deadline: None,
-            };
-            let _ = self.runtime.call_application(
-                true,
-                swap_application_id.with_abi::<SwapAbi>(),
-                &call,
-            );
+        let Some(swap_application_id) = self.state.swap_application_id().await else {
+            return;
+        };
+        let Some(liquidity) = self.state.initial_liquidity().await else {
+            return;
+        };
+        if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
+            return;
         }
+
+        let call = SwapOperation::AddLiquidity {
+            token_0: self.runtime.application_id().forget_abi(),
+            token_1: None,
+            amount_0_desired: liquidity.fungible_amount,
+            amount_1_desired: liquidity.native_amount,
+            amount_0_min: liquidity.fungible_amount,
+            amount_1_min: liquidity.native_amount,
+            // Only for creator to initialize pool
+            virtual_liquidity: Some(self.state.virtual_initial_liquidity().await),
+            // TODO: let meme creator set their beneficiary
+            to: None,
+            deadline: None,
+        };
+        let _ =
+            self.runtime
+                .call_application(true, swap_application_id.with_abi::<SwapAbi>(), &call);
     }
 
     async fn change_application_permissions(&mut self) {
@@ -680,10 +684,10 @@ mod tests {
                     github: None,
                 },
             },
-            initial_liquidity: Liquidity {
+            initial_liquidity: Some(Liquidity {
                 fungible_amount: Amount::from_tokens(10000000),
                 native_amount: Amount::from_tokens(10),
-            },
+            }),
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,

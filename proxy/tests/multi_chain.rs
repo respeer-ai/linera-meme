@@ -122,10 +122,10 @@ async fn multi_chain_test() {
                                 github: None,
                             },
                         },
-                        initial_liquidity: Liquidity {
+                        initial_liquidity: Some(Liquidity {
                             fungible_amount: Amount::from_tokens(10000000),
                             native_amount: Amount::from_tokens(10),
-                        },
+                        }),
                         blob_gateway_application_id: None,
                         ams_application_id: None,
                         proxy_application_id: None,
