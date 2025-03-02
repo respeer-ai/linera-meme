@@ -145,5 +145,8 @@ async fn multi_chain_test() {
     let QueryOutcome { response, .. } = rfq_chain
         .graphql_query(rfq_application_id, "query { initialized }")
         .await;
-    assert_eq!(response["initialized"].as_bool().unwrap(), true);
+    assert_eq!(
+        response["initialized"].as_bool().expect("Invalid state"),
+        true
+    );
 }
