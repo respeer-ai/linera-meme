@@ -125,19 +125,31 @@ impl LiquidityRfqContract {
 
     fn tokens_funded(&mut self) {}
 
+    fn tokens_rejected(&mut self) {}
+
+    fn validate_token(&mut self, token: ApplicationId) {
+        if let Some(token_1) = self.token_1() {
+            assert!(token == self.token_0() || token == token_1, "Invalid token");
+        } else {
+            assert!(token == self.token_0(), "Invalid token");
+        }
+    }
+
+    fn return_token_0_funds(&mut self) {}
+
     fn on_op_approved(
         &mut self,
         token: ApplicationId,
     ) -> Result<LiquidityRfqResponse, LiquidityRfqError> {
+        self.validate_token(token);
+
         if let Some(token_1) = self.token_1() {
-            assert!(token == self.token_0() || token == token_1, "Invalid token");
             if token == token_1 {
                 self.tokens_funded();
                 return Ok(LiquidityRfqResponse::Ok);
             }
             self.approve_token_liquidity_funds(token_1);
         } else {
-            assert!(token == self.token_0(), "Invalid token");
             self.tokens_funded();
         }
         Ok(LiquidityRfqResponse::Ok)
@@ -147,6 +159,13 @@ impl LiquidityRfqContract {
         &mut self,
         token: ApplicationId,
     ) -> Result<LiquidityRfqResponse, LiquidityRfqError> {
+        self.validate_token(token);
+        if let Some(token_1) = self.token_1() {
+            if token == token_1 {
+                self.return_token_0_funds();
+            }
+        }
+        self.tokens_rejected();
         Ok(LiquidityRfqResponse::Ok)
     }
 }
@@ -174,6 +193,49 @@ mod tests {
 
         let response = rfq
             .execute_operation(LiquidityRfqOperation::Approved { token: token_0 })
+            .now_or_never()
+            .expect("Execution of liquidity rfq operation should not await anything");
+
+        assert!(matches!(response, LiquidityRfqResponse::Ok));
+    }
+
+    #[test]
+    fn operation_rejected() {
+        let mut rfq = create_and_instantiate_liquidity_rfq();
+        let token_0 = rfq.runtime.application_parameters().token_0;
+
+        let response = rfq
+            .execute_operation(LiquidityRfqOperation::Rejected { token: token_0 })
+            .now_or_never()
+            .expect("Execution of liquidity rfq operation should not await anything");
+
+        assert!(matches!(response, LiquidityRfqResponse::Ok));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid token")]
+    fn operation_approved_invalid_token() {
+        let mut rfq = create_and_instantiate_liquidity_rfq();
+        let token_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000003";
+        let token_0 = ApplicationId::from_str(token_id).unwrap();
+
+        let response = rfq
+            .execute_operation(LiquidityRfqOperation::Approved { token: token_0 })
+            .now_or_never()
+            .expect("Execution of liquidity rfq operation should not await anything");
+
+        assert!(matches!(response, LiquidityRfqResponse::Ok));
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid token")]
+    fn operation_reject_invalid_token() {
+        let mut rfq = create_and_instantiate_liquidity_rfq();
+        let token_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000003";
+        let token_0 = ApplicationId::from_str(token_id).unwrap();
+
+        let response = rfq
+            .execute_operation(LiquidityRfqOperation::Rejected { token: token_0 })
             .now_or_never()
             .expect("Execution of liquidity rfq operation should not await anything");
 
