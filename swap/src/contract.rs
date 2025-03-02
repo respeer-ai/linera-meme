@@ -153,8 +153,14 @@ impl Contract for SwapContract {
         }
 
         match message {
-            SwapMessage::CreateRfq { rfq_bytecode_id } => self
-                .on_msg_create_rfq(rfq_bytecode_id)
+            SwapMessage::CreateRfq {
+                rfq_bytecode_id,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+            } => self
+                .on_msg_create_rfq(rfq_bytecode_id, token_0, token_1, amount_0, amount_1)
                 .expect("Failed MSG: create rfq"),
             SwapMessage::LiquidityFundApproved {
                 token_0,
@@ -290,6 +296,8 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
     ) -> Result<(), SwapError> {
         // 1: Create rfq chain
         let (message_id, chain_id) = self.create_rfq_chain(token_0, token_1)?;
@@ -299,6 +307,10 @@ impl SwapContract {
         self.runtime
             .prepare_message(SwapMessage::CreateRfq {
                 rfq_bytecode_id: bytecode_id,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
             })
             .with_authentication()
             .send_to(chain_id);
@@ -326,7 +338,13 @@ impl SwapContract {
         // If success, rfq application will call LiquidityFundApproved then we can create pool or
         // add liquidity
         // TODO: it may should be run on creation chain to use swap's owners
-        self.request_liquidity_funds(token_0, token_1).await?;
+        let amount_1 = if virtual_liquidity {
+            None
+        } else {
+            Some(amount_1_desired)
+        };
+        self.request_liquidity_funds(token_0, token_1, amount_0_desired, amount_1)
+            .await?;
 
         Ok(SwapResponse::Ok)
     }
@@ -407,14 +425,28 @@ impl SwapContract {
         Ok(())
     }
 
-    fn on_msg_create_rfq(&mut self, rfq_bytecode_id: BytecodeId) -> Result<(), SwapError> {
+    fn on_msg_create_rfq(
+        &mut self,
+        rfq_bytecode_id: BytecodeId,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
+    ) -> Result<(), SwapError> {
         // Run on rfq chain
+        let application_id = self.runtime.application_id().forget_abi();
 
         let _ = self
             .runtime
             .create_application::<LiquidityRfqAbi, LiquidityRfqParameters, ()>(
                 rfq_bytecode_id,
-                &LiquidityRfqParameters {},
+                &LiquidityRfqParameters {
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    router_application_id: application_id,
+                },
                 &(),
                 vec![],
             );

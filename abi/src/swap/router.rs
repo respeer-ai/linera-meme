@@ -80,6 +80,10 @@ pub enum SwapResponse {
 pub enum SwapMessage {
     CreateRfq {
         rfq_bytecode_id: BytecodeId,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
     },
     LiquidityFundApproved {
         token_0: ApplicationId,

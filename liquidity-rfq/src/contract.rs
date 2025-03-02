@@ -123,9 +123,13 @@ impl LiquidityRfqContract {
         self.approve_token_liquidity_funds(token_0);
     }
 
-    fn tokens_funded(&mut self) {}
+    fn tokens_funded(&mut self) {
+        // TODO: Notify router
+    }
 
-    fn tokens_rejected(&mut self) {}
+    fn tokens_rejected(&mut self) {
+        // TODO: Notify router
+    }
 
     fn validate_token(&mut self, token: ApplicationId) {
         if let Some(token_1) = self.token_1() {
@@ -135,7 +139,9 @@ impl LiquidityRfqContract {
         }
     }
 
-    fn return_token_0_funds(&mut self) {}
+    fn return_token_0_funds(&mut self) {
+        // TODO: return token_0 funds to caller
+    }
 
     fn on_op_approved(
         &mut self,

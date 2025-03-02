@@ -1,9 +1,9 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::{Request, Response, scalar};
+use async_graphql::{scalar, Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ContractAbi, ServiceAbi, ApplicationId, Timestamp},
+    base::{AccountOwner, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};
@@ -22,12 +22,8 @@ impl ServiceAbi for LiquidityRfqAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum LiquidityRfqOperation {
-    Approved {
-        token: ApplicationId,
-    },
-    Rejected {
-        token: ApplicationId,
-    },
+    Approved { token: ApplicationId },
+    Rejected { token: ApplicationId },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
