@@ -9,7 +9,11 @@ use std::sync::Arc;
 
 use abi::swap::router::SwapAbi;
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
-use linera_sdk::{base::WithServiceAbi, views::View, Service, ServiceRuntime};
+use linera_sdk::{
+    base::{MessageId, WithServiceAbi},
+    views::View,
+    Service, ServiceRuntime,
+};
 
 use self::state::SwapState;
 
@@ -74,6 +78,17 @@ struct QueryRoot {
 impl QueryRoot {
     async fn pool_id(&self) -> &u64 {
         self.state.pool_id.get()
+    }
+
+    async fn rfq_chains(&self) -> Vec<MessageId> {
+        self.state
+            .rfq_chains
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, message_id)| message_id)
+            .collect()
     }
 }
 

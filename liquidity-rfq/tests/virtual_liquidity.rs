@@ -68,6 +68,30 @@ async fn virtual_liquidity_test() {
         .await;
     rfq_chain.handle_received_messages().await;
 
+    // Fund meme chain for fee budget to create rfq chain in meme application
+    let certificate = admin_chain
+        .add_block(|block| {
+            block.with_native_token_transfer(
+                None,
+                Recipient::Account(Account {
+                    chain_id: meme_chain.id(),
+                    owner: None,
+                }),
+                balance,
+            );
+        })
+        .await;
+    meme_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
+
     let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
     let meme_bytecode_id = swap_chain.publish_bytecodes_in("../meme").await;
 
@@ -126,6 +150,24 @@ async fn virtual_liquidity_test() {
     swap_chain.handle_received_messages().await;
     rfq_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(swap_application_id, "query { rfqChains }")
+        .await;
+    assert_eq!(response["rfqChains"].as_array().unwrap().len(), 1);
+
+    // TODO: execute rfq chain
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        AccountOwner::Application(meme_application_id.forget_abi()),
+        AccountOwner::Application(swap_application_id.forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        initial_liquidity,
+    );
 
     rfq_chain.register_application(swap_application_id).await;
     rfq_chain.register_application(meme_application_id).await;

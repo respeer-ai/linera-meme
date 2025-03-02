@@ -60,7 +60,7 @@ impl Contract for MemeContract {
         self.change_application_permissions().await;
 
         // When the meme application is created, initial liquidity should already be funded
-        // self.create_liquidity_pool().await;
+        self.create_liquidity_pool().await;
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -222,6 +222,7 @@ impl MemeContract {
         if AccountOwner::User(self.runtime.authenticated_signer().unwrap()) == spender {
             return Err(MemeError::InvalidOwner);
         }
+        log::info!("OP Approve {} to {}", amount, spender);
         self.runtime
             .prepare_message(MemeMessage::Approve {
                 spender,
@@ -258,11 +259,13 @@ impl MemeContract {
     async fn formalize_approve_owner(&mut self, amount: Amount) -> Result<AccountOwner, MemeError> {
         let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
         let balance = self.state.balance_of(owner).await;
+        log::info!("Owner 0 {} balance {}", owner, balance);
         if balance >= amount {
             return Ok(owner);
         }
 
         let meme_owner = AccountOwner::User(self.state.owner().await);
+        log::info!("Meme owner {} owner {}", meme_owner, owner);
         // Normal user must approve from their own balance
         if owner != meme_owner {
             return Err(MemeError::InvalidOwner);
@@ -317,6 +320,7 @@ impl MemeContract {
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {
+        log::info!("MSG 0 Approve {} to {}", amount, spender);
         // Normally user will approve from their own balance
         // Meme creator can approve from their own balance or application balance
         let Ok(owner) = self.formalize_approve_owner(amount).await else {
@@ -325,6 +329,8 @@ impl MemeContract {
             }
             return Ok(());
         };
+
+        log::info!("MSG 1 Approve {} to {}", amount, spender);
 
         // No matter we can or not fulfill the request, we always need to notity rfq chain
         let rc = self.state.approve(owner, spender, amount).await;

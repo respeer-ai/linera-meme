@@ -153,6 +153,31 @@ impl Contract for SwapContract {
         }
 
         match message {
+            SwapMessage::AddLiquidity {
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+                deadline,
+            } => self
+                .on_msg_add_liquidity(
+                    token_0,
+                    token_1,
+                    amount_0_desired,
+                    amount_1_desired,
+                    amount_0_min,
+                    amount_1_min,
+                    virtual_liquidity,
+                    to,
+                    deadline,
+                )
+                .await
+                .expect("Failed MSG: add liquidity"),
             SwapMessage::CreateRfq {
                 rfq_bytecode_id,
                 token_0,
@@ -251,7 +276,7 @@ impl SwapContract {
         if !virtual_liquidity {
             return false;
         }
-        if token_1.is_none() {
+        if token_1.is_some() {
             return false;
         }
 
@@ -304,6 +329,14 @@ impl SwapContract {
         // 2: Create rfq application
         let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
 
+        log::info!(
+            "Request liquidity funds token_0 {} amount_0 {}",
+            token_0,
+            amount_0
+        );
+
+        self.state.create_rfq_chain(chain_id, message_id).await?;
+
         self.runtime
             .prepare_message(SwapMessage::CreateRfq {
                 rfq_bytecode_id: bytecode_id,
@@ -316,6 +349,56 @@ impl SwapContract {
             .send_to(chain_id);
 
         Ok(())
+    }
+
+    fn rfq_fee_budget(&self) -> Amount {
+        Amount::ONE
+    }
+
+    fn fund_rfq_fee_budget(&mut self) {
+        let amount = self.rfq_fee_budget();
+
+        let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let chain_id = self.runtime.application_id().creation.chain_id;
+        let application_id = self.runtime.application_id().forget_abi();
+
+        let owner_balance = self.runtime.owner_balance(creator);
+        let chain_balance = self.runtime.chain_balance();
+
+        let from_owner_balance = if amount <= owner_balance {
+            amount
+        } else {
+            owner_balance
+        };
+        let from_chain_balance = if amount <= owner_balance {
+            Amount::ZERO
+        } else {
+            amount.try_sub(owner_balance).expect("Invalid amount")
+        };
+
+        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
+        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+
+        if from_owner_balance > Amount::ZERO {
+            self.runtime.transfer(
+                Some(creator),
+                Account {
+                    chain_id,
+                    owner: None,
+                },
+                from_owner_balance,
+            );
+        }
+        if from_chain_balance > Amount::ZERO {
+            self.runtime.transfer(
+                None,
+                Account {
+                    chain_id,
+                    owner: None,
+                },
+                from_chain_balance,
+            );
+        }
     }
 
     async fn on_op_add_liquidity(
@@ -334,17 +417,23 @@ impl SwapContract {
         let virtual_liquidity =
             self.formalize_virtual_liquidity(token_0, token_1, virtual_liquidity);
 
-        // Request liquidity funds in rfq chain
-        // If success, rfq application will call LiquidityFundApproved then we can create pool or
-        // add liquidity
-        // TODO: it may should be run on creation chain to use swap's owners
-        let amount_1 = if virtual_liquidity {
-            None
-        } else {
-            Some(amount_1_desired)
-        };
-        self.request_liquidity_funds(token_0, token_1, amount_0_desired, amount_1)
-            .await?;
+        // Transfer rfq chain fee budget
+        self.fund_rfq_fee_budget();
+
+        self.runtime
+            .prepare_message(SwapMessage::AddLiquidity {
+                token_0,
+                token_1,
+                amount_0_desired,
+                amount_1_desired,
+                amount_0_min,
+                amount_1_min,
+                virtual_liquidity,
+                to,
+                deadline,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
 
         Ok(SwapResponse::Ok)
     }
@@ -425,6 +514,32 @@ impl SwapContract {
         Ok(())
     }
 
+    async fn on_msg_add_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    ) -> Result<(), SwapError> {
+        // Request liquidity funds in rfq chain
+        // If success, rfq application will call LiquidityFundApproved then we can create pool or
+        // add liquidity
+        let amount_1 = if virtual_liquidity {
+            None
+        } else {
+            Some(amount_1_desired)
+        };
+        Ok(self
+            .request_liquidity_funds(token_0, token_1, amount_0_desired, amount_1)
+            .await?)
+    }
+
     fn on_msg_create_rfq(
         &mut self,
         rfq_bytecode_id: BytecodeId,
@@ -435,6 +550,8 @@ impl SwapContract {
     ) -> Result<(), SwapError> {
         // Run on rfq chain
         let application_id = self.runtime.application_id().forget_abi();
+
+        log::info!("Create rfq token_0 {} amount_0 {}", token_0, amount_0);
 
         let _ = self
             .runtime

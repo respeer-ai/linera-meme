@@ -78,6 +78,18 @@ pub enum SwapResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SwapMessage {
+    AddLiquidity {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Amount,
+        amount_1_min: Amount,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+        deadline: Option<Timestamp>,
+    },
     CreateRfq {
         rfq_bytecode_id: BytecodeId,
         token_0: ApplicationId,
