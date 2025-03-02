@@ -113,6 +113,9 @@ impl LiquidityRfqContract {
                 owner: Some(AccountOwner::Application(application_id)),
             }),
         };
+
+        log::info!("Approve {} from {}", self.amount_0(), token);
+
         let _ = self
             .runtime
             .call_application(true, token.with_abi::<MemeAbi>(), &call);

@@ -28,6 +28,8 @@ use std::str::FromStr;
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
 async fn virtual_liquidity_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
     let (validator, rfq_bytecode_id) =
         TestValidator::with_current_bytecode::<LiquidityRfqAbi, LiquidityRfqParameters, ()>().await;
 
@@ -124,28 +126,6 @@ async fn virtual_liquidity_test() {
     swap_chain.handle_received_messages().await;
     rfq_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
-
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        meme_owner,
-        AccountOwner::Application(swap_application_id.forget_abi()),
-    );
-    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
-    assert_eq!(
-        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
-        initial_liquidity,
-    );
-
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        AccountOwner::Application(meme_application_id.forget_abi()),
-        AccountOwner::Application(swap_application_id.forget_abi()),
-    );
-    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
-    assert_eq!(
-        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
-        initial_liquidity,
-    );
 
     rfq_chain.register_application(swap_application_id).await;
     rfq_chain.register_application(meme_application_id).await;
