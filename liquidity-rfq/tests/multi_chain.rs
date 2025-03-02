@@ -17,8 +17,8 @@ use abi::{
     store_type::StoreType,
 };
 use linera_sdk::{
-    base::Amount,
-    test::{QueryOutcome, TestValidator},
+    base::{Account, Amount, ChainId},
+    test::{Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 
 /// Test setting a liquidity rfq and testing its coherency across microchains.
@@ -29,10 +29,36 @@ use linera_sdk::{
 async fn multi_chain_test() {
     let (validator, rfq_bytecode_id) =
         TestValidator::with_current_bytecode::<LiquidityRfqAbi, LiquidityRfqParameters, ()>().await;
+
+    let admin_chain = validator.get_chain(&ChainId::root(0));
     let mut swap_chain = validator.new_chain().await;
     let mut meme_chain = validator.new_chain().await;
     // Rfq chain will be created by swap chain, but we just test it here
     let mut rfq_chain = validator.new_chain().await;
+
+    let balance = Amount::from_tokens(1278);
+    let certificate = admin_chain
+        .add_block(|block| {
+            block.with_native_token_transfer(
+                None,
+                Recipient::Account(Account {
+                    chain_id: meme_chain.id(),
+                    owner: None,
+                }),
+                balance,
+            );
+        })
+        .await;
+    meme_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
 
     let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
     let meme_bytecode_id = swap_chain.publish_bytecodes_in("../meme").await;
@@ -76,6 +102,8 @@ async fn multi_chain_test() {
         swap_application_id: Some(swap_application_id.forget_abi()),
         virtual_initial_liquidity: true,
     };
+
+    meme_chain.register_application(swap_application_id).await;
     let meme_application_id = meme_chain
         .create_application::<MemeAbi, MemeParameters, MemeInstantiationArgument>(
             meme_bytecode_id,
