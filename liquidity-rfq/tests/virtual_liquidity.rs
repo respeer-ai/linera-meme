@@ -17,9 +17,10 @@ use abi::{
     store_type::StoreType,
 };
 use linera_sdk::{
-    base::{Account, Amount, ChainId},
+    base::{Account, AccountOwner, Amount, ChainId, Owner},
     test::{Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
+use std::str::FromStr;
 
 /// Test setting a liquidity rfq and testing its coherency across microchains.
 ///
@@ -35,6 +36,9 @@ async fn virtual_liquidity_test() {
     let mut meme_chain = validator.new_chain().await;
     // Rfq chain will be created by swap chain, but we just test it here
     let mut rfq_chain = validator.new_chain().await;
+
+    let rfq_owner = AccountOwner::User(Owner::from(rfq_chain.public_key()));
+    let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
 
     let balance = Amount::from_tokens(1);
 
@@ -76,6 +80,7 @@ async fn virtual_liquidity_test() {
         )
         .await;
 
+    let initial_liquidity = Amount::from_tokens(1100000);
     let meme_instantiation_argument = MemeInstantiationArgument {
         meme: Meme {
             name: "Test Token".to_string(),
@@ -95,8 +100,8 @@ async fn virtual_liquidity_test() {
             },
         },
         initial_liquidity: Some(Liquidity {
-            fungible_amount: Amount::from_tokens(10000000),
-            native_amount: Amount::from_tokens(10),
+            fungible_amount: initial_liquidity,
+            native_amount: Amount::from_tokens(12),
         }),
         blob_gateway_application_id: None,
         ams_application_id: None,
@@ -115,16 +120,44 @@ async fn virtual_liquidity_test() {
         )
         .await;
 
+    // Check meme allowance
+    swap_chain.handle_received_messages().await;
+    rfq_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        meme_owner,
+        AccountOwner::Application(swap_application_id.forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        initial_liquidity,
+    );
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        AccountOwner::Application(meme_application_id.forget_abi()),
+        AccountOwner::Application(swap_application_id.forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        initial_liquidity,
+    );
+
     rfq_chain.register_application(swap_application_id).await;
     rfq_chain.register_application(meme_application_id).await;
 
+    let initial_liquidity = Amount::from_tokens(1);
     let rfq_application_id = rfq_chain
         .create_application(
             rfq_bytecode_id,
             LiquidityRfqParameters {
                 token_0: meme_application_id.forget_abi(),
                 token_1: None,
-                amount_0: Amount::from_tokens(1),
+                amount_0: initial_liquidity,
                 amount_1: None,
                 router_application_id: swap_application_id.forget_abi(),
             },
@@ -133,11 +166,35 @@ async fn virtual_liquidity_test() {
         )
         .await;
 
+    // Check meme allowance
+    meme_chain.handle_received_messages().await;
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        rfq_owner,
+        AccountOwner::Application(swap_application_id.forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        initial_liquidity,
+    );
+
     rfq_chain
         .add_block(|block| {
             block.with_operation(
                 rfq_application_id,
                 LiquidityRfqOperation::Approved {
+                    token: meme_application_id.forget_abi(),
+                },
+            );
+        })
+        .await;
+    rfq_chain
+        .add_block(|block| {
+            block.with_operation(
+                rfq_application_id,
+                LiquidityRfqOperation::Rejected {
                     token: meme_application_id.forget_abi(),
                 },
             );
