@@ -26,7 +26,7 @@ use linera_sdk::{
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn multi_chain_test() {
+async fn virtual_liquidity_test() {
     let (validator, rfq_bytecode_id) =
         TestValidator::with_current_bytecode::<LiquidityRfqAbi, LiquidityRfqParameters, ()>().await;
 
@@ -36,20 +36,22 @@ async fn multi_chain_test() {
     // Rfq chain will be created by swap chain, but we just test it here
     let mut rfq_chain = validator.new_chain().await;
 
-    let balance = Amount::from_tokens(1278);
+    let balance = Amount::from_tokens(1);
+
+    // Fund rfq chain for fee budget to create rfq chain in meme application
     let certificate = admin_chain
         .add_block(|block| {
             block.with_native_token_transfer(
                 None,
                 Recipient::Account(Account {
-                    chain_id: meme_chain.id(),
+                    chain_id: rfq_chain.id(),
                     owner: None,
                 }),
                 balance,
             );
         })
         .await;
-    meme_chain
+    rfq_chain
         .add_block(move |block| {
             block.with_messages_from_by_medium(
                 &certificate,
@@ -58,7 +60,7 @@ async fn multi_chain_test() {
             );
         })
         .await;
-    meme_chain.handle_received_messages().await;
+    rfq_chain.handle_received_messages().await;
 
     let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
     let meme_bytecode_id = swap_chain.publish_bytecodes_in("../meme").await;

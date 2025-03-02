@@ -60,7 +60,7 @@ impl Contract for MemeContract {
         self.change_application_permissions().await;
 
         // When the meme application is created, initial liquidity should already be funded
-        self.create_liquidity_pool().await;
+        // self.create_liquidity_pool().await;
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {

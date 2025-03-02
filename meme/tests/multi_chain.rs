@@ -37,30 +37,7 @@ async fn multi_chain_test() {
 
     let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
     let user_owner = AccountOwner::User(Owner::from(user_chain.public_key()));
-    let balance = Amount::from_tokens(1278);
-
-    let certificate = admin_chain
-        .add_block(|block| {
-            block.with_native_token_transfer(
-                None,
-                Recipient::Account(Account {
-                    chain_id: user_chain.id(),
-                    owner: Some(user_owner),
-                }),
-                balance,
-            );
-        })
-        .await;
-    user_chain
-        .add_block(move |block| {
-            block.with_messages_from_by_medium(
-                &certificate,
-                &Medium::Direct,
-                MessageAction::Accept,
-            );
-        })
-        .await;
-    user_chain.handle_received_messages().await;
+    let balance = Amount::from_tokens(1);
 
     // Fund meme chain to create rfq chain
     let certificate = admin_chain
