@@ -148,8 +148,8 @@ impl Contract for SwapContract {
 
     async fn execute_message(&mut self, message: SwapMessage) {
         // All messages must be run on creation chain side
-        if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
-            panic!("Messages must only be run on creation chain");
+        if !self.message_executable(&message) {
+            panic!("Messages must only be run on right chain");
         }
 
         match message {
@@ -264,6 +264,15 @@ impl Contract for SwapContract {
 }
 
 impl SwapContract {
+    fn message_executable(&mut self, message: &SwapMessage) -> bool {
+        match message {
+            SwapMessage::CreateRfq { .. } => {
+                self.runtime.chain_id() != self.runtime.application_id().creation.chain_id
+            }
+            _ => self.runtime.chain_id() == self.runtime.application_id().creation.chain_id,
+        }
+    }
+
     fn formalize_virtual_liquidity(
         &mut self,
         token_0: ApplicationId,
@@ -312,9 +321,7 @@ impl SwapContract {
             close_chain: vec![router_application_id],
             change_application_permissions: vec![router_application_id],
         };
-        Ok(self
-            .runtime
-            .open_chain(ownership, permissions, Amount::from_tokens(1)))
+        Ok(self.runtime.open_chain(ownership, permissions, Amount::ONE))
     }
 
     async fn request_liquidity_funds(
@@ -328,12 +335,6 @@ impl SwapContract {
         let (message_id, chain_id) = self.create_rfq_chain(token_0, token_1)?;
         // 2: Create rfq application
         let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
-
-        log::info!(
-            "Request liquidity funds token_0 {} amount_0 {}",
-            token_0,
-            amount_0
-        );
 
         self.state.create_rfq_chain(chain_id, message_id).await?;
 
@@ -550,8 +551,6 @@ impl SwapContract {
     ) -> Result<(), SwapError> {
         // Run on rfq chain
         let application_id = self.runtime.application_id().forget_abi();
-
-        log::info!("Create rfq token_0 {} amount_0 {}", token_0, amount_0);
 
         let _ = self
             .runtime

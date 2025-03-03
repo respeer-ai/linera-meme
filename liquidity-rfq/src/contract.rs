@@ -114,11 +114,18 @@ impl LiquidityRfqContract {
             }),
         };
 
-        log::info!("Approve {} from {}", self.amount_0(), token);
+        log::info!(
+            "Approve {} from {} chain {}",
+            self.amount_0(),
+            token,
+            chain_id
+        );
 
         let _ = self
             .runtime
             .call_application(true, token.with_abi::<MemeAbi>(), &call);
+
+        log::info!("Approved {} from {}", self.amount_0(), token);
     }
 
     fn approve_token_0_liquidity_funds(&mut self) {

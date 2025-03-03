@@ -17,8 +17,8 @@ use abi::{
     store_type::StoreType,
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ChainId, Owner},
-    test::{Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
+    base::{Account, AccountOwner, Amount, ChainDescription, ChainId, MessageId, Owner},
+    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;
 
@@ -34,13 +34,16 @@ async fn virtual_liquidity_test() {
         TestValidator::with_current_bytecode::<LiquidityRfqAbi, LiquidityRfqParameters, ()>().await;
 
     let admin_chain = validator.get_chain(&ChainId::root(0));
-    let mut swap_chain = validator.new_chain().await;
+    let swap_chain = validator.new_chain().await;
     let mut meme_chain = validator.new_chain().await;
     // Rfq chain will be created by swap chain, but we just test it here
     let mut rfq_chain = validator.new_chain().await;
 
     let rfq_owner = AccountOwner::User(Owner::from(rfq_chain.public_key()));
     let meme_owner = AccountOwner::User(Owner::from(meme_chain.public_key()));
+    let _swap_chain = swap_chain.clone();
+    let swap_key_pair = _swap_chain.key_pair();
+    let mut swap_chain = swap_chain;
 
     let balance = Amount::from_tokens(1);
 
@@ -148,15 +151,31 @@ async fn virtual_liquidity_test() {
 
     // Check meme allowance
     swap_chain.handle_received_messages().await;
-    rfq_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(swap_application_id, "query { rfqChains }")
+        .graphql_query(swap_application_id, "query { rfqChainCreationMessages }")
         .await;
-    assert_eq!(response["rfqChains"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        response["rfqChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 
-    // TODO: execute rfq chain
+    let creation_message_id = MessageId::from_str(
+        response["rfqChainCreationMessages"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let description = ChainDescription::Child(creation_message_id);
+    let temp_chain = ActiveChain::new(swap_key_pair.copy(), description, validator);
+    temp_chain.handle_received_messages().await;
+
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
 
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",

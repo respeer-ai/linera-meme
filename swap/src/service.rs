@@ -80,7 +80,7 @@ impl QueryRoot {
         self.state.pool_id.get()
     }
 
-    async fn rfq_chains(&self) -> Vec<MessageId> {
+    async fn rfq_chain_creation_messages(&self) -> Vec<MessageId> {
         self.state
             .rfq_chains
             .index_values()
