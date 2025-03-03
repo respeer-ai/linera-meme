@@ -179,6 +179,9 @@ impl MemeState {
             amount
         };
 
+        self.balances
+            .insert(&owner, owner_balance.try_sub(amount)?)?;
+
         allowances.insert(spender, spender_allowance);
         Ok(self.allowances.insert(&owner, allowances)?)
     }

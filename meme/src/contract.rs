@@ -650,6 +650,7 @@ mod tests {
 
         let swap_application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000002";
         let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
+        let swap_application = AccountOwner::Application(swap_application_id);
 
         let runtime = ContractRuntime::new()
             .with_application_parameters(MemeParameters {})
@@ -667,13 +668,17 @@ mod tests {
             runtime,
         };
 
+        let initial_supply = Amount::from_tokens(21000000);
+        let swap_allowance = Amount::from_tokens(10000000);
+        let application_balance = initial_supply.try_sub(swap_allowance).unwrap();
+
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
                 name: "Test Token".to_string(),
                 ticker: "LTT".to_string(),
                 decimals: 6,
-                initial_supply: Amount::from_tokens(21000000),
-                total_supply: Amount::from_tokens(21000000),
+                initial_supply,
+                total_supply: initial_supply,
                 metadata: Metadata {
                     logo_store_type: StoreType::S3,
                     logo: "Test Logo".to_string(),
@@ -686,7 +691,7 @@ mod tests {
                 },
             },
             initial_liquidity: Some(Liquidity {
-                fungible_amount: Amount::from_tokens(10000000),
+                fungible_amount: swap_allowance,
                 native_amount: Amount::from_tokens(10),
             }),
             blob_gateway_application_id: None,
@@ -720,7 +725,39 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .unwrap(),
-            instantiation_argument.meme.initial_supply
+            application_balance,
+        );
+        assert_eq!(
+            contract
+                .state
+                .allowances
+                .contains_key(&application)
+                .await
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            contract
+                .state
+                .allowances
+                .get(&application)
+                .await
+                .unwrap()
+                .unwrap()
+                .contains_key(&swap_application),
+            true
+        );
+        assert_eq!(
+            *contract
+                .state
+                .allowances
+                .get(&application)
+                .await
+                .unwrap()
+                .unwrap()
+                .get(&swap_application)
+                .unwrap(),
+            swap_allowance
         );
 
         contract
