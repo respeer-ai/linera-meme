@@ -4,6 +4,7 @@ members = [
     "meme",
     "swap",
     "liquidity-rfq",
+    "pool",
     "abi",
 ]
 resolver = "2"
@@ -28,6 +29,7 @@ meme = { path = "./meme" }
 proxy = { path = "./proxy" }
 swap = { path = "./swap" }
 liquidity-rfq = { path = "./liquidity-rfq" }
+pool = { path = "./pool" }
 
 [profile.release]
 debug = true

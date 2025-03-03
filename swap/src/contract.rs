@@ -7,6 +7,7 @@ mod state;
 
 use abi::swap::{
     liquidity_rfq::{LiquidityRfqAbi, LiquidityRfqParameters},
+    pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
     router::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapResponse},
 };
 use linera_sdk::{
@@ -199,6 +200,15 @@ impl Contract for SwapContract {
             } => self
                 .on_msg_create_rfq(rfq_bytecode_id, token_0, token_1, amount_0, amount_1)
                 .expect("Failed MSG: create rfq"),
+            SwapMessage::CreatePool {
+                pool_bytecode_id,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+            } => self
+                .on_msg_create_pool(pool_bytecode_id, token_0, token_1, amount_0, amount_1)
+                .expect("Failed MSG: create pool"),
             SwapMessage::LiquidityFundApproved {
                 token_0,
                 token_1,
@@ -274,7 +284,7 @@ impl Contract for SwapContract {
 impl SwapContract {
     fn message_executable(&mut self, message: &SwapMessage) -> bool {
         match message {
-            SwapMessage::CreateRfq { .. } => {
+            SwapMessage::CreateRfq { .. } | SwapMessage::CreatePool { .. } => {
                 self.runtime.chain_id() != self.runtime.application_id().creation.chain_id
             }
             _ => self.runtime.chain_id() == self.runtime.application_id().creation.chain_id,
@@ -532,7 +542,7 @@ impl SwapContract {
     }
 
     // Pool application is run on its own chain
-    fn create_pool(
+    async fn create_pool(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -546,6 +556,18 @@ impl SwapContract {
         // 1: Create pool chain
         let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
         // 2: Create pool application with initial liquidity
+        let bytecode_id = self.state.pool_bytecode_id().await;
+
+        self.runtime
+            .prepare_message(SwapMessage::CreatePool {
+                pool_bytecode_id: bytecode_id,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+            })
+            .with_authentication()
+            .send_to(chain_id);
         // Assets will be transfer to pool chain when create pool application
         Ok(())
     }
@@ -567,6 +589,7 @@ impl SwapContract {
             to,
             None,
         )
+        .await
     }
 
     async fn on_msg_add_liquidity(
@@ -611,6 +634,33 @@ impl SwapContract {
                     router_application_id: application_id,
                 },
                 &(),
+                vec![],
+            );
+
+        Ok(())
+    }
+
+    fn on_msg_create_pool(
+        &mut self,
+        pool_bytecode_id: BytecodeId,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Amount,
+    ) -> Result<(), SwapError> {
+        // Run on rfq chain
+        let application_id = self.runtime.application_id().forget_abi();
+
+        let _ = self
+            .runtime
+            .create_application::<PoolAbi, PoolParameters, PoolInstantiationArgument>(
+                pool_bytecode_id,
+                &PoolParameters {
+                    token_0,
+                    token_1,
+                    router_application_id: application_id,
+                },
+                &PoolInstantiationArgument { amount_0, amount_1 },
                 vec![],
             );
 
@@ -665,6 +715,7 @@ impl SwapContract {
                 to,
                 deadline,
             )
+            .await
         }
     }
 

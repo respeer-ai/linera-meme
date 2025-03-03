@@ -18,12 +18,16 @@ use swap::SwapError;
 pub struct SwapState {
     pub meme_meme_pools: MapView<ApplicationId, HashMap<ApplicationId, Pool>>,
     pub meme_native_pools: MapView<ApplicationId, Pool>,
+
     pub pool_id: RegisterView<u64>,
     pub pool_meme_memes: MapView<u64, Vec<ApplicationId>>,
     pub pool_meme_natives: MapView<u64, ApplicationId>,
+
     pub last_transactions: QueueView<Transaction>,
     pub transaction_id: RegisterView<u64>,
+
     pub liquidity_rfq_bytecode_id: RegisterView<Option<BytecodeId>>,
+    pub pool_bytecode_id: RegisterView<Option<BytecodeId>>,
 }
 
 #[allow(dead_code)]
@@ -31,6 +35,7 @@ impl SwapState {
     pub(crate) async fn instantiate(&mut self, argument: InstantiationArgument) {
         self.liquidity_rfq_bytecode_id
             .set(Some(argument.liquidity_rfq_bytecode_id));
+        self.pool_bytecode_id.set(Some(argument.pool_bytecode_id));
     }
 
     pub(crate) async fn get_pool(
@@ -65,5 +70,9 @@ impl SwapState {
 
     pub(crate) async fn liquidity_rfq_bytecode_id(&self) -> BytecodeId {
         self.liquidity_rfq_bytecode_id.get().unwrap()
+    }
+
+    pub(crate) async fn pool_bytecode_id(&self) -> BytecodeId {
+        self.pool_bytecode_id.get().unwrap()
     }
 }

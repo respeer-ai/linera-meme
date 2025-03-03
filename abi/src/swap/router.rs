@@ -108,6 +108,13 @@ pub enum SwapMessage {
         amount_0: Amount,
         amount_1: Amount,
     },
+    CreatePool {
+        pool_bytecode_id: BytecodeId,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Amount,
+    },
     LiquidityFundApproved {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -149,4 +156,5 @@ pub struct Pool {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub liquidity_rfq_bytecode_id: BytecodeId,
+    pub pool_bytecode_id: BytecodeId,
 }
