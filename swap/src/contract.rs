@@ -53,6 +53,17 @@ impl Contract for SwapContract {
 
     async fn execute_operation(&mut self, operation: SwapOperation) -> SwapResponse {
         match operation {
+            SwapOperation::InitializeLiquidity {
+                token_0,
+                amount_0,
+                amount_1,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+            } => self
+                .on_call_initialize_liquidity(token_0, amount_0, amount_1, virtual_liquidity, to)
+                .await
+                .expect("Failed OP: initialize liquidity"),
             SwapOperation::AddLiquidity {
                 token_0,
                 token_1,
@@ -60,8 +71,6 @@ impl Contract for SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                // Only for creator to initialize pool
-                virtual_liquidity,
                 to,
                 deadline,
             } => self
@@ -72,7 +81,6 @@ impl Contract for SwapContract {
                     amount_1_desired,
                     amount_0_min,
                     amount_1_min,
-                    virtual_liquidity,
                     to,
                     deadline,
                 )
@@ -85,8 +93,6 @@ impl Contract for SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                // Only for creator to initialize pool
-                virtual_liquidity,
                 to,
                 deadline,
             } => self
@@ -97,8 +103,6 @@ impl Contract for SwapContract {
                     amount_1_desired,
                     amount_0_min,
                     amount_1_min,
-                    // Only for creator to initialize pool
-                    virtual_liquidity,
                     to,
                     deadline,
                 )
@@ -153,6 +157,17 @@ impl Contract for SwapContract {
         }
 
         match message {
+            SwapMessage::InitializeLiquidity {
+                token_0,
+                amount_0,
+                amount_1,
+                // Only for creator to initialize pool
+                virtual_liquidity,
+                to,
+            } => self
+                .on_msg_initialize_liquidity(token_0, amount_0, amount_1, virtual_liquidity, to)
+                .await
+                .expect("Failed MSG: initialize liquidity"),
             SwapMessage::AddLiquidity {
                 token_0,
                 token_1,
@@ -160,8 +175,6 @@ impl Contract for SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                // Only for creator to initialize pool
-                virtual_liquidity,
                 to,
                 deadline,
             } => self
@@ -172,7 +185,6 @@ impl Contract for SwapContract {
                     amount_1_desired,
                     amount_0_min,
                     amount_1_min,
-                    virtual_liquidity,
                     to,
                     deadline,
                 )
@@ -194,8 +206,6 @@ impl Contract for SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                // Only for creator to initialize pool
-                virtual_liquidity,
                 to,
                 deadline,
             } => self
@@ -206,8 +216,6 @@ impl Contract for SwapContract {
                     amount_1_desired,
                     amount_0_min,
                     amount_1_min,
-                    // Only for creator to initialize pool
-                    virtual_liquidity,
                     to,
                     deadline,
                 )
@@ -277,11 +285,8 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        virtual_liquidity: Option<bool>,
+        virtual_liquidity: bool,
     ) -> bool {
-        let Some(virtual_liquidity) = virtual_liquidity else {
-            return false;
-        };
         if !virtual_liquidity {
             return false;
         }
@@ -329,7 +334,7 @@ impl SwapContract {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
     ) -> Result<(), SwapError> {
         // 1: Create rfq chain
         let (message_id, chain_id) = self.create_rfq_chain(token_0, token_1)?;
@@ -400,6 +405,18 @@ impl SwapContract {
         }
     }
 
+    async fn on_call_initialize_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+    ) -> Result<SwapResponse, SwapError> {
+        let virtual_liquidity = self.formalize_virtual_liquidity(token_0, None, virtual_liquidity);
+        Ok(SwapResponse::Ok)
+    }
+
     async fn on_op_add_liquidity(
         &mut self,
         token_0: ApplicationId,
@@ -408,14 +425,9 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: Option<bool>,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<SwapResponse, SwapError> {
-        let virtual_liquidity =
-            self.formalize_virtual_liquidity(token_0, token_1, virtual_liquidity);
-
         // Transfer rfq chain fee budget
         self.fund_rfq_fee_budget();
 
@@ -427,7 +439,6 @@ impl SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                virtual_liquidity,
                 to,
                 deadline,
             })
@@ -445,8 +456,6 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<SwapResponse, SwapError> {
@@ -503,13 +512,22 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
         // 1: Create pool chain
         // 2: Create pool application with initial liquidity
+        Ok(())
+    }
+
+    async fn on_msg_initialize_liquidity(
+        &mut self,
+        token_0: ApplicationId,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+    ) -> Result<(), SwapError> {
         Ok(())
     }
 
@@ -521,21 +539,14 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
         // Request liquidity funds in rfq chain
         // If success, rfq application will call LiquidityFundApproved then we can create pool or
         // add liquidity
-        let amount_1 = if virtual_liquidity {
-            None
-        } else {
-            Some(amount_1_desired)
-        };
         Ok(self
-            .request_liquidity_funds(token_0, token_1, amount_0_desired, amount_1)
+            .request_liquidity_funds(token_0, token_1, amount_0_desired, amount_1_desired)
             .await?)
     }
 
@@ -545,7 +556,7 @@ impl SwapContract {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
     ) -> Result<(), SwapError> {
         // Run on rfq chain
         let application_id = self.runtime.application_id().forget_abi();
@@ -576,8 +587,6 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
@@ -616,8 +625,6 @@ impl SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
-                // Only for creator to initialize pool
-                virtual_liquidity,
                 to,
                 deadline,
             )

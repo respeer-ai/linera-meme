@@ -159,8 +159,6 @@ impl MemeContract {
             amount_1_desired: liquidity.native_amount,
             amount_0_min: liquidity.fungible_amount,
             amount_1_min: liquidity.native_amount,
-            // Only for creator to initialize pool
-            virtual_liquidity: Some(self.state.virtual_initial_liquidity().await),
             // TODO: let meme creator set their beneficiary
             to: None,
             deadline: None,

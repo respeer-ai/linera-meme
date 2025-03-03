@@ -25,6 +25,15 @@ impl ServiceAbi for SwapAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum SwapOperation {
+    // Token 1 can only be native token when initializing
+    InitializeLiquidity {
+        token_0: ApplicationId,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+    },
     AddLiquidity {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -32,8 +41,6 @@ pub enum SwapOperation {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: Option<bool>,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
@@ -44,8 +51,6 @@ pub enum SwapOperation {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
@@ -78,6 +83,14 @@ pub enum SwapResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SwapMessage {
+    InitializeLiquidity {
+        token_0: ApplicationId,
+        amount_0: Amount,
+        amount_1: Option<Amount>,
+        // Only for creator to initialize pool
+        virtual_liquidity: bool,
+        to: Option<AccountOwner>,
+    },
     AddLiquidity {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -85,8 +98,6 @@ pub enum SwapMessage {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
@@ -95,7 +106,7 @@ pub enum SwapMessage {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
     },
     LiquidityFundApproved {
         token_0: ApplicationId,
@@ -104,8 +115,6 @@ pub enum SwapMessage {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
-        // Only for creator to initialize pool
-        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
