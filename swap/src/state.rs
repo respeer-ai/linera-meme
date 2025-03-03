@@ -36,6 +36,7 @@ impl SwapState {
         self.liquidity_rfq_bytecode_id
             .set(Some(argument.liquidity_rfq_bytecode_id));
         self.pool_bytecode_id.set(Some(argument.pool_bytecode_id));
+        self.pool_id.set(1000);
     }
 
     pub(crate) async fn get_pool(
@@ -74,5 +75,35 @@ impl SwapState {
 
     pub(crate) async fn pool_bytecode_id(&self) -> BytecodeId {
         self.pool_bytecode_id.get().unwrap()
+    }
+
+    pub(crate) async fn create_pool(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        pool_application: Account,
+    ) -> Result<(), SwapError> {
+        assert!(self.get_pool_exchangable(token_0, token_1) == None, "Pool exists");
+
+        let pool_id = self.pool_id.get();
+        let pool = Pool {
+            pool_id,
+            token_0,
+            token_1,
+            pool_application,
+        };
+
+        if let Some(token_1) = token_1 {
+            let mut pools = self.meme_meme_pools.get(&token_0).unwrap_or(HashMap::new());
+            pools.insert(&token_1, pool);
+            self.meme_meme_pools.insert(&token_0, pools)?;
+            self.pool_meme_memes.insert(&pool_id, vec![token_0, token_1])?;
+        } else {
+            self.meme_native_pools.insert(&token_0, pools)?;
+            self.pool_meme_natives.insert(&pool_id, token_0)?;
+        }
+
+        self.pool_id.set(pool_id + 1);
+        Ok(())
     }
 }

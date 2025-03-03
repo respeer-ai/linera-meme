@@ -664,6 +664,10 @@ impl SwapContract {
                 vec![],
             );
 
+        // TODO: transfer memes allowance to pool application
+        // TODO: notify creation chain about pool created, creation will transfer native tokens (if
+        // needed to pool application)
+
         Ok(())
     }
 
@@ -860,6 +864,7 @@ mod tests {
         contract
             .instantiate(InstantiationArgument {
                 liquidity_rfq_bytecode_id: bytecode_id,
+                pool_bytecode_id: bytecode_id,
             })
             .now_or_never()
             .expect("Initialization of swap state should not await anything");

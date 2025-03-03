@@ -48,8 +48,9 @@ impl Contract for MemeContract {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        let owner = self.runtime.authenticated_signer().unwrap();
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        let owner = self.owner_account();
+        let application = self.application_account();
+
         self.state
             .instantiate(owner, application, instantiation_argument)
             .await
@@ -129,6 +130,35 @@ impl Contract for MemeContract {
 }
 
 impl MemeContract {
+    fn owner_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.chain_id(),
+            owner: match self.runtime.authenticated_signer() {
+                Some(owner) => Some(AccountOwner::User(owner)),
+                _ => None,
+            },
+        }
+    }
+
+    fn application_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.chain_id(),
+            owner: Some(AccountOwner::Application(
+                self.runtime.application_id().forget_abi(),
+            )),
+        }
+    }
+
+    fn caller_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.chain_id(),
+            owner: match self.runtime.authenticated_caller_id() {
+                Some(application_id) => Some(AccountOwner::Application(application_id)),
+                _ => None,
+            },
+        }
+    }
+
     async fn register_application(&mut self) {
         if let Some(ams_application_id) = self.state.ams_application_id().await {
             // TODO: register application to ams
@@ -187,11 +217,7 @@ impl MemeContract {
         }
     }
 
-    fn on_op_transfer(
-        &mut self,
-        to: AccountOwner,
-        amount: Amount,
-    ) -> Result<MemeResponse, MemeError> {
+    fn on_op_transfer(&mut self, to: Account, amount: Amount) -> Result<MemeResponse, MemeError> {
         self.runtime
             .prepare_message(MemeMessage::Transfer { to, amount })
             .with_authentication()
@@ -201,8 +227,8 @@ impl MemeContract {
 
     fn on_op_transfer_from(
         &mut self,
-        from: AccountOwner,
-        to: AccountOwner,
+        from: Account,
+        to: Account,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
@@ -210,14 +236,13 @@ impl MemeContract {
 
     fn on_op_approve(
         &mut self,
-        spender: AccountOwner,
+        spender: Account,
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<MemeResponse, MemeError> {
-        if AccountOwner::User(self.runtime.authenticated_signer().unwrap()) == spender {
+        if self.owner_account() == spender {
             return Err(MemeError::InvalidOwner);
         }
-        log::info!("OP Approve {} to {}", amount, spender);
         self.runtime
             .prepare_message(MemeMessage::Approve {
                 spender,
@@ -237,30 +262,28 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    async fn on_msg_transfer(&mut self, to: AccountOwner, amount: Amount) -> Result<(), MemeError> {
-        let from = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+    async fn on_msg_transfer(&mut self, to: Account, amount: Amount) -> Result<(), MemeError> {
+        let from = self.owner_account();
         self.state.transfer(from, to, amount).await
     }
 
     fn on_msg_transfer_from(
         &mut self,
-        from: AccountOwner,
-        to: AccountOwner,
+        from: Account,
+        to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
         Ok(())
     }
 
-    async fn formalize_approve_owner(&mut self, amount: Amount) -> Result<AccountOwner, MemeError> {
-        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+    async fn formalize_approve_owner(&mut self, amount: Amount) -> Result<Account, MemeError> {
+        let owner = self.owner_account();
         let balance = self.state.balance_of(owner).await;
-        log::info!("Owner 0 {} balance {}", owner, balance);
         if balance >= amount {
             return Ok(owner);
         }
 
-        let meme_owner = AccountOwner::User(self.state.owner().await);
-        log::info!("Meme owner {} owner {}", meme_owner, owner);
+        let meme_owner = self.state.owner().await;
         // Normal user must approve from their own balance
         if owner != meme_owner {
             return Err(MemeError::InvalidOwner);
@@ -274,7 +297,7 @@ impl MemeContract {
                     return Err(MemeError::InvalidOwner);
                 }
 
-                let owner = AccountOwner::Application(self.runtime.application_id().forget_abi());
+                let owner = self.application_account();
                 let balance = self.state.balance_of(owner).await;
                 if balance >= amount {
                     return Ok(owner);
@@ -311,7 +334,7 @@ impl MemeContract {
 
     async fn on_msg_approve(
         &mut self,
-        spender: AccountOwner,
+        spender: Account,
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {

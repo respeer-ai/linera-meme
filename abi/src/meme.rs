@@ -2,7 +2,7 @@ use crate::store_type::StoreType;
 use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
     base::{
-        Account, AccountOwner, Amount, ApplicationId, ContractAbi, CryptoHash, Owner, ServiceAbi,
+        Account, Amount, ApplicationId, ContractAbi, CryptoHash, Owner, ServiceAbi,
     },
     graphql::GraphQLMutationRoot,
 };
@@ -67,16 +67,16 @@ impl ServiceAbi for MemeAbi {
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
     Transfer {
-        to: AccountOwner,
+        to: Account,
         amount: Amount,
     },
     TransferFrom {
-        from: AccountOwner,
-        to: AccountOwner,
+        from: Account,
+        to: Account,
         amount: Amount,
     },
     Approve {
-        spender: AccountOwner,
+        spender: Account,
         amount: Amount,
         rfq_application: Option<Account>,
     },
@@ -91,16 +91,16 @@ pub enum MemeOperation {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum MemeMessage {
     Transfer {
-        to: AccountOwner,
+        to: Account,
         amount: Amount,
     },
     TransferFrom {
-        from: AccountOwner,
-        to: AccountOwner,
+        from: Account,
+        to: Account,
         amount: Amount,
     },
     Approve {
-        spender: AccountOwner,
+        spender: Account,
         amount: Amount,
         rfq_application: Option<Account>,
     },

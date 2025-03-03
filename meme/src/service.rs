@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::meme::{MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    base::{AccountOwner, Amount, WithServiceAbi},
+    base::{Account, Amount, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -63,7 +63,7 @@ struct MutationRoot {
 
 #[Object]
 impl MutationRoot {
-    async fn transfer(&self, to: AccountOwner, amount: Amount) -> [u8; 0] {
+    async fn transfer(&self, to: Account, amount: Amount) -> [u8; 0] {
         self.runtime
             .schedule_operation(&MemeOperation::Transfer { to, amount });
         []
@@ -81,11 +81,11 @@ impl QueryRoot {
         self.state.meme.get().as_ref().unwrap().total_supply
     }
 
-    async fn balance_of(&self, owner: AccountOwner) -> Amount {
+    async fn balance_of(&self, owner: Account) -> Amount {
         self.state.balance_of(owner).await
     }
 
-    async fn allowance_of(&self, owner: AccountOwner, spender: AccountOwner) -> Amount {
+    async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
         self.state.allowance_of(owner, spender).await
     }
 }

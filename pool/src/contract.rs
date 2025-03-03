@@ -42,6 +42,8 @@ impl Contract for PoolContract {
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
+
+        log::info!("Chain balance {}", self.runtime.chain_balance());
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {

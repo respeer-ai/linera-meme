@@ -114,6 +114,7 @@ pub enum SwapMessage {
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
+        virtual_initial_liquidity: bool,
     },
     LiquidityFundApproved {
         token_0: ApplicationId,
@@ -148,6 +149,7 @@ pub enum SwapMessage {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
 pub struct Pool {
+    pub pool_id: u64,
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub pool_application: Account,

@@ -3,7 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Liquidity, Meme};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ApplicationId, Owner},
+    base::{Account, AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -13,8 +13,8 @@ use std::collections::HashMap;
 #[derive(RootView)]
 #[view(context = "ViewStorageContext")]
 pub struct MemeState {
-    pub owner: RegisterView<Option<Owner>>,
-    pub holder: RegisterView<Option<AccountOwner>>,
+    pub owner: RegisterView<Option<Account>>,
+    pub holder: RegisterView<Option<Account>>,
 
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
@@ -27,8 +27,8 @@ pub struct MemeState {
     pub virtual_initial_liquidity: RegisterView<bool>,
 
     // Account information
-    pub balances: MapView<AccountOwner, Amount>,
-    pub allowances: MapView<AccountOwner, HashMap<AccountOwner, Amount>>,
+    pub balances: MapView<Account, Amount>,
+    pub allowances: MapView<Account, HashMap<Account, Amount>>,
 }
 
 /// Created meme token will be added to liquidity pool directly
@@ -47,7 +47,11 @@ impl MemeState {
 
         self.initial_liquidity.set(Some(liquidity.clone()));
 
-        let spender = AccountOwner::Application(self.swap_application_id.get().unwrap());
+        let swap_application_id = self.swap_application_id.get().unwrap();
+        let spender = Account {
+            chain_id: swap_application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(swap_application_id)),
+        };
         self.approve(
             self.holder.get().unwrap(),
             spender,
@@ -58,8 +62,8 @@ impl MemeState {
 
     pub(crate) async fn instantiate(
         &mut self,
-        owner: Owner,
-        application: AccountOwner,
+        owner: Account,
+        application: Account,
         mut argument: InstantiationArgument,
     ) -> Result<(), MemeError> {
         assert!(
@@ -96,7 +100,7 @@ impl MemeState {
 
     pub(crate) async fn initialize_balance(
         &mut self,
-        owner: AccountOwner,
+        owner: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
         let holder = self.holder.get().unwrap();
@@ -124,8 +128,8 @@ impl MemeState {
 
     pub(crate) async fn transfer(
         &mut self,
-        from: AccountOwner,
-        to: AccountOwner,
+        from: Account,
+        to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
         assert!(amount > Amount::ZERO, "Invalid amount");
@@ -147,8 +151,8 @@ impl MemeState {
 
     pub(crate) async fn approve(
         &mut self,
-        owner: AccountOwner,
-        spender: AccountOwner,
+        owner: Account,
+        spender: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
         // Self approve is not allowed
@@ -156,9 +160,7 @@ impl MemeState {
             return Err(MemeError::InvalidOwner);
         }
         // Approve application balance to meme creator is not allowed
-        if owner == self.holder.get().unwrap()
-            && spender == AccountOwner::User(self.owner.get().unwrap())
-        {
+        if owner == self.holder.get().unwrap() && spender == self.owner.get().unwrap() {
             return Err(MemeError::InvalidOwner);
         }
 
@@ -186,18 +188,18 @@ impl MemeState {
         Ok(self.allowances.insert(&owner, allowances)?)
     }
 
-    pub(crate) async fn owner(&mut self) -> Owner {
+    pub(crate) async fn owner(&mut self) -> Account {
         self.owner.get().unwrap()
     }
 
-    pub(crate) async fn balance_of(&self, owner: AccountOwner) -> Amount {
+    pub(crate) async fn balance_of(&self, owner: Account) -> Amount {
         match self.balances.get(&owner).await.unwrap() {
             Some(amount) => amount,
             _ => Amount::ZERO,
         }
     }
 
-    pub(crate) async fn allowance_of(&self, owner: AccountOwner, spender: AccountOwner) -> Amount {
+    pub(crate) async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
         match self.allowances.get(&owner).await.unwrap() {
             Some(allowances) => match allowances.get(&spender) {
                 Some(&amount) => amount,
