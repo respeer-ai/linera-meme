@@ -306,7 +306,7 @@ impl SwapContract {
         return true;
     }
 
-    fn create_rfq_chain(
+    fn create_child_chain(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -337,7 +337,7 @@ impl SwapContract {
         amount_1: Amount,
     ) -> Result<(), SwapError> {
         // 1: Create rfq chain
-        let (message_id, chain_id) = self.create_rfq_chain(token_0, token_1)?;
+        let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
         // 2: Create rfq application
         let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
 
@@ -536,17 +536,17 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
+        amount_0: Amount,
+        amount_1: Amount,
         virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
+        // All assets should be already authenticated when we're here
         // 1: Create pool chain
+        let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
         // 2: Create pool application with initial liquidity
-        log::info!("Create pool");
+        // Assets will be transfer to pool chain when create pool application
         Ok(())
     }
 
@@ -561,8 +561,6 @@ impl SwapContract {
         self.create_pool(
             token_0,
             None,
-            amount_0,
-            amount_1,
             amount_0,
             amount_1,
             virtual_liquidity,
@@ -663,8 +661,6 @@ impl SwapContract {
                 token_1,
                 amount_0_desired,
                 amount_1_desired,
-                amount_0_min,
-                amount_1_min,
                 false,
                 to,
                 deadline,
