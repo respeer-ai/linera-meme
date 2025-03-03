@@ -76,6 +76,7 @@ async fn multi_chain_test() {
         )
         .await;
 
+    let initial_liquidity = Amount::from_tokens(11000000);
     let meme_instantiation_argument = MemeInstantiationArgument {
         meme: Meme {
             name: "Test Token".to_string(),
@@ -95,7 +96,7 @@ async fn multi_chain_test() {
             },
         },
         initial_liquidity: Some(Liquidity {
-            fungible_amount: Amount::from_tokens(10000000),
+            fungible_amount: initial_liquidity,
             native_amount: Amount::from_tokens(10),
         }),
         blob_gateway_application_id: None,
@@ -176,6 +177,17 @@ async fn multi_chain_test() {
     assert_eq!(
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
         Amount::ZERO,
+    );
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        AccountOwner::Application(meme_application_id.forget_abi()),
+        AccountOwner::Application(swap_application_id.forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        initial_liquidity,
     );
 
     // TODO: approve allowance with meme chain

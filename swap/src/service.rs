@@ -79,17 +79,6 @@ impl QueryRoot {
     async fn pool_id(&self) -> &u64 {
         self.state.pool_id.get()
     }
-
-    async fn rfq_chain_creation_messages(&self) -> Vec<MessageId> {
-        self.state
-            .rfq_chains
-            .index_values()
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|(_, message_id)| message_id)
-            .collect()
-    }
 }
 
 #[cfg(test)]

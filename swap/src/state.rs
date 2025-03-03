@@ -24,8 +24,6 @@ pub struct SwapState {
     pub last_transactions: QueueView<Transaction>,
     pub transaction_id: RegisterView<u64>,
     pub liquidity_rfq_bytecode_id: RegisterView<Option<BytecodeId>>,
-
-    pub rfq_chains: MapView<ChainId, MessageId>,
 }
 
 #[allow(dead_code)]
@@ -67,13 +65,5 @@ impl SwapState {
 
     pub(crate) async fn liquidity_rfq_bytecode_id(&self) -> BytecodeId {
         self.liquidity_rfq_bytecode_id.get().unwrap()
-    }
-
-    pub(crate) async fn create_rfq_chain(
-        &mut self,
-        chain_id: ChainId,
-        message_id: MessageId,
-    ) -> Result<(), SwapError> {
-        Ok(self.rfq_chains.insert(&chain_id, message_id)?)
     }
 }

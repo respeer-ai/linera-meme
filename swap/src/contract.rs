@@ -321,7 +321,6 @@ impl SwapContract {
             close_chain: vec![router_application_id],
             change_application_permissions: vec![router_application_id],
         };
-        log::info!("Temp chain with token_0 {}", token_0);
         Ok(self.runtime.open_chain(ownership, permissions, Amount::ONE))
     }
 
@@ -336,8 +335,6 @@ impl SwapContract {
         let (message_id, chain_id) = self.create_rfq_chain(token_0, token_1)?;
         // 2: Create rfq application
         let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
-
-        self.state.create_rfq_chain(chain_id, message_id).await?;
 
         self.runtime
             .prepare_message(SwapMessage::CreateRfq {

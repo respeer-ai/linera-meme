@@ -153,30 +153,6 @@ async fn virtual_liquidity_test() {
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
 
-    let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(swap_application_id, "query { rfqChainCreationMessages }")
-        .await;
-    assert_eq!(
-        response["rfqChainCreationMessages"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-
-    let creation_message_id = MessageId::from_str(
-        response["rfqChainCreationMessages"].as_array().unwrap()[0]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    let description = ChainDescription::Child(creation_message_id);
-    let temp_chain = ActiveChain::new(swap_key_pair.copy(), description, validator);
-    temp_chain.handle_received_messages().await;
-
-    swap_chain.handle_received_messages().await;
-    meme_chain.handle_received_messages().await;
-
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
         AccountOwner::Application(meme_application_id.forget_abi()),
