@@ -101,7 +101,7 @@ mod tests {
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{AccountOwner, Amount, ApplicationId, Owner},
+        base::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
         util::BlockingWait,
         views::View,
         Service, ServiceRuntime,
@@ -149,12 +149,22 @@ mod tests {
             virtual_initial_liquidity: true,
         };
 
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+        let chain_id =
+            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
                 .unwrap();
+        let owner = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                    .unwrap(),
+            )),
+        };
         let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str).unwrap();
-        let application = AccountOwner::Application(application_id);
+        let application = Account {
+            chain_id,
+            owner: Some(AccountOwner::Application(application_id)),
+        };
         state
             .instantiate(owner, application, instantiation_argument.clone())
             .await

@@ -1,9 +1,7 @@
 use crate::store_type::StoreType;
 use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
-    base::{
-        Account, Amount, ApplicationId, ContractAbi, CryptoHash, Owner, ServiceAbi,
-    },
+    base::{Account, Amount, ApplicationId, ContractAbi, CryptoHash, Owner, ServiceAbi},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};

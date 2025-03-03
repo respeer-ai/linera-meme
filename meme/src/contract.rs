@@ -392,7 +392,9 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString},
+        base::{
+            Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString,
+        },
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -419,10 +421,13 @@ mod tests {
     #[should_panic(expected = "Operations must be run on right chain")]
     async fn user_chain_operation() {
         let mut meme = create_and_instantiate_meme().await;
-        let to = AccountOwner::User(
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03")
-                .unwrap(),
-        );
+        let to = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03")
+                    .unwrap(),
+            )),
+        };
 
         let response = meme
             .execute_operation(MemeOperation::Transfer {
@@ -438,13 +443,21 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn message_transfer() {
         let mut meme = create_and_instantiate_meme().await;
-        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+        let from = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
         let amount = Amount::from_tokens(1);
 
-        let to = AccountOwner::User(
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap(),
-        );
+        let to = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                    .unwrap(),
+            )),
+        };
 
         meme.state.initialize_balance(from, amount).await.unwrap();
 
@@ -463,15 +476,23 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn message_approve_owner_success() {
         let mut meme = create_and_instantiate_meme().await;
-        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+        let from = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
 
         let amount = Amount::from_tokens(100);
         let allowance = Amount::from_tokens(22);
 
-        let spender = AccountOwner::User(
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap(),
-        );
+        let spender = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                    .unwrap(),
+            )),
+        };
 
         meme.state.initialize_balance(from, amount).await.unwrap();
 
@@ -533,13 +554,21 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn message_approve_holder_success() {
         let mut meme = create_and_instantiate_meme().await;
-        let from = AccountOwner::Application(meme.runtime.application_id().forget_abi());
+        let from = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
         let allowance = Amount::from_tokens(10000);
 
-        let spender = AccountOwner::User(
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap(),
-        );
+        let spender = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                    .unwrap(),
+            )),
+        };
 
         meme.execute_message(MemeMessage::Approve {
             spender,
@@ -577,15 +606,23 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn message_approve_insufficient_balance() {
         let mut meme = create_and_instantiate_meme().await;
-        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+        let from = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
 
         let amount = Amount::from_tokens(100);
         let allowance = Amount::from_tokens(220);
 
-        let spender = AccountOwner::User(
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap(),
-        );
+        let spender = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                    .unwrap(),
+            )),
+        };
 
         meme.state.initialize_balance(from, amount).await.unwrap();
 
@@ -611,7 +648,12 @@ mod tests {
     #[should_panic(expected = "Failed MSG: approve: InvalidOwner")]
     async fn message_approve_meme_owner_self_insufficient_balance() {
         let mut meme = create_and_instantiate_meme().await;
-        let from = AccountOwner::User(meme.runtime.authenticated_signer().unwrap());
+        let from = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
 
         let amount = Amount::from_tokens(100);
         let allowance = Amount::from_tokens(220);
@@ -669,18 +711,27 @@ mod tests {
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<MemeAbi>();
-        let application = AccountOwner::Application(application_id.forget_abi());
+        let application = Account {
+            chain_id,
+            owner: Some(AccountOwner::Application(application_id.forget_abi())),
+        };
 
         let swap_application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000002";
         let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
-        let swap_application = AccountOwner::Application(swap_application_id);
+        let swap_application = Account {
+            chain_id,
+            owner: Some(AccountOwner::Application(swap_application_id)),
+        };
 
         let runtime = ContractRuntime::new()
             .with_application_parameters(MemeParameters {})
             .with_can_change_application_permissions(true)
             .with_chain_id(chain_id)
             .with_application_id(application_id)
-            .with_owner_balance(application, Amount::ZERO)
+            .with_owner_balance(
+                AccountOwner::Application(application_id.forget_abi()),
+                Amount::ZERO,
+            )
             .with_authenticated_caller_id(swap_application_id)
             .with_call_application_handler(mock_application_call)
             .with_authenticated_signer(operator);

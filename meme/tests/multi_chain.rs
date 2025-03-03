@@ -66,13 +66,16 @@ async fn multi_chain_test() {
     meme_chain.handle_received_messages().await;
 
     let liquidity_rfq_bytecode_id = swap_chain.publish_bytecodes_in("../liquidity-rfq").await;
+    let pool_bytecode_id = swap_chain.publish_bytecodes_in("../pool").await;
     let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
+
     let swap_application_id = meme_chain
         .create_application::<SwapAbi, (), SwapInstantiationArgument>(
             swap_bytecode_id,
             (),
             SwapInstantiationArgument {
                 liquidity_rfq_bytecode_id,
+                pool_bytecode_id,
             },
             vec![],
         )

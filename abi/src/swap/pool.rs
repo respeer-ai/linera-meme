@@ -1,6 +1,6 @@
-use async_graphql::{InputObject, Request, Response, scalar};
+use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
-    base::{ContractAbi, ServiceAbi, ApplicationId, Amount},
+    base::{Amount, ApplicationId, ContractAbi, ServiceAbi},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};
