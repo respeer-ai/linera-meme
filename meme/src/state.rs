@@ -35,44 +35,61 @@ pub struct MemeState {
 
 #[allow(dead_code)]
 impl MemeState {
+    async fn initialize_liquidity(&mut self, liquidity: Liquidity) -> Result<(), MemeError> {
+        assert!(
+            liquidity.fungible_amount >= Amount::ZERO,
+            "Invalid initial liquidity"
+        );
+        assert!(
+            liquidity.native_amount >= Amount::ZERO,
+            "Invalid initial liquidity"
+        );
+
+        self.initial_liquidity.set(Some(liquidity.clone()));
+
+        let spender = AccountOwner::Application(self.swap_application_id.get().unwrap());
+        self.approve(
+            self.holder.get().unwrap(),
+            spender,
+            liquidity.fungible_amount,
+        )
+        .await
+    }
+
     pub(crate) async fn instantiate(
         &mut self,
         owner: Owner,
         application: AccountOwner,
         mut argument: InstantiationArgument,
     ) -> Result<(), MemeError> {
+        assert!(
+            argument.meme.initial_supply > Amount::ZERO,
+            "Invalid initial supply"
+        );
+
+        self.swap_application_id.set(argument.swap_application_id);
+        self.balances
+            .insert(&application, argument.meme.initial_supply)?;
+        self.holder.set(Some(application));
         self.owner.set(Some(owner));
 
-        if let Some(ref liquidity) = argument.initial_liquidity {
-            assert!(
-                liquidity.fungible_amount >= Amount::ZERO,
-                "Invalid initial liquidity"
-            );
-            assert!(
-                liquidity.native_amount >= Amount::ZERO,
-                "Invalid initial liquidity"
-            );
+        if let Some(liquidity) = argument.initial_liquidity {
             assert!(
                 argument.meme.initial_supply >= liquidity.fungible_amount,
                 "Invalid initial supply"
             );
+            self.initialize_liquidity(liquidity).await?;
         }
 
         argument.meme.total_supply = argument.meme.initial_supply;
         self.meme.set(Some(argument.meme.clone()));
-        self.initial_liquidity.set(argument.initial_liquidity);
 
         self.blob_gateway_application_id
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
-        self.swap_application_id.set(argument.swap_application_id);
         self.virtual_initial_liquidity
             .set(argument.virtual_initial_liquidity);
-
-        self.balances
-            .insert(&application, argument.meme.initial_supply)?;
-        self.holder.set(Some(application));
 
         Ok(())
     }

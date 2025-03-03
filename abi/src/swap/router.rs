@@ -29,7 +29,7 @@ pub enum SwapOperation {
     InitializeLiquidity {
         token_0: ApplicationId,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
         // Only for creator to initialize pool
         virtual_liquidity: bool,
         to: Option<AccountOwner>,
@@ -86,7 +86,7 @@ pub enum SwapMessage {
     InitializeLiquidity {
         token_0: ApplicationId,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
         // Only for creator to initialize pool
         virtual_liquidity: bool,
         to: Option<AccountOwner>,

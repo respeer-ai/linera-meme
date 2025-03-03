@@ -25,6 +25,8 @@ use std::str::FromStr;
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
 async fn multi_chain_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
     let (validator, meme_bytecode_id) =
         TestValidator::with_current_bytecode::<MemeAbi, MemeParameters, MemeInstantiationArgument>(
         )
@@ -115,6 +117,8 @@ async fn multi_chain_test() {
         )
         .await;
     let meme_application = AccountOwner::Application(meme_application_id.forget_abi());
+
+    log::info!("Meme chain id {}", meme_chain.id());
 
     user_chain.register_application(meme_application_id).await;
 

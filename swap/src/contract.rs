@@ -409,10 +409,16 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
         virtual_liquidity: bool,
         to: Option<AccountOwner>,
     ) -> Result<SwapResponse, SwapError> {
+        let caller_id = self.runtime.authenticated_caller_id().unwrap();
+        let chain_id = self.runtime.chain_id();
+
+        assert!(token_0 == caller_id, "Invalid caller");
+        assert!(chain_id == caller_id.creation.chain_id, "Invalid caller");
+
         let virtual_liquidity = self.formalize_virtual_liquidity(token_0, None, virtual_liquidity);
         Ok(SwapResponse::Ok)
     }
@@ -524,7 +530,7 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         amount_0: Amount,
-        amount_1: Option<Amount>,
+        amount_1: Amount,
         virtual_liquidity: bool,
         to: Option<AccountOwner>,
     ) -> Result<(), SwapError> {

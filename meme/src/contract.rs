@@ -151,17 +151,14 @@ impl MemeContract {
         if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
             return;
         }
+        let virtual_liquidity = self.state.virtual_initial_liquidity().await;
 
-        let call = SwapOperation::AddLiquidity {
+        let call = SwapOperation::InitializeLiquidity {
             token_0: self.runtime.application_id().forget_abi(),
-            token_1: None,
-            amount_0_desired: liquidity.fungible_amount,
-            amount_1_desired: liquidity.native_amount,
-            amount_0_min: liquidity.fungible_amount,
-            amount_1_min: liquidity.native_amount,
-            // TODO: let meme creator set their beneficiary
+            amount_0: liquidity.fungible_amount,
+            amount_1: liquidity.native_amount,
+            virtual_liquidity,
             to: None,
-            deadline: None,
         };
         let _ =
             self.runtime
@@ -699,10 +696,7 @@ mod tests {
             virtual_initial_liquidity: true,
         };
 
-        contract
-            .instantiate(instantiation_argument.clone())
-            .now_or_never()
-            .expect("Initialization of meme state should not await anything");
+        contract.instantiate(instantiation_argument.clone()).await;
 
         assert_eq!(
             *contract.state.meme.get().as_ref().unwrap(),
