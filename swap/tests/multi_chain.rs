@@ -14,8 +14,8 @@ use abi::{
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
 };
 use linera_sdk::{
-    base::Amount,
-    test::{QueryOutcome, TestValidator},
+    base::{Account, Amount, ChainId},
+    test::{Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 
 /// Test setting a swap and testing its coherency across microchains.
@@ -23,12 +23,39 @@ use linera_sdk::{
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn multi_chain_test() {
+async fn virtual_liquidity_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
     let (validator, swap_bytecode_id) =
         TestValidator::with_current_bytecode::<SwapAbi, (), SwapInstantiationArgument>().await;
 
+    let admin_chain = validator.get_chain(&ChainId::root(0));
     let mut swap_chain = validator.new_chain().await;
     let mut meme_chain = validator.new_chain().await;
+
+    // Fund meme chain to create rfq chain
+    let certificate = admin_chain
+        .add_block(|block| {
+            block.with_native_token_transfer(
+                None,
+                Recipient::Account(Account {
+                    chain_id: meme_chain.id(),
+                    owner: None,
+                }),
+                Amount::ONE,
+            );
+        })
+        .await;
+    meme_chain
+        .add_block(move |block| {
+            block.with_messages_from_by_medium(
+                &certificate,
+                &Medium::Direct,
+                MessageAction::Accept,
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
 
     let liquidity_rfq_bytecode_id = swap_chain.publish_bytecodes_in("../liquidity-rfq").await;
 
@@ -85,4 +112,7 @@ async fn multi_chain_test() {
             vec![],
         )
         .await;
+
+    meme_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
 }

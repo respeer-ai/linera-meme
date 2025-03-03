@@ -425,9 +425,11 @@ impl SwapContract {
 
         // Here allowance is already approved, so just transfer native amount then create pool
         // chain and application
+        let mut amount = self.open_chain_fee_budget();
         if !virtual_liquidity {
-            self.fund_swap_application(amount_1.try_add(self.open_chain_fee_budget())?);
+            amount = amount_1.try_add(amount)?;
         }
+        self.fund_swap_application(amount);
 
         self.runtime
             .prepare_message(SwapMessage::InitializeLiquidity {
@@ -538,11 +540,13 @@ impl SwapContract {
         amount_1_desired: Amount,
         amount_0_min: Amount,
         amount_1_min: Amount,
+        virtual_liquidity: bool,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
         // 1: Create pool chain
         // 2: Create pool application with initial liquidity
+        log::info!("Create pool");
         Ok(())
     }
 
@@ -554,7 +558,17 @@ impl SwapContract {
         virtual_liquidity: bool,
         to: Option<AccountOwner>,
     ) -> Result<(), SwapError> {
-        Ok(())
+        self.create_pool(
+            token_0,
+            None,
+            amount_0,
+            amount_1,
+            amount_0,
+            amount_1,
+            virtual_liquidity,
+            to,
+            None,
+        )
     }
 
     async fn on_msg_add_liquidity(
@@ -651,6 +665,7 @@ impl SwapContract {
                 amount_1_desired,
                 amount_0_min,
                 amount_1_min,
+                false,
                 to,
                 deadline,
             )
