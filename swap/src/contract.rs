@@ -321,6 +321,7 @@ impl SwapContract {
             close_chain: vec![router_application_id],
             change_application_permissions: vec![router_application_id],
         };
+        log::info!("Temp chain with token_0 {}", token_0);
         Ok(self.runtime.open_chain(ownership, permissions, Amount::ONE))
     }
 
