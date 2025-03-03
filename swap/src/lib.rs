@@ -1,7 +1,10 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
-use linera_sdk::{base::ChangeApplicationPermissionsError, views::ViewError};
+use linera_sdk::{
+    base::{ArithmeticError, ChangeApplicationPermissionsError},
+    views::ViewError,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -12,4 +15,7 @@ pub enum SwapError {
 
     #[error(transparent)]
     ChangeApplicationPermissionsError(#[from] ChangeApplicationPermissionsError),
+
+    #[error(transparent)]
+    ArithmeticError(#[from] ArithmeticError),
 }

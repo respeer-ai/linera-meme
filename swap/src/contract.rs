@@ -355,13 +355,11 @@ impl SwapContract {
         Ok(())
     }
 
-    fn rfq_fee_budget(&self) -> Amount {
+    fn open_chain_fee_budget(&self) -> Amount {
         Amount::ONE
     }
 
-    fn fund_rfq_fee_budget(&mut self) {
-        let amount = self.rfq_fee_budget();
-
+    fn fund_swap_application(&mut self, amount: Amount) {
         let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
         let chain_id = self.runtime.application_id().creation.chain_id;
         let application_id = self.runtime.application_id().forget_abi();
@@ -405,6 +403,10 @@ impl SwapContract {
         }
     }
 
+    fn fund_open_chain_fee_budget(&mut self) {
+        self.fund_swap_application(self.open_chain_fee_budget());
+    }
+
     async fn on_call_initialize_liquidity(
         &mut self,
         token_0: ApplicationId,
@@ -420,6 +422,24 @@ impl SwapContract {
         assert!(chain_id == caller_id.creation.chain_id, "Invalid caller");
 
         let virtual_liquidity = self.formalize_virtual_liquidity(token_0, None, virtual_liquidity);
+
+        // Here allowance is already approved, so just transfer native amount then create pool
+        // chain and application
+        if !virtual_liquidity {
+            self.fund_swap_application(amount_1.try_add(self.open_chain_fee_budget())?);
+        }
+
+        self.runtime
+            .prepare_message(SwapMessage::InitializeLiquidity {
+                token_0,
+                amount_0,
+                amount_1,
+                virtual_liquidity,
+                to,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+
         Ok(SwapResponse::Ok)
     }
 
@@ -435,7 +455,7 @@ impl SwapContract {
         deadline: Option<Timestamp>,
     ) -> Result<SwapResponse, SwapError> {
         // Transfer rfq chain fee budget
-        self.fund_rfq_fee_budget();
+        self.fund_open_chain_fee_budget();
 
         self.runtime
             .prepare_message(SwapMessage::AddLiquidity {
@@ -671,8 +691,8 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         base::{
-            Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainOwnership, MessageId,
-            Owner,
+            AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId,
+            ChainOwnership, MessageId, Owner,
         },
         util::BlockingWait,
         views::View,
@@ -682,8 +702,28 @@ mod tests {
 
     use super::{SwapContract, SwapState};
 
-    #[test]
-    fn operation_meme_native() {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn operation_initialize_liquidity() {
+        let mut swap = create_and_instantiate_swap();
+
+        let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
+
+        let response = swap
+            .execute_operation(SwapOperation::InitializeLiquidity {
+                token_0: meme_1,
+                amount_0: Amount::ONE,
+                amount_1: Amount::ONE,
+                virtual_liquidity: false,
+                to: None,
+            })
+            .await;
+
+        assert!(matches!(response, SwapResponse::Ok));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn operation_add_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
         let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
@@ -697,12 +737,10 @@ mod tests {
                 amount_1_desired: Amount::ONE,
                 amount_0_min: Amount::ONE,
                 amount_1_min: Amount::ONE,
-                virtual_liquidity: Some(false),
                 to: None,
                 deadline: None,
             })
-            .now_or_never()
-            .expect("Execution of swap operation should not await anything");
+            .await;
 
         assert!(matches!(response, SwapResponse::Ok));
     }
@@ -721,14 +759,19 @@ mod tests {
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<SwapAbi>();
-        let mut runtime = ContractRuntime::new()
-            .with_application_parameters(())
-            .with_application_id(application_id)
-            .with_chain_ownership(ChainOwnership::single(owner));
-
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
         let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
+
+        let mut runtime = ContractRuntime::new()
+            .with_application_parameters(())
+            .with_application_id(application_id)
+            .with_authenticated_signer(owner)
+            .with_authenticated_caller_id(meme_1)
+            .with_chain_id(meme_1.creation.chain_id)
+            .with_owner_balance(AccountOwner::User(owner), Amount::from_tokens(10000))
+            .with_chain_balance(Amount::from_tokens(10000))
+            .with_chain_ownership(ChainOwnership::single(owner));
 
         let permissions = ApplicationPermissions {
             execute_operations: Some(vec![meme_1, application_id.forget_abi()]),
