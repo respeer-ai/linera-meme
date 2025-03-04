@@ -89,15 +89,18 @@ pub enum MemeOperation {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum MemeMessage {
     Transfer {
+        from: Account,
         to: Account,
         amount: Amount,
     },
     TransferFrom {
+        owner: Account,
         from: Account,
         to: Account,
         amount: Amount,
     },
     Approve {
+        owner: Account,
         spender: Account,
         amount: Amount,
         rfq_application: Option<Account>,
@@ -109,7 +112,8 @@ pub enum MemeMessage {
         rfq_application: ApplicationId,
     },
     TransferOwnership {
-        new_owner: Owner,
+        owner: Account,
+        new_owner: Account,
     },
     // Mine is only run on creation chain so we don't need a message
 }

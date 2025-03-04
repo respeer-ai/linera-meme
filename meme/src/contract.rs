@@ -103,19 +103,25 @@ impl Contract for MemeContract {
         }
 
         match message {
-            MemeMessage::Transfer { to, amount } => self
-                .on_msg_transfer(to, amount)
+            MemeMessage::Transfer { from, to, amount } => self
+                .on_msg_transfer(from, to, amount)
                 .await
                 .expect("Failed MSG: transfer"),
-            MemeMessage::TransferFrom { from, to, amount } => self
-                .on_msg_transfer_from(from, to, amount)
+            MemeMessage::TransferFrom {
+                owner,
+                from,
+                to,
+                amount,
+            } => self
+                .on_msg_transfer_from(owner, from, to, amount)
                 .expect("Failed MSG: trasnfer from"),
             MemeMessage::Approve {
+                owner,
                 spender,
                 amount,
                 rfq_application,
             } => self
-                .on_msg_approve(spender, amount, rfq_application)
+                .on_msg_approve(owner, spender, amount, rfq_application)
                 .await
                 .expect("Failed MSG: approve"),
             MemeMessage::Approved { rfq_application } => self
@@ -124,8 +130,8 @@ impl Contract for MemeContract {
             MemeMessage::Rejected { rfq_application } => self
                 .on_msg_rejected(rfq_application)
                 .expect("Failed MSG: rejected"),
-            MemeMessage::TransferOwnership { new_owner } => self
-                .on_msg_transfer_ownership(new_owner)
+            MemeMessage::TransferOwnership { owner, new_owner } => self
+                .on_msg_transfer_ownership(owner, new_owner)
                 .expect("Failed MSG: transfer ownership"),
         }
     }
@@ -224,8 +230,9 @@ impl MemeContract {
     }
 
     fn on_op_transfer(&mut self, to: Account, amount: Amount) -> Result<MemeResponse, MemeError> {
+        let from = self.owner_account();
         self.runtime
-            .prepare_message(MemeMessage::Transfer { to, amount })
+            .prepare_message(MemeMessage::Transfer { from, to, amount })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
         Ok(MemeResponse::Ok)
@@ -246,11 +253,13 @@ impl MemeContract {
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<MemeResponse, MemeError> {
-        if self.owner_account() == spender {
+        let owner = self.owner_account();
+        if owner == spender {
             return Err(MemeError::InvalidOwner);
         }
         self.runtime
             .prepare_message(MemeMessage::Approve {
+                owner,
                 spender,
                 amount,
                 rfq_application,
@@ -268,50 +277,24 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    async fn on_msg_transfer(&mut self, to: Account, amount: Amount) -> Result<(), MemeError> {
+    async fn on_msg_transfer(
+        &mut self,
+        from: Account,
+        to: Account,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
         let from = self.owner_account();
         self.state.transfer(from, to, amount).await
     }
 
     fn on_msg_transfer_from(
         &mut self,
+        owner: Account,
         from: Account,
         to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
         Ok(())
-    }
-
-    async fn formalize_approve_owner(&mut self, amount: Amount) -> Result<Account, MemeError> {
-        let owner = self.owner_account();
-        let balance = self.state.balance_of(owner).await;
-        if balance >= amount {
-            return Ok(owner);
-        }
-
-        let meme_owner = self.state.owner().await;
-        // Normal user must approve from their own balance
-        if owner != meme_owner {
-            return Err(MemeError::InvalidOwner);
-        }
-
-        if let Some(caller_application_id) = self.runtime.authenticated_caller_id() {
-            if let Some(swap_application_id) = self.state.swap_application_id().await {
-                // If call from meme owner, and swap application, then approve from application
-                // balance
-                if caller_application_id != swap_application_id {
-                    return Err(MemeError::InvalidOwner);
-                }
-
-                let owner = self.application_account();
-                let balance = self.state.balance_of(owner).await;
-                if balance >= amount {
-                    return Ok(owner);
-                }
-            }
-        }
-
-        return Err(MemeError::InvalidOwner);
     }
 
     fn notify_rfq_chain_approved(&mut self, rfq_application: Account) {
@@ -340,21 +323,18 @@ impl MemeContract {
 
     async fn on_msg_approve(
         &mut self,
+        owner: Account,
         spender: Account,
         amount: Amount,
         rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {
-        log::info!("MSG 0 Approve {} to {}", amount, spender);
-        // Normally user will approve from their own balance
-        // Meme creator can approve from their own balance or application balance
-        let Ok(owner) = self.formalize_approve_owner(amount).await else {
-            if rfq_application.is_some() {
-                self.notify_rfq_chain_rejected(rfq_application.unwrap());
+        let balance = self.state.balance_of(owner).await;
+        if balance < amount {
+            if let Some(rfq_application) = rfq_application {
+                self.notify_rfq_chain_rejected(rfq_application);
             }
             return Ok(());
-        };
-
-        log::info!("MSG 1 Approve {} to {}", amount, spender);
+        }
 
         // No matter we can or not fulfill the request, we always need to notity rfq chain
         let rc = self.state.approve(owner, spender, amount).await;
@@ -382,7 +362,11 @@ impl MemeContract {
         Ok(())
     }
 
-    fn on_msg_transfer_ownership(&mut self, owner: Owner) -> Result<(), MemeError> {
+    fn on_msg_transfer_ownership(
+        &mut self,
+        owner: Account,
+        new_owner: Account,
+    ) -> Result<(), MemeError> {
         Ok(())
     }
 }
@@ -469,7 +453,7 @@ mod tests {
         let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
         assert_eq!(balance, amount);
 
-        meme.execute_message(MemeMessage::Transfer { to, amount })
+        meme.execute_message(MemeMessage::Transfer { from, to, amount })
             .await;
 
         assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
@@ -503,6 +487,7 @@ mod tests {
         assert_eq!(balance, amount);
 
         meme.execute_message(MemeMessage::Approve {
+            owner: from,
             spender,
             amount: allowance,
             rfq_application: None,
@@ -535,6 +520,7 @@ mod tests {
         assert_eq!(balance, allowance);
 
         meme.execute_message(MemeMessage::Approve {
+            owner: from,
             spender,
             amount: allowance,
             rfq_application: None,
@@ -551,58 +537,6 @@ mod tests {
             .get(&spender)
             .unwrap();
         assert_eq!(balance, allowance.try_mul(2).unwrap());
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn message_approve_holder_success() {
-        let mut meme = create_and_instantiate_meme().await;
-        let from = Account {
-            chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::Application(
-                meme.runtime.application_id().forget_abi(),
-            )),
-        };
-        let allowance = Amount::from_tokens(10000);
-
-        let spender = Account {
-            chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                    .unwrap(),
-            )),
-        };
-
-        meme.execute_message(MemeMessage::Approve {
-            spender,
-            amount: allowance,
-            rfq_application: None,
-        })
-        .await;
-
-        assert_eq!(
-            meme.state.allowances.contains_key(&from).await.unwrap(),
-            true
-        );
-        assert_eq!(
-            meme.state
-                .allowances
-                .get(&from)
-                .await
-                .unwrap()
-                .unwrap()
-                .contains_key(&spender),
-            true
-        );
-        let balance = *meme
-            .state
-            .allowances
-            .get(&from)
-            .await
-            .unwrap()
-            .unwrap()
-            .get(&spender)
-            .unwrap();
-        assert_eq!(balance, allowance);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -632,6 +566,7 @@ mod tests {
 
         // It won't panic here, it'll approved from application balance
         meme.execute_message(MemeMessage::Approve {
+            owner: from,
             spender,
             amount: allowance,
             rfq_application: None,
@@ -645,7 +580,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[should_panic(expected = "Failed MSG: approve: InvalidOwner")]
     async fn message_approve_meme_owner_self_insufficient_balance() {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
@@ -664,6 +598,7 @@ mod tests {
 
         // It won't panic here, it'll approved from application balance
         meme.execute_message(MemeMessage::Approve {
+            owner: from,
             spender: from,
             amount: allowance,
             rfq_application: None,
@@ -672,16 +607,6 @@ mod tests {
 
         assert_eq!(
             meme.state.allowances.contains_key(&from).await.unwrap(),
-            false
-        );
-        assert_eq!(
-            meme.state
-                .allowances
-                .get(&from)
-                .await
-                .unwrap()
-                .unwrap()
-                .contains_key(&from),
             false
         );
     }
