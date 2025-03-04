@@ -479,6 +479,43 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(expected = "Insufficient balance")]
+    async fn message_transfer_insufficient_funds() {
+        let mut meme = create_and_instantiate_meme().await;
+        let from = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
+        let amount = meme.state.initial_owner_balance().await;
+        let transfer_amount = amount.try_add(Amount::ONE).unwrap();
+
+        let to = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                    .unwrap(),
+            )),
+        };
+
+        assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+
+        meme.execute_message(MemeMessage::Transfer {
+            from,
+            to,
+            amount: transfer_amount,
+        })
+        .await;
+
+        assert_eq!(meme.state.balances.contains_key(&to).await.unwrap(), true);
+        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn message_approve_owner_success() {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
