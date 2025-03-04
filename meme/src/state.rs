@@ -188,6 +188,29 @@ impl MemeState {
         Ok(self.allowances.insert(&owner, allowances)?)
     }
 
+    pub(crate) async fn transfer_from(
+        &mut self,
+        owner: Account,
+        from: Account,
+        to: Account,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        let Some(mut allowances) = self.allowances.get(&from).await? else {
+            panic!("Invalid from");
+        };
+        let Some(&allowance) = allowances.get(&owner) else {
+            panic!("Invalid owner");
+        };
+        assert!(allowance >= amount, "Insufficient allowance");
+        let balance = match self.balances.get(&to).await? {
+            Some(balance) => balance.try_add(amount)?,
+            _ => amount,
+        };
+        self.balances.insert(&to, balance)?;
+        allowances.insert(owner, allowance.try_sub(amount)?);
+        Ok(self.allowances.insert(&from, allowances)?)
+    }
+
     pub(crate) async fn owner(&mut self) -> Account {
         self.owner.get().unwrap()
     }

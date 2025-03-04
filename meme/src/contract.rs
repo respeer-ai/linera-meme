@@ -114,6 +114,7 @@ impl Contract for MemeContract {
                 amount,
             } => self
                 .on_msg_transfer_from(owner, from, to, amount)
+                .await
                 .expect("Failed MSG: trasnfer from"),
             MemeMessage::Approve {
                 owner,
@@ -244,6 +245,16 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(MemeMessage::TransferFrom {
+                owner,
+                from,
+                to,
+                amount,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(MemeResponse::Ok)
     }
 
@@ -287,14 +298,14 @@ impl MemeContract {
         self.state.transfer(from, to, amount).await
     }
 
-    fn on_msg_transfer_from(
+    async fn on_msg_transfer_from(
         &mut self,
         owner: Account,
         from: Account,
         to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
-        Ok(())
+        self.state.transfer_from(owner, from, to, amount).await
     }
 
     fn notify_rfq_chain_approved(&mut self, rfq_application: Account) {
@@ -494,6 +505,9 @@ mod tests {
         })
         .await;
 
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount.try_sub(allowance).unwrap());
+
         assert_eq!(
             meme.state.allowances.contains_key(&from).await.unwrap(),
             true
@@ -527,6 +541,16 @@ mod tests {
         })
         .await;
 
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(
+            balance,
+            amount
+                .try_sub(allowance)
+                .unwrap()
+                .try_sub(allowance)
+                .unwrap()
+        );
+
         let balance = *meme
             .state
             .allowances
@@ -537,6 +561,36 @@ mod tests {
             .get(&spender)
             .unwrap();
         assert_eq!(balance, allowance.try_mul(2).unwrap());
+
+        let to = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08")
+                    .unwrap(),
+            )),
+        };
+
+        meme.execute_message(MemeMessage::TransferFrom {
+            owner: spender,
+            from,
+            to,
+            amount: allowance,
+        })
+        .await;
+
+        let balance = *meme
+            .state
+            .allowances
+            .get(&from)
+            .await
+            .unwrap()
+            .unwrap()
+            .get(&spender)
+            .unwrap();
+        assert_eq!(balance, allowance);
+
+        let balance = meme.state.balances.get(&to).await.unwrap().unwrap();
+        assert_eq!(balance, allowance);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -572,6 +626,9 @@ mod tests {
             rfq_application: None,
         })
         .await;
+
+        let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
+        assert_eq!(balance, amount);
 
         assert_eq!(
             meme.state.allowances.contains_key(&from).await.unwrap(),
