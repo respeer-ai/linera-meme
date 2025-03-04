@@ -133,6 +133,7 @@ impl Contract for MemeContract {
                 .expect("Failed MSG: rejected"),
             MemeMessage::TransferOwnership { owner, new_owner } => self
                 .on_msg_transfer_ownership(owner, new_owner)
+                .await
                 .expect("Failed MSG: transfer ownership"),
         }
     }
@@ -280,7 +281,12 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    fn on_op_transfer_ownership(&mut self, owner: Owner) -> Result<MemeResponse, MemeError> {
+    fn on_op_transfer_ownership(&mut self, new_owner: Account) -> Result<MemeResponse, MemeError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(MemeMessage::TransferOwnership { owner, new_owner })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
         Ok(MemeResponse::Ok)
     }
 
@@ -373,12 +379,12 @@ impl MemeContract {
         Ok(())
     }
 
-    fn on_msg_transfer_ownership(
+    async fn on_msg_transfer_ownership(
         &mut self,
         owner: Account,
         new_owner: Account,
     ) -> Result<(), MemeError> {
-        Ok(())
+        self.state.transfer_ownership(owner, new_owner).await
     }
 }
 
@@ -666,6 +672,30 @@ mod tests {
             meme.state.allowances.contains_key(&from).await.unwrap(),
             false
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_transfer_ownership() {
+        let mut meme = create_and_instantiate_meme().await;
+        let owner = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                meme.runtime.authenticated_signer().unwrap(),
+            )),
+        };
+        let new_owner = Account {
+            chain_id: meme.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                    .unwrap(),
+            )),
+        };
+
+        // It won't panic here, it'll approved from application balance
+        meme.execute_message(MemeMessage::TransferOwnership { owner, new_owner })
+            .await;
+
+        assert_eq!(meme.state.owner.get().unwrap(), new_owner);
     }
 
     #[test]

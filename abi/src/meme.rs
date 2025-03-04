@@ -1,7 +1,7 @@
 use crate::store_type::StoreType;
 use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
-    base::{Account, Amount, ApplicationId, ContractAbi, CryptoHash, Owner, ServiceAbi},
+    base::{Account, Amount, ApplicationId, ContractAbi, CryptoHash, ServiceAbi},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};
@@ -79,7 +79,7 @@ pub enum MemeOperation {
         rfq_application: Option<Account>,
     },
     TransferOwnership {
-        new_owner: Owner,
+        new_owner: Account,
     },
     Mine {
         nonce: CryptoHash,

@@ -243,4 +243,14 @@ impl MemeState {
     pub(crate) async fn initial_owner_balance(&self) -> Amount {
         *self.initial_owner_balance.get()
     }
+
+    pub(crate) async fn transfer_ownership(
+        &mut self,
+        owner: Account,
+        new_owner: Account,
+    ) -> Result<(), MemeError> {
+        assert!(owner == self.owner.get().unwrap(), "Invalid owner");
+        self.owner.set(Some(new_owner));
+        Ok(())
+    }
 }
