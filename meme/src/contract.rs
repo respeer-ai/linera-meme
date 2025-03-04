@@ -56,6 +56,12 @@ impl Contract for MemeContract {
             .await
             .expect("Failed instantiate");
 
+        // Let owner hold one hundred tokens for easy test
+        self.state
+            .initialize_balance(owner, self.state.initial_owner_balance().await)
+            .await
+            .expect("Failed initialize balance");
+
         self.register_application().await;
         self.register_logo().await;
         self.change_application_permissions().await;
@@ -449,7 +455,7 @@ mod tests {
                 meme.runtime.authenticated_signer().unwrap(),
             )),
         };
-        let amount = Amount::from_tokens(1);
+        let amount = meme.state.initial_owner_balance().await;
 
         let to = Account {
             chain_id: meme.runtime.chain_id(),
@@ -458,8 +464,6 @@ mod tests {
                     .unwrap(),
             )),
         };
-
-        meme.state.initialize_balance(from, amount).await.unwrap();
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
         let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
@@ -483,7 +487,7 @@ mod tests {
             )),
         };
 
-        let amount = Amount::from_tokens(100);
+        let amount = meme.state.initial_owner_balance().await;
         let allowance = Amount::from_tokens(22);
 
         let spender = Account {
@@ -493,8 +497,6 @@ mod tests {
                     .unwrap(),
             )),
         };
-
-        meme.state.initialize_balance(from, amount).await.unwrap();
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
         let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
@@ -613,7 +615,7 @@ mod tests {
             )),
         };
 
-        let amount = Amount::from_tokens(100);
+        let amount = meme.state.initial_owner_balance().await;
         let allowance = Amount::from_tokens(220);
 
         let spender = Account {
@@ -623,8 +625,6 @@ mod tests {
                     .unwrap(),
             )),
         };
-
-        meme.state.initialize_balance(from, amount).await.unwrap();
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
         let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
@@ -655,10 +655,8 @@ mod tests {
             )),
         };
 
-        let amount = Amount::from_tokens(100);
+        let amount = meme.state.initial_owner_balance().await;
         let allowance = Amount::from_tokens(220);
-
-        meme.state.initialize_balance(from, amount).await.unwrap();
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
         let balance = meme.state.balances.get(&from).await.unwrap().unwrap();
@@ -744,8 +742,6 @@ mod tests {
 
         let initial_supply = Amount::from_tokens(21000000);
         let swap_allowance = Amount::from_tokens(10000000);
-        let application_balance = initial_supply.try_sub(swap_allowance).unwrap();
-
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
                 name: "Test Token".to_string(),
@@ -776,6 +772,11 @@ mod tests {
         };
 
         contract.instantiate(instantiation_argument.clone()).await;
+        let application_balance = initial_supply
+            .try_sub(swap_allowance)
+            .unwrap()
+            .try_sub(contract.state.initial_owner_balance().await)
+            .unwrap();
 
         assert_eq!(
             *contract.state.meme.get().as_ref().unwrap(),

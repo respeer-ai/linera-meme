@@ -97,6 +97,10 @@ impl QueryRoot {
             )
             .await
     }
+
+    async fn initial_owner_balance(&self) -> Amount {
+        self.state.initial_owner_balance().await
+    }
 }
 
 #[cfg(test)]

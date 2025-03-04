@@ -13,6 +13,7 @@ use std::collections::HashMap;
 #[derive(RootView)]
 #[view(context = "ViewStorageContext")]
 pub struct MemeState {
+    pub initial_owner_balance: RegisterView<Amount>,
     pub owner: RegisterView<Option<Account>>,
     pub holder: RegisterView<Option<Account>>,
 
@@ -71,6 +72,8 @@ impl MemeState {
             "Invalid initial supply"
         );
 
+        self.initial_owner_balance.set(Amount::from_tokens(100));
+
         self.swap_application_id.set(argument.swap_application_id);
         self.balances
             .insert(&application, argument.meme.initial_supply)?;
@@ -103,11 +106,8 @@ impl MemeState {
         owner: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
-        let holder = self.holder.get().unwrap();
-        let balance = self.balances.get(&holder).await?.unwrap();
-        assert!(balance >= amount, "Insufficient balance");
-        self.balances.insert(&holder, balance)?;
-        Ok(self.balances.insert(&owner, amount)?)
+        self.transfer(self.holder.get().unwrap(), owner, amount)
+            .await
     }
 
     pub(crate) async fn proxy_application_id(&self) -> Option<ApplicationId> {
@@ -215,5 +215,9 @@ impl MemeState {
 
     pub(crate) async fn initial_liquidity(&self) -> Option<Liquidity> {
         self.initial_liquidity.get().clone()
+    }
+
+    pub(crate) async fn initial_owner_balance(&self) -> Amount {
+        *self.initial_owner_balance.get()
     }
 }

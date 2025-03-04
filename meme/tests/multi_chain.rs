@@ -134,6 +134,12 @@ async fn multi_chain_test() {
         meme_instantiation_argument.meme.total_supply
     );
 
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(meme_application_id, "query { initialOwnerBalance }")
+        .await;
+    let initial_owner_balance =
+        Amount::from_str(response["initialOwnerBalance"].as_str().unwrap()).unwrap();
+
     let query = format!(
         "query {{ balanceOf(owner: \"{}\")}}",
         Account {
@@ -144,7 +150,11 @@ async fn multi_chain_test() {
     let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        initial_supply.try_sub(initial_liquidity).unwrap(),
+        initial_supply
+            .try_sub(initial_liquidity)
+            .unwrap()
+            .try_sub(initial_owner_balance)
+            .unwrap(),
     );
 
     let query = format!(
