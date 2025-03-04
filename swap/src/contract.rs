@@ -206,6 +206,7 @@ impl Contract for SwapContract {
                 token_1,
                 amount_0,
                 amount_1,
+                virtual_initial_liquidity,
             } => self
                 .on_msg_create_pool(pool_bytecode_id, token_0, token_1, amount_0, amount_1)
                 .expect("Failed MSG: create pool"),
@@ -565,6 +566,7 @@ impl SwapContract {
                 token_1,
                 amount_0,
                 amount_1,
+                virtual_initial_liquidity: virtual_liquidity,
             })
             .with_authentication()
             .send_to(chain_id);

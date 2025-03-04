@@ -135,8 +135,11 @@ async fn multi_chain_test() {
     );
 
     let query = format!(
-        "query {{ balanceOf(owner: \"{}\") }}",
-        AccountOwner::Application(meme_application_id.forget_abi()),
+        "query {{ balanceOf(owner: \"{}\")}}",
+        Account {
+            chain_id: meme_application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(meme_application_id.forget_abi())),
+        },
     );
     let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
@@ -146,8 +149,14 @@ async fn multi_chain_test() {
 
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        AccountOwner::Application(meme_application_id.forget_abi()),
-        AccountOwner::Application(swap_application_id.forget_abi()),
+        Account {
+            chain_id: meme_application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(meme_application_id.forget_abi())),
+        },
+        Account {
+            chain_id: swap_application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(swap_application_id.forget_abi())),
+        }
     );
     let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(

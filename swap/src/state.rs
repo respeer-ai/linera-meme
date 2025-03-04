@@ -6,7 +6,7 @@ use abi::swap::{
     transaction::Transaction,
 };
 use linera_sdk::{
-    base::{ApplicationId, BytecodeId, ChainId, MessageId},
+    base::{Account, ApplicationId, BytecodeId, ChainId, MessageId},
     views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
@@ -84,26 +84,30 @@ impl SwapState {
         pool_application: Account,
     ) -> Result<(), SwapError> {
         assert!(
-            self.get_pool_exchangable(token_0, token_1) == None,
+            self.get_pool_exchangable(token_0, token_1).await?.is_none(),
             "Pool exists"
         );
 
         let pool_id = self.pool_id.get();
         let pool = Pool {
-            pool_id,
+            pool_id: *pool_id,
             token_0,
             token_1,
             pool_application,
         };
 
         if let Some(token_1) = token_1 {
-            let mut pools = self.meme_meme_pools.get(&token_0).unwrap_or(HashMap::new());
-            pools.insert(&token_1, pool);
+            let mut pools = self
+                .meme_meme_pools
+                .get(&token_0)
+                .await?
+                .unwrap_or(HashMap::new());
+            pools.insert(token_1, pool);
             self.meme_meme_pools.insert(&token_0, pools)?;
             self.pool_meme_memes
                 .insert(&pool_id, vec![token_0, token_1])?;
         } else {
-            self.meme_native_pools.insert(&token_0, pools)?;
+            self.meme_native_pools.insert(&token_0, pool)?;
             self.pool_meme_natives.insert(&pool_id, token_0)?;
         }
 

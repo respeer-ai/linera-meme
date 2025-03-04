@@ -101,12 +101,20 @@ impl LiquidityRfqContract {
         self.runtime.application_parameters().router_application_id
     }
 
+    fn router_application_account(&mut self) -> Account {
+        let application_id = self.router_application_id();
+        Account {
+            chain_id: application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(application_id)),
+        }
+    }
+
     fn approve_token_liquidity_funds(&mut self, token: ApplicationId) {
         let chain_id = self.runtime.chain_id();
         let application_id = self.runtime.application_id().forget_abi();
 
         let call = MemeOperation::Approve {
-            spender: AccountOwner::Application(self.router_application_id()),
+            spender: self.router_application_account(),
             amount: self.amount_0(),
             rfq_application: Some(Account {
                 chain_id,

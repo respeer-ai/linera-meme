@@ -5,7 +5,7 @@
 
 mod state;
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use abi::meme::{MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
@@ -81,12 +81,21 @@ impl QueryRoot {
         self.state.meme.get().as_ref().unwrap().total_supply
     }
 
-    async fn balance_of(&self, owner: Account) -> Amount {
-        self.state.balance_of(owner).await
+    // async fn balance_of(&self, owner: Account) -> Amount {
+    async fn balance_of(&self, owner: String) -> Amount {
+        self.state
+            .balance_of(Account::from_str(&owner).unwrap())
+            .await
     }
 
-    async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
-        self.state.allowance_of(owner, spender).await
+    // async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
+    async fn allowance_of(&self, owner: String, spender: String) -> Amount {
+        self.state
+            .allowance_of(
+                Account::from_str(&owner).unwrap(),
+                Account::from_str(&spender).unwrap(),
+            )
+            .await
     }
 }
 

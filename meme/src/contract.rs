@@ -556,8 +556,8 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
+            owner: Some(AccountOwner::Application(
+                meme.runtime.application_id().forget_abi(),
             )),
         };
         let allowance = Amount::from_tokens(10000);
