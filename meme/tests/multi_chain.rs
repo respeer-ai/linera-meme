@@ -187,15 +187,37 @@ async fn multi_chain_test() {
     meme_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
 
-    // TODO: approve allowance
-    let allowance = Amount::from_tokens(1);
+    let amount = Amount::from_tokens(1);
+
+    // Transfer balance
+    meme_chain
+        .add_block(|block| {
+            block.with_operation(
+                meme_application_id,
+                MemeOperation::Transfer {
+                    to: user_owner_account,
+                    amount,
+                },
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account,);
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        amount,
+    );
+
+    // Approve allowance
     meme_chain
         .add_block(|block| {
             block.with_operation(
                 meme_application_id,
                 MemeOperation::Approve {
                     spender: user_owner_account,
-                    amount: allowance,
+                    amount: amount,
                     rfq_application: None,
                 },
             );
@@ -207,17 +229,64 @@ async fn multi_chain_test() {
     let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        initial_owner_balance.try_sub(allowance).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
     );
 
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        meme_application_account, swap_application_account,
+        meme_owner_account, user_owner_account,
     );
     let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
     assert_eq!(
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
-        initial_liquidity,
+        amount,
+    );
+
+    // Transfer from allowance
+    user_chain
+        .add_block(|block| {
+            block.with_operation(
+                meme_application_id,
+                MemeOperation::TransferFrom {
+                    from: meme_owner_account,
+                    to: user_owner_account,
+                    amount: amount,
+                },
+            );
+        })
+        .await;
+    meme_chain.handle_received_messages().await;
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account,);
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        initial_owner_balance
+            .try_sub(amount)
+            .unwrap()
+            .try_sub(amount)
+            .unwrap(),
+    );
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account,);
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        amount.try_mul(2).unwrap(),
+    );
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        meme_owner_account, user_owner_account,
+    );
+    let QueryOutcome { response, .. } = meme_chain.graphql_query(meme_application_id, query).await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        Amount::ZERO,
     );
 
     // TODO: create pool in swap application
