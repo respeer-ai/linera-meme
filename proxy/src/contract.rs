@@ -463,6 +463,7 @@ impl ProxyContract {
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
         };
+        log::info!("Owner weights {:?}", self.meme_chain_owner_weights().await?);
         Ok(self.runtime.open_chain(ownership, permissions, fee_budget))
     }
 

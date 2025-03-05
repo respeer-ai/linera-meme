@@ -242,7 +242,6 @@ async fn proxy_create_meme_test() {
     let mut suite = TestSuite::new().await;
 
     let proxy_chain = suite.proxy_chain.clone();
-    let proxy_key_pair = proxy_chain.key_pair();
     let meme_user_chain = suite.meme_user_chain.clone();
     let operator_chain = suite.operator_chain.clone();
 
@@ -251,6 +250,7 @@ async fn proxy_create_meme_test() {
         owner: Some(AccountOwner::User(Owner::from(operator_chain.public_key()))),
     };
     let owner = Owner::from(meme_user_chain.public_key());
+    let meme_user_key_pair = meme_user_chain.key_pair();
 
     suite.create_swap_application().await;
     suite.create_proxy_application(operator).await;
@@ -269,6 +269,9 @@ async fn proxy_create_meme_test() {
         .await;
     operator_chain
         .register_application(suite.proxy_application_id.unwrap())
+        .await;
+    proxy_chain
+        .register_application(suite.swap_application_id.unwrap())
         .await;
 
     suite
@@ -311,9 +314,6 @@ async fn proxy_create_meme_test() {
     )
     .unwrap();
     let description = ChainDescription::Child(message_id);
-    let meme_chain = ActiveChain::new(proxy_key_pair.copy(), description, suite.validator);
-    meme_chain
-        .register_application(suite.swap_application_id.unwrap())
-        .await;
+    let meme_chain = ActiveChain::new(meme_user_key_pair.copy(), description, suite.validator);
     meme_chain.handle_received_messages().await;
 }
