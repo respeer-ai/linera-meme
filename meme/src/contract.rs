@@ -66,7 +66,7 @@ impl Contract for MemeContract {
         self.register_logo().await;
         self.change_application_permissions().await;
 
-        // When the meme application is created, initial liquidity should already be funded
+        // When the meme application is created, initial liquidity allowance should already be approved
         self.create_liquidity_pool().await;
     }
 
@@ -226,8 +226,7 @@ impl MemeContract {
             MemeOperation::Mine { .. } => {
                 self.runtime.chain_id() == self.runtime.application_id().creation.chain_id
             }
-            MemeOperation::TransferOwnership { .. } => true,
-            _ => self.runtime.chain_id() != self.runtime.application_id().creation.chain_id,
+            _ => true,
         }
     }
 
@@ -425,7 +424,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[should_panic(expected = "Operations must be run on right chain")]
     async fn user_chain_operation() {
         let mut meme = create_and_instantiate_meme().await;
         let to = Account {
