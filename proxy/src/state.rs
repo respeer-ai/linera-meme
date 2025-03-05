@@ -1,12 +1,15 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::approval::Approval;
+use abi::{
+    approval::Approval,
+    proxy::{Chain, GenesisMiner, InstantiationArgument, Miner},
+};
 use linera_sdk::{
-    base::{BytecodeId, ChainId, MessageId, Owner, Timestamp},
+    base::{Account, BytecodeId, ChainId, MessageId, Owner, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
-use proxy::{Chain, GenesisMiner, InstantiationArgument, Miner, ProxyError};
+use proxy::ProxyError;
 use std::collections::HashMap;
 
 /// The application state.
@@ -15,7 +18,7 @@ use std::collections::HashMap;
 pub struct ProxyState {
     pub meme_bytecode_id: RegisterView<Option<BytecodeId>>,
     /// Operator and banned
-    pub operators: MapView<Owner, bool>,
+    pub operators: MapView<Account, bool>,
     /// Genesis miner and approvals it should get
     pub genesis_miners: MapView<Owner, GenesisMiner>,
     /// Removing candidates of genesis miner
@@ -31,7 +34,7 @@ impl ProxyState {
     pub(crate) async fn initantiate(
         &mut self,
         argument: InstantiationArgument,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         self.meme_bytecode_id.set(Some(argument.meme_bytecode_id));
         self.operators.insert(&argument.operator, false)?;
@@ -68,7 +71,7 @@ impl ProxyState {
     pub(crate) async fn approve_add_genesis_miner(
         &mut self,
         owner: Owner,
-        signer: Owner,
+        signer: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.genesis_miners.get(&owner).await?.unwrap();
         if miner.approval.approvers.contains_key(&signer) {
@@ -96,7 +99,7 @@ impl ProxyState {
         Ok(self.miners.indices().await?)
     }
 
-    pub(crate) async fn validate_operator(&self, owner: Owner) -> Result<bool, ProxyError> {
+    pub(crate) async fn validate_operator(&self, owner: Account) -> Result<bool, ProxyError> {
         Ok(self.operators.contains_key(&owner).await?)
     }
 
@@ -114,7 +117,7 @@ impl ProxyState {
     pub(crate) async fn approve_remove_genesis_miner(
         &mut self,
         owner: Owner,
-        signer: Owner,
+        signer: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.removing_genesis_miners.get(&owner).await?.unwrap();
         if miner.approvers.contains_key(&signer) {

@@ -7,6 +7,7 @@
 
 use abi::{
     meme::{InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, Metadata},
+    proxy::{InstantiationArgument, ProxyAbi, ProxyOperation},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -15,38 +16,77 @@ use linera_sdk::{
 };
 use serde_json::json;
 
+struct TestSuite {
+    pub proxy_chain: ActiveChain,
+    pub meme_user_chain: ActiveChain,
+    pub operator_chain: ActiveChain,
+
+    pub meme_bytecode_id: BytecodeId,
+    pub proxy_application_id: Option<ApplicationId<ProxyAbi>>,
+}
+
+impl TestSuite {
+    async fn new() -> Self {
+        let (validator, bytecode_id) =
+            TestValidator::with_current_bytecode::<ProxyAbi, (), InstantiationArgument>().await;
+
+        let mut proxy_chain = validator.new_chain().await;
+        let meme_user_chain = validator.new_chain().await;
+        let operator_chain = validator.new_chain().await;
+
+        let meme_bytecode_id = proxy_chain.publish_bytecodes_in("../meme").await;
+
+        Self {
+            proxy_chain,
+            meme_user_chain,
+            operator_chain,
+
+            meme_bytecode_id,
+            proxy_application_id: None,
+        }
+    }
+
+    async fn create_proxy_application(&mut self) {
+        self.proxy_application_id = Some(
+            proxy_chain
+                .create_application(
+                    bytecode_id,
+                    (),
+                    InstantiationArgument {
+                        meme_bytecode_id,
+                        operator,
+                    },
+                    vec![],
+                )
+                .await,
+        )
+    }
+}
+
 /// Test setting a proxy and testing its coherency across microchains.
 ///
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn multi_chain_test() {
-    let (validator, bytecode_id) =
-        TestValidator::with_current_bytecode::<proxy::ProxyAbi, (), proxy::InstantiationArgument>()
-            .await;
+async fn proxy_create_meme_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
 
-    let mut proxy_chain = validator.new_chain().await;
-    let meme_chain = validator.new_chain().await;
-    let operator_chain = validator.new_chain().await;
+    let suite = TestSuite::new().await;
+
+    let mut proxy_chain = suite.proxy_chain.clone();
+    let meme_user_chain = suite.meme_user_chain.clone();
+    let operator_chain = suite.operator_chain.clone();
+
     let operator = Owner::from(operator_chain.public_key());
+    let owner = Owner::from(meme_user_chain.public_key());
 
-    let meme_bytecode_id = proxy_chain.publish_bytecodes_in("../meme").await;
-    let owner = Owner::from(meme_chain.public_key());
-
-    let application_id = proxy_chain
-        .create_application(
-            bytecode_id,
-            (),
-            proxy::InstantiationArgument {
-                meme_bytecode_id,
-                operator,
-            },
-            vec![],
-        )
-        .await;
+    suite.create_proxy_application().await;
 
     let QueryOutcome { response, .. } = proxy_chain
-        .graphql_query(application_id, "query { memeBytecodeId }")
+        .graphql_query(
+            self.proxy_application_id.unwrap(),
+            "query { memeBytecodeId }",
+        )
         .await;
     let expected = json!({"memeBytecodeId": meme_bytecode_id});
     assert_eq!(response, expected);
@@ -58,7 +98,7 @@ async fn multi_chain_test() {
         .add_block(|block| {
             block.with_operation(
                 application_id,
-                proxy::ProxyOperation::ProposeAddGenesisMiner {
+                ProxyOperation::ProposeAddGenesisMiner {
                     owner,
                     endpoint: None,
                 },
@@ -78,7 +118,7 @@ async fn multi_chain_test() {
         .add_block(|block| {
             block.with_operation(
                 application_id,
-                proxy::ProxyOperation::ApproveAddGenesisMiner { owner },
+                ProxyOperation::ApproveAddGenesisMiner { owner },
             );
         })
         .await;
@@ -102,7 +142,7 @@ async fn multi_chain_test() {
         .add_block(|block| {
             block.with_operation(
                 application_id,
-                proxy::ProxyOperation::CreateMeme {
+                ProxyOperation::CreateMeme {
                     fee_budget: Some(Amount::ZERO),
                     meme_instantiation_argument: MemeInstantiationArgument {
                         meme: Meme {
@@ -147,7 +187,7 @@ async fn multi_chain_test() {
         .await;
 
     let QueryOutcome { response, .. } = proxy_chain
-        .graphql_query(application_id, "query { countChains }")
+        .graphql_query(application_id, "query { countMemeChains }")
         .await;
-    assert_eq!(response["countChains"].as_u64().unwrap(), 1);
+    assert_eq!(response["countMemeChains"].as_u64().unwrap(), 1);
 }

@@ -5,7 +5,10 @@
 
 mod state;
 
-use abi::meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters};
+use abi::{
+    meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
+    proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse},
+};
 use linera_sdk::{
     base::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
@@ -14,9 +17,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use proxy::{
-    InstantiationArgument, ProxyAbi, ProxyError, ProxyMessage, ProxyOperation, ProxyResponse,
-};
+use proxy::ProxyError;
 
 use self::state::ProxyState;
 
@@ -47,10 +48,7 @@ impl Contract for ProxyContract {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        let owner = self
-            .runtime
-            .authenticated_signer()
-            .expect("Invalid creator");
+        let owner = self.owner_account();
         self.state
             .initantiate(argument, owner)
             .await
@@ -180,6 +178,15 @@ impl Contract for ProxyContract {
 }
 
 impl ProxyContract {
+    fn owner_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                self.runtime.authenticated_signer().unwrap(),
+            )),
+        }
+    }
+
     fn on_op_propose_add_genesis_miner(
         &mut self,
         owner: Owner,
@@ -326,19 +333,31 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_propose_add_operator(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_propose_add_operator(
+        &mut self,
+        operator: Account,
+    ) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_approve_add_operator(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_approve_add_operator(
+        &mut self,
+        operator: Account,
+    ) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_propose_ban_operator(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_propose_ban_operator(
+        &mut self,
+        operator: Account,
+    ) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_approve_ban_operator(&mut self, owner: Owner) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_approve_ban_operator(
+        &mut self,
+        operator: Account,
+    ) -> Result<ProxyResponse, ProxyError> {
         Ok(ProxyResponse::Ok)
     }
 
@@ -348,17 +367,19 @@ impl ProxyContract {
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
         self.state.add_genesis_miner(owner, endpoint).await?;
-        let signer = self.runtime.authenticated_signer().unwrap();
-        if self.state.validate_operator(signer).await? {
-            return self.state.approve_add_genesis_miner(owner, signer).await;
+        let operator = self.owner_account();
+        if self.state.validate_operator(operator).await? {
+            return self.state.approve_add_genesis_miner(owner, operator).await;
         }
         Ok(())
     }
 
     async fn on_msg_approve_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        self.state
-            .approve_add_genesis_miner(owner, self.runtime.authenticated_signer().unwrap())
-            .await
+        let operator = self.owner_account();
+        if self.state.validate_operator(operator).await? {
+            return self.state.approve_add_genesis_miner(owner, operator).await;
+        }
+        Ok(())
     }
 
     async fn on_msg_propose_remove_genesis_miner(
@@ -366,9 +387,12 @@ impl ProxyContract {
         owner: Owner,
     ) -> Result<(), ProxyError> {
         self.state.remove_genesis_miner(owner).await?;
-        let signer = self.runtime.authenticated_signer().unwrap();
-        if self.state.validate_operator(signer).await? {
-            return self.state.approve_remove_genesis_miner(owner, signer).await;
+        let operator = self.owner_account();
+        if self.state.validate_operator(operator).await? {
+            return self
+                .state
+                .approve_remove_genesis_miner(owner, operator)
+                .await;
         }
         Ok(())
     }
@@ -377,9 +401,14 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<(), ProxyError> {
-        self.state
-            .approve_remove_genesis_miner(owner, self.runtime.authenticated_signer().unwrap())
-            .await
+        let operator = self.owner_account();
+        if self.state.validate_operator(operator).await? {
+            return self
+                .state
+                .approve_remove_genesis_miner(owner, operator)
+                .await;
+        }
+        Ok(())
     }
 
     fn on_msg_register_miner(&mut self, endpoint: Option<String>) -> Result<(), ProxyError> {
@@ -558,6 +587,9 @@ impl ProxyContract {
 
 #[cfg(test)]
 mod tests {
+    use abi::proxy::{
+        InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse,
+    };
     use futures::FutureExt as _;
     use linera_sdk::{
         base::{ApplicationId, BytecodeId, ChainId, Owner},
@@ -565,7 +597,6 @@ mod tests {
         views::View,
         Contract, ContractRuntime,
     };
-    use proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse};
     use std::str::FromStr;
 
     use super::{ProxyContract, ProxyState};

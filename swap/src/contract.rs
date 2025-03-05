@@ -429,6 +429,8 @@ impl SwapContract {
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
         let chain_id = self.runtime.chain_id();
 
+        log::info!("InitializeLiquidity token_0 {} chain {}", token_0, chain_id);
+
         assert!(token_0 == caller_id, "Invalid caller");
         assert!(chain_id == caller_id.creation.chain_id, "Invalid caller");
 

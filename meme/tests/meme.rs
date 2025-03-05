@@ -230,6 +230,11 @@ async fn meme_work_flow_test() {
     suite.fund_chain(&meme_chain, balance).await;
 
     suite.create_swap_application().await;
+
+    meme_chain
+        .register_application(suite.swap_application_id.unwrap())
+        .await;
+
     suite.create_meme_application().await;
 
     let meme_application_account =
@@ -389,116 +394,25 @@ async fn meme_work_flow_test() {
 async fn transfer_insufficient_funds_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
-    let (validator, meme_bytecode_id) =
-        TestValidator::with_current_bytecode::<MemeAbi, MemeParameters, MemeInstantiationArgument>(
-        )
-        .await;
+    let mut suite = TestSuite::new().await;
+    let meme_chain = suite.meme_chain.clone();
+    let user_chain = suite.user_chain.clone();
 
-    let admin_chain = validator.get_chain(&ChainId::root(0));
-    let mut meme_chain = validator.new_chain().await;
-    let user_chain = validator.new_chain().await;
-    let swap_chain = validator.new_chain().await;
-
-    let user_owner_account = Account {
-        chain_id: user_chain.id(),
-        owner: Some(AccountOwner::User(Owner::from(user_chain.public_key()))),
-    };
     let balance = Amount::from_tokens(1);
+    suite.fund_chain(&meme_chain, balance).await;
 
-    // Fund meme chain to create rfq chain
-    let certificate = admin_chain
-        .add_block(|block| {
-            block.with_native_token_transfer(
-                None,
-                Recipient::Account(Account {
-                    chain_id: meme_chain.id(),
-                    owner: None,
-                }),
-                balance,
-            );
-        })
-        .await;
+    suite.create_swap_application().await;
+
     meme_chain
-        .add_block(move |block| {
-            block.with_messages_from_by_medium(
-                &certificate,
-                &Medium::Direct,
-                MessageAction::Accept,
-            );
-        })
-        .await;
-    meme_chain.handle_received_messages().await;
-
-    let liquidity_rfq_bytecode_id = swap_chain.publish_bytecodes_in("../liquidity-rfq").await;
-    let pool_bytecode_id = swap_chain.publish_bytecodes_in("../pool").await;
-    let swap_bytecode_id = swap_chain.publish_bytecodes_in("../swap").await;
-
-    let swap_application_id = meme_chain
-        .create_application::<SwapAbi, (), SwapInstantiationArgument>(
-            swap_bytecode_id,
-            (),
-            SwapInstantiationArgument {
-                liquidity_rfq_bytecode_id,
-                pool_bytecode_id,
-            },
-            vec![],
-        )
+        .register_application(suite.swap_application_id.unwrap())
         .await;
 
-    let initial_supply = Amount::from_tokens(21000000);
-    let initial_liquidity = Amount::from_tokens(11000000);
+    suite.create_meme_application().await;
 
-    let meme_instantiation_argument = MemeInstantiationArgument {
-        meme: Meme {
-            name: "Test Token".to_string(),
-            ticker: "LTT".to_string(),
-            decimals: 6,
-            initial_supply,
-            total_supply: initial_supply,
-            metadata: Metadata {
-                logo_store_type: StoreType::S3,
-                logo: "Test Logo".to_string(),
-                description: "Test token description".to_string(),
-                twitter: None,
-                telegram: None,
-                discord: None,
-                website: None,
-                github: None,
-            },
-        },
-        initial_liquidity: Some(Liquidity {
-            fungible_amount: initial_liquidity,
-            native_amount: Amount::from_tokens(10),
-        }),
-        blob_gateway_application_id: None,
-        ams_application_id: None,
-        proxy_application_id: None,
-        swap_application_id: Some(swap_application_id.forget_abi()),
-        virtual_initial_liquidity: true,
-    };
-
-    let meme_application_id = meme_chain
-        .create_application(
-            meme_bytecode_id,
-            MemeParameters {},
-            meme_instantiation_argument.clone(),
-            vec![],
-        )
-        .await;
+    let user_owner_account = suite.chain_owner_account(&user_chain);
 
     let amount = Amount::from_tokens(101);
-
-    // Transfer insufficient balance
-    meme_chain
-        .add_block(|block| {
-            block.with_operation(
-                meme_application_id,
-                MemeOperation::Transfer {
-                    to: user_owner_account,
-                    amount,
-                },
-            );
-        })
+    suite
+        .transfer(&meme_chain, user_owner_account, amount)
         .await;
-    meme_chain.handle_received_messages().await;
 }

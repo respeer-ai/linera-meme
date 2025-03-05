@@ -7,13 +7,13 @@ mod state;
 
 use std::sync::Arc;
 
+use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     base::{BytecodeId, Owner, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
-use proxy::ProxyOperation;
 
 use self::state::ProxyState;
 
@@ -25,7 +25,7 @@ pub struct ProxyService {
 linera_sdk::service!(ProxyService);
 
 impl WithServiceAbi for ProxyService {
-    type Abi = proxy::ProxyAbi;
+    type Abi = ProxyAbi;
 }
 
 impl Service for ProxyService {
@@ -83,8 +83,19 @@ impl QueryRoot {
         self.state.genesis_miners().await.unwrap()
     }
 
-    async fn count_chains(&self) -> usize {
+    async fn count_meme_chains(&self) -> usize {
         self.state.chains.count().await.unwrap()
+    }
+
+    async fn meme_chains(&self) -> Vec<Chain> {
+        self.state
+            .chains
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, chain)| chain)
+            .collect()
     }
 }
 

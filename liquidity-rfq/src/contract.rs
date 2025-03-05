@@ -116,10 +116,6 @@ impl LiquidityRfqContract {
         let call = MemeOperation::Approve {
             spender: self.router_application_account(),
             amount: self.amount_0(),
-            rfq_application: Some(Account {
-                chain_id,
-                owner: Some(AccountOwner::Application(application_id)),
-            }),
         };
 
         let _ = self
