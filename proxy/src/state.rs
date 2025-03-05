@@ -71,13 +71,13 @@ impl ProxyState {
     pub(crate) async fn approve_add_genesis_miner(
         &mut self,
         owner: Owner,
-        signer: Account,
+        operator: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.genesis_miners.get(&owner).await?.unwrap();
-        if miner.approval.approvers.contains_key(&signer) {
+        if miner.approval.approvers.contains_key(&operator) {
             return Ok(());
         }
-        miner.approval.approvers.insert(signer, true);
+        miner.approval.approvers.insert(operator, true);
         Ok(self.genesis_miners.insert(&owner, miner)?)
     }
 
@@ -99,8 +99,11 @@ impl ProxyState {
         Ok(self.miners.indices().await?)
     }
 
-    pub(crate) async fn validate_operator(&self, owner: Account) -> Result<bool, ProxyError> {
-        Ok(self.operators.contains_key(&owner).await?)
+    pub(crate) async fn validate_operator(&self, owner: Account) {
+        assert!(
+            self.operators.contains_key(&owner).await.unwrap(),
+            "Invalid operator"
+        );
     }
 
     pub(crate) async fn remove_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
@@ -117,13 +120,13 @@ impl ProxyState {
     pub(crate) async fn approve_remove_genesis_miner(
         &mut self,
         owner: Owner,
-        signer: Account,
+        operator: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.removing_genesis_miners.get(&owner).await?.unwrap();
-        if miner.approvers.contains_key(&signer) {
+        if miner.approvers.contains_key(&operator) {
             return Ok(());
         }
-        miner.approvers.insert(signer, true);
+        miner.approvers.insert(operator, true);
         if miner.approvers.len() >= miner.least_approvals {
             self.removing_genesis_miners.remove(&owner)?;
             return Ok(self.genesis_miners.remove(&owner)?);

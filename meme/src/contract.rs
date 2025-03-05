@@ -9,6 +9,7 @@ use abi::{
     meme::{
         InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeParameters, MemeResponse,
     },
+    proxy::{ProxyAbi, ProxyOperation},
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
@@ -17,7 +18,6 @@ use linera_sdk::{
     Contract, ContractRuntime,
 };
 use meme::MemeError;
-use proxy::{ProxyAbi, ProxyOperation};
 
 use self::state::MemeState;
 

@@ -116,21 +116,25 @@ impl Contract for ProxyContract {
         }
 
         match message {
-            ProxyMessage::ProposeAddGenesisMiner { owner, endpoint } => self
-                .on_msg_propose_add_genesis_miner(owner, endpoint)
+            ProxyMessage::ProposeAddGenesisMiner {
+                operator,
+                owner,
+                endpoint,
+            } => self
+                .on_msg_propose_add_genesis_miner(operator, owner, endpoint)
                 .await
                 .expect("Failed MSG: propose add genesis miner"),
-            ProxyMessage::ApproveAddGenesisMiner { owner } => self
-                .on_msg_approve_add_genesis_miner(owner)
+            ProxyMessage::ApproveAddGenesisMiner { operator, owner } => self
+                .on_msg_approve_add_genesis_miner(operator, owner)
                 .await
                 .expect("Failed MSG: approve add genesis miner"),
 
-            ProxyMessage::ProposeRemoveGenesisMiner { owner } => self
-                .on_msg_propose_remove_genesis_miner(owner)
+            ProxyMessage::ProposeRemoveGenesisMiner { operator, owner } => self
+                .on_msg_propose_remove_genesis_miner(operator, owner)
                 .await
                 .expect("Failed MSG: propose remove genesis miner"),
-            ProxyMessage::ApproveRemoveGenesisMiner { owner } => self
-                .on_msg_approve_remove_genesis_miner(owner)
+            ProxyMessage::ApproveRemoveGenesisMiner { operator, owner } => self
+                .on_msg_approve_remove_genesis_miner(operator, owner)
                 .await
                 .expect("Failed MSG: approve remove genesis miner"),
 
@@ -156,18 +160,18 @@ impl Contract for ProxyContract {
                 .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument)
                 .expect("Failed MSG: create meme ext"),
 
-            ProxyMessage::ProposeAddOperator { owner } => self
-                .on_msg_propose_add_operator(owner)
+            ProxyMessage::ProposeAddOperator { operator, owner } => self
+                .on_msg_propose_add_operator(operator, owner)
                 .expect("Failed MSG: propose add operator"),
-            ProxyMessage::ApproveAddOperator { owner } => self
-                .on_msg_approve_add_operator(owner)
+            ProxyMessage::ApproveAddOperator { operator, owner } => self
+                .on_msg_approve_add_operator(operator, owner)
                 .expect("Failed MSG: approve add operator"),
 
-            ProxyMessage::ProposeBanOperator { owner } => self
-                .on_msg_propose_ban_operator(owner)
+            ProxyMessage::ProposeBanOperator { operator, owner } => self
+                .on_msg_propose_ban_operator(operator, owner)
                 .expect("Failed MSG: propose ban operator"),
-            ProxyMessage::ApproveBanOperator { owner } => self
-                .on_msg_approve_ban_operator(owner)
+            ProxyMessage::ApproveBanOperator { operator, owner } => self
+                .on_msg_approve_ban_operator(operator, owner)
                 .expect("Failed MSG: approve ban operator"),
         }
     }
@@ -192,8 +196,13 @@ impl ProxyContract {
         owner: Owner,
         endpoint: Option<String>,
     ) -> Result<ProxyResponse, ProxyError> {
+        let operator = self.owner_account();
         self.runtime
-            .prepare_message(ProxyMessage::ProposeAddGenesisMiner { owner, endpoint })
+            .prepare_message(ProxyMessage::ProposeAddGenesisMiner {
+                operator,
+                owner,
+                endpoint,
+            })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
@@ -203,8 +212,9 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        let operator = self.owner_account();
         self.runtime
-            .prepare_message(ProxyMessage::ApproveAddGenesisMiner { owner })
+            .prepare_message(ProxyMessage::ApproveAddGenesisMiner { operator, owner })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
@@ -214,8 +224,9 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        let operator = self.owner_account();
         self.runtime
-            .prepare_message(ProxyMessage::ProposeRemoveGenesisMiner { owner })
+            .prepare_message(ProxyMessage::ProposeRemoveGenesisMiner { operator, owner })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
@@ -225,8 +236,9 @@ impl ProxyContract {
         &mut self,
         owner: Owner,
     ) -> Result<ProxyResponse, ProxyError> {
+        let operator = self.owner_account();
         self.runtime
-            .prepare_message(ProxyMessage::ApproveRemoveGenesisMiner { owner })
+            .prepare_message(ProxyMessage::ApproveRemoveGenesisMiner { operator, owner })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
         Ok(ProxyResponse::Ok)
@@ -363,52 +375,45 @@ impl ProxyContract {
 
     async fn on_msg_propose_add_genesis_miner(
         &mut self,
+        operator: Account,
         owner: Owner,
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
         self.state.add_genesis_miner(owner, endpoint).await?;
-        let operator = self.owner_account();
-        if self.state.validate_operator(operator).await? {
-            return self.state.approve_add_genesis_miner(owner, operator).await;
-        }
-        Ok(())
+        self.state.validate_operator(operator).await;
+        self.state.approve_add_genesis_miner(owner, operator).await
     }
 
-    async fn on_msg_approve_add_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
-        let operator = self.owner_account();
-        if self.state.validate_operator(operator).await? {
-            return self.state.approve_add_genesis_miner(owner, operator).await;
-        }
-        Ok(())
+    async fn on_msg_approve_add_genesis_miner(
+        &mut self,
+        operator: Account,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
+        self.state.validate_operator(operator).await;
+        self.state.approve_add_genesis_miner(owner, operator).await
     }
 
     async fn on_msg_propose_remove_genesis_miner(
         &mut self,
+        operator: Account,
         owner: Owner,
     ) -> Result<(), ProxyError> {
         self.state.remove_genesis_miner(owner).await?;
-        let operator = self.owner_account();
-        if self.state.validate_operator(operator).await? {
-            return self
-                .state
-                .approve_remove_genesis_miner(owner, operator)
-                .await;
-        }
-        Ok(())
+        self.state.validate_operator(operator).await;
+        self.state
+            .approve_remove_genesis_miner(owner, operator)
+            .await
     }
 
     async fn on_msg_approve_remove_genesis_miner(
         &mut self,
+        operator: Account,
         owner: Owner,
     ) -> Result<(), ProxyError> {
-        let operator = self.owner_account();
-        if self.state.validate_operator(operator).await? {
-            return self
-                .state
-                .approve_remove_genesis_miner(owner, operator)
-                .await;
-        }
-        Ok(())
+        self.state.validate_operator(operator).await;
+        self.state
+            .approve_remove_genesis_miner(owner, operator)
+            .await
     }
 
     fn on_msg_register_miner(&mut self, endpoint: Option<String>) -> Result<(), ProxyError> {
@@ -551,19 +556,35 @@ impl ProxyContract {
         self.on_meme_chain_msg_create_meme(creator, bytecode_id, instantiation_argument)
     }
 
-    fn on_msg_propose_add_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    fn on_msg_propose_add_operator(
+        &mut self,
+        operator: Account,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
         Ok(())
     }
 
-    fn on_msg_approve_add_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    fn on_msg_approve_add_operator(
+        &mut self,
+        operator: Account,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
         Ok(())
     }
 
-    fn on_msg_propose_ban_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    fn on_msg_propose_ban_operator(
+        &mut self,
+        operator: Account,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
         Ok(())
     }
 
-    fn on_msg_approve_ban_operator(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    fn on_msg_approve_ban_operator(
+        &mut self,
+        operator: Account,
+        owner: Owner,
+    ) -> Result<(), ProxyError> {
         Ok(())
     }
 
@@ -592,7 +613,7 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{ApplicationId, BytecodeId, ChainId, Owner},
+        base::{Account, AccountOwner, ApplicationId, BytecodeId, ChainId, Owner},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -628,9 +649,17 @@ mod tests {
         let owner =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
+        let chain_id =
+            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+                .unwrap();
+        let operator = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
 
         proxy
             .execute_message(ProxyMessage::ProposeAddGenesisMiner {
+                operator,
                 owner,
                 endpoint: None,
             })
@@ -660,19 +689,23 @@ mod tests {
     fn cross_application_call() {}
 
     fn create_and_instantiate_proxy() -> ProxyContract {
-        let operator =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
         let chain_id =
             ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
                 .unwrap();
+        let owner =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+                .unwrap();
+        let operator = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
         let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<ProxyAbi>();
         let runtime = ContractRuntime::new()
             .with_application_parameters(())
-            .with_authenticated_signer(operator)
+            .with_authenticated_signer(owner)
             .with_chain_id(chain_id)
             .with_application_id(application_id);
         let mut contract = ProxyContract {

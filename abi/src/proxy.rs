@@ -1,15 +1,12 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    approval::Approval,
-    meme::InstantiationArgument as MemeInstantiationArgument,
-};
+use crate::{approval::Approval, meme::InstantiationArgument as MemeInstantiationArgument};
 use async_graphql::{Request, Response, SimpleObject};
 use linera_sdk::{
     base::{
-        Amount, ApplicationId, BytecodeId, ChainId, Account,
-        ContractAbi, MessageId, Owner, ServiceAbi, Timestamp,
+        Account, Amount, ApplicationId, BytecodeId, ChainId, ContractAbi, MessageId, Owner,
+        ServiceAbi, Timestamp,
     },
     graphql::GraphQLMutationRoot,
 };
@@ -43,6 +40,7 @@ pub struct GenesisMiner {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, SimpleObject)]
+#[serde(rename_all = "camelCase")]
 pub struct Chain {
     pub chain_id: ChainId,
     pub message_id: MessageId,
@@ -99,17 +97,21 @@ pub enum ProxyOperation {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum ProxyMessage {
     ProposeAddGenesisMiner {
+        operator: Account,
         owner: Owner,
         endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
+        operator: Account,
         owner: Owner,
     },
 
     ProposeRemoveGenesisMiner {
+        operator: Account,
         owner: Owner,
     },
     ApproveRemoveGenesisMiner {
+        operator: Account,
         owner: Owner,
     },
 
@@ -129,16 +131,20 @@ pub enum ProxyMessage {
     },
 
     ProposeAddOperator {
+        operator: Account,
         owner: Owner,
     },
     ApproveAddOperator {
+        operator: Account,
         owner: Owner,
     },
 
     ProposeBanOperator {
+        operator: Account,
         owner: Owner,
     },
     ApproveBanOperator {
+        operator: Account,
         owner: Owner,
     },
 }
@@ -154,4 +160,3 @@ pub struct InstantiationArgument {
     pub meme_bytecode_id: BytecodeId,
     pub operator: Account,
 }
-
