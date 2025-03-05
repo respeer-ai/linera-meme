@@ -125,12 +125,6 @@ impl Contract for MemeContract {
                 .on_msg_approve(owner, spender, amount, rfq_application)
                 .await
                 .expect("Failed MSG: approve"),
-            MemeMessage::Approved { rfq_application } => self
-                .on_msg_approved(rfq_application)
-                .expect("Failed MSG: approved"),
-            MemeMessage::Rejected { rfq_application } => self
-                .on_msg_rejected(rfq_application)
-                .expect("Failed MSG: rejected"),
             MemeMessage::TransferOwnership { owner, new_owner } => self
                 .on_msg_transfer_ownership(owner, new_owner)
                 .await
@@ -313,30 +307,6 @@ impl MemeContract {
         self.state.transfer_from(owner, from, to, amount).await
     }
 
-    fn notify_rfq_chain_approved(&mut self, rfq_application: Account) {
-        let AccountOwner::Application(application_id) = rfq_application.owner.unwrap() else {
-            todo!()
-        };
-        self.runtime
-            .prepare_message(MemeMessage::Approved {
-                rfq_application: application_id,
-            })
-            .with_authentication()
-            .send_to(rfq_application.chain_id);
-    }
-
-    fn notify_rfq_chain_rejected(&mut self, rfq_application: Account) {
-        let AccountOwner::Application(application_id) = rfq_application.owner.unwrap() else {
-            todo!()
-        };
-        self.runtime
-            .prepare_message(MemeMessage::Rejected {
-                rfq_application: application_id,
-            })
-            .with_authentication()
-            .send_to(rfq_application.chain_id);
-    }
-
     async fn on_msg_approve(
         &mut self,
         owner: Account,
@@ -345,12 +315,7 @@ impl MemeContract {
         rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {
         let balance = self.state.balance_of(owner).await;
-        if balance < amount {
-            if let Some(rfq_application) = rfq_application {
-                self.notify_rfq_chain_rejected(rfq_application);
-            }
-            return Ok(());
-        }
+        assert!(amount <= balance, "Insufficient balance");
 
         // No matter we can or not fulfill the request, we always need to notity rfq chain
         let rc = self.state.approve(owner, spender, amount).await;
@@ -358,23 +323,6 @@ impl MemeContract {
             return rc;
         };
 
-        if rc.is_ok() {
-            self.notify_rfq_chain_approved(rfq_application)
-        } else {
-            self.notify_rfq_chain_rejected(rfq_application)
-        }
-        Ok(())
-    }
-
-    fn on_msg_approved(&mut self, rfq_application: ApplicationId) -> Result<(), MemeError> {
-        // Run on rfq chain
-        // TODO: call approved to rfq_application
-        Ok(())
-    }
-
-    fn on_msg_rejected(&mut self, rfq_application: ApplicationId) -> Result<(), MemeError> {
-        // Run on rfq chain
-        // TODO: call rejected to rfq_application
         Ok(())
     }
 
@@ -635,6 +583,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(expected = "Insufficient balance")]
     async fn message_approve_insufficient_balance() {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
@@ -678,6 +627,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(expected = "Insufficient balance")]
     async fn message_approve_meme_owner_self_insufficient_balance() {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
