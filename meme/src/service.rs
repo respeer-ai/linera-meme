@@ -45,7 +45,6 @@ impl Service for MemeService {
         let schema = Schema::build(
             QueryRoot {
                 state: self.state.clone(),
-                runtime: self.runtime.clone(),
             },
             MutationRoot {
                 runtime: self.runtime.clone(),
@@ -72,7 +71,6 @@ impl MutationRoot {
 
 struct QueryRoot {
     state: Arc<MemeState>,
-    runtime: Arc<ServiceRuntime<MemeService>>,
 }
 
 #[Object]

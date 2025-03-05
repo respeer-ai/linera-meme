@@ -12,7 +12,7 @@ use abi::{
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, CryptoHash, Owner, WithContractAbi},
+    base::{Account, AccountOwner, Amount, CryptoHash, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -82,12 +82,8 @@ impl Contract for MemeContract {
             MemeOperation::TransferFrom { from, to, amount } => self
                 .on_op_transfer_from(from, to, amount)
                 .expect("Failed OP: trasnfer from"),
-            MemeOperation::Approve {
-                spender,
-                amount,
-                rfq_application,
-            } => self
-                .on_op_approve(spender, amount, rfq_application)
+            MemeOperation::Approve { spender, amount } => self
+                .on_op_approve(spender, amount)
                 .expect("Failed OP: approve"),
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
@@ -120,9 +116,8 @@ impl Contract for MemeContract {
                 owner,
                 spender,
                 amount,
-                rfq_application,
             } => self
-                .on_msg_approve(owner, spender, amount, rfq_application)
+                .on_msg_approve(owner, spender, amount)
                 .await
                 .expect("Failed MSG: approve"),
             MemeMessage::TransferOwnership { owner, new_owner } => self
@@ -256,7 +251,6 @@ impl MemeContract {
         &mut self,
         spender: Account,
         amount: Amount,
-        rfq_application: Option<Account>,
     ) -> Result<MemeResponse, MemeError> {
         let owner = self.owner_account();
         if owner == spender {
@@ -267,7 +261,6 @@ impl MemeContract {
                 owner,
                 spender,
                 amount,
-                rfq_application,
             })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
@@ -293,7 +286,6 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
-        let from = self.owner_account();
         self.state.transfer(from, to, amount).await
     }
 
@@ -312,18 +304,11 @@ impl MemeContract {
         owner: Account,
         spender: Account,
         amount: Amount,
-        rfq_application: Option<Account>,
     ) -> Result<(), MemeError> {
         let balance = self.state.balance_of(owner).await;
         assert!(amount <= balance, "Insufficient balance");
 
-        // No matter we can or not fulfill the request, we always need to notity rfq chain
-        let rc = self.state.approve(owner, spender, amount).await;
-        let Some(rfq_application) = rfq_application else {
-            return rc;
-        };
-
-        Ok(())
+        self.state.approve(owner, spender, amount).await
     }
 
     async fn on_msg_transfer_ownership(
@@ -490,7 +475,6 @@ mod tests {
             owner: from,
             spender,
             amount: allowance,
-            rfq_application: None,
         })
         .await;
 
@@ -526,7 +510,6 @@ mod tests {
             owner: from,
             spender,
             amount: allowance,
-            rfq_application: None,
         })
         .await;
 
@@ -613,7 +596,6 @@ mod tests {
             owner: from,
             spender,
             amount: allowance,
-            rfq_application: None,
         })
         .await;
 
@@ -649,7 +631,6 @@ mod tests {
             owner: from,
             spender: from,
             amount: allowance,
-            rfq_application: None,
         })
         .await;
 

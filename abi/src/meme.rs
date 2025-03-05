@@ -76,7 +76,6 @@ pub enum MemeOperation {
     Approve {
         spender: Account,
         amount: Amount,
-        rfq_application: Option<Account>,
     },
     TransferOwnership {
         new_owner: Account,
@@ -103,7 +102,6 @@ pub enum MemeMessage {
         owner: Account,
         spender: Account,
         amount: Amount,
-        rfq_application: Option<Account>,
     },
     TransferOwnership {
         owner: Account,

@@ -3,7 +3,7 @@
 
 use async_graphql::{scalar, Request, Response};
 use linera_sdk::{
-    base::{AccountOwner, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
+    base::{Amount, ApplicationId, ContractAbi, ServiceAbi},
     graphql::GraphQLMutationRoot,
 };
 use serde::{Deserialize, Serialize};

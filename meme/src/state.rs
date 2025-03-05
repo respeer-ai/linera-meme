@@ -3,7 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Liquidity, Meme};
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, Owner},
+    base::{Account, AccountOwner, Amount, ApplicationId},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
