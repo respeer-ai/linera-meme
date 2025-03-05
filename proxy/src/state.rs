@@ -6,7 +6,7 @@ use abi::{
     proxy::{Chain, GenesisMiner, InstantiationArgument, Miner},
 };
 use linera_sdk::{
-    base::{Account, BytecodeId, ChainId, MessageId, Owner, Timestamp},
+    base::{Account, ApplicationId, BytecodeId, ChainId, MessageId, Owner, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use proxy::ProxyError;
@@ -27,6 +27,8 @@ pub struct ProxyState {
     pub miners: MapView<Owner, Miner>,
     /// Chains aleady created
     pub chains: MapView<ChainId, Chain>,
+    /// Swap application id for liquidity initialization
+    pub swap_application_id: RegisterView<Option<ApplicationId>>,
 }
 
 #[allow(dead_code)]
@@ -38,6 +40,8 @@ impl ProxyState {
     ) -> Result<(), ProxyError> {
         self.meme_bytecode_id.set(Some(argument.meme_bytecode_id));
         self.operators.insert(&argument.operator, false)?;
+        self.swap_application_id
+            .set(Some(argument.swap_application_id));
         Ok(self.operators.insert(&owner, false)?)
     }
 
@@ -136,6 +140,10 @@ impl ProxyState {
 
     pub(crate) async fn meme_bytecode_id(&self) -> BytecodeId {
         self.meme_bytecode_id.get().unwrap()
+    }
+
+    pub(crate) async fn swap_application_id(&self) -> ApplicationId {
+        self.swap_application_id.get().unwrap()
     }
 
     pub(crate) async fn create_chain(

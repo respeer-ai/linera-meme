@@ -13,7 +13,7 @@ use abi::{
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, CryptoHash, WithContractAbi},
+    base::{Account, AccountOwner, Amount, ApplicationPermissions, CryptoHash, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -64,7 +64,6 @@ impl Contract for MemeContract {
 
         self.register_application().await;
         self.register_logo().await;
-        self.change_application_permissions().await;
 
         // When the meme application is created, initial liquidity allowance should already be approved
         self.create_liquidity_pool().await;
@@ -196,18 +195,6 @@ impl MemeContract {
         let _ =
             self.runtime
                 .call_application(true, swap_application_id.with_abi::<SwapAbi>(), &call);
-    }
-
-    async fn change_application_permissions(&mut self) {
-        if let Some(proxy_application_id) = self.state.proxy_application_id().await {
-            let application_id = self.runtime.application_id().forget_abi();
-            let call = ProxyOperation::ChangeApplicationPermissions { application_id };
-            let _ = self.runtime.call_application(
-                true,
-                proxy_application_id.with_abi::<ProxyAbi>(),
-                &call,
-            );
-        }
     }
 
     fn operation_executable(&mut self, operation: &MemeOperation) -> bool {

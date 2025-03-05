@@ -89,9 +89,6 @@ pub enum ProxyOperation {
     ApproveBanOperator {
         owner: Account,
     },
-    ChangeApplicationPermissions {
-        application_id: ApplicationId,
-    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -159,4 +156,5 @@ pub enum ProxyResponse {
 pub struct InstantiationArgument {
     pub meme_bytecode_id: BytecodeId,
     pub operator: Account,
+    pub swap_application_id: ApplicationId,
 }

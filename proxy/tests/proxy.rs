@@ -9,6 +9,7 @@ use abi::{
     meme::{InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, Metadata},
     proxy::{Chain, InstantiationArgument, ProxyAbi, ProxyOperation},
     store_type::StoreType,
+    swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
 };
 use linera_sdk::{
     base::{
@@ -27,10 +28,12 @@ struct TestSuite {
     pub proxy_chain: ActiveChain,
     pub meme_user_chain: ActiveChain,
     pub operator_chain: ActiveChain,
+    pub swap_chain: ActiveChain,
 
     pub proxy_bytecode_id: BytecodeId<ProxyAbi, (), InstantiationArgument>,
     pub meme_bytecode_id: BytecodeId,
     pub proxy_application_id: Option<ApplicationId<ProxyAbi>>,
+    pub swap_application_id: Option<ApplicationId<SwapAbi>>,
 }
 
 impl TestSuite {
@@ -42,6 +45,7 @@ impl TestSuite {
         let proxy_chain = validator.new_chain().await;
         let meme_user_chain = validator.new_chain().await;
         let operator_chain = validator.new_chain().await;
+        let swap_chain = validator.new_chain().await;
 
         let meme_bytecode_id = proxy_chain.publish_bytecodes_in("../meme").await;
 
@@ -52,10 +56,12 @@ impl TestSuite {
             proxy_chain,
             meme_user_chain,
             operator_chain,
+            swap_chain,
 
             proxy_bytecode_id,
             meme_bytecode_id,
             proxy_application_id: None,
+            swap_application_id: None,
         }
     }
 
@@ -68,6 +74,7 @@ impl TestSuite {
                     InstantiationArgument {
                         meme_bytecode_id: self.meme_bytecode_id,
                         operator,
+                        swap_application_id: self.swap_application_id.unwrap().forget_abi(),
                     },
                     vec![],
                 )
@@ -103,6 +110,29 @@ impl TestSuite {
             })
             .await;
         chain.handle_received_messages().await;
+    }
+
+    async fn create_swap_application(&mut self) {
+        let liquidity_rfq_bytecode_id = self
+            .swap_chain
+            .publish_bytecodes_in("../liquidity-rfq")
+            .await;
+        let pool_bytecode_id = self.swap_chain.publish_bytecodes_in("../pool").await;
+        let swap_bytecode_id = self.swap_chain.publish_bytecodes_in("../swap").await;
+
+        self.swap_application_id = Some(
+            self.swap_chain
+                .create_application::<SwapAbi, (), SwapInstantiationArgument>(
+                    swap_bytecode_id,
+                    (),
+                    SwapInstantiationArgument {
+                        liquidity_rfq_bytecode_id,
+                        pool_bytecode_id,
+                    },
+                    vec![],
+                )
+                .await,
+        )
     }
 
     async fn propose_add_genesis_miner(&self, chain: &ActiveChain, owner: Owner) {
@@ -180,7 +210,9 @@ impl TestSuite {
                             blob_gateway_application_id: None,
                             ams_application_id: None,
                             proxy_application_id: None,
-                            swap_application_id: None,
+                            swap_application_id: Some(
+                                self.swap_application_id.unwrap().forget_abi(),
+                            ),
                             virtual_initial_liquidity: true,
                         },
                     },
@@ -220,6 +252,7 @@ async fn proxy_create_meme_test() {
     };
     let owner = Owner::from(meme_user_chain.public_key());
 
+    suite.create_swap_application().await;
     suite.create_proxy_application(operator).await;
 
     let QueryOutcome { response, .. } = proxy_chain
@@ -279,5 +312,8 @@ async fn proxy_create_meme_test() {
     .unwrap();
     let description = ChainDescription::Child(message_id);
     let meme_chain = ActiveChain::new(proxy_key_pair.copy(), description, suite.validator);
+    meme_chain
+        .register_application(suite.swap_application_id.unwrap())
+        .await;
     meme_chain.handle_received_messages().await;
 }

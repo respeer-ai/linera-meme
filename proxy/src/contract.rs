@@ -103,16 +103,13 @@ impl Contract for ProxyContract {
             ProxyOperation::ApproveBanOperator { owner } => self
                 .on_op_approve_ban_operator(owner)
                 .expect("Failed OP: approve ban operator"),
-            ProxyOperation::ChangeApplicationPermissions { application_id } => self
-                .on_call_change_application_permissions(application_id)
-                .expect("Failed Call: change application permissions"),
         }
     }
 
     async fn execute_message(&mut self, message: ProxyMessage) {
-        // All messages must be run on creation chain side
-        if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
-            panic!("Messages must only be run on creation chain");
+        // All messages must be run on right chain
+        if !self.message_executable(&message) {
+            panic!("Messages must only be run on right chain: {:?}", message);
         }
 
         match message {
@@ -158,6 +155,7 @@ impl Contract for ProxyContract {
                 instantiation_argument,
             } => self
                 .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument)
+                .await
                 .expect("Failed MSG: create meme ext"),
 
             ProxyMessage::ProposeAddOperator { operator, owner } => self
@@ -182,6 +180,15 @@ impl Contract for ProxyContract {
 }
 
 impl ProxyContract {
+    fn message_executable(&mut self, message: &ProxyMessage) -> bool {
+        match message {
+            ProxyMessage::CreateMemeExt { .. } => {
+                self.runtime.chain_id() != self.runtime.application_id().creation.chain_id
+            }
+            _ => self.runtime.chain_id() == self.runtime.application_id().creation.chain_id,
+        }
+    }
+
     fn owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
@@ -446,8 +453,16 @@ impl ProxyContract {
             0, // TODO: run in single leader mode firstly, will be updated when multi leader mode done
             TimeoutConfig::default(),
         );
-        let application_id = self.runtime.application_id();
-        let permissions = ApplicationPermissions::new_single(application_id.forget_abi());
+        let application_id = self.runtime.application_id().forget_abi();
+        // We have to let meme application change permissions
+        let permissions = ApplicationPermissions {
+            // execute_operations: Some(vec![application_id]),
+            execute_operations: None,
+            // mandatory_applications: vec![application_id],
+            mandatory_applications: vec![],
+            close_chain: vec![application_id],
+            change_application_permissions: vec![application_id],
+        };
         Ok(self.runtime.open_chain(ownership, permissions, fee_budget))
     }
 
@@ -527,7 +542,7 @@ impl ProxyContract {
             .forget_abi()
     }
 
-    fn on_meme_chain_msg_create_meme(
+    async fn on_meme_chain_msg_create_meme(
         &mut self,
         creator: Owner,
         bytecode_id: BytecodeId,
@@ -535,6 +550,18 @@ impl ProxyContract {
     ) -> Result<(), ProxyError> {
         // 1: Create meme application
         let application_id = self.create_meme_application(bytecode_id, instantiation_argument);
+
+        let application_ids = vec![application_id, self.state.swap_application_id().await];
+        let permissions = ApplicationPermissions {
+            execute_operations: Some(application_ids.clone()),
+            mandatory_applications: application_ids,
+            close_chain: vec![application_id],
+            change_application_permissions: vec![application_id],
+        };
+
+        self.runtime
+            .change_application_permissions(permissions)
+            .expect("Failed change application permissions");
         Ok(())
     }
 
@@ -547,13 +574,14 @@ impl ProxyContract {
             .await
     }
 
-    fn on_msg_create_meme_ext(
+    async fn on_msg_create_meme_ext(
         &mut self,
         creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
     ) -> Result<(), ProxyError> {
         self.on_meme_chain_msg_create_meme(creator, bytecode_id, instantiation_argument)
+            .await
     }
 
     fn on_msg_propose_add_operator(
@@ -586,23 +614,6 @@ impl ProxyContract {
         owner: Owner,
     ) -> Result<(), ProxyError> {
         Ok(())
-    }
-
-    fn change_application_permissions(
-        &mut self,
-        application_id: ApplicationId,
-    ) -> Result<(), ProxyError> {
-        Ok(self
-            .runtime
-            .change_application_permissions(ApplicationPermissions::new_single(application_id))?)
-    }
-
-    fn on_call_change_application_permissions(
-        &mut self,
-        application_id: ApplicationId,
-    ) -> Result<ProxyResponse, ProxyError> {
-        self.change_application_permissions(application_id)?;
-        Ok(ProxyResponse::Ok)
     }
 }
 
@@ -721,6 +732,7 @@ mod tests {
             .instantiate(InstantiationArgument {
                 meme_bytecode_id,
                 operator,
+                swap_application_id: application_id.forget_abi(),
             })
             .now_or_never()
             .expect("Initialization of proxy state should not await anything");
