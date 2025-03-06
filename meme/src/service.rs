@@ -10,7 +10,7 @@ use std::{str::FromStr, sync::Arc};
 use abi::meme::{MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    base::{Account, Amount, WithServiceAbi},
+    linera_base_types::{Account, Amount, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -116,7 +116,7 @@ mod tests {
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
+        linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
         util::BlockingWait,
         views::View,
         Service, ServiceRuntime,
@@ -133,7 +133,7 @@ mod tests {
             .blocking_wait()
             .expect("Failed to read from mock key value store");
 
-        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000008";
+        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str).unwrap();
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
@@ -169,7 +169,7 @@ mod tests {
                     .unwrap(),
             )),
         };
-        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str).unwrap();
         let application = Account {
             chain_id,

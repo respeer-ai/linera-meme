@@ -14,7 +14,7 @@ use abi::{
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, BytecodeId, ChainId, Owner},
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;
@@ -28,7 +28,7 @@ struct TestSuite {
 
     pub swap_application_id: Option<ApplicationId>,
     pub meme_application_id: Option<ApplicationId<MemeAbi>>,
-    pub meme_bytecode_id: BytecodeId<MemeAbi, MemeParameters, MemeInstantiationArgument>,
+    pub meme_bytecode_id: ModuleId<MemeAbi, MemeParameters, MemeInstantiationArgument>,
 
     pub initial_supply: Amount,
     pub initial_liquidity: Amount,
@@ -36,7 +36,7 @@ struct TestSuite {
 
 impl TestSuite {
     async fn new() -> Self {
-        let (validator, meme_bytecode_id) = TestValidator::with_current_bytecode::<
+        let (validator, meme_bytecode_id) = TestValidator::with_current_module::<
             MemeAbi,
             MemeParameters,
             MemeInstantiationArgument,
@@ -110,10 +110,10 @@ impl TestSuite {
     async fn create_swap_application(&mut self) {
         let liquidity_rfq_bytecode_id = self
             .swap_chain
-            .publish_bytecodes_in("../liquidity-rfq")
+            .publish_bytecode_files_in("../liquidity-rfq")
             .await;
-        let pool_bytecode_id = self.swap_chain.publish_bytecodes_in("../pool").await;
-        let swap_bytecode_id = self.swap_chain.publish_bytecodes_in("../swap").await;
+        let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
+        let swap_bytecode_id = self.swap_chain.publish_bytecode_files_in("../swap").await;
 
         self.swap_application_id = Some(
             self.swap_chain

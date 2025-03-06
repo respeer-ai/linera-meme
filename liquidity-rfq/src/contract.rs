@@ -12,7 +12,7 @@ use abi::{
     },
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId, WithContractAbi},
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -188,7 +188,7 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Amount, ApplicationId, ChainId},
+        linera_base_types::{Amount, ApplicationId, ChainId},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,

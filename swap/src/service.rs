@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::swap::router::SwapAbi;
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    base::{MessageId, WithServiceAbi},
+    linera_base_types::{MessageId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };

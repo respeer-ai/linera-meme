@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    base::{ApplicationId, BytecodeId, MessageId, Owner, WithServiceAbi},
+    linera_base_types::{ApplicationId, MessageId, ModuleId, Owner, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -75,7 +75,7 @@ struct QueryRoot {
 
 #[Object]
 impl QueryRoot {
-    async fn meme_bytecode_id(&self) -> BytecodeId {
+    async fn meme_bytecode_id(&self) -> ModuleId {
         self.state.meme_bytecode_id.get().unwrap()
     }
 
@@ -127,7 +127,9 @@ mod tests {
 
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
-    use linera_sdk::{base::BytecodeId, util::BlockingWait, views::View, Service, ServiceRuntime};
+    use linera_sdk::{
+        linera_base_types::ModuleId, util::BlockingWait, views::View, Service, ServiceRuntime,
+    };
     use serde_json::json;
     use std::str::FromStr;
 
@@ -135,7 +137,7 @@ mod tests {
 
     #[test]
     fn query() {
-        let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let meme_bytecode_id = ModuleId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
         let runtime = Arc::new(ServiceRuntime::<ProxyService>::new());
         let mut state = ProxyState::load(runtime.root_view_storage_context())
             .blocking_wait()
@@ -146,7 +148,7 @@ mod tests {
             state: Arc::new(state),
             runtime,
         };
-        let request = Request::new("{ memeBytecodeId }");
+        let request = Request::new("{ memeModuleId }");
 
         let response = service
             .handle_query(request)
@@ -154,7 +156,7 @@ mod tests {
             .expect("Query should not await anything");
 
         let expected =
-            Response::new(Value::from_json(json!({"memeBytecodeId": meme_bytecode_id})).unwrap());
+            Response::new(Value::from_json(json!({"memeModuleId": meme_bytecode_id})).unwrap());
 
         assert_eq!(response, expected)
     }

@@ -13,9 +13,7 @@ use abi::{
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
-    base::{
-        Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi,
-    },
+    linera_base_types::{Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -228,6 +226,8 @@ impl MemeContract {
             return;
         }
         let virtual_liquidity = self.virtual_initial_liquidity();
+
+        log::info!("Create liquidity pool: {}", swap_application_id);
 
         let call = SwapOperation::InitializeLiquidity {
             token_0: self.runtime.application_id().forget_abi(),
@@ -453,7 +453,7 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{
+        linera_base_types::{
             Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString,
         },
         util::BlockingWait,
@@ -514,7 +514,7 @@ mod tests {
         let to = Account {
             chain_id: meme.runtime.chain_id(),
             owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
                     .unwrap(),
             )),
         };
@@ -547,7 +547,7 @@ mod tests {
         let to = Account {
             chain_id: meme.runtime.chain_id(),
             owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
                     .unwrap(),
             )),
         };
@@ -584,7 +584,7 @@ mod tests {
         let spender = Account {
             chain_id: meme.runtime.chain_id(),
             owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
                     .unwrap(),
             )),
         };
@@ -704,7 +704,7 @@ mod tests {
         let spender = Account {
             chain_id: meme.runtime.chain_id(),
             owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
                     .unwrap(),
             )),
         };
@@ -774,7 +774,7 @@ mod tests {
         let new_owner = Account {
             chain_id: meme.runtime.chain_id(),
             owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
                     .unwrap(),
             )),
         };
@@ -799,17 +799,17 @@ mod tests {
 
     async fn create_and_instantiate_meme() -> MemeContract {
         let operator =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();
         let chain_id =
-            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
         let owner = Account {
             chain_id,
             owner: Some(AccountOwner::User(operator)),
         };
 
-        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<MemeAbi>();
@@ -818,7 +818,7 @@ mod tests {
             owner: Some(AccountOwner::Application(application_id.forget_abi())),
         };
 
-        let swap_application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000002";
+        let swap_application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000002";
         let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
         let swap_application = Account {
             chain_id,

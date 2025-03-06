@@ -11,9 +11,9 @@ use abi::swap::{
     router::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapResponse},
 };
 use linera_sdk::{
-    base::{
-        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
-        MessageId, Timestamp, WithContractAbi,
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId, MessageId,
+        ModuleId, Timestamp, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -617,7 +617,7 @@ impl SwapContract {
 
     fn on_msg_create_rfq(
         &mut self,
-        rfq_bytecode_id: BytecodeId,
+        rfq_bytecode_id: ModuleId,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
@@ -646,7 +646,7 @@ impl SwapContract {
 
     fn on_msg_create_pool(
         &mut self,
-        pool_bytecode_id: BytecodeId,
+        pool_bytecode_id: ModuleId,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
@@ -760,9 +760,9 @@ mod tests {
     use abi::swap::router::{InstantiationArgument, SwapAbi, SwapOperation, SwapResponse};
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{
-            AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId,
-            ChainOwnership, MessageId, Owner,
+        linera_base_types::{
+            AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainOwnership, MessageId,
+            ModuleId, Owner,
         },
         util::BlockingWait,
         views::View,
@@ -864,7 +864,7 @@ mod tests {
             runtime,
         };
 
-        let bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let bytecode_id = ModuleId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
         contract
             .instantiate(InstantiationArgument {
                 liquidity_rfq_bytecode_id: bytecode_id,

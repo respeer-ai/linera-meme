@@ -17,7 +17,9 @@ use abi::{
     store_type::StoreType,
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ChainDescription, ChainId, MessageId, Owner},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ChainDescription, ChainId, MessageId, Owner,
+    },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;

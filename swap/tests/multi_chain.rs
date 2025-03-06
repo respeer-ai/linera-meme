@@ -14,7 +14,7 @@ use abi::{
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
 };
 use linera_sdk::{
-    base::{Account, Amount, ChainId},
+    linera_base_types::{Account, Amount, ChainId},
     test::{Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 

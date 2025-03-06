@@ -6,7 +6,7 @@ use abi::{
     proxy::{Chain, GenesisMiner, InstantiationArgument, Miner},
 };
 use linera_sdk::{
-    base::{Account, ApplicationId, BytecodeId, ChainId, MessageId, Owner, Timestamp},
+    linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId, Owner, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use proxy::ProxyError;
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 #[derive(RootView)]
 #[view(context = "ViewStorageContext")]
 pub struct ProxyState {
-    pub meme_bytecode_id: RegisterView<Option<BytecodeId>>,
+    pub meme_bytecode_id: RegisterView<Option<ModuleId>>,
     /// Operator and banned
     pub operators: MapView<Account, bool>,
     /// Genesis miner and approvals it should get
@@ -138,7 +138,7 @@ impl ProxyState {
         Ok(self.removing_genesis_miners.insert(&owner, miner)?)
     }
 
-    pub(crate) async fn meme_bytecode_id(&self) -> BytecodeId {
+    pub(crate) async fn meme_bytecode_id(&self) -> ModuleId {
         self.meme_bytecode_id.get().unwrap()
     }
 

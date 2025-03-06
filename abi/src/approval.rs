@@ -1,4 +1,4 @@
-use linera_sdk::base::Account;
+use linera_sdk::linera_base_types::Account;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

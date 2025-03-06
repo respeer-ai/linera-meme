@@ -9,7 +9,7 @@ use abi::swap::pool::{
     InstantiationArgument, PoolAbi, PoolOperation, PoolParameters, PoolResponse,
 };
 use linera_sdk::{
-    base::WithContractAbi,
+    linera_base_types::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };

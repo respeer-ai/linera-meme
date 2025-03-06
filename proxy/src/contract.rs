@@ -10,9 +10,9 @@ use abi::{
     proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse},
 };
 use linera_sdk::{
-    base::{
-        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BytecodeId, ChainId,
-        ChainOwnership, MessageId, Owner, TimeoutConfig, WithContractAbi,
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
+        ChainOwnership, MessageId, ModuleId, Owner, TimeoutConfig, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -462,6 +462,7 @@ impl ProxyContract {
         );
         let application_id = self.runtime.application_id().forget_abi();
         // We have to let meme application change permissions
+        // TODO: restrict after https://github.com/linera-io/linera-protocol/pull/3382
         let permissions = ApplicationPermissions {
             // execute_operations: Some(vec![application_id]),
             execute_operations: None,
@@ -536,7 +537,7 @@ impl ProxyContract {
 
     fn create_meme_application(
         &mut self,
-        bytecode_id: BytecodeId,
+        bytecode_id: ModuleId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> ApplicationId {
@@ -553,7 +554,7 @@ impl ProxyContract {
 
     async fn on_meme_chain_msg_create_meme(
         &mut self,
-        bytecode_id: BytecodeId,
+        bytecode_id: ModuleId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
@@ -561,9 +562,12 @@ impl ProxyContract {
         let application_id =
             self.create_meme_application(bytecode_id, instantiation_argument, parameters);
 
+        // TODO: restrict after https://github.com/linera-io/linera-protocol/pull/3382
         let permissions = ApplicationPermissions {
-            execute_operations: Some(vec![application_id]),
-            mandatory_applications: vec![application_id],
+            // execute_operations: Some(vec![application_id]),
+            execute_operations: None,
+            // mandatory_applications: vec![application_id],
+            mandatory_applications: vec![],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
         };
@@ -597,7 +601,7 @@ impl ProxyContract {
 
     async fn on_msg_create_meme_ext(
         &mut self,
-        bytecode_id: BytecodeId,
+        bytecode_id: ModuleId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
@@ -653,7 +657,7 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Account, AccountOwner, ApplicationId, BytecodeId, ChainId, Owner},
+        base::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, Owner},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -755,7 +759,7 @@ mod tests {
             runtime,
         };
 
-        let meme_bytecode_id = BytecodeId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let meme_bytecode_id = ModuleId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
 
         contract
             .instantiate(InstantiationArgument {

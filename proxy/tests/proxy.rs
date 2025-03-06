@@ -7,23 +7,24 @@
 
 use abi::{
     meme::{
-        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
-        Metadata,
+        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeOperation,
+        MemeParameters, Metadata,
     },
     proxy::{Chain, InstantiationArgument, ProxyAbi, ProxyOperation},
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
 };
 use linera_sdk::{
-    base::{
-        Account, AccountOwner, Amount, ApplicationId, BytecodeId, ChainDescription, ChainId,
-        MessageId, Owner,
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, MessageId,
+        ModuleId, Owner,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use serde_json::json;
 use std::str::FromStr;
 
+#[derive(Clone)]
 struct TestSuite {
     pub validator: TestValidator,
 
@@ -33,8 +34,8 @@ struct TestSuite {
     pub operator_chain: ActiveChain,
     pub swap_chain: ActiveChain,
 
-    pub proxy_bytecode_id: BytecodeId<ProxyAbi, (), InstantiationArgument>,
-    pub meme_bytecode_id: BytecodeId,
+    pub proxy_bytecode_id: ModuleId<ProxyAbi, (), InstantiationArgument>,
+    pub meme_bytecode_id: ModuleId,
     pub proxy_application_id: Option<ApplicationId<ProxyAbi>>,
     pub swap_application_id: Option<ApplicationId<SwapAbi>>,
 }
@@ -242,6 +243,22 @@ impl TestSuite {
             })
             .await;
     }
+
+    async fn initialize_liquidity(
+        &self,
+        chain: &ActiveChain,
+        meme_chain: &ActiveChain,
+        meme_application_id: ApplicationId,
+    ) {
+        chain
+            .add_block(|block| {
+                block.with_operation(meme_application_id, MemeOperation::InitializeLiquidity);
+            })
+            .await;
+        meme_chain.handle_received_messages().await;
+        self.swap_chain.handle_received_messages().await;
+        meme_chain.handle_received_messages().await;
+    }
 }
 
 /// Test setting a proxy and testing its coherency across microchains.
@@ -257,6 +274,7 @@ async fn proxy_create_meme_test() {
     let proxy_chain = suite.proxy_chain.clone();
     let meme_user_chain = suite.meme_user_chain.clone();
     let operator_chain = suite.operator_chain.clone();
+    let swap_chain = suite.swap_chain.clone();
 
     let operator = Account {
         chain_id: operator_chain.id(),
@@ -271,10 +289,10 @@ async fn proxy_create_meme_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { memeBytecodeId }",
+            "query { memeModuleId }",
         )
         .await;
-    let expected = json!({"memeBytecodeId": suite.meme_bytecode_id});
+    let expected = json!({"memeModuleId": suite.meme_bytecode_id});
     assert_eq!(response, expected);
 
     meme_user_chain
@@ -338,7 +356,14 @@ async fn proxy_create_meme_test() {
     assert_eq!(meme_application.is_none(), true);
 
     let description = ChainDescription::Child(message_id);
-    let meme_chain = ActiveChain::new(meme_user_key_pair.copy(), description, suite.validator);
+    let meme_chain = ActiveChain::new(
+        meme_user_key_pair.copy(),
+        description,
+        suite.clone().validator,
+    );
+
+    suite.validator.add_chain(meme_chain);
+
     meme_chain.handle_received_messages().await;
     proxy_chain.handle_received_messages().await;
 
@@ -352,4 +377,20 @@ async fn proxy_create_meme_test() {
         serde_json::from_value(response["memeApplications"].as_array().unwrap()[0].clone())
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
+
+    log::info!(
+        "Swap application: {}",
+        suite.swap_application_id.unwrap().forget_abi()
+    );
+    meme_chain
+        .register_application(suite.swap_application_id.unwrap())
+        .await;
+    meme_user_chain
+        .register_application(meme_application.unwrap())
+        .await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    suite
+        .initialize_liquidity(&meme_user_chain, &meme_chain, meme_application.unwrap())
+        .await;
 }
