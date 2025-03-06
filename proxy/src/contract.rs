@@ -86,8 +86,9 @@ impl Contract for ProxyContract {
             ProxyOperation::CreateMeme {
                 fee_budget,
                 meme_instantiation_argument,
+                meme_parameters,
             } => self
-                .on_op_create_meme(fee_budget, meme_instantiation_argument)
+                .on_op_create_meme(fee_budget, meme_instantiation_argument, meme_parameters)
                 .expect("Failed OP: create meme"),
 
             ProxyOperation::ProposeAddOperator { owner } => self
@@ -145,18 +146,24 @@ impl Contract for ProxyContract {
             ProxyMessage::CreateMeme {
                 fee_budget,
                 instantiation_argument,
+                parameters,
             } => self
-                .on_msg_create_meme(fee_budget, instantiation_argument)
+                .on_msg_create_meme(fee_budget, instantiation_argument, parameters)
                 .await
                 .expect("Failed MSG: create meme"),
             ProxyMessage::CreateMemeExt {
                 creator,
                 bytecode_id,
                 instantiation_argument,
+                parameters,
             } => self
-                .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument)
+                .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument, parameters)
                 .await
                 .expect("Failed MSG: create meme ext"),
+            ProxyMessage::MemeCreated { chain_id, token } => self
+                .on_msg_meme_created(chain_id, token)
+                .await
+                .expect("Failed MSG: meme created"),
 
             ProxyMessage::ProposeAddOperator { operator, owner } => self
                 .on_msg_propose_add_operator(operator, owner)
@@ -315,14 +322,11 @@ impl ProxyContract {
         self.fund_creation_chain_proxy_application(fee_budget);
     }
 
-    fn fund_proxy_chain_initial_liquidity(
-        &mut self,
-        meme_instantiation_argument: MemeInstantiationArgument,
-    ) {
-        if meme_instantiation_argument.virtual_initial_liquidity {
+    fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
+        if meme_parameters.virtual_initial_liquidity {
             return;
         }
-        let Some(liquidity) = meme_instantiation_argument.initial_liquidity else {
+        let Some(liquidity) = meme_parameters.initial_liquidity else {
             return;
         };
         self.fund_creation_chain_proxy_application(liquidity.native_amount);
@@ -332,6 +336,7 @@ impl ProxyContract {
         &mut self,
         fee_budget: Option<Amount>,
         mut meme_instantiation_argument: MemeInstantiationArgument,
+        meme_parameters: MemeParameters,
     ) -> Result<ProxyResponse, ProxyError> {
         meme_instantiation_argument.proxy_application_id =
             Some(self.runtime.application_id().forget_abi());
@@ -340,12 +345,13 @@ impl ProxyContract {
         // initial liquidity
         let fee_budget = fee_budget.unwrap_or(Amount::ONE);
         self.fund_proxy_chain_fee_budget(fee_budget);
-        self.fund_proxy_chain_initial_liquidity(meme_instantiation_argument.clone());
+        self.fund_proxy_chain_initial_liquidity(meme_parameters.clone());
 
         self.runtime
             .prepare_message(ProxyMessage::CreateMeme {
                 fee_budget,
                 instantiation_argument: meme_instantiation_argument,
+                parameters: meme_parameters,
             })
             .with_authentication()
             .send_to(self.runtime.application_id().creation.chain_id);
@@ -470,15 +476,15 @@ impl ProxyContract {
     fn fund_meme_chain_initial_liquidity(
         &mut self,
         meme_chain_id: ChainId,
-        instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
     ) {
-        if instantiation_argument.virtual_initial_liquidity {
+        if parameters.virtual_initial_liquidity {
             return;
         }
 
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
         let balance = self.runtime.owner_balance(application);
-        let Some(liquidity) = instantiation_argument.initial_liquidity else {
+        let Some(liquidity) = parameters.initial_liquidity else {
             return;
         };
 
@@ -502,12 +508,13 @@ impl ProxyContract {
         &mut self,
         fee_budget: Amount,
         instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
         // 1: create a new chain which allow and mandary proxy
         let (message_id, chain_id) = self.create_meme_chain(fee_budget).await?;
 
         // Fund created meme chain with initial liquidity
-        self.fund_meme_chain_initial_liquidity(chain_id, instantiation_argument.clone());
+        self.fund_meme_chain_initial_liquidity(chain_id, parameters.clone());
 
         let bytecode_id = self.state.meme_bytecode_id().await;
         let creator = self.runtime.authenticated_signer().unwrap();
@@ -518,6 +525,7 @@ impl ProxyContract {
                 creator,
                 bytecode_id,
                 instantiation_argument,
+                parameters,
             })
             .with_authentication()
             .send_to(chain_id);
@@ -531,12 +539,13 @@ impl ProxyContract {
         &mut self,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
     ) -> ApplicationId {
         // It should be always run on target chain
         self.runtime
             .create_application::<ProxyAbi, MemeParameters, MemeInstantiationArgument>(
                 bytecode_id,
-                &MemeParameters {},
+                &parameters,
                 &instantiation_argument,
                 vec![],
             )
@@ -548,21 +557,33 @@ impl ProxyContract {
         creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
         // 1: Create meme application
-        let application_id = self.create_meme_application(bytecode_id, instantiation_argument);
+        let application_id =
+            self.create_meme_application(bytecode_id, instantiation_argument, parameters);
 
-        let application_ids = vec![application_id, self.state.swap_application_id().await];
         let permissions = ApplicationPermissions {
-            execute_operations: Some(application_ids.clone()),
-            mandatory_applications: application_ids,
+            execute_operations: Some(vec![application_id]),
+            mandatory_applications: vec![application_id],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
         };
-
         self.runtime
             .change_application_permissions(permissions)
             .expect("Failed change application permissions");
+
+        // We're now on meme chain, notify proxy creation chain to store token info
+        let meme_chain_id = self.runtime.chain_id();
+        let proxy_chain_id = self.runtime.application_id().creation.chain_id;
+        self.runtime
+            .prepare_message(ProxyMessage::MemeCreated {
+                chain_id: meme_chain_id,
+                token: application_id,
+            })
+            .with_authentication()
+            .send_to(proxy_chain_id);
+
         Ok(())
     }
 
@@ -570,8 +591,9 @@ impl ProxyContract {
         &mut self,
         fee_budget: Amount,
         meme: MemeInstantiationArgument,
+        parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
-        self.on_creation_chain_msg_create_meme(fee_budget, meme)
+        self.on_creation_chain_msg_create_meme(fee_budget, meme, parameters)
             .await
     }
 
@@ -580,9 +602,18 @@ impl ProxyContract {
         creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
-        self.on_meme_chain_msg_create_meme(creator, bytecode_id, instantiation_argument)
+        self.on_meme_chain_msg_create_meme(creator, bytecode_id, instantiation_argument, parameters)
             .await
+    }
+
+    async fn on_msg_meme_created(
+        &mut self,
+        chain_id: ChainId,
+        token: ApplicationId,
+    ) -> Result<(), ProxyError> {
+        self.state.create_chain_token(chain_id, token).await
     }
 
     fn on_msg_propose_add_operator(

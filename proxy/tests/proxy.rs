@@ -6,7 +6,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    meme::{InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, Metadata},
+    meme::{
+        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
+        Metadata,
+    },
     proxy::{Chain, InstantiationArgument, ProxyAbi, ProxyOperation},
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
@@ -203,16 +206,18 @@ impl TestSuite {
                                     github: None,
                                 },
                             },
-                            initial_liquidity: Some(Liquidity {
-                                fungible_amount: Amount::from_tokens(10000000),
-                                native_amount: Amount::from_tokens(10),
-                            }),
                             blob_gateway_application_id: None,
                             ams_application_id: None,
                             proxy_application_id: None,
                             swap_application_id: Some(
                                 self.swap_application_id.unwrap().forget_abi(),
                             ),
+                        },
+                        meme_parameters: MemeParameters {
+                            initial_liquidity: Some(Liquidity {
+                                fungible_amount: Amount::from_tokens(10000000),
+                                native_amount: Amount::from_tokens(10),
+                            }),
                             virtual_initial_liquidity: true,
                         },
                     },
@@ -300,20 +305,43 @@ async fn proxy_create_meme_test() {
         .await;
     assert_eq!(response["countMemeChains"].as_u64().unwrap(), 1);
 
-    // TODO: execute meme chain
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { memeChainMessages }",
+            "query { memeChainCreationMessages }",
         )
         .await;
     let message_id = MessageId::from_str(
-        response["memeChainMessages"].as_array().unwrap()[0]
+        response["memeChainCreationMessages"].as_array().unwrap()[0]
             .as_str()
             .unwrap(),
     )
     .unwrap();
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplications }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplications"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert_eq!(meme_application.is_none(), true);
+
     let description = ChainDescription::Child(message_id);
     let meme_chain = ActiveChain::new(meme_user_key_pair.copy(), description, suite.validator);
     meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplications }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplications"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert_eq!(meme_application.is_some(), true);
 }

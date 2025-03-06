@@ -158,7 +158,19 @@ impl ProxyState {
                 chain_id,
                 message_id,
                 created_at: timestamp,
+                token: None,
             },
         )?)
+    }
+
+    pub(crate) async fn create_chain_token(
+        &mut self,
+        chain_id: ChainId,
+        token: ApplicationId,
+    ) -> Result<(), ProxyError> {
+        let mut chain = self.chains.get(&chain_id).await?.unwrap();
+        assert!(chain.token.is_none(), "Token already created");
+        chain.token = Some(token);
+        Ok(self.chains.insert(&chain_id, chain)?)
     }
 }

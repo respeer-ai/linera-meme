@@ -132,7 +132,7 @@ impl TestSuite {
     }
 
     async fn create_meme_application(&mut self) {
-        let meme_instantiation_argument = MemeInstantiationArgument {
+        let instantiation_argument = MemeInstantiationArgument {
             meme: Meme {
                 name: "Test Token".to_string(),
                 ticker: "LTT".to_string(),
@@ -150,14 +150,17 @@ impl TestSuite {
                     github: None,
                 },
             },
-            initial_liquidity: Some(Liquidity {
-                fungible_amount: self.initial_liquidity,
-                native_amount: Amount::from_tokens(10),
-            }),
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,
             swap_application_id: Some(self.swap_application_id.unwrap()),
+        };
+        let parameters = MemeParameters {
+            owner: self.chain_owner_account(&self.meme_chain),
+            initial_liquidity: Some(Liquidity {
+                fungible_amount: self.initial_liquidity,
+                native_amount: Amount::from_tokens(10),
+            }),
             virtual_initial_liquidity: true,
         };
 
@@ -165,8 +168,8 @@ impl TestSuite {
             self.meme_chain
                 .create_application(
                     self.meme_bytecode_id,
-                    MemeParameters {},
-                    meme_instantiation_argument.clone(),
+                    parameters.clone(),
+                    instantiation_argument.clone(),
                     vec![],
                 )
                 .await,
@@ -203,6 +206,18 @@ impl TestSuite {
                 block.with_operation(
                     self.meme_application_id.unwrap(),
                     MemeOperation::TransferFrom { from, to, amount },
+                );
+            })
+            .await;
+        self.meme_chain.handle_received_messages().await;
+    }
+
+    async fn initialize_liquidity(&self, chain: &ActiveChain) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.meme_application_id.unwrap(),
+                    MemeOperation::InitializeLiquidity,
                 );
             })
             .await;
@@ -382,6 +397,28 @@ async fn meme_work_flow_test() {
     assert_eq!(
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
         Amount::ZERO,
+    );
+
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(
+            suite.meme_application_id.unwrap(),
+            "query { liquidityPoolInitialized }",
+        )
+        .await;
+    assert_eq!(
+        response["liquidityPoolInitialized"].as_bool().unwrap(),
+        false,
+    );
+    suite.initialize_liquidity(&meme_chain).await;
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(
+            suite.meme_application_id.unwrap(),
+            "query { liquidityPoolInitialized }",
+        )
+        .await;
+    assert_eq!(
+        response["liquidityPoolInitialized"].as_bool().unwrap(),
+        true,
     );
 
     // TODO: create pool in swap application

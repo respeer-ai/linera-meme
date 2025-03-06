@@ -37,16 +37,18 @@ pub struct Meme {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub meme: Meme,
-    pub initial_liquidity: Option<Liquidity>,
     pub blob_gateway_application_id: Option<ApplicationId>,
     pub ams_application_id: Option<ApplicationId>,
     pub proxy_application_id: Option<ApplicationId>,
     pub swap_application_id: Option<ApplicationId>,
-    pub virtual_initial_liquidity: bool,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-pub struct MemeParameters {}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MemeParameters {
+    pub owner: Account,
+    pub initial_liquidity: Option<Liquidity>,
+    pub virtual_initial_liquidity: bool,
+}
 
 scalar!(MemeParameters);
 
@@ -64,6 +66,9 @@ impl ServiceAbi for MemeAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
+    // Work around before https://github.com/linera-io/linera-protocol/pull/3382 being merged
+    // Can only initialize liquidity which is already defined when create token
+    InitializeLiquidity,
     Transfer {
         to: Account,
         amount: Amount,
@@ -87,6 +92,10 @@ pub enum MemeOperation {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum MemeMessage {
+    // Work around before https://github.com/linera-io/linera-protocol/pull/3382 being merged
+    InitializeLiquidity {
+        operator: Account,
+    },
     Transfer {
         from: Account,
         to: Account,

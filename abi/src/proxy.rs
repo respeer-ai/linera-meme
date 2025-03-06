@@ -1,7 +1,10 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{approval::Approval, meme::InstantiationArgument as MemeInstantiationArgument};
+use crate::{
+    approval::Approval,
+    meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
+};
 use async_graphql::{Request, Response, SimpleObject};
 use linera_sdk::{
     base::{
@@ -45,6 +48,7 @@ pub struct Chain {
     pub chain_id: ChainId,
     pub message_id: MessageId,
     pub created_at: Timestamp,
+    pub token: Option<ApplicationId>,
 }
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
@@ -74,6 +78,7 @@ pub enum ProxyOperation {
     CreateMeme {
         fee_budget: Option<Amount>,
         meme_instantiation_argument: MemeInstantiationArgument,
+        meme_parameters: MemeParameters,
     },
 
     ProposeAddOperator {
@@ -120,11 +125,17 @@ pub enum ProxyMessage {
     CreateMeme {
         fee_budget: Amount,
         instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
     },
     CreateMemeExt {
         creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
+        parameters: MemeParameters,
+    },
+    MemeCreated {
+        chain_id: ChainId,
+        token: ApplicationId,
     },
 
     ProposeAddOperator {

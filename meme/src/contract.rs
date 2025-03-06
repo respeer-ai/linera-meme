@@ -7,13 +7,16 @@ mod state;
 
 use abi::{
     meme::{
-        InstantiationArgument, MemeAbi, MemeMessage, MemeOperation, MemeParameters, MemeResponse,
+        InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
+        MemeResponse,
     },
     proxy::{ProxyAbi, ProxyOperation},
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationPermissions, CryptoHash, WithContractAbi},
+    base::{
+        Account, AccountOwner, Amount, ApplicationPermissions, CryptoHash, Owner, WithContractAbi,
+    },
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -49,12 +52,21 @@ impl Contract for MemeContract {
         self.runtime.application_parameters();
 
         let owner = self.owner_account();
+        assert!(self.creator() == owner, "Invalid owner");
+
         let application = self.application_account();
 
         self.state
             .instantiate(owner, application, instantiation_argument)
             .await
             .expect("Failed instantiate");
+
+        if let Some(liquidity) = self.initial_liquidity() {
+            self.state
+                .initialize_liquidity(liquidity)
+                .await
+                .expect("Failed initialize liquidity");
+        }
 
         // Let owner hold one hundred tokens for easy test
         self.state
@@ -66,7 +78,10 @@ impl Contract for MemeContract {
         self.register_logo().await;
 
         // When the meme application is created, initial liquidity allowance should already be approved
-        self.create_liquidity_pool().await;
+        // TODO: we cannot call swap application before
+        // https://github.com/linera-io/linera-protocol/pull/3382 being merged, so we work around
+        // to let user call InitializeLiquidity here firstly
+        // self.create_liquidity_pool().await;
     }
 
     async fn execute_operation(&mut self, operation: MemeOperation) -> MemeResponse {
@@ -75,6 +90,9 @@ impl Contract for MemeContract {
         }
 
         match operation {
+            MemeOperation::InitializeLiquidity => self
+                .on_op_initialize_liquidity()
+                .expect("Failed OP: initialize liquidity"),
             MemeOperation::Transfer { to, amount } => self
                 .on_op_transfer(to, amount)
                 .expect("Failed OP: transfer"),
@@ -98,6 +116,10 @@ impl Contract for MemeContract {
         }
 
         match message {
+            MemeMessage::InitializeLiquidity { operator } => self
+                .on_msg_initialize_liquidity(operator)
+                .await
+                .expect("Failed MSG: initialize liquidity"),
             MemeMessage::Transfer { from, to, amount } => self
                 .on_msg_transfer(from, to, amount)
                 .await
@@ -132,6 +154,27 @@ impl Contract for MemeContract {
 }
 
 impl MemeContract {
+    fn creator(&mut self) -> Account {
+        self.runtime.application_parameters().owner
+    }
+
+    fn creator_signer(&mut self) -> Owner {
+        let Some(AccountOwner::User(owner)) = self.creator().owner else {
+            panic!("Invalid owner");
+        };
+        owner
+    }
+
+    fn virtual_initial_liquidity(&mut self) -> bool {
+        self.runtime
+            .application_parameters()
+            .virtual_initial_liquidity
+    }
+
+    fn initial_liquidity(&mut self) -> Option<Liquidity> {
+        self.runtime.application_parameters().initial_liquidity
+    }
+
     fn owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
@@ -177,13 +220,13 @@ impl MemeContract {
         let Some(swap_application_id) = self.state.swap_application_id().await else {
             return;
         };
-        let Some(liquidity) = self.state.initial_liquidity().await else {
+        let Some(liquidity) = self.initial_liquidity() else {
             return;
         };
         if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
             return;
         }
-        let virtual_liquidity = self.state.virtual_initial_liquidity().await;
+        let virtual_liquidity = self.virtual_initial_liquidity();
 
         let call = SwapOperation::InitializeLiquidity {
             token_0: self.runtime.application_id().forget_abi(),
@@ -195,6 +238,8 @@ impl MemeContract {
         let _ =
             self.runtime
                 .call_application(true, swap_application_id.with_abi::<SwapAbi>(), &call);
+
+        self.state.initialize_liquidity_pool().await;
     }
 
     fn operation_executable(&mut self, operation: &MemeOperation) -> bool {
@@ -204,6 +249,73 @@ impl MemeContract {
             }
             _ => true,
         }
+    }
+
+    fn fund_creation_chain_meme_application(&mut self, amount: Amount) {
+        assert!(amount <= Amount::ZERO, "Invalid fund amount");
+
+        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let chain_id = self.runtime.application_id().creation.chain_id;
+        let application_id = self.runtime.application_id().forget_abi();
+
+        let owner_balance = self.runtime.owner_balance(owner);
+        let chain_balance = self.runtime.chain_balance();
+
+        let from_owner_balance = if amount <= owner_balance {
+            amount
+        } else {
+            owner_balance
+        };
+        let from_chain_balance = if amount <= owner_balance {
+            Amount::ZERO
+        } else {
+            amount.try_sub(owner_balance).expect("Invalid amount")
+        };
+
+        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
+        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+
+        if from_owner_balance > Amount::ZERO {
+            self.runtime.transfer(
+                Some(owner),
+                Account {
+                    chain_id,
+                    owner: Some(AccountOwner::Application(application_id)),
+                },
+                from_owner_balance,
+            );
+        }
+        if from_chain_balance > Amount::ZERO {
+            self.runtime.transfer(
+                None,
+                Account {
+                    chain_id,
+                    owner: Some(AccountOwner::Application(application_id)),
+                },
+                from_chain_balance,
+            );
+        }
+    }
+
+    fn on_op_initialize_liquidity(&mut self) -> Result<MemeResponse, MemeError> {
+        // Transfer native amount to creation chain if it's fromt he same owner and not virtual
+        // liquidity
+        assert!(
+            self.creator_signer() == self.runtime.authenticated_signer().unwrap(),
+            "Invalid owner"
+        );
+        assert!(self.initial_liquidity().is_some(), "Invalid liquidity");
+        if !self.virtual_initial_liquidity() {
+            if let Some(liquidity) = self.initial_liquidity() {
+                self.fund_creation_chain_meme_application(liquidity.native_amount);
+            }
+        }
+        let operator = self.owner_account();
+        self.runtime
+            .prepare_message(MemeMessage::InitializeLiquidity { operator })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+        Ok(MemeResponse::Ok)
     }
 
     fn on_op_transfer(&mut self, to: Account, amount: Amount) -> Result<MemeResponse, MemeError> {
@@ -265,6 +377,28 @@ impl MemeContract {
 
     fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
+    }
+
+    async fn on_msg_initialize_liquidity(&mut self, operator: Account) -> Result<(), MemeError> {
+        let Some(AccountOwner::User(owner)) = operator.owner else {
+            // TODO: should we transfer back here? It's already checked in operation
+            panic!("Invalid owner");
+        };
+        assert!(owner == self.creator_signer(), "Invalid owner");
+
+        if self.state.liquidity_pool_initialized().await {
+            if !self.virtual_initial_liquidity() {
+                // Return transfered amount
+                let application =
+                    AccountOwner::Application(self.runtime.application_id().forget_abi());
+                let amount = self.initial_liquidity().unwrap().native_amount;
+                self.runtime.transfer(Some(application), operator, amount);
+            }
+            return Ok(());
+        }
+
+        self.create_liquidity_pool().await;
+        Ok(())
     }
 
     async fn on_msg_transfer(
@@ -669,6 +803,10 @@ mod tests {
         let chain_id =
             ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
                 .unwrap();
+        let owner = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(operator)),
+        };
 
         let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str)
@@ -686,8 +824,17 @@ mod tests {
             owner: Some(AccountOwner::Application(swap_application_id)),
         };
 
+        let initial_supply = Amount::from_tokens(21000000);
+        let swap_allowance = Amount::from_tokens(10000000);
+        let parameters = MemeParameters {
+            owner,
+            initial_liquidity: Some(Liquidity {
+                fungible_amount: swap_allowance,
+                native_amount: Amount::from_tokens(10),
+            }),
+            virtual_initial_liquidity: true,
+        };
         let runtime = ContractRuntime::new()
-            .with_application_parameters(MemeParameters {})
             .with_can_change_application_permissions(true)
             .with_chain_id(chain_id)
             .with_application_id(application_id)
@@ -697,6 +844,7 @@ mod tests {
             )
             .with_authenticated_caller_id(swap_application_id)
             .with_call_application_handler(mock_application_call)
+            .with_application_parameters(parameters)
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
@@ -705,8 +853,6 @@ mod tests {
             runtime,
         };
 
-        let initial_supply = Amount::from_tokens(21000000);
-        let swap_allowance = Amount::from_tokens(10000000);
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
                 name: "Test Token".to_string(),
@@ -725,15 +871,10 @@ mod tests {
                     github: None,
                 },
             },
-            initial_liquidity: Some(Liquidity {
-                fungible_amount: swap_allowance,
-                native_amount: Amount::from_tokens(10),
-            }),
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,
             swap_application_id: Some(swap_application_id),
-            virtual_initial_liquidity: true,
         };
 
         contract.instantiate(instantiation_argument.clone()).await;

@@ -3,7 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Liquidity, Meme};
 use linera_sdk::{
-    base::{Account, AccountOwner, Amount, ApplicationId},
+    base::{Account, AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -20,12 +20,12 @@ pub struct MemeState {
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
     pub initial_liquidity: RegisterView<Option<Liquidity>>,
+    pub liquidity_pool_initialized: RegisterView<bool>,
 
     pub blob_gateway_application_id: RegisterView<Option<ApplicationId>>,
     pub ams_application_id: RegisterView<Option<ApplicationId>>,
     pub proxy_application_id: RegisterView<Option<ApplicationId>>,
     pub swap_application_id: RegisterView<Option<ApplicationId>>,
-    pub virtual_initial_liquidity: RegisterView<bool>,
 
     // Account information
     pub balances: MapView<Account, Amount>,
@@ -36,7 +36,10 @@ pub struct MemeState {
 
 #[allow(dead_code)]
 impl MemeState {
-    async fn initialize_liquidity(&mut self, liquidity: Liquidity) -> Result<(), MemeError> {
+    pub(crate) async fn initialize_liquidity(
+        &mut self,
+        liquidity: Liquidity,
+    ) -> Result<(), MemeError> {
         assert!(
             liquidity.fungible_amount >= Amount::ZERO,
             "Invalid initial liquidity"
@@ -44,6 +47,10 @@ impl MemeState {
         assert!(
             liquidity.native_amount >= Amount::ZERO,
             "Invalid initial liquidity"
+        );
+        assert!(
+            self.meme.get().as_ref().unwrap().initial_supply >= liquidity.fungible_amount,
+            "Invalid initial supply"
         );
 
         self.initial_liquidity.set(Some(liquidity.clone()));
@@ -80,14 +87,6 @@ impl MemeState {
         self.holder.set(Some(application));
         self.owner.set(Some(owner));
 
-        if let Some(liquidity) = argument.initial_liquidity {
-            assert!(
-                argument.meme.initial_supply >= liquidity.fungible_amount,
-                "Invalid initial supply"
-            );
-            self.initialize_liquidity(liquidity).await?;
-        }
-
         argument.meme.total_supply = argument.meme.initial_supply;
         self.meme.set(Some(argument.meme.clone()));
 
@@ -95,8 +94,6 @@ impl MemeState {
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
-        self.virtual_initial_liquidity
-            .set(argument.virtual_initial_liquidity);
 
         Ok(())
     }
@@ -215,6 +212,13 @@ impl MemeState {
         self.owner.get().unwrap()
     }
 
+    pub(crate) async fn owner_signer(&mut self) -> Owner {
+        let AccountOwner::User(owner) = self.owner.get().unwrap().owner.unwrap() else {
+            panic!("Invalid owner");
+        };
+        owner
+    }
+
     pub(crate) async fn balance_of(&self, owner: Account) -> Amount {
         match self.balances.get(&owner).await.unwrap() {
             Some(amount) => amount,
@@ -232,14 +236,6 @@ impl MemeState {
         }
     }
 
-    pub(crate) async fn virtual_initial_liquidity(&self) -> bool {
-        *self.virtual_initial_liquidity.get()
-    }
-
-    pub(crate) async fn initial_liquidity(&self) -> Option<Liquidity> {
-        self.initial_liquidity.get().clone()
-    }
-
     pub(crate) async fn initial_owner_balance(&self) -> Amount {
         *self.initial_owner_balance.get()
     }
@@ -252,5 +248,13 @@ impl MemeState {
         assert!(owner == self.owner.get().unwrap(), "Invalid owner");
         self.owner.set(Some(new_owner));
         Ok(())
+    }
+
+    pub(crate) async fn liquidity_pool_initialized(&self) -> bool {
+        *self.liquidity_pool_initialized.get()
+    }
+
+    pub(crate) async fn initialize_liquidity_pool(&mut self) {
+        self.liquidity_pool_initialized.set(true);
     }
 }

@@ -99,6 +99,10 @@ impl QueryRoot {
     async fn initial_owner_balance(&self) -> Amount {
         self.state.initial_owner_balance().await
     }
+
+    async fn liquidity_pool_initialized(&self) -> bool {
+        self.state.liquidity_pool_initialized().await
+    }
 }
 
 #[cfg(test)]
@@ -149,15 +153,10 @@ mod tests {
                     github: None,
                 },
             },
-            initial_liquidity: Some(Liquidity {
-                fungible_amount: Amount::from_tokens(10000000),
-                native_amount: Amount::from_tokens(10),
-            }),
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,
             swap_application_id: Some(application_id),
-            virtual_initial_liquidity: true,
         };
 
         let chain_id =
