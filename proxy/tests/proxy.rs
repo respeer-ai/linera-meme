@@ -92,6 +92,13 @@ impl TestSuite {
         }
     }
 
+    fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
+        Account {
+            chain_id: chain.id(),
+            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+        }
+    }
+
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
         let certificate = self
             .admin_chain
@@ -214,6 +221,7 @@ impl TestSuite {
                             ),
                         },
                         meme_parameters: MemeParameters {
+                            creator: self.chain_owner_account(chain),
                             initial_liquidity: Some(Liquidity {
                                 fungible_amount: Amount::from_tokens(10000000),
                                 native_amount: Amount::from_tokens(10),

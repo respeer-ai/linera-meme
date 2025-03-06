@@ -128,7 +128,6 @@ pub enum ProxyMessage {
         parameters: MemeParameters,
     },
     CreateMemeExt {
-        creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,

@@ -110,7 +110,7 @@ mod tests {
     use std::sync::Arc;
 
     use abi::{
-        meme::{InstantiationArgument, Liquidity, Meme, Metadata},
+        meme::{InstantiationArgument, Meme, Metadata},
         store_type::StoreType,
     };
     use async_graphql::{Request, Response, Value};

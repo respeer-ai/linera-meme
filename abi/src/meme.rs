@@ -45,7 +45,7 @@ pub struct InstantiationArgument {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MemeParameters {
-    pub owner: Account,
+    pub creator: Account,
     pub initial_liquidity: Option<Liquidity>,
     pub virtual_initial_liquidity: bool,
 }

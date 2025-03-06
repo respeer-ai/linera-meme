@@ -10,12 +10,11 @@ use abi::{
         InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
         MemeResponse,
     },
-    proxy::{ProxyAbi, ProxyOperation},
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
     base::{
-        Account, AccountOwner, Amount, ApplicationPermissions, CryptoHash, Owner, WithContractAbi,
+        Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -51,9 +50,11 @@ impl Contract for MemeContract {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        let owner = self.owner_account();
-        assert!(self.creator() == owner, "Invalid owner");
+        let signer = self.runtime.authenticated_signer().unwrap();
+        // Signer should be the same as the creator
+        assert!(self.creator_signer() == signer, "Invalid owner");
 
+        let owner = self.owner_account();
         let application = self.application_account();
 
         self.state
@@ -155,7 +156,7 @@ impl Contract for MemeContract {
 
 impl MemeContract {
     fn creator(&mut self) -> Account {
-        self.runtime.application_parameters().owner
+        self.runtime.application_parameters().creator
     }
 
     fn creator_signer(&mut self) -> Owner {
@@ -827,7 +828,7 @@ mod tests {
         let initial_supply = Amount::from_tokens(21000000);
         let swap_allowance = Amount::from_tokens(10000000);
         let parameters = MemeParameters {
-            owner,
+            creator: owner,
             initial_liquidity: Some(Liquidity {
                 fungible_amount: swap_allowance,
                 native_amount: Amount::from_tokens(10),

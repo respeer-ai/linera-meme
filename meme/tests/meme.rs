@@ -156,7 +156,7 @@ impl TestSuite {
             swap_application_id: Some(self.swap_application_id.unwrap()),
         };
         let parameters = MemeParameters {
-            owner: self.chain_owner_account(&self.meme_chain),
+            creator: self.chain_owner_account(&self.meme_chain),
             initial_liquidity: Some(Liquidity {
                 fungible_amount: self.initial_liquidity,
                 native_amount: Amount::from_tokens(10),

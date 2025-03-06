@@ -152,12 +152,11 @@ impl Contract for ProxyContract {
                 .await
                 .expect("Failed MSG: create meme"),
             ProxyMessage::CreateMemeExt {
-                creator,
                 bytecode_id,
                 instantiation_argument,
                 parameters,
             } => self
-                .on_msg_create_meme_ext(creator, bytecode_id, instantiation_argument, parameters)
+                .on_msg_create_meme_ext(bytecode_id, instantiation_argument, parameters)
                 .await
                 .expect("Failed MSG: create meme ext"),
             ProxyMessage::MemeCreated { chain_id, token } => self
@@ -336,7 +335,7 @@ impl ProxyContract {
         &mut self,
         fee_budget: Option<Amount>,
         mut meme_instantiation_argument: MemeInstantiationArgument,
-        meme_parameters: MemeParameters,
+        mut meme_parameters: MemeParameters,
     ) -> Result<ProxyResponse, ProxyError> {
         meme_instantiation_argument.proxy_application_id =
             Some(self.runtime.application_id().forget_abi());
@@ -346,6 +345,8 @@ impl ProxyContract {
         let fee_budget = fee_budget.unwrap_or(Amount::ONE);
         self.fund_proxy_chain_fee_budget(fee_budget);
         self.fund_proxy_chain_initial_liquidity(meme_parameters.clone());
+
+        meme_parameters.creator = self.owner_account();
 
         self.runtime
             .prepare_message(ProxyMessage::CreateMeme {
@@ -517,12 +518,10 @@ impl ProxyContract {
         self.fund_meme_chain_initial_liquidity(chain_id, parameters.clone());
 
         let bytecode_id = self.state.meme_bytecode_id().await;
-        let creator = self.runtime.authenticated_signer().unwrap();
 
         // 2: Send create meme message to target chain
         self.runtime
             .prepare_message(ProxyMessage::CreateMemeExt {
-                creator,
                 bytecode_id,
                 instantiation_argument,
                 parameters,
@@ -554,7 +553,6 @@ impl ProxyContract {
 
     async fn on_meme_chain_msg_create_meme(
         &mut self,
-        creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
@@ -599,12 +597,11 @@ impl ProxyContract {
 
     async fn on_msg_create_meme_ext(
         &mut self,
-        creator: Owner,
         bytecode_id: BytecodeId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
-        self.on_meme_chain_msg_create_meme(creator, bytecode_id, instantiation_argument, parameters)
+        self.on_meme_chain_msg_create_meme(bytecode_id, instantiation_argument, parameters)
             .await
     }
 
