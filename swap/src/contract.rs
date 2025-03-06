@@ -388,12 +388,8 @@ impl SwapContract {
             amount.try_sub(owner_balance).expect("Invalid amount")
         };
 
-        log::info!("my chain {} from {} amount {}, {}, {}, {}, {}", self.runtime.chain_id(), from_owner, amount, from_owner_balance, owner_balance, from_chain_balance, chain_balance);
-
         assert!(from_owner_balance <= owner_balance, "Insufficient balance");
         assert!(from_chain_balance <= chain_balance, "Insufficient balance");
-
-        log::info!("Authorized caller {} application id {}", from_owner, application_id);
 
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
@@ -415,8 +411,6 @@ impl SwapContract {
                 from_chain_balance,
             );
         }
-
-        log::info!("Fund liquidity");
     }
 
     async fn on_call_initialize_liquidity(
@@ -446,7 +440,6 @@ impl SwapContract {
         // to swap application of current chain then transfer to swap application creation chain to
         // add liquidity
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        log::info!("chain {} application {} amount {}", chain_id, application, amount);
         self.fund_swap_application(application, amount);
 
         self.runtime
