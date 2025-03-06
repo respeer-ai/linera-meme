@@ -11,7 +11,9 @@ use abi::{
         MemeOperation, MemeParameters, Metadata,
     },
     store_type::StoreType,
-    swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
+    swap::router::{
+        InstantiationArgument as SwapInstantiationArgument, Pool, SwapAbi, SwapParameters,
+    },
 };
 use linera_sdk::{
     linera_base_types::{
@@ -233,6 +235,19 @@ async fn virtual_liquidity_test() {
         .register_application(suite.meme_application_id.unwrap().forget_abi())
         .await;
 
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        suite.application_account(suite.meme_application_id.unwrap().forget_abi()),
+        suite.application_account(suite.swap_application_id.unwrap().forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        suite.initial_liquidity,
+    );
+
     suite.initialize_liquidity(&meme_chain).await;
 
     meme_chain.handle_received_messages().await;
@@ -262,10 +277,6 @@ async fn virtual_liquidity_test() {
     let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
     suite.validator.add_chain(pool_chain.clone());
 
-    log::info!("Pool owner {}", suite.chain_owner_account(&pool_chain));
-    log::info!("Swap owner {}", suite.chain_owner_account(&swap_chain));
-    log::info!("Meme owner {}", suite.chain_owner_account(&meme_chain));
-
     pool_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
@@ -274,6 +285,7 @@ async fn virtual_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                poolId
                 token0
                 token1
                 poolApplication
@@ -282,5 +294,30 @@ async fn virtual_liquidity_test() {
         .await;
     assert_eq!(response["pools"].as_array().unwrap().len(), 1,);
 
-    // TODO: validate swap balance and allowance
+    let pool: Pool =
+        serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
+
+    let query = format!(
+        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
+        suite.application_account(suite.meme_application_id.unwrap().forget_abi()),
+        suite.application_account(suite.swap_application_id.unwrap().forget_abi()),
+    );
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
+        Amount::ZERO,
+    );
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", pool.pool_application,);
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        suite.initial_liquidity,
+    );
+
+    // TODO: check native balance of pool chain
 }

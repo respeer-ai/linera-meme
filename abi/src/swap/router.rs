@@ -155,6 +155,7 @@ pub enum SwapMessage {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, SimpleObject)]
+#[serde(rename_all = "camelCase")]
 pub struct Pool {
     pub pool_id: u64,
     pub token_0: ApplicationId,
