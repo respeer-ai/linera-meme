@@ -78,6 +78,11 @@ pub enum MemeOperation {
         to: Account,
         amount: Amount,
     },
+    // Special operation used by swap application only
+    TransferFromApplication {
+        to: Account,
+        amount: Amount,
+    },
     Approve {
         spender: Account,
         amount: Amount,
@@ -105,6 +110,11 @@ pub enum MemeMessage {
     TransferFrom {
         owner: Account,
         from: Account,
+        to: Account,
+        amount: Amount,
+    },
+    TransferFromApplication {
+        caller: Account,
         to: Account,
         amount: Amount,
     },

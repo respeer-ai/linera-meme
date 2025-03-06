@@ -99,6 +99,10 @@ impl Contract for MemeContract {
             MemeOperation::TransferFrom { from, to, amount } => self
                 .on_op_transfer_from(from, to, amount)
                 .expect("Failed OP: trasnfer from"),
+            MemeOperation::TransferFromApplication { to, amount } => self
+                .on_op_transfer_from_application(to, amount)
+                .await
+                .expect("Failed OP: trasnfer from application"),
             MemeOperation::Approve { spender, amount } => self
                 .on_op_approve(spender, amount)
                 .expect("Failed OP: approve"),
@@ -137,6 +141,10 @@ impl Contract for MemeContract {
                 .on_msg_transfer_from(owner, from, to, amount)
                 .await
                 .expect("Failed MSG: trasnfer from"),
+            MemeMessage::TransferFromApplication { caller, to, amount } => self
+                .on_msg_transfer_from_application(caller, to, amount)
+                .await
+                .expect("Failed OP: trasnfer from application"),
             MemeMessage::Approve {
                 owner,
                 spender,
@@ -186,6 +194,15 @@ impl MemeContract {
                 Some(owner) => Some(AccountOwner::User(owner)),
                 _ => None,
             },
+        }
+    }
+
+    fn application_creation_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.application_id().creation.chain_id,
+            owner: Some(AccountOwner::Application(
+                self.runtime.application_id().forget_abi(),
+            )),
         }
     }
 
@@ -360,6 +377,29 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
+    async fn on_op_transfer_from_application(
+        &mut self,
+        to: Account,
+        amount: Amount,
+    ) -> Result<MemeResponse, MemeError> {
+        assert!(
+            self.creator_signer() == self.runtime.authenticated_signer().unwrap(),
+            "Invalid owner"
+        );
+
+        let caller_id = self.runtime.authenticated_caller_id().unwrap();
+        let caller = Account {
+            chain_id: caller_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(caller_id)),
+        };
+
+        self.runtime
+            .prepare_message(MemeMessage::TransferFromApplication { caller, to, amount })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+        Ok(MemeResponse::Ok)
+    }
+
     fn on_op_approve(
         &mut self,
         spender: Account,
@@ -460,6 +500,26 @@ impl MemeContract {
         amount: Amount,
     ) -> Result<(), MemeError> {
         self.state.transfer_from(owner, from, to, amount).await
+    }
+
+    async fn on_msg_transfer_from_application(
+        &mut self,
+        caller: Account,
+        to: Account,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        let swap_application_id = self.state.swap_application_id().await.unwrap();
+        let swap_application = Account {
+            chain_id: swap_application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(swap_application_id)),
+        };
+
+        assert!(caller == swap_application, "Invalid caller");
+
+        let from = self.application_creation_account();
+        self.state
+            .transfer_from(swap_application, from, to, amount)
+            .await
     }
 
     async fn on_msg_approve(

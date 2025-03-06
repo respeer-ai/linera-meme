@@ -7,7 +7,7 @@ mod state;
 
 use std::sync::Arc;
 
-use abi::swap::router::SwapAbi;
+use abi::swap::router::{Pool, SwapAbi};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{MessageId, WithServiceAbi},
@@ -78,6 +78,33 @@ struct QueryRoot {
 impl QueryRoot {
     async fn pool_id(&self) -> &u64 {
         self.state.pool_id.get()
+    }
+
+    async fn pools(&self) -> Vec<Pool> {
+        let mut pools: Vec<_> = self
+            .state
+            .meme_native_pools
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, pool)| pool)
+            .collect();
+        for (_, _pools) in self.state.meme_meme_pools.index_values().await.unwrap() {
+            pools.extend_from_slice(&_pools.into_values().collect::<Vec<Pool>>());
+        }
+        pools
+    }
+
+    async fn pool_chain_creation_messages(&self) -> Vec<MessageId> {
+        self.state
+            .pool_chains
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, message_id)| message_id)
+            .collect()
     }
 }
 

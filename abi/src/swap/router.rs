@@ -1,7 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::{scalar, InputObject, Request, Response};
+use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
@@ -115,6 +115,14 @@ pub enum SwapMessage {
         amount_1: Amount,
         virtual_initial_liquidity: bool,
     },
+    PoolCreated {
+        pool_application: Account,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Amount,
+        virtual_initial_liquidity: bool,
+    },
     LiquidityFundApproved {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -146,7 +154,7 @@ pub enum SwapMessage {
     },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, SimpleObject)]
 pub struct Pool {
     pub pool_id: u64,
     pub token_0: ApplicationId,

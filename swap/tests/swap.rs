@@ -8,24 +8,30 @@
 use abi::{
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
-        MemeParameters, Metadata,
+        MemeOperation, MemeParameters, Metadata,
     },
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, MessageId,
+        ModuleId, Owner,
+    },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
+use std::str::FromStr;
 
 #[derive(Clone)]
 struct TestSuite {
+    pub validator: TestValidator,
+
     pub admin_chain: ActiveChain,
     pub meme_chain: ActiveChain,
     pub user_chain: ActiveChain,
     pub swap_chain: ActiveChain,
 
-    pub swap_application_id: Option<ApplicationId>,
+    pub swap_application_id: Option<ApplicationId<SwapAbi>>,
     pub meme_application_id: Option<ApplicationId<MemeAbi>>,
 
     pub swap_bytecode_id: ModuleId<SwapAbi, SwapParameters, SwapInstantiationArgument>,
@@ -52,6 +58,8 @@ impl TestSuite {
         let meme_bytecode_id = swap_chain.publish_bytecode_files_in("../meme").await;
 
         TestSuite {
+            validator,
+
             admin_chain,
             meme_chain,
             user_chain,
@@ -130,8 +138,7 @@ impl TestSuite {
                     },
                     vec![],
                 )
-                .await
-                .forget_abi(),
+                .await,
         )
     }
 
@@ -157,7 +164,7 @@ impl TestSuite {
             blob_gateway_application_id: None,
             ams_application_id: None,
             proxy_application_id: None,
-            swap_application_id: Some(self.swap_application_id.unwrap()),
+            swap_application_id: Some(self.swap_application_id.unwrap().forget_abi()),
         };
         let parameters = MemeParameters {
             creator: self.chain_owner_account(&self.meme_chain),
@@ -179,6 +186,18 @@ impl TestSuite {
                 .await,
         )
     }
+
+    async fn initialize_liquidity(&self, chain: &ActiveChain) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.meme_application_id.unwrap(),
+                    MemeOperation::InitializeLiquidity,
+                );
+            })
+            .await;
+        self.meme_chain.handle_received_messages().await;
+    }
 }
 
 /// Test setting a swap and testing its coherency across microchains.
@@ -196,6 +215,8 @@ async fn virtual_liquidity_test() {
     let user_chain = suite.user_chain.clone();
     let swap_chain = suite.swap_chain.clone();
 
+    let swap_key_pair = swap_chain.key_pair();
+
     suite.fund_chain(&meme_chain, Amount::ONE).await;
 
     suite.create_swap_application().await;
@@ -203,4 +224,63 @@ async fn virtual_liquidity_test() {
 
     meme_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
+
+    // Here we initialize liquidity pool
+    meme_chain
+        .register_application(suite.swap_application_id.unwrap().forget_abi())
+        .await;
+    swap_chain
+        .register_application(suite.meme_application_id.unwrap().forget_abi())
+        .await;
+
+    suite.initialize_liquidity(&meme_chain).await;
+
+    meme_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { poolChainCreationMessages }",
+        )
+        .await;
+    assert_eq!(
+        response["poolChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    let message_id = MessageId::from_str(
+        response["poolChainCreationMessages"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let description = ChainDescription::Child(message_id);
+    let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
+    suite.validator.add_chain(pool_chain.clone());
+
+    log::info!("Pool owner {}", suite.chain_owner_account(&pool_chain));
+    log::info!("Swap owner {}", suite.chain_owner_account(&swap_chain));
+    log::info!("Meme owner {}", suite.chain_owner_account(&meme_chain));
+
+    pool_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { pools {
+                token0
+                token1
+                poolApplication
+            }}",
+        )
+        .await;
+    assert_eq!(response["pools"].as_array().unwrap().len(), 1,);
+
+    // TODO: validate swap balance and allowance
 }

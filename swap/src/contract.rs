@@ -5,11 +5,16 @@
 
 mod state;
 
-use abi::swap::{
-    liquidity_rfq::{LiquidityRfqAbi, LiquidityRfqParameters},
-    pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
-    router::{
-        InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters, SwapResponse,
+use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
+    meme::{MemeAbi, MemeOperation},
+    swap::{
+        liquidity_rfq::{LiquidityRfqAbi, LiquidityRfqParameters},
+        pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
+        router::{
+            InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
+            SwapResponse,
+        },
     },
 };
 use linera_sdk::{
@@ -210,8 +215,33 @@ impl Contract for SwapContract {
                 amount_1,
                 virtual_initial_liquidity,
             } => self
-                .on_msg_create_pool(pool_bytecode_id, token_0, token_1, amount_0, amount_1)
+                .on_msg_create_pool(
+                    pool_bytecode_id,
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    virtual_initial_liquidity,
+                )
                 .expect("Failed MSG: create pool"),
+            SwapMessage::PoolCreated {
+                pool_application,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+                virtual_initial_liquidity,
+            } => self
+                .on_msg_pool_created(
+                    pool_application,
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    virtual_initial_liquidity,
+                )
+                .await
+                .expect("Failed MSG: pool created"),
             SwapMessage::LiquidityFundApproved {
                 token_0,
                 token_1,
@@ -368,10 +398,6 @@ impl SwapContract {
         Ok(())
     }
 
-    fn open_chain_fee_budget(&self) -> Amount {
-        Amount::ONE
-    }
-
     fn fund_swap_application(&mut self, from_owner: AccountOwner, amount: Amount) {
         let chain_id = self.runtime.application_id().creation.chain_id;
         let application_id = self.runtime.application_id().forget_abi();
@@ -433,7 +459,7 @@ impl SwapContract {
 
         // Here allowance is already approved, so just transfer native amount then create pool
         // chain and application
-        let mut amount = self.open_chain_fee_budget();
+        let mut amount = OPEN_CHAIN_FEE_BUDGET;
         if !virtual_liquidity {
             amount = amount_1.try_add(amount)?;
         }
@@ -557,6 +583,7 @@ impl SwapContract {
         // All assets should be already authenticated when we're here
         // 1: Create pool chain
         let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
+        self.state.create_pool_chain(chain_id, message_id).await?;
         // 2: Create pool application with initial liquidity
         let bytecode_id = self.state.pool_bytecode_id().await;
 
@@ -571,6 +598,7 @@ impl SwapContract {
             })
             .with_authentication()
             .send_to(chain_id);
+
         // Assets will be transfer to pool chain when create pool application
         Ok(())
     }
@@ -650,11 +678,13 @@ impl SwapContract {
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
+        virtual_initial_liquidity: bool,
     ) -> Result<(), SwapError> {
-        // Run on rfq chain
+        // Run on pool chain
         let application_id = self.runtime.application_id().forget_abi();
+        let chain_id = self.runtime.chain_id();
 
-        let _ = self
+        let pool_application_id = self
             .runtime
             .create_application::<PoolAbi, PoolParameters, PoolInstantiationArgument>(
                 pool_bytecode_id,
@@ -665,13 +695,62 @@ impl SwapContract {
                 },
                 &PoolInstantiationArgument { amount_0, amount_1 },
                 vec![],
-            );
+            )
+            .forget_abi();
 
-        // TODO: transfer memes allowance to pool application
-        // TODO: notify creation chain about pool created, creation will transfer native tokens (if
-        // needed to pool application)
+        // Here we're on meme chain, we should goto swap chain to transfer funds due to we deposit
+        // there
+        let pool_application = Account {
+            chain_id,
+            owner: Some(AccountOwner::Application(pool_application_id)),
+        };
+        self.runtime
+            .prepare_message(SwapMessage::PoolCreated {
+                pool_application,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+                virtual_initial_liquidity,
+            })
+            .with_authentication()
+            .send_to(application_id.creation.chain_id);
 
         Ok(())
+    }
+
+    async fn on_msg_pool_created(
+        &mut self,
+        pool_application: Account,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Amount,
+        virtual_initial_liquidity: bool,
+    ) -> Result<(), SwapError> {
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+
+        if let Some(token_1) = token_1 {
+            panic!("Not supported pair with meme");
+        } else if !virtual_initial_liquidity {
+            let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+            self.runtime
+                .transfer(Some(application), pool_application, amount_1);
+        }
+
+        // TODO: only call from InitializeLiquidity could transfer from application
+        let call = MemeOperation::TransferFromApplication {
+            to: pool_application,
+            amount: amount_0,
+        };
+        let _ = self
+            .runtime
+            .call_application(true, token_0.with_abi::<MemeAbi>(), &call);
+
+        self.state
+            .create_pool(token_0, token_1, pool_application)
+            .await
     }
 
     async fn on_msg_liquidity_fund_approved(

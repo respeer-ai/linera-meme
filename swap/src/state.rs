@@ -20,6 +20,7 @@ pub struct SwapState {
     pub meme_native_pools: MapView<ApplicationId, Pool>,
 
     pub pool_id: RegisterView<u64>,
+    // Token pair in the two elementes vec
     pub pool_meme_memes: MapView<u64, Vec<ApplicationId>>,
     pub pool_meme_natives: MapView<u64, ApplicationId>,
 
@@ -28,6 +29,8 @@ pub struct SwapState {
 
     pub liquidity_rfq_bytecode_id: RegisterView<Option<ModuleId>>,
     pub pool_bytecode_id: RegisterView<Option<ModuleId>>,
+
+    pub pool_chains: MapView<ChainId, MessageId>,
 }
 
 #[allow(dead_code)]
@@ -113,5 +116,13 @@ impl SwapState {
 
         self.pool_id.set(pool_id + 1);
         Ok(())
+    }
+
+    pub(crate) async fn create_pool_chain(
+        &mut self,
+        chain_id: ChainId,
+        message_id: MessageId,
+    ) -> Result<(), SwapError> {
+        Ok(self.pool_chains.insert(&chain_id, message_id)?)
     }
 }
