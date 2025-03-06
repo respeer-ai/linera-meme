@@ -37,6 +37,3 @@ lto = true
 opt-level = 'z'
 strip = 'debuginfo'
 
-[patch.'https://github.com/kikakkz/linera-protocol.git']
-linera-sdk = { path = "../ext/linera-project/linera-protocol-kikakkz/linera-sdk" }
-linera-views = { path = "../ext/linera-project/linera-protocol-kikakkz/linera-views" }

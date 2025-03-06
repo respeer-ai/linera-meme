@@ -8,7 +8,9 @@ mod state;
 use abi::swap::{
     liquidity_rfq::{LiquidityRfqAbi, LiquidityRfqParameters},
     pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
-    router::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapResponse},
+    router::{
+        InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters, SwapResponse,
+    },
 };
 use linera_sdk::{
     linera_base_types::{
@@ -36,7 +38,7 @@ impl WithContractAbi for SwapContract {
 impl Contract for SwapContract {
     type Message = SwapMessage;
     type InstantiationArgument = InstantiationArgument;
-    type Parameters = ();
+    type Parameters = SwapParameters;
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = SwapState::load(runtime.root_view_storage_context())
@@ -754,7 +756,9 @@ impl SwapContract {
 
 #[cfg(test)]
 mod tests {
-    use abi::swap::router::{InstantiationArgument, SwapAbi, SwapOperation, SwapResponse};
+    use abi::swap::router::{
+        InstantiationArgument, SwapAbi, SwapOperation, SwapParameters, SwapResponse,
+    };
     use futures::FutureExt as _;
     use linera_sdk::{
         linera_base_types::{
@@ -773,7 +777,7 @@ mod tests {
     async fn operation_initialize_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
-        let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let meme_1_id = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000008";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
         let response = swap
@@ -793,7 +797,7 @@ mod tests {
     async fn operation_add_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
-        let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let meme_1_id = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000008";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
         let response = swap
@@ -822,21 +826,25 @@ mod tests {
         let owner =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
-        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000008";
+        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<SwapAbi>();
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
-        let meme_1_id = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let meme_1_id = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000008";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
         let mut runtime = ContractRuntime::new()
-            .with_application_parameters(())
+            .with_application_parameters(SwapParameters {})
             .with_application_id(application_id)
             .with_authenticated_signer(owner)
             .with_authenticated_caller_id(meme_1)
             .with_chain_id(meme_1.creation.chain_id)
             .with_owner_balance(AccountOwner::User(owner), Amount::from_tokens(10000))
+            .with_owner_balance(
+                AccountOwner::Application(application_id.forget_abi()),
+                Amount::from_tokens(10000),
+            )
             .with_chain_balance(Amount::from_tokens(10000))
             .with_chain_ownership(ChainOwnership::single(owner));
 
@@ -861,7 +869,7 @@ mod tests {
             runtime,
         };
 
-        let bytecode_id = ModuleId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
         contract
             .instantiate(InstantiationArgument {
                 liquidity_rfq_bytecode_id: bytecode_id,

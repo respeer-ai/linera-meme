@@ -1,7 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::{InputObject, Request, Response};
+use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
@@ -159,3 +159,8 @@ pub struct InstantiationArgument {
     pub liquidity_rfq_bytecode_id: ModuleId,
     pub pool_bytecode_id: ModuleId,
 }
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SwapParameters {}
+
+scalar!(SwapParameters);
