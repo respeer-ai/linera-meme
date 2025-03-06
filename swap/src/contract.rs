@@ -370,12 +370,11 @@ impl SwapContract {
         Amount::ONE
     }
 
-    fn fund_swap_application(&mut self, amount: Amount) {
-        let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+    fn fund_swap_application(&mut self, from_owner: AccountOwner, amount: Amount) {
         let chain_id = self.runtime.application_id().creation.chain_id;
         let application_id = self.runtime.application_id().forget_abi();
 
-        let owner_balance = self.runtime.owner_balance(creator);
+        let owner_balance = self.runtime.owner_balance(from_owner);
         let chain_balance = self.runtime.chain_balance();
 
         let from_owner_balance = if amount <= owner_balance {
@@ -389,12 +388,16 @@ impl SwapContract {
             amount.try_sub(owner_balance).expect("Invalid amount")
         };
 
+        log::info!("my chain {} from {} amount {}, {}, {}, {}, {}", self.runtime.chain_id(), from_owner, amount, from_owner_balance, owner_balance, from_chain_balance, chain_balance);
+
         assert!(from_owner_balance <= owner_balance, "Insufficient balance");
         assert!(from_chain_balance <= chain_balance, "Insufficient balance");
 
+        log::info!("Authorized caller {} application id {}", from_owner, application_id);
+
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
-                Some(creator),
+                Some(from_owner),
                 Account {
                     chain_id,
                     owner: None,
@@ -412,10 +415,8 @@ impl SwapContract {
                 from_chain_balance,
             );
         }
-    }
 
-    fn fund_open_chain_fee_budget(&mut self) {
-        self.fund_swap_application(self.open_chain_fee_budget());
+        log::info!("Fund liquidity");
     }
 
     async fn on_call_initialize_liquidity(
@@ -429,8 +430,6 @@ impl SwapContract {
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
         let chain_id = self.runtime.chain_id();
 
-        log::info!("InitializeLiquidity token_0 {} chain {}", token_0, chain_id);
-
         assert!(token_0 == caller_id, "Invalid caller");
         assert!(chain_id == caller_id.creation.chain_id, "Invalid caller");
 
@@ -442,7 +441,13 @@ impl SwapContract {
         if !virtual_liquidity {
             amount = amount_1.try_add(amount)?;
         }
-        self.fund_swap_application(amount);
+        // This call should always be from token application on creation chain, and the funds is already deposit to swap application of current chain
+        // We cannot transfer from meme application here due to security restrict. We must transfer
+        // to swap application of current chain then transfer to swap application creation chain to
+        // add liquidity
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        log::info!("chain {} application {} amount {}", chain_id, application, amount);
+        self.fund_swap_application(application, amount);
 
         self.runtime
             .prepare_message(SwapMessage::InitializeLiquidity {
@@ -469,8 +474,7 @@ impl SwapContract {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     ) -> Result<SwapResponse, SwapError> {
-        // Transfer rfq chain fee budget
-        self.fund_open_chain_fee_budget();
+        // TODO: transfer liquidity amount
 
         self.runtime
             .prepare_message(SwapMessage::AddLiquidity {

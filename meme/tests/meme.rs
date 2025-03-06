@@ -421,6 +421,9 @@ async fn meme_work_flow_test() {
         true,
     );
 
+    meme_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+
     // TODO: create pool in swap application
     // TODO: purchase meme with user chain
     // TODO: add liquidity with user chain

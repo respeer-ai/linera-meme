@@ -96,6 +96,7 @@ pub enum MemeMessage {
     InitializeLiquidity {
         operator: Account,
     },
+    LiquidityFunded,
     Transfer {
         from: Account,
         to: Account,

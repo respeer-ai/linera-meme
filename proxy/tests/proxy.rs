@@ -386,6 +386,8 @@ async fn proxy_create_meme_test() {
         .await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+
+    suite.fund_chain(&meme_user_chain, Amount::ONE).await;
     suite
         .initialize_liquidity(&meme_user_chain, &meme_chain, meme_application.unwrap())
         .await;
