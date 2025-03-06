@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn query() {
-        let meme_bytecode_id = ModuleId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let meme_bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
         let runtime = Arc::new(ServiceRuntime::<ProxyService>::new());
         let mut state = ProxyState::load(runtime.root_view_storage_context())
             .blocking_wait()
@@ -148,7 +148,7 @@ mod tests {
             state: Arc::new(state),
             runtime,
         };
-        let request = Request::new("{ memeModuleId }");
+        let request = Request::new("{ memeBytecodeId }");
 
         let response = service
             .handle_query(request)
@@ -156,7 +156,7 @@ mod tests {
             .expect("Query should not await anything");
 
         let expected =
-            Response::new(Value::from_json(json!({"memeModuleId": meme_bytecode_id})).unwrap());
+            Response::new(Value::from_json(json!({"memeBytecodeId": meme_bytecode_id})).unwrap());
 
         assert_eq!(response, expected)
     }

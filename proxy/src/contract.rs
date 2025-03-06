@@ -657,7 +657,7 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        base::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, Owner},
+        linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, Owner},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -669,6 +669,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Operations must not be run on creation chain")]
     fn op_propose_add_genesis_miner() {
+        let _ = env_logger::builder().is_test(true).try_init();
         let mut proxy = create_and_instantiate_proxy();
 
         let owner =
@@ -688,13 +689,14 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn msg_propose_add_genesis_miner() {
+        let _ = env_logger::builder().is_test(true).try_init();
         let mut proxy = create_and_instantiate_proxy();
 
         let owner =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
         let chain_id =
-            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
         let operator = Account {
             chain_id,
@@ -734,7 +736,7 @@ mod tests {
 
     fn create_and_instantiate_proxy() -> ProxyContract {
         let chain_id =
-            ChainId::from_str("899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46")
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
         let owner =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
@@ -743,7 +745,7 @@ mod tests {
             chain_id,
             owner: Some(AccountOwner::User(owner)),
         };
-        let application_id_str = "d50e0708b6e799fe2f93998ce03b4450beddc2fa934341a3e9c9313e3806288603d504225198c624908c6b0402dc83964be708e42f636dea109e2a82e9f52b58899dd894c41297e9dd1221fa02845efc81ed8abd9a0b7d203ad514b3aa6b2d46010000000000000000000000";
+        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<ProxyAbi>();
@@ -759,7 +761,7 @@ mod tests {
             runtime,
         };
 
-        let meme_bytecode_id = ModuleId::from_str("58cc6e264a19cddf027010db262ca56a18e7b63e2a7ad1561ea9841f9aef308fc5ae59261c0137891a342001d3d4446a26c3666ed81aadf7e5eec6a01c86db6d").unwrap();
+        let meme_bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
 
         contract
             .instantiate(InstantiationArgument {

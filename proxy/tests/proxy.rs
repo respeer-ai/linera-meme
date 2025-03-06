@@ -43,7 +43,7 @@ struct TestSuite {
 impl TestSuite {
     async fn new() -> Self {
         let (validator, proxy_bytecode_id) =
-            TestValidator::with_current_bytecode::<ProxyAbi, (), InstantiationArgument>().await;
+            TestValidator::with_current_module::<ProxyAbi, (), InstantiationArgument>().await;
 
         let admin_chain = validator.get_chain(&ChainId::root(0));
         let proxy_chain = validator.new_chain().await;
@@ -51,7 +51,7 @@ impl TestSuite {
         let operator_chain = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
 
-        let meme_bytecode_id = proxy_chain.publish_bytecodes_in("../meme").await;
+        let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme").await;
 
         Self {
             validator,
@@ -126,10 +126,10 @@ impl TestSuite {
     async fn create_swap_application(&mut self) {
         let liquidity_rfq_bytecode_id = self
             .swap_chain
-            .publish_bytecodes_in("../liquidity-rfq")
+            .publish_bytecode_files_in("../liquidity-rfq")
             .await;
-        let pool_bytecode_id = self.swap_chain.publish_bytecodes_in("../pool").await;
-        let swap_bytecode_id = self.swap_chain.publish_bytecodes_in("../swap").await;
+        let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
+        let swap_bytecode_id = self.swap_chain.publish_bytecode_files_in("../swap").await;
 
         self.swap_application_id = Some(
             self.swap_chain
@@ -289,10 +289,10 @@ async fn proxy_create_meme_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { memeModuleId }",
+            "query { memeBytecodeId }",
         )
         .await;
-    let expected = json!({"memeModuleId": suite.meme_bytecode_id});
+    let expected = json!({"memeBytecodeId": suite.meme_bytecode_id});
     assert_eq!(response, expected);
 
     meme_user_chain
@@ -362,7 +362,7 @@ async fn proxy_create_meme_test() {
         suite.clone().validator,
     );
 
-    suite.validator.add_chain(meme_chain);
+    suite.validator.add_chain(meme_chain.clone());
 
     meme_chain.handle_received_messages().await;
     proxy_chain.handle_received_messages().await;
@@ -378,10 +378,6 @@ async fn proxy_create_meme_test() {
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
 
-    log::info!(
-        "Swap application: {}",
-        suite.swap_application_id.unwrap().forget_abi()
-    );
     meme_chain
         .register_application(suite.swap_application_id.unwrap())
         .await;
