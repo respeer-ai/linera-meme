@@ -7,14 +7,14 @@ mod state;
 
 use std::sync::Arc;
 
-use abi::swap::pool::PoolAbi;
-use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use abi::swap::pool::{Pool, PoolAbi};
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{linera_base_types::WithServiceAbi, views::View, Service, ServiceRuntime};
 
 use self::state::PoolState;
 
 pub struct PoolService {
-    state: PoolState,
+    state: Arc<PoolState>,
     runtime: Arc<ServiceRuntime<Self>>,
 }
 
@@ -32,7 +32,7 @@ impl Service for PoolService {
             .await
             .expect("Failed to load state");
         PoolService {
-            state,
+            state: Arc::new(state),
             runtime: Arc::new(runtime),
         }
     }
@@ -40,11 +40,9 @@ impl Service for PoolService {
     async fn handle_query(&self, request: Request) -> Response {
         let schema = Schema::build(
             QueryRoot {
-                value: *self.state.value.get(),
+                state: self.state.clone(),
             },
-            MutationRoot {
-                runtime: self.runtime.clone(),
-            },
+            EmptyMutation,
             EmptySubscription,
         )
         .finish();
@@ -52,26 +50,14 @@ impl Service for PoolService {
     }
 }
 
-struct MutationRoot {
-    runtime: Arc<ServiceRuntime<PoolService>>,
-}
-
-#[Object]
-impl MutationRoot {
-    async fn increment(&self, value: u64) -> [u8; 0] {
-        self.runtime.schedule_operation(&value);
-        []
-    }
-}
-
 struct QueryRoot {
-    value: u64,
+    state: Arc<PoolState>,
 }
 
 #[Object]
 impl QueryRoot {
-    async fn value(&self) -> &u64 {
-        &self.value
+    async fn pool(&self) -> Pool {
+        self.state.pool.get().as_ref().unwrap().clone()
     }
 }
 

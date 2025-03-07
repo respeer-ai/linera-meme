@@ -82,7 +82,6 @@ pub struct InstantiationArgument {
 
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize, SimpleObject)]
 pub struct Pool {
-    pub id: u64,
     pub token_0: ApplicationId,
     // None means add pair to native token
     pub token_1: Option<ApplicationId>,

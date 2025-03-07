@@ -8,7 +8,7 @@ mod state;
 use std::sync::Arc;
 
 use abi::swap::router::{Pool, SwapAbi};
-use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{MessageId, WithServiceAbi},
     views::View,
@@ -47,25 +47,11 @@ impl Service for SwapService {
                 state: self.state.clone(),
                 runtime: self.runtime.clone(),
             },
-            MutationRoot {
-                runtime: self.runtime.clone(),
-            },
+            EmptyMutation,
             EmptySubscription,
         )
         .finish();
         schema.execute(request).await
-    }
-}
-
-struct MutationRoot {
-    runtime: Arc<ServiceRuntime<SwapService>>,
-}
-
-#[Object]
-impl MutationRoot {
-    async fn increment(&self, value: u64) -> [u8; 0] {
-        self.runtime.schedule_operation(&value);
-        []
     }
 }
 
