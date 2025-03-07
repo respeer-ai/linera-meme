@@ -1,9 +1,10 @@
-use crate::{big_amount::BigAmount, safe_math};
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{Account, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
 };
+use primitive_types::U256;
+use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -119,7 +120,7 @@ impl Share {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize, SimpleObject)]
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Pool {
     pub token_0: ApplicationId,
     // None means add pair to native token
@@ -131,11 +132,13 @@ pub struct Pool {
     pub share: Share,
     pub fee_to: Account,
     pub fee_to_setter: Account,
-    pub price_0_cumulative: BigAmount,
-    pub price_1_cumulative: BigAmount,
+    pub price_0_cumulative: Decimal,
+    pub price_1_cumulative: Decimal,
     pub k_last: Amount,
     pub block_timestamp: Timestamp,
 }
+
+scalar!(Pool);
 
 impl Pool {
     pub fn create(
@@ -163,8 +166,8 @@ impl Pool {
             share: Share::default(),
             fee_to: creator,
             fee_to_setter: creator,
-            price_0_cumulative: BigAmount::default(),
-            price_1_cumulative: BigAmount::default(),
+            price_0_cumulative: Decimal::default(),
+            price_1_cumulative: Decimal::default(),
             k_last: Amount::ZERO,
             block_timestamp,
         };
@@ -179,7 +182,13 @@ impl Pool {
 
     fn calculate_liquidity(&self, amount_0: Amount, amount_1: Amount) -> Amount {
         if self.reserve_0 == Amount::ZERO && self.reserve_1 == Amount::ZERO {
-            return safe_math::mul_then_sqrt(amount_0, amount_1);
+            return Amount::from_attos(
+                U256::from(u128::from(amount_0))
+                    .checked_mul(U256::from(u128::from(amount_1)))
+                    .unwrap()
+                    .integer_sqrt()
+                    .as_u128(),
+            );
         }
 
         let total_supply = self.share.total_supply;
@@ -187,13 +196,29 @@ impl Pool {
         let reserve_1 = self.reserve_1.saturating_add(amount_1);
 
         if total_supply == Amount::ZERO {
-            safe_math::mul_then_sqrt(amount_0, amount_1)
+            Amount::from_attos(
+                U256::from(u128::from(amount_0))
+                    .checked_mul(U256::from(u128::from(amount_1)))
+                    .unwrap()
+                    .integer_sqrt()
+                    .as_u128(),
+            )
         } else {
-            safe_math::mul_then_div(amount_0, total_supply, reserve_0).min(safe_math::mul_then_div(
-                amount_1,
-                total_supply,
-                reserve_1,
-            ))
+            Amount::from_attos(
+                U256::from(u128::from(amount_0))
+                    .checked_mul(U256::from(u128::from(total_supply)))
+                    .unwrap()
+                    .checked_div(U256::from(u128::from(reserve_0)))
+                    .unwrap()
+                    .min(
+                        U256::from(U256::from(u128::from(amount_1)))
+                            .checked_mul(U256::from(u128::from(total_supply)))
+                            .unwrap()
+                            .checked_div(U256::from(u128::from(reserve_1)))
+                            .unwrap(),
+                    )
+                    .as_u128(),
+            )
         }
     }
 
@@ -201,14 +226,24 @@ impl Pool {
         if self.k_last == Amount::ZERO {
             return;
         }
-        let root_k = safe_math::mul_then_sqrt(self.reserve_0, self.reserve_1);
-        let root_k_last = self.k_last;
+        let root_k = U256::from(u128::from(self.reserve_0))
+            .checked_mul(U256::from(u128::from(self.reserve_1)))
+            .unwrap()
+            .integer_sqrt();
+        let root_k_last = U256::from(u128::from(self.k_last));
         if root_k > root_k_last {
-            let denominator = safe_math::mul_then_add(root_k, Amount::from_attos(5), root_k_last);
-            let liquidity = safe_math::mul_then_div(
-                self.share.total_supply,
-                root_k.saturating_sub(root_k_last.into()),
-                denominator,
+            let denominator = root_k
+                .checked_mul(U256::from(5))
+                .unwrap()
+                .checked_add(root_k_last)
+                .unwrap();
+            let liquidity = Amount::from_attos(
+                U256::from(u128::from(self.share.total_supply))
+                    .checked_mul(root_k.checked_sub(root_k_last).unwrap())
+                    .unwrap()
+                    .checked_div(denominator)
+                    .unwrap()
+                    .as_u128(),
             );
             if liquidity > Amount::ZERO {
                 self.share.mint(self.fee_to, liquidity);
@@ -233,7 +268,13 @@ impl Pool {
         self.reserve_0 = balance_0;
         self.reserve_1 = balance_1;
         self.block_timestamp = block_timestamp;
-        self.k_last = safe_math::mul_then_sqrt(self.reserve_0, self.reserve_1);
+        self.k_last = Amount::from_attos(
+            U256::from(u128::from(self.reserve_0))
+                .checked_mul(U256::from(u128::from(self.reserve_1)))
+                .unwrap()
+                .integer_sqrt()
+                .as_u128(),
+        );
     }
 
     fn mint_shares(&mut self, amount_0: Amount, amount_1: Amount, to: Account) {
@@ -242,27 +283,37 @@ impl Pool {
         self.share.mint(to, liquidity);
     }
 
-    pub fn calculate_price_cumulative_pair(&self, time_elapsed: u128) -> (BigAmount, BigAmount) {
+    pub fn calculate_price_cumulative_pair(&self, time_elapsed: u128) -> (Decimal, Decimal) {
         let mut price_0_cumulative = self.price_0_cumulative.clone();
         let mut price_1_cumulative = self.price_1_cumulative.clone();
 
+        let reserve_0 = Decimal::from_str(&format!("{}", self.reserve_0)).unwrap();
+        let reserve_1 = Decimal::from_str(&format!("{}", self.reserve_1)).unwrap();
+
         if time_elapsed > 0 && self.reserve_0 > Amount::ZERO && self.reserve_1 > Amount::ZERO {
-            price_0_cumulative =
-                self.price_0_cumulative
-                    .clone()
-                    .add(safe_math::div_then_mul_to_big_amount(
-                        self.reserve_1,
-                        self.reserve_0,
-                        Amount::from_attos(time_elapsed),
-                    ));
-            price_1_cumulative =
-                self.price_1_cumulative
-                    .clone()
-                    .add(safe_math::div_then_mul_to_big_amount(
-                        self.reserve_0,
-                        self.reserve_1,
-                        Amount::from_attos(time_elapsed),
-                    ));
+            let time_elapsed = Decimal::from(time_elapsed);
+            price_0_cumulative = self
+                .price_0_cumulative
+                .clone()
+                .checked_add(
+                    reserve_1
+                        .checked_mul(time_elapsed)
+                        .unwrap()
+                        .checked_div(reserve_0)
+                        .unwrap(),
+                )
+                .unwrap();
+            price_1_cumulative = self
+                .price_1_cumulative
+                .clone()
+                .checked_add(
+                    reserve_0
+                        .checked_mul(time_elapsed)
+                        .unwrap()
+                        .checked_div(reserve_1)
+                        .unwrap(),
+                )
+                .unwrap();
         }
         (price_0_cumulative, price_1_cumulative)
     }
@@ -273,6 +324,7 @@ mod tests {
     use linera_sdk::linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainId, Owner,
     };
+    use rust_decimal::prelude::*;
     use std::str::FromStr;
 
     use super::Pool;
@@ -299,7 +351,7 @@ mod tests {
             Some(token_1),
             true,
             Amount::ONE,
-            Amount::ONE.try_mul(21).unwrap(),
+            Amount::from_str("21.2342").unwrap(),
             30,
             5,
             creator,
@@ -309,8 +361,22 @@ mod tests {
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
         assert_eq!(pool.reserve_0, Amount::ONE);
-        assert_eq!(pool.reserve_1, Amount::ONE.try_mul(21).unwrap());
+        assert_eq!(pool.reserve_1, Amount::from_str("21.2342").unwrap());
         assert_eq!(pool.share.total_supply, Amount::ZERO);
+
+        let (price_0_cumulative, price_1_cumulative) = pool.calculate_price_cumulative_pair(1);
+        assert_eq!(
+            price_1_cumulative,
+            Decimal::from_str("0.0470938391839579546203765623").unwrap()
+        );
+        assert_eq!(price_0_cumulative, Decimal::from_str("21.2342").unwrap());
+
+        let (price_0_cumulative, price_1_cumulative) = pool.calculate_price_cumulative_pair(2);
+        assert_eq!(
+            price_1_cumulative,
+            Decimal::from_str("0.0941876783679159092407531247").unwrap()
+        );
+        assert_eq!(price_0_cumulative, Decimal::from_str("42.4684").unwrap());
     }
 
     #[test]
@@ -335,7 +401,7 @@ mod tests {
             Some(token_1),
             false,
             Amount::ONE,
-            Amount::ONE.try_mul(21).unwrap(),
+            Amount::from_str("21.2342").unwrap(),
             30,
             5,
             creator,
@@ -345,10 +411,10 @@ mod tests {
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
         assert_eq!(pool.reserve_0, Amount::ONE);
-        assert_eq!(pool.reserve_1, Amount::ONE.try_mul(21).unwrap());
+        assert_eq!(pool.reserve_1, Amount::from_str("21.2342").unwrap());
 
         // Test initial liquidity
-        let liquidity = Amount::from_attos(4582575694955840006);
+        let liquidity = Amount::from_attos(4608058159355196332);
         assert_eq!(pool.share.total_supply, liquidity);
         assert_eq!(pool.share.shares.contains_key(&creator), true);
         assert_eq!(*pool.share.shares.get(&creator).unwrap(), liquidity);
