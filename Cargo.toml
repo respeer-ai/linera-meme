@@ -23,6 +23,7 @@ log = "0.4.21"
 env_logger = "0.9"
 primitive-types = { version = "^0.13.1", features = ["serde"] }
 rust_decimal = "1.36"
+getrandom = { version = "0.2", features = ["js"] }
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }

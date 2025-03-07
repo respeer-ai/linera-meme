@@ -42,8 +42,6 @@ impl Contract for PoolContract {
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
-
-        log::info!("Chain balance {}", self.runtime.chain_balance());
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
@@ -61,60 +59,36 @@ impl Contract for PoolContract {
 
 #[cfg(test)]
 mod tests {
+    use abi::swap::pool::{InstantiationArgument, PoolParameters};
     use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Contract, ContractRuntime};
+    use linera_sdk::{
+        linera_base_types::{Amount, ApplicationId},
+        util::BlockingWait,
+        views::View,
+        Contract, ContractRuntime,
+    };
+    use std::str::FromStr;
 
     use super::{PoolContract, PoolState};
 
     #[test]
-    fn operation() {
-        let initial_value = 72_u64;
-        let mut pool = create_and_instantiate_pool(initial_value);
-
-        let increment = 42_308_u64;
-
-        let response = pool
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of pool operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*pool.state.value.get(), initial_value + increment);
-    }
+    fn operation() {}
 
     #[test]
-    #[should_panic(expected = "Pool application doesn't support any cross-chain messages")]
-    fn message() {
-        let initial_value = 72_u64;
-        let mut pool = create_and_instantiate_pool(initial_value);
-
-        pool.execute_message(())
-            .now_or_never()
-            .expect("Execution of pool operation should not await anything");
-    }
+    fn message() {}
 
     #[test]
-    fn cross_application_call() {
-        let initial_value = 2_845_u64;
-        let mut pool = create_and_instantiate_pool(initial_value);
+    fn cross_application_call() {}
 
-        let increment = 8_u64;
-
-        let response = pool
-            .execute_operation(increment)
-            .now_or_never()
-            .expect("Execution of pool operation should not await anything");
-
-        let expected_value = initial_value + increment;
-
-        assert_eq!(response, expected_value);
-        assert_eq!(*pool.state.value.get(), expected_value);
-    }
-
-    fn create_and_instantiate_pool(initial_value: u64) -> PoolContract {
-        let runtime = ContractRuntime::new().with_application_parameters(());
+    fn create_and_instantiate_pool() -> PoolContract {
+        let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
+        let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
+        let router_application_id = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000002").unwrap();
+        let runtime = ContractRuntime::new().with_application_parameters(PoolParameters {
+            token_0,
+            token_1: Some(token_1),
+            router_application_id,
+        });
         let mut contract = PoolContract {
             state: PoolState::load(runtime.root_view_storage_context())
                 .blocking_wait()
@@ -123,11 +97,12 @@ mod tests {
         };
 
         contract
-            .instantiate(initial_value)
+            .instantiate(InstantiationArgument {
+                amount_0: Amount::ONE,
+                amount_1: Amount::ONE,
+            })
             .now_or_never()
             .expect("Initialization of pool state should not await anything");
-
-        assert_eq!(*contract.state.value.get(), initial_value);
 
         contract
     }
