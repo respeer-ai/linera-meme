@@ -178,14 +178,22 @@ impl Pool {
     }
 
     fn calculate_liquidity(&self, amount_0: Amount, amount_1: Amount) -> Amount {
+        if self.reserve_0 == Amount::ZERO && self.reserve_1 == Amount::ZERO {
+            return safe_math::mul_then_sqrt(amount_0, amount_1);
+        }
+
         let total_supply = self.share.total_supply;
+        let reserve_0 = self.reserve_0.saturating_add(amount_0);
+        let reserve_1 = self.reserve_1.saturating_add(amount_1);
 
         if total_supply == Amount::ZERO {
             safe_math::mul_then_sqrt(amount_0, amount_1)
         } else {
-            safe_math::mul_then_div(amount_0, total_supply, self.reserve_0).min(
-                safe_math::mul_then_div(amount_1, total_supply, self.reserve_1),
-            )
+            safe_math::mul_then_div(amount_0, total_supply, reserve_0).min(safe_math::mul_then_div(
+                amount_1,
+                total_supply,
+                reserve_1,
+            ))
         }
     }
 
@@ -270,7 +278,9 @@ mod tests {
     use super::Pool;
 
     #[test]
-    fn create_pool_with_virtual_initial_liquidity() {
+    fn test_pool_with_virtual_initial_liquidity() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
         let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
         let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
         let owner =
@@ -289,7 +299,7 @@ mod tests {
             Some(token_1),
             true,
             Amount::ONE,
-            Amount::ONE.try_mul(10).unwrap(),
+            Amount::ONE.try_mul(21).unwrap(),
             30,
             5,
             creator,
@@ -299,6 +309,48 @@ mod tests {
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
         assert_eq!(pool.reserve_0, Amount::ONE);
-        assert_eq!(pool.reserve_1, Amount::ONE.try_mul(10).unwrap());
+        assert_eq!(pool.reserve_1, Amount::ONE.try_mul(21).unwrap());
+        assert_eq!(pool.share.total_supply, Amount::ZERO);
+    }
+
+    #[test]
+    fn test_pool_with_real_initial_liquidity() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
+        let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
+        let owner =
+            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
+                .unwrap();
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap();
+        let creator = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
+
+        let pool = Pool::create(
+            token_0,
+            Some(token_1),
+            false,
+            Amount::ONE,
+            Amount::ONE.try_mul(21).unwrap(),
+            30,
+            5,
+            creator,
+            0.into(),
+        );
+
+        assert_eq!(pool.token_0, token_0);
+        assert_eq!(pool.token_1, Some(token_1));
+        assert_eq!(pool.reserve_0, Amount::ONE);
+        assert_eq!(pool.reserve_1, Amount::ONE.try_mul(21).unwrap());
+
+        // Test initial liquidity
+        let liquidity = Amount::from_attos(4582575694955840006);
+        assert_eq!(pool.share.total_supply, liquidity);
+        assert_eq!(pool.share.shares.contains_key(&creator), true);
+        assert_eq!(*pool.share.shares.get(&creator).unwrap(), liquidity);
     }
 }
