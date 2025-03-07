@@ -17,17 +17,52 @@ impl ServiceAbi for PoolAbi {
     type Query = Request;
     type QueryResponse = Response;
 }
-
-#[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
-    Approved { token: ApplicationId },
-    Rejected { token: ApplicationId },
+    // Only for application creator to create pool with virtual initial liquidity
+    CreatePool {
+        token_0: ApplicationId,
+        // None means add pair to native token
+        token_1: Option<ApplicationId>,
+        // Actual deposited initial liquidity
+        // New listed token must not be 0
+        amount_0: Amount,
+        amount_1: Amount,
+    },
+    SetFeeTo {
+        account: Account,
+    },
+    SetFeeToSetter {
+        account: Account,
+    },
+    // TODO: AddLiquidity / RemoveLiquidity / Swap
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub enum PoolResponse {
     #[default]
     Ok,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum PoolMessage {
+    // Only for application creator to create pool with virtual initial liquidity
+    CreatePool {
+        token_0: ApplicationId,
+        // None means add pair to native token
+        token_1: Option<ApplicationId>,
+        amount_0_initial: Amount,
+        amount_1_initial: Amount,
+        amount_0_virtual: Amount,
+        amount_1_virtual: Amount,
+        block_timestamp: Timestamp,
+    },
+    SetFeeTo {
+        account: Account,
+    },
+    SetFeeToSetter {
+        account: Account,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
