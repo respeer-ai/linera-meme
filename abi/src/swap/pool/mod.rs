@@ -151,6 +151,7 @@ impl Pool {
     ) -> Self {
         assert!(amount_0 > Amount::ZERO, "Invalid amount");
         assert!(amount_1 > Amount::ZERO, "Invalid amount");
+        assert!(Some(token_0) != token_1, "Invalid token pair");
 
         let mut pool = Pool {
             token_0,
@@ -261,6 +262,43 @@ impl Pool {
 
 #[cfg(test)]
 mod tests {
+    use linera_sdk::linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainId, Owner,
+    };
+    use std::str::FromStr;
+
+    use super::Pool;
+
     #[test]
-    fn create_pool() {}
+    fn create_pool_with_virtual_initial_liquidity() {
+        let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
+        let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
+        let owner =
+            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
+                .unwrap();
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap();
+        let creator = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
+
+        let pool = Pool::create(
+            token_0,
+            Some(token_1),
+            true,
+            Amount::ONE,
+            Amount::ONE.try_mul(10).unwrap(),
+            30,
+            5,
+            creator,
+            0.into(),
+        );
+
+        assert_eq!(pool.token_0, token_0);
+        assert_eq!(pool.token_1, Some(token_1));
+        assert_eq!(pool.reserve_0, Amount::ONE);
+        assert_eq!(pool.reserve_1, Amount::ONE.try_mul(10).unwrap());
+    }
 }
