@@ -369,7 +369,9 @@ impl SwapContract {
             close_chain: vec![router_application_id],
             change_application_permissions: vec![router_application_id],
         };
-        Ok(self.runtime.open_chain(ownership, permissions, Amount::ONE))
+        Ok(self
+            .runtime
+            .open_chain(ownership, permissions, OPEN_CHAIN_FEE_BUDGET))
     }
 
     async fn request_liquidity_funds(
@@ -398,7 +400,12 @@ impl SwapContract {
         Ok(())
     }
 
-    fn fund_swap_application(&mut self, from_owner: AccountOwner, amount: Amount) {
+    fn fund_swap_creation_chain(
+        &mut self,
+        from_owner: AccountOwner,
+        to_owner: Option<AccountOwner>,
+        amount: Amount,
+    ) {
         let chain_id = self.runtime.application_id().creation.chain_id;
         let application_id = self.runtime.application_id().forget_abi();
 
@@ -419,12 +426,13 @@ impl SwapContract {
         assert!(from_owner_balance <= owner_balance, "Insufficient balance");
         assert!(from_chain_balance <= chain_balance, "Insufficient balance");
 
+        // TODO: should we transfer to swap application directly ? SECURITY
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
                 Some(from_owner),
                 Account {
                     chain_id,
-                    owner: None,
+                    owner: to_owner,
                 },
                 from_owner_balance,
             );
@@ -434,7 +442,7 @@ impl SwapContract {
                 None,
                 Account {
                     chain_id,
-                    owner: None,
+                    owner: to_owner,
                 },
                 from_chain_balance,
             );
@@ -459,16 +467,15 @@ impl SwapContract {
 
         // Here allowance is already approved, so just transfer native amount then create pool
         // chain and application
-        let mut amount = OPEN_CHAIN_FEE_BUDGET;
-        if !virtual_liquidity {
-            amount = amount_1.try_add(amount)?;
-        }
         // This call should always be from token application on creation chain, and the funds is already deposit to swap application of current chain
         // We cannot transfer from meme application here due to security restrict. We must transfer
         // to swap application of current chain then transfer to swap application creation chain to
         // add liquidity
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        self.fund_swap_application(application, amount);
+        self.fund_swap_creation_chain(application, None, OPEN_CHAIN_FEE_BUDGET);
+        if !virtual_liquidity {
+            self.fund_swap_creation_chain(application, Some(application), amount_1);
+        }
 
         self.runtime
             .prepare_message(SwapMessage::InitializeLiquidity {
@@ -734,6 +741,8 @@ impl SwapContract {
         if let Some(token_1) = token_1 {
             panic!("Not supported pair with meme");
         } else if !virtual_initial_liquidity {
+            // This message may be authenticated by other user who is not the owner of swap
+            // creation chain
             let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
             self.runtime
                 .transfer(Some(application), pool_application, amount_1);
