@@ -1,12 +1,14 @@
 use crate::store_type::StoreType;
-use async_graphql::{scalar, InputObject, Request, Response};
+use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{Account, Amount, ApplicationId, ContractAbi, CryptoHash, ServiceAbi},
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
+#[derive(
+    Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject, SimpleObject,
+)]
 pub struct Metadata {
     pub logo_store_type: StoreType,
     pub logo: String,
@@ -24,7 +26,9 @@ pub struct Liquidity {
     pub native_amount: Amount,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
+#[derive(
+    Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject, SimpleObject,
+)]
 pub struct Meme {
     pub initial_supply: Amount,
     pub total_supply: Amount,

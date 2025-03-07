@@ -331,7 +331,9 @@ async fn virtual_liquidity_native_test() {
         suite.initial_liquidity,
     );
 
-    // Add liquidity
+    // TODO: check pool liquidity
+    // TODO: Add liquidity
+    // TODO: Remove liquidity
 }
 
 #[tokio::test(flavor = "multi_thread")]
