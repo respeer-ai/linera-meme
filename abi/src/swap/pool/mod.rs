@@ -72,7 +72,7 @@ pub enum PoolMessage {
 pub struct PoolParameters {
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
-    pub router_application_id: ApplicationId,
+    pub virtual_initial_liquidity: bool,
 }
 
 scalar!(PoolParameters);
@@ -81,6 +81,9 @@ scalar!(PoolParameters);
 pub struct InstantiationArgument {
     pub amount_0: Amount,
     pub amount_1: Amount,
+    pub pool_fee_percent: u16,
+    pub protocol_fee_percent: u16,
+    pub router_application_id: ApplicationId,
 }
 
 // Pool won't touch anything of runtime. Before functions of Pool are called, all action which need

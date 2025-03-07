@@ -9,7 +9,7 @@ use abi::swap::pool::{
     InstantiationArgument, PoolAbi, PoolOperation, PoolParameters, PoolResponse,
 };
 use linera_sdk::{
-    linera_base_types::WithContractAbi,
+    linera_base_types::{Account, AccountOwner, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -41,7 +41,12 @@ impl Contract for PoolContract {
 
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
-        self.runtime.application_parameters();
+        let parameters = self.runtime.application_parameters();
+
+        let creator = self.owner_account();
+        let timestamp = self.runtime.system_time();
+        self.state
+            .instantiate(argument, parameters, creator, timestamp);
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
@@ -54,6 +59,18 @@ impl Contract for PoolContract {
 
     async fn store(mut self) {
         self.state.save().await.expect("Failed to save state");
+    }
+}
+
+impl PoolContract {
+    fn owner_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.chain_id(),
+            owner: match self.runtime.authenticated_signer() {
+                Some(owner) => Some(AccountOwner::User(owner)),
+                _ => None,
+            },
+        }
     }
 }
 
@@ -87,7 +104,7 @@ mod tests {
         let runtime = ContractRuntime::new().with_application_parameters(PoolParameters {
             token_0,
             token_1: Some(token_1),
-            router_application_id,
+            virtual_initial_liquidity: true,
         });
         let mut contract = PoolContract {
             state: PoolState::load(runtime.root_view_storage_context())
@@ -100,6 +117,9 @@ mod tests {
             .instantiate(InstantiationArgument {
                 amount_0: Amount::ONE,
                 amount_1: Amount::ONE,
+                pool_fee_percent: 30,
+                protocol_fee_percent: 5,
+                router_application_id,
             })
             .now_or_never()
             .expect("Initialization of pool state should not await anything");
