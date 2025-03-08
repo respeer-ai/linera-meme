@@ -57,7 +57,7 @@ struct QueryRoot {
 #[Object]
 impl QueryRoot {
     async fn pool(&self) -> Pool {
-        self.state.pool.get().as_ref().unwrap().clone()
+        self.state.pool()
     }
 }
 

@@ -6,13 +6,14 @@
 mod state;
 
 use abi::swap::pool::{
-    InstantiationArgument, PoolAbi, PoolOperation, PoolParameters, PoolResponse,
+    InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, WithContractAbi},
+    linera_base_types::{Account, AccountOwner, Amount, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
+use pool::PoolError;
 
 use self::state::PoolState;
 
@@ -28,7 +29,7 @@ impl WithContractAbi for PoolContract {
 }
 
 impl Contract for PoolContract {
-    type Message = ();
+    type Message = PoolMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = PoolParameters;
 
@@ -46,15 +47,27 @@ impl Contract for PoolContract {
         let creator = self.owner_account();
         let timestamp = self.runtime.system_time();
         self.state
-            .instantiate(argument, parameters, creator, timestamp);
+            .instantiate(argument.clone(), parameters, creator, timestamp);
+
+        self.runtime
+            .prepare_message(PoolMessage::InitializeLiquidity {
+                amount_0: argument.amount_0,
+                amount_1: argument.amount_1,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
         PoolResponse::Ok
     }
 
-    async fn execute_message(&mut self, _message: ()) {
-        panic!("Pool application doesn't support any cross-chain messages");
+    async fn execute_message(&mut self, message: PoolMessage) {
+        match message {
+            PoolMessage::InitializeLiquidity { amount_0, amount_1 } => self
+                .on_msg_initialize_liquidity(amount_0, amount_1)
+                .expect("Failed MSG: initialize liquidity"),
+        }
     }
 
     async fn store(mut self) {
@@ -63,6 +76,12 @@ impl Contract for PoolContract {
 }
 
 impl PoolContract {
+    fn virtual_initial_liquidity(&mut self) -> bool {
+        self.runtime
+            .application_parameters()
+            .virtual_initial_liquidity
+    }
+
     fn owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
@@ -72,14 +91,26 @@ impl PoolContract {
             },
         }
     }
+
+    fn on_msg_initialize_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+    ) -> Result<(), PoolError> {
+        let timestamp = self.runtime.system_time();
+        let virtual_liquidity = self.virtual_initial_liquidity();
+        self.state
+            .initialize_liquidity(amount_0, amount_1, virtual_liquidity, timestamp);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use abi::swap::pool::{InstantiationArgument, PoolParameters};
+    use abi::swap::pool::{InstantiationArgument, PoolAbi, PoolMessage, PoolParameters};
     use futures::FutureExt as _;
     use linera_sdk::{
-        linera_base_types::{Amount, ApplicationId},
+        linera_base_types::{Amount, ApplicationId, ChainId, Owner},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -88,8 +119,16 @@ mod tests {
 
     use super::{PoolContract, PoolState};
 
-    #[test]
-    fn operation() {}
+    #[tokio::test(flavor = "multi_thread")]
+    async fn create_pool_with_liquidity() {
+        let mut pool = create_and_instantiate_pool();
+
+        pool.execute_message(PoolMessage::InitializeLiquidity {
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+        })
+        .await;
+    }
 
     #[test]
     fn message() {}
@@ -98,14 +137,28 @@ mod tests {
     fn cross_application_call() {}
 
     fn create_and_instantiate_pool() -> PoolContract {
+        let _ = env_logger::builder().is_test(true).try_init();
+
         let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
         let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
         let router_application_id = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000002").unwrap();
-        let runtime = ContractRuntime::new().with_application_parameters(PoolParameters {
-            token_0,
-            token_1: Some(token_1),
-            virtual_initial_liquidity: true,
-        });
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap();
+        let application_id = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000005").unwrap().with_abi::<PoolAbi>();
+        let owner =
+            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
+                .unwrap();
+        let runtime = ContractRuntime::new()
+            .with_application_parameters(PoolParameters {
+                token_0,
+                token_1: Some(token_1),
+                virtual_initial_liquidity: true,
+            })
+            .with_chain_id(chain_id)
+            .with_application_id(application_id)
+            .with_system_time(0.into())
+            .with_authenticated_signer(owner);
         let mut contract = PoolContract {
             state: PoolState::load(runtime.root_view_storage_context())
                 .blocking_wait()

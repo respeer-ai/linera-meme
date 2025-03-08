@@ -22,7 +22,6 @@ impl ServiceAbi for PoolAbi {
 }
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
-    // Only for application creator to create pool with virtual initial liquidity
     CreatePool {
         token_0: ApplicationId,
         // None means add pair to native token
@@ -38,7 +37,15 @@ pub enum PoolOperation {
     SetFeeToSetter {
         account: Account,
     },
-    // TODO: AddLiquidity / RemoveLiquidity / Swap
+    // TODO: AddLiquidity / RemoveLiquidity
+    Swap {
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -49,23 +56,7 @@ pub enum PoolResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
-    // Only for application creator to create pool with virtual initial liquidity
-    CreatePool {
-        token_0: ApplicationId,
-        // None means add pair to native token
-        token_1: Option<ApplicationId>,
-        amount_0_initial: Amount,
-        amount_1_initial: Amount,
-        amount_0_virtual: Amount,
-        amount_1_virtual: Amount,
-        block_timestamp: Timestamp,
-    },
-    SetFeeTo {
-        account: Account,
-    },
-    SetFeeToSetter {
-        account: Account,
-    },
+    InitializeLiquidity { amount_0: Amount, amount_1: Amount },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -155,8 +146,6 @@ impl Pool {
         creator: Account,
         block_timestamp: Timestamp,
     ) -> Self {
-        assert!(amount_0 > Amount::ZERO, "Invalid amount");
-        assert!(amount_1 > Amount::ZERO, "Invalid amount");
         assert!(Some(token_0) != token_1, "Invalid token pair");
 
         let mut pool = Pool {
@@ -254,14 +243,19 @@ impl Pool {
         }
     }
 
-    fn liquid(&mut self, amount_0: Amount, amount_1: Amount, block_timestamp: Timestamp) {
+    // TODO: this should be calculate only once for each block
+    pub fn liquid(&mut self, amount_0: Amount, amount_1: Amount, block_timestamp: Timestamp) {
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+
         let balance_0 = self.reserve_0.saturating_add(amount_0);
         let balance_1 = self.reserve_1.saturating_add(amount_1);
 
         let time_elapsed = u128::from(
             block_timestamp
                 .delta_since(self.block_timestamp)
-                .as_micros(),
+                .as_duration()
+                .as_secs(),
         );
         if time_elapsed > 0 && self.reserve_0 > Amount::ZERO && self.reserve_1 > Amount::ZERO {
             (self.price_0_cumulative, self.price_1_cumulative) =
@@ -280,7 +274,10 @@ impl Pool {
         );
     }
 
-    fn mint_shares(&mut self, amount_0: Amount, amount_1: Amount, to: Account) {
+    pub fn mint_shares(&mut self, amount_0: Amount, amount_1: Amount, to: Account) {
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+
         self.mint_fee();
         let liquidity = self.calculate_liquidity(amount_0, amount_1);
         self.share.mint(to, liquidity);
@@ -363,9 +360,9 @@ mod tests {
 
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
+        assert_eq!(pool.share.total_supply, Amount::ZERO);
         assert_eq!(pool.reserve_0, Amount::ONE);
         assert_eq!(pool.reserve_1, Amount::from_str("21.2342").unwrap());
-        assert_eq!(pool.share.total_supply, Amount::ZERO);
 
         let (price_0_cumulative, price_1_cumulative) = pool.calculate_price_cumulative_pair(1);
         assert_eq!(
