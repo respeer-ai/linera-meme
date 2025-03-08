@@ -9,7 +9,7 @@ use abi::swap::pool::{
     InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, WithContractAbi},
+    linera_base_types::{Account, AccountOwner, Amount, Timestamp, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -51,7 +51,26 @@ impl Contract for PoolContract {
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
-        PoolResponse::Ok
+        match operation {
+            PoolOperation::Swap {
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            } => self
+                .on_op_swap(
+                    amount_0_in,
+                    amount_1_in,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    block_timestamp,
+                )
+                .expect("Failed OP: swap"),
+            _ => todo!(),
+        }
     }
 
     async fn execute_message(&mut self, message: PoolMessage) {}
@@ -76,6 +95,18 @@ impl PoolContract {
                 _ => None,
             },
         }
+    }
+
+    fn on_op_swap(
+        &mut self,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<PoolResponse, PoolError> {
+        Ok(PoolResponse::Ok)
     }
 }
 
