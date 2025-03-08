@@ -5,11 +5,14 @@
 
 mod state;
 
-use abi::swap::pool::{
-    InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
+use abi::{
+    meme::{MemeAbi, MemeOperation},
+    swap::pool::{
+        InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
+    },
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, Timestamp, WithContractAbi},
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -51,6 +54,17 @@ impl Contract for PoolContract {
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
+        // Pool application should be able to call from any chain, authorize funds on caller chain, then swap on creation chain
+        // It should not be called from another application, it should be only called from user
+        assert!(
+            self.runtime.authenticated_signer().is_some(),
+            "Invalid signer"
+        );
+        assert!(
+            self.runtime.authenticated_caller_id().is_none(),
+            "Invalid caller"
+        );
+
         match operation {
             PoolOperation::Swap {
                 amount_0_in,
@@ -73,7 +87,36 @@ impl Contract for PoolContract {
         }
     }
 
-    async fn execute_message(&mut self, message: PoolMessage) {}
+    async fn execute_message(&mut self, message: PoolMessage) {
+        match message {
+            // Executed on caller chain of Approve
+            PoolMessage::FundsApproved { token } => self
+                .on_msg_funds_approved(token)
+                .expect("Failed MSG: funds approved"),
+            PoolMessage::FundsRejected { token } => self
+                .on_msg_funds_rejected(token)
+                .expect("Failed MSG: funds approved"),
+            PoolMessage::Swap {
+                origin,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            } => self
+                .on_msg_swap(
+                    origin,
+                    amount_0_in,
+                    amount_1_in,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    block_timestamp,
+                )
+                .expect("Failed MSG: swap"),
+        }
+    }
 
     async fn store(mut self) {
         self.state.save().await.expect("Failed to save state");
@@ -97,6 +140,74 @@ impl PoolContract {
         }
     }
 
+    fn application_creation_account(&self, application_id: ApplicationId) -> Account {
+        Account {
+            chain_id: application_id.creation.chain_id,
+            owner: Some(AccountOwner::Application(application_id)),
+        }
+    }
+
+    fn application_chain_account(&mut self, application_id: ApplicationId) -> Account {
+        Account {
+            chain_id: self.runtime.chain_id(),
+            owner: Some(AccountOwner::Application(application_id)),
+        }
+    }
+
+    fn approve_token_liquidity_funds(&mut self, token: ApplicationId, amount: Amount) {
+        let chain_id = self.runtime.chain_id();
+        let application_id = self.runtime.application_id().forget_abi();
+
+        let call = MemeOperation::Approve {
+            spender: self.application_creation_account(application_id),
+            amount,
+        };
+
+        let _ = self
+            .runtime
+            .call_application(true, token.with_abi::<MemeAbi>(), &call);
+    }
+
+    fn approve_token_0_liquidity_funds(&mut self, amount: Amount) {
+        let token_0 = self.state.token_0();
+        self.approve_token_liquidity_funds(token_0, amount);
+    }
+
+    fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
+        let chain_id = self.runtime.application_id().creation.chain_id;
+        let application_id = self.runtime.application_id().forget_abi();
+        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let application = Account {
+            chain_id,
+            owner: Some(AccountOwner::Application(application_id)),
+        };
+
+        let owner_balance = self.runtime.owner_balance(owner);
+        let chain_balance = self.runtime.chain_balance();
+
+        let from_owner_balance = if amount <= owner_balance {
+            amount
+        } else {
+            owner_balance
+        };
+        let from_chain_balance = if amount <= owner_balance {
+            Amount::ZERO
+        } else {
+            amount.try_sub(owner_balance).expect("Invalid amount")
+        };
+
+        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
+        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+
+        if from_owner_balance > Amount::ZERO {
+            self.runtime
+                .transfer(Some(owner), application, from_owner_balance);
+        }
+        if from_chain_balance > Amount::ZERO {
+            self.runtime.transfer(None, application, from_chain_balance);
+        }
+    }
+
     fn on_op_swap(
         &mut self,
         amount_0_in: Option<Amount>,
@@ -106,7 +217,65 @@ impl PoolContract {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     ) -> Result<PoolResponse, PoolError> {
+        assert!(
+            amount_0_in.is_some() && amount_1_in.is_some(),
+            "Invalid amount"
+        );
+
+        // 1: Authorize funds of token_0
+        if let Some(amount_0_in) = amount_0_in {
+            self.approve_token_0_liquidity_funds(amount_0_in);
+            return Ok(PoolResponse::Ok);
+        }
+
+        let Some(amount) = amount_1_in else {
+            panic!("Invalid amount");
+        };
+        if let Some(token_1) = self.state.token_1() {
+            self.approve_token_liquidity_funds(token_1, amount);
+            return Ok(PoolResponse::Ok);
+        }
+
+        // Should transfer back to origin if amount requirement don't satisfied
+        self.fund_pool_application_creation_chain(amount);
+
+        let origin = self.owner_account();
+        self.runtime
+            .prepare_message(PoolMessage::Swap {
+                origin,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+
+        // 2: Authorize funds of token_1, or transfer native funds (will be done in message)
         Ok(PoolResponse::Ok)
+    }
+
+    fn on_msg_funds_approved(&mut self, token: ApplicationId) -> Result<(), PoolError> {
+        Ok(())
+    }
+
+    fn on_msg_funds_rejected(&mut self, token: ApplicationId) -> Result<(), PoolError> {
+        Ok(())
+    }
+
+    fn on_msg_swap(
+        &mut self,
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<(), PoolError> {
+        Ok(())
     }
 }
 

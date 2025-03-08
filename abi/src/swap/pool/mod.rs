@@ -39,6 +39,7 @@ pub enum PoolOperation {
     },
     // TODO: AddLiquidity / RemoveLiquidity
     Swap {
+        // Used to refund
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,
         amount_0_out_min: Option<Amount>,
@@ -56,7 +57,22 @@ pub enum PoolResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
-    InitializeLiquidity { amount_0: Amount, amount_1: Amount },
+    FundsApproved {
+        token: ApplicationId,
+    },
+    FundsRejected {
+        token: ApplicationId,
+    },
+    Swap {
+        // Used to refund
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
