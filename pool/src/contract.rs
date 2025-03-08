@@ -48,27 +48,13 @@ impl Contract for PoolContract {
         let timestamp = self.runtime.system_time();
         self.state
             .instantiate(argument.clone(), parameters, creator, timestamp);
-
-        self.runtime
-            .prepare_message(PoolMessage::InitializeLiquidity {
-                amount_0: argument.amount_0,
-                amount_1: argument.amount_1,
-            })
-            .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
         PoolResponse::Ok
     }
 
-    async fn execute_message(&mut self, message: PoolMessage) {
-        match message {
-            PoolMessage::InitializeLiquidity { amount_0, amount_1 } => self
-                .on_msg_initialize_liquidity(amount_0, amount_1)
-                .expect("Failed MSG: initialize liquidity"),
-        }
-    }
+    async fn execute_message(&mut self, message: PoolMessage) {}
 
     async fn store(mut self) {
         self.state.save().await.expect("Failed to save state");
@@ -91,18 +77,6 @@ impl PoolContract {
             },
         }
     }
-
-    fn on_msg_initialize_liquidity(
-        &mut self,
-        amount_0: Amount,
-        amount_1: Amount,
-    ) -> Result<(), PoolError> {
-        let timestamp = self.runtime.system_time();
-        let virtual_liquidity = self.virtual_initial_liquidity();
-        self.state
-            .initialize_liquidity(amount_0, amount_1, virtual_liquidity, timestamp);
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -122,12 +96,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn create_pool_with_liquidity() {
         let mut pool = create_and_instantiate_pool();
-
-        pool.execute_message(PoolMessage::InitializeLiquidity {
-            amount_0: Amount::ONE,
-            amount_1: Amount::ONE,
-        })
-        .await;
     }
 
     #[test]
