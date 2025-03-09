@@ -3,7 +3,7 @@
 
 use abi::swap::pool::{InstantiationArgument, Pool, PoolParameters};
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, Timestamp},
+    linera_base_types::{Account, Amount, ApplicationId, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use pool::{FundRequest, FundStatus, PoolError};
@@ -34,8 +34,8 @@ impl PoolState {
             parameters.virtual_initial_liquidity,
             argument.amount_0,
             argument.amount_1,
-            argument.pool_fee_percent,
-            argument.protocol_fee_percent,
+            argument.pool_fee_percent_mul_100,
+            argument.protocol_fee_percent_mul_100,
             owner,
             timestamp,
         )));
@@ -58,6 +58,14 @@ impl PoolState {
 
     pub(crate) fn token_1(&self) -> Option<ApplicationId> {
         self.pool.get().as_ref().unwrap().token_1
+    }
+
+    pub(crate) fn reserve_0(&self) -> Amount {
+        self.pool.get().as_ref().unwrap().reserve_0
+    }
+
+    pub(crate) fn reserve_1(&self) -> Amount {
+        self.pool.get().as_ref().unwrap().reserve_1
     }
 
     pub(crate) fn validate_token(&self, token: ApplicationId) {
@@ -95,5 +103,35 @@ impl PoolState {
         let mut fund_request = self.fund_requests.get(&transfer_id).await?.unwrap();
         fund_request.status = status;
         Ok(self.fund_requests.insert(&transfer_id, fund_request)?)
+    }
+
+    pub(crate) fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, PoolError> {
+        let pool = self.pool.get().as_ref().unwrap();
+        Ok(pool.calculate_swap_amount_0(amount_1)?)
+    }
+
+    pub(crate) fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, PoolError> {
+        let pool = self.pool.get().as_ref().unwrap();
+        Ok(pool.calculate_swap_amount_1(amount_0)?)
+    }
+
+    pub(crate) fn calculate_adjusted_amount_pair(
+        &self,
+        amount_0_out: Amount,
+        amount_1_out: Amount,
+    ) -> Result<(Amount, Amount), PoolError> {
+        let pool = self.pool.get().as_ref().unwrap();
+        Ok(pool.calculate_adjusted_amount_pair(amount_0_out, amount_1_out)?)
+    }
+
+    pub(crate) fn liquid(
+        &mut self,
+        balance_0: Amount,
+        balance_1: Amount,
+        block_timestamp: Timestamp,
+    ) {
+        let mut pool: Pool = self.pool.get().as_ref().unwrap().clone();
+        pool.liquid(balance_0, balance_1, block_timestamp);
+        self.pool.set(Some(pool));
     }
 }

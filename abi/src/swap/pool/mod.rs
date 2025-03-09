@@ -193,6 +193,10 @@ impl Pool {
         if !virtual_initial_liquidity {
             pool.mint_shares(amount_0, amount_1, creator);
         }
+
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+
         pool.liquid(amount_0, amount_1, block_timestamp);
 
         pool
@@ -270,13 +274,7 @@ impl Pool {
     }
 
     // TODO: this should be calculate only once for each block
-    pub fn liquid(&mut self, amount_0: Amount, amount_1: Amount, block_timestamp: Timestamp) {
-        assert!(amount_0 > Amount::ZERO, "Invalid amount");
-        assert!(amount_1 > Amount::ZERO, "Invalid amount");
-
-        let balance_0 = self.reserve_0.saturating_add(amount_0);
-        let balance_1 = self.reserve_1.saturating_add(amount_1);
-
+    pub fn liquid(&mut self, balance_0: Amount, balance_1: Amount, block_timestamp: Timestamp) {
         let time_elapsed = u128::from(
             block_timestamp
                 .delta_since(self.block_timestamp)
@@ -372,7 +370,7 @@ impl Pool {
         ))
     }
 
-    pub fn calculate_adjust_amount_pair(
+    pub fn calculate_adjusted_amount_pair(
         &self,
         amount_0_out: Amount,
         amount_1_out: Amount,

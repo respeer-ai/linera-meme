@@ -288,14 +288,16 @@ impl PoolContract {
         Ok(PoolResponse::Ok)
     }
 
+    fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
+        let call = MemeOperation::Transfer { to, amount };
+        let _ = self
+            .runtime
+            .call_application(true, token.with_abi::<MemeAbi>(), &call);
+    }
+
     fn transfer_meme_to_creation_chain_application(&mut self, fund_request: &FundRequest) {
-        let call = MemeOperation::Transfer {
-            to: self.application_creation_account(),
-            amount: fund_request.amount_in,
-        };
-        let _ =
-            self.runtime
-                .call_application(true, fund_request.token.with_abi::<MemeAbi>(), &call);
+        let application = self.application_creation_account();
+        self.transfer_meme(fund_request.token, application, fund_request.amount_in);
     }
 
     fn swap_fund_success(&mut self, fund_request: &FundRequest) {
@@ -370,8 +372,60 @@ impl PoolContract {
     ) -> Result<(), PoolError> {
         // Here we already funded
         // 1: Calculate pair token amount
+        let amount_0_out = if let Some(amount_1_in) = amount_1_in {
+            self.state.calculate_swap_amount_0(amount_1_in)?
+        } else {
+            Amount::ZERO
+        };
+        if let Some(amount_0_out_min) = amount_0_out_min {
+            if amount_0_out < amount_0_out_min {
+                return Err(PoolError::InvalidAmount);
+            }
+        }
+
+        let amount_1_out = if let Some(amount_0_in) = amount_0_in {
+            self.state.calculate_swap_amount_1(amount_0_in)?
+        } else {
+            Amount::ZERO
+        };
+        if let Some(amount_1_out_min) = amount_1_out_min {
+            if amount_1_out < amount_1_out_min {
+                return Err(PoolError::InvalidAmount);
+            }
+        }
+
+        if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
+            return Err(PoolError::InvalidAmount);
+        }
+
         // 2: Check liquidity
+        let _ = self
+            .state
+            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)?;
+
         // 3: Transfer token
+        let to = to.unwrap_or(origin);
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+
+        if amount_0_out > Amount::ZERO {
+            self.transfer_meme(self.state.token_0(), to, amount_0_out);
+        }
+        if amount_1_out > Amount::ZERO {
+            if let Some(token_1) = self.state.token_1() {
+                self.transfer_meme(token_1, to, amount_1_out);
+            } else {
+                self.runtime.transfer(Some(application), to, amount_1_out);
+            }
+        }
+
+        // 4: Liquid
+
+        let balance_0 = self.state.reserve_0().saturating_sub(amount_0_out);
+        let balance_1 = self.state.reserve_1().saturating_add(amount_1_out);
+        let timestamp = self.runtime.system_time();
+
+        self.state.liquid(balance_0, balance_1, timestamp);
+
         Ok(())
     }
 }
