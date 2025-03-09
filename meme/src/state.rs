@@ -3,6 +3,7 @@
 
 use abi::meme::{InstantiationArgument, Liquidity, Meme};
 use linera_sdk::{
+    ensure,
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
@@ -123,6 +124,24 @@ impl MemeState {
         *self.swap_application_id.get()
     }
 
+    async fn transfer_(
+        &mut self,
+        from: Account,
+        to: Account,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        let from_balance = self.balances.get(&from).await?.unwrap();
+
+        let to_balance = if let Some(balance) = self.balances.get(&to).await? {
+            balance.try_add(amount)?
+        } else {
+            amount
+        };
+
+        self.balances.insert(&from, from_balance.try_sub(amount)?)?;
+        Ok(self.balances.insert(&to, to_balance)?)
+    }
+
     pub(crate) async fn transfer(
         &mut self,
         from: Account,
@@ -136,14 +155,23 @@ impl MemeState {
 
         assert!(from_balance >= amount, "Insufficient balance");
 
-        let to_balance = if let Some(balance) = self.balances.get(&to).await? {
-            balance.try_add(amount)?
-        } else {
-            amount
-        };
+        self.transfer_(from, to, amount).await
+    }
 
-        self.balances.insert(&from, from_balance.try_sub(amount)?)?;
-        Ok(self.balances.insert(&to, to_balance)?)
+    pub(crate) async fn transfer_ensure(
+        &mut self,
+        from: Account,
+        to: Account,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        ensure!(amount > Amount::ZERO, MemeError::InvalidAmount);
+        ensure!(from != to, MemeError::SelfTransfer);
+
+        let from_balance = self.balances.get(&from).await?.unwrap();
+
+        ensure!(from_balance >= amount, MemeError::InsufficientFunds);
+
+        self.transfer_(from, to, amount).await
     }
 
     pub(crate) async fn approve(

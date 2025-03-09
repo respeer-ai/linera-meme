@@ -83,19 +83,19 @@ impl Contract for PoolContract {
                     block_timestamp,
                 )
                 .expect("Failed OP: swap"),
+            // Executed on caller chain of Approve
+            PoolOperation::FundsSuccess { token } => self
+                .on_op_funds_success(token)
+                .expect("Failed OP: funds success"),
+            PoolOperation::FundsFail { token } => {
+                self.on_op_funds_fail(token).expect("Failed OP: funds fail")
+            }
             _ => todo!(),
         }
     }
 
     async fn execute_message(&mut self, message: PoolMessage) {
         match message {
-            // Executed on caller chain of Approve
-            PoolMessage::FundsApproved { token } => self
-                .on_msg_funds_approved(token)
-                .expect("Failed MSG: funds approved"),
-            PoolMessage::FundsRejected { token } => self
-                .on_msg_funds_rejected(token)
-                .expect("Failed MSG: funds approved"),
             PoolMessage::Swap {
                 origin,
                 amount_0_in,
@@ -154,7 +154,7 @@ impl PoolContract {
         }
     }
 
-    fn approve_token_liquidity_funds(&mut self, token: ApplicationId, amount: Amount) {
+    fn approve_token_funds(&mut self, token: ApplicationId, amount: Amount) {
         let chain_id = self.runtime.chain_id();
         let application_id = self.runtime.application_id().forget_abi();
 
@@ -168,9 +168,9 @@ impl PoolContract {
             .call_application(true, token.with_abi::<MemeAbi>(), &call);
     }
 
-    fn approve_token_0_liquidity_funds(&mut self, amount: Amount) {
+    fn approve_token_0_funds(&mut self, amount: Amount) {
         let token_0 = self.state.token_0();
-        self.approve_token_liquidity_funds(token_0, amount);
+        self.approve_token_funds(token_0, amount);
     }
 
     fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
@@ -224,7 +224,7 @@ impl PoolContract {
 
         // 1: Authorize funds of token_0
         if let Some(amount_0_in) = amount_0_in {
-            self.approve_token_0_liquidity_funds(amount_0_in);
+            self.approve_token_0_funds(amount_0_in);
             return Ok(PoolResponse::Ok);
         }
 
@@ -232,7 +232,7 @@ impl PoolContract {
             panic!("Invalid amount");
         };
         if let Some(token_1) = self.state.token_1() {
-            self.approve_token_liquidity_funds(token_1, amount);
+            self.approve_token_funds(token_1, amount);
             return Ok(PoolResponse::Ok);
         }
 
@@ -257,12 +257,12 @@ impl PoolContract {
         Ok(PoolResponse::Ok)
     }
 
-    fn on_msg_funds_approved(&mut self, token: ApplicationId) -> Result<(), PoolError> {
-        Ok(())
+    fn on_op_funds_success(&mut self, token: ApplicationId) -> Result<PoolResponse, PoolError> {
+        Ok(PoolResponse::Ok)
     }
 
-    fn on_msg_funds_rejected(&mut self, token: ApplicationId) -> Result<(), PoolError> {
-        Ok(())
+    fn on_op_funds_fail(&mut self, token: ApplicationId) -> Result<PoolResponse, PoolError> {
+        Ok(PoolResponse::Ok)
     }
 
     fn on_msg_swap(

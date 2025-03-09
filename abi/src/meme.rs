@@ -2,7 +2,9 @@ use crate::store_type::StoreType;
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{Account, Amount, ApplicationId, ContractAbi, CryptoHash, ServiceAbi},
+    linera_base_types::{
+        Account, Amount, ApplicationId, ContractAbi, CryptoHash, ServiceAbi,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -97,6 +99,10 @@ pub enum MemeOperation {
     Mine {
         nonce: CryptoHash,
     },
+    // Transfer to caller application with response
+    TransferToCaller {
+        amount: Amount,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -132,6 +138,19 @@ pub enum MemeMessage {
         new_owner: Account,
     },
     // Mine is only run on creation chain so we don't need a message
+    // Transfer to caller application with response
+    TransferToCaller {
+        from: Account,
+        amount: Amount,
+        caller: Account,
+    },
+    // Will be run on caller chain
+    TransferToCallerSuccess {
+        application_id: ApplicationId,
+    },
+    TransferToCallerFail {
+        application_id: ApplicationId,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

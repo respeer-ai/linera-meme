@@ -47,6 +47,13 @@ pub enum PoolOperation {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
+    // Called from meme application on pool chain
+    FundsSuccess {
+        token: ApplicationId,
+    },
+    FundsFail {
+        token: ApplicationId,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -57,12 +64,6 @@ pub enum PoolResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
-    FundsApproved {
-        token: ApplicationId,
-    },
-    FundsRejected {
-        token: ApplicationId,
-    },
     Swap {
         // Used to refund
         origin: Account,

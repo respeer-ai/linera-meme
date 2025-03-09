@@ -11,10 +11,15 @@ use abi::{
         InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
         MemeResponse,
     },
-    swap::router::{SwapAbi, SwapOperation},
+    swap::{
+        pool::{PoolAbi, PoolOperation},
+        router::{SwapAbi, SwapOperation},
+    },
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, CryptoHash, Owner, WithContractAbi},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, WithContractAbi,
+    },
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -109,6 +114,9 @@ impl Contract for MemeContract {
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
                 .expect("Failed OP: transfer ownership"),
+            MemeOperation::TransferToCaller { amount } => self
+                .on_op_transfer_to_caller(amount)
+                .expect("Failed OP: transfer to caller"),
             MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
         }
     }
@@ -157,6 +165,20 @@ impl Contract for MemeContract {
                 .on_msg_transfer_ownership(owner, new_owner)
                 .await
                 .expect("Failed MSG: transfer ownership"),
+            MemeMessage::TransferToCaller {
+                from,
+                amount,
+                caller,
+            } => self
+                .on_msg_transfer_to_caller(from, amount, caller)
+                .await
+                .expect("Failed MSG: transfer to caller"),
+            MemeMessage::TransferToCallerSuccess { application_id } => self
+                .on_msg_transfer_to_caller_success(application_id)
+                .expect("Failed MSG: trasnfer to caller success"),
+            MemeMessage::TransferToCallerFail { application_id } => self
+                .on_msg_transfer_to_caller_fail(application_id)
+                .expect("Failed MSG: trasnfer to caller fail"),
         }
     }
 
@@ -429,6 +451,25 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
+    fn on_op_transfer_to_caller(&mut self, amount: Amount) -> Result<MemeResponse, MemeError> {
+        assert!(
+            self.runtime.authenticated_caller_id().is_some(),
+            "Invalid caller"
+        );
+
+        let caller = self.caller_account();
+        let from = self.owner_account();
+        self.runtime
+            .prepare_message(MemeMessage::TransferToCaller {
+                from,
+                amount,
+                caller,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+        Ok(MemeResponse::Ok)
+    }
+
     fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
     }
@@ -540,6 +581,72 @@ impl MemeContract {
         new_owner: Account,
     ) -> Result<(), MemeError> {
         self.state.transfer_ownership(owner, new_owner).await
+    }
+
+    fn notify_caller(&mut self, caller_chain: ChainId, message: MemeMessage) {
+        self.runtime
+            .prepare_message(message)
+            .with_authentication()
+            .send_to(caller_chain);
+    }
+
+    fn transfer_to_caller_success(&mut self, caller: Account) {
+        let Some(AccountOwner::Application(application_id)) = caller.owner else {
+            panic!("Invalid caller");
+        };
+        self.notify_caller(
+            caller.chain_id,
+            MemeMessage::TransferToCallerSuccess { application_id },
+        );
+    }
+
+    fn transfer_to_caller_fail(&mut self, caller: Account) {
+        let Some(AccountOwner::Application(application_id)) = caller.owner else {
+            panic!("Invalid caller");
+        };
+        self.notify_caller(
+            caller.chain_id,
+            MemeMessage::TransferToCallerFail { application_id },
+        );
+    }
+
+    async fn on_msg_transfer_to_caller(
+        &mut self,
+        from: Account,
+        amount: Amount,
+        caller: Account,
+    ) -> Result<(), MemeError> {
+        let _ = match self.state.transfer_ensure(from, caller, amount).await {
+            Ok(_) => self.transfer_to_caller_success(caller),
+            Err(_) => self.transfer_to_caller_fail(caller),
+        };
+        Ok(())
+    }
+
+    fn on_msg_transfer_to_caller_success(
+        &mut self,
+        application_id: ApplicationId,
+    ) -> Result<(), MemeError> {
+        // TODO: how to notify to all types of caller
+        let token = self.runtime.application_id().forget_abi();
+        let call = PoolOperation::FundsSuccess { token };
+        let _ = self
+            .runtime
+            .call_application(true, application_id.with_abi::<PoolAbi>(), &call);
+        Ok(())
+    }
+
+    fn on_msg_transfer_to_caller_fail(
+        &mut self,
+        application_id: ApplicationId,
+    ) -> Result<(), MemeError> {
+        // TODO: how to notify to all types of caller
+        let token = self.runtime.application_id().forget_abi();
+        let call = PoolOperation::FundsFail { token };
+        let _ = self
+            .runtime
+            .call_application(true, application_id.with_abi::<PoolAbi>(), &call);
+        Ok(())
     }
 }
 

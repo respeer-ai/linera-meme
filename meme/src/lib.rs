@@ -21,4 +21,10 @@ pub enum MemeError {
 
     #[error("Invalid owner")]
     InvalidOwner,
+
+    #[error("Invalid amount")]
+    InvalidAmount,
+
+    #[error("Self transfer")]
+    SelfTransfer,
 }
