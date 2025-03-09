@@ -357,6 +357,7 @@ impl PoolContract {
         Ok(PoolResponse::Ok)
     }
 
+    // Always be run on creation chain
     fn on_msg_swap(
         &mut self,
         origin: Account,
@@ -367,6 +368,10 @@ impl PoolContract {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
+        // Here we already funded
+        // 1: Calculate pair token amount
+        // 2: Check liquidity
+        // 3: Transfer token
         Ok(())
     }
 }

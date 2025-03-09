@@ -334,6 +334,64 @@ impl Pool {
         }
         (price_0_cumulative, price_1_cumulative)
     }
+
+    pub fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, PoolError> {
+        if self.reserve_0 <= Amount::ZERO || self.reserve_1 <= Amount::ZERO {
+            return Err(PoolError::InvalidAmount);
+        }
+        Ok(Amount::from_attos(
+            U256::from(u128::from(amount_0))
+                .checked_mul(U256::from(u128::from(self.reserve_1)))
+                .unwrap()
+                .checked_div(U256::from(u128::from(self.reserve_0)))
+                .unwrap(),
+        ))
+    }
+
+    pub fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, PoolError> {
+        if self.reserve_0 <= Amount::ZERO || self.reserve_1 <= Amount::ZERO {
+            return Err(PoolError::InvalidAmount);
+        }
+        Ok(Amount::from_attos(
+            U256::from(u128::from(amount_1))
+                .checked_mul(U256::from(u128::from(self.reserve_0)))
+                .unwrap()
+                .checked_div(U256::from(u128::from(self.reserve_1)))
+                .unwrap(),
+        ))
+    }
+
+    pub fn calculate_adjust_amount_pair(
+        &self,
+        amount_0_out: Amount,
+        amount_1_out: Amount,
+    ) -> Result<(Amount, Amount), PoolError> {
+        let amount_0_in = if self.reserve_0 > amount_0_out {
+            amount_0_out
+        } else {
+            Amount::ZERO
+        };
+        let amount_1_in = if self.reserve_1 > amount_1_out {
+            amount_1_out
+        } else {
+            Amount::ZERO
+        };
+        if amount_0_in <= Amount::ZERO && amount_1_in <= Amount::ZERO {
+            return Err(PoolError::InsufficientLiquidity);
+        }
+        let balance_0_adjusted = self
+            .reserve_0
+            .saturating_sub(base::mul_percent_10000(amount_0_in, self.pool_fee_percent));
+        let balance_1_adjusted = self
+            .reserve_1
+            .saturating_sub(base::mul_percent_10000(amount_1_in, self.pool_fee_percent));
+        if base::mul(balance_0_adjusted, balance_1_adjusted)
+            >= base::mul(self.reserve_0, self.reserve_1)
+        {
+            return Err(PoolError::BrokenK);
+        }
+        Ok((amount_0_in, amount_1_in))
+    }
 }
 
 #[cfg(test)]
