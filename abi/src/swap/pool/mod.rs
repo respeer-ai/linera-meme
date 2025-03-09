@@ -89,8 +89,8 @@ scalar!(PoolParameters);
 pub struct InstantiationArgument {
     pub amount_0: Amount,
     pub amount_1: Amount,
-    pub pool_fee_percent: u16,
-    pub protocol_fee_percent: u16,
+    pub pool_fee_percent_mul_100: u16,
+    pub protocol_fee_percent_mul_100: u16,
     pub router_application_id: ApplicationId,
 }
 
@@ -98,7 +98,16 @@ pub struct InstantiationArgument {
 // to be done in runtime must be already done
 
 #[derive(Debug, Error)]
-pub enum PoolError {}
+pub enum PoolError {
+    #[error("Invalid amount")]
+    InvalidAmount,
+
+    #[error("Borken K")]
+    BrokenK,
+
+    #[error("Insufficient liquidity")]
+    InsufficientLiquidity,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Default, SimpleObject)]
 pub struct Share {
@@ -138,8 +147,8 @@ pub struct Pool {
     pub token_1: Option<ApplicationId>,
     pub reserve_0: Amount,
     pub reserve_1: Amount,
-    pub pool_fee_percent: u16,
-    pub protocol_fee_percent: u16,
+    pub pool_fee_percent_mul_100: u16,
+    pub protocol_fee_percent_mul_100: u16,
     pub share: Share,
     pub fee_to: Account,
     pub fee_to_setter: Account,
@@ -158,8 +167,8 @@ impl Pool {
         virtual_initial_liquidity: bool,
         amount_0: Amount,
         amount_1: Amount,
-        pool_fee_percent: u16,
-        protocol_fee_percent: u16,
+        pool_fee_percent_mul_100: u16,
+        protocol_fee_percent_mul_100: u16,
         creator: Account,
         block_timestamp: Timestamp,
     ) -> Self {
@@ -170,8 +179,8 @@ impl Pool {
             token_1,
             reserve_0: Amount::ZERO,
             reserve_1: Amount::ZERO,
-            pool_fee_percent,
-            protocol_fee_percent,
+            pool_fee_percent_mul_100,
+            protocol_fee_percent_mul_100,
             share: Share::default(),
             fee_to: creator,
             fee_to_setter: creator,
@@ -344,7 +353,8 @@ impl Pool {
                 .checked_mul(U256::from(u128::from(self.reserve_1)))
                 .unwrap()
                 .checked_div(U256::from(u128::from(self.reserve_0)))
-                .unwrap(),
+                .unwrap()
+                .as_u128(),
         ))
     }
 
@@ -357,7 +367,8 @@ impl Pool {
                 .checked_mul(U256::from(u128::from(self.reserve_0)))
                 .unwrap()
                 .checked_div(U256::from(u128::from(self.reserve_1)))
-                .unwrap(),
+                .unwrap()
+                .as_u128(),
         ))
     }
 
@@ -379,17 +390,33 @@ impl Pool {
         if amount_0_in <= Amount::ZERO && amount_1_in <= Amount::ZERO {
             return Err(PoolError::InsufficientLiquidity);
         }
-        let balance_0_adjusted = self
-            .reserve_0
-            .saturating_sub(base::mul_percent_10000(amount_0_in, self.pool_fee_percent));
-        let balance_1_adjusted = self
-            .reserve_1
-            .saturating_sub(base::mul_percent_10000(amount_1_in, self.pool_fee_percent));
-        if base::mul(balance_0_adjusted, balance_1_adjusted)
-            >= base::mul(self.reserve_0, self.reserve_1)
+        let balance_0_adjusted = U256::from(u128::from(self.reserve_0))
+            .checked_sub(
+                // Fee percent already scale to 100 larger
+                U256::from(u128::from(amount_0_in))
+                    .checked_mul(U256::from(self.pool_fee_percent_mul_100))
+                    .unwrap()
+                    .checked_div(U256::from(10000))
+                    .unwrap(),
+            )
+            .unwrap();
+        let balance_1_adjusted = U256::from(u128::from(self.reserve_1))
+            .checked_sub(
+                // Fee percent already scale to 100 larger
+                U256::from(u128::from(amount_1_in))
+                    .checked_mul(U256::from(self.pool_fee_percent_mul_100))
+                    .unwrap()
+                    .checked_div(U256::from(10000))
+                    .unwrap(),
+            )
+            .unwrap();
+        if balance_0_adjusted.checked_mul(balance_1_adjusted)
+            >= U256::from(u128::from(self.reserve_0))
+                .checked_mul(U256::from(u128::from(self.reserve_1)))
         {
             return Err(PoolError::BrokenK);
         }
+
         Ok((amount_0_in, amount_1_in))
     }
 }
