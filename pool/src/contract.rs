@@ -86,6 +86,7 @@ impl Contract for PoolContract {
             // Executed on caller chain of Approve
             PoolOperation::FundsSuccess { transfer_id } => self
                 .on_op_funds_success(transfer_id)
+                .await
                 .expect("Failed OP: funds success"),
             PoolOperation::FundsFail { transfer_id } => self
                 .on_op_funds_fail(transfer_id)
@@ -140,17 +141,21 @@ impl PoolContract {
         }
     }
 
-    fn application_creation_account(&self, application_id: ApplicationId) -> Account {
+    fn application_creation_account(&mut self) -> Account {
         Account {
-            chain_id: application_id.creation.chain_id,
-            owner: Some(AccountOwner::Application(application_id)),
+            chain_id: self.runtime.application_id().creation.chain_id,
+            owner: Some(AccountOwner::Application(
+                self.runtime.application_id().forget_abi(),
+            )),
         }
     }
 
-    fn application_chain_account(&mut self, application_id: ApplicationId) -> Account {
+    fn application_chain_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
-            owner: Some(AccountOwner::Application(application_id)),
+            owner: Some(AccountOwner::Application(
+                self.runtime.application_id().forget_abi(),
+            )),
         }
     }
 
@@ -283,11 +288,65 @@ impl PoolContract {
         Ok(PoolResponse::Ok)
     }
 
-    fn on_op_funds_success(&mut self, transfer_id: u64) -> Result<PoolResponse, PoolError> {
+    fn transfer_meme_to_creation_chain_application(&mut self, fund_request: &FundRequest) {
+        let call = MemeOperation::Transfer {
+            to: self.application_creation_account(),
+            amount: fund_request.amount_in,
+        };
+        let _ =
+            self.runtime
+                .call_application(true, fund_request.token.with_abi::<MemeAbi>(), &call);
+    }
+
+    fn swap_fund_success(&mut self, fund_request: &FundRequest) {
+        // 1: Still on caller chain, need to fund creation chain firstly
+        self.transfer_meme_to_creation_chain_application(fund_request);
+        // 2: Let creation chain do swap
+        self.runtime
+            .prepare_message(PoolMessage::Swap {
+                origin: fund_request.from,
+                amount_0_in: if fund_request.token == self.state.token_0() {
+                    Some(fund_request.amount_in)
+                } else {
+                    None
+                },
+                amount_1_in: if fund_request.token == self.state.token_0() {
+                    None
+                } else {
+                    Some(fund_request.amount_in)
+                },
+                amount_0_out_min: if fund_request.token == self.state.token_0() {
+                    None
+                } else {
+                    fund_request.pair_token_amount_out_min
+                },
+                amount_1_out_min: if fund_request.token == self.state.token_0() {
+                    fund_request.pair_token_amount_out_min
+                } else {
+                    None
+                },
+                to: fund_request.to,
+                block_timestamp: fund_request.block_timestamp,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_id().creation.chain_id);
+    }
+
+    fn add_liquidity_fund_success(&mut self, fund_request: &FundRequest) {}
+
+    async fn on_op_funds_success(&mut self, transfer_id: u64) -> Result<PoolResponse, PoolError> {
         let token = self.runtime.application_id().forget_abi();
         self.state.validate_token(token);
 
-        // let fund_request = self.state.fund_request(transfer_id)?;
+        self.state
+            .update_fund_request(transfer_id, FundStatus::Success)
+            .await?;
+        let fund_request = self.state.fund_request(transfer_id).await?;
+
+        match fund_request.fund_type {
+            FundType::Swap => self.swap_fund_success(&fund_request),
+            FundType::AddLiquidity => self.add_liquidity_fund_success(&fund_request),
+        };
 
         Ok(PoolResponse::Ok)
     }

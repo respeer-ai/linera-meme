@@ -6,7 +6,7 @@ use linera_sdk::{
     linera_base_types::{Account, ApplicationId, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
-use pool::{FundRequest, PoolError};
+use pool::{FundRequest, FundStatus, PoolError};
 
 /// The application state.
 #[derive(RootView)]
@@ -85,5 +85,15 @@ impl PoolState {
 
     pub(crate) async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, PoolError> {
         Ok(self.fund_requests.get(&transfer_id).await?.unwrap())
+    }
+
+    pub(crate) async fn update_fund_request(
+        &mut self,
+        transfer_id: u64,
+        status: FundStatus,
+    ) -> Result<(), PoolError> {
+        let mut fund_request = self.fund_requests.get(&transfer_id).await?.unwrap();
+        fund_request.status = status;
+        Ok(self.fund_requests.insert(&transfer_id, fund_request)?)
     }
 }
