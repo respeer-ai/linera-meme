@@ -49,10 +49,10 @@ pub enum PoolOperation {
     },
     // Called from meme application on pool chain
     FundsSuccess {
-        token: ApplicationId,
+        transfer_id: u64,
     },
     FundsFail {
-        token: ApplicationId,
+        transfer_id: u64,
     },
 }
 

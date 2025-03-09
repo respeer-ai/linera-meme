@@ -16,7 +16,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use pool::PoolError;
+use pool::{FundRequest, FundStatus, FundType, PoolError};
 
 use self::state::PoolState;
 
@@ -84,12 +84,12 @@ impl Contract for PoolContract {
                 )
                 .expect("Failed OP: swap"),
             // Executed on caller chain of Approve
-            PoolOperation::FundsSuccess { token } => self
-                .on_op_funds_success(token)
+            PoolOperation::FundsSuccess { transfer_id } => self
+                .on_op_funds_success(transfer_id)
                 .expect("Failed OP: funds success"),
-            PoolOperation::FundsFail { token } => {
-                self.on_op_funds_fail(token).expect("Failed OP: funds fail")
-            }
+            PoolOperation::FundsFail { transfer_id } => self
+                .on_op_funds_fail(transfer_id)
+                .expect("Failed OP: funds fail"),
             _ => todo!(),
         }
     }
@@ -154,12 +154,12 @@ impl PoolContract {
         }
     }
 
-    fn approve_token_funds(&mut self, token: ApplicationId, amount: Amount) {
+    fn transfer_token_funds(&mut self, token: ApplicationId, amount: Amount, transfer_id: u64) {
         let chain_id = self.runtime.chain_id();
         let application_id = self.runtime.application_id().forget_abi();
 
-        let call = MemeOperation::Approve {
-            spender: self.application_creation_account(application_id),
+        let call = MemeOperation::TransferToCaller {
+            transfer_id,
             amount,
         };
 
@@ -168,9 +168,9 @@ impl PoolContract {
             .call_application(true, token.with_abi::<MemeAbi>(), &call);
     }
 
-    fn approve_token_0_funds(&mut self, amount: Amount) {
+    fn transfer_token_0_funds(&mut self, amount: Amount, transfer_id: u64) {
         let token_0 = self.state.token_0();
-        self.approve_token_funds(token_0, amount);
+        self.transfer_token_funds(token_0, amount, transfer_id);
     }
 
     fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
@@ -222,9 +222,24 @@ impl PoolContract {
             "Invalid amount"
         );
 
+        let origin = self.owner_account();
+
         // 1: Authorize funds of token_0
         if let Some(amount_0_in) = amount_0_in {
-            self.approve_token_0_funds(amount_0_in);
+            let fund_request = FundRequest {
+                from: origin,
+                token: self.state.token_0(),
+                amount_in: amount_0_in,
+                pair_token_amount_out_min: amount_1_out_min,
+                to,
+                block_timestamp,
+                fund_type: FundType::Swap,
+                status: FundStatus::InFlight,
+                next_request: None,
+            };
+
+            let transfer_id = self.state.create_fund_request(fund_request)?;
+            self.transfer_token_0_funds(amount_0_in, transfer_id);
             return Ok(PoolResponse::Ok);
         }
 
@@ -232,14 +247,25 @@ impl PoolContract {
             panic!("Invalid amount");
         };
         if let Some(token_1) = self.state.token_1() {
-            self.approve_token_funds(token_1, amount);
+            let fund_request = FundRequest {
+                from: origin,
+                token: token_1,
+                amount_in: amount,
+                pair_token_amount_out_min: amount_0_out_min,
+                to,
+                block_timestamp,
+                fund_type: FundType::Swap,
+                status: FundStatus::InFlight,
+                next_request: None,
+            };
+
+            let transfer_id = self.state.create_fund_request(fund_request)?;
+            self.transfer_token_funds(token_1, amount, transfer_id);
             return Ok(PoolResponse::Ok);
         }
 
         // Should transfer back to origin if amount requirement don't satisfied
         self.fund_pool_application_creation_chain(amount);
-
-        let origin = self.owner_account();
         self.runtime
             .prepare_message(PoolMessage::Swap {
                 origin,
@@ -257,11 +283,18 @@ impl PoolContract {
         Ok(PoolResponse::Ok)
     }
 
-    fn on_op_funds_success(&mut self, token: ApplicationId) -> Result<PoolResponse, PoolError> {
+    fn on_op_funds_success(&mut self, transfer_id: u64) -> Result<PoolResponse, PoolError> {
+        let token = self.runtime.application_id().forget_abi();
+        self.state.validate_token(token);
+
+        // let fund_request = self.state.fund_request(transfer_id)?;
+
         Ok(PoolResponse::Ok)
     }
 
-    fn on_op_funds_fail(&mut self, token: ApplicationId) -> Result<PoolResponse, PoolError> {
+    fn on_op_funds_fail(&mut self, transfer_id: u64) -> Result<PoolResponse, PoolError> {
+        let token = self.runtime.application_id().forget_abi();
+        self.state.validate_token(token);
         Ok(PoolResponse::Ok)
     }
 
