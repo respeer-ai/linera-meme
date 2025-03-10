@@ -77,9 +77,9 @@ impl TestSuite {
         }
     }
 
-    fn application_account(&self, application_id: ApplicationId) -> Account {
+    fn application_account(&self, chain_id: ChainId, application_id: ApplicationId) -> Account {
         Account {
-            chain_id: application_id.creation.chain_id,
+            chain_id,
             owner: Some(AccountOwner::Application(application_id.forget_abi())),
         }
     }
@@ -108,10 +108,6 @@ impl TestSuite {
     }
 
     async fn create_swap_application(&mut self) {
-        let liquidity_rfq_bytecode_id = self
-            .swap_chain
-            .publish_bytecode_files_in("../liquidity-rfq")
-            .await;
         let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
         let swap_bytecode_id = self.swap_chain.publish_bytecode_files_in("../swap").await;
 
@@ -120,10 +116,7 @@ impl TestSuite {
                 .create_application::<SwapAbi, (), SwapInstantiationArgument>(
                     swap_bytecode_id,
                     (),
-                    SwapInstantiationArgument {
-                        liquidity_rfq_bytecode_id,
-                        pool_bytecode_id,
-                    },
+                    SwapInstantiationArgument { pool_bytecode_id },
                     vec![],
                 )
                 .await
@@ -170,7 +163,7 @@ impl TestSuite {
                     self.meme_bytecode_id,
                     parameters.clone(),
                     instantiation_argument.clone(),
-                    vec![],
+                    vec![self.swap_application_id.unwrap()],
                 )
                 .await,
         )
@@ -245,21 +238,16 @@ async fn meme_work_flow_test() {
     suite.fund_chain(&meme_chain, balance).await;
 
     suite.create_swap_application().await;
-
-    meme_chain
-        .register_application(suite.swap_application_id.unwrap())
-        .await;
-
     suite.create_meme_application().await;
 
-    let meme_application_account =
-        suite.application_account(suite.meme_application_id.unwrap().forget_abi());
-    let swap_application_account =
-        suite.application_account(suite.swap_application_id.unwrap().forget_abi());
-
-    user_chain
-        .register_application(suite.meme_application_id.unwrap())
-        .await;
+    let meme_application_account = suite.application_account(
+        meme_chain.id(),
+        suite.meme_application_id.unwrap().forget_abi(),
+    );
+    let swap_application_account = suite.application_account(
+        swap_chain.id(),
+        suite.swap_application_id.unwrap().forget_abi(),
+    );
 
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), "query { totalSupply }")
@@ -442,10 +430,6 @@ async fn transfer_insufficient_funds_test() {
     suite.fund_chain(&meme_chain, balance).await;
 
     suite.create_swap_application().await;
-
-    meme_chain
-        .register_application(suite.swap_application_id.unwrap())
-        .await;
 
     suite.create_meme_application().await;
 

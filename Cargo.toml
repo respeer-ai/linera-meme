@@ -3,7 +3,6 @@ members = [
     "proxy",
     "meme",
     "swap",
-    "liquidity-rfq",
     "pool",
     "abi",
 ]
@@ -11,8 +10,8 @@ resolver = "2"
 
 [workspace.dependencies]
 async-graphql = { version = "=7.0.2", default-features = false }
-linera-sdk = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "ab44d8a6c" }
-linera-views = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "ab44d8a6c" }
+linera-sdk = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69" }
+linera-views = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69" }
 futures = { version = "0.3 "}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
@@ -29,7 +28,6 @@ abi = { path = "./abi" }
 meme = { path = "./meme" }
 proxy = { path = "./proxy" }
 swap = { path = "./swap" }
-liquidity-rfq = { path = "./liquidity-rfq" }
 pool = { path = "./pool" }
 
 [profile.release]
@@ -37,4 +35,3 @@ debug = true
 lto = true
 opt-level = 'z'
 strip = 'debuginfo'
-

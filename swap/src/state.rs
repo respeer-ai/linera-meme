@@ -27,7 +27,6 @@ pub struct SwapState {
     pub last_transactions: QueueView<Transaction>,
     pub transaction_id: RegisterView<u64>,
 
-    pub liquidity_rfq_bytecode_id: RegisterView<Option<ModuleId>>,
     pub pool_bytecode_id: RegisterView<Option<ModuleId>>,
 
     pub pool_chains: MapView<ChainId, MessageId>,
@@ -36,8 +35,6 @@ pub struct SwapState {
 #[allow(dead_code)]
 impl SwapState {
     pub(crate) async fn instantiate(&mut self, argument: InstantiationArgument) {
-        self.liquidity_rfq_bytecode_id
-            .set(Some(argument.liquidity_rfq_bytecode_id));
         self.pool_bytecode_id.set(Some(argument.pool_bytecode_id));
         self.pool_id.set(1000);
     }
@@ -70,10 +67,6 @@ impl SwapState {
         };
 
         self.get_pool(token_1, Some(token_0)).await
-    }
-
-    pub(crate) async fn liquidity_rfq_bytecode_id(&self) -> ModuleId {
-        self.liquidity_rfq_bytecode_id.get().unwrap()
     }
 
     pub(crate) async fn pool_bytecode_id(&self) -> ModuleId {

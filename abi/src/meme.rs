@@ -2,7 +2,9 @@ use crate::store_type::StoreType;
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{Account, Amount, ApplicationId, ContractAbi, CryptoHash, ServiceAbi},
+    linera_base_types::{
+        Account, Amount, ApplicationId, ChainId, ContractAbi, CryptoHash, ServiceAbi,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -102,6 +104,8 @@ pub enum MemeOperation {
         transfer_id: u64,
         amount: Amount,
     },
+    // Return creator chain to caller
+    CreatorChainId,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -144,4 +148,5 @@ pub enum MemeResponse {
     #[default]
     Ok,
     Fail(String),
+    ChainId(ChainId),
 }

@@ -133,7 +133,7 @@ mod tests {
             .blocking_wait()
             .expect("Failed to read from mock key value store");
 
-        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
+        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let application_id = ApplicationId::from_str(application_id_str).unwrap();
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
@@ -169,7 +169,7 @@ mod tests {
                     .unwrap(),
             )),
         };
-        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
+        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
         let application_id = ApplicationId::from_str(application_id_str).unwrap();
         let application = Account {
             chain_id,

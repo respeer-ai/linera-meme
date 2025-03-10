@@ -12,7 +12,9 @@ use abi::{
     },
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp, WithContractAbi},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainId, Timestamp, WithContractAbi,
+    },
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -146,7 +148,7 @@ impl PoolContract {
 
     fn application_creation_account(&mut self) -> Account {
         Account {
-            chain_id: self.runtime.application_id().creation.chain_id,
+            chain_id: self.runtime.application_creator_chain_id(),
             owner: Some(AccountOwner::Application(
                 self.runtime.application_id().forget_abi(),
             )),
@@ -162,9 +164,21 @@ impl PoolContract {
         }
     }
 
+    fn meme_creator_chain_id(&mut self, token: ApplicationId) -> ChainId {
+        let call = MemeOperation::CreatorChainId;
+        let MemeResponse::ChainId(chain_id) =
+            self.runtime
+                .call_application(true, token.with_abi::<MemeAbi>(), &call)
+        else {
+            panic!("Invalid response");
+        };
+        chain_id
+    }
+
     // Send a message to token chain, then call token application
     // Send back a message of fund result
     fn transfer_token_funds(&mut self, token: ApplicationId, amount: Amount, transfer_id: u64) {
+        let chain_id = self.meme_creator_chain_id(token);
         self.runtime
             .prepare_message(PoolMessage::RequestFund {
                 token,
@@ -172,7 +186,7 @@ impl PoolContract {
                 amount,
             })
             .with_authentication()
-            .send_to(token.creation.chain_id);
+            .send_to(chain_id);
     }
 
     fn transfer_token_0_funds(&mut self, amount: Amount, transfer_id: u64) {
@@ -181,7 +195,7 @@ impl PoolContract {
     }
 
     fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
-        let chain_id = self.runtime.application_id().creation.chain_id;
+        let chain_id = self.runtime.application_creator_chain_id();
         let application_id = self.runtime.application_id().forget_abi();
         let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
         let application = Account {
@@ -287,7 +301,7 @@ impl PoolContract {
                 block_timestamp,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
 
         // 2: Authorize funds of token_1, or transfer native funds (will be done in message)
         Ok(PoolResponse::Ok)
@@ -336,7 +350,7 @@ impl PoolContract {
                 block_timestamp: fund_request.block_timestamp,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
     }
 
     fn add_liquidity_fund_success(&mut self, fund_request: &FundRequest) {}
@@ -398,6 +412,7 @@ impl PoolContract {
                     .with_authentication()
                     .send_to(message_chain_id);
             }
+            _ => panic!("Invalid response"),
         };
         Ok(())
     }
@@ -475,11 +490,16 @@ impl PoolContract {
 
 #[cfg(test)]
 mod tests {
-    use abi::swap::pool::{
-        InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
+    use abi::{
+        meme::{MemeOperation, MemeResponse},
+        swap::pool::{
+            InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters,
+            PoolResponse,
+        },
     };
     use futures::FutureExt as _;
     use linera_sdk::{
+        bcs,
         linera_base_types::{
             Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId, Owner,
         },
@@ -622,21 +642,31 @@ mod tests {
     fn mock_application_call(
         _authenticated: bool,
         _application_id: ApplicationId,
-        _operation: Vec<u8>,
+        operation: Vec<u8>,
     ) -> Vec<u8> {
-        vec![0]
+        let operation = bcs::from_bytes(&operation).unwrap();
+        match operation {
+            MemeOperation::CreatorChainId => bcs::to_bytes(&MemeResponse::ChainId(
+                ChainId::from_str(
+                    "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+                )
+                .unwrap(),
+            ))
+            .unwrap(),
+            _ => bcs::to_bytes(&MemeResponse::Ok).unwrap(),
+        }
     }
 
     fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
-        let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
-        let router_application_id = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000002").unwrap();
+        let token_0 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
+        let token_1 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301").unwrap();
+        let router_application_id = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518400").unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let application_id = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000005").unwrap().with_abi::<PoolAbi>();
+        let application_id = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518401").unwrap().with_abi::<PoolAbi>();
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();
@@ -651,6 +681,7 @@ mod tests {
             .with_application_id(application_id)
             .with_authenticated_caller_id(router_application_id)
             .with_call_application_handler(mock_application_call)
+            .with_application_creator_chain_id(chain_id)
             .with_system_time(0.into())
             .with_message_id(message_id)
             .with_authenticated_signer(owner);

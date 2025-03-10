@@ -13,6 +13,7 @@ abi.workspace = true
 thiserror.workspace = true
 log.workspace = true
 env_logger.workspace = true
+getrandom.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 linera-sdk = { workspace = true, features = ["test", "wasmer"] }

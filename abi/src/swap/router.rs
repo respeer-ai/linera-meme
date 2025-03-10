@@ -5,7 +5,8 @@ use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ContractAbi, ModuleId, ServiceAbi, Timestamp,
+        Account, AccountOwner, Amount, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi,
+        Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -72,12 +73,14 @@ pub enum SwapOperation {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
+    CreatorChainId,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub enum SwapResponse {
     #[default]
     Ok,
+    ChainId(ChainId),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -99,13 +102,6 @@ pub enum SwapMessage {
         amount_1_min: Amount,
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
-    },
-    CreateRfq {
-        rfq_bytecode_id: ModuleId,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0: Amount,
-        amount_1: Amount,
     },
     CreatePool {
         pool_bytecode_id: ModuleId,
@@ -165,7 +161,6 @@ pub struct Pool {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
-    pub liquidity_rfq_bytecode_id: ModuleId,
     pub pool_bytecode_id: ModuleId,
 }
 

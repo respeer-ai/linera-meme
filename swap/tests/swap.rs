@@ -95,9 +95,9 @@ impl TestSuite {
         }
     }
 
-    fn application_account(&self, application_id: ApplicationId) -> Account {
+    fn application_account(&self, chain_id: ChainId, application_id: ApplicationId) -> Account {
         Account {
-            chain_id: application_id.creation.chain_id,
+            chain_id,
             owner: Some(AccountOwner::Application(application_id.forget_abi())),
         }
     }
@@ -126,10 +126,6 @@ impl TestSuite {
     }
 
     async fn create_swap_application(&mut self) {
-        let liquidity_rfq_bytecode_id = self
-            .swap_chain
-            .publish_bytecode_files_in("../liquidity-rfq")
-            .await;
         let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
 
         self.swap_application_id = Some(
@@ -137,10 +133,7 @@ impl TestSuite {
                 .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                     self.swap_bytecode_id,
                     SwapParameters {},
-                    SwapInstantiationArgument {
-                        liquidity_rfq_bytecode_id,
-                        pool_bytecode_id,
-                    },
+                    SwapInstantiationArgument { pool_bytecode_id },
                     vec![],
                 )
                 .await,
@@ -234,18 +227,16 @@ async fn virtual_liquidity_native_test() {
     meme_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
 
-    // Here we initialize liquidity pool
-    meme_chain
-        .register_application(suite.swap_application_id.unwrap().forget_abi())
-        .await;
-    swap_chain
-        .register_application(suite.meme_application_id.unwrap().forget_abi())
-        .await;
-
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(suite.meme_application_id.unwrap().forget_abi()),
-        suite.application_account(suite.swap_application_id.unwrap().forget_abi()),
+        suite.application_account(
+            meme_chain.id(),
+            suite.meme_application_id.unwrap().forget_abi()
+        ),
+        suite.application_account(
+            swap_chain.id(),
+            suite.swap_application_id.unwrap().forget_abi()
+        ),
     );
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
@@ -311,8 +302,14 @@ async fn virtual_liquidity_native_test() {
 
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(suite.meme_application_id.unwrap().forget_abi()),
-        suite.application_account(suite.swap_application_id.unwrap().forget_abi()),
+        suite.application_account(
+            meme_chain.id(),
+            suite.meme_application_id.unwrap().forget_abi()
+        ),
+        suite.application_account(
+            swap_chain.id(),
+            suite.swap_application_id.unwrap().forget_abi()
+        ),
     );
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
@@ -359,18 +356,16 @@ async fn real_liquidity_native_test() {
     meme_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
 
-    // Here we initialize liquidity pool
-    meme_chain
-        .register_application(suite.swap_application_id.unwrap().forget_abi())
-        .await;
-    swap_chain
-        .register_application(suite.meme_application_id.unwrap().forget_abi())
-        .await;
-
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(suite.meme_application_id.unwrap().forget_abi()),
-        suite.application_account(suite.swap_application_id.unwrap().forget_abi()),
+        suite.application_account(
+            meme_chain.id(),
+            suite.meme_application_id.unwrap().forget_abi()
+        ),
+        suite.application_account(
+            swap_chain.id(),
+            suite.swap_application_id.unwrap().forget_abi()
+        ),
     );
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
@@ -392,7 +387,10 @@ async fn real_liquidity_native_test() {
         swap_chain
             .owner_balance(
                 &suite
-                    .application_account(suite.swap_application_id.unwrap().forget_abi())
+                    .application_account(
+                        swap_chain.id(),
+                        suite.swap_application_id.unwrap().forget_abi()
+                    )
                     .owner
                     .unwrap()
             )
@@ -473,8 +471,14 @@ async fn real_liquidity_native_test() {
 
     let query = format!(
         "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(suite.meme_application_id.unwrap().forget_abi()),
-        suite.application_account(suite.swap_application_id.unwrap().forget_abi()),
+        suite.application_account(
+            meme_chain.id(),
+            suite.meme_application_id.unwrap().forget_abi()
+        ),
+        suite.application_account(
+            swap_chain.id(),
+            suite.swap_application_id.unwrap().forget_abi()
+        ),
     );
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)

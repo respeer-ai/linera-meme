@@ -13,7 +13,7 @@ use abi::{
     },
     swap::{
         pool::{PoolAbi, PoolOperation},
-        router::{SwapAbi, SwapOperation},
+        router::{SwapAbi, SwapOperation, SwapResponse},
     },
 };
 use linera_sdk::{
@@ -67,8 +67,9 @@ impl Contract for MemeContract {
             .expect("Failed instantiate");
 
         if let Some(liquidity) = self.initial_liquidity() {
+            let swap_creator_chain = self.swap_creator_chain_id().await;
             self.state
-                .initialize_liquidity(liquidity)
+                .initialize_liquidity(liquidity, swap_creator_chain)
                 .await
                 .expect("Failed initialize liquidity");
         }
@@ -121,13 +122,14 @@ impl Contract for MemeContract {
                 .on_op_transfer_to_caller(transfer_id, amount)
                 .await
                 .expect("Failed OP: transfer to caller"),
+            MemeOperation::CreatorChainId => self.on_call_creator_chain_id(),
             MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
         }
     }
 
     async fn execute_message(&mut self, message: MemeMessage) {
         // All messages must be run on creation chain side
-        if self.runtime.chain_id() != self.runtime.application_id().creation.chain_id {
+        if self.runtime.chain_id() != self.runtime.application_creator_chain_id() {
             panic!("Messages must only be run on creation chain");
         }
 
@@ -211,7 +213,7 @@ impl MemeContract {
 
     fn application_creation_account(&mut self) -> Account {
         Account {
-            chain_id: self.runtime.application_id().creation.chain_id,
+            chain_id: self.runtime.application_creator_chain_id(),
             owner: Some(AccountOwner::Application(
                 self.runtime.application_id().forget_abi(),
             )),
@@ -241,6 +243,18 @@ impl MemeContract {
         if let Some(ams_application_id) = self.state.ams_application_id().await {
             // TODO: register application to ams
         }
+    }
+
+    async fn swap_creator_chain_id(&mut self) -> ChainId {
+        let swap_application_id = self.state.swap_application_id().await.unwrap();
+        let call = SwapOperation::CreatorChainId;
+        let SwapResponse::ChainId(chain_id) =
+            self.runtime
+                .call_application(true, swap_application_id.with_abi::<SwapAbi>(), &call)
+        else {
+            panic!("Invalid response");
+        };
+        chain_id
     }
 
     async fn register_logo(&mut self) {
@@ -280,7 +294,7 @@ impl MemeContract {
         self.runtime
             .prepare_message(MemeMessage::LiquidityFunded)
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
 
         self.state.initialize_liquidity_pool().await;
         Ok(())
@@ -289,7 +303,7 @@ impl MemeContract {
     fn operation_executable(&mut self, operation: &MemeOperation) -> bool {
         match operation {
             MemeOperation::Mine { .. } => {
-                self.runtime.chain_id() == self.runtime.application_id().creation.chain_id
+                self.runtime.chain_id() == self.runtime.application_creator_chain_id()
             }
             _ => true,
         }
@@ -299,7 +313,7 @@ impl MemeContract {
         assert!(amount > Amount::ZERO, "Invalid fund amount");
 
         let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
-        let chain_id = self.runtime.application_id().creation.chain_id;
+        let chain_id = self.runtime.application_creator_chain_id();
         let application_id = self.runtime.application_id().forget_abi();
 
         let owner_balance = self.runtime.owner_balance(owner);
@@ -357,7 +371,7 @@ impl MemeContract {
         self.runtime
             .prepare_message(MemeMessage::InitializeLiquidity { operator })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
     }
 
@@ -366,7 +380,7 @@ impl MemeContract {
         self.runtime
             .prepare_message(MemeMessage::Transfer { from, to, amount })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
     }
 
@@ -385,7 +399,7 @@ impl MemeContract {
                 amount,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
     }
 
@@ -400,15 +414,18 @@ impl MemeContract {
         );
 
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
+        // TODO: use creator chain id if we can get it from runtime
+        let chain_id = self.runtime.chain_id();
+
         let caller = Account {
-            chain_id: caller_id.creation.chain_id,
+            chain_id,
             owner: Some(AccountOwner::Application(caller_id)),
         };
 
         self.runtime
             .prepare_message(MemeMessage::TransferFromApplication { caller, to, amount })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
     }
 
@@ -428,7 +445,7 @@ impl MemeContract {
                 amount,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
     }
 
@@ -437,7 +454,7 @@ impl MemeContract {
         self.runtime
             .prepare_message(MemeMessage::TransferOwnership { owner, new_owner })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
     }
 
@@ -457,6 +474,10 @@ impl MemeContract {
             Ok(_) => Ok(MemeResponse::Ok),
             Err(err) => Ok(MemeResponse::Fail(err.to_string())),
         }
+    }
+
+    fn on_call_creator_chain_id(&mut self) -> MemeResponse {
+        MemeResponse::ChainId(self.runtime.application_creator_chain_id())
     }
 
     fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
@@ -539,12 +560,13 @@ impl MemeContract {
         amount: Amount,
     ) -> Result<(), MemeError> {
         let swap_application_id = self.state.swap_application_id().await.unwrap();
+
         let swap_application = Account {
-            chain_id: swap_application_id.creation.chain_id,
+            chain_id: self.swap_creator_chain_id().await,
             owner: Some(AccountOwner::Application(swap_application_id)),
         };
 
-        assert!(caller == swap_application, "Invalid caller");
+        assert!(caller.owner == swap_application.owner, "Invalid caller");
 
         let from = self.application_creation_account();
         self.state
@@ -581,9 +603,11 @@ mod tests {
             MemeParameters, MemeResponse, Metadata,
         },
         store_type::StoreType,
+        swap::router::SwapResponse,
     };
     use futures::FutureExt as _;
     use linera_sdk::{
+        bcs,
         linera_base_types::{
             Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString,
         },
@@ -925,7 +949,11 @@ mod tests {
         _application_id: ApplicationId,
         _operation: Vec<u8>,
     ) -> Vec<u8> {
-        vec![0]
+        bcs::to_bytes(&SwapResponse::ChainId(
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap(),
+        ))
+        .unwrap()
     }
 
     async fn create_and_instantiate_meme() -> MemeContract {
@@ -940,7 +968,7 @@ mod tests {
             owner: Some(AccountOwner::User(operator)),
         };
 
-        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
+        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<MemeAbi>();
@@ -949,7 +977,7 @@ mod tests {
             owner: Some(AccountOwner::Application(application_id.forget_abi())),
         };
 
-        let swap_application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000002";
+        let swap_application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
         let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
         let swap_application = Account {
             chain_id,
@@ -976,6 +1004,7 @@ mod tests {
             )
             .with_authenticated_caller_id(swap_application_id)
             .with_call_application_handler(mock_application_call)
+            .with_application_creator_chain_id(chain_id)
             .with_application_parameters(parameters)
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {

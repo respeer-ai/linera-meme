@@ -7,9 +7,8 @@ mod state;
 
 use abi::{
     constant::OPEN_CHAIN_FEE_BUDGET,
-    meme::{MemeAbi, MemeOperation},
+    meme::{MemeAbi, MemeOperation, MemeResponse},
     swap::{
-        liquidity_rfq::{LiquidityRfqAbi, LiquidityRfqParameters},
         pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
         router::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
@@ -155,6 +154,7 @@ impl Contract for SwapContract {
                     deadline,
                 )
                 .expect("Failed OP: swap"),
+            SwapOperation::CreatorChainId => self.on_call_creator_chain_id(),
         }
     }
 
@@ -198,15 +198,6 @@ impl Contract for SwapContract {
                 )
                 .await
                 .expect("Failed MSG: add liquidity"),
-            SwapMessage::CreateRfq {
-                rfq_bytecode_id,
-                token_0,
-                token_1,
-                amount_0,
-                amount_1,
-            } => self
-                .on_msg_create_rfq(rfq_bytecode_id, token_0, token_1, amount_0, amount_1)
-                .expect("Failed MSG: create rfq"),
             SwapMessage::CreatePool {
                 pool_bytecode_id,
                 token_0,
@@ -317,11 +308,22 @@ impl Contract for SwapContract {
 impl SwapContract {
     fn message_executable(&mut self, message: &SwapMessage) -> bool {
         match message {
-            SwapMessage::CreateRfq { .. } | SwapMessage::CreatePool { .. } => {
-                self.runtime.chain_id() != self.runtime.application_id().creation.chain_id
+            SwapMessage::CreatePool { .. } => {
+                self.runtime.chain_id() != self.runtime.application_creator_chain_id()
             }
-            _ => self.runtime.chain_id() == self.runtime.application_id().creation.chain_id,
+            _ => self.runtime.chain_id() == self.runtime.application_creator_chain_id(),
         }
+    }
+
+    fn meme_creator_chain_id(&mut self, token: ApplicationId) -> ChainId {
+        let call = MemeOperation::CreatorChainId;
+        let MemeResponse::ChainId(chain_id) =
+            self.runtime
+                .call_application(true, token.with_abi::<MemeAbi>(), &call)
+        else {
+            panic!("Invalid response");
+        };
+        chain_id
     }
 
     fn formalize_virtual_liquidity(
@@ -343,7 +345,7 @@ impl SwapContract {
         if caller_application_id != token_0 {
             return false;
         }
-        if self.runtime.chain_id() != token_0.creation.chain_id {
+        if self.runtime.chain_id() != self.meme_creator_chain_id(token_0) {
             return false;
         }
         return true;
@@ -381,22 +383,6 @@ impl SwapContract {
         amount_0: Amount,
         amount_1: Amount,
     ) -> Result<(), SwapError> {
-        // 1: Create rfq chain
-        let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
-        // 2: Create rfq application
-        let bytecode_id = self.state.liquidity_rfq_bytecode_id().await;
-
-        self.runtime
-            .prepare_message(SwapMessage::CreateRfq {
-                rfq_bytecode_id: bytecode_id,
-                token_0,
-                token_1,
-                amount_0,
-                amount_1,
-            })
-            .with_authentication()
-            .send_to(chain_id);
-
         Ok(())
     }
 
@@ -406,7 +392,7 @@ impl SwapContract {
         to_owner: Option<AccountOwner>,
         amount: Amount,
     ) {
-        let chain_id = self.runtime.application_id().creation.chain_id;
+        let chain_id = self.runtime.application_creator_chain_id();
         let application_id = self.runtime.application_id().forget_abi();
 
         let owner_balance = self.runtime.owner_balance(from_owner);
@@ -461,7 +447,10 @@ impl SwapContract {
         let chain_id = self.runtime.chain_id();
 
         assert!(token_0 == caller_id, "Invalid caller");
-        assert!(chain_id == caller_id.creation.chain_id, "Invalid caller");
+        assert!(
+            chain_id == self.meme_creator_chain_id(token_0),
+            "Invalid caller"
+        );
 
         let virtual_liquidity = self.formalize_virtual_liquidity(token_0, None, virtual_liquidity);
 
@@ -486,7 +475,7 @@ impl SwapContract {
                 to,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
 
         Ok(SwapResponse::Ok)
     }
@@ -516,7 +505,7 @@ impl SwapContract {
                 deadline,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
 
         Ok(SwapResponse::Ok)
     }
@@ -560,6 +549,10 @@ impl SwapContract {
         deadline: Option<Timestamp>,
     ) -> Result<SwapResponse, SwapError> {
         Ok(SwapResponse::Ok)
+    }
+
+    fn on_call_creator_chain_id(&mut self) -> SwapResponse {
+        SwapResponse::ChainId(self.runtime.application_creator_chain_id())
     }
 
     fn pool_chain_add_liquidity(
@@ -649,35 +642,6 @@ impl SwapContract {
             .await?)
     }
 
-    fn on_msg_create_rfq(
-        &mut self,
-        rfq_bytecode_id: ModuleId,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0: Amount,
-        amount_1: Amount,
-    ) -> Result<(), SwapError> {
-        // Run on rfq chain
-        let application_id = self.runtime.application_id().forget_abi();
-
-        let _ = self
-            .runtime
-            .create_application::<LiquidityRfqAbi, LiquidityRfqParameters, ()>(
-                rfq_bytecode_id,
-                &LiquidityRfqParameters {
-                    token_0,
-                    token_1,
-                    amount_0,
-                    amount_1,
-                    router_application_id: application_id,
-                },
-                &(),
-                vec![],
-            );
-
-        Ok(())
-    }
-
     fn on_msg_create_pool(
         &mut self,
         pool_bytecode_id: ModuleId,
@@ -698,9 +662,15 @@ impl SwapContract {
                 &PoolParameters {
                     token_0,
                     token_1,
+                    virtual_initial_liquidity,
+                },
+                &PoolInstantiationArgument {
+                    amount_0,
+                    amount_1,
+                    pool_fee_percent_mul_100: 30,
+                    protocol_fee_percent_mul_100: 5,
                     router_application_id: application_id,
                 },
-                &PoolInstantiationArgument { amount_0, amount_1 },
                 vec![],
             )
             .forget_abi();
@@ -711,6 +681,7 @@ impl SwapContract {
             chain_id,
             owner: Some(AccountOwner::Application(pool_application_id)),
         };
+        let creator_chain = self.runtime.application_creator_chain_id();
         self.runtime
             .prepare_message(SwapMessage::PoolCreated {
                 pool_application,
@@ -721,7 +692,7 @@ impl SwapContract {
                 virtual_initial_liquidity,
             })
             .with_authentication()
-            .send_to(application_id.creation.chain_id);
+            .send_to(creator_chain);
 
         Ok(())
     }
@@ -844,14 +815,18 @@ impl SwapContract {
 
 #[cfg(test)]
 mod tests {
-    use abi::swap::router::{
-        InstantiationArgument, SwapAbi, SwapOperation, SwapParameters, SwapResponse,
+    use abi::{
+        meme::MemeResponse,
+        swap::router::{
+            InstantiationArgument, SwapAbi, SwapOperation, SwapParameters, SwapResponse,
+        },
     };
     use futures::FutureExt as _;
     use linera_sdk::{
+        bcs,
         linera_base_types::{
-            AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainOwnership, MessageId,
-            ModuleId, Owner,
+            AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId, ChainOwnership,
+            MessageId, ModuleId, Owner,
         },
         util::BlockingWait,
         views::View,
@@ -865,7 +840,7 @@ mod tests {
     async fn operation_initialize_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
-        let meme_1_id = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000008";
+        let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
         let response = swap
@@ -885,7 +860,7 @@ mod tests {
     async fn operation_add_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
-        let meme_1_id = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000008";
+        let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
         let response = swap
@@ -910,24 +885,44 @@ mod tests {
     #[test]
     fn cross_application_call() {}
 
+    fn mock_application_call(
+        _authenticated: bool,
+        _application_id: ApplicationId,
+        _operation: Vec<u8>,
+    ) -> Vec<u8> {
+        bcs::to_bytes(&MemeResponse::ChainId(
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap(),
+        ))
+        .unwrap()
+    }
+
     fn create_and_instantiate_swap() -> SwapContract {
         let owner =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
-        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
+        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<SwapAbi>();
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
-        let meme_1_id = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000008";
+        let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
+        let meme_1_chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap();
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
+                .unwrap();
 
         let mut runtime = ContractRuntime::new()
             .with_application_parameters(SwapParameters {})
             .with_application_id(application_id)
             .with_authenticated_signer(owner)
             .with_authenticated_caller_id(meme_1)
-            .with_chain_id(meme_1.creation.chain_id)
+            .with_chain_id(meme_1_chain_id)
+            .with_application_creator_chain_id(chain_id)
+            .with_call_application_handler(mock_application_call)
             .with_owner_balance(AccountOwner::User(owner), Amount::from_tokens(10000))
             .with_owner_balance(
                 AccountOwner::Application(application_id.forget_abi()),
@@ -960,21 +955,10 @@ mod tests {
         let bytecode_id = ModuleId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
         contract
             .instantiate(InstantiationArgument {
-                liquidity_rfq_bytecode_id: bytecode_id,
                 pool_bytecode_id: bytecode_id,
             })
             .now_or_never()
             .expect("Initialization of swap state should not await anything");
-
-        assert_eq!(
-            *contract
-                .state
-                .liquidity_rfq_bytecode_id
-                .get()
-                .as_ref()
-                .unwrap(),
-            bytecode_id,
-        );
 
         contract
     }

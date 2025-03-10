@@ -4,7 +4,7 @@
 use abi::meme::{InstantiationArgument, Liquidity, Meme};
 use linera_sdk::{
     ensure,
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Owner},
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -40,6 +40,7 @@ impl MemeState {
     pub(crate) async fn initialize_liquidity(
         &mut self,
         liquidity: Liquidity,
+        swap_creator_chain_id: ChainId,
     ) -> Result<(), MemeError> {
         assert!(
             liquidity.fungible_amount >= Amount::ZERO,
@@ -58,7 +59,7 @@ impl MemeState {
 
         let swap_application_id = self.swap_application_id.get().unwrap();
         let spender = Account {
-            chain_id: swap_application_id.creation.chain_id,
+            chain_id: swap_creator_chain_id,
             owner: Some(AccountOwner::Application(swap_application_id)),
         };
         self.approve(

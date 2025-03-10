@@ -12,6 +12,7 @@ thiserror.workspace = true
 env_logger.workspace = true
 primitive-types.workspace = true
 rust_decimal.workspace = true
+getrandom.workspace = true
 
 [dev-dependencies]
 linera-sdk = { workspace = true, features = ["test"] }
