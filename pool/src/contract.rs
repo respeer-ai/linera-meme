@@ -60,10 +60,6 @@ impl Contract for PoolContract {
             self.runtime.authenticated_signer().is_some(),
             "Invalid signer"
         );
-        assert!(
-            self.runtime.authenticated_caller_id().is_none(),
-            "Invalid caller"
-        );
 
         match operation {
             PoolOperation::Swap {
@@ -97,11 +93,11 @@ impl Contract for PoolContract {
                 .on_msg_request_fund(token, transfer_id, amount)
                 .expect("Failed MSG: request fund"),
             PoolMessage::FundSuccess { transfer_id } => self
-                .on_msg_funds_success(transfer_id)
+                .on_msg_fund_success(transfer_id)
                 .await
                 .expect("Failed MSG: funds success"),
             PoolMessage::FundFail { transfer_id, error } => self
-                .on_msg_funds_fail(transfer_id, error)
+                .on_msg_fund_fail(transfer_id, error)
                 .await
                 .expect("Failed MSG: funds fail"),
             PoolMessage::Swap {
@@ -229,7 +225,8 @@ impl PoolContract {
         block_timestamp: Option<Timestamp>,
     ) -> Result<PoolResponse, PoolError> {
         assert!(
-            amount_0_in.is_some() && amount_1_in.is_some(),
+            !(amount_0_in.is_some() && amount_1_in.is_some())
+                && (amount_0_in.is_some() || amount_1_in.is_some()),
             "Invalid amount"
         );
 
@@ -344,14 +341,12 @@ impl PoolContract {
 
     fn add_liquidity_fund_success(&mut self, fund_request: &FundRequest) {}
 
-    async fn on_msg_funds_success(&mut self, transfer_id: u64) -> Result<(), PoolError> {
-        let token = self.runtime.application_id().forget_abi();
-        self.state.validate_token(token);
+    async fn on_msg_fund_success(&mut self, transfer_id: u64) -> Result<(), PoolError> {
+        let fund_request = self.state.fund_request(transfer_id).await?;
 
         self.state
             .update_fund_request(transfer_id, FundStatus::Success, None)
             .await?;
-        let fund_request = self.state.fund_request(transfer_id).await?;
 
         match fund_request.fund_type {
             FundType::Swap => self.swap_fund_success(&fund_request),
@@ -361,16 +356,14 @@ impl PoolContract {
         Ok(())
     }
 
-    async fn on_msg_funds_fail(
-        &mut self,
-        transfer_id: u64,
-        error: String,
-    ) -> Result<(), PoolError> {
-        let token = self.runtime.application_id().forget_abi();
-        self.state.validate_token(token);
+    async fn on_msg_fund_fail(&mut self, transfer_id: u64, error: String) -> Result<(), PoolError> {
+        let _ = self.state.fund_request(transfer_id).await?;
         self.state
             .update_fund_request(transfer_id, FundStatus::Fail, Some(error))
             .await?;
+
+        // TODO: return amount of token_0
+
         Ok(())
     }
 
@@ -482,30 +475,159 @@ impl PoolContract {
 
 #[cfg(test)]
 mod tests {
-    use abi::swap::pool::{InstantiationArgument, PoolAbi, PoolMessage, PoolParameters};
+    use abi::swap::pool::{
+        InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
+    };
     use futures::FutureExt as _;
     use linera_sdk::{
-        linera_base_types::{Amount, ApplicationId, ChainId, Owner},
+        linera_base_types::{
+            Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId, Owner,
+        },
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
     };
+    use pool::{FundRequest, FundStatus, FundType};
     use std::str::FromStr;
 
     use super::{PoolContract, PoolState};
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn create_pool_with_liquidity() {
-        let mut pool = create_and_instantiate_pool();
+    async fn create_pool_with_real_liquidity() {
+        let pool = create_and_instantiate_pool(false);
+        let _ = pool.state.pool();
     }
 
-    #[test]
-    fn message() {}
+    #[tokio::test(flavor = "multi_thread")]
+    async fn create_pool_with_virtual_liquidity() {
+        let pool = create_and_instantiate_pool(true);
+        let _ = pool.state.pool();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn operation_swap() {
+        let mut pool = create_and_instantiate_pool(true);
+
+        let response = pool
+            .execute_operation(PoolOperation::Swap {
+                amount_0_in: None,
+                amount_1_in: Some(Amount::ONE),
+                amount_0_out_min: None,
+                amount_1_out_min: None,
+                to: None,
+                block_timestamp: None,
+            })
+            .now_or_never()
+            .expect("Execution of meme operation should not await anything");
+
+        assert!(matches!(response, PoolResponse::Ok));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_request_fund() {
+        let mut pool = create_and_instantiate_pool(true);
+
+        pool.execute_message(PoolMessage::RequestFund {
+            token: pool.state.token_0(),
+            transfer_id: 1000,
+            amount: Amount::ONE,
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_fund_success() {
+        let mut pool = create_and_instantiate_pool(true);
+        let owner = Account {
+            chain_id: pool.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                pool.runtime.authenticated_signer().unwrap(),
+            )),
+        };
+
+        let fund_request = FundRequest {
+            from: owner,
+            token: pool.state.token_0(),
+            amount_in: Amount::ONE,
+            pair_token_amount_out_min: None,
+            to: None,
+            block_timestamp: None,
+            fund_type: FundType::Swap,
+            status: FundStatus::InFlight,
+            error: None,
+            next_request: None,
+        };
+
+        let transfer_id = pool.state.create_fund_request(fund_request).unwrap();
+        pool.execute_message(PoolMessage::FundSuccess { transfer_id })
+            .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_fund_fail() {
+        let mut pool = create_and_instantiate_pool(true);
+        let owner = Account {
+            chain_id: pool.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                pool.runtime.authenticated_signer().unwrap(),
+            )),
+        };
+
+        let fund_request = FundRequest {
+            from: owner,
+            token: pool.state.token_0(),
+            amount_in: Amount::ONE,
+            pair_token_amount_out_min: None,
+            to: None,
+            block_timestamp: None,
+            fund_type: FundType::Swap,
+            status: FundStatus::InFlight,
+            error: None,
+            next_request: None,
+        };
+
+        let transfer_id = pool.state.create_fund_request(fund_request).unwrap();
+        pool.execute_message(PoolMessage::FundFail {
+            transfer_id,
+            error: "Error".to_string(),
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_swap() {
+        let mut pool = create_and_instantiate_pool(true);
+        let owner = Account {
+            chain_id: pool.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                pool.runtime.authenticated_signer().unwrap(),
+            )),
+        };
+
+        pool.execute_message(PoolMessage::Swap {
+            origin: owner,
+            amount_0_in: None,
+            amount_1_in: Some(Amount::ONE),
+            amount_0_out_min: None,
+            amount_1_out_min: None,
+            to: None,
+            block_timestamp: None,
+        })
+        .await;
+    }
 
     #[test]
     fn cross_application_call() {}
 
-    fn create_and_instantiate_pool() -> PoolContract {
+    fn mock_application_call(
+        _authenticated: bool,
+        _application_id: ApplicationId,
+        _operation: Vec<u8>,
+    ) -> Vec<u8> {
+        vec![0]
+    }
+
+    fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
         let _ = env_logger::builder().is_test(true).try_init();
 
         let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
@@ -518,15 +640,19 @@ mod tests {
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();
+        let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
         let runtime = ContractRuntime::new()
             .with_application_parameters(PoolParameters {
                 token_0,
                 token_1: Some(token_1),
-                virtual_initial_liquidity: true,
+                virtual_initial_liquidity,
             })
             .with_chain_id(chain_id)
             .with_application_id(application_id)
+            .with_authenticated_caller_id(router_application_id)
+            .with_call_application_handler(mock_application_call)
             .with_system_time(0.into())
+            .with_message_id(message_id)
             .with_authenticated_signer(owner);
         let mut contract = PoolContract {
             state: PoolState::load(runtime.root_view_storage_context())
@@ -537,10 +663,10 @@ mod tests {
 
         contract
             .instantiate(InstantiationArgument {
-                amount_0: Amount::ONE,
-                amount_1: Amount::ONE,
-                pool_fee_percent: 30,
-                protocol_fee_percent: 5,
+                amount_0: Amount::from_str("1000").unwrap(),
+                amount_1: Amount::from_str("10").unwrap(),
+                pool_fee_percent_mul_100: 30,
+                protocol_fee_percent_mul_100: 5,
                 router_application_id,
             })
             .now_or_never()
