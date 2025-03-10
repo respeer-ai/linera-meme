@@ -6,7 +6,7 @@
 mod state;
 
 use abi::{
-    meme::{MemeAbi, MemeOperation},
+    meme::{MemeAbi, MemeOperation, MemeResponse},
     swap::pool::{
         InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
     },
@@ -83,20 +83,27 @@ impl Contract for PoolContract {
                     block_timestamp,
                 )
                 .expect("Failed OP: swap"),
-            // Executed on caller chain of Approve
-            PoolOperation::FundsSuccess { transfer_id } => self
-                .on_op_funds_success(transfer_id)
-                .await
-                .expect("Failed OP: funds success"),
-            PoolOperation::FundsFail { transfer_id } => self
-                .on_op_funds_fail(transfer_id)
-                .expect("Failed OP: funds fail"),
             _ => todo!(),
         }
     }
 
     async fn execute_message(&mut self, message: PoolMessage) {
         match message {
+            PoolMessage::RequestFund {
+                token,
+                transfer_id,
+                amount,
+            } => self
+                .on_msg_request_fund(token, transfer_id, amount)
+                .expect("Failed MSG: request fund"),
+            PoolMessage::FundSuccess { transfer_id } => self
+                .on_msg_funds_success(transfer_id)
+                .await
+                .expect("Failed MSG: funds success"),
+            PoolMessage::FundFail { transfer_id, error } => self
+                .on_msg_funds_fail(transfer_id, error)
+                .await
+                .expect("Failed MSG: funds fail"),
             PoolMessage::Swap {
                 origin,
                 amount_0_in,
@@ -159,18 +166,17 @@ impl PoolContract {
         }
     }
 
+    // Send a message to token chain, then call token application
+    // Send back a message of fund result
     fn transfer_token_funds(&mut self, token: ApplicationId, amount: Amount, transfer_id: u64) {
-        let chain_id = self.runtime.chain_id();
-        let application_id = self.runtime.application_id().forget_abi();
-
-        let call = MemeOperation::TransferToCaller {
-            transfer_id,
-            amount,
-        };
-
-        let _ = self
-            .runtime
-            .call_application(true, token.with_abi::<MemeAbi>(), &call);
+        self.runtime
+            .prepare_message(PoolMessage::RequestFund {
+                token,
+                transfer_id,
+                amount,
+            })
+            .with_authentication()
+            .send_to(token.creation.chain_id);
     }
 
     fn transfer_token_0_funds(&mut self, amount: Amount, transfer_id: u64) {
@@ -240,6 +246,7 @@ impl PoolContract {
                 block_timestamp,
                 fund_type: FundType::Swap,
                 status: FundStatus::InFlight,
+                error: None,
                 next_request: None,
             };
 
@@ -261,6 +268,7 @@ impl PoolContract {
                 block_timestamp,
                 fund_type: FundType::Swap,
                 status: FundStatus::InFlight,
+                error: None,
                 next_request: None,
             };
 
@@ -336,12 +344,12 @@ impl PoolContract {
 
     fn add_liquidity_fund_success(&mut self, fund_request: &FundRequest) {}
 
-    async fn on_op_funds_success(&mut self, transfer_id: u64) -> Result<PoolResponse, PoolError> {
+    async fn on_msg_funds_success(&mut self, transfer_id: u64) -> Result<(), PoolError> {
         let token = self.runtime.application_id().forget_abi();
         self.state.validate_token(token);
 
         self.state
-            .update_fund_request(transfer_id, FundStatus::Success)
+            .update_fund_request(transfer_id, FundStatus::Success, None)
             .await?;
         let fund_request = self.state.fund_request(transfer_id).await?;
 
@@ -350,13 +358,55 @@ impl PoolContract {
             FundType::AddLiquidity => self.add_liquidity_fund_success(&fund_request),
         };
 
-        Ok(PoolResponse::Ok)
+        Ok(())
     }
 
-    fn on_op_funds_fail(&mut self, transfer_id: u64) -> Result<PoolResponse, PoolError> {
+    async fn on_msg_funds_fail(
+        &mut self,
+        transfer_id: u64,
+        error: String,
+    ) -> Result<(), PoolError> {
         let token = self.runtime.application_id().forget_abi();
         self.state.validate_token(token);
-        Ok(PoolResponse::Ok)
+        self.state
+            .update_fund_request(transfer_id, FundStatus::Fail, Some(error))
+            .await?;
+        Ok(())
+    }
+
+    // Always be run on meme chain
+    fn on_msg_request_fund(
+        &mut self,
+        token: ApplicationId,
+        transfer_id: u64,
+        amount: Amount,
+    ) -> Result<(), PoolError> {
+        let application_id = self.runtime.application_id().forget_abi();
+
+        let call = MemeOperation::TransferToCaller {
+            transfer_id,
+            amount,
+        };
+
+        let message_chain_id = self.runtime.message_id().unwrap().chain_id;
+        match self
+            .runtime
+            .call_application(true, token.with_abi::<MemeAbi>(), &call)
+        {
+            MemeResponse::Ok => {
+                self.runtime
+                    .prepare_message(PoolMessage::FundSuccess { transfer_id })
+                    .with_authentication()
+                    .send_to(message_chain_id);
+            }
+            MemeResponse::Fail(error) => {
+                self.runtime
+                    .prepare_message(PoolMessage::FundFail { transfer_id, error })
+                    .with_authentication()
+                    .send_to(message_chain_id);
+            }
+        };
+        Ok(())
     }
 
     // Always be run on creation chain

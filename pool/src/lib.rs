@@ -49,6 +49,7 @@ pub struct FundRequest {
     pub block_timestamp: Option<Timestamp>,
     pub fund_type: FundType,
     pub status: FundStatus,
+    pub error: Option<String>,
     // When add liquidity, we need to transfer two assets
     pub next_request: Option<u64>,
 }

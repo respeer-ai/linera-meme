@@ -47,13 +47,6 @@ pub enum PoolOperation {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
-    // Called from meme application on pool chain
-    FundsSuccess {
-        transfer_id: u64,
-    },
-    FundsFail {
-        transfer_id: u64,
-    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -64,6 +57,20 @@ pub enum PoolResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
+    // Sent from user chain to meme chain
+    RequestFund {
+        token: ApplicationId,
+        transfer_id: u64,
+        amount: Amount,
+    },
+    // Sent from meme chain to user chain
+    FundSuccess {
+        transfer_id: u64,
+    },
+    FundFail {
+        transfer_id: u64,
+        error: String,
+    },
     Swap {
         // Used to refund
         origin: Account,

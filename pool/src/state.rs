@@ -99,9 +99,11 @@ impl PoolState {
         &mut self,
         transfer_id: u64,
         status: FundStatus,
+        error: Option<String>,
     ) -> Result<(), PoolError> {
         let mut fund_request = self.fund_requests.get(&transfer_id).await?.unwrap();
         fund_request.status = status;
+        fund_request.error = error;
         Ok(self.fund_requests.insert(&transfer_id, fund_request)?)
     }
 

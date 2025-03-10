@@ -97,7 +97,7 @@ pub enum MemeOperation {
     Mine {
         nonce: CryptoHash,
     },
-    // Transfer to caller application with response
+    // Only be run on meme chain
     TransferToCaller {
         transfer_id: u64,
         amount: Amount,
@@ -137,26 +137,11 @@ pub enum MemeMessage {
         new_owner: Account,
     },
     // Mine is only run on creation chain so we don't need a message
-    // Transfer to caller application with response
-    TransferToCaller {
-        transfer_id: u64,
-        from: Account,
-        amount: Amount,
-        caller: Account,
-    },
-    // Will be run on caller chain
-    TransferToCallerSuccess {
-        transfer_id: u64,
-        application_id: ApplicationId,
-    },
-    TransferToCallerFail {
-        transfer_id: u64,
-        application_id: ApplicationId,
-    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub enum MemeResponse {
     #[default]
     Ok,
+    Fail(String),
 }

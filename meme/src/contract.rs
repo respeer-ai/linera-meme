@@ -119,6 +119,7 @@ impl Contract for MemeContract {
                 amount,
             } => self
                 .on_op_transfer_to_caller(transfer_id, amount)
+                .await
                 .expect("Failed OP: transfer to caller"),
             MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
         }
@@ -168,27 +169,6 @@ impl Contract for MemeContract {
                 .on_msg_transfer_ownership(owner, new_owner)
                 .await
                 .expect("Failed MSG: transfer ownership"),
-            MemeMessage::TransferToCaller {
-                transfer_id,
-                from,
-                amount,
-                caller,
-            } => self
-                .on_msg_transfer_to_caller(transfer_id, from, amount, caller)
-                .await
-                .expect("Failed MSG: transfer to caller"),
-            MemeMessage::TransferToCallerSuccess {
-                transfer_id,
-                application_id,
-            } => self
-                .on_msg_transfer_to_caller_success(transfer_id, application_id)
-                .expect("Failed MSG: trasnfer to caller success"),
-            MemeMessage::TransferToCallerFail {
-                transfer_id,
-                application_id,
-            } => self
-                .on_msg_transfer_to_caller_fail(transfer_id, application_id)
-                .expect("Failed MSG: trasnfer to caller fail"),
         }
     }
 
@@ -461,7 +441,7 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
-    fn on_op_transfer_to_caller(
+    async fn on_op_transfer_to_caller(
         &mut self,
         transfer_id: u64,
         amount: Amount,
@@ -473,16 +453,10 @@ impl MemeContract {
 
         let caller = self.caller_account();
         let from = self.owner_account();
-        self.runtime
-            .prepare_message(MemeMessage::TransferToCaller {
-                transfer_id,
-                from,
-                amount,
-                caller,
-            })
-            .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
-        Ok(MemeResponse::Ok)
+        match self.state.transfer_ensure(from, caller, amount).await {
+            Ok(_) => Ok(MemeResponse::Ok),
+            Err(err) => Ok(MemeResponse::Fail(err.to_string())),
+        }
     }
 
     fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
@@ -596,79 +570,6 @@ impl MemeContract {
         new_owner: Account,
     ) -> Result<(), MemeError> {
         self.state.transfer_ownership(owner, new_owner).await
-    }
-
-    fn notify_caller(&mut self, caller_chain: ChainId, message: MemeMessage) {
-        self.runtime
-            .prepare_message(message)
-            .with_authentication()
-            .send_to(caller_chain);
-    }
-
-    fn transfer_to_caller_success(&mut self, transfer_id: u64, caller: Account) {
-        let Some(AccountOwner::Application(application_id)) = caller.owner else {
-            panic!("Invalid caller");
-        };
-        self.notify_caller(
-            caller.chain_id,
-            MemeMessage::TransferToCallerSuccess {
-                transfer_id,
-                application_id,
-            },
-        );
-    }
-
-    fn transfer_to_caller_fail(&mut self, transfer_id: u64, caller: Account) {
-        let Some(AccountOwner::Application(application_id)) = caller.owner else {
-            panic!("Invalid caller");
-        };
-        self.notify_caller(
-            caller.chain_id,
-            MemeMessage::TransferToCallerFail {
-                transfer_id,
-                application_id,
-            },
-        );
-    }
-
-    async fn on_msg_transfer_to_caller(
-        &mut self,
-        transfer_id: u64,
-        from: Account,
-        amount: Amount,
-        caller: Account,
-    ) -> Result<(), MemeError> {
-        let _ = match self.state.transfer_ensure(from, caller, amount).await {
-            Ok(_) => self.transfer_to_caller_success(transfer_id, caller),
-            Err(_) => self.transfer_to_caller_fail(transfer_id, caller),
-        };
-        Ok(())
-    }
-
-    fn on_msg_transfer_to_caller_success(
-        &mut self,
-        transfer_id: u64,
-        application_id: ApplicationId,
-    ) -> Result<(), MemeError> {
-        // TODO: how to notify to all types of caller
-        let call = PoolOperation::FundsSuccess { transfer_id };
-        let _ = self
-            .runtime
-            .call_application(true, application_id.with_abi::<PoolAbi>(), &call);
-        Ok(())
-    }
-
-    fn on_msg_transfer_to_caller_fail(
-        &mut self,
-        transfer_id: u64,
-        application_id: ApplicationId,
-    ) -> Result<(), MemeError> {
-        // TODO: how to notify to all types of caller
-        let call = PoolOperation::FundsFail { transfer_id };
-        let _ = self
-            .runtime
-            .call_application(true, application_id.with_abi::<PoolAbi>(), &call);
-        Ok(())
     }
 }
 
