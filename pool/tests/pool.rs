@@ -13,8 +13,11 @@ use abi::{
     },
     store_type::StoreType,
     swap::{
-        pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
-        router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
+        pool::{InstantiationArgument as PoolInstantiationArgument, Pool, PoolAbi, PoolParameters},
+        router::{
+            InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
+            SwapParameters,
+        },
     },
 };
 use linera_sdk::{
@@ -224,9 +227,9 @@ async fn pool_test() {
             .unwrap(),
     )
     .unwrap();
+
     let description = ChainDescription::Child(message_id);
-    let pool_chain =
-        ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
+    let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
 
     suite.validator.add_chain(pool_chain.clone());
     suite.pool_chain = Some(pool_chain.clone());
@@ -234,4 +237,30 @@ async fn pool_test() {
     pool_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { pools {
+                poolId
+                token0
+                token1
+                poolApplication
+            } }",
+        )
+        .await;
+    assert_eq!(response["pools"].as_array().unwrap().len(), 1,);
+    let pool: PoolIndex =
+        serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
+
+    let Some(AccountOwner::Application(pool_application_id)) = pool.pool_application.owner else {
+        panic!("Invalid pool application");
+    };
+    suite.pool_application_id = Some(pool_application_id.with_abi::<PoolAbi>());
+
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), "query { pool }")
+        .await;
+    // let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
+    log::info!("Pool {:?}", response["pool"]);
 }
