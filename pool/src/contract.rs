@@ -158,6 +158,42 @@ impl Contract for PoolContract {
                     block_timestamp,
                 )
                 .expect("Failed MSG: swap"),
+            PoolMessage::AddLiquidity {
+                origin,
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            } => self
+                .on_msg_add_liquidity(
+                    origin,
+                    amount_0_in,
+                    amount_1_in,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    block_timestamp,
+                )
+                .expect("Failed MSG: add liquidity"),
+            PoolMessage::RemoveLiquidity {
+                origin,
+                liquidity,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            } => self
+                .on_msg_remove_liquidity(
+                    origin,
+                    liquidity,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    block_timestamp,
+                )
+                .expect("Failed MSG: remove liquidity"),
         }
     }
 
@@ -299,11 +335,13 @@ impl PoolContract {
 
         let origin = self.owner_account();
 
-        // 1: Authorize funds of token_0
+        // 1: Transfer funds of token_0
         if let Some(amount_0_in) = amount_0_in {
+            assert!(amount_0_in > Amount::ZERO, "Invalid amount");
+
             let fund_request = FundRequest {
                 from: origin,
-                token: self.state.token_0(),
+                token: Some(self.state.token_0()),
                 amount_in: amount_0_in,
                 pair_token_amount_out_min: amount_1_out_min,
                 to,
@@ -311,6 +349,7 @@ impl PoolContract {
                 fund_type: FundType::Swap,
                 status: FundStatus::InFlight,
                 error: None,
+                prev_request: None,
                 next_request: None,
             };
 
@@ -322,10 +361,12 @@ impl PoolContract {
         let Some(amount) = amount_1_in else {
             panic!("Invalid amount");
         };
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
         if let Some(token_1) = self.state.token_1() {
             let fund_request = FundRequest {
                 from: origin,
-                token: token_1,
+                token: Some(token_1),
                 amount_in: amount,
                 pair_token_amount_out_min: amount_0_out_min,
                 to,
@@ -333,6 +374,7 @@ impl PoolContract {
                 fund_type: FundType::Swap,
                 status: FundStatus::InFlight,
                 error: None,
+                prev_request: None,
                 next_request: None,
             };
 
@@ -357,7 +399,7 @@ impl PoolContract {
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
 
-        // 2: Authorize funds of token_1, or transfer native funds (will be done in message)
+        // 2: Request funds of token_1, or transfer native funds (will be done in message)
         Ok(PoolResponse::Ok)
     }
 
@@ -370,6 +412,46 @@ impl PoolContract {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     ) -> Result<PoolResponse, PoolError> {
+        assert!(
+            amount_0_in > Amount::ZERO && amount_1_in > Amount::ZERO,
+            "Invalid amount"
+        );
+
+        let origin = self.owner_account();
+
+        // 1: Transfer funds of token_0
+        let mut fund_request_0 = FundRequest {
+            from: origin,
+            token: Some(self.state.token_0()),
+            amount_in: amount_0_in,
+            pair_token_amount_out_min: amount_1_out_min,
+            to,
+            block_timestamp,
+            fund_type: FundType::AddLiquidity,
+            status: FundStatus::InFlight,
+            error: None,
+            prev_request: None,
+            next_request: None,
+        };
+        let transfer_id = self.state.create_fund_request(fund_request_0.clone())?;
+
+        let mut fund_request_1 = FundRequest {
+            from: origin,
+            token: self.state.token_1(),
+            amount_in: amount_1_in,
+            pair_token_amount_out_min: amount_0_out_min,
+            to,
+            block_timestamp,
+            fund_type: FundType::AddLiquidity,
+            status: FundStatus::Created,
+            error: None,
+            prev_request: Some(transfer_id),
+            next_request: None,
+        };
+        let transfer_id = self.state.create_fund_request(fund_request_1)?;
+        fund_request_0.next_request = Some(transfer_id);
+
+        self.transfer_token_0_funds(amount_0_in, transfer_id);
         Ok(PoolResponse::Ok)
     }
 
@@ -393,7 +475,11 @@ impl PoolContract {
 
     fn transfer_meme_to_creation_chain_application(&mut self, fund_request: &FundRequest) {
         let application = self.application_creation_account();
-        self.transfer_meme(fund_request.token, application, fund_request.amount_in);
+        self.transfer_meme(
+            fund_request.token.unwrap(),
+            application,
+            fund_request.amount_in,
+        );
     }
 
     fn swap_fund_success(&mut self, fund_request: &FundRequest) {
@@ -403,22 +489,22 @@ impl PoolContract {
         self.runtime
             .prepare_message(PoolMessage::Swap {
                 origin: fund_request.from,
-                amount_0_in: if fund_request.token == self.state.token_0() {
+                amount_0_in: if fund_request.token == Some(self.state.token_0()) {
                     Some(fund_request.amount_in)
                 } else {
                     None
                 },
-                amount_1_in: if fund_request.token == self.state.token_0() {
+                amount_1_in: if fund_request.token == Some(self.state.token_0()) {
                     None
                 } else {
                     Some(fund_request.amount_in)
                 },
-                amount_0_out_min: if fund_request.token == self.state.token_0() {
+                amount_0_out_min: if fund_request.token == Some(self.state.token_0()) {
                     None
                 } else {
                     fund_request.pair_token_amount_out_min
                 },
-                amount_1_out_min: if fund_request.token == self.state.token_0() {
+                amount_1_out_min: if fund_request.token == Some(self.state.token_0()) {
                     fund_request.pair_token_amount_out_min
                 } else {
                     None
@@ -430,7 +516,50 @@ impl PoolContract {
             .send_to(self.runtime.application_creator_chain_id());
     }
 
-    fn add_liquidity_fund_success(&mut self, fund_request: &FundRequest) {}
+    async fn add_liquidity_fund_success(
+        &mut self,
+        fund_request: &FundRequest,
+    ) -> Result<(), PoolError> {
+        if let Some(transfer_id) = fund_request.next_request {
+            if let Some(token_1) = fund_request.token {
+                let fund_request = self.state.fund_request(transfer_id).await?;
+                let chain_id = self.token_1_creator_chain_id();
+                self.transfer_token_funds(chain_id, token_1, fund_request.amount_in, transfer_id);
+                return Ok(());
+            }
+
+            // Pair token is native token, fund pool chain
+            let fund_request = self.state.fund_request(transfer_id).await?;
+            self.fund_pool_application_creation_chain(fund_request.amount_in);
+        }
+
+        let fund_request_0 = if let Some(transfer_id) = fund_request.prev_request {
+            &self.state.fund_request(transfer_id).await?
+        } else {
+            fund_request
+        };
+        let fund_request_1 = if let Some(transfer_id) = fund_request.next_request {
+            &self.state.fund_request(transfer_id).await?
+        } else {
+            fund_request
+        };
+
+        // Here both assets are transferred to pool successfully
+        self.runtime
+            .prepare_message(PoolMessage::AddLiquidity {
+                origin: fund_request_0.from,
+                amount_0_in: fund_request_0.amount_in,
+                amount_1_in: fund_request_1.amount_in,
+                amount_0_out_min: fund_request_0.pair_token_amount_out_min,
+                amount_1_out_min: fund_request_1.pair_token_amount_out_min,
+                to: fund_request_0.to,
+                block_timestamp: fund_request_0.block_timestamp,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
+
+        Ok(())
+    }
 
     async fn on_msg_fund_success(&mut self, transfer_id: u64) -> Result<(), PoolError> {
         let fund_request = self.state.fund_request(transfer_id).await?;
@@ -441,7 +570,7 @@ impl PoolContract {
 
         match fund_request.fund_type {
             FundType::Swap => self.swap_fund_success(&fund_request),
-            FundType::AddLiquidity => self.add_liquidity_fund_success(&fund_request),
+            FundType::AddLiquidity => self.add_liquidity_fund_success(&fund_request).await?,
         };
 
         Ok(())
@@ -561,6 +690,31 @@ impl PoolContract {
 
         self.state.liquid(balance_0, balance_1, timestamp);
 
+        Ok(())
+    }
+
+    fn on_msg_add_liquidity(
+        &mut self,
+        origin: Account,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<(), PoolError> {
+        Ok(())
+    }
+
+    fn on_msg_remove_liquidity(
+        &mut self,
+        origin: Account,
+        liquidity: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<(), PoolError> {
         Ok(())
     }
 }

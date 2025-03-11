@@ -33,6 +33,9 @@ pub enum FundType {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
 pub enum FundStatus {
+    // Fund request is created but not sent
+    Created,
+    // Fund request is sent but not respond
     InFlight,
     Success,
     Fail,
@@ -41,7 +44,7 @@ pub enum FundStatus {
 #[derive(Debug, Clone, Deserialize, Serialize, SimpleObject)]
 pub struct FundRequest {
     pub from: Account,
-    pub token: ApplicationId,
+    pub token: Option<ApplicationId>,
     pub amount_in: Amount,
     // Swap pair token min out amount
     pub pair_token_amount_out_min: Option<Amount>,
@@ -51,5 +54,6 @@ pub struct FundRequest {
     pub status: FundStatus,
     pub error: Option<String>,
     // When add liquidity, we need to transfer two assets
+    pub prev_request: Option<u64>,
     pub next_request: Option<u64>,
 }

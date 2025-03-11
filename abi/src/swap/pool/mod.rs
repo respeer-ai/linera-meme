@@ -87,6 +87,25 @@ pub enum PoolMessage {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
+    AddLiquidity {
+        // Used to refund
+        origin: Account,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
+    RemoveLiquidity {
+        // Used to refund
+        origin: Account,
+        liquidity: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
