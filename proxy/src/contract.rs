@@ -57,7 +57,7 @@ impl Contract for ProxyContract {
 
     async fn execute_operation(&mut self, operation: ProxyOperation) -> ProxyResponse {
         // All operations must be run on user chain side
-        if self.runtime.chain_id() == self.runtime.application_id().creation.chain_id {
+        if self.runtime.chain_id() == self.runtime.application_creator_chain_id() {
             panic!("Operations must not be run on creation chain");
         }
 
@@ -189,9 +189,9 @@ impl ProxyContract {
     fn message_executable(&mut self, message: &ProxyMessage) -> bool {
         match message {
             ProxyMessage::CreateMemeExt { .. } => {
-                self.runtime.chain_id() != self.runtime.application_id().creation.chain_id
+                self.runtime.chain_id() != self.runtime.application_creator_chain_id()
             }
-            _ => self.runtime.chain_id() == self.runtime.application_id().creation.chain_id,
+            _ => self.runtime.chain_id() == self.runtime.application_creator_chain_id(),
         }
     }
 
@@ -217,7 +217,7 @@ impl ProxyContract {
                 endpoint,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -229,7 +229,7 @@ impl ProxyContract {
         self.runtime
             .prepare_message(ProxyMessage::ApproveAddGenesisMiner { operator, owner })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -241,7 +241,7 @@ impl ProxyContract {
         self.runtime
             .prepare_message(ProxyMessage::ProposeRemoveGenesisMiner { operator, owner })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -253,7 +253,7 @@ impl ProxyContract {
         self.runtime
             .prepare_message(ProxyMessage::ApproveRemoveGenesisMiner { operator, owner })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -272,7 +272,7 @@ impl ProxyContract {
         assert!(amount <= Amount::ZERO, "Invalid fund amount");
 
         let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
-        let chain_id = self.runtime.application_id().creation.chain_id;
+        let chain_id = self.runtime.application_creator_chain_id();
         let application_id = self.runtime.application_id().forget_abi();
 
         let owner_balance = self.runtime.owner_balance(creator);
@@ -355,7 +355,7 @@ impl ProxyContract {
                 parameters: meme_parameters,
             })
             .with_authentication()
-            .send_to(self.runtime.application_id().creation.chain_id);
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -577,7 +577,7 @@ impl ProxyContract {
 
         // We're now on meme chain, notify proxy creation chain to store token info
         let meme_chain_id = self.runtime.chain_id();
-        let proxy_chain_id = self.runtime.application_id().creation.chain_id;
+        let proxy_chain_id = self.runtime.application_creator_chain_id();
         self.runtime
             .prepare_message(ProxyMessage::MemeCreated {
                 chain_id: meme_chain_id,

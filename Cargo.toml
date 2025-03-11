@@ -11,18 +11,21 @@ resolver = "2"
 [workspace.dependencies]
 async-graphql = { version = "=7.0.2", default-features = false }
 linera-sdk = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69" }
-linera-views = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69" }
+linera-views = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69", default-features = false }
 futures = { version = "0.3 "}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
-tokio = { version = "1.40", features = ["rt", "sync"] }
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
 assert_matches = "1.5.0"
 thiserror = "^1.0.65"
 log = "0.4.21"
 env_logger = "0.9"
 primitive-types = { version = "^0.13.1", features = ["serde"] }
 rust_decimal = "1.36"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.2.12", default-features = false, features = [
+    "custom",
+] }
+tempfile = "=3.12.0"
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }

@@ -20,6 +20,7 @@ use linera_sdk::{
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
     test::{ActiveChain, QueryOutcome, TestValidator},
 };
+use std::str::FromStr;
 
 struct TestSuite {
     admin_chain: ActiveChain,
@@ -81,9 +82,9 @@ impl TestSuite {
 
         self.swap_application_id = Some(
             self.swap_chain
-                .create_application::<SwapAbi, (), SwapInstantiationArgument>(
+                .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                     swap_bytecode_id,
-                    (),
+                    SwapParameters {},
                     SwapInstantiationArgument {
                         pool_bytecode_id: self.pool_bytecode_id.forget_abi(),
                     },

@@ -11,7 +11,7 @@ use abi::{
         MemeOperation, MemeParameters, Metadata,
     },
     store_type::StoreType,
-    swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi},
+    swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
 use linera_sdk::{
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
@@ -113,9 +113,9 @@ impl TestSuite {
 
         self.swap_application_id = Some(
             self.swap_chain
-                .create_application::<SwapAbi, (), SwapInstantiationArgument>(
+                .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                     swap_bytecode_id,
-                    (),
+                    SwapParameters {},
                     SwapInstantiationArgument { pool_bytecode_id },
                     vec![],
                 )
