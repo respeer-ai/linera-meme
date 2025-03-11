@@ -53,19 +53,19 @@ impl PoolState {
     }
 
     pub(crate) fn token_0(&self) -> ApplicationId {
-        self.pool.get().as_ref().unwrap().token_0
+        self.pool().token_0
     }
 
     pub(crate) fn token_1(&self) -> Option<ApplicationId> {
-        self.pool.get().as_ref().unwrap().token_1
+        self.pool().token_1
     }
 
     pub(crate) fn reserve_0(&self) -> Amount {
-        self.pool.get().as_ref().unwrap().reserve_0
+        self.pool().reserve_0
     }
 
     pub(crate) fn reserve_1(&self) -> Amount {
-        self.pool.get().as_ref().unwrap().reserve_1
+        self.pool().reserve_1
     }
 
     pub(crate) fn validate_token(&self, token: ApplicationId) {
@@ -108,13 +108,11 @@ impl PoolState {
     }
 
     pub(crate) fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, PoolError> {
-        let pool = self.pool.get().as_ref().unwrap();
-        Ok(pool.calculate_swap_amount_0(amount_1)?)
+        Ok(self.pool().calculate_swap_amount_0(amount_1)?)
     }
 
     pub(crate) fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, PoolError> {
-        let pool = self.pool.get().as_ref().unwrap();
-        Ok(pool.calculate_swap_amount_1(amount_0)?)
+        Ok(self.pool().calculate_swap_amount_1(amount_0)?)
     }
 
     pub(crate) fn calculate_adjusted_amount_pair(
@@ -122,8 +120,24 @@ impl PoolState {
         amount_0_out: Amount,
         amount_1_out: Amount,
     ) -> Result<(Amount, Amount), PoolError> {
-        let pool = self.pool.get().as_ref().unwrap();
-        Ok(pool.calculate_adjusted_amount_pair(amount_0_out, amount_1_out)?)
+        Ok(self
+            .pool()
+            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)?)
+    }
+
+    pub(crate) fn try_calculate_swap_amount_pair(
+        &self,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+    ) -> Result<(Amount, Amount), PoolError> {
+        Ok(self.pool().try_calculate_swap_amount_pair(
+            amount_0_desired,
+            amount_1_desired,
+            amount_0_min,
+            amount_1_min,
+        )?)
     }
 
     pub(crate) fn liquid(
@@ -132,8 +146,26 @@ impl PoolState {
         balance_1: Amount,
         block_timestamp: Timestamp,
     ) {
-        let mut pool: Pool = self.pool.get().as_ref().unwrap().clone();
+        let mut pool: Pool = self.pool();
         pool.liquid(balance_0, balance_1, block_timestamp);
+        self.pool.set(Some(pool));
+    }
+
+    pub(crate) fn add_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) {
+        let mut pool: Pool = self.pool();
+
+        pool.mint_shares(amount_0, amount_1, to);
+        pool.liquid(
+            pool.reserve_0.saturating_add(amount_0),
+            pool.reserve_1.saturating_add(amount_1),
+            block_timestamp,
+        );
         self.pool.set(Some(pool));
     }
 }

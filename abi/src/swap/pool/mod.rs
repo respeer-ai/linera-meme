@@ -452,6 +452,37 @@ impl Pool {
 
         Ok((amount_0_in, amount_1_in))
     }
+
+    pub fn try_calculate_swap_amount_pair(
+        &self,
+        amount_0_desired: Amount,
+        amount_1_desired: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+    ) -> Result<(Amount, Amount), PoolError> {
+        if self.reserve_0 == Amount::ZERO && self.reserve_1 == Amount::ZERO {
+            return Ok((amount_0_desired, amount_1_desired));
+        }
+        let amount_1_optimal = self.calculate_swap_amount_1(amount_0_desired)?;
+        if amount_1_optimal <= amount_1_desired {
+            if let Some(amount_1_min) = amount_1_min {
+                if amount_1_optimal < amount_1_min {
+                    return Err(PoolError::InvalidAmount);
+                }
+            }
+            return Ok((amount_0_desired, amount_1_optimal));
+        }
+        let amount_0_optimal = self.calculate_swap_amount_0(amount_1_desired)?;
+        if amount_0_optimal > amount_0_desired {
+            return Err(PoolError::InvalidAmount);
+        }
+        if let Some(amount_0_min) = amount_0_min {
+            if amount_0_optimal < amount_0_min {
+                return Err(PoolError::InvalidAmount);
+            }
+        }
+        Ok((amount_0_optimal, amount_1_desired))
+    }
 }
 
 #[cfg(test)]
@@ -512,6 +543,17 @@ mod tests {
             Decimal::from_str("0.0941876783679159092407531247").unwrap()
         );
         assert_eq!(price_0_cumulative, Decimal::from_str("42.4684").unwrap());
+
+        let (amount_0, amount_1) = pool
+            .try_calculate_swap_amount_pair(
+                Amount::from_tokens(20),
+                Amount::from_tokens(30),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(amount_0, Amount::from_str("1.412815175518738638").unwrap());
+        assert_eq!(amount_1, Amount::from_str("30").unwrap());
     }
 
     #[test]
@@ -553,5 +595,16 @@ mod tests {
         assert_eq!(pool.share.total_supply, liquidity);
         assert_eq!(pool.share.shares.contains_key(&creator), true);
         assert_eq!(*pool.share.shares.get(&creator).unwrap(), liquidity);
+
+        let (amount_0, amount_1) = pool
+            .try_calculate_swap_amount_pair(
+                Amount::from_tokens(20),
+                Amount::from_tokens(30),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(amount_0, Amount::from_str("1.412815175518738638").unwrap());
+        assert_eq!(amount_1, Amount::from_str("30").unwrap());
     }
 }

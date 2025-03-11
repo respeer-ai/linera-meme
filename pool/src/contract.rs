@@ -703,6 +703,20 @@ impl PoolContract {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
+        // We already receive all funds here
+        let (amount_0, amount_1) = self.state.try_calculate_swap_amount_pair(
+            amount_0_in,
+            amount_1_in,
+            amount_0_out_min,
+            amount_1_out_min,
+        )?;
+
+        let to = to.unwrap_or(origin);
+        let timestamp = self.runtime.system_time();
+        self.state.add_liquidity(amount_0, amount_1, to, timestamp);
+
+        // TODO: refund differentiate amount
+
         Ok(())
     }
 
@@ -798,7 +812,7 @@ mod tests {
 
         let fund_request = FundRequest {
             from: owner,
-            token: pool.state.token_0(),
+            token: Some(pool.state.token_0()),
             amount_in: Amount::ONE,
             pair_token_amount_out_min: None,
             to: None,
@@ -806,6 +820,7 @@ mod tests {
             fund_type: FundType::Swap,
             status: FundStatus::InFlight,
             error: None,
+            prev_request: None,
             next_request: None,
         };
 
@@ -826,7 +841,7 @@ mod tests {
 
         let fund_request = FundRequest {
             from: owner,
-            token: pool.state.token_0(),
+            token: Some(pool.state.token_0()),
             amount_in: Amount::ONE,
             pair_token_amount_out_min: None,
             to: None,
@@ -834,6 +849,7 @@ mod tests {
             fund_type: FundType::Swap,
             status: FundStatus::InFlight,
             error: None,
+            prev_request: None,
             next_request: None,
         };
 
