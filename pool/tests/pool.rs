@@ -18,15 +18,22 @@ use abi::{
     },
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, MessageId,
+        ModuleId, Owner,
+    },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
+use std::str::FromStr;
 
+#[derive(Clone)]
 struct TestSuite {
+    validator: TestValidator,
+
     admin_chain: ActiveChain,
     meme_chain: ActiveChain,
     user_chain: ActiveChain,
-    pool_chain: ActiveChain,
+    pool_chain: Option<ActiveChain>,
     swap_chain: ActiveChain,
 
     pool_bytecode_id: ModuleId<PoolAbi, PoolParameters, PoolInstantiationArgument>,
@@ -50,14 +57,15 @@ impl TestSuite {
         let admin_chain = validator.get_chain(&ChainId::root(0));
         let meme_chain = validator.new_chain().await;
         let user_chain = validator.new_chain().await;
-        let pool_chain = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
 
         TestSuite {
+            validator,
+
             admin_chain,
             meme_chain,
             user_chain,
-            pool_chain,
+            pool_chain: None,
             swap_chain,
 
             pool_bytecode_id,
@@ -158,38 +166,13 @@ impl TestSuite {
             swap_creator_chain_id: self.swap_chain.id(),
         };
 
-        let meme_bytecode_id = self.swap_chain.publish_bytecode_files_in("../meme").await;
+        let meme_bytecode_id = self.meme_chain.publish_bytecode_files_in("../meme").await;
         self.meme_application_id = Some(
             self.meme_chain
                 .create_application(
                     meme_bytecode_id,
                     parameters.clone(),
                     instantiation_argument.clone(),
-                    vec![],
-                )
-                .await,
-        )
-    }
-
-    async fn create_pool_application(&mut self) {
-        self.pool_application_id = Some(
-            self.pool_chain
-                .create_application::<PoolAbi, PoolParameters, PoolInstantiationArgument>(
-                    self.pool_bytecode_id,
-                    PoolParameters {
-                        token_0: self.meme_application_id.unwrap().forget_abi(),
-                        token_1: None,
-                        virtual_initial_liquidity: true,
-                        token_0_creator_chain_id: self.meme_chain.id(),
-                        token_1_creator_chain_id: None,
-                    },
-                    PoolInstantiationArgument {
-                        amount_0: Amount::from_tokens(10000),
-                        amount_1: Amount::from_tokens(10),
-                        pool_fee_percent_mul_100: 30,
-                        protocol_fee_percent_mul_100: 5,
-                        router_application_id: self.swap_application_id.unwrap().forget_abi(),
-                    },
                     vec![],
                 )
                 .await,
@@ -208,11 +191,47 @@ async fn pool_test() {
     let mut suite = TestSuite::new().await;
     let meme_chain = &suite.meme_chain.clone();
     let user_chain = &suite.user_chain.clone();
-    let pool_chain = &suite.pool_chain.clone();
+    let swap_chain = &suite.swap_chain.clone();
+
+    let swap_key_pair = swap_chain.key_pair();
 
     suite.fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET).await;
 
     suite.create_swap_application().await;
     suite.create_meme_application().await;
-    suite.create_pool_application().await;
+
+    // Check initial swap pool
+    meme_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { poolChainCreationMessages }",
+        )
+        .await;
+    assert_eq!(
+        response["poolChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    let message_id = MessageId::from_str(
+        response["poolChainCreationMessages"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let description = ChainDescription::Child(message_id);
+    let pool_chain =
+        ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
+
+    suite.validator.add_chain(pool_chain.clone());
+    suite.pool_chain = Some(pool_chain.clone());
+
+    pool_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
 }
