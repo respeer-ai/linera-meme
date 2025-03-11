@@ -155,6 +155,7 @@ impl TestSuite {
                 native_amount: Amount::from_tokens(10),
             }),
             virtual_initial_liquidity: true,
+            swap_creator_chain_id: self.swap_chain.id(),
         };
 
         self.meme_application_id = Some(
@@ -163,7 +164,7 @@ impl TestSuite {
                     self.meme_bytecode_id,
                     parameters.clone(),
                     instantiation_argument.clone(),
-                    vec![self.swap_application_id.unwrap()],
+                    vec![],
                 )
                 .await,
         )
@@ -199,18 +200,6 @@ impl TestSuite {
                 block.with_operation(
                     self.meme_application_id.unwrap(),
                     MemeOperation::TransferFrom { from, to, amount },
-                );
-            })
-            .await;
-        self.meme_chain.handle_received_messages().await;
-    }
-
-    async fn initialize_liquidity(&self, chain: &ActiveChain) {
-        chain
-            .add_block(|block| {
-                block.with_operation(
-                    self.meme_application_id.unwrap(),
-                    MemeOperation::InitializeLiquidity,
                 );
             })
             .await;
@@ -385,28 +374,6 @@ async fn meme_work_flow_test() {
     assert_eq!(
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
         Amount::ZERO,
-    );
-
-    let QueryOutcome { response, .. } = meme_chain
-        .graphql_query(
-            suite.meme_application_id.unwrap(),
-            "query { liquidityPoolInitialized }",
-        )
-        .await;
-    assert_eq!(
-        response["liquidityPoolInitialized"].as_bool().unwrap(),
-        false,
-    );
-    suite.initialize_liquidity(&meme_chain).await;
-    let QueryOutcome { response, .. } = meme_chain
-        .graphql_query(
-            suite.meme_application_id.unwrap(),
-            "query { liquidityPoolInitialized }",
-        )
-        .await;
-    assert_eq!(
-        response["liquidityPoolInitialized"].as_bool().unwrap(),
-        true,
     );
 
     meme_chain.handle_received_messages().await;

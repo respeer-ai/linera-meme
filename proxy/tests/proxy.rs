@@ -6,6 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeOperation,
         MemeParameters, Metadata,
@@ -124,10 +125,6 @@ impl TestSuite {
     }
 
     async fn create_swap_application(&mut self) {
-        let liquidity_rfq_bytecode_id = self
-            .swap_chain
-            .publish_bytecode_files_in("../liquidity-rfq")
-            .await;
         let pool_bytecode_id = self.swap_chain.publish_bytecode_files_in("../pool").await;
         let swap_bytecode_id = self.swap_chain.publish_bytecode_files_in("../swap").await;
 
@@ -136,10 +133,7 @@ impl TestSuite {
                 .create_application::<SwapAbi, SwapParameters, SwapInstantiationArgument>(
                     swap_bytecode_id,
                     SwapParameters {},
-                    SwapInstantiationArgument {
-                        liquidity_rfq_bytecode_id,
-                        pool_bytecode_id,
-                    },
+                    SwapInstantiationArgument { pool_bytecode_id },
                     vec![],
                 )
                 .await,
@@ -195,7 +189,7 @@ impl TestSuite {
                 block.with_operation(
                     self.proxy_application_id.unwrap(),
                     ProxyOperation::CreateMeme {
-                        fee_budget: Some(Amount::ZERO),
+                        fee_budget: Some(OPEN_CHAIN_FEE_BUDGET),
                         meme_instantiation_argument: MemeInstantiationArgument {
                             meme: Meme {
                                 name: "Test Token".to_string(),
@@ -228,6 +222,7 @@ impl TestSuite {
                                 native_amount: Amount::from_tokens(10),
                             }),
                             virtual_initial_liquidity: true,
+                            swap_creator_chain_id: self.swap_chain.id(),
                         },
                     },
                 );
@@ -242,22 +237,6 @@ impl TestSuite {
                 );
             })
             .await;
-    }
-
-    async fn initialize_liquidity(
-        &self,
-        chain: &ActiveChain,
-        meme_chain: &ActiveChain,
-        meme_application_id: ApplicationId,
-    ) {
-        chain
-            .add_block(|block| {
-                block.with_operation(meme_application_id, MemeOperation::InitializeLiquidity);
-            })
-            .await;
-        meme_chain.handle_received_messages().await;
-        self.swap_chain.handle_received_messages().await;
-        meme_chain.handle_received_messages().await;
     }
 }
 
@@ -295,16 +274,6 @@ async fn proxy_create_meme_test() {
     let expected = json!({"memeBytecodeId": suite.meme_bytecode_id});
     assert_eq!(response, expected);
 
-    meme_user_chain
-        .register_application(suite.proxy_application_id.unwrap())
-        .await;
-    operator_chain
-        .register_application(suite.proxy_application_id.unwrap())
-        .await;
-    proxy_chain
-        .register_application(suite.swap_application_id.unwrap())
-        .await;
-
     suite
         .propose_add_genesis_miner(&operator_chain, owner)
         .await;
@@ -321,6 +290,9 @@ async fn proxy_create_meme_test() {
     let expected = json!({"genesisMiners": [owner]});
     assert_eq!(response, expected);
 
+    suite
+        .fund_chain(&meme_user_chain, OPEN_CHAIN_FEE_BUDGET)
+        .await;
     suite.create_meme_application(&meme_user_chain).await;
 
     let QueryOutcome { response, .. } = proxy_chain
@@ -378,17 +350,6 @@ async fn proxy_create_meme_test() {
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
 
-    meme_chain
-        .register_application(suite.swap_application_id.unwrap())
-        .await;
-    meme_user_chain
-        .register_application(meme_application.unwrap())
-        .await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
-
-    suite.fund_chain(&meme_user_chain, Amount::ONE).await;
-    suite
-        .initialize_liquidity(&meme_user_chain, &meme_chain, meme_application.unwrap())
-        .await;
 }

@@ -27,6 +27,9 @@ impl ServiceAbi for SwapAbi {
 pub enum SwapOperation {
     // Token 1 can only be native token when initializing
     InitializeLiquidity {
+        // TODO: use to avoid reentrant invocation before
+        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
@@ -73,7 +76,6 @@ pub enum SwapOperation {
         to: Option<AccountOwner>,
         deadline: Option<Timestamp>,
     },
-    CreatorChainId,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -86,6 +88,9 @@ pub enum SwapResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SwapMessage {
     InitializeLiquidity {
+        // TODO: use to avoid reentrant invocation before
+        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
@@ -105,7 +110,11 @@ pub enum SwapMessage {
     },
     CreatePool {
         pool_bytecode_id: ModuleId,
+        // TODO: use to avoid reentrant invocation before
+        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
+        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,

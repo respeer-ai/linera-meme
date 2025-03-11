@@ -1,7 +1,9 @@
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{Account, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
+    linera_base_types::{
+        Account, Amount, ApplicationId, ChainId, ContractAbi, ServiceAbi, Timestamp,
+    },
 };
 use primitive_types::U256;
 use rust_decimal::prelude::*;
@@ -88,6 +90,9 @@ pub struct PoolParameters {
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub virtual_initial_liquidity: bool,
+    // TODO: work around of https://github.com/linera-io/linera-protocol/issues/3538
+    pub token_0_creator_chain_id: ChainId,
+    pub token_1_creator_chain_id: Option<ChainId>,
 }
 
 scalar!(PoolParameters);
@@ -440,8 +445,8 @@ mod tests {
     fn test_pool_with_virtual_initial_liquidity() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
-        let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
+        let token_0 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
+        let token_1 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301").unwrap();
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();
@@ -490,8 +495,8 @@ mod tests {
     fn test_pool_with_real_initial_liquidity() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let token_0 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000").unwrap();
-        let token_1 = ApplicationId::from_str("b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000001").unwrap();
+        let token_0 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
+        let token_1 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301").unwrap();
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();

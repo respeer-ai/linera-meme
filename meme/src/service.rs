@@ -99,10 +99,6 @@ impl QueryRoot {
     async fn initial_owner_balance(&self) -> Amount {
         self.state.initial_owner_balance().await
     }
-
-    async fn liquidity_pool_initialized(&self) -> bool {
-        self.state.liquidity_pool_initialized().await
-    }
 }
 
 #[cfg(test)]

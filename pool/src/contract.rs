@@ -164,21 +164,28 @@ impl PoolContract {
         }
     }
 
-    fn meme_creator_chain_id(&mut self, token: ApplicationId) -> ChainId {
-        let call = MemeOperation::CreatorChainId;
-        let MemeResponse::ChainId(chain_id) =
-            self.runtime
-                .call_application(true, token.with_abi::<MemeAbi>(), &call)
-        else {
-            panic!("Invalid response");
-        };
-        chain_id
+    fn token_0_creator_chain_id(&mut self) -> ChainId {
+        self.runtime
+            .application_parameters()
+            .token_0_creator_chain_id
+    }
+
+    fn token_1_creator_chain_id(&mut self) -> ChainId {
+        self.runtime
+            .application_parameters()
+            .token_1_creator_chain_id
+            .unwrap()
     }
 
     // Send a message to token chain, then call token application
     // Send back a message of fund result
-    fn transfer_token_funds(&mut self, token: ApplicationId, amount: Amount, transfer_id: u64) {
-        let chain_id = self.meme_creator_chain_id(token);
+    fn transfer_token_funds(
+        &mut self,
+        token_creator_chain_id: ChainId,
+        token: ApplicationId,
+        amount: Amount,
+        transfer_id: u64,
+    ) {
         self.runtime
             .prepare_message(PoolMessage::RequestFund {
                 token,
@@ -186,12 +193,13 @@ impl PoolContract {
                 amount,
             })
             .with_authentication()
-            .send_to(chain_id);
+            .send_to(token_creator_chain_id);
     }
 
     fn transfer_token_0_funds(&mut self, amount: Amount, transfer_id: u64) {
         let token_0 = self.state.token_0();
-        self.transfer_token_funds(token_0, amount, transfer_id);
+        let chain_id = self.token_0_creator_chain_id();
+        self.transfer_token_funds(chain_id, token_0, amount, transfer_id);
     }
 
     fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
@@ -284,7 +292,8 @@ impl PoolContract {
             };
 
             let transfer_id = self.state.create_fund_request(fund_request)?;
-            self.transfer_token_funds(token_1, amount, transfer_id);
+            let chain_id = self.token_1_creator_chain_id();
+            self.transfer_token_funds(chain_id, token_1, amount, transfer_id);
             return Ok(PoolResponse::Ok);
         }
 
@@ -642,19 +651,9 @@ mod tests {
     fn mock_application_call(
         _authenticated: bool,
         _application_id: ApplicationId,
-        operation: Vec<u8>,
+        _operation: Vec<u8>,
     ) -> Vec<u8> {
-        let operation = bcs::from_bytes(&operation).unwrap();
-        match operation {
-            MemeOperation::CreatorChainId => bcs::to_bytes(&MemeResponse::ChainId(
-                ChainId::from_str(
-                    "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
-                )
-                .unwrap(),
-            ))
-            .unwrap(),
-            _ => bcs::to_bytes(&MemeResponse::Ok).unwrap(),
-        }
+        bcs::to_bytes(&MemeResponse::Ok).unwrap()
     }
 
     fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
@@ -676,6 +675,8 @@ mod tests {
                 token_0,
                 token_1: Some(token_1),
                 virtual_initial_liquidity,
+                token_0_creator_chain_id: chain_id,
+                token_1_creator_chain_id: Some(chain_id),
             })
             .with_chain_id(chain_id)
             .with_application_id(application_id)

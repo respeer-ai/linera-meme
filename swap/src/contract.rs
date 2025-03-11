@@ -61,6 +61,7 @@ impl Contract for SwapContract {
     async fn execute_operation(&mut self, operation: SwapOperation) -> SwapResponse {
         match operation {
             SwapOperation::InitializeLiquidity {
+                token_0_creator_chain_id,
                 token_0,
                 amount_0,
                 amount_1,
@@ -68,7 +69,14 @@ impl Contract for SwapContract {
                 virtual_liquidity,
                 to,
             } => self
-                .on_call_initialize_liquidity(token_0, amount_0, amount_1, virtual_liquidity, to)
+                .on_call_initialize_liquidity(
+                    token_0_creator_chain_id,
+                    token_0,
+                    amount_0,
+                    amount_1,
+                    virtual_liquidity,
+                    to,
+                )
                 .await
                 .expect("Failed OP: initialize liquidity"),
             SwapOperation::AddLiquidity {
@@ -154,7 +162,6 @@ impl Contract for SwapContract {
                     deadline,
                 )
                 .expect("Failed OP: swap"),
-            SwapOperation::CreatorChainId => self.on_call_creator_chain_id(),
         }
     }
 
@@ -166,6 +173,7 @@ impl Contract for SwapContract {
 
         match message {
             SwapMessage::InitializeLiquidity {
+                token_0_creator_chain_id,
                 token_0,
                 amount_0,
                 amount_1,
@@ -173,7 +181,14 @@ impl Contract for SwapContract {
                 virtual_liquidity,
                 to,
             } => self
-                .on_msg_initialize_liquidity(token_0, amount_0, amount_1, virtual_liquidity, to)
+                .on_msg_initialize_liquidity(
+                    token_0_creator_chain_id,
+                    token_0,
+                    amount_0,
+                    amount_1,
+                    virtual_liquidity,
+                    to,
+                )
                 .await
                 .expect("Failed MSG: initialize liquidity"),
             SwapMessage::AddLiquidity {
@@ -200,7 +215,9 @@ impl Contract for SwapContract {
                 .expect("Failed MSG: add liquidity"),
             SwapMessage::CreatePool {
                 pool_bytecode_id,
+                token_0_creator_chain_id,
                 token_0,
+                token_1_creator_chain_id,
                 token_1,
                 amount_0,
                 amount_1,
@@ -208,7 +225,9 @@ impl Contract for SwapContract {
             } => self
                 .on_msg_create_pool(
                     pool_bytecode_id,
+                    token_0_creator_chain_id,
                     token_0,
+                    token_1_creator_chain_id,
                     token_1,
                     amount_0,
                     amount_1,
@@ -315,19 +334,9 @@ impl SwapContract {
         }
     }
 
-    fn meme_creator_chain_id(&mut self, token: ApplicationId) -> ChainId {
-        let call = MemeOperation::CreatorChainId;
-        let MemeResponse::ChainId(chain_id) =
-            self.runtime
-                .call_application(true, token.with_abi::<MemeAbi>(), &call)
-        else {
-            panic!("Invalid response");
-        };
-        chain_id
-    }
-
     fn formalize_virtual_liquidity(
         &mut self,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         virtual_liquidity: bool,
@@ -345,7 +354,9 @@ impl SwapContract {
         if caller_application_id != token_0 {
             return false;
         }
-        if self.runtime.chain_id() != self.meme_creator_chain_id(token_0) {
+        // Here we cannot call to meme application for creator chain id due to it's called from
+        // meme application.
+        if self.runtime.chain_id() != token_0_creator_chain_id {
             return false;
         }
         return true;
@@ -437,6 +448,7 @@ impl SwapContract {
 
     async fn on_call_initialize_liquidity(
         &mut self,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
@@ -447,12 +459,14 @@ impl SwapContract {
         let chain_id = self.runtime.chain_id();
 
         assert!(token_0 == caller_id, "Invalid caller");
-        assert!(
-            chain_id == self.meme_creator_chain_id(token_0),
-            "Invalid caller"
-        );
+        assert!(chain_id == token_0_creator_chain_id, "Invalid caller");
 
-        let virtual_liquidity = self.formalize_virtual_liquidity(token_0, None, virtual_liquidity);
+        let virtual_liquidity = self.formalize_virtual_liquidity(
+            token_0_creator_chain_id,
+            token_0,
+            None,
+            virtual_liquidity,
+        );
 
         // Here allowance is already approved, so just transfer native amount then create pool
         // chain and application
@@ -468,6 +482,7 @@ impl SwapContract {
 
         self.runtime
             .prepare_message(SwapMessage::InitializeLiquidity {
+                token_0_creator_chain_id,
                 token_0,
                 amount_0,
                 amount_1,
@@ -551,10 +566,6 @@ impl SwapContract {
         Ok(SwapResponse::Ok)
     }
 
-    fn on_call_creator_chain_id(&mut self) -> SwapResponse {
-        SwapResponse::ChainId(self.runtime.application_creator_chain_id())
-    }
-
     fn pool_chain_add_liquidity(
         &mut self,
         pool_application: Account,
@@ -572,6 +583,7 @@ impl SwapContract {
     // Pool application is run on its own chain
     async fn create_pool(
         &mut self,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
@@ -590,7 +602,9 @@ impl SwapContract {
         self.runtime
             .prepare_message(SwapMessage::CreatePool {
                 pool_bytecode_id: bytecode_id,
+                token_0_creator_chain_id,
                 token_0,
+                token_1_creator_chain_id: None,
                 token_1,
                 amount_0,
                 amount_1,
@@ -605,6 +619,7 @@ impl SwapContract {
 
     async fn on_msg_initialize_liquidity(
         &mut self,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
@@ -612,6 +627,7 @@ impl SwapContract {
         to: Option<AccountOwner>,
     ) -> Result<(), SwapError> {
         self.create_pool(
+            token_0_creator_chain_id,
             token_0,
             None,
             amount_0,
@@ -645,7 +661,9 @@ impl SwapContract {
     fn on_msg_create_pool(
         &mut self,
         pool_bytecode_id: ModuleId,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
+        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
@@ -663,6 +681,8 @@ impl SwapContract {
                     token_0,
                     token_1,
                     virtual_initial_liquidity,
+                    token_0_creator_chain_id,
+                    token_1_creator_chain_id,
                 },
                 &PoolInstantiationArgument {
                     amount_0,
@@ -772,6 +792,7 @@ impl SwapContract {
                 deadline,
             )
         } else {
+            /*
             self.create_pool(
                 token_0,
                 token_1,
@@ -782,6 +803,8 @@ impl SwapContract {
                 deadline,
             )
             .await
+            */
+            Ok(())
         }
     }
 
@@ -845,6 +868,10 @@ mod tests {
 
         let response = swap
             .execute_operation(SwapOperation::InitializeLiquidity {
+                token_0_creator_chain_id: ChainId::from_str(
+                    "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+                )
+                .unwrap(),
                 token_0: meme_1,
                 amount_0: Amount::ONE,
                 amount_1: Amount::ONE,

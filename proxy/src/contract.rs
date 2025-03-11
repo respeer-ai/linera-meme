@@ -6,6 +6,7 @@
 mod state;
 
 use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
     proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse},
 };
@@ -268,12 +269,11 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    fn fund_creation_chain_proxy_application(&mut self, amount: Amount) {
-        assert!(amount <= Amount::ZERO, "Invalid fund amount");
+    fn fund_proxy_chain(&mut self, to: Option<AccountOwner>, amount: Amount) {
+        assert!(amount > Amount::ZERO, "Invalid fund amount");
 
         let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
         let chain_id = self.runtime.application_creator_chain_id();
-        let application_id = self.runtime.application_id().forget_abi();
 
         let owner_balance = self.runtime.owner_balance(creator);
         let chain_balance = self.runtime.chain_balance();
@@ -297,7 +297,7 @@ impl ProxyContract {
                 Some(creator),
                 Account {
                     chain_id,
-                    owner: Some(AccountOwner::Application(application_id)),
+                    owner: to,
                 },
                 from_owner_balance,
             );
@@ -307,7 +307,7 @@ impl ProxyContract {
                 None,
                 Account {
                     chain_id,
-                    owner: Some(AccountOwner::Application(application_id)),
+                    owner: to,
                 },
                 from_chain_balance,
             );
@@ -318,7 +318,7 @@ impl ProxyContract {
         if fee_budget <= Amount::ZERO {
             return;
         }
-        self.fund_creation_chain_proxy_application(fee_budget);
+        self.fund_proxy_chain(None, fee_budget);
     }
 
     fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
@@ -328,7 +328,8 @@ impl ProxyContract {
         let Some(liquidity) = meme_parameters.initial_liquidity else {
             return;
         };
-        self.fund_creation_chain_proxy_application(liquidity.native_amount);
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        self.fund_proxy_chain(Some(application), liquidity.native_amount);
     }
 
     fn on_op_create_meme(
@@ -342,7 +343,7 @@ impl ProxyContract {
 
         // Fund proxy application on the creation chain, it'll fund meme chain for fee and
         // initial liquidity
-        let fee_budget = fee_budget.unwrap_or(Amount::ONE);
+        let fee_budget = fee_budget.unwrap_or(OPEN_CHAIN_FEE_BUDGET);
         self.fund_proxy_chain_fee_budget(fee_budget);
         self.fund_proxy_chain_initial_liquidity(meme_parameters.clone());
 
@@ -462,16 +463,12 @@ impl ProxyContract {
         );
         let application_id = self.runtime.application_id().forget_abi();
         // We have to let meme application change permissions
-        // TODO: restrict after https://github.com/linera-io/linera-protocol/pull/3382
         let permissions = ApplicationPermissions {
-            // execute_operations: Some(vec![application_id]),
-            execute_operations: None,
-            // mandatory_applications: vec![application_id],
-            mandatory_applications: vec![],
+            execute_operations: Some(vec![application_id]),
+            mandatory_applications: vec![application_id],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
         };
-        log::info!("Owner weights {:?}", self.meme_chain_owner_weights().await?);
         Ok(self.runtime.open_chain(ownership, permissions, fee_budget))
     }
 
@@ -562,12 +559,9 @@ impl ProxyContract {
         let application_id =
             self.create_meme_application(bytecode_id, instantiation_argument, parameters);
 
-        // TODO: restrict after https://github.com/linera-io/linera-protocol/pull/3382
         let permissions = ApplicationPermissions {
-            // execute_operations: Some(vec![application_id]),
-            execute_operations: None,
-            // mandatory_applications: vec![application_id],
-            mandatory_applications: vec![],
+            execute_operations: Some(vec![application_id]),
+            mandatory_applications: vec![application_id],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
         };
@@ -745,7 +739,7 @@ mod tests {
             chain_id,
             owner: Some(AccountOwner::User(owner)),
         };
-        let application_id_str = "b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8020000000000000000000000";
+        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let application_id = ApplicationId::from_str(application_id_str)
             .unwrap()
             .with_abi::<ProxyAbi>();
@@ -753,6 +747,7 @@ mod tests {
             .with_application_parameters(())
             .with_authenticated_signer(owner)
             .with_chain_id(chain_id)
+            .with_application_creator_chain_id(chain_id)
             .with_application_id(application_id);
         let mut contract = ProxyContract {
             state: ProxyState::load(runtime.root_view_storage_context())

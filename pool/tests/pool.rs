@@ -6,6 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
         MemeParameters, Metadata,
@@ -18,9 +19,8 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
-    test::{ActiveChain, QueryOutcome, TestValidator},
+    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
-use std::str::FromStr;
 
 struct TestSuite {
     admin_chain: ActiveChain,
@@ -70,11 +70,41 @@ impl TestSuite {
         }
     }
 
+    fn chain_account(&self, chain: ActiveChain) -> Account {
+        Account {
+            chain_id: chain.id(),
+            owner: None,
+        }
+    }
+
     fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
             owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
         }
+    }
+
+    async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
+        let certificate = self
+            .admin_chain
+            .add_block(|block| {
+                block.with_native_token_transfer(
+                    None,
+                    Recipient::Account(self.chain_account(chain.clone())),
+                    amount,
+                );
+            })
+            .await;
+        chain
+            .add_block(move |block| {
+                block.with_messages_from_by_medium(
+                    &certificate,
+                    &Medium::Direct,
+                    MessageAction::Accept,
+                );
+            })
+            .await;
+        chain.handle_received_messages().await;
     }
 
     async fn create_swap_application(&mut self) {
@@ -125,6 +155,7 @@ impl TestSuite {
                 native_amount: Amount::from_tokens(10),
             }),
             virtual_initial_liquidity: true,
+            swap_creator_chain_id: self.swap_chain.id(),
         };
 
         let meme_bytecode_id = self.swap_chain.publish_bytecode_files_in("../meme").await;
@@ -149,6 +180,8 @@ impl TestSuite {
                         token_0: self.meme_application_id.unwrap().forget_abi(),
                         token_1: None,
                         virtual_initial_liquidity: true,
+                        token_0_creator_chain_id: self.meme_chain.id(),
+                        token_1_creator_chain_id: None,
                     },
                     PoolInstantiationArgument {
                         amount_0: Amount::from_tokens(10000),
@@ -176,6 +209,8 @@ async fn pool_test() {
     let meme_chain = &suite.meme_chain.clone();
     let user_chain = &suite.user_chain.clone();
     let pool_chain = &suite.pool_chain.clone();
+
+    suite.fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET).await;
 
     suite.create_swap_application().await;
     suite.create_meme_application().await;

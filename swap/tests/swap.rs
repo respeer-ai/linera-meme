@@ -171,6 +171,7 @@ impl TestSuite {
                 native_amount: self.initial_native,
             }),
             virtual_initial_liquidity,
+            swap_creator_chain_id: self.swap_chain.id(),
         };
 
         self.meme_application_id = Some(
@@ -183,24 +184,6 @@ impl TestSuite {
                 )
                 .await,
         )
-    }
-
-    async fn initialize_liquidity(&self, chain: &ActiveChain) {
-        chain
-            .add_block(|block| {
-                block.with_operation(
-                    self.meme_application_id.unwrap(),
-                    MemeOperation::InitializeLiquidity,
-                );
-            })
-            .await;
-
-        // Initial liquidity and open chain fee budget is already transferred and will be processed in message
-        assert_eq!(chain.chain_balance().await, Amount::ZERO);
-        // Initial liquidity funds will be transferred to meme application firstly then to swap chain
-        // and it's run in process message, so we will not be able to validate it here
-
-        self.meme_chain.handle_received_messages().await;
     }
 }
 
@@ -245,11 +228,6 @@ async fn virtual_liquidity_native_test() {
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
         suite.initial_liquidity,
     );
-
-    suite.initialize_liquidity(&meme_chain).await;
-
-    meme_chain.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(
@@ -374,11 +352,6 @@ async fn real_liquidity_native_test() {
         Amount::from_str(response["allowanceOf"].as_str().unwrap()).unwrap(),
         suite.initial_liquidity,
     );
-
-    suite.initialize_liquidity(&meme_chain).await;
-
-    meme_chain.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
 
     // Here liquidity funds should already be transferred to swap application on creation chain.
     // OPEN_CHAIN_FEE_BUDGET is already transferred to pool chain here so on swap chain we have

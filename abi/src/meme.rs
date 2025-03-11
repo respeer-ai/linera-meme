@@ -54,6 +54,8 @@ pub struct MemeParameters {
     pub creator: Account,
     pub initial_liquidity: Option<Liquidity>,
     pub virtual_initial_liquidity: bool,
+    // TODO: work around for https://github.com/linera-io/linera-protocol/issues/3538
+    pub swap_creator_chain_id: ChainId,
 }
 
 scalar!(MemeParameters);
@@ -72,9 +74,6 @@ impl ServiceAbi for MemeAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
-    // Work around before https://github.com/linera-io/linera-protocol/pull/3382 being merged
-    // Can only initialize liquidity which is already defined when create token
-    InitializeLiquidity,
     Transfer {
         to: Account,
         amount: Amount,
@@ -104,16 +103,10 @@ pub enum MemeOperation {
         transfer_id: u64,
         amount: Amount,
     },
-    // Return creator chain to caller
-    CreatorChainId,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum MemeMessage {
-    // Work around before https://github.com/linera-io/linera-protocol/pull/3382 being merged
-    InitializeLiquidity {
-        operator: Account,
-    },
     LiquidityFunded,
     Transfer {
         from: Account,

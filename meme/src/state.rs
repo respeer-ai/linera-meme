@@ -21,7 +21,6 @@ pub struct MemeState {
     // Meme metadata
     pub meme: RegisterView<Option<Meme>>,
     pub initial_liquidity: RegisterView<Option<Liquidity>>,
-    pub liquidity_pool_initialized: RegisterView<bool>,
 
     pub blob_gateway_application_id: RegisterView<Option<ApplicationId>>,
     pub ams_application_id: RegisterView<Option<ApplicationId>>,
@@ -277,13 +276,5 @@ impl MemeState {
         assert!(owner == self.owner.get().unwrap(), "Invalid owner");
         self.owner.set(Some(new_owner));
         Ok(())
-    }
-
-    pub(crate) async fn liquidity_pool_initialized(&self) -> bool {
-        *self.liquidity_pool_initialized.get()
-    }
-
-    pub(crate) async fn initialize_liquidity_pool(&mut self) {
-        self.liquidity_pool_initialized.set(true);
     }
 }
