@@ -261,6 +261,6 @@ async fn pool_test() {
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), "query { pool }")
         .await;
-    // let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
-    log::info!("Pool {:?}", response["pool"]);
+    let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
+    log::info!("Pool {:?}", pool);
 }

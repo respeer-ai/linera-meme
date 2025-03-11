@@ -64,6 +64,12 @@ impl Contract for PoolContract {
         );
 
         match operation {
+            PoolOperation::SetFeeTo { account } => self
+                .on_op_set_fee_to(account)
+                .expect("Failed OP: set fee to"),
+            PoolOperation::SetFeeToSetter { account } => self
+                .on_op_set_fee_to_setter(account)
+                .expect("Failed OP: set fee to setter"),
             PoolOperation::Swap {
                 amount_0_in,
                 amount_1_in,
@@ -81,7 +87,38 @@ impl Contract for PoolContract {
                     block_timestamp,
                 )
                 .expect("Failed OP: swap"),
-            _ => todo!(),
+            PoolOperation::AddLiquidity {
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            } => self
+                .on_op_add_liquidity(
+                    amount_0_in,
+                    amount_1_in,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    block_timestamp,
+                )
+                .expect("Failed OP: add liquidity"),
+            PoolOperation::RemoveLiquidity {
+                liquidity,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            } => self
+                .on_op_remove_liquidity(
+                    liquidity,
+                    amount_0_out_min,
+                    amount_1_out_min,
+                    to,
+                    block_timestamp,
+                )
+                .expect("Failed OP: remove liquidity"),
         }
     }
 
@@ -237,6 +274,14 @@ impl PoolContract {
         }
     }
 
+    fn on_op_set_fee_to(&mut self, account: Account) -> Result<PoolResponse, PoolError> {
+        Ok(PoolResponse::Ok)
+    }
+
+    fn on_op_set_fee_to_setter(&mut self, account: Account) -> Result<PoolResponse, PoolError> {
+        Ok(PoolResponse::Ok)
+    }
+
     fn on_op_swap(
         &mut self,
         amount_0_in: Option<Amount>,
@@ -313,6 +358,29 @@ impl PoolContract {
             .send_to(self.runtime.application_creator_chain_id());
 
         // 2: Authorize funds of token_1, or transfer native funds (will be done in message)
+        Ok(PoolResponse::Ok)
+    }
+
+    fn on_op_add_liquidity(
+        &mut self,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<PoolResponse, PoolError> {
+        Ok(PoolResponse::Ok)
+    }
+
+    fn on_op_remove_liquidity(
+        &mut self,
+        liquidity: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<PoolResponse, PoolError> {
         Ok(PoolResponse::Ok)
     }
 

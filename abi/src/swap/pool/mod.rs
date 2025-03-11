@@ -24,24 +24,28 @@ impl ServiceAbi for PoolAbi {
 }
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
-    CreatePool {
-        token_0: ApplicationId,
-        // None means add pair to native token
-        token_1: Option<ApplicationId>,
-        // Actual deposited initial liquidity
-        // New listed token must not be 0
-        amount_0: Amount,
-        amount_1: Amount,
-    },
     SetFeeTo {
         account: Account,
     },
     SetFeeToSetter {
         account: Account,
     },
-    // TODO: AddLiquidity / RemoveLiquidity
+    AddLiquidity {
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
+    RemoveLiquidity {
+        liquidity: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
     Swap {
-        // Used to refund
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,
         amount_0_out_min: Option<Amount>,
