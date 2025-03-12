@@ -52,7 +52,9 @@ impl Contract for PoolContract {
         let creator = self.owner_account();
         let timestamp = self.runtime.system_time();
         self.state
-            .instantiate(argument.clone(), parameters, creator, timestamp);
+            .instantiate(argument.clone(), parameters, creator, timestamp)
+            .await
+            .expect("Failed instantiate");
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
@@ -176,6 +178,7 @@ impl Contract for PoolContract {
                     to,
                     block_timestamp,
                 )
+                .await
                 .expect("Failed MSG: add liquidity"),
             PoolMessage::RemoveLiquidity {
                 origin,
@@ -435,7 +438,7 @@ impl PoolContract {
         };
         let transfer_id = self.state.create_fund_request(fund_request_0.clone())?;
 
-        let mut fund_request_1 = FundRequest {
+        let fund_request_1 = FundRequest {
             from: origin,
             token: self.state.token_1(),
             amount_in: amount_1_in,
@@ -693,7 +696,7 @@ impl PoolContract {
         Ok(())
     }
 
-    fn on_msg_add_liquidity(
+    async fn on_msg_add_liquidity(
         &mut self,
         origin: Account,
         amount_0_in: Amount,
@@ -713,7 +716,9 @@ impl PoolContract {
 
         let to = to.unwrap_or(origin);
         let timestamp = self.runtime.system_time();
-        self.state.add_liquidity(amount_0, amount_1, to, timestamp);
+        self.state
+            .add_liquidity(amount_0, amount_1, to, timestamp)
+            .await?;
 
         // TODO: refund differentiate amount
 
@@ -759,19 +764,19 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn create_pool_with_real_liquidity() {
-        let pool = create_and_instantiate_pool(false);
+        let pool = create_and_instantiate_pool(false).await;
         let _ = pool.state.pool();
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn create_pool_with_virtual_liquidity() {
-        let pool = create_and_instantiate_pool(true);
+        let pool = create_and_instantiate_pool(true).await;
         let _ = pool.state.pool();
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn operation_swap() {
-        let mut pool = create_and_instantiate_pool(true);
+        let mut pool = create_and_instantiate_pool(true).await;
 
         let response = pool
             .execute_operation(PoolOperation::Swap {
@@ -789,8 +794,27 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn operation_add_liquidity() {
+        let mut pool = create_and_instantiate_pool(true).await;
+
+        let response = pool
+            .execute_operation(PoolOperation::AddLiquidity {
+                amount_0_in: Amount::ONE,
+                amount_1_in: Amount::from_tokens(20),
+                amount_0_out_min: None,
+                amount_1_out_min: None,
+                to: None,
+                block_timestamp: None,
+            })
+            .now_or_never()
+            .expect("Execution of meme operation should not await anything");
+
+        assert!(matches!(response, PoolResponse::Ok));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn message_request_fund() {
-        let mut pool = create_and_instantiate_pool(true);
+        let mut pool = create_and_instantiate_pool(true).await;
 
         pool.execute_message(PoolMessage::RequestFund {
             token: pool.state.token_0(),
@@ -802,7 +826,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn message_fund_success() {
-        let mut pool = create_and_instantiate_pool(true);
+        let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
             owner: Some(AccountOwner::User(
@@ -831,7 +855,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn message_fund_fail() {
-        let mut pool = create_and_instantiate_pool(true);
+        let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
             owner: Some(AccountOwner::User(
@@ -863,7 +887,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn message_swap() {
-        let mut pool = create_and_instantiate_pool(true);
+        let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
             owner: Some(AccountOwner::User(
@@ -875,6 +899,30 @@ mod tests {
             origin: owner,
             amount_0_in: None,
             amount_1_in: Some(Amount::ONE),
+            amount_0_out_min: None,
+            amount_1_out_min: None,
+            to: None,
+            block_timestamp: None,
+        })
+        .await;
+
+        log::info!("Pool {:?}", pool.state.pool());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn message_add_liquidity() {
+        let mut pool = create_and_instantiate_pool(true).await;
+        let owner = Account {
+            chain_id: pool.runtime.chain_id(),
+            owner: Some(AccountOwner::User(
+                pool.runtime.authenticated_signer().unwrap(),
+            )),
+        };
+
+        pool.execute_message(PoolMessage::AddLiquidity {
+            origin: owner,
+            amount_0_in: Amount::ONE,
+            amount_1_in: Amount::from_tokens(10),
             amount_0_out_min: None,
             amount_1_out_min: None,
             to: None,
@@ -894,7 +942,7 @@ mod tests {
         bcs::to_bytes(&MemeResponse::Ok).unwrap()
     }
 
-    fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
+    async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
         let _ = env_logger::builder().is_test(true).try_init();
 
         let token_0 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
@@ -939,8 +987,7 @@ mod tests {
                 protocol_fee_percent_mul_100: 5,
                 router_application_id,
             })
-            .now_or_never()
-            .expect("Initialization of pool state should not await anything");
+            .await;
 
         contract
     }

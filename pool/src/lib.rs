@@ -6,7 +6,7 @@
 use abi::swap::pool::PoolError as _PoolError;
 use async_graphql::{Enum, SimpleObject};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ApplicationId, Timestamp},
+    linera_base_types::{Account, Amount, ApplicationId, ArithmeticError, Timestamp},
     views::ViewError,
 };
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,9 @@ pub enum PoolError {
 
     #[error(transparent)]
     PoolError(#[from] _PoolError),
+
+    #[error(transparent)]
+    ArithmeticError(#[from] ArithmeticError),
 
     #[error("Invalid amount")]
     InvalidAmount,

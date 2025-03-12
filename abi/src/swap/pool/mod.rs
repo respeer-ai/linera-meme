@@ -1,4 +1,4 @@
-use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
+use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
@@ -8,7 +8,6 @@ use linera_sdk::{
 use primitive_types::U256;
 use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
 
 pub struct PoolAbi;
@@ -144,37 +143,6 @@ pub enum PoolError {
     InsufficientLiquidity,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Default, SimpleObject)]
-pub struct Share {
-    pub total_supply: Amount,
-    pub shares: HashMap<Account, Amount>,
-}
-
-impl Share {
-    pub fn mint(&mut self, to: Account, amount: Amount) {
-        self.total_supply.saturating_add_assign(amount);
-        self.shares.insert(
-            to.clone(),
-            self.shares
-                .get(&to)
-                .unwrap_or(&Amount::ZERO)
-                .saturating_add(amount),
-        );
-    }
-
-    // Liquidity to be burn should be returned to application already
-    pub fn burn(&mut self, from: Account, liquidity: Amount) {
-        self.total_supply = self.total_supply.saturating_sub(liquidity);
-        self.shares.insert(
-            from.clone(),
-            self.shares
-                .get(&from)
-                .unwrap_or(&Amount::ZERO)
-                .saturating_sub(liquidity),
-        );
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Pool {
     pub token_0: ApplicationId,
@@ -184,7 +152,6 @@ pub struct Pool {
     pub reserve_1: Amount,
     pub pool_fee_percent_mul_100: u16,
     pub protocol_fee_percent_mul_100: u16,
-    pub share: Share,
     pub fee_to: Account,
     pub fee_to_setter: Account,
     pub price_0_cumulative: Decimal,
@@ -199,9 +166,6 @@ impl Pool {
     pub fn create(
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        virtual_initial_liquidity: bool,
-        amount_0: Amount,
-        amount_1: Amount,
         pool_fee_percent_mul_100: u16,
         protocol_fee_percent_mul_100: u16,
         creator: Account,
@@ -209,35 +173,28 @@ impl Pool {
     ) -> Self {
         assert!(Some(token_0) != token_1, "Invalid token pair");
 
-        let mut pool = Pool {
+        Pool {
             token_0,
             token_1,
             reserve_0: Amount::ZERO,
             reserve_1: Amount::ZERO,
             pool_fee_percent_mul_100,
             protocol_fee_percent_mul_100,
-            share: Share::default(),
             fee_to: creator,
             fee_to_setter: creator,
             price_0_cumulative: Decimal::default(),
             price_1_cumulative: Decimal::default(),
             k_last: Amount::ZERO,
             block_timestamp,
-        };
-
-        if !virtual_initial_liquidity {
-            pool.mint_shares(amount_0, amount_1, creator);
         }
-
-        assert!(amount_0 > Amount::ZERO, "Invalid amount");
-        assert!(amount_1 > Amount::ZERO, "Invalid amount");
-
-        pool.liquid(amount_0, amount_1, block_timestamp);
-
-        pool
     }
 
-    fn calculate_liquidity(&self, amount_0: Amount, amount_1: Amount) -> Amount {
+    pub fn calculate_liquidity(
+        &self,
+        total_supply: Amount,
+        amount_0: Amount,
+        amount_1: Amount,
+    ) -> Amount {
         if self.reserve_0 == Amount::ZERO && self.reserve_1 == Amount::ZERO {
             return Amount::from_attos(
                 U256::from(u128::from(amount_0))
@@ -248,7 +205,6 @@ impl Pool {
             );
         }
 
-        let total_supply = self.share.total_supply;
         let reserve_0 = self.reserve_0.saturating_add(amount_0);
         let reserve_1 = self.reserve_1.saturating_add(amount_1);
 
@@ -279,9 +235,9 @@ impl Pool {
         }
     }
 
-    fn mint_fee(&mut self) {
+    pub fn mint_fee(&self, total_supply: Amount) -> Amount {
         if self.k_last == Amount::ZERO {
-            return;
+            return Amount::ZERO;
         }
         let root_k = U256::from(u128::from(self.reserve_0))
             .checked_mul(U256::from(u128::from(self.reserve_1)))
@@ -295,7 +251,7 @@ impl Pool {
                 .checked_add(root_k_last)
                 .unwrap();
             let liquidity = Amount::from_attos(
-                U256::from(u128::from(self.share.total_supply))
+                U256::from(u128::from(total_supply))
                     .checked_mul(root_k.checked_sub(root_k_last).unwrap())
                     .unwrap()
                     .checked_div(denominator)
@@ -303,9 +259,10 @@ impl Pool {
                     .as_u128(),
             );
             if liquidity > Amount::ZERO {
-                self.share.mint(self.fee_to, liquidity);
+                return liquidity;
             }
         }
+        return Amount::ZERO;
     }
 
     // TODO: this should be calculate only once for each block
@@ -331,15 +288,6 @@ impl Pool {
                 .integer_sqrt()
                 .as_u128(),
         );
-    }
-
-    pub fn mint_shares(&mut self, amount_0: Amount, amount_1: Amount, to: Account) {
-        assert!(amount_0 > Amount::ZERO, "Invalid amount");
-        assert!(amount_1 > Amount::ZERO, "Invalid amount");
-
-        self.mint_fee();
-        let liquidity = self.calculate_liquidity(amount_0, amount_1);
-        self.share.mint(to, liquidity);
     }
 
     pub fn calculate_price_cumulative_pair(&self, time_elapsed: u128) -> (Decimal, Decimal) {
@@ -512,23 +460,15 @@ mod tests {
             owner: Some(AccountOwner::User(owner)),
         };
 
-        let pool = Pool::create(
-            token_0,
-            Some(token_1),
-            true,
-            Amount::ONE,
-            Amount::from_str("21.2342").unwrap(),
-            30,
-            5,
-            creator,
-            0.into(),
-        );
+        let mut pool = Pool::create(token_0, Some(token_1), 30, 5, creator, 0.into());
 
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
-        assert_eq!(pool.share.total_supply, Amount::ZERO);
-        assert_eq!(pool.reserve_0, Amount::ONE);
-        assert_eq!(pool.reserve_1, Amount::from_str("21.2342").unwrap());
+        assert_eq!(pool.reserve_0, Amount::ZERO);
+        assert_eq!(pool.reserve_1, Amount::ZERO);
+
+        pool.reserve_0 = Amount::ONE;
+        pool.reserve_1 = Amount::from_str("21.2342").unwrap();
 
         let (price_0_cumulative, price_1_cumulative) = pool.calculate_price_cumulative_pair(1);
         assert_eq!(
@@ -573,28 +513,15 @@ mod tests {
             owner: Some(AccountOwner::User(owner)),
         };
 
-        let pool = Pool::create(
-            token_0,
-            Some(token_1),
-            false,
-            Amount::ONE,
-            Amount::from_str("21.2342").unwrap(),
-            30,
-            5,
-            creator,
-            0.into(),
-        );
+        let mut pool = Pool::create(token_0, Some(token_1), 30, 5, creator, 0.into());
 
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
-        assert_eq!(pool.reserve_0, Amount::ONE);
-        assert_eq!(pool.reserve_1, Amount::from_str("21.2342").unwrap());
+        assert_eq!(pool.reserve_0, Amount::ZERO);
+        assert_eq!(pool.reserve_1, Amount::ZERO);
 
-        // Test initial liquidity
-        let liquidity = Amount::from_attos(4608058159355196332);
-        assert_eq!(pool.share.total_supply, liquidity);
-        assert_eq!(pool.share.shares.contains_key(&creator), true);
-        assert_eq!(*pool.share.shares.get(&creator).unwrap(), liquidity);
+        pool.reserve_0 = Amount::ONE;
+        pool.reserve_1 = Amount::from_str("21.2342").unwrap();
 
         let (amount_0, amount_1) = pool
             .try_calculate_swap_amount_pair(

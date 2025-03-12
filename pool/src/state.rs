@@ -17,31 +17,46 @@ pub struct PoolState {
 
     pub transfer_id: RegisterView<u64>,
     pub fund_requests: MapView<u64, FundRequest>,
+
+    pub total_supply: RegisterView<Amount>,
+    pub shares: MapView<Account, Amount>,
 }
 
 #[allow(dead_code)]
 impl PoolState {
-    pub(crate) fn instantiate(
+    pub(crate) async fn instantiate(
         &mut self,
         argument: InstantiationArgument,
         parameters: PoolParameters,
         owner: Account,
-        timestamp: Timestamp,
-    ) {
+        block_timestamp: Timestamp,
+    ) -> Result<(), PoolError> {
         self.pool.set(Some(Pool::create(
             parameters.token_0,
             parameters.token_1,
-            parameters.virtual_initial_liquidity,
-            argument.amount_0,
-            argument.amount_1,
             argument.pool_fee_percent_mul_100,
             argument.protocol_fee_percent_mul_100,
             owner,
-            timestamp,
+            block_timestamp,
         )));
+
+        let mut pool = self.pool();
+
         self.router_application_id
             .set(Some(argument.router_application_id));
         self.transfer_id.set(1000);
+
+        assert!(argument.amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(argument.amount_1 > Amount::ZERO, "Invalid amount");
+
+        if !parameters.virtual_initial_liquidity {
+            self.mint_shares(argument.amount_0, argument.amount_1, owner)
+                .await?;
+        }
+        pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
+
+        self.pool.set(Some(pool));
+        Ok(())
     }
 
     pub(crate) fn pool(&self) -> Pool {
@@ -151,21 +166,66 @@ impl PoolState {
         self.pool.set(Some(pool));
     }
 
-    pub(crate) fn add_liquidity(
+    pub(crate) async fn add_liquidity(
         &mut self,
         amount_0: Amount,
         amount_1: Amount,
         to: Account,
         block_timestamp: Timestamp,
-    ) {
-        let mut pool: Pool = self.pool();
+    ) -> Result<(), PoolError> {
+        self.mint_shares(amount_0, amount_1, to).await?;
 
-        pool.mint_shares(amount_0, amount_1, to);
+        let mut pool: Pool = self.pool();
         pool.liquid(
-            pool.reserve_0.saturating_add(amount_0),
-            pool.reserve_1.saturating_add(amount_1),
+            pool.reserve_0.try_add(amount_0)?,
+            pool.reserve_1.try_add(amount_1)?,
             block_timestamp,
         );
         self.pool.set(Some(pool));
+        Ok(())
+    }
+
+    pub(crate) async fn liquidity(&self, account: Account) -> Result<Amount, PoolError> {
+        Ok(self.shares.get(&account).await?.unwrap_or(Amount::ZERO))
+    }
+
+    pub(crate) async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), PoolError> {
+        self.total_supply
+            .set(self.total_supply.get().try_add(amount).unwrap());
+
+        let share = self.liquidity(to).await?;
+        Ok(self.shares.insert(&to, share.try_add(amount)?)?)
+    }
+
+    // Liquidity to be burn should be returned to application already
+    pub(crate) async fn burn(&mut self, from: Account, liquidity: Amount) -> Result<(), PoolError> {
+        self.total_supply
+            .set(self.total_supply.get().try_sub(liquidity)?);
+
+        let share = self.liquidity(from).await?;
+        assert!(liquidity <= share, "Invalid liquidity");
+
+        Ok(self.shares.insert(&from, share.try_sub(liquidity)?)?)
+    }
+
+    pub(crate) async fn mint_shares(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+    ) -> Result<(), PoolError> {
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+
+        let pool = self.pool();
+        let total_supply = *self.total_supply.get();
+
+        let fee_share = pool.mint_fee(total_supply);
+        self.mint(pool.fee_to, fee_share).await?;
+
+        let liquidity = pool.calculate_liquidity(total_supply, amount_0, amount_1);
+        self.mint(to, liquidity).await?;
+
+        Ok(())
     }
 }
