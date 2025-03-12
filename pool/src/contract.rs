@@ -687,8 +687,20 @@ impl PoolContract {
 
         // 4: Liquid
 
-        let balance_0 = self.state.reserve_0().saturating_sub(amount_0_out);
-        let balance_1 = self.state.reserve_1().saturating_add(amount_1_out);
+        let balance_0 = self
+            .state
+            .reserve_0()
+            .try_sub(amount_0_out)
+            .unwrap()
+            .try_add(amount_0_in.unwrap_or(Amount::ZERO))
+            .unwrap();
+        let balance_1 = self
+            .state
+            .reserve_1()
+            .try_sub(amount_1_out)
+            .unwrap()
+            .try_add(amount_1_in.unwrap_or(Amount::ZERO))
+            .unwrap();
         let timestamp = self.runtime.system_time();
 
         self.state.liquid(balance_0, balance_1, timestamp);
@@ -902,6 +914,10 @@ mod tests {
             )),
         };
 
+        let reserve_0 = pool.state.reserve_0();
+        let reserve_1 = pool.state.reserve_1();
+        let swap_amount_0 = pool.state.calculate_swap_amount_0(Amount::ONE).unwrap();
+
         pool.execute_message(PoolMessage::Swap {
             origin: owner,
             amount_0_in: None,
@@ -913,7 +929,14 @@ mod tests {
         })
         .await;
 
-        log::info!("Pool {:?}", pool.state.pool());
+        assert_eq!(
+            reserve_0.try_sub(swap_amount_0).unwrap(),
+            pool.state.reserve_0()
+        );
+        assert_eq!(
+            reserve_1.try_add(Amount::ONE).unwrap(),
+            pool.state.reserve_1()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
