@@ -9,7 +9,11 @@ use std::sync::Arc;
 
 use abi::swap::pool::{Pool, PoolAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
-use linera_sdk::{linera_base_types::WithServiceAbi, views::View, Service, ServiceRuntime};
+use linera_sdk::{
+    linera_base_types::{Account, Amount, WithServiceAbi},
+    views::View,
+    Service, ServiceRuntime,
+};
 
 use self::state::PoolState;
 
@@ -58,6 +62,10 @@ struct QueryRoot {
 impl QueryRoot {
     async fn pool(&self) -> Pool {
         self.state.pool()
+    }
+
+    async fn liquidity(&self, account: Account) -> Amount {
+        self.state.liquidity(account).await.unwrap()
     }
 }
 
