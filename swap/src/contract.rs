@@ -385,6 +385,10 @@ impl SwapContract {
         amount_1: Amount,
         to: Option<Account>,
     ) -> Result<SwapResponse, SwapError> {
+        // Fund fee budget firstly. If not created, refund
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        self.fund_swap_creation_chain(application, None, OPEN_CHAIN_FEE_BUDGET);
+
         self.runtime
             .prepare_message(SwapMessage::CreateUserPool {
                 token_0,
@@ -660,6 +664,7 @@ impl SwapContract {
             .get_pool_exchangable(token_0, Some(token_1))
             .await?
         {
+            // TODO: refund fee budget
             panic!("Pool exists");
         }
 

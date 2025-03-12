@@ -19,7 +19,7 @@ use abi::{
         },
         router::{
             InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
-            SwapParameters,
+            SwapOperation, SwapParameters,
         },
     },
 };
@@ -45,8 +45,8 @@ struct TestSuite {
 
     pool_bytecode_id: ModuleId<PoolAbi, PoolParameters, PoolInstantiationArgument>,
     pool_application_id: Option<ApplicationId<PoolAbi>>,
+    meme_application_id_0: Option<ApplicationId<MemeAbi>>,
     meme_application_id_1: Option<ApplicationId<MemeAbi>>,
-    meme_application_id_2: Option<ApplicationId<MemeAbi>>,
     swap_application_id: Option<ApplicationId<SwapAbi>>,
 
     initial_supply: Amount,
@@ -81,8 +81,8 @@ impl TestSuite {
 
             pool_bytecode_id,
             pool_application_id: None,
+            meme_application_id_0: None,
             meme_application_id_1: None,
-            meme_application_id_2: None,
             swap_application_id: None,
 
             initial_supply: Amount::from_tokens(21000000),
@@ -187,7 +187,7 @@ impl TestSuite {
         };
 
         let meme_bytecode_id = self.meme_chain_1.publish_bytecode_files_in("../meme").await;
-        self.meme_application_id_1 = Some(
+        self.meme_application_id_0 = Some(
             self.meme_chain_1
                 .create_application(
                     meme_bytecode_id,
@@ -207,7 +207,7 @@ impl TestSuite {
             virtual_initial_liquidity,
             swap_creator_chain_id: self.swap_chain.id(),
         };
-        self.meme_application_id_2 = Some(
+        self.meme_application_id_1 = Some(
             self.meme_chain_2
                 .create_application(
                     meme_bytecode_id,
@@ -286,6 +286,25 @@ impl TestSuite {
             .await;
         chain.handle_received_messages().await;
     }
+
+    async fn create_pool(&self, chain: &ActiveChain, amount_0: Amount, amount_1: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.swap_application_id.unwrap(),
+                    SwapOperation::CreatePool {
+                        token_0: self.meme_application_id_0.unwrap().forget_abi(),
+                        token_1: self.meme_application_id_1.unwrap().forget_abi(),
+                        amount_0,
+                        amount_1,
+                        to: None,
+                    },
+                );
+            })
+            .await;
+        self.swap_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+    }
 }
 
 /// Test setting a pool and testing its coherency across microchains.
@@ -306,6 +325,7 @@ async fn meme_meme_pair_test() {
 
     suite.fund_chain(&meme_chain_1, OPEN_CHAIN_FEE_BUDGET).await;
     suite.fund_chain(&meme_chain_2, OPEN_CHAIN_FEE_BUDGET).await;
+    suite.fund_chain(&user_chain, OPEN_CHAIN_FEE_BUDGET).await;
 
     suite.create_swap_application().await;
     suite.create_meme_applications(true).await;
@@ -314,4 +334,8 @@ async fn meme_meme_pair_test() {
     meme_chain_1.handle_received_messages().await;
     meme_chain_2.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
+
+    suite
+        .create_pool(&user_chain, Amount::ONE, Amount::ONE)
+        .await;
 }
