@@ -83,8 +83,12 @@ pub enum MemeOperation {
         to: Account,
         amount: Amount,
     },
-    // Special operation used by swap application only
     TransferFromApplication {
+        to: Account,
+        amount: Amount,
+    },
+    // Special operation used by swap to initialize liquidity for new pool
+    InitializeLiquidity {
         to: Account,
         amount: Amount,
     },
@@ -120,6 +124,12 @@ pub enum MemeMessage {
         amount: Amount,
     },
     TransferFromApplication {
+        caller: Account,
+        to: Account,
+        amount: Amount,
+    },
+    // Special operation used by swap to initialize liquidity for new pool
+    InitializeLiquidity {
         caller: Account,
         to: Account,
         amount: Amount,

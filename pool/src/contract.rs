@@ -105,6 +105,7 @@ impl Contract for PoolContract {
                     to,
                     block_timestamp,
                 )
+                .await
                 .expect("Failed OP: add liquidity"),
             PoolOperation::RemoveLiquidity {
                 liquidity,
@@ -232,6 +233,14 @@ impl PoolContract {
         }
     }
 
+    fn token_0(&mut self) -> ApplicationId {
+        self.runtime.application_parameters().token_0
+    }
+
+    fn token_1(&mut self) -> Option<ApplicationId> {
+        self.runtime.application_parameters().token_1
+    }
+
     fn token_0_creator_chain_id(&mut self) -> ChainId {
         self.runtime
             .application_parameters()
@@ -265,7 +274,7 @@ impl PoolContract {
     }
 
     fn transfer_token_0_funds(&mut self, amount: Amount, transfer_id: u64) {
-        let token_0 = self.state.token_0();
+        let token_0 = self.token_0();
         let chain_id = self.token_0_creator_chain_id();
         self.transfer_token_funds(chain_id, token_0, amount, transfer_id);
     }
@@ -346,7 +355,7 @@ impl PoolContract {
 
             let fund_request = FundRequest {
                 from: origin,
-                token: Some(self.state.token_0()),
+                token: Some(self.token_0()),
                 amount_in: amount_0_in,
                 pair_token_amount_out_min: amount_1_out_min,
                 to,
@@ -368,7 +377,7 @@ impl PoolContract {
         };
         assert!(amount > Amount::ZERO, "Invalid amount");
 
-        if let Some(token_1) = self.state.token_1() {
+        if let Some(token_1) = self.token_1() {
             let fund_request = FundRequest {
                 from: origin,
                 token: Some(token_1),
@@ -408,7 +417,7 @@ impl PoolContract {
         Ok(PoolResponse::Ok)
     }
 
-    fn on_op_add_liquidity(
+    async fn on_op_add_liquidity(
         &mut self,
         amount_0_in: Amount,
         amount_1_in: Amount,
@@ -427,7 +436,7 @@ impl PoolContract {
         // 1: Transfer funds of token_0
         let mut fund_request_0 = FundRequest {
             from: origin,
-            token: Some(self.state.token_0()),
+            token: Some(self.token_0()),
             amount_in: amount_0_in,
             pair_token_amount_out_min: amount_1_out_min,
             to,
@@ -438,11 +447,11 @@ impl PoolContract {
             prev_request: None,
             next_request: None,
         };
-        let transfer_id = self.state.create_fund_request(fund_request_0.clone())?;
+        let transfer_id_0 = self.state.create_fund_request(fund_request_0.clone())?;
 
         let fund_request_1 = FundRequest {
             from: origin,
-            token: self.state.token_1(),
+            token: self.token_1(),
             amount_in: amount_1_in,
             pair_token_amount_out_min: amount_0_out_min,
             to,
@@ -450,13 +459,17 @@ impl PoolContract {
             fund_type: FundType::AddLiquidity,
             status: FundStatus::Created,
             error: None,
-            prev_request: Some(transfer_id),
+            prev_request: Some(transfer_id_0),
             next_request: None,
         };
-        let transfer_id = self.state.create_fund_request(fund_request_1)?;
-        fund_request_0.next_request = Some(transfer_id);
+        let transfer_id_1 = self.state.create_fund_request(fund_request_1)?;
 
-        self.transfer_token_0_funds(amount_0_in, transfer_id);
+        fund_request_0.next_request = Some(transfer_id_1);
+        self.state
+            .update_fund_request(transfer_id_0, fund_request_0)
+            .await?;
+
+        self.transfer_token_0_funds(amount_0_in, transfer_id_0);
         Ok(PoolResponse::Ok)
     }
 
@@ -484,7 +497,7 @@ impl PoolContract {
     }
 
     fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
-        let call = MemeOperation::Transfer { to, amount };
+        let call = MemeOperation::TransferFromApplication { to, amount };
         let _ = self
             .runtime
             .call_application(true, token.with_abi::<MemeAbi>(), &call);
@@ -503,25 +516,27 @@ impl PoolContract {
         // 1: Still on caller chain, need to fund creation chain firstly
         self.transfer_meme_to_creation_chain_application(fund_request);
         // 2: Let creation chain do swap
+        let token_0 = self.token_0();
+
         self.runtime
             .prepare_message(PoolMessage::Swap {
                 origin: fund_request.from,
-                amount_0_in: if fund_request.token == Some(self.state.token_0()) {
+                amount_0_in: if fund_request.token == Some(token_0) {
                     Some(fund_request.amount_in)
                 } else {
                     None
                 },
-                amount_1_in: if fund_request.token == Some(self.state.token_0()) {
+                amount_1_in: if fund_request.token == Some(token_0) {
                     None
                 } else {
                     Some(fund_request.amount_in)
                 },
-                amount_0_out_min: if fund_request.token == Some(self.state.token_0()) {
+                amount_0_out_min: if fund_request.token == Some(token_0) {
                     None
                 } else {
                     fund_request.pair_token_amount_out_min
                 },
-                amount_1_out_min: if fund_request.token == Some(self.state.token_0()) {
+                amount_1_out_min: if fund_request.token == Some(token_0) {
                     fund_request.pair_token_amount_out_min
                 } else {
                     None
@@ -538,8 +553,8 @@ impl PoolContract {
         fund_request: &FundRequest,
     ) -> Result<(), PoolError> {
         if let Some(transfer_id) = fund_request.next_request {
+            let fund_request = self.state.fund_request(transfer_id).await?;
             if let Some(token_1) = fund_request.token {
-                let fund_request = self.state.fund_request(transfer_id).await?;
                 let chain_id = self.token_1_creator_chain_id();
                 self.transfer_token_funds(chain_id, token_1, fund_request.amount_in, transfer_id);
                 return Ok(());
@@ -579,10 +594,11 @@ impl PoolContract {
     }
 
     async fn on_msg_fund_success(&mut self, transfer_id: u64) -> Result<(), PoolError> {
-        let fund_request = self.state.fund_request(transfer_id).await?;
+        let mut fund_request = self.state.fund_request(transfer_id).await?;
 
+        fund_request.status = FundStatus::Success;
         self.state
-            .update_fund_request(transfer_id, FundStatus::Success, None)
+            .update_fund_request(transfer_id, fund_request.clone())
             .await?;
 
         match fund_request.fund_type {
@@ -594,9 +610,13 @@ impl PoolContract {
     }
 
     async fn on_msg_fund_fail(&mut self, transfer_id: u64, error: String) -> Result<(), PoolError> {
-        let _ = self.state.fund_request(transfer_id).await?;
+        let mut fund_request = self.state.fund_request(transfer_id).await?;
+
+        fund_request.status = FundStatus::Fail;
+        fund_request.error = Some(error);
+
         self.state
-            .update_fund_request(transfer_id, FundStatus::Fail, Some(error))
+            .update_fund_request(transfer_id, fund_request)
             .await?;
 
         // TODO: return amount of token_0
@@ -685,12 +705,13 @@ impl PoolContract {
         // 3: Transfer token
         let to = to.unwrap_or(origin);
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        let token_0 = self.token_0();
 
         if amount_0_out > Amount::ZERO {
-            self.transfer_meme(self.state.token_0(), to, amount_0_out);
+            self.transfer_meme(token_0, to, amount_0_out);
         }
         if amount_1_out > Amount::ZERO {
-            if let Some(token_1) = self.state.token_1() {
+            if let Some(token_1) = self.token_1() {
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
                 self.runtime.transfer(Some(application), to, amount_1_out);
@@ -744,7 +765,23 @@ impl PoolContract {
             .add_liquidity(amount_0, amount_1, to, timestamp)
             .await?;
 
-        // TODO: refund differentiate amount
+        if amount_0_in > amount_0 {
+            let token_0 = self.token_0();
+            self.transfer_meme(token_0, origin, amount_0_in.try_sub(amount_0)?);
+        }
+        if amount_1_in > amount_1 {
+            match self.token_1() {
+                Some(token_1) => {
+                    self.transfer_meme(token_1, origin, amount_1_in.try_sub(amount_1)?)
+                }
+                None => {
+                    let application =
+                        AccountOwner::Application(self.runtime.application_id().forget_abi());
+                    self.runtime
+                        .transfer(Some(application), origin, amount_1_in.try_sub(amount_1)?)
+                }
+            };
+        }
 
         Ok(())
     }
@@ -767,10 +804,11 @@ impl PoolContract {
 
         // 2: Transfer tokens
         let to = to.unwrap_or(origin);
-        self.transfer_meme(self.state.token_0(), to, amount_0);
+        let token_0 = self.token_0();
+        self.transfer_meme(token_0, to, amount_0);
 
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        match self.state.token_1() {
+        match self.token_1() {
             Some(token_1) => self.transfer_meme(token_1, to, amount_1),
             None => self.runtime.transfer(Some(application), to, amount_1),
         };
@@ -873,7 +911,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
 
         pool.execute_message(PoolMessage::RequestFund {
-            token: pool.state.token_0(),
+            token: pool.state.pool().token_0,
             transfer_id: 1000,
             amount: Amount::ONE,
         })
@@ -892,7 +930,7 @@ mod tests {
 
         let fund_request = FundRequest {
             from: owner,
-            token: Some(pool.state.token_0()),
+            token: Some(pool.token_0()),
             amount_in: Amount::ONE,
             pair_token_amount_out_min: None,
             to: None,
@@ -924,7 +962,7 @@ mod tests {
 
         let fund_request = FundRequest {
             from: owner,
-            token: Some(pool.state.token_0()),
+            token: Some(pool.token_0()),
             amount_in: Amount::ONE,
             pair_token_amount_out_min: None,
             to: None,

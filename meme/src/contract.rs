@@ -67,7 +67,7 @@ impl Contract for MemeContract {
             .expect("Failed instantiate");
 
         if let Some(liquidity) = self.initial_liquidity() {
-            let swap_creator_chain = self.swap_creator_chain_id().await;
+            let swap_creator_chain = self.swap_creator_chain_id();
             self.state
                 .initialize_liquidity(liquidity, swap_creator_chain)
                 .await
@@ -105,6 +105,10 @@ impl Contract for MemeContract {
                 .on_op_transfer_from_application(to, amount)
                 .await
                 .expect("Failed OP: trasnfer from application"),
+            MemeOperation::InitializeLiquidity { to, amount } => self
+                .on_op_initialize_liquidity(to, amount)
+                .await
+                .expect("Failed OP: initialize liquidity"),
             MemeOperation::Approve { spender, amount } => self
                 .on_op_approve(spender, amount)
                 .expect("Failed OP: approve"),
@@ -150,6 +154,10 @@ impl Contract for MemeContract {
                 .on_msg_transfer_from_application(caller, to, amount)
                 .await
                 .expect("Failed OP: trasnfer from application"),
+            MemeMessage::InitializeLiquidity { caller, to, amount } => self
+                .on_msg_initialize_liquidity(caller, to, amount)
+                .await
+                .expect("Failed OP: initialize liquidity"),
             MemeMessage::Approve {
                 owner,
                 spender,
@@ -220,34 +228,42 @@ impl MemeContract {
         }
     }
 
-    fn caller_account(&mut self) -> Account {
+    fn message_owner_account(&mut self) -> Account {
         Account {
-            chain_id: self.runtime.chain_id(),
-            owner: match self.runtime.authenticated_caller_id() {
-                Some(application_id) => Some(AccountOwner::Application(application_id)),
-                _ => None,
-            },
+            chain_id: self.runtime.message_id().unwrap().chain_id,
+            owner: Some(AccountOwner::User(
+                self.runtime.authenticated_signer().unwrap(),
+            )),
+        }
+    }
+
+    fn message_caller_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.message_id().unwrap().chain_id,
+            owner: Some(AccountOwner::Application(
+                self.runtime.authenticated_caller_id().unwrap(),
+            )),
         }
     }
 
     async fn register_application(&mut self) {
-        if let Some(ams_application_id) = self.state.ams_application_id().await {
+        if let Some(ams_application_id) = self.state.ams_application_id() {
             // TODO: register application to ams
         }
     }
 
-    async fn swap_creator_chain_id(&mut self) -> ChainId {
+    fn swap_creator_chain_id(&mut self) -> ChainId {
         self.runtime.application_parameters().swap_creator_chain_id
     }
 
     async fn register_logo(&mut self) {
-        if let Some(blob_gateway_application_id) = self.state.blob_gateway_application_id().await {
+        if let Some(blob_gateway_application_id) = self.state.blob_gateway_application_id() {
             // TODO: register application logo to blob gateway
         }
     }
 
     async fn create_liquidity_pool(&mut self) -> Result<(), MemeError> {
-        let Some(swap_application_id) = self.state.swap_application_id().await else {
+        let Some(swap_application_id) = self.state.swap_application_id() else {
             return Ok(());
         };
         let Some(liquidity) = self.initial_liquidity() else {
@@ -325,11 +341,7 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
-        assert!(
-            self.creator_signer() == self.runtime.authenticated_signer().unwrap(),
-            "Invalid owner"
-        );
-
+        // TODO: check called from caller creator chain
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
         // TODO: use creator chain id if we can get it from runtime
         let chain_id = self.runtime.chain_id();
@@ -341,6 +353,28 @@ impl MemeContract {
 
         self.runtime
             .prepare_message(MemeMessage::TransferFromApplication { caller, to, amount })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
+        Ok(MemeResponse::Ok)
+    }
+
+    async fn on_op_initialize_liquidity(
+        &mut self,
+        to: Account,
+        amount: Amount,
+    ) -> Result<MemeResponse, MemeError> {
+        // TODO: check called from caller creator chain
+        let caller_id = self.runtime.authenticated_caller_id().unwrap();
+        // TODO: use creator chain id if we can get it from runtime
+        let chain_id = self.runtime.chain_id();
+
+        let caller = Account {
+            chain_id,
+            owner: Some(AccountOwner::Application(caller_id)),
+        };
+
+        self.runtime
+            .prepare_message(MemeMessage::InitializeLiquidity { caller, to, amount })
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
         Ok(MemeResponse::Ok)
@@ -385,8 +419,10 @@ impl MemeContract {
             "Invalid caller"
         );
 
-        let caller = self.caller_account();
-        let from = self.owner_account();
+        // Should only be called from another application message, so we need to transfer from
+        // message creator's owner
+        let caller = self.message_caller_account();
+        let from = self.message_owner_account();
         match self.state.transfer_ensure(from, caller, amount).await {
             Ok(_) => Ok(MemeResponse::Ok),
             Err(err) => Ok(MemeResponse::Fail(err.to_string())),
@@ -412,7 +448,7 @@ impl MemeContract {
         let Some(liquidity) = self.initial_liquidity() else {
             return Ok(());
         };
-        let Some(swap_application_id) = self.state.swap_application_id().await else {
+        let Some(swap_application_id) = self.state.swap_application_id() else {
             return Ok(());
         };
 
@@ -455,19 +491,29 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
-        let swap_application_id = self.state.swap_application_id().await.unwrap();
+        self.state.transfer(caller, to, amount).await
+    }
 
-        let swap_application = Account {
-            chain_id: self.swap_creator_chain_id().await,
-            owner: Some(AccountOwner::Application(swap_application_id)),
-        };
-
-        assert!(caller.owner == swap_application.owner, "Invalid caller");
+    async fn on_msg_initialize_liquidity(
+        &mut self,
+        caller: Account,
+        to: Account,
+        amount: Amount,
+    ) -> Result<(), MemeError> {
+        assert!(
+            caller.chain_id == self.swap_creator_chain_id(),
+            "Invalid caller"
+        );
+        assert!(
+            caller.owner
+                == Some(AccountOwner::Application(
+                    self.state.swap_application_id().unwrap()
+                )),
+            "Invalid caller"
+        );
 
         let from = self.application_creation_account();
-        self.state
-            .transfer_from(swap_application, from, to, amount)
-            .await
+        self.state.transfer_from(caller, from, to, amount).await
     }
 
     async fn on_msg_approve(

@@ -740,7 +740,7 @@ impl SwapContract {
         }
 
         // TODO: only call from InitializeLiquidity could transfer from application
-        let call = MemeOperation::TransferFromApplication {
+        let call = MemeOperation::InitializeLiquidity {
             to: pool_application,
             amount: amount_0,
         };

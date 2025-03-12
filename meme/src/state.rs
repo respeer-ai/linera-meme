@@ -108,19 +108,19 @@ impl MemeState {
             .await
     }
 
-    pub(crate) async fn proxy_application_id(&self) -> Option<ApplicationId> {
+    pub(crate) fn proxy_application_id(&self) -> Option<ApplicationId> {
         *self.proxy_application_id.get()
     }
 
-    pub(crate) async fn blob_gateway_application_id(&self) -> Option<ApplicationId> {
+    pub(crate) fn blob_gateway_application_id(&self) -> Option<ApplicationId> {
         *self.blob_gateway_application_id.get()
     }
 
-    pub(crate) async fn ams_application_id(&self) -> Option<ApplicationId> {
+    pub(crate) fn ams_application_id(&self) -> Option<ApplicationId> {
         *self.ams_application_id.get()
     }
 
-    pub(crate) async fn swap_application_id(&self) -> Option<ApplicationId> {
+    pub(crate) fn swap_application_id(&self) -> Option<ApplicationId> {
         *self.swap_application_id.get()
     }
 

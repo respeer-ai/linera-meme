@@ -5,7 +5,7 @@
 
 mod state;
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use abi::swap::pool::{Pool, PoolAbi, PoolParameters};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
@@ -79,8 +79,13 @@ impl QueryRoot {
         self.service.state().pool()
     }
 
-    async fn liquidity(&self, account: Account) -> Amount {
-        self.service.state().liquidity(account).await.unwrap()
+    // async fn liquidity(&self, owner: Account) -> Amount {
+    async fn liquidity(&self, owner: String) -> Amount {
+        self.service
+            .state()
+            .liquidity(Account::from_str(&owner).unwrap())
+            .await
+            .unwrap()
     }
 
     async fn virtual_initial_liquidity(&self) -> bool {

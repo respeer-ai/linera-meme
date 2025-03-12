@@ -13,7 +13,10 @@ use abi::{
     },
     store_type::StoreType,
     swap::{
-        pool::{InstantiationArgument as PoolInstantiationArgument, Pool, PoolAbi, PoolParameters},
+        pool::{
+            InstantiationArgument as PoolInstantiationArgument, Pool, PoolAbi, PoolOperation,
+            PoolParameters,
+        },
         router::{
             InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
             SwapParameters,
@@ -190,6 +193,71 @@ impl TestSuite {
                 .await,
         )
     }
+
+    async fn swap(&self, chain: &ActiveChain, amount: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.pool_application_id.unwrap(),
+                    PoolOperation::Swap {
+                        amount_0_in: None,
+                        amount_1_in: Some(amount),
+                        amount_0_out_min: None,
+                        amount_1_out_min: None,
+                        to: None,
+                        block_timestamp: None,
+                    },
+                );
+            })
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+    }
+
+    async fn add_liquidity(&self, chain: &ActiveChain, amount_0: Amount, amount_1: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.pool_application_id.unwrap(),
+                    PoolOperation::AddLiquidity {
+                        amount_0_in: amount_0,
+                        amount_1_in: amount_1,
+                        amount_0_out_min: None,
+                        amount_1_out_min: None,
+                        to: None,
+                        block_timestamp: None,
+                    },
+                );
+            })
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        chain.handle_received_messages().await;
+    }
 }
 
 /// Test setting a pool and testing its coherency across microchains.
@@ -291,16 +359,117 @@ async fn pool_virtual_initial_liquidity_test() {
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         suite.initial_liquidity,
     );
+
+    // Swap
+    let balance = Amount::from_str("20.1").unwrap();
+    let budget = Amount::from_str("9.8").unwrap();
+
+    suite.fund_chain(&user_chain, balance).await;
+    suite.swap(&user_chain, budget).await;
+
+    assert_eq!(
+        balance.try_sub(budget).unwrap(),
+        user_chain.chain_balance().await
+    );
+    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(
+        budget,
+        pool_chain
+            .owner_balance(&AccountOwner::Application(pool_application_id))
+            .await
+            .unwrap()
+    );
+
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), "query { pool }")
+        .await;
+    let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
+
+    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
+    assert_eq!(Amount::from_attos(220000000000000000000000), pool.reserve_0);
+
+    let user_account = suite.chain_owner_account(&user_chain);
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(10780000000000000000000000),
+    );
+
+    let query = format!(
+        "query {{ balanceOf(owner: \"{}\")}}",
+        pool_application_account,
+    );
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(220000000000000000000000),
+    );
+
+    // Add liquidity
+    suite
+        .add_liquidity(
+            &user_chain,
+            Amount::from_attos(1085715329991143570652),
+            balance.try_sub(budget).unwrap(),
+        )
+        .await;
+    let liquidity_fund_amount = Amount::from_attos(9897714379699202921);
+    assert_eq!(
+        liquidity_fund_amount,
+        pool_chain
+            .owner_balance(&AccountOwner::Application(pool_application_id))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        balance.try_sub(liquidity_fund_amount).unwrap(),
+        user_chain
+            .owner_balance(&user_account.owner.unwrap())
+            .await
+            .unwrap()
+    );
+
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), "query { pool }")
+        .await;
+    let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
+
+    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    // TODO: reserve should equal to balance ?
+    assert_eq!(Amount::from_attos(19897714379699202921), pool.reserve_1);
+    assert_eq!(Amount::from_attos(221085715329991143570652), pool.reserve_0);
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(10778914284670008856429348),
+    );
+
+    let query = format!("query {{ liquidity(owner: \"{}\")}}", user_account);
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["liquidity"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(10299999999999999981),
+    );
 }
 
-/*
 #[tokio::test(flavor = "multi_thread")]
 async fn pool_real_initial_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
     let meme_chain = &suite.meme_chain.clone();
-    let user_chain = &suite.user_chain.clone();
     let swap_chain = &suite.swap_chain.clone();
 
     let swap_key_pair = swap_chain.key_pair();
@@ -349,6 +518,9 @@ async fn pool_real_initial_liquidity_test() {
     pool_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+    // Process messages generated by meme application
+    swap_chain.handle_received_messages().await;
+    pool_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(
@@ -375,8 +547,9 @@ async fn pool_real_initial_liquidity_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
+    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
     assert_eq!(
-        suite.initial_native.try_add(OPEN_CHAIN_FEE_BUDGET).unwrap(),
+        suite.initial_native,
         pool_chain
             .owner_balance(&AccountOwner::Application(pool_application_id))
             .await
@@ -394,11 +567,10 @@ async fn pool_real_initial_liquidity_test() {
         pool_application_account,
     );
     let QueryOutcome { response, .. } = meme_chain
-        .graphql_query(suite.pool_application_id.unwrap(), query)
+        .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         suite.initial_liquidity,
     );
 }
-*/
