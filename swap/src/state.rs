@@ -30,6 +30,7 @@ pub struct SwapState {
     pub pool_bytecode_id: RegisterView<Option<ModuleId>>,
 
     pub pool_chains: MapView<ChainId, MessageId>,
+    pub token_creator_chain_ids: MapView<ApplicationId, ChainId>,
 }
 
 #[allow(dead_code)]
@@ -111,11 +112,26 @@ impl SwapState {
         Ok(())
     }
 
-    pub(crate) async fn create_pool_chain(
+    pub(crate) fn create_pool_chain(
         &mut self,
         chain_id: ChainId,
         message_id: MessageId,
     ) -> Result<(), SwapError> {
         Ok(self.pool_chains.insert(&chain_id, message_id)?)
+    }
+
+    pub(crate) fn create_token_creator_chain_id(
+        &mut self,
+        token: ApplicationId,
+        chain_id: ChainId,
+    ) -> Result<(), SwapError> {
+        Ok(self.token_creator_chain_ids.insert(&token, chain_id)?)
+    }
+
+    pub(crate) async fn token_creator_chain_id(
+        &self,
+        token: ApplicationId,
+    ) -> Result<ChainId, SwapError> {
+        Ok(self.token_creator_chain_ids.get(&token).await?.unwrap())
     }
 }

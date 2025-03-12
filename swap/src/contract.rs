@@ -7,9 +7,12 @@ mod state;
 
 use abi::{
     constant::OPEN_CHAIN_FEE_BUDGET,
-    meme::{MemeAbi, MemeOperation, MemeResponse},
+    meme::{MemeAbi, MemeOperation},
     swap::{
-        pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
+        pool::{
+            InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolOperation,
+            PoolParameters,
+        },
         router::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
             SwapResponse,
@@ -79,89 +82,16 @@ impl Contract for SwapContract {
                 )
                 .await
                 .expect("Failed OP: initialize liquidity"),
-            SwapOperation::AddLiquidity {
+            SwapOperation::CreatePool {
                 token_0,
                 token_1,
-                amount_0_desired,
-                amount_1_desired,
-                amount_0_min,
-                amount_1_min,
+                amount_0,
+                amount_1,
                 to,
-                deadline,
             } => self
-                .on_op_add_liquidity(
-                    token_0,
-                    token_1,
-                    amount_0_desired,
-                    amount_1_desired,
-                    amount_0_min,
-                    amount_1_min,
-                    to,
-                    deadline,
-                )
+                .on_op_create_pool(token_0, token_1, amount_0, amount_1, to)
                 .await
-                .expect("Failed OP: add liquidity"),
-            SwapOperation::LiquidityFundApproved {
-                token_0,
-                token_1,
-                amount_0_desired,
-                amount_1_desired,
-                amount_0_min,
-                amount_1_min,
-                to,
-                deadline,
-            } => self
-                .on_op_liquidity_fund_approved(
-                    token_0,
-                    token_1,
-                    amount_0_desired,
-                    amount_1_desired,
-                    amount_0_min,
-                    amount_1_min,
-                    to,
-                    deadline,
-                )
-                .expect("Failed OP: liquidity fund approved"),
-            SwapOperation::RemoveLiquidity {
-                token_0,
-                token_1,
-                liquidity,
-                amount_0_min,
-                amount_1_min,
-                to,
-                deadline,
-            } => self
-                .on_op_remove_liquidity(
-                    token_0,
-                    token_1,
-                    liquidity,
-                    amount_0_min,
-                    amount_1_min,
-                    to,
-                    deadline,
-                )
-                .expect("Failed OP: remove liquidity"),
-            SwapOperation::Swap {
-                token_0,
-                token_1,
-                amount_0_in,
-                amount_1_in,
-                amount_0_out_min,
-                amount_1_out_min,
-                to,
-                deadline,
-            } => self
-                .on_op_swap(
-                    token_0,
-                    token_1,
-                    amount_0_in,
-                    amount_1_in,
-                    amount_0_out_min,
-                    amount_1_out_min,
-                    to,
-                    deadline,
-                )
-                .expect("Failed OP: swap"),
+                .expect("Failed OP: create pool"),
         }
     }
 
@@ -191,29 +121,8 @@ impl Contract for SwapContract {
                 )
                 .await
                 .expect("Failed MSG: initialize liquidity"),
-            SwapMessage::AddLiquidity {
-                token_0,
-                token_1,
-                amount_0_desired,
-                amount_1_desired,
-                amount_0_min,
-                amount_1_min,
-                to,
-                deadline,
-            } => self
-                .on_msg_add_liquidity(
-                    token_0,
-                    token_1,
-                    amount_0_desired,
-                    amount_1_desired,
-                    amount_0_min,
-                    amount_1_min,
-                    to,
-                    deadline,
-                )
-                .await
-                .expect("Failed MSG: add liquidity"),
             SwapMessage::CreatePool {
+                creator,
                 pool_bytecode_id,
                 token_0_creator_chain_id,
                 token_0,
@@ -222,8 +131,10 @@ impl Contract for SwapContract {
                 amount_0,
                 amount_1,
                 virtual_initial_liquidity,
+                to,
             } => self
                 .on_msg_create_pool(
+                    creator,
                     pool_bytecode_id,
                     token_0_creator_chain_id,
                     token_0,
@@ -232,90 +143,59 @@ impl Contract for SwapContract {
                     amount_0,
                     amount_1,
                     virtual_initial_liquidity,
+                    to,
                 )
                 .expect("Failed MSG: create pool"),
             SwapMessage::PoolCreated {
+                creator,
                 pool_application,
                 token_0,
                 token_1,
                 amount_0,
                 amount_1,
                 virtual_initial_liquidity,
+                to,
             } => self
                 .on_msg_pool_created(
+                    creator,
                     pool_application,
                     token_0,
                     token_1,
                     amount_0,
                     amount_1,
                     virtual_initial_liquidity,
+                    to,
                 )
                 .await
                 .expect("Failed MSG: pool created"),
-            SwapMessage::LiquidityFundApproved {
+            SwapMessage::CreateUserPool {
                 token_0,
                 token_1,
-                amount_0_desired,
-                amount_1_desired,
-                amount_0_min,
-                amount_1_min,
+                amount_0,
+                amount_1,
                 to,
-                deadline,
             } => self
-                .on_msg_liquidity_fund_approved(
-                    token_0,
-                    token_1,
-                    amount_0_desired,
-                    amount_1_desired,
-                    amount_0_min,
-                    amount_1_min,
-                    to,
-                    deadline,
-                )
+                .on_msg_create_user_pool(token_0, token_1, amount_0, amount_1, to)
                 .await
-                .expect("Failed MSG: liquidity fund approved"),
-            SwapMessage::RemoveLiquidity {
+                .expect("Failed MSG: create user pool"),
+            SwapMessage::UserPoolCreated {
+                pool_application,
                 token_0,
                 token_1,
-                liquidity,
-                amount_0_min,
-                amount_1_min,
+                amount_0,
+                amount_1,
                 to,
-                deadline,
             } => self
-                .on_msg_remove_liquidity(
+                .on_msg_user_pool_created(
+                    pool_application,
                     token_0,
                     token_1,
-                    liquidity,
-                    amount_0_min,
-                    amount_1_min,
+                    amount_0,
+                    amount_1,
                     to,
-                    deadline,
                 )
                 .await
-                .expect("Failed MSG: remove liquidity"),
-            SwapMessage::Swap {
-                token_0,
-                token_1,
-                amount_0_in,
-                amount_1_in,
-                amount_0_out_min,
-                amount_1_out_min,
-                to,
-                deadline,
-            } => self
-                .on_msg_swap(
-                    token_0,
-                    token_1,
-                    amount_0_in,
-                    amount_1_in,
-                    amount_0_out_min,
-                    amount_1_out_min,
-                    to,
-                    deadline,
-                )
-                .await
-                .expect("Failed MSG: swap"),
+                .expect("Failed MSG: user pool created"),
         }
     }
 
@@ -362,6 +242,15 @@ impl SwapContract {
         return true;
     }
 
+    fn message_owner_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.message_id().unwrap().chain_id,
+            owner: Some(AccountOwner::User(
+                self.runtime.authenticated_signer().unwrap(),
+            )),
+        }
+    }
+
     fn create_child_chain(
         &mut self,
         token_0: ApplicationId,
@@ -385,16 +274,6 @@ impl SwapContract {
         Ok(self
             .runtime
             .open_chain(ownership, permissions, OPEN_CHAIN_FEE_BUDGET))
-    }
-
-    async fn request_liquidity_funds(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0: Amount,
-        amount_1: Amount,
-    ) -> Result<(), SwapError> {
-        Ok(())
     }
 
     fn fund_swap_creation_chain(
@@ -453,7 +332,7 @@ impl SwapContract {
         amount_0: Amount,
         amount_1: Amount,
         virtual_liquidity: bool,
-        to: Option<AccountOwner>,
+        to: Option<Account>,
     ) -> Result<SwapResponse, SwapError> {
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
         let chain_id = self.runtime.chain_id();
@@ -495,120 +374,68 @@ impl SwapContract {
         Ok(SwapResponse::Ok)
     }
 
-    async fn on_op_add_liquidity(
+    // Create pool with initial liquidity
+    // If pool exists, do nothing
+    // If not, create pool then let caller chain add liquidity
+    async fn on_op_create_pool(
         &mut self,
         token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
+        token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
     ) -> Result<SwapResponse, SwapError> {
-        // TODO: transfer liquidity amount
-
         self.runtime
-            .prepare_message(SwapMessage::AddLiquidity {
+            .prepare_message(SwapMessage::CreateUserPool {
                 token_0,
                 token_1,
-                amount_0_desired,
-                amount_1_desired,
-                amount_0_min,
-                amount_1_min,
+                amount_0,
+                amount_1,
                 to,
-                deadline,
             })
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
-
         Ok(SwapResponse::Ok)
-    }
-
-    fn on_op_liquidity_fund_approved(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<SwapResponse, SwapError> {
-        Ok(SwapResponse::Ok)
-    }
-
-    fn on_op_remove_liquidity(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        liquidity: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<SwapResponse, SwapError> {
-        Ok(SwapResponse::Ok)
-    }
-
-    fn on_op_swap(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_in: Option<Amount>,
-        amount_1_in: Option<Amount>,
-        amount_0_out_min: Option<Amount>,
-        amount_1_out_min: Option<Amount>,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<SwapResponse, SwapError> {
-        Ok(SwapResponse::Ok)
-    }
-
-    fn pool_chain_add_liquidity(
-        &mut self,
-        pool_application: Account,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<(), SwapError> {
-        // 1: Call pool application to add liquidity
-        Ok(())
     }
 
     // Pool application is run on its own chain
     async fn create_pool(
         &mut self,
+        creator: Account,
         token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
+        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         virtual_liquidity: bool,
-        to: Option<AccountOwner>,
+        to: Option<Account>,
         deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
-        // All assets should be already authenticated when we're here
+        // For initial pool, all assets should be already authenticated when we're here
+        // For user pool, we just create a pool, then notify user to add liquidity
         // 1: Create pool chain
         let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
-        self.state.create_pool_chain(chain_id, message_id).await?;
+
+        self.state.create_pool_chain(chain_id, message_id)?;
+        self.state
+            .create_token_creator_chain_id(token_0, token_0_creator_chain_id)?;
+
         // 2: Create pool application with initial liquidity
         let bytecode_id = self.state.pool_bytecode_id().await;
 
         self.runtime
             .prepare_message(SwapMessage::CreatePool {
+                creator,
                 pool_bytecode_id: bytecode_id,
                 token_0_creator_chain_id,
                 token_0,
-                token_1_creator_chain_id: None,
+                token_1_creator_chain_id,
                 token_1,
                 amount_0,
                 amount_1,
                 virtual_initial_liquidity: virtual_liquidity,
+                to,
             })
             .with_authentication()
             .send_to(chain_id);
@@ -624,11 +451,14 @@ impl SwapContract {
         amount_0: Amount,
         amount_1: Amount,
         virtual_liquidity: bool,
-        to: Option<AccountOwner>,
+        to: Option<Account>,
     ) -> Result<(), SwapError> {
+        let creator = self.message_owner_account();
         self.create_pool(
+            creator,
             token_0_creator_chain_id,
             token_0,
+            None,
             None,
             amount_0,
             amount_1,
@@ -639,27 +469,9 @@ impl SwapContract {
         .await
     }
 
-    async fn on_msg_add_liquidity(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<(), SwapError> {
-        // Request liquidity funds in rfq chain
-        // If success, rfq application will call LiquidityFundApproved then we can create pool or
-        // add liquidity
-        Ok(self
-            .request_liquidity_funds(token_0, token_1, amount_0_desired, amount_1_desired)
-            .await?)
-    }
-
     fn on_msg_create_pool(
         &mut self,
+        creator: Account,
         pool_bytecode_id: ModuleId,
         token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
@@ -668,6 +480,7 @@ impl SwapContract {
         amount_0: Amount,
         amount_1: Amount,
         virtual_initial_liquidity: bool,
+        to: Option<Account>,
     ) -> Result<(), SwapError> {
         // Run on pool chain
         let application_id = self.runtime.application_id().forget_abi();
@@ -704,12 +517,14 @@ impl SwapContract {
         let creator_chain = self.runtime.application_creator_chain_id();
         self.runtime
             .prepare_message(SwapMessage::PoolCreated {
+                creator,
                 pool_application,
                 token_0,
                 token_1,
                 amount_0,
                 amount_1,
                 virtual_initial_liquidity,
+                to,
             })
             .with_authentication()
             .send_to(creator_chain);
@@ -717,21 +532,15 @@ impl SwapContract {
         Ok(())
     }
 
-    async fn on_msg_pool_created(
+    fn initial_pool_created(
         &mut self,
         pool_application: Account,
         token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         virtual_initial_liquidity: bool,
-    ) -> Result<(), SwapError> {
-        assert!(amount_1 > Amount::ZERO, "Invalid amount");
-        assert!(amount_0 > Amount::ZERO, "Invalid amount");
-
-        if let Some(token_1) = token_1 {
-            panic!("Not supported pair with meme");
-        } else if !virtual_initial_liquidity {
+    ) {
+        if !virtual_initial_liquidity {
             // This message may be authenticated by other user who is not the owner of swap
             // creation chain
             let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
@@ -747,92 +556,130 @@ impl SwapContract {
         let _ = self
             .runtime
             .call_application(true, token_0.with_abi::<MemeAbi>(), &call);
+    }
+
+    fn user_pool_created(
+        &mut self,
+        creator: Account,
+        pool_application: Account,
+        token_0: ApplicationId,
+        token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
+    ) {
+        self.runtime
+            .prepare_message(SwapMessage::UserPoolCreated {
+                pool_application,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+                to,
+            })
+            .with_authentication()
+            .send_to(creator.chain_id);
+    }
+
+    async fn on_msg_pool_created(
+        &mut self,
+        creator: Account,
+        pool_application: Account,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Amount,
+        virtual_initial_liquidity: bool,
+        to: Option<Account>,
+    ) -> Result<(), SwapError> {
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+
+        if let Some(token_1) = token_1 {
+            self.user_pool_created(
+                creator,
+                pool_application,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+                to,
+            );
+        } else {
+            self.initial_pool_created(
+                pool_application,
+                token_0,
+                amount_0,
+                amount_1,
+                virtual_initial_liquidity,
+            );
+        }
 
         self.state
             .create_pool(token_0, token_1, pool_application)
             .await
     }
 
-    async fn on_msg_liquidity_fund_approved(
+    async fn on_msg_user_pool_created(
+        &mut self,
+        pool_application: Account,
+        _token_0: ApplicationId,
+        _token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
+    ) -> Result<(), SwapError> {
+        // Now we're on our caller chain, we can call all liquidity like what we do in out wallet
+        let call = PoolOperation::AddLiquidity {
+            amount_0_in: amount_0,
+            amount_1_in: amount_1,
+            amount_0_out_min: None,
+            amount_1_out_min: None,
+            to,
+            block_timestamp: None,
+        };
+        let Some(AccountOwner::Application(application_id)) = pool_application.owner else {
+            panic!("Invalid application");
+        };
+        let _ = self
+            .runtime
+            .call_application(true, application_id.with_abi::<PoolAbi>(), &call);
+        Ok(())
+    }
+
+    async fn on_msg_create_user_pool(
         &mut self,
         token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
+        token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
     ) -> Result<(), SwapError> {
-        // Fund is ready, create liquidity pool
-        if let Some(pool) = self.state.get_pool_exchangable(token_0, token_1).await? {
-            self.pool_chain_add_liquidity(
-                pool.pool_application,
-                if pool.token_0 == token_0 {
-                    amount_0_desired
-                } else {
-                    amount_1_desired
-                },
-                if pool.token_0 == token_0 {
-                    amount_1_desired
-                } else {
-                    amount_0_desired
-                },
-                if pool.token_0 == token_0 {
-                    amount_0_min
-                } else {
-                    amount_1_min
-                },
-                if pool.token_0 == token_0 {
-                    amount_1_min
-                } else {
-                    amount_0_min
-                },
-                to,
-                deadline,
-            )
-        } else {
-            /*
-            self.create_pool(
-                token_0,
-                token_1,
-                amount_0_desired,
-                amount_1_desired,
-                false,
-                to,
-                deadline,
-            )
-            .await
-            */
-            Ok(())
+        if let Some(_) = self
+            .state
+            .get_pool_exchangable(token_0, Some(token_1))
+            .await?
+        {
+            panic!("Pool exists");
         }
-    }
 
-    async fn on_msg_remove_liquidity(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        liquidity: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<(), SwapError> {
-        Ok(())
-    }
+        let token_0_creator_chain_id = self.state.token_creator_chain_id(token_0).await?;
+        let token_1_creator_chain_id = self.state.token_creator_chain_id(token_1).await?;
+        let creator = self.message_owner_account();
 
-    async fn on_msg_swap(
-        &mut self,
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_in: Option<Amount>,
-        amount_1_in: Option<Amount>,
-        amount_0_out_min: Option<Amount>,
-        amount_1_out_min: Option<Amount>,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    ) -> Result<(), SwapError> {
-        Ok(())
+        self.create_pool(
+            creator,
+            token_0_creator_chain_id,
+            token_0,
+            Some(token_1_creator_chain_id),
+            Some(token_1),
+            amount_0,
+            amount_1,
+            false,
+            to,
+            None,
+        )
+        .await
     }
 }
 
@@ -884,22 +731,22 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn operation_add_liquidity() {
+    async fn operation_create_pool() {
         let mut swap = create_and_instantiate_swap();
 
         let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
+        let meme_2_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
+        let meme_2 = ApplicationId::from_str(meme_1_id).unwrap();
+
         let response = swap
-            .execute_operation(SwapOperation::AddLiquidity {
+            .execute_operation(SwapOperation::CreatePool {
                 token_0: meme_1,
-                token_1: None,
-                amount_0_desired: Amount::ONE,
-                amount_1_desired: Amount::ONE,
-                amount_0_min: Amount::ONE,
-                amount_1_min: Amount::ONE,
+                token_1: meme_2,
+                amount_0: Amount::ONE,
+                amount_1: Amount::ONE,
                 to: None,
-                deadline: None,
             })
             .await;
 

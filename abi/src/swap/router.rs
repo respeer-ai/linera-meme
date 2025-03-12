@@ -5,8 +5,7 @@ use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi,
-        Timestamp,
+        Account, Amount, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -35,46 +34,15 @@ pub enum SwapOperation {
         amount_1: Amount,
         // Only for creator to initialize pool
         virtual_liquidity: bool,
-        to: Option<AccountOwner>,
+        to: Option<Account>,
     },
-    AddLiquidity {
+    // User can only create meme meme pair. Meme native pair is created by creator
+    CreatePool {
         token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    },
-    LiquidityFundApproved {
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    },
-    RemoveLiquidity {
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        liquidity: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    },
-    Swap {
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_in: Option<Amount>,
-        amount_1_in: Option<Amount>,
-        amount_0_out_min: Option<Amount>,
-        amount_1_out_min: Option<Amount>,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
+        token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
     },
 }
 
@@ -96,19 +64,10 @@ pub enum SwapMessage {
         amount_1: Amount,
         // Only for creator to initialize pool
         virtual_liquidity: bool,
-        to: Option<AccountOwner>,
-    },
-    AddLiquidity {
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
+        to: Option<Account>,
     },
     CreatePool {
+        creator: Account,
         pool_bytecode_id: ModuleId,
         // TODO: use to avoid reentrant invocation before
         // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
@@ -119,43 +78,34 @@ pub enum SwapMessage {
         amount_0: Amount,
         amount_1: Amount,
         virtual_initial_liquidity: bool,
+        to: Option<Account>,
     },
     PoolCreated {
+        creator: Account,
         pool_application: Account,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         virtual_initial_liquidity: bool,
+        to: Option<Account>,
     },
-    LiquidityFundApproved {
+    // Execute on swap creation chain
+    CreateUserPool {
         token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_desired: Amount,
-        amount_1_desired: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
+        token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
     },
-    RemoveLiquidity {
+    // Execute on user caller chain
+    UserPoolCreated {
+        pool_application: Account,
         token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        liquidity: Amount,
-        amount_0_min: Amount,
-        amount_1_min: Amount,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
-    },
-    Swap {
-        token_0: ApplicationId,
-        token_1: Option<ApplicationId>,
-        amount_0_in: Option<Amount>,
-        amount_1_in: Option<Amount>,
-        amount_0_out_min: Option<Amount>,
-        amount_1_out_min: Option<Amount>,
-        to: Option<AccountOwner>,
-        deadline: Option<Timestamp>,
+        token_1: ApplicationId,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
     },
 }
 
