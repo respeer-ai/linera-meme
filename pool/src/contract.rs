@@ -851,6 +851,9 @@ mod tests {
         let transfer_id = pool.state.create_fund_request(fund_request).unwrap();
         pool.execute_message(PoolMessage::FundSuccess { transfer_id })
             .await;
+
+        let fund_request = pool.state.fund_request(transfer_id).await.unwrap();
+        assert_eq!(fund_request.status, FundStatus::Success);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -883,6 +886,10 @@ mod tests {
             error: "Error".to_string(),
         })
         .await;
+
+        let fund_request = pool.state.fund_request(transfer_id).await.unwrap();
+        assert_eq!(fund_request.status, FundStatus::Fail);
+        assert_eq!(fund_request.error, Some("Error".to_string()));
     }
 
     #[tokio::test(flavor = "multi_thread")]
