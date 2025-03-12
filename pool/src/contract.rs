@@ -196,6 +196,7 @@ impl Contract for PoolContract {
                     to,
                     block_timestamp,
                 )
+                .await
                 .expect("Failed MSG: remove liquidity"),
         }
     }
@@ -466,6 +467,18 @@ impl PoolContract {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     ) -> Result<PoolResponse, PoolError> {
+        let origin = self.owner_account();
+        self.runtime
+            .prepare_message(PoolMessage::RemoveLiquidity {
+                origin,
+                liquidity,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(PoolResponse::Ok)
     }
 
@@ -737,7 +750,7 @@ impl PoolContract {
         Ok(())
     }
 
-    fn on_msg_remove_liquidity(
+    async fn on_msg_remove_liquidity(
         &mut self,
         origin: Account,
         liquidity: Amount,
@@ -746,7 +759,25 @@ impl PoolContract {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
-        Ok(())
+        // 1: Calculate liquidity amount pair
+        let (amount_0, amount_1) = self.state.try_calculate_liquidity_amount_pair(
+            liquidity,
+            amount_0_out_min,
+            amount_1_out_min,
+        )?;
+
+        // 2: Transfer tokens
+        let to = to.unwrap_or(origin);
+        self.transfer_meme(self.state.token_0(), to, amount_0);
+
+        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        match self.state.token_1() {
+            Some(token_1) => self.transfer_meme(token_1, to, amount_1),
+            None => self.runtime.transfer(Some(application), to, amount_1),
+        };
+
+        // 3: Burn liquidity
+        self.state.burn(origin, liquidity).await
     }
 }
 
@@ -963,6 +994,21 @@ mod tests {
         assert_eq!(
             pool.state.liquidity(owner).await.unwrap(),
             Amount::from_str("0.1").unwrap()
+        );
+
+        pool.execute_message(PoolMessage::RemoveLiquidity {
+            origin: owner,
+            liquidity: Amount::from_str("0.05").unwrap(),
+            amount_0_out_min: None,
+            amount_1_out_min: None,
+            to: None,
+            block_timestamp: None,
+        })
+        .await;
+
+        assert_eq!(
+            pool.state.liquidity(owner).await.unwrap(),
+            Amount::from_str("0.05").unwrap()
         );
     }
 

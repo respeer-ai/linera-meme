@@ -155,6 +155,20 @@ impl PoolState {
         )?)
     }
 
+    pub(crate) fn try_calculate_liquidity_amount_pair(
+        &self,
+        liquidity: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+    ) -> Result<(Amount, Amount), PoolError> {
+        Ok(self.pool().try_calculate_liquidity_amount_pair(
+            liquidity,
+            *self.total_supply.get(),
+            amount_0_min,
+            amount_1_min,
+        )?)
+    }
+
     pub(crate) fn liquid(
         &mut self,
         balance_0: Amount,
@@ -197,7 +211,6 @@ impl PoolState {
         Ok(self.shares.insert(&to, share.try_add(amount)?)?)
     }
 
-    // Liquidity to be burn should be returned to application already
     pub(crate) async fn burn(&mut self, from: Account, liquidity: Amount) -> Result<(), PoolError> {
         self.total_supply
             .set(self.total_supply.get().try_sub(liquidity)?);

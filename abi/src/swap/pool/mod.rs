@@ -431,6 +431,47 @@ impl Pool {
         }
         Ok((amount_0_optimal, amount_1_desired))
     }
+
+    pub fn try_calculate_liquidity_amount_pair(
+        &self,
+        liquidity: Amount,
+        total_supply: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+    ) -> Result<(Amount, Amount), PoolError> {
+        let amount_0 = Amount::from_attos(
+            U256::from(u128::from(liquidity))
+                .checked_mul(U256::from(u128::from(self.reserve_0)))
+                .unwrap()
+                .checked_div(U256::from(u128::from(total_supply)))
+                .unwrap()
+                .as_u128(),
+        );
+        let amount_1 = Amount::from_attos(
+            U256::from(u128::from(liquidity))
+                .checked_mul(U256::from(u128::from(self.reserve_1)))
+                .unwrap()
+                .checked_div(U256::from(u128::from(total_supply)))
+                .unwrap()
+                .as_u128(),
+        );
+
+        if amount_0 == Amount::ZERO || amount_1 == Amount::ZERO {
+            return Err(PoolError::InvalidAmount);
+        }
+        if let Some(amount_0_min) = amount_0_min {
+            if amount_0 < amount_0_min {
+                return Err(PoolError::InvalidAmount);
+            }
+        }
+        if let Some(amount_1_min) = amount_1_min {
+            if amount_1 < amount_1_min {
+                return Err(PoolError::InvalidAmount);
+            }
+        }
+
+        Ok((amount_0, amount_1))
+    }
 }
 
 #[cfg(test)]
@@ -494,6 +535,17 @@ mod tests {
             .unwrap();
         assert_eq!(amount_0, Amount::from_str("1.412815175518738638").unwrap());
         assert_eq!(amount_1, Amount::from_str("30").unwrap());
+
+        let (amount_0, amount_1) = pool
+            .try_calculate_liquidity_amount_pair(
+                Amount::from_tokens(20),
+                Amount::from_tokens(30),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(amount_0, Amount::from_str("0.666666666666666666").unwrap());
+        assert_eq!(amount_1, Amount::from_str("14.156133333333333333").unwrap());
     }
 
     #[test]
@@ -533,5 +585,16 @@ mod tests {
             .unwrap();
         assert_eq!(amount_0, Amount::from_str("1.412815175518738638").unwrap());
         assert_eq!(amount_1, Amount::from_str("30").unwrap());
+
+        let (amount_0, amount_1) = pool
+            .try_calculate_liquidity_amount_pair(
+                Amount::from_tokens(20),
+                Amount::from_tokens(30),
+                None,
+                None,
+            )
+            .unwrap();
+        assert_eq!(amount_0, Amount::from_str("0.666666666666666666").unwrap());
+        assert_eq!(amount_1, Amount::from_str("14.156133333333333333").unwrap());
     }
 }
