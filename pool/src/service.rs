@@ -7,7 +7,7 @@ mod state;
 
 use std::sync::Arc;
 
-use abi::swap::pool::{Pool, PoolAbi};
+use abi::swap::pool::{Pool, PoolAbi, PoolParameters};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, WithServiceAbi},
@@ -17,6 +17,7 @@ use linera_sdk::{
 
 use self::state::PoolState;
 
+#[derive(Clone)]
 pub struct PoolService {
     state: Arc<PoolState>,
     runtime: Arc<ServiceRuntime<Self>>,
@@ -29,9 +30,11 @@ impl WithServiceAbi for PoolService {
 }
 
 impl Service for PoolService {
-    type Parameters = ();
+    type Parameters = PoolParameters;
 
     async fn new(runtime: ServiceRuntime<Self>) -> Self {
+        let _ = runtime.application_parameters();
+
         let state = PoolState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load state");
@@ -44,7 +47,7 @@ impl Service for PoolService {
     async fn handle_query(&self, request: Request) -> Response {
         let schema = Schema::build(
             QueryRoot {
-                state: self.state.clone(),
+                service: self.clone(),
             },
             EmptyMutation,
             EmptySubscription,
@@ -54,32 +57,39 @@ impl Service for PoolService {
     }
 }
 
+impl PoolService {
+    fn virtual_initial_liquidity(&self) -> bool {
+        self.runtime
+            .application_parameters()
+            .virtual_initial_liquidity
+    }
+
+    fn state(&self) -> Arc<PoolState> {
+        self.state.clone()
+    }
+}
+
 struct QueryRoot {
-    state: Arc<PoolState>,
+    service: PoolService,
 }
 
 #[Object]
 impl QueryRoot {
     async fn pool(&self) -> Pool {
-        self.state.pool()
+        self.service.state().pool()
     }
 
     async fn liquidity(&self, account: Account) -> Amount {
-        self.state.liquidity(account).await.unwrap()
+        self.service.state().liquidity(account).await.unwrap()
+    }
+
+    async fn virtual_initial_liquidity(&self) -> bool {
+        self.service.virtual_initial_liquidity()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use async_graphql::{Request, Response, Value};
-    use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Service, ServiceRuntime};
-    use serde_json::json;
-
-    use super::{PoolService, PoolState};
-
     #[test]
     fn query() {}
 }

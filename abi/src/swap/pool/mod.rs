@@ -105,6 +105,14 @@ pub enum PoolMessage {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
+    SetFeeTo {
+        operator: Account,
+        account: Account,
+    },
+    SetFeeToSetter {
+        operator: Account,
+        account: Account,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

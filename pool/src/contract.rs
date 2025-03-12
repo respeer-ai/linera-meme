@@ -198,6 +198,12 @@ impl Contract for PoolContract {
                 )
                 .await
                 .expect("Failed MSG: remove liquidity"),
+            PoolMessage::SetFeeTo { operator, account } => self
+                .on_msg_set_fee_to(operator, account)
+                .expect("Failed MSG: set fee to"),
+            PoolMessage::SetFeeToSetter { operator, account } => self
+                .on_msg_set_fee_to_setter(operator, account)
+                .expect("Failed MSG: set fee to setter"),
         }
     }
 
@@ -207,12 +213,6 @@ impl Contract for PoolContract {
 }
 
 impl PoolContract {
-    fn virtual_initial_liquidity(&mut self) -> bool {
-        self.runtime
-            .application_parameters()
-            .virtual_initial_liquidity
-    }
-
     fn owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
@@ -226,15 +226,6 @@ impl PoolContract {
     fn application_creation_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.application_creator_chain_id(),
-            owner: Some(AccountOwner::Application(
-                self.runtime.application_id().forget_abi(),
-            )),
-        }
-    }
-
-    fn application_chain_account(&mut self) -> Account {
-        Account {
-            chain_id: self.runtime.chain_id(),
             owner: Some(AccountOwner::Application(
                 self.runtime.application_id().forget_abi(),
             )),
@@ -315,10 +306,20 @@ impl PoolContract {
     }
 
     fn on_op_set_fee_to(&mut self, account: Account) -> Result<PoolResponse, PoolError> {
+        let operator = self.owner_account();
+        self.runtime
+            .prepare_message(PoolMessage::SetFeeTo { operator, account })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(PoolResponse::Ok)
     }
 
     fn on_op_set_fee_to_setter(&mut self, account: Account) -> Result<PoolResponse, PoolError> {
+        let operator = self.owner_account();
+        self.runtime
+            .prepare_message(PoolMessage::SetFeeToSetter { operator, account })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(PoolResponse::Ok)
     }
 
@@ -610,8 +611,6 @@ impl PoolContract {
         transfer_id: u64,
         amount: Amount,
     ) -> Result<(), PoolError> {
-        let application_id = self.runtime.application_id().forget_abi();
-
         let call = MemeOperation::TransferToCaller {
             transfer_id,
             amount,
@@ -648,7 +647,7 @@ impl PoolContract {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
-        block_timestamp: Option<Timestamp>,
+        _block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
         // Here we already funded
         // 1: Calculate pair token amount
@@ -729,7 +728,7 @@ impl PoolContract {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
-        block_timestamp: Option<Timestamp>,
+        _block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
         // We already receive all funds here
         let (amount_0, amount_1) = self.state.try_calculate_swap_amount_pair(
@@ -757,7 +756,7 @@ impl PoolContract {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
-        block_timestamp: Option<Timestamp>,
+        _block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
         // 1: Calculate liquidity amount pair
         let (amount_0, amount_1) = self.state.try_calculate_liquidity_amount_pair(
@@ -779,12 +778,26 @@ impl PoolContract {
         // 3: Burn liquidity
         self.state.burn(origin, liquidity).await
     }
+
+    fn on_msg_set_fee_to(&mut self, operator: Account, account: Account) -> Result<(), PoolError> {
+        self.state.set_fee_to(operator, account);
+        Ok(())
+    }
+
+    fn on_msg_set_fee_to_setter(
+        &mut self,
+        operator: Account,
+        account: Account,
+    ) -> Result<(), PoolError> {
+        self.state.set_fee_to_setter(operator, account);
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use abi::{
-        meme::{MemeOperation, MemeResponse},
+        meme::MemeResponse,
         swap::pool::{
             InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters,
             PoolResponse,

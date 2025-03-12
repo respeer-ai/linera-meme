@@ -241,4 +241,22 @@ impl PoolState {
 
         Ok(())
     }
+
+    pub(crate) fn set_fee_to(&mut self, operator: Account, account: Account) {
+        let mut pool = self.pool();
+
+        assert!(pool.fee_to_setter == operator, "Invalid operator");
+        pool.fee_to = account;
+
+        self.pool.set(Some(pool));
+    }
+
+    pub(crate) fn set_fee_to_setter(&mut self, operator: Account, account: Account) {
+        let mut pool = self.pool();
+
+        assert!(pool.fee_to_setter == operator, "Invalid operator");
+        pool.fee_to_setter = account;
+
+        self.pool.set(Some(pool));
+    }
 }
