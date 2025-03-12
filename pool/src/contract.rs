@@ -959,6 +959,11 @@ mod tests {
             block_timestamp: None,
         })
         .await;
+
+        assert_eq!(
+            pool.state.liquidity(owner).await.unwrap(),
+            Amount::from_str("0.1").unwrap()
+        );
     }
 
     #[test]
