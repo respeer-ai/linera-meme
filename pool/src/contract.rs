@@ -636,10 +636,7 @@ impl PoolContract {
         transfer_id: u64,
         amount: Amount,
     ) -> Result<(), PoolError> {
-        let call = MemeOperation::TransferToCaller {
-            transfer_id,
-            amount,
-        };
+        let call = MemeOperation::TransferToCaller { amount };
 
         let message_chain_id = self.runtime.message_id().unwrap().chain_id;
         match self

@@ -11,14 +11,11 @@ use abi::{
         InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
         MemeResponse,
     },
-    swap::{
-        pool::{PoolAbi, PoolOperation},
-        router::{SwapAbi, SwapOperation, SwapResponse},
-    },
+    swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, WithContractAbi,
+        Account, AccountOwner, Amount, ChainId, CryptoHash, Owner, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -115,11 +112,8 @@ impl Contract for MemeContract {
             MemeOperation::TransferOwnership { new_owner } => self
                 .on_op_transfer_ownership(new_owner)
                 .expect("Failed OP: transfer ownership"),
-            MemeOperation::TransferToCaller {
-                transfer_id,
-                amount,
-            } => self
-                .on_op_transfer_to_caller(transfer_id, amount)
+            MemeOperation::TransferToCaller { amount } => self
+                .on_op_transfer_to_caller(amount)
                 .await
                 .expect("Failed OP: transfer to caller"),
             MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
@@ -272,7 +266,6 @@ impl MemeContract {
         if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
             return Ok(());
         }
-        let virtual_liquidity = self.virtual_initial_liquidity();
 
         // ATM the funds is already transferred to meme creation application, so we need to transfer funds to swap application here
         let amount = self.initial_liquidity_funds()?;
@@ -411,7 +404,6 @@ impl MemeContract {
 
     async fn on_op_transfer_to_caller(
         &mut self,
-        transfer_id: u64,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
         assert!(

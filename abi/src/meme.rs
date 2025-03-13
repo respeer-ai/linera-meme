@@ -104,7 +104,6 @@ pub enum MemeOperation {
     },
     // Only be run on meme chain
     TransferToCaller {
-        transfer_id: u64,
         amount: Amount,
     },
 }
