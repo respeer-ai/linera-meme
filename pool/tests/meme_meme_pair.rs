@@ -283,6 +283,25 @@ impl TestSuite {
                 );
             })
             .await;
+
+        self.meme_chain_0.handle_received_messages().await;
+        self.meme_chain_1.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+
+        self.meme_chain_0.handle_received_messages().await;
+        self.meme_chain_1.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
+        chain.handle_received_messages().await;
+
         self.meme_chain_0.handle_received_messages().await;
         self.meme_chain_1.handle_received_messages().await;
         chain.handle_received_messages().await;
@@ -544,6 +563,15 @@ async fn meme_meme_pair_test() {
     user_chain.handle_received_messages().await;
     pool_chain_user.handle_received_messages().await;
 
+    let QueryOutcome { response, .. } = pool_chain_user
+        .graphql_query(suite.pool_application_id_user.unwrap(), "query { pool }")
+        .await;
+    let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
+
+    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain_user.chain_balance().await);
+    assert_eq!(Amount::ONE, pool.reserve_0);
+    assert_eq!(Amount::ONE, pool.reserve_1);
+
     let query = format!(
         "query {{ balanceOf(owner: \"{}\")}}",
         pool_application_account
@@ -616,4 +644,62 @@ async fn meme_meme_pair_test() {
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_attos(1352998800000000000000000),
     );
+
+    suite
+        .add_liquidity(
+            &user_chain,
+            &pool_chain_user,
+            suite.pool_application_id_user.unwrap(),
+            Amount::from_str("1.2").unwrap(),
+            Amount::from_str("1.8").unwrap(),
+        )
+        .await;
+
+    let query = format!(
+        "query {{ balanceOf(owner: \"{}\")}}",
+        pool_application_account
+    );
+
+    let QueryOutcome { response, .. } = meme_chain_0
+        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_str("2.0").unwrap(),
+    );
+
+    let QueryOutcome { response, .. } = meme_chain_1
+        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_tokens(3),
+    );
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+
+    let QueryOutcome { response, .. } = meme_chain_0
+        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(857998000000000000000000),
+    );
+
+    let QueryOutcome { response, .. } = meme_chain_1
+        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(1352997000000000000000000),
+    );
+
+    let QueryOutcome { response, .. } = pool_chain_user
+        .graphql_query(suite.pool_application_id_user.unwrap(), "query { pool }")
+        .await;
+    let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
+
+    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain_user.chain_balance().await);
+    assert_eq!(Amount::from_tokens(3), pool.reserve_1);
+    assert_eq!(Amount::from_tokens(2), pool.reserve_0);
 }

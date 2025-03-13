@@ -194,14 +194,14 @@ impl TestSuite {
         )
     }
 
-    async fn swap(&self, chain: &ActiveChain, amount: Amount) {
+    async fn swap(&self, chain: &ActiveChain, buy_token_0: bool, amount: Amount) {
         chain
             .add_block(|block| {
                 block.with_operation(
                     self.pool_application_id.unwrap(),
                     PoolOperation::Swap {
-                        amount_0_in: None,
-                        amount_1_in: Some(amount),
+                        amount_0_in: if buy_token_0 { None } else { Some(amount) },
+                        amount_1_in: if buy_token_0 { Some(amount) } else { None },
                         amount_0_out_min: None,
                         amount_1_out_min: None,
                         to: None,
@@ -365,7 +365,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
     let budget = Amount::from_str("9.8").unwrap();
 
     suite.fund_chain(&user_chain, balance).await;
-    suite.swap(&user_chain, budget).await;
+    suite.swap(&user_chain, true, budget).await;
 
     assert_eq!(
         balance.try_sub(budget).unwrap(),
@@ -583,5 +583,3 @@ async fn meme_native_real_initial_liquidity_test() {
         suite.initial_liquidity,
     );
 }
-
-// TODO: should fail if swap in new pool (without buying swap) with virtual initial liquidity

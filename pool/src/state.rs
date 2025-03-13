@@ -46,14 +46,13 @@ impl PoolState {
             .set(Some(argument.router_application_id));
         self.transfer_id.set(1000);
 
-        assert!(argument.amount_0 > Amount::ZERO, "Invalid amount");
-        assert!(argument.amount_1 > Amount::ZERO, "Invalid amount");
-
-        if !parameters.virtual_initial_liquidity {
-            self.mint_shares(argument.amount_0, argument.amount_1, owner)
-                .await?;
+        if argument.amount_0 > Amount::ZERO && argument.amount_1 > Amount::ZERO {
+            if !parameters.virtual_initial_liquidity {
+                self.mint_shares(argument.amount_0, argument.amount_1, owner)
+                    .await?;
+            }
+            pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
         }
-        pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
 
         self.pool.set(Some(pool));
         Ok(())

@@ -489,6 +489,7 @@ impl SwapContract {
         // Run on pool chain
         let application_id = self.runtime.application_id().forget_abi();
         let chain_id = self.runtime.chain_id();
+        let late_add_liquidity = token_1.is_some();
 
         let pool_application_id = self
             .runtime
@@ -502,8 +503,16 @@ impl SwapContract {
                     token_1_creator_chain_id,
                 },
                 &PoolInstantiationArgument {
-                    amount_0,
-                    amount_1,
+                    amount_0: if late_add_liquidity {
+                        Amount::ZERO
+                    } else {
+                        amount_0
+                    },
+                    amount_1: if late_add_liquidity {
+                        Amount::ZERO
+                    } else {
+                        amount_1
+                    },
                     pool_fee_percent_mul_100: 30,
                     protocol_fee_percent_mul_100: 5,
                     router_application_id: application_id,
