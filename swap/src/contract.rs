@@ -207,7 +207,7 @@ impl Contract for SwapContract {
 impl SwapContract {
     fn message_executable(&mut self, message: &SwapMessage) -> bool {
         match message {
-            SwapMessage::CreatePool { .. } => {
+            SwapMessage::CreatePool { .. } | SwapMessage::UserPoolCreated { .. } => {
                 self.runtime.chain_id() != self.runtime.application_creator_chain_id()
             }
             _ => self.runtime.chain_id() == self.runtime.application_creator_chain_id(),

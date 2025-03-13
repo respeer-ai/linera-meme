@@ -228,20 +228,20 @@ impl MemeContract {
         }
     }
 
-    fn message_owner_account(&mut self) -> Account {
-        Account {
-            chain_id: self.runtime.message_id().unwrap().chain_id,
-            owner: Some(AccountOwner::User(
-                self.runtime.authenticated_signer().unwrap(),
-            )),
-        }
-    }
-
     fn message_caller_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.message_id().unwrap().chain_id,
             owner: Some(AccountOwner::Application(
                 self.runtime.authenticated_caller_id().unwrap(),
+            )),
+        }
+    }
+
+    fn message_owner_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.message_id().unwrap().chain_id,
+            owner: Some(AccountOwner::User(
+                self.runtime.authenticated_signer().unwrap(),
             )),
         }
     }

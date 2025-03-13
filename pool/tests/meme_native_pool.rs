@@ -265,7 +265,7 @@ impl TestSuite {
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn pool_virtual_initial_liquidity_test() {
+async fn meme_native_virtual_initial_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
@@ -326,7 +326,7 @@ async fn pool_virtual_initial_liquidity_test() {
             } }",
         )
         .await;
-    assert_eq!(response["pools"].as_array().unwrap().len(), 1,);
+    assert_eq!(response["pools"].as_array().unwrap().len(), 1);
     let pool: PoolIndex =
         serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
 
@@ -404,7 +404,7 @@ async fn pool_virtual_initial_liquidity_test() {
         pool_application_account,
     );
     let QueryOutcome { response, .. } = meme_chain
-        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .graphql_query(suite.meme_application_id.unwrap(), query.clone())
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
@@ -433,6 +433,15 @@ async fn pool_virtual_initial_liquidity_test() {
             .owner_balance(&user_account.owner.unwrap())
             .await
             .unwrap()
+    );
+
+    // Here meme balance should already add to pool application
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(220000000000000000000000),
     );
 
     let QueryOutcome { response, .. } = pool_chain
@@ -465,7 +474,7 @@ async fn pool_virtual_initial_liquidity_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn pool_real_initial_liquidity_test() {
+async fn meme_native_real_initial_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
@@ -574,3 +583,5 @@ async fn pool_real_initial_liquidity_test() {
         suite.initial_liquidity,
     );
 }
+
+// TODO: should fail if swap in new pool (without buying swap) with virtual initial liquidity

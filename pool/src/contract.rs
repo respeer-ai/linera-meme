@@ -576,6 +576,11 @@ impl PoolContract {
             fund_request
         };
 
+        self.transfer_meme_to_creation_chain_application(fund_request_0);
+        if let Some(_) = fund_request_1.token {
+            self.transfer_meme_to_creation_chain_application(fund_request_1);
+        }
+
         // Here both assets are transferred to pool successfully
         self.runtime
             .prepare_message(PoolMessage::AddLiquidity {
