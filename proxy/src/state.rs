@@ -209,6 +209,20 @@ impl ProxyState {
         owner: Account,
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
+        assert!(
+            self.miners()
+                .await?
+                .iter()
+                .filter(|miner| miner.owner == owner.owner)
+                .collect::<Vec<_>>()
+                .len()
+                == 0,
+            "Already registered"
+        );
         Ok(self.miners.insert(&owner, Miner { owner, endpoint })?)
+    }
+
+    pub(crate) fn deregister_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
+        Ok(self.miners.remove(&owner)?)
     }
 }

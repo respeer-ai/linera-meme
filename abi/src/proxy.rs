@@ -118,9 +118,12 @@ pub enum ProxyMessage {
     },
 
     RegisterMiner {
+        owner: Account,
         endpoint: Option<String>,
     },
-    DeregisterMiner,
+    DeregisterMiner {
+        owner: Account,
+    },
 
     CreateMeme {
         fee_budget: Amount,

@@ -137,11 +137,12 @@ impl Contract for ProxyContract {
                 .await
                 .expect("Failed MSG: approve remove genesis miner"),
 
-            ProxyMessage::RegisterMiner { endpoint } => self
-                .on_msg_register_miner(endpoint)
+            ProxyMessage::RegisterMiner { owner, endpoint } => self
+                .on_msg_register_miner(owner, endpoint)
+                .await
                 .expect("Failed MSG: register miner"),
-            ProxyMessage::DeregisterMiner => self
-                .on_msg_deregister_miner()
+            ProxyMessage::DeregisterMiner { owner } => self
+                .on_msg_deregister_miner(owner)
                 .expect("Failed MSG: deregister miner"),
 
             ProxyMessage::CreateMeme {
@@ -262,10 +263,18 @@ impl ProxyContract {
         &mut self,
         endpoint: Option<String>,
     ) -> Result<ProxyResponse, ProxyError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(ProxyMessage::RegisterMiner { owner, endpoint })
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
     fn on_op_deregister_miner(&mut self) -> Result<ProxyResponse, ProxyError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(ProxyMessage::DeregisterMiner { owner })
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -431,12 +440,16 @@ impl ProxyContract {
             .await
     }
 
-    fn on_msg_register_miner(&mut self, endpoint: Option<String>) -> Result<(), ProxyError> {
-        Ok(())
+    async fn on_msg_register_miner(
+        &mut self,
+        owner: Account,
+        endpoint: Option<String>,
+    ) -> Result<(), ProxyError> {
+        self.state.register_miner(owner, endpoint).await
     }
 
-    fn on_msg_deregister_miner(&mut self) -> Result<(), ProxyError> {
-        Ok(())
+    fn on_msg_deregister_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
+        self.state.deregister_miner(owner)
     }
 
     async fn meme_chain_owner_weights(&self) -> Result<Vec<(Owner, u64)>, ProxyError> {
