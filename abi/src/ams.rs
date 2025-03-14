@@ -11,18 +11,30 @@ pub struct InstantiationArgument {
     pub application_types: Vec<String>,
 }
 
+pub const MEME: &str = "Meme";
+pub const MEME_PROXY: &str = "MemeProxy";
+pub const SWAP: &str = "Swap";
+pub const AMS: &str = "Ams";
+pub const BLOB_GATEWAY: &str = "BlobGateway";
+pub const LIQUIDITY_POOL: &str = "LiquidityPool";
+pub const GAME: &str = "Game";
+pub const SOCIAL: &str = "Social";
+pub const DEFI: &str = "DeFi";
+pub const UTILITY: &str = "Utility";
+pub const OTHER: &str = "Other";
+
 pub const APPLICATION_TYPES: &'static [&'static str] = &[
-    "Meme",
-    "MemeProxy",
-    "Swap",
-    "Ams",
-    "BlobGateway",
-    "LiquidityPool",
-    "Game",
-    "Social",
-    "DeFi",
-    "Utility",
-    "Other",
+    MEME,
+    MEME_PROXY,
+    SWAP,
+    AMS,
+    BLOB_GATEWAY,
+    LIQUIDITY_POOL,
+    GAME,
+    SOCIAL,
+    DEFI,
+    UTILITY,
+    OTHER,
 ];
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
