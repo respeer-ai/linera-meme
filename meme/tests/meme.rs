@@ -14,7 +14,10 @@ use abi::{
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId, Owner},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, Owner,
+        TestString,
+    },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;
@@ -134,7 +137,7 @@ impl TestSuite {
                 total_supply: self.initial_supply,
                 metadata: Metadata {
                     logo_store_type: StoreType::S3,
-                    logo: "Test Logo".to_string(),
+                    logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
                     description: "Test token description".to_string(),
                     twitter: None,
                     telegram: None,

@@ -17,8 +17,8 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, MessageId,
-        ModuleId, Owner,
+        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
+        MessageId, ModuleId, Owner, TestString,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -199,7 +199,9 @@ impl TestSuite {
                                 total_supply: Amount::from_tokens(21000000),
                                 metadata: Metadata {
                                     logo_store_type: StoreType::S3,
-                                    logo: "Test Logo".to_string(),
+                                    logo: Some(CryptoHash::new(&TestString::new(
+                                        "Test Logo".to_string(),
+                                    ))),
                                     description: "Test token description".to_string(),
                                     twitter: None,
                                     telegram: None,

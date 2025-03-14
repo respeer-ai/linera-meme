@@ -1000,7 +1000,7 @@ mod tests {
                 total_supply: initial_supply,
                 metadata: Metadata {
                     logo_store_type: StoreType::S3,
-                    logo: "Test Logo".to_string(),
+                    logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
                     description: "Test token description".to_string(),
                     twitter: None,
                     telegram: None,

@@ -112,7 +112,9 @@ mod tests {
     use async_graphql::{Request, Response, Value};
     use futures::FutureExt as _;
     use linera_sdk::{
-        linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
+        linera_base_types::{
+            Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString,
+        },
         util::BlockingWait,
         views::View,
         Service, ServiceRuntime,
@@ -140,7 +142,7 @@ mod tests {
                 total_supply: Amount::from_tokens(21000000),
                 metadata: Metadata {
                     logo_store_type: StoreType::S3,
-                    logo: "Test Logo".to_string(),
+                    logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
                     description: "Test token description".to_string(),
                     twitter: None,
                     telegram: None,
