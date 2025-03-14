@@ -283,7 +283,6 @@ impl SwapContract {
         amount: Amount,
     ) {
         let chain_id = self.runtime.application_creator_chain_id();
-        let application_id = self.runtime.application_id().forget_abi();
 
         let owner_balance = self.runtime.owner_balance(from_owner);
         let chain_balance = self.runtime.chain_balance();
@@ -302,7 +301,6 @@ impl SwapContract {
         assert!(from_owner_balance <= owner_balance, "Insufficient balance");
         assert!(from_chain_balance <= chain_balance, "Insufficient balance");
 
-        // TODO: should we transfer to swap application directly ? SECURITY
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
                 Some(from_owner),
@@ -414,7 +412,7 @@ impl SwapContract {
         amount_1: Amount,
         virtual_liquidity: bool,
         to: Option<Account>,
-        deadline: Option<Timestamp>,
+        _deadline: Option<Timestamp>,
     ) -> Result<(), SwapError> {
         // For initial pool, all assets should be already authenticated when we're here
         // For user pool, we just create a pool, then notify user to add liquidity

@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::swap::router::{Pool, SwapAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{ChainId, MessageId, WithServiceAbi},
+    linera_base_types::{MessageId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -45,7 +45,7 @@ impl Service for SwapService {
         let schema = Schema::build(
             QueryRoot {
                 state: self.state.clone(),
-                runtime: self.runtime.clone(),
+                _runtime: self.runtime.clone(),
             },
             EmptyMutation,
             EmptySubscription,
@@ -57,7 +57,7 @@ impl Service for SwapService {
 
 struct QueryRoot {
     state: Arc<SwapState>,
-    runtime: Arc<ServiceRuntime<SwapService>>,
+    _runtime: Arc<ServiceRuntime<SwapService>>,
 }
 
 #[Object]
