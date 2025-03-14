@@ -7,7 +7,7 @@ use abi::{
 };
 use linera_sdk::{
     ensure,
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -295,8 +295,8 @@ impl MemeState {
             .clone()
     }
 
-    pub(crate) fn logo(&self) -> String {
-        self.meme.get().as_ref().unwrap().metadata.logo.clone()
+    pub(crate) fn logo(&self) -> CryptoHash {
+        self.meme.get().as_ref().unwrap().metadata.logo.unwrap()
     }
 
     pub(crate) fn description(&self) -> String {

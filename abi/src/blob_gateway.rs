@@ -1,10 +1,22 @@
 use crate::store_type::StoreType;
-use async_graphql::{Enum, SimpleObject};
+use async_graphql::{Enum, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{Account, CryptoHash, Timestamp},
+    linera_base_types::{Account, ContractAbi, CryptoHash, ServiceAbi, Timestamp},
 };
 use serde::{Deserialize, Serialize};
+
+pub struct BlobGatewayAbi;
+
+impl ContractAbi for BlobGatewayAbi {
+    type Operation = BlobGatewayOperation;
+    type Response = BlobGatewayResponse;
+}
+
+impl ServiceAbi for BlobGatewayAbi {
+    type Query = Request;
+    type QueryResponse = Response;
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone, Eq, PartialEq, Enum, Copy)]
 pub enum BlobDataType {

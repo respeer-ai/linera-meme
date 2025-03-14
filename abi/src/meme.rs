@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 )]
 pub struct Metadata {
     pub logo_store_type: StoreType,
-    pub logo: String,
+    pub logo: Option<CryptoHash>,
     pub description: String,
     pub twitter: Option<String>,
     pub telegram: Option<String>,

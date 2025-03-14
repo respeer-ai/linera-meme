@@ -3,7 +3,7 @@ use async_graphql::{scalar, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, ApplicationId, ContractAbi, Ed25519Signature, ServiceAbi, Timestamp,
+        Account, ApplicationId, ContractAbi, CryptoHash, Ed25519Signature, ServiceAbi, Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -60,7 +60,7 @@ pub struct Metadata {
     pub application_type: String,
     pub key_words: Vec<String>,
     pub logo_store_type: StoreType,
-    pub logo: String,
+    pub logo: CryptoHash,
     pub description: String,
     pub twitter: Option<String>,
     pub telegram: Option<String>,

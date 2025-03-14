@@ -7,6 +7,7 @@ mod state;
 
 use abi::{
     ams::{AmsAbi, AmsOperation, Metadata, MEME},
+    blob_gateway::{BlobDataType, BlobGatewayAbi, BlobGatewayOperation},
     constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
@@ -280,7 +281,16 @@ impl MemeContract {
 
     async fn register_logo(&mut self) {
         if let Some(blob_gateway_application_id) = self.state.blob_gateway_application_id() {
-            // TODO: register application logo to blob gateway
+            let call = BlobGatewayOperation::Register {
+                store_type: self.state.logo_store_type(),
+                data_type: BlobDataType::Image,
+                blob_hash: self.state.logo(),
+            };
+            let _ = self.runtime.call_application(
+                true,
+                blob_gateway_application_id.with_abi::<BlobGatewayAbi>(),
+                &call,
+            );
         }
     }
 
@@ -449,7 +459,9 @@ impl MemeContract {
         }
     }
 
-    fn on_op_mine(&mut self, nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
+    // TODO: check first operation of the block must be mine
+    // TODO: distribute reward to block proposer
+    fn on_op_mine(&mut self, _nonce: CryptoHash) -> Result<MemeResponse, MemeError> {
         Ok(MemeResponse::Ok)
     }
 
