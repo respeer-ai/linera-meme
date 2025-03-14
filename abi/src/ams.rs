@@ -11,6 +11,20 @@ pub struct InstantiationArgument {
     pub application_types: Vec<String>,
 }
 
+pub const APPLICATION_TYPES: &'static [&'static str] = &[
+    "Meme",
+    "MemeProxy",
+    "Swap",
+    "Ams",
+    "BlobGateway",
+    "LiquidityPool",
+    "Game",
+    "Social",
+    "DeFi",
+    "Utility",
+    "Other",
+];
+
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Metadata {
     pub creator: Option<Account>,
