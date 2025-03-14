@@ -8,10 +8,10 @@
 use abi::{
     constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
-        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeOperation,
-        MemeParameters, Metadata,
+        InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
+        Metadata,
     },
-    proxy::{Chain, InstantiationArgument, ProxyAbi, ProxyOperation},
+    proxy::{InstantiationArgument, ProxyAbi, ProxyOperation},
     store_type::StoreType,
     swap::router::{InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapParameters},
 };
@@ -32,7 +32,8 @@ struct TestSuite {
     pub admin_chain: ActiveChain,
     pub proxy_chain: ActiveChain,
     pub meme_user_chain: ActiveChain,
-    pub operator_chain: ActiveChain,
+    pub operator_chain_1: ActiveChain,
+    pub operator_chain_2: ActiveChain,
     pub swap_chain: ActiveChain,
 
     pub proxy_bytecode_id: ModuleId<ProxyAbi, (), InstantiationArgument>,
@@ -49,7 +50,8 @@ impl TestSuite {
         let admin_chain = validator.get_chain(&ChainId::root(0));
         let proxy_chain = validator.new_chain().await;
         let meme_user_chain = validator.new_chain().await;
-        let operator_chain = validator.new_chain().await;
+        let operator_chain_1 = validator.new_chain().await;
+        let operator_chain_2 = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
 
         let meme_bytecode_id = proxy_chain.publish_bytecode_files_in("../meme").await;
@@ -60,7 +62,8 @@ impl TestSuite {
             admin_chain,
             proxy_chain,
             meme_user_chain,
-            operator_chain,
+            operator_chain_1,
+            operator_chain_2,
             swap_chain,
 
             proxy_bytecode_id,
@@ -70,7 +73,7 @@ impl TestSuite {
         }
     }
 
-    async fn create_proxy_application(&mut self, operator: Account) {
+    async fn create_proxy_application(&mut self, operators: Vec<Account>) {
         self.proxy_application_id = Some(
             self.proxy_chain
                 .create_application(
@@ -78,7 +81,7 @@ impl TestSuite {
                     (),
                     InstantiationArgument {
                         meme_bytecode_id: self.meme_bytecode_id,
-                        operator,
+                        operators,
                         swap_application_id: self.swap_application_id.unwrap().forget_abi(),
                     },
                     vec![],
@@ -140,7 +143,7 @@ impl TestSuite {
         )
     }
 
-    async fn propose_add_genesis_miner(&self, chain: &ActiveChain, owner: Owner) {
+    async fn propose_add_genesis_miner(&self, chain: &ActiveChain, owner: Account) {
         let certificate = chain
             .add_block(|block| {
                 block.with_operation(
@@ -163,7 +166,7 @@ impl TestSuite {
             .await;
     }
 
-    async fn approve_add_genesis_miner(&self, chain: &ActiveChain, owner: Owner) {
+    async fn approve_add_genesis_miner(&self, chain: &ActiveChain, owner: Account) {
         let certificate = chain
             .add_block(|block| {
                 block.with_operation(
@@ -189,7 +192,6 @@ impl TestSuite {
                 block.with_operation(
                     self.proxy_application_id.unwrap(),
                     ProxyOperation::CreateMeme {
-                        fee_budget: Some(OPEN_CHAIN_FEE_BUDGET),
                         meme_instantiation_argument: MemeInstantiationArgument {
                             meme: Meme {
                                 name: "Test Token".to_string(),
@@ -252,20 +254,21 @@ async fn proxy_create_meme_test() {
 
     let mut suite = TestSuite::new().await;
 
-    let proxy_chain = suite.proxy_chain.clone();
-    let meme_user_chain = suite.meme_user_chain.clone();
-    let operator_chain = suite.operator_chain.clone();
-    let swap_chain = suite.swap_chain.clone();
+    let proxy_chain = &suite.proxy_chain.clone();
+    let meme_user_chain = &suite.meme_user_chain.clone();
+    let operator_chain_1 = &suite.operator_chain_1.clone();
+    let operator_chain_2 = &suite.operator_chain_2.clone();
+    let swap_chain = &suite.swap_chain.clone();
 
-    let operator = Account {
-        chain_id: operator_chain.id(),
-        owner: Some(AccountOwner::User(Owner::from(operator_chain.public_key()))),
-    };
-    let owner = Owner::from(meme_user_chain.public_key());
+    let operator_1 = suite.chain_owner_account(operator_chain_1);
+    let operator_2 = suite.chain_owner_account(operator_chain_2);
+    let owner = suite.chain_owner_account(meme_user_chain);
     let meme_user_key_pair = meme_user_chain.key_pair();
 
     suite.create_swap_application().await;
-    suite.create_proxy_application(operator).await;
+    suite
+        .create_proxy_application(vec![operator_1, operator_2])
+        .await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -277,10 +280,10 @@ async fn proxy_create_meme_test() {
     assert_eq!(response, expected);
 
     suite
-        .propose_add_genesis_miner(&operator_chain, owner)
+        .propose_add_genesis_miner(&operator_chain_1, owner)
         .await;
     suite
-        .approve_add_genesis_miner(&operator_chain, owner)
+        .approve_add_genesis_miner(&operator_chain_2, owner)
         .await;
 
     let QueryOutcome { response, .. } = proxy_chain
@@ -300,17 +303,16 @@ async fn proxy_create_meme_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { countMemeChains }",
-        )
-        .await;
-    assert_eq!(response["countMemeChains"].as_u64().unwrap(), 1);
-
-    let QueryOutcome { response, .. } = proxy_chain
-        .graphql_query(
-            suite.proxy_application_id.unwrap(),
             "query { memeChainCreationMessages }",
         )
         .await;
+    assert_eq!(
+        response["memeChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
     let message_id = MessageId::from_str(
         response["memeChainCreationMessages"].as_array().unwrap()[0]
             .as_str()

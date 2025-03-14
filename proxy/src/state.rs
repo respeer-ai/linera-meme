@@ -12,15 +12,16 @@ use linera_sdk::{
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use proxy::ProxyError;
-use std::collections::HashMap;
 
 /// The application state.
 #[derive(RootView)]
 #[view(context = "ViewStorageContext")]
 pub struct ProxyState {
     pub meme_bytecode_id: RegisterView<Option<ModuleId>>,
-    /// Operator and banned
-    pub operators: MapView<Account, bool>,
+    /// Active operators
+    pub operators: MapView<Account, Approval>,
+    /// Banning operators waiting for approval
+    pub banning_operators: MapView<Account, Approval>,
     /// Genesis miner and approvals it should get
     pub genesis_miners: MapView<Account, GenesisMiner>,
     /// Removing candidates of genesis miner
@@ -41,18 +42,24 @@ impl ProxyState {
         owner: Account,
     ) -> Result<(), ProxyError> {
         self.meme_bytecode_id.set(Some(argument.meme_bytecode_id));
-        self.operators.insert(&argument.operator, false)?;
+
+        for operator in argument.operators {
+            let mut approval = Approval::new(1);
+            approval.approve(owner);
+            self.operators.insert(&operator, approval)?;
+        }
+
         self.swap_application_id
             .set(Some(argument.swap_application_id));
-        Ok(self.operators.insert(&owner, false)?)
+
+        let mut approval = Approval::new(1);
+        approval.approve(owner);
+        Ok(self.operators.insert(&owner, approval)?)
     }
 
     async fn initial_approval(&self) -> Result<Approval, ProxyError> {
         let operators = self.operators.count().await?;
-        Ok(Approval {
-            approvers: HashMap::new(),
-            least_approvals: std::cmp::max(operators * 2 / 3, 1),
-        })
+        Ok(Approval::new(std::cmp::max(operators * 2 / 3, 1)))
     }
 
     pub(crate) async fn add_genesis_miner(
@@ -60,18 +67,19 @@ impl ProxyState {
         owner: Account,
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
-        if !self.genesis_miners.contains_key(&owner).await? {
-            let approval = self.initial_approval().await?;
-            return Ok(self.genesis_miners.insert(
-                &owner,
-                GenesisMiner {
-                    owner,
-                    endpoint,
-                    approval,
-                },
-            )?);
-        }
-        Ok(())
+        assert!(
+            !self.genesis_miners.contains_key(&owner).await?,
+            "Already exists",
+        );
+        let approval = self.initial_approval().await?;
+        Ok(self.genesis_miners.insert(
+            &owner,
+            GenesisMiner {
+                owner,
+                endpoint,
+                approval,
+            },
+        )?)
     }
 
     pub(crate) async fn approve_add_genesis_miner(
@@ -80,10 +88,8 @@ impl ProxyState {
         operator: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.genesis_miners.get(&owner).await?.unwrap();
-        if miner.approval.approvers.contains_key(&operator) {
-            return Ok(());
-        }
-        miner.approval.approvers.insert(operator, true);
+        assert!(!miner.approval.voted(operator), "Already voted");
+        miner.approval.approve(operator);
         Ok(self.genesis_miners.insert(&owner, miner)?)
     }
 
@@ -92,7 +98,7 @@ impl ProxyState {
         self.genesis_miners
             .for_each_index_value(|owner, miner| {
                 let approval = miner.into_owned().approval;
-                if approval.approvers.len() >= approval.least_approvals {
+                if approval.approved() {
                     miners.push(owner);
                 }
                 Ok(())
@@ -133,11 +139,64 @@ impl ProxyState {
             .collect())
     }
 
-    pub(crate) async fn validate_operator(&self, owner: Account) {
+    pub(crate) async fn validate_operator(&self, owner: Account) -> Result<(), ProxyError> {
+        let approval = self.operators.get(&owner).await?.unwrap();
+        assert!(approval.approved(), "Invalid operator");
+        Ok(())
+    }
+
+    pub(crate) async fn add_operator(&mut self, owner: Account) -> Result<(), ProxyError> {
         assert!(
-            self.operators.contains_key(&owner).await.unwrap(),
+            !self.operators.contains_key(&owner).await?,
+            "Already exists",
+        );
+        let approval = self.initial_approval().await?;
+        Ok(self.operators.insert(&owner, approval)?)
+    }
+
+    // Owner is approved operator, operator is voter
+    pub(crate) async fn approve_add_operator(
+        &mut self,
+        owner: Account,
+        operator: Account,
+    ) -> Result<(), ProxyError> {
+        let mut approval = self.operators.get(&owner).await?.unwrap();
+        assert!(!approval.voted(operator), "Already voted");
+        approval.approve(operator);
+        Ok(self.operators.insert(&owner, approval)?)
+    }
+
+    pub(crate) async fn ban_operator(&mut self, owner: Account) -> Result<(), ProxyError> {
+        assert!(
+            self.operators.contains_key(&owner).await?,
             "Invalid operator"
         );
+        assert!(
+            !self.banning_operators.contains_key(&owner).await?,
+            "Already exists",
+        );
+        let approval = self.initial_approval().await?;
+        Ok(self.banning_operators.insert(&owner, approval)?)
+    }
+
+    // Owner is approved operator, operator is voter
+    pub(crate) async fn approve_ban_operator(
+        &mut self,
+        owner: Account,
+        operator: Account,
+    ) -> Result<(), ProxyError> {
+        assert!(
+            self.banning_operators.contains_key(&owner).await?,
+            "Invalid operator",
+        );
+        let mut approval = self.banning_operators.get(&owner).await?.unwrap();
+        assert!(!approval.voted(operator), "Already voted");
+        approval.approve(operator);
+        if approval.approved() {
+            self.banning_operators.remove(&owner)?;
+            return Ok(self.operators.remove(&owner)?);
+        }
+        Ok(self.operators.insert(&owner, approval)?)
     }
 
     pub(crate) async fn remove_genesis_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
@@ -156,16 +215,14 @@ impl ProxyState {
         owner: Account,
         operator: Account,
     ) -> Result<(), ProxyError> {
-        let mut miner = self.removing_genesis_miners.get(&owner).await?.unwrap();
-        if miner.approvers.contains_key(&operator) {
-            return Ok(());
-        }
-        miner.approvers.insert(operator, true);
-        if miner.approvers.len() >= miner.least_approvals {
+        let mut approval = self.removing_genesis_miners.get(&owner).await?.unwrap();
+        assert!(!approval.voted(operator), "Already voted");
+        approval.approve(operator);
+        if approval.approved() {
             self.removing_genesis_miners.remove(&owner)?;
             return Ok(self.genesis_miners.remove(&owner)?);
         }
-        Ok(self.removing_genesis_miners.insert(&owner, miner)?)
+        Ok(self.removing_genesis_miners.insert(&owner, approval)?)
     }
 
     pub(crate) async fn meme_bytecode_id(&self) -> ModuleId {

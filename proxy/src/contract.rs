@@ -85,11 +85,10 @@ impl Contract for ProxyContract {
                 .expect("Failed OP: deregister miner"),
 
             ProxyOperation::CreateMeme {
-                fee_budget,
                 meme_instantiation_argument,
                 meme_parameters,
             } => self
-                .on_op_create_meme(fee_budget, meme_instantiation_argument, meme_parameters)
+                .on_op_create_meme(meme_instantiation_argument, meme_parameters)
                 .expect("Failed OP: create meme"),
 
             ProxyOperation::ProposeAddOperator { owner } => self
@@ -146,11 +145,10 @@ impl Contract for ProxyContract {
                 .expect("Failed MSG: deregister miner"),
 
             ProxyMessage::CreateMeme {
-                fee_budget,
                 instantiation_argument,
                 parameters,
             } => self
-                .on_msg_create_meme(fee_budget, instantiation_argument, parameters)
+                .on_msg_create_meme(instantiation_argument, parameters)
                 .await
                 .expect("Failed MSG: create meme"),
             ProxyMessage::CreateMemeExt {
@@ -168,16 +166,20 @@ impl Contract for ProxyContract {
 
             ProxyMessage::ProposeAddOperator { operator, owner } => self
                 .on_msg_propose_add_operator(operator, owner)
+                .await
                 .expect("Failed MSG: propose add operator"),
             ProxyMessage::ApproveAddOperator { operator, owner } => self
                 .on_msg_approve_add_operator(operator, owner)
+                .await
                 .expect("Failed MSG: approve add operator"),
 
             ProxyMessage::ProposeBanOperator { operator, owner } => self
                 .on_msg_propose_ban_operator(operator, owner)
+                .await
                 .expect("Failed MSG: propose ban operator"),
             ProxyMessage::ApproveBanOperator { operator, owner } => self
                 .on_msg_approve_ban_operator(operator, owner)
+                .await
                 .expect("Failed MSG: approve ban operator"),
         }
     }
@@ -323,11 +325,8 @@ impl ProxyContract {
         }
     }
 
-    fn fund_proxy_chain_fee_budget(&mut self, fee_budget: Amount) {
-        if fee_budget <= Amount::ZERO {
-            return;
-        }
-        self.fund_proxy_chain(None, fee_budget);
+    fn fund_proxy_chain_fee_budget(&mut self) {
+        self.fund_proxy_chain(None, OPEN_CHAIN_FEE_BUDGET);
     }
 
     fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
@@ -343,7 +342,6 @@ impl ProxyContract {
 
     fn on_op_create_meme(
         &mut self,
-        fee_budget: Option<Amount>,
         mut meme_instantiation_argument: MemeInstantiationArgument,
         mut meme_parameters: MemeParameters,
     ) -> Result<ProxyResponse, ProxyError> {
@@ -352,15 +350,13 @@ impl ProxyContract {
 
         // Fund proxy application on the creation chain, it'll fund meme chain for fee and
         // initial liquidity
-        let fee_budget = fee_budget.unwrap_or(OPEN_CHAIN_FEE_BUDGET);
-        self.fund_proxy_chain_fee_budget(fee_budget);
+        self.fund_proxy_chain_fee_budget();
         self.fund_proxy_chain_initial_liquidity(meme_parameters.clone());
 
         meme_parameters.creator = self.owner_account();
 
         self.runtime
             .prepare_message(ProxyMessage::CreateMeme {
-                fee_budget,
                 instantiation_argument: meme_instantiation_argument,
                 parameters: meme_parameters,
             })
@@ -373,6 +369,14 @@ impl ProxyContract {
         &mut self,
         operator: Account,
     ) -> Result<ProxyResponse, ProxyError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(ProxyMessage::ProposeAddOperator {
+                operator: owner,
+                owner: operator,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -380,6 +384,14 @@ impl ProxyContract {
         &mut self,
         operator: Account,
     ) -> Result<ProxyResponse, ProxyError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(ProxyMessage::ApproveAddOperator {
+                operator: owner,
+                owner: operator,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -387,6 +399,14 @@ impl ProxyContract {
         &mut self,
         operator: Account,
     ) -> Result<ProxyResponse, ProxyError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(ProxyMessage::ProposeBanOperator {
+                operator: owner,
+                owner: operator,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -394,6 +414,14 @@ impl ProxyContract {
         &mut self,
         operator: Account,
     ) -> Result<ProxyResponse, ProxyError> {
+        let owner = self.owner_account();
+        self.runtime
+            .prepare_message(ProxyMessage::ApproveBanOperator {
+                operator: owner,
+                owner: operator,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
 
@@ -404,7 +432,8 @@ impl ProxyContract {
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
         self.state.add_genesis_miner(owner, endpoint).await?;
-        self.state.validate_operator(operator).await;
+        // Everybody can propose add genesis miner. If it's proposed by operator, approve it
+        self.state.validate_operator(operator).await?;
         self.state.approve_add_genesis_miner(owner, operator).await
     }
 
@@ -413,7 +442,7 @@ impl ProxyContract {
         operator: Account,
         owner: Account,
     ) -> Result<(), ProxyError> {
-        self.state.validate_operator(operator).await;
+        self.state.validate_operator(operator).await?;
         self.state.approve_add_genesis_miner(owner, operator).await
     }
 
@@ -423,7 +452,7 @@ impl ProxyContract {
         owner: Account,
     ) -> Result<(), ProxyError> {
         self.state.remove_genesis_miner(owner).await?;
-        self.state.validate_operator(operator).await;
+        self.state.validate_operator(operator).await?;
         self.state
             .approve_remove_genesis_miner(owner, operator)
             .await
@@ -434,7 +463,7 @@ impl ProxyContract {
         operator: Account,
         owner: Account,
     ) -> Result<(), ProxyError> {
-        self.state.validate_operator(operator).await;
+        self.state.validate_operator(operator).await?;
         self.state
             .approve_remove_genesis_miner(owner, operator)
             .await
@@ -465,10 +494,7 @@ impl ProxyContract {
         Ok(owner_weights)
     }
 
-    async fn create_meme_chain(
-        &mut self,
-        fee_budget: Amount,
-    ) -> Result<(MessageId, ChainId), ProxyError> {
+    async fn create_meme_chain(&mut self) -> Result<(MessageId, ChainId), ProxyError> {
         let ownership = ChainOwnership::multiple(
             self.meme_chain_owner_weights().await?,
             0, // TODO: run in single leader mode firstly, will be updated when multi leader mode done
@@ -482,7 +508,9 @@ impl ProxyContract {
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
         };
-        Ok(self.runtime.open_chain(ownership, permissions, fee_budget))
+        Ok(self
+            .runtime
+            .open_chain(ownership, permissions, OPEN_CHAIN_FEE_BUDGET))
     }
 
     fn fund_meme_chain_initial_liquidity(
@@ -518,12 +546,11 @@ impl ProxyContract {
 
     async fn on_creation_chain_msg_create_meme(
         &mut self,
-        fee_budget: Amount,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
         // 1: create a new chain which allow and mandary proxy
-        let (message_id, chain_id) = self.create_meme_chain(fee_budget).await?;
+        let (message_id, chain_id) = self.create_meme_chain().await?;
 
         // Fund created meme chain with initial liquidity
         self.fund_meme_chain_initial_liquidity(chain_id, parameters.clone());
@@ -598,11 +625,10 @@ impl ProxyContract {
 
     async fn on_msg_create_meme(
         &mut self,
-        fee_budget: Amount,
         meme: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
-        self.on_creation_chain_msg_create_meme(fee_budget, meme, parameters)
+        self.on_creation_chain_msg_create_meme(meme, parameters)
             .await
     }
 
@@ -624,36 +650,44 @@ impl ProxyContract {
         self.state.create_chain_token(chain_id, token).await
     }
 
-    fn on_msg_propose_add_operator(
+    async fn on_msg_propose_add_operator(
         &mut self,
         operator: Account,
         owner: Account,
     ) -> Result<(), ProxyError> {
-        Ok(())
+        self.state.add_operator(owner).await?;
+        // Everybody can propose add genesis miner. If it's proposed by operator, approve it
+        self.state.validate_operator(operator).await?;
+        self.state.approve_add_operator(owner, operator).await
     }
 
-    fn on_msg_approve_add_operator(
+    async fn on_msg_approve_add_operator(
         &mut self,
         operator: Account,
         owner: Account,
     ) -> Result<(), ProxyError> {
-        Ok(())
+        self.state.validate_operator(operator).await?;
+        self.state.approve_add_operator(owner, operator).await
     }
 
-    fn on_msg_propose_ban_operator(
+    async fn on_msg_propose_ban_operator(
         &mut self,
         operator: Account,
         owner: Account,
     ) -> Result<(), ProxyError> {
-        Ok(())
+        self.state.ban_operator(owner).await?;
+        // Everybody can propose add genesis miner. If it's proposed by operator, approve it
+        self.state.validate_operator(operator).await?;
+        self.state.approve_ban_operator(owner, operator).await
     }
 
-    fn on_msg_approve_ban_operator(
+    async fn on_msg_approve_ban_operator(
         &mut self,
         operator: Account,
         owner: Account,
     ) -> Result<(), ProxyError> {
-        Ok(())
+        self.state.validate_operator(operator).await?;
+        self.state.approve_ban_operator(owner, operator).await
     }
 }
 
@@ -680,8 +714,15 @@ mod tests {
         let mut proxy = create_and_instantiate_proxy();
 
         let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
                 .unwrap();
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap();
+        let owner = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
 
         let response = proxy
             .execute_operation(ProxyOperation::ProposeAddGenesisMiner {
@@ -706,6 +747,13 @@ mod tests {
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
         let operator = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
+        let owner =
+            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
+                .unwrap();
+        let owner = Account {
             chain_id,
             owner: Some(AccountOwner::User(owner)),
         };
@@ -774,7 +822,7 @@ mod tests {
         contract
             .instantiate(InstantiationArgument {
                 meme_bytecode_id,
-                operator,
+                operators: vec![operator],
                 swap_application_id: application_id.forget_abi(),
             })
             .now_or_never()

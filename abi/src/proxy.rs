@@ -9,8 +9,7 @@ use async_graphql::{Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, Amount, ApplicationId, ChainId, ContractAbi, MessageId, ModuleId, ServiceAbi,
-        Timestamp,
+        Account, ApplicationId, ChainId, ContractAbi, MessageId, ModuleId, ServiceAbi, Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -76,7 +75,6 @@ pub enum ProxyOperation {
     DeregisterMiner,
 
     CreateMeme {
-        fee_budget: Option<Amount>,
         meme_instantiation_argument: MemeInstantiationArgument,
         meme_parameters: MemeParameters,
     },
@@ -126,7 +124,6 @@ pub enum ProxyMessage {
     },
 
     CreateMeme {
-        fee_budget: Amount,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     },
@@ -168,6 +165,6 @@ pub enum ProxyResponse {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InstantiationArgument {
     pub meme_bytecode_id: ModuleId,
-    pub operator: Account,
+    pub operators: Vec<Account>,
     pub swap_application_id: ApplicationId,
 }
