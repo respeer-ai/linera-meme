@@ -9,7 +9,7 @@ use abi::{
     constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
-        MemeOperation, MemeParameters, Metadata,
+        MemeParameters, Metadata,
     },
     store_type::StoreType,
     swap::router::{
@@ -31,7 +31,6 @@ struct TestSuite {
 
     pub admin_chain: ActiveChain,
     pub meme_chain: ActiveChain,
-    pub user_chain: ActiveChain,
     pub swap_chain: ActiveChain,
 
     pub swap_application_id: Option<ApplicationId<SwapAbi>>,
@@ -56,7 +55,6 @@ impl TestSuite {
 
         let admin_chain = validator.get_chain(&ChainId::root(0));
         let meme_chain = validator.new_chain().await;
-        let user_chain = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
 
         let meme_bytecode_id = swap_chain.publish_bytecode_files_in("../meme").await;
@@ -66,7 +64,6 @@ impl TestSuite {
 
             admin_chain,
             meme_chain,
-            user_chain,
             swap_chain,
 
             swap_application_id: None,
@@ -196,7 +193,6 @@ async fn virtual_liquidity_native_test() {
 
     let mut suite = TestSuite::new().await;
     let meme_chain = suite.meme_chain.clone();
-    let user_chain = suite.user_chain.clone();
     let swap_chain = suite.swap_chain.clone();
 
     let swap_key_pair = swap_chain.key_pair();
@@ -305,10 +301,6 @@ async fn virtual_liquidity_native_test() {
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         suite.initial_liquidity,
     );
-
-    // TODO: check pool liquidity
-    // TODO: Add liquidity
-    // TODO: Remove liquidity
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -319,7 +311,6 @@ async fn real_liquidity_native_test() {
 
     let mut suite = TestSuite::new().await;
     let meme_chain = suite.meme_chain.clone();
-    let user_chain = suite.user_chain.clone();
     let swap_chain = suite.swap_chain.clone();
 
     let swap_key_pair = swap_chain.key_pair();

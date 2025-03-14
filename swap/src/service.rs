@@ -96,15 +96,6 @@ impl QueryRoot {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use async_graphql::{Request, Response, Value};
-    use futures::FutureExt as _;
-    use linera_sdk::{util::BlockingWait, views::View, Service, ServiceRuntime};
-    use serde_json::json;
-
-    use super::{SwapService, SwapState};
-
     #[test]
     fn query() {}
 }

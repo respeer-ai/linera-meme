@@ -750,7 +750,7 @@ mod tests {
         let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
 
         let meme_2_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
-        let meme_2 = ApplicationId::from_str(meme_1_id).unwrap();
+        let meme_2 = ApplicationId::from_str(meme_2_id).unwrap();
 
         let response = swap
             .execute_operation(SwapOperation::CreatePool {
