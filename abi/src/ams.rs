@@ -1,10 +1,24 @@
 use crate::store_type::StoreType;
-use async_graphql::scalar;
+use async_graphql::{scalar, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{Account, ApplicationId, Ed25519Signature, Timestamp},
+    linera_base_types::{
+        Account, ApplicationId, ContractAbi, Ed25519Signature, ServiceAbi, Timestamp,
+    },
 };
 use serde::{Deserialize, Serialize};
+
+pub struct AmsAbi;
+
+impl ContractAbi for AmsAbi {
+    type Operation = AmsOperation;
+    type Response = AmsResponse;
+}
+
+impl ServiceAbi for AmsAbi {
+    type Query = Request;
+    type QueryResponse = Response;
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct InstantiationArgument {
@@ -39,7 +53,7 @@ pub const APPLICATION_TYPES: &'static [&'static str] = &[
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Metadata {
-    pub creator: Option<Account>,
+    pub creator: Account,
     pub application_name: String,
     pub application_id: ApplicationId,
     // Preset application types could be added by operator

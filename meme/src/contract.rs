@@ -6,6 +6,7 @@
 mod state;
 
 use abi::{
+    ams::{AmsAbi, AmsOperation, Metadata, MEME},
     constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
@@ -242,7 +243,34 @@ impl MemeContract {
 
     async fn register_application(&mut self) {
         if let Some(ams_application_id) = self.state.ams_application_id() {
-            // TODO: register application to ams
+            let call = AmsOperation::Register {
+                metadata: Metadata {
+                    creator: self.owner_account(),
+                    application_name: format!("{} (Powered by ResPeer)", self.state.name()),
+                    application_id: self.runtime.application_id().forget_abi(),
+                    application_type: MEME.to_string(),
+                    key_words: vec![
+                        "Linera".to_string(),
+                        "Meme".to_string(),
+                        "ResPeer".to_string(),
+                        "Minable".to_string(),
+                        "PoW microchain".to_string(),
+                    ],
+                    logo_store_type: self.state.logo_store_type(),
+                    logo: self.state.logo(),
+                    description: self.state.description(),
+                    twitter: self.state.twitter(),
+                    telegram: self.state.telegram(),
+                    discord: self.state.discord(),
+                    website: self.state.website(),
+                    github: self.state.github(),
+                    spec: format!("{:?}", self.state.meme()).into(),
+                    created_at: self.runtime.system_time(),
+                },
+            };
+            let _ =
+                self.runtime
+                    .call_application(true, ams_application_id.with_abi::<AmsAbi>(), &call);
         }
     }
 

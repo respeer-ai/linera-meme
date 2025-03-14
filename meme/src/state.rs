@@ -1,7 +1,10 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::meme::{InstantiationArgument, Liquidity, Meme};
+use abi::{
+    meme::{InstantiationArgument, Liquidity, Meme},
+    store_type::StoreType,
+};
 use linera_sdk::{
     ensure,
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, Owner},
@@ -276,5 +279,57 @@ impl MemeState {
         assert!(owner == self.owner.get().unwrap(), "Invalid owner");
         self.owner.set(Some(new_owner));
         Ok(())
+    }
+
+    pub(crate) fn name(&self) -> String {
+        self.meme.get().as_ref().unwrap().name.clone()
+    }
+
+    pub(crate) fn logo_store_type(&self) -> StoreType {
+        self.meme
+            .get()
+            .as_ref()
+            .unwrap()
+            .metadata
+            .logo_store_type
+            .clone()
+    }
+
+    pub(crate) fn logo(&self) -> String {
+        self.meme.get().as_ref().unwrap().metadata.logo.clone()
+    }
+
+    pub(crate) fn description(&self) -> String {
+        self.meme
+            .get()
+            .as_ref()
+            .unwrap()
+            .metadata
+            .description
+            .clone()
+    }
+
+    pub(crate) fn twitter(&self) -> Option<String> {
+        self.meme.get().as_ref().unwrap().metadata.twitter.clone()
+    }
+
+    pub(crate) fn telegram(&self) -> Option<String> {
+        self.meme.get().as_ref().unwrap().metadata.telegram.clone()
+    }
+
+    pub(crate) fn discord(&self) -> Option<String> {
+        self.meme.get().as_ref().unwrap().metadata.discord.clone()
+    }
+
+    pub(crate) fn website(&self) -> Option<String> {
+        self.meme.get().as_ref().unwrap().metadata.website.clone()
+    }
+
+    pub(crate) fn github(&self) -> Option<String> {
+        self.meme.get().as_ref().unwrap().metadata.github.clone()
+    }
+
+    pub(crate) fn meme(&self) -> Meme {
+        self.meme.get().as_ref().unwrap().clone()
     }
 }
