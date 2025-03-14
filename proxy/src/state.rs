@@ -6,7 +6,9 @@ use abi::{
     proxy::{Chain, GenesisMiner, InstantiationArgument, Miner},
 };
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId, Owner, Timestamp},
+    linera_base_types::{
+        Account, AccountOwner, ApplicationId, ChainId, MessageId, ModuleId, Owner, Timestamp,
+    },
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use proxy::ProxyError;
@@ -20,11 +22,11 @@ pub struct ProxyState {
     /// Operator and banned
     pub operators: MapView<Account, bool>,
     /// Genesis miner and approvals it should get
-    pub genesis_miners: MapView<Owner, GenesisMiner>,
+    pub genesis_miners: MapView<Account, GenesisMiner>,
     /// Removing candidates of genesis miner
-    pub removing_genesis_miners: MapView<Owner, Approval>,
+    pub removing_genesis_miners: MapView<Account, Approval>,
     /// Miners and mining chains (ignore permissionless chain)
-    pub miners: MapView<Owner, Miner>,
+    pub miners: MapView<Account, Miner>,
     /// Chains aleady created
     pub chains: MapView<ChainId, Chain>,
     /// Swap application id for liquidity initialization
@@ -55,7 +57,7 @@ impl ProxyState {
 
     pub(crate) async fn add_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
         if !self.genesis_miners.contains_key(&owner).await? {
@@ -74,7 +76,7 @@ impl ProxyState {
 
     pub(crate) async fn approve_add_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
         operator: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.genesis_miners.get(&owner).await?.unwrap();
@@ -85,7 +87,7 @@ impl ProxyState {
         Ok(self.genesis_miners.insert(&owner, miner)?)
     }
 
-    pub(crate) async fn genesis_miners(&self) -> Result<Vec<Owner>, ProxyError> {
+    pub(crate) async fn genesis_miners(&self) -> Result<Vec<Account>, ProxyError> {
         let mut miners = Vec::new();
         self.genesis_miners
             .for_each_index_value(|owner, miner| {
@@ -99,8 +101,36 @@ impl ProxyState {
         Ok(miners)
     }
 
-    pub(crate) async fn miners(&self) -> Result<Vec<Owner>, ProxyError> {
+    pub(crate) async fn genesis_miner_owners(&self) -> Result<Vec<Owner>, ProxyError> {
+        Ok(self
+            .genesis_miners()
+            .await?
+            .into_iter()
+            .map(|owner| {
+                let Some(AccountOwner::User(owner)) = owner.owner else {
+                    panic!("Invalid owner");
+                };
+                owner
+            })
+            .collect())
+    }
+
+    pub(crate) async fn miners(&self) -> Result<Vec<Account>, ProxyError> {
         Ok(self.miners.indices().await?)
+    }
+
+    pub(crate) async fn miner_owners(&self) -> Result<Vec<Owner>, ProxyError> {
+        Ok(self
+            .miners()
+            .await?
+            .into_iter()
+            .map(|owner| {
+                let Some(AccountOwner::User(owner)) = owner.owner else {
+                    panic!("Invalid owner");
+                };
+                owner
+            })
+            .collect())
     }
 
     pub(crate) async fn validate_operator(&self, owner: Account) {
@@ -110,7 +140,7 @@ impl ProxyState {
         );
     }
 
-    pub(crate) async fn remove_genesis_miner(&mut self, owner: Owner) -> Result<(), ProxyError> {
+    pub(crate) async fn remove_genesis_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
         if self.removing_genesis_miners.contains_key(&owner).await? {
             return Ok(());
         }
@@ -123,7 +153,7 @@ impl ProxyState {
 
     pub(crate) async fn approve_remove_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
         operator: Account,
     ) -> Result<(), ProxyError> {
         let mut miner = self.removing_genesis_miners.get(&owner).await?.unwrap();
@@ -172,5 +202,13 @@ impl ProxyState {
         assert!(chain.token.is_none(), "Token already created");
         chain.token = Some(token);
         Ok(self.chains.insert(&chain_id, chain)?)
+    }
+
+    pub(crate) async fn register_miner(
+        &mut self,
+        owner: Account,
+        endpoint: Option<String>,
+    ) -> Result<(), ProxyError> {
+        Ok(self.miners.insert(&owner, Miner { owner, endpoint })?)
     }
 }

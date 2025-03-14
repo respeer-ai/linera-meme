@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{ApplicationId, MessageId, ModuleId, Owner, WithServiceAbi},
+    linera_base_types::{Account, ApplicationId, MessageId, ModuleId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -62,7 +62,7 @@ struct MutationRoot {
 
 #[Object]
 impl MutationRoot {
-    async fn propose_add_genesis_miner(&self, owner: Owner, endpoint: Option<String>) -> [u8; 0] {
+    async fn propose_add_genesis_miner(&self, owner: Account, endpoint: Option<String>) -> [u8; 0] {
         self.runtime
             .schedule_operation(&ProxyOperation::ProposeAddGenesisMiner { owner, endpoint });
         []
@@ -79,12 +79,12 @@ impl QueryRoot {
         self.state.meme_bytecode_id.get().unwrap()
     }
 
-    async fn genesis_miners(&self) -> Vec<Owner> {
+    async fn genesis_miners(&self) -> Vec<Account> {
         self.state.genesis_miners().await.unwrap()
     }
 
-    async fn count_meme_chains(&self) -> usize {
-        self.state.chains.count().await.unwrap()
+    async fn miners(&self) -> Vec<Account> {
+        self.state.miners().await.unwrap()
     }
 
     async fn meme_chains(&self) -> Vec<Chain> {

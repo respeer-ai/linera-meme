@@ -207,7 +207,7 @@ impl ProxyContract {
 
     fn on_op_propose_add_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
         endpoint: Option<String>,
     ) -> Result<ProxyResponse, ProxyError> {
         let operator = self.owner_account();
@@ -224,7 +224,7 @@ impl ProxyContract {
 
     fn on_op_approve_add_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
     ) -> Result<ProxyResponse, ProxyError> {
         let operator = self.owner_account();
         self.runtime
@@ -236,7 +236,7 @@ impl ProxyContract {
 
     fn on_op_propose_remove_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
     ) -> Result<ProxyResponse, ProxyError> {
         let operator = self.owner_account();
         self.runtime
@@ -248,7 +248,7 @@ impl ProxyContract {
 
     fn on_op_approve_remove_genesis_miner(
         &mut self,
-        owner: Owner,
+        owner: Account,
     ) -> Result<ProxyResponse, ProxyError> {
         let operator = self.owner_account();
         self.runtime
@@ -391,7 +391,7 @@ impl ProxyContract {
     async fn on_msg_propose_add_genesis_miner(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
         endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
         self.state.add_genesis_miner(owner, endpoint).await?;
@@ -402,7 +402,7 @@ impl ProxyContract {
     async fn on_msg_approve_add_genesis_miner(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         self.state.validate_operator(operator).await;
         self.state.approve_add_genesis_miner(owner, operator).await
@@ -411,7 +411,7 @@ impl ProxyContract {
     async fn on_msg_propose_remove_genesis_miner(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         self.state.remove_genesis_miner(owner).await?;
         self.state.validate_operator(operator).await;
@@ -423,7 +423,7 @@ impl ProxyContract {
     async fn on_msg_approve_remove_genesis_miner(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         self.state.validate_operator(operator).await;
         self.state
@@ -442,10 +442,10 @@ impl ProxyContract {
     async fn meme_chain_owner_weights(&self) -> Result<Vec<(Owner, u64)>, ProxyError> {
         let mut owner_weights = Vec::new();
 
-        for owner in self.state.genesis_miners().await? {
+        for owner in self.state.genesis_miner_owners().await? {
             owner_weights.push((owner, 200 as u64))
         }
-        for owner in self.state.miners().await? {
+        for owner in self.state.miner_owners().await? {
             owner_weights.push((owner, 100 as u64))
         }
 
@@ -614,7 +614,7 @@ impl ProxyContract {
     fn on_msg_propose_add_operator(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         Ok(())
     }
@@ -622,7 +622,7 @@ impl ProxyContract {
     fn on_msg_approve_add_operator(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         Ok(())
     }
@@ -630,7 +630,7 @@ impl ProxyContract {
     fn on_msg_propose_ban_operator(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         Ok(())
     }
@@ -638,7 +638,7 @@ impl ProxyContract {
     fn on_msg_approve_ban_operator(
         &mut self,
         operator: Account,
-        owner: Owner,
+        owner: Account,
     ) -> Result<(), ProxyError> {
         Ok(())
     }

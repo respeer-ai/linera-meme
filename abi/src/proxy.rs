@@ -9,8 +9,8 @@ use async_graphql::{Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, Amount, ApplicationId, ChainId, ContractAbi, MessageId, ModuleId, Owner,
-        ServiceAbi, Timestamp,
+        Account, Amount, ApplicationId, ChainId, ContractAbi, MessageId, ModuleId, ServiceAbi,
+        Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -31,13 +31,13 @@ impl ServiceAbi for ProxyAbi {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Miner {
-    pub owner: Owner,
+    pub owner: Account,
     pub endpoint: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GenesisMiner {
-    pub owner: Owner,
+    pub owner: Account,
     pub endpoint: Option<String>,
     pub approval: Approval,
 }
@@ -54,19 +54,19 @@ pub struct Chain {
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum ProxyOperation {
     ProposeAddGenesisMiner {
-        owner: Owner,
+        owner: Account,
         // Endpoint is used to notify new chain to miner
         endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
-        owner: Owner,
+        owner: Account,
     },
 
     ProposeRemoveGenesisMiner {
-        owner: Owner,
+        owner: Account,
     },
     ApproveRemoveGenesisMiner {
-        owner: Owner,
+        owner: Account,
     },
 
     // Miner can only register from their client
@@ -100,21 +100,21 @@ pub enum ProxyOperation {
 pub enum ProxyMessage {
     ProposeAddGenesisMiner {
         operator: Account,
-        owner: Owner,
+        owner: Account,
         endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
 
     ProposeRemoveGenesisMiner {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
     ApproveRemoveGenesisMiner {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
 
     RegisterMiner {
@@ -139,20 +139,20 @@ pub enum ProxyMessage {
 
     ProposeAddOperator {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
     ApproveAddOperator {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
 
     ProposeBanOperator {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
     ApproveBanOperator {
         operator: Account,
-        owner: Owner,
+        owner: Account,
     },
 }
 
