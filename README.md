@@ -76,13 +76,16 @@ decentralized set of owners.
 
 ### Stage 1: SingleLeader Round Robin
 
-- [ ] Meme Proxy framework
-- [ ] Miner registration and beneficiary account
-- [ ] Create meme chain and set application permission to allow meme proxy only
-- [ ] Create meme application on the meme chain
-- [ ] Update meme chain permissions to mandatory meme application only
-- [ ] Meme application fungible token
-- [ ] Meme application block rewards distribution
+- [x] ABI definition
+- [x] Meme Proxy framework
+- [x] Miner registration and beneficiary account
+- [x] Create meme chain and set application permission to allow meme proxy only
+- [x] Create meme application on the meme chain
+- [x] Update meme chain permissions to mandatory meme application only
+- [x] Meme application fungible token
+- [x] Meme application block rewards distribution
+- [x] Swap application with dynamic liquidity pool
+- [x] Liquidity pool application
 
 ### Stage 2: MultiLeader Round Robin
 
