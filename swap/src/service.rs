@@ -57,7 +57,7 @@ impl Service for SwapService {
 
 struct QueryRoot {
     state: Arc<SwapState>,
-    _runtime: Arc<ServiceRuntime<SwapService>>,
+    runtime: Arc<ServiceRuntime<SwapService>>,
 }
 
 #[Object]
@@ -91,6 +91,10 @@ impl QueryRoot {
             .into_iter()
             .map(|(_, message_id)| message_id)
             .collect()
+    }
+
+    async fn creator_chain_id(&self) -> ChainId {
+        self.runtime.application_creator_chain_id()
     }
 }
 
