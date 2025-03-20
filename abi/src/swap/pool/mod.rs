@@ -496,8 +496,14 @@ mod tests {
     fn test_pool_with_virtual_initial_liquidity() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let token_0 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
-        let token_1 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301").unwrap();
+        let token_0 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
+        let token_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();
@@ -560,8 +566,14 @@ mod tests {
     fn test_pool_with_real_initial_liquidity() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let token_0 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300").unwrap();
-        let token_1 = ApplicationId::from_str("78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301").unwrap();
+        let token_0 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
+        let token_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();

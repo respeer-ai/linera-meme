@@ -942,17 +942,20 @@ mod tests {
             owner: Some(AccountOwner::User(operator)),
         };
 
-        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
-        let application_id = ApplicationId::from_str(application_id_str)
-            .unwrap()
-            .with_abi::<MemeAbi>();
+        let application_id = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap()
+        .with_abi::<MemeAbi>();
         let application = Account {
             chain_id,
             owner: Some(AccountOwner::Application(application_id.forget_abi())),
         };
 
-        let swap_application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
-        let swap_application_id = ApplicationId::from_str(swap_application_id_str).unwrap();
+        let swap_application_id = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
         let swap_application = Account {
             chain_id,
             owner: Some(AccountOwner::Application(swap_application_id)),

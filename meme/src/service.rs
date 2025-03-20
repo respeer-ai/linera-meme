@@ -131,8 +131,10 @@ mod tests {
             .blocking_wait()
             .expect("Failed to read from mock key value store");
 
-        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
-        let application_id = ApplicationId::from_str(application_id_str).unwrap();
+        let application_id = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
         let instantiation_argument = InstantiationArgument {
             meme: Meme {
                 name: "Test Token".to_string(),
@@ -167,8 +169,10 @@ mod tests {
                     .unwrap(),
             )),
         };
-        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
-        let application_id = ApplicationId::from_str(application_id_str).unwrap();
+        let application_id = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
         let application = Account {
             chain_id,
             owner: Some(AccountOwner::Application(application_id)),

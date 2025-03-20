@@ -270,6 +270,8 @@ impl SwapContract {
             mandatory_applications: vec![],
             close_chain: vec![router_application_id],
             change_application_permissions: vec![router_application_id],
+            call_service_as_oracle: Some(vec![router_application_id]),
+            make_http_requests: Some(vec![router_application_id]),
         };
         Ok(self
             .runtime
@@ -722,8 +724,10 @@ mod tests {
     async fn operation_initialize_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
-        let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
-        let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
+        let meme_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
 
         let response = swap
             .execute_operation(SwapOperation::InitializeLiquidity {
@@ -746,11 +750,14 @@ mod tests {
     async fn operation_create_pool() {
         let mut swap = create_and_instantiate_swap();
 
-        let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
-        let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
-
-        let meme_2_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
-        let meme_2 = ApplicationId::from_str(meme_2_id).unwrap();
+        let meme_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
+        let meme_2 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
 
         let response = swap
             .execute_operation(SwapOperation::CreatePool {
@@ -787,13 +794,16 @@ mod tests {
         let owner =
             Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
                 .unwrap();
-        let application_id_str = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518301";
-        let application_id = ApplicationId::from_str(application_id_str)
-            .unwrap()
-            .with_abi::<SwapAbi>();
+        let application_id = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baf",
+        )
+        .unwrap()
+        .with_abi::<SwapAbi>();
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
-        let meme_1_id = "78e404e4d0a94ee44a8bfb617cd4e6c3b3f3bc463a6dc46bec0914f85be37142b94e486abcfc016e937dad4297523060095f405530c95d498d981a94141589f167693295a14c3b48460ad6f75d67d2414428227550eb8cee8ecaa37e8646518300";
-        let meme_1 = ApplicationId::from_str(meme_1_id).unwrap();
+        let meme_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
         let meme_1_chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
@@ -822,6 +832,8 @@ mod tests {
             mandatory_applications: vec![],
             close_chain: vec![application_id.forget_abi()],
             change_application_permissions: vec![application_id.forget_abi()],
+            call_service_as_oracle: Some(vec![application_id.forget_abi()]),
+            make_http_requests: Some(vec![application_id.forget_abi()]),
         };
 
         runtime.add_expected_open_chain_call(
