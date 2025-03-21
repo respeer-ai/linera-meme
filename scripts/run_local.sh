@@ -323,7 +323,7 @@ function generate_nginx_conf() {
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
-    echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/site-enabled/"
+    echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/"
 }
 
 echo "http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
