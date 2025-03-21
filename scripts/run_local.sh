@@ -204,30 +204,33 @@ function open_multi_owner_chain() {
     owners=$(wallet_owners $wallet_name)
     chain_id=$(wallet_chain_id $wallet_name creator)
 
-    effect_and_chain=$(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+    chain_message=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
            --owners ${owners[@]} \
            --multi-leader-rounds 100 \
-           --initial-balance "5.")
-    effect=$(echo "$effect_and_chain" | sed -n '1 p')
+           --initial-balance "5."))
+
+    message_id=${chain_message[0]}
+    chain_id=${chain_message[1]}
 
     # Assign newly created chain to unassigned key.
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
-        assign_chain_to_owner $wallet_name $i $effect
+        assign_chain_to_owner $wallet_name $i $message_id > /dev/null 2>&1
     done
+    echo $chain_id
 }
 
 # Create multi owner chains
 # Create blob gateway multi owner chains
-open_multi_owner_chain blob-gateway
+BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway)
 # Create ams multi owner chains
-open_multi_owner_chain ams
+AMS_CHAIN_ID=$(open_multi_owner_chain ams)
 # Create proxy multi owner chains
-open_multi_owner_chain proxy
+PROXY_CHAIN_ID=$(open_multi_owner_chain proxy)
 # Create swap multi owner chains
-open_multi_owner_chain swap
+SWAP_CHAIN_ID=$(open_multi_owner_chain swap)
 
 function process_inbox() {
     wallet_name=$1
@@ -294,33 +297,6 @@ process_inboxes ams
 process_inboxes proxy
 process_inboxes swap
 
-function run_service() {
-    wallet_name=$1
-    wallet_index=$2
-    port=$3
-
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
-           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-           service --port $port &
-}
-
-function run_services() {
-    wallet_name=$1
-    port_base=$2
-
-    run_service $wallet_name creator $port_base
-    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
-        port=$((port_base + (i + 1) * 2))
-        run_service $wallet_name $i $port
-    done
-}
-
-# Run services
-run_services blob-gateway 20080
-run_services ams 21080
-run_services swap 22080
-run_services proxy 23080
-
 function service_servers() {
     port_base=$1
 
@@ -347,12 +323,45 @@ function generate_nginx_conf() {
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
+    echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/site-enabled/"
 }
+
+echo "http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
+echo "http://ams.api.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
+echo "http://api.linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
+echo "http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID"
 
 # Generate service nginx conf
 generate_nginx_conf 20080 blobs api.blobgateway.com
 generate_nginx_conf 21080 ams api.ams.respeer.ai
 generate_nginx_conf 22080 swap api.lineraswap.fun
 generate_nginx_conf 23080 proxy api.linerameme.fun
+
+function run_service() {
+    wallet_name=$1
+    wallet_index=$2
+    port=$3
+
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           service --port $port &
+}
+
+function run_services() {
+    wallet_name=$1
+    port_base=$2
+
+    run_service $wallet_name creator $port_base
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        port=$((port_base + (i + 1) * 2))
+        run_service $wallet_name $i $port
+    done
+}
+
+# Run services
+run_services blob-gateway 20080
+run_services ams 21080
+run_services swap 22080
+run_services proxy 23080
 
 read
