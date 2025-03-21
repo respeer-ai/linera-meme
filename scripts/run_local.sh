@@ -182,25 +182,49 @@ function wallet_chain_id() {
            | grep "Public Key" | awk '{print $2}'
 }
 
-BLOB_GATEWAY_CHAIN=$(wallet_chain_id blob-gateway creator)
-AMS_CHAIN=$(wallet_chain_id ams creator)
-SWAP_CHAIN=$(wallet_chain_id swap creator)
-PROXY_CHAIN=$(wallet_chain_id proxy creator)
+function assign_chain_to_owner() {
+    wallet_name=$1
+    wallet_index=$2
+    message_id=$3
+
+    owner=$(wallet_unassigned_owner $wallet_name $wallet_index)
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           assign --owner $owner --message-id $message_id
+}
 
 function open_multi_owner_chain() {
+    wallet_name=$1
 
+    owners=$(wallet_owners $wallet_name)
+    chain_id=$(wallet_chain_id $wallet_name creator)
+
+    effect_and_chain=$(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+           open-multi-owner-chain \
+           --from $chain_id \
+           --owners ${owners[@]} \
+           --multi-leader-rounds 100 \
+           --initial-balance "5.")
+    effect=$(echo "$effect_and_chain" | sed -n '1 p')
+
+    # Assign newly created chain to unassigned key.
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        assign_chain_to_owner $wallet_name $i $effect
+    done
 }
 
 # Create multi owner chains
 # Create blob gateway multi owner chains
-BLOB_GATEWAY_OWNERS=$(wallet_owners blob-gateway)
+open_multi_owner_chain blob-gateway
 # Create ams multi owner chains
-AMS_OWNERS=$(wallet_owners ams)
+open_multi_owner_chain ams
 # Create proxy multi owner chains
-PROXY_OWNERS=$(wallet_owners proxy)
+open_multi_owner_chain proxy
 # Create swap multi owner chains
-SWAP_OWNERS=$(wallet_owners swap)
+open_multi_owner_chain swap
 
 # Create application with multi owners
+linera create-application $BLOB_GATEWAY_MODULE_ID
 
 read
