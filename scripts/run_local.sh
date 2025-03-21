@@ -251,17 +251,37 @@ process_inboxes swap
 function create_application() {
     wallet_name=$1
     module_id=$2
+    argument=$3
+    parameters=$4
 
-    linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
-           --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-           create-application $module_id
+    if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
+        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+               create-application $module_id \
+               --json-argument "$argument" \
+               --json-parameters "$parameters"
+    elif [ "x$argument" != "x" ]; then
+        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+               create-application $module_id \
+               --json-argument "$argument"
+    elif [ "x$parameters" != "x" ]; then
+        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+               create-application $module_id \
+               --json-parameters "$parameters"
+    else
+        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+               create-application $module_id
+    fi
 }
 
 # Create applications
 BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID)
-AMS_APPLICATION_ID=$(create_application ams $AMS_MODULE_ID)
-PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID)
-SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID)
+AMS_APPLICATION_ID=$(create_application ams $AMS_MODULE_ID '{}')
+SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}')
+PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}")
 
 # Exhaust chain messages
 process_inboxes blob-gateway
