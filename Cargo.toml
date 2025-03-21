@@ -34,6 +34,8 @@ meme = { path = "./meme" }
 proxy = { path = "./proxy" }
 swap = { path = "./swap" }
 pool = { path = "./pool" }
+blob-gateway = { path = "./blob-gateway" }
+ams = { path = "./ams" }
 
 [profile.release]
 debug = true
