@@ -289,4 +289,31 @@ process_inboxes ams
 process_inboxes proxy
 process_inboxes swap
 
+function run_service() {
+    wallet_name=$1
+    wallet_index=$2
+    port=$3
+
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           service --port $port &
+}
+
+function run_services() {
+    wallet_name=$1
+    port_base=$2
+
+    run_service $wallet_name creator $port_base
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        port=$((port_base + (i + 1) * 2))
+        run_service $wallet_name $i $port
+    done
+}
+
+# Run services
+run_services blob-gateway 20080
+run_services ams 21080
+run_services swap 22080
+run_services proxy 23080
+
 read
