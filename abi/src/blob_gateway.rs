@@ -31,13 +31,23 @@ pub struct BlobData {
     pub store_type: StoreType,
     pub data_type: BlobDataType,
     pub blob_hash: CryptoHash,
-    pub created_at: Timestamp,
     pub creator: Account,
+    pub created_at: Timestamp,
 }
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum BlobGatewayOperation {
     Register {
+        store_type: StoreType,
+        data_type: BlobDataType,
+        blob_hash: CryptoHash,
+    },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum BlobGatewayMessage {
+    Register {
+        creator: Account,
         store_type: StoreType,
         data_type: BlobDataType,
         blob_hash: CryptoHash,

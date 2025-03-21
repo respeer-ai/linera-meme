@@ -4,6 +4,7 @@ members = [
     "meme",
     "swap",
     "pool",
+    "blob-gateway",
     "abi",
 ]
 resolver = "2"
