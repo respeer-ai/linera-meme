@@ -224,7 +224,49 @@ open_multi_owner_chain proxy
 # Create swap multi owner chains
 open_multi_owner_chain swap
 
-# Create application with multi owners
-linera create-application $BLOB_GATEWAY_MODULE_ID
+function process_inbox() {
+    wallet_name=$1
+    wallet_index=$2
+
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           process-inbox
+}
+
+function process_inboxes() {
+    wallet_name=$1
+
+    process_inbox $wallet_name creator
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        process_inbox $wallet_name $i
+    done
+}
+
+# Exhaust chain messages
+process_inboxes blob-gateway
+process_inboxes ams
+process_inboxes proxy
+process_inboxes swap
+
+function create_application() {
+    wallet_name=$1
+    module_id=$2
+
+    linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+           create-application $module_id
+}
+
+# Create applications
+BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID)
+AMS_APPLICATION_ID=$(create_application ams $AMS_MODULE_ID)
+PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID)
+SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID)
+
+# Exhaust chain messages
+process_inboxes blob-gateway
+process_inboxes ams
+process_inboxes proxy
+process_inboxes swap
 
 read
