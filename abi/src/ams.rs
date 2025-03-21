@@ -19,9 +19,7 @@ impl ServiceAbi for AmsAbi {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct InstantiationArgument {
-    pub application_types: Vec<String>,
-}
+pub struct InstantiationArgument {}
 
 pub const MEME: &str = "Meme";
 pub const MEME_PROXY: &str = "MemeProxy";

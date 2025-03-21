@@ -35,14 +35,14 @@ impl Contract for ApplicationContract {
         ApplicationContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, argument: InstantiationArgument) {
+    async fn instantiate(&mut self, _argument: InstantiationArgument) {
         let owner = Account {
             chain_id: self.runtime.chain_id(),
             owner: Some(AccountOwner::User(
                 self.runtime.authenticated_signer().expect("Invalid owner"),
             )),
         };
-        self.state.instantiate(argument, owner).await;
+        self.state.instantiate(owner).await;
     }
 
     async fn execute_operation(&mut self, operation: AmsOperation) -> AmsResponse {

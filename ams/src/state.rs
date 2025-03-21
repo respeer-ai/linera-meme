@@ -1,4 +1,4 @@
-use abi::ams::{InstantiationArgument, Metadata};
+use abi::ams::{Metadata, APPLICATION_TYPES};
 use ams::AmsError;
 use async_graphql::SimpleObject;
 use linera_sdk::{
@@ -17,10 +17,11 @@ pub struct AmsState {
 
 #[allow(dead_code)]
 impl AmsState {
-    pub(crate) async fn instantiate(&mut self, argument: InstantiationArgument, owner: Account) {
+    pub(crate) async fn instantiate(&mut self, owner: Account) {
         self.operator.set(Some(owner));
-        for application_type in argument.application_types {
-            self.application_types.push_back(application_type);
+        for application_type in APPLICATION_TYPES {
+            self.application_types
+                .push_back(application_type.to_string());
         }
     }
 
@@ -31,6 +32,14 @@ impl AmsState {
     ) -> Result<(), AmsError> {
         if self.operator.get().unwrap() != owner {
             return Err(AmsError::PermissionDenied);
+        }
+        if self
+            .application_types
+            .elements()
+            .await?
+            .contains(&application_type)
+        {
+            return Err(AmsError::AlreadyExists);
         }
         self.application_types.push_back(application_type);
         Ok(())

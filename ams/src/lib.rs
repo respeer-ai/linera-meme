@@ -11,4 +11,7 @@ pub enum AmsError {
 
     #[error("Not implemented")]
     NotImplemented,
+
+    #[error("Already exists")]
+    AlreadyExists,
 }
