@@ -2,9 +2,7 @@ use crate::store_type::StoreType;
 use async_graphql::{scalar, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{
-        Account, ApplicationId, ContractAbi, CryptoHash, Ed25519Signature, ServiceAbi, Timestamp,
-    },
+    linera_base_types::{Account, ApplicationId, ContractAbi, CryptoHash, ServiceAbi, Timestamp},
 };
 use serde::{Deserialize, Serialize};
 
@@ -82,12 +80,31 @@ pub enum AmsOperation {
     // Claim exists application with the same owner as creator
     Claim {
         application_id: ApplicationId,
-        signature: Ed25519Signature,
     },
     AddApplicationType {
         application_type: String,
     },
     Update {
+        application_id: ApplicationId,
+        metadata: Metadata,
+    },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum AmsMessage {
+    Register {
+        metadata: Metadata,
+    },
+    // Claim exists application with the same owner as creator
+    Claim {
+        application_id: ApplicationId,
+    },
+    AddApplicationType {
+        owner: Account,
+        application_type: String,
+    },
+    Update {
+        owner: Account,
         application_id: ApplicationId,
         metadata: Metadata,
     },

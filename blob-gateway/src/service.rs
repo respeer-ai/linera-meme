@@ -16,10 +16,10 @@ use linera_sdk::{
 
 use abi::blob_gateway::{BlobData, BlobDataType, BlobGatewayAbi};
 use blob_gateway::BlobGatewayError;
-use state::BlobGateway;
+use state::BlobGatewayState;
 
 pub struct BlobGatewayService {
-    state: Arc<BlobGateway>,
+    state: Arc<BlobGatewayState>,
     runtime: Arc<Mutex<ServiceRuntime<BlobGatewayService>>>,
 }
 
@@ -30,7 +30,7 @@ impl WithServiceAbi for BlobGatewayService {
 }
 
 struct FetchContext {
-    state: Arc<BlobGateway>,
+    state: Arc<BlobGatewayState>,
     runtime: Arc<Mutex<ServiceRuntime<BlobGatewayService>>>,
 }
 
@@ -38,7 +38,7 @@ impl Service for BlobGatewayService {
     type Parameters = ();
 
     async fn new(runtime: ServiceRuntime<Self>) -> Self {
-        let state = BlobGateway::load(runtime.root_view_storage_context())
+        let state = BlobGatewayState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load state");
         BlobGatewayService {
@@ -106,7 +106,7 @@ impl QueryRoot {
                     return Ok(false);
                 }
                 blobs.push(value.as_ref().clone());
-                Ok(true)
+                Ok(blobs.len() < limit)
             })
             .await?;
 

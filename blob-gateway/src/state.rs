@@ -10,6 +10,6 @@ use linera_sdk::{
 
 #[derive(RootView, SimpleObject)]
 #[view(context = "ViewStorageContext")]
-pub struct BlobGateway {
+pub struct BlobGatewayState {
     pub blobs: MapView<CryptoHash, BlobData>,
 }

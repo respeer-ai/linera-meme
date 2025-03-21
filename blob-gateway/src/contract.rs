@@ -19,10 +19,10 @@ use linera_sdk::{
     Contract, ContractRuntime, DataBlobHash,
 };
 
-use self::state::BlobGateway;
+use self::state::BlobGatewayState;
 
 pub struct BlobGatewayContract {
-    state: BlobGateway,
+    state: BlobGatewayState,
     runtime: ContractRuntime<Self>,
 }
 
@@ -38,7 +38,7 @@ impl Contract for BlobGatewayContract {
     type Parameters = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
-        let state = BlobGateway::load(runtime.root_view_storage_context())
+        let state = BlobGatewayState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load state");
         BlobGatewayContract { state, runtime }

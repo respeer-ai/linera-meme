@@ -5,6 +5,7 @@ members = [
     "swap",
     "pool",
     "blob-gateway",
+    "ams",
     "abi",
 ]
 resolver = "2"
