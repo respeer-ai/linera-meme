@@ -23,10 +23,15 @@ while getopts $options opt; do
 done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 
 # All generated files will be put here
 OUTPUT_DIR="${SCRIPT_DIR}/../target/output/local"
 mkdir -p $OUTPUT_DIR
+
+# Generate config
+CONFIG_DIR="${OUTPUT_DIR}/config"
+mkdir -p $CONFIG_DIR
 
 # Wallet directory
 WALLET_DIR="${OUTPUT_DIR}/wallet"
@@ -315,5 +320,39 @@ run_services blob-gateway 20080
 run_services ams 21080
 run_services swap 22080
 run_services proxy 23080
+
+function service_servers() {
+    port_base=$1
+
+    servers="\"$LAN_IP:$port_base\""
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        servers="$servers, \"$LAN_IP:$((port_base + (i + 1) * 2))\""
+    done
+    echo $servers
+}
+
+function generate_nginx_conf() {
+    port_base=$1
+    endpoint=$2
+    domain=$3
+
+    servers=$(service_servers $port_base)
+    echo "{
+        \"service\": {
+            \"endpoint\": \"$endpoint\",
+            \"servers\": [$servers],
+            \"domain\": \"$domain\",
+            \"api_endpoint\": \"$endpoint\"
+        }
+    }" > ${CONFIG_DIR}/$endpoint.nginx.json
+
+    jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
+}
+
+# Generate service nginx conf
+generate_nginx_conf 20080 blobs api.blobgateway.com
+generate_nginx_conf 21080 ams api.ams.respeer.ai
+generate_nginx_conf 22080 swap api.lineraswap.fun
+generate_nginx_conf 23080 proxy api.linerameme.fun
 
 read

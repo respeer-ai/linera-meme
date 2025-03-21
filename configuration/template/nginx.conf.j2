@@ -1,13 +1,14 @@
 upstream {{ service.endpoint }} {
-    {% for value in service.servers %}
-    server {{ value }}
-    {% endfor %}
+{% for value in service.servers %}
+    server {{ value }};
+{% endfor %}
 }
 
 server {
     listen 80;
     server_name {{ service.domain }};
     location /api/{{ service.api_endpoint }} {
-        proxy_pass http://{{ service.endpoint }}
+        rewrite /api/* /$1 break;
+        proxy_pass http://{{ service.endpoint }};
     }
 }
