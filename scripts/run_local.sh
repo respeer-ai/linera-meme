@@ -70,7 +70,7 @@ cargo build --release --target wasm32-unknown-unknown
 trap 'kill $(jobs -p)' EXIT
 
 BLOB_GATEWAY_WALLET=$WALLET_DIR/blob-gateway
-if [ ! -d ${BLOB_GATEWAY_WALLET}-0 ]; then
+if [ ! -d ${BLOB_GATEWAY_WALLET}/creator ]; then
     CREATE_WALLET=1
 fi
 
