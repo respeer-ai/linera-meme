@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ####
-## E.g. ./run_local.sh -f http://172.16.31.73:8080 -C 0
+## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
