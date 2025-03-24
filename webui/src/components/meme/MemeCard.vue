@@ -117,7 +117,6 @@ const _copyToClipboard = (
 }
 
 const onSwap = (token0: string) => {
-<<<<<<< HEAD
   if (memeInfo.value.poolCreated) {
     void router.push({
       path: '/swap',
@@ -135,15 +134,6 @@ const onSwap = (token0: string) => {
       }
     })
   }
-=======
-  void router.push({
-    path: 'swap',
-    query: {
-      token0,
-      token1: useHostStore().wlineraApplicationId
-    }
-  })
->>>>>>> 8c1ba0598ede6fc73a5d2a4008bf8af677aaf286
 }
 
 const goLink = (url: string, event: MouseEvent) => {

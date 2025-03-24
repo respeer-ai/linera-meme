@@ -70,7 +70,7 @@
     </q-menu>
     <q-img src='https://avatars.githubusercontent.com/u/107513858?s=48&v=4' width='24px' height='24px' />
     <div :style='{margin: "2px 0 0 8px"}' class='text-grey-9 text-bold'>
-      {{ account?.length ? shortid.shortId(account, 6) : 'Connect Wallet' }} <span class='text-grey-4'>|</span> {{ (Number(accountBalance) + Number(chainBalance)).toFixed(4) }}
+      {{ account?.length ? shortid.shortId(account, 6) : 'Connect Wallet' }} <span v-if='account?.length'><span class='text-grey-4'>|</span> {{ (Number(accountBalance) + Number(chainBalance)).toFixed(4) }}</span>
     </div>
   </q-btn>
 </template>
@@ -81,7 +81,8 @@ import { useUserStore } from 'src/mystore/user'
 import { shortid, graphqlResult } from 'src/utils'
 import { Web3 } from 'web3'
 import { addressIcon, microchainIcon, copyIcon } from 'src/assets'
-import { gql } from '@apollo/client'
+import { BALANCES } from 'src/graphql'
+import { dbModel, rpcModel } from 'src/model'
 
 const user = useUserStore()
 const account = computed(() => user.account?.trim())
@@ -94,12 +95,12 @@ const getProviderState = () => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   window.linera.request({
     method: 'metamask_getProviderState'
-  }).then((result) => {
+  }).then(async (result) => {
     user.chainId = ((result as Record<string, string>).chainId).substring(2)
     user.account = ((result as Record<string, string>).accounts)[0]
     Cookies.set('CheCko-Login-Account', user.account)
     Cookies.set('CheCko-Login-Microchain', user.chainId)
-    getBalances()
+    await getBalances()
   }).catch((e) => {
     console.log('metamask_getProviderState', e)
   })
@@ -119,7 +120,7 @@ const onConnectClick = async () => {
   }
 
   getProviderState()
-  getBalances()
+  await getBalances()
 }
 
 const onLogoutClick = () => {
@@ -140,39 +141,32 @@ const copyToClipboard = async (content: string) => {
 }
 
 onMounted(() => {
-  walletReadyCall(() => getProviderState())
+  walletReadyCall(() => {
+    void getProviderState()
+  })
 })
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getBalances = () => {
-  const publicKey = account.value
-  const query = gql`
-    query getBalances ($chainIds: [String!], $publicKeys: [String!], $chainId: String!, $publicKey: String!){
-      balances(chainIds: $chainIds, publicKeys: $publicKeys)
-      balance(chainId: $chainId, publicKey: $publicKey)
-    }`
+const getBalances = async () => {
+  const owner = await dbModel.ownerFromPublicKey(account.value)
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   window.linera.request({
     method: 'linera_graphqlQuery',
     params: {
-      publicKey: publicKey,
+      publicKey: account.value,
       query: {
-        query: query.loc?.source?.body,
+        query: BALANCES.loc?.source?.body,
         variables: {
-          chainIds: [chainId.value],
-          publicKeys: [publicKey],
+          chainOwners: Object.fromEntries(new Map([[chainId.value, [`User:${owner}`]]])),
           chainId: chainId.value,
-          publicKey: publicKey
+          publicKey: account.value
         }
       }
     }
   }).then((result) => {
-    const balances = graphqlResult.keyValue(result, 'balances')
-    const _balances = graphqlResult.keyValue(balances, chainId.value)
-    const chainBalance = graphqlResult.keyValue(_balances, 'chain_balance') as string
-    const accountBalance = graphqlResult.keyValue(result, 'balance') as string
-    user.chainBalance = chainBalance
-    user.accountBalance = accountBalance
+    const balances = graphqlResult.keyValue(result, 'balances') as rpcModel.Balances
+    user.chainBalance = rpcModel.chainBalance(balances, chainId.value)
+    user.accountBalance = rpcModel.ownerBalance(balances, chainId.value, owner)
   }).catch((e) => {
     console.log(e)
   })

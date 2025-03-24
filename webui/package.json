@@ -18,7 +18,8 @@
     "test:unit:watch": "jest --watch",
     "test:unit:watchAll": "jest --watchAll",
     "serve:test:coverage": "quasar serve test/jest/coverage/lcov-report/ --port 8788",
-    "concurrently:dev:jest": "concurrently \"quasar dev\" \"jest --watch\""
+    "concurrently:dev:jest": "concurrently \"quasar dev\" \"jest --watch\"",
+    "graphql:generate": "graphql-codegen --config graphql-codegen.ts"
   },
   "pre-commit": [
     "lint",
@@ -55,6 +56,10 @@
     "web3": "^4.11.1"
   },
   "devDependencies": {
+    "@graphql-codegen/add": "^5.0.3",
+    "@graphql-codegen/cli": "^5.0.2",
+    "@graphql-codegen/typescript": "^4.0.9",
+    "@graphql-codegen/typescript-resolvers": "^4.2.1",
     "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.26.0",
     "@pinia/testing": "^0.0.9",

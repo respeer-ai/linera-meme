@@ -13,21 +13,21 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        component: () => import('pages/Swap.vue'),
+        component: () => import('pages/SwapPage.vue'),
         meta: {
           NeedLogined: false
         }
       },
       {
         path: '/swap',
-        component: () => import('pages/Swap.vue'),
+        component: () => import('pages/SwapPage.vue'),
         meta: {
           NeedLogined: false
         }
       },
       {
         path: '/Meme',
-        component: () => import('pages/MemeList.vue'),
+        component: () => import('pages/MemePage.vue'),
         meta: {
           NeedLogined: false
         }
@@ -41,7 +41,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: '/blob',
-        component: () => import('pages/BlobList.vue'),
+        component: () => import('pages/BlobPage.vue'),
         meta: {
           NeedLogined: false
         }
@@ -49,6 +49,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: '/add/liquidity',
         component: () => import('pages/AddLiquidity.vue'),
+        meta: {
+          NeedLogined: false
+        }
+      },
+      {
+        path: '/campaign',
+        component: () => import('pages/CampaignPage.vue'),
         meta: {
           NeedLogined: false
         }

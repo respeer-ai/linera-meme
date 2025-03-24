@@ -2,7 +2,7 @@
   <q-layout view='hHh Lpr lFf'>
     <q-header>
       <q-toolbar class='text-white bg-white vertical-menu-padding shadow-2'>
-        <Navigator class='full-width' />
+        <Header class='full-width' />
       </q-toolbar>
     </q-header>
     <q-page-container>
@@ -15,7 +15,7 @@
 import { onMounted } from 'vue'
 import { notification } from 'src/mystore'
 
-import Navigator from 'src/components/navigator/Navigator.vue'
+import Header from 'src/components/header/Header.vue'
 
 const _notification = notification.useNotificationStore()
 
