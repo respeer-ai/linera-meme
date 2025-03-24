@@ -1,0 +1,31 @@
+{
+  // "extends": ["@quasar/app-vite/tsconfig-preset", "@tsconfig/node20/tsconfig.json"],
+  "extends": "@quasar/app-vite/tsconfig-preset",
+  "compilerOptions": {
+    "allowJs": true,
+    "baseUrl": ".",
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/typescript/tsconfig.tsbuildinfo",
+    "useUnknownInCatchVariables": true,
+    "target": "ES2020",
+    "plugins": [
+      {
+        "name": "ts-lit-plugin",
+        "strict": true
+      }
+    ],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "noImplicitAny": false
+  },
+  "esModuleInterop": true,
+  "exclude": [
+    "./dist",
+    "./.quasar",
+    "./node_modules",
+    "./src-capacitor",
+    "./src-cordova",
+    "./quasar.config.*.temporary.compiled*",
+    "./wasm"
+  ]
+}

@@ -1,0 +1,101 @@
+@font-face
+  font-family: 'Noto Sans'
+  src: url('https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,100..900;1,100..900&family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap')
+
+*::-webkit-scrollbar
+    width: 2px
+    height: 2px
+
+*::-webkit-scrollbar-thumb
+    border-radius: 2px
+    background: rgba(0,0,0,0.2)
+
+*::-webkit-scrollbar-track
+    border-radius: 0
+    background: rgba(0,0,0,0.1)
+
+*::-webkit-scrollbar-corner
+  background: rgba(0,0,0,0.1)
+
+.main-content
+  width: 100%
+
+.vertical-section-y-margin
+  margin-top: 24px
+
+.vertical-inner-y-margin-bottom
+  margin-bottom: 16px
+
+.vertical-inner-y-margin
+  margin-top: 16px
+
+.vertical-card-padding
+  padding-top: 4px
+
+.vertical-card-align
+  margin-top: 4px
+
+.horizontal-inner-x-margin-right
+  margin-right: 12px
+
+.horizontal-inner-x-margin-left
+  margin-left: 12px
+
+.full-width
+  width: 100%
+
+.vertical-menu-padding
+  padding: 6px 16px
+
+.border-red-4
+  border: 1px solid $red-4
+
+.border-radius-8px
+  border-radius: 8px
+
+.popup-padding
+  padding: 16px
+
+.content
+  width: 1280px
+
+.content-narrow
+  width: 600px
+
+.decorate-border-bottom
+  border-bottom: 1px solid $grey-4
+
+.decorate-dashed-border-bottom
+  border-bottom: 1px dashed $grey-4
+
+.decorate-border-bottom-bold
+  border-bottom: 2px solid $grey-4
+
+.shake
+  animation: shake 100ms ease-in-out
+
+@keyframes shake
+  10%, 90%
+    transform: translate3d(-1px, 0, 0)
+  20%, 80%
+    transform: translate3d(+2px, 0, 0)
+  30%, 70%
+    transform: translate3d(-4px, 0, 0)
+  40%, 60%
+    transform: translate3d(+4px, 0, 0)
+  50%
+    transform: translate3d(-4px, 0, 0)
+
+.word-break-all
+  word-break: break-all
+  overflow-wrap: break-all
+  white-space: pre-wrap
+  white-space: -moz-pre-wrap
+  white-space: -pre-wrap
+  white-space: -o-pre-wrap
+  white-space: pre-line
+  word-wrap: break-word
+  width: 100%
+
+pre
+  white-space: pre-wrap
