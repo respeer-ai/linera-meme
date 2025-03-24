@@ -26,26 +26,17 @@ import { MemeAppRespInfo, MemeAppInfoSpec, MemeAppInfoDisplay } from 'src/stores
 import { ApolloClient } from '@apollo/client/core'
 import gql from 'graphql-tag'
 import { graphqlResult } from 'src/utils'
-import { getAppClientOptions } from 'src/apollo'
+import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
-import { Pool } from 'src/stores/pool'
-import { LastTranscation, useUserStore, PoolTokenCond } from 'src/mystore/user'
+import { LastTranscation, useUserStore, PoolTokenCond } from 'src/localstore/user'
+import { useHostStore } from 'src/localstore/host'
+import { POOLS } from 'src/graphql'
+import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 
 import MemeCard from './MemeCard.vue'
-import { useHostStore } from 'src/mystore/host'
 
-const userStore = useUserStore()
-
-const swapChainID = ref(useHostStore().swapCreationChainId)
-const swapAppID = ref(useHostStore().swapApplicationId)
-const swapEndPoint = ref(useHostStore()._swapEndpoint())
-
-const amsChainID = ref(useHostStore().amsCreationChainId)
-const amsAppID = ref(useHostStore().amsApplicationId)
-const amsEndPoint = ref(useHostStore()._amsEndpoint())
-
-const swapService = ref(swapEndPoint.value + '/chains/' + swapChainID.value + '/applications/' + swapAppID.value)
-const amsService = ref(amsEndPoint.value + '/chains/' + amsChainID.value + '/applications/' + amsAppID.value)
+const user = useUserStore()
+const host = useHostStore()
 
 const limit = ref(40)
 const appPoolIDsMap = ref<Map<string, string>>(new Map())
@@ -55,20 +46,11 @@ const lastCreatedAt = ref(0)
 const curPageSize = ref(limit.value)
 const loadTx = ref(true)
 
-const getPools = async (url: string): Promise<Array<Pool>> => {
-  const appOptions = /* await */ getAppClientOptions(url)
-  const appApolloClient = new ApolloClient(appOptions)
-  const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(appApolloClient)(() => useQuery(gql`
-    query {
-      getPools {
-        id
-        token0
-        token1
-      }
-    }
-  `, {
-    endpoint: 'swap',
-    chainId: swapChainID.value
+const getPools = async (): Promise<Array<Pool>> => {
+  const options = /* await */ getClientOptions()
+  const apolloClient = new ApolloClient(options)
+  const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(apolloClient)(() => useQuery(POOLS, {
+    endpoint: 'swap'
   }, {
     fetchPolicy: 'network-only'
   }))
@@ -101,10 +83,10 @@ const onGetAppPools = async () => {
     })
 }
 
-const getApplicationInfos = (url: string) => {
-  const appOptions = /* await */ getAppClientOptions(url)
-  const appApolloClient = new ApolloClient(appOptions)
-  const { /* result, refetch, fetchMore, */ onResult /*, onError */ } = provideApolloClient(appApolloClient)(() => useQuery(gql`
+const getApplications = () => {
+  const options = /* await */ getClientOptions()
+  const apolloClient = new ApolloClient(options)
+  const { /* result, refetch, fetchMore, */ onResult /*, onError */ } = provideApolloClient(apolloClient)(() => useQuery(gql`
     query getApplications($createdAfter: Int!, $limit: Int!){
       applications(createdAfter: $createdAfter, limit: $limit)
     }
