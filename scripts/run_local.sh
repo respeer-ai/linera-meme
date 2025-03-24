@@ -296,9 +296,9 @@ process_inboxes swap
 function service_servers() {
     port_base=$1
 
-    servers="\"$LAN_IP:$port_base\""
+    servers="\"localhost:$port_base\""
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
-        servers="$servers, \"$LAN_IP:$((port_base + (i + 1) * 2))\""
+        servers="$servers, \"localhost:$((port_base + (i + 1) * 2))\""
     done
     echo $servers
 }
