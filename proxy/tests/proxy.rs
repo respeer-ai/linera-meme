@@ -323,11 +323,11 @@ async fn proxy_create_meme_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { memeApplications }",
+            "query { memeApplicationIds }",
         )
         .await;
     let meme_application: Option<ApplicationId> =
-        serde_json::from_value(response["memeApplications"].as_array().unwrap()[0].clone())
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
             .unwrap();
     assert_eq!(meme_application.is_none(), true);
 
@@ -346,11 +346,11 @@ async fn proxy_create_meme_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { memeApplications }",
+            "query { memeApplicationIds }",
         )
         .await;
     let meme_application: Option<ApplicationId> =
-        serde_json::from_value(response["memeApplications"].as_array().unwrap()[0].clone())
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
 
