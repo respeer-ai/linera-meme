@@ -1,4 +1,4 @@
-const { resolve } = require('path');
+const { resolve } = require('path')
 module.exports = {
   // https://eslint.org/docs/user-guide/configuring#configuration-cascading-and-hierarchy
   // This option interrupts the configuration hierarchy at this file
@@ -17,11 +17,13 @@ module.exports = {
     project: resolve(__dirname, './tsconfig.json'),
     tsconfigRootDir: __dirname,
     ecmaVersion: 2018, // Allows for the parsing of modern ECMAScript features
-    sourceType: 'module' // Allows for the use of imports
+    sourceType: 'module', // Allows for the use of imports
   },
 
   env: {
-    browser: true
+    browser: true,
+    es2020: true,
+    node: true
   },
 
   // Rules order is important, please avoid shuffling them
@@ -43,8 +45,7 @@ module.exports = {
     'plugin:vue/vue3-strongly-recommended', // Priority B: Strongly Recommended (Improving Readability)
     // 'plugin:vue/vue3-recommended', // Priority C: Recommended (Minimizing Arbitrary Choices and Cognitive Overhead)
 
-    'standard'
-
+    'standard',
   ],
 
   plugins: [
@@ -54,7 +55,6 @@ module.exports = {
     // https://eslint.vuejs.org/user-guide/#why-doesn-t-it-work-on-vue-file
     // required to lint *.vue files
     'vue',
-
   ],
 
   globals: {
@@ -67,7 +67,7 @@ module.exports = {
     __QUASAR_SSR_PWA__: 'readonly',
     process: 'readonly',
     Capacitor: 'readonly',
-    chrome: 'readonly'
+    chrome: 'readonly',
   },
 
   // add your custom rules here
@@ -81,26 +81,32 @@ module.exports = {
     'multiline-ternary': 'off',
 
     'no-unused-vars': 'off',
-    "eqeqeq": "error",
-    "no-var": "error",
-    "vue/html-quotes": ["error", "single"],
-    "vue/html-self-closing": ["error", {
-      "html": {
-        "void": "never",
-        "normal": "always",
-        "component": "always"
+    eqeqeq: 'error',
+    'no-var': 'error',
+    'vue/html-quotes': ['error', 'single'],
+    'vue/html-self-closing': [
+      'error',
+      {
+        html: {
+          void: 'never',
+          normal: 'always',
+          component: 'always',
+        },
+        svg: 'always',
+        math: 'always',
       },
-      "svg": "always",
-      "math": "always"
-    }],
-    "vue/max-attributes-per-line": ["error", {
-      "singleline": {
-        "max": 4
+    ],
+    'vue/max-attributes-per-line': [
+      'error',
+      {
+        singleline: {
+          max: 4,
+        },
+        multiline: {
+          max: 4,
+        },
       },
-      "multiline": {
-        "max": 4
-      }
-    }],
+    ],
 
     'import/first': 'off',
     'import/namespace': 'error',
@@ -118,6 +124,12 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': ['error'],
 
     // allow debugger during development only
-    'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off'
-  }
+    'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
+
+    // TODO: Work around for prettier
+    'space-before-function-paren': 'off',
+
+    // For prettier curly fix
+    'curly': 'off'
+  },
 }

@@ -165,8 +165,8 @@ const getBalances = async () => {
     }
   }).then((result) => {
     const balances = graphqlResult.keyValue(result, 'balances') as rpcModel.Balances
-    user.chainBalance = rpcModel.chainBalance(balances, chainId.value)
-    user.accountBalance = rpcModel.ownerBalance(balances, chainId.value, owner)
+    user.chainBalance = rpcModel.chainBalance(balances, chainId.value).toFixed(4)
+    user.accountBalance = rpcModel.ownerBalance(balances, chainId.value, owner).toFixed(4)
   }).catch((e) => {
     console.log(e)
   })
