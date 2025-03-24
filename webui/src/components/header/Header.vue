@@ -4,7 +4,7 @@
       <q-img
         :src='selectedIcon'
         height='36px'
-        width='440px'
+        width='240px'
         fit='contain'
         position='0 0'
       />
