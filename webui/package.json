@@ -20,7 +20,9 @@
     "serve:test:coverage": "quasar serve test/jest/coverage/lcov-report/ --port 8788",
     "concurrently:dev:jest": "concurrently \"quasar dev\" \"jest --watch\"",
     "graphql:generate": "graphql-codegen --config graphql-codegen.ts",
-    "build:wasm": "wasm-pack build --out-dir ../dist/wasm --target web wasm"
+    "build:wasm": "wasm-pack build --out-dir ../dist/wasm --target web wasm",
+    "prettier:check": "prettier --check \"**/*.{js,json,md,ts,yml}\"",
+    "prettier:write": "prettier --write \"**/*.{js,json,md,ts,yml}\""
   },
   "pre-commit": [
     "lint",
@@ -36,13 +38,16 @@
     "core-js": "^3.6.5",
     "dexie": "^4.0.10",
     "echarts": "^5.5.1",
+    "eslint-config-prettier": "^10.1.1",
     "graphql": "^16.9.0",
     "graphql-ws": "^5.16.0",
     "hash-wasm": "^4.11.0",
     "highlight.js": "^11.10.0",
+    "lossless-json": "^4.0.2",
     "node-polyfill": "^1.0.0",
     "node-polyfill-webpack-plugin": "^4.1.0",
     "pinia": "^2.0.36",
+    "prettier": "^3.5.3",
     "primevue": "^4.1.1",
     "quasar": "^2.17.4",
     "react": "^18.3.1",
@@ -57,12 +62,12 @@
     "web3": "^4.11.1"
   },
   "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
     "@graphql-codegen/add": "^5.0.3",
     "@graphql-codegen/cli": "^5.0.2",
     "@graphql-codegen/typescript": "^4.0.9",
     "@graphql-codegen/typescript-resolvers": "^4.2.1",
-    "@babel/core": "^7.26.0",
-    "@babel/preset-env": "^7.26.0",
     "@pinia/testing": "^0.0.9",
     "@quasar/app-vite": "^1.11.0",
     "@quasar/quasar-app-extension-apollo": "^2.0.0-beta.5",

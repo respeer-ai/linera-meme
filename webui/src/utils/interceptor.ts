@@ -1,7 +1,4 @@
-import {
-  NavigationGuardNext,
-  RouteLocationNormalized
-} from 'vue-router'
+import { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
 
 interface RouteMetaImpl {
   NeedLogined: boolean
@@ -9,14 +6,15 @@ interface RouteMetaImpl {
 
 declare module 'vue-router' {
   // eslint-disable-next-line @typescript-eslint/no-empty-interface
-  interface RouteMeta extends RouteMetaImpl {
-  }
+  interface RouteMeta extends RouteMetaImpl {}
 }
 
-const loginInterceptor = (signInPath: string, to: RouteLocationNormalized, next: NavigationGuardNext) => {
+const loginInterceptor = (
+  signInPath: string,
+  to: RouteLocationNormalized,
+  next: NavigationGuardNext
+) => {
   next()
 }
 
-export {
-  loginInterceptor
-}
+export { loginInterceptor }

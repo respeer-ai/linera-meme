@@ -32,7 +32,7 @@
       expand-icon-toggle
       :label='$t("MSG_MORE_OPTIONS")'
       v-model='expanded'
-      class='vertical-inner-y-margin text-grey-8'
+      class='vertical-inner-y-margin text-grey-8 text-left text-bold'
     >
       <div>
         <q-input dense v-model='argument.meme.metadata.website' :label='$t("MSG_OFFICIAL_WEBSITE") + " (" + $t("MSG_OPTIONAL") + ")"' />
@@ -77,9 +77,12 @@
 
 <script lang='ts' setup>
 import { QInput } from 'quasar'
-import { PUBLISH_DATA_BLOB } from 'src/graphql'
-import { meme, blob, user, notify, store } from 'src/localstore'
+import { CREATE_MEME, PUBLISH_DATA_BLOB } from 'src/graphql'
+import { meme, blob, user, store } from 'src/localstore'
 import { computed, ref } from 'vue'
+import * as lineraWasm from '../../../dist/wasm/linera_wasm'
+import { stringify } from 'lossless-json'
+import { constants } from 'src/constant'
 
 const argument = ref({
   meme: {
@@ -176,24 +179,11 @@ const onInputImage = () => {
   fileInput.value?.click()
 }
 
-const prepareBlob = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    blob.BlobGateway.prepareBlob({
-      chainId: _user.chainId,
-      bytes: logoBytes.value,
-      Message: {
-        Error: {
-          Title: 'Get applications',
-          Message: 'Failed get applications',
-          Popup: true,
-          Type: notify.NotifyType.Error
-        }
-      }
-    }, (error: boolean, blobHash?: string) => {
-      if (error) reject('Failed prepare blob')
-      resolve(blobHash as string)
-    })
-  })
+const prepareBlob = async () => {
+  return await blob.BlobGateway.prepareBlob({
+    chainId: _user.chainId,
+    bytes: logoBytes.value
+  }) as string
 }
 
 const publishDataBlob = (): Promise<string> => {
@@ -220,15 +210,46 @@ const publishDataBlob = (): Promise<string> => {
   })
 }
 
-const onCreateMemeClick = () => {
-  prepareBlob().then(async (blobHash) => {
+const createMeme = async (): Promise<string> => {
+  const variables = {
+    memeInstantiationArgument: argument.value,
+    memeParameters: parameters.value
+  }
+  const queryBytes = await lineraWasm.graphql_deserialize_proxy_operation(CREATE_MEME.loc?.source?.body as string, stringify(variables) as string)
+  return new Promise((resolve, reject) => {
+    window.linera.request({
+      method: 'linera_graphqlMutation',
+      params: {
+        applicationId: constants.applicationId(constants.APPLICATION_URLS.PROXY),
+        publicKey: publicKey.value,
+        query: {
+          query: PUBLISH_DATA_BLOB.loc?.source?.body,
+          variables: {
+            chainId: chainId.value,
+            blobHash: argument.value.meme.metadata.logo
+          },
+          bytes: queryBytes
+        },
+        operationName: 'createMeme'
+      }
+    }).then((blobHash) => {
+      resolve(blobHash as string)
+    }).catch((e) => {
+      reject(e)
+    })
+  })
+}
+
+const onCreateMemeClick = async () => {
+  try {
+    const blobHash = await prepareBlob()
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
-
     await publishDataBlob()
-  }).catch((e) => {
+    await createMeme()
+  } catch (e) {
     console.log(e)
-  })
+  }
 }
 
 </script>

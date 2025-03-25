@@ -76,7 +76,7 @@ export const calculateZoomStart = (itemsLen: number) => {
   if (itemsLen < 50) {
     result = 1
   } else {
-    result = 100 - 50.0 / itemsLen * 100
+    result = 100 - (50.0 / itemsLen) * 100
   }
   return result
 }
@@ -243,22 +243,22 @@ const option: EChartsOption = {
   ]
 }
 
-export const initEchart = (elementID: string): (echarts.ECharts) => {
+export const initEchart = (elementID: string): echarts.ECharts => {
   const chartDom = document.getElementById(elementID) as HTMLElement
   const myChart = echarts.init(chartDom)
   window.onresize = () => {
     myChart.resize()
   }
 
-  myChart.setOption(
-    option,
-    true
-  )
+  myChart.setOption(option, true)
 
   return myChart
 }
 
-export const setKPointsToEchart = (myChart: echarts.ECharts, data: kline.EchartKPoints) => {
+export const setKPointsToEchart = (
+  myChart: echarts.ECharts,
+  data: kline.EchartKPoints
+) => {
   const addOption = {
     xAxis: [
       {
@@ -293,9 +293,7 @@ export const setKPointsToEchart = (myChart: echarts.ECharts, data: kline.EchartK
     ]
   }
 
-  myChart.setOption(
-    addOption
-  )
+  myChart.setOption(addOption)
 
   // setStartAndEnd(myChart, calculateZoomStart(data.CategoryItems.length), 100)
 
@@ -313,7 +311,11 @@ export const setKPointsToEchart = (myChart: echarts.ECharts, data: kline.EchartK
   // }
 }
 
-export const setStartAndEnd = (myChart: echarts.ECharts, start: number, end: number) => {
+export const setStartAndEnd = (
+  myChart: echarts.ECharts,
+  start: number,
+  end: number
+) => {
   const addOption = {
     dataZoom: [
       {
@@ -326,7 +328,5 @@ export const setStartAndEnd = (myChart: echarts.ECharts, start: number, end: num
       }
     ]
   }
-  myChart.setOption(
-    addOption
-  )
+  myChart.setOption(addOption)
 }

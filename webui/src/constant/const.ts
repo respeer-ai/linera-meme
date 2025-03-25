@@ -16,5 +16,12 @@ export const RPC_URL = 'http://api.rpc.respeer.ai/api/rpc'
 export const RPC_WS_URL = 'ws://api.rpc.respeer.ai/ws'
 
 export const formalizeSchema = (url: string) => {
-  return url.replace('http://', process.env.NODE_ENV === 'production' ? 'https://' : 'http://')
+  return url.replace(
+    'http://',
+    process.env.NODE_ENV === 'production' ? 'https://' : 'http://'
+  )
+}
+
+export const applicationId = (url: string) => {
+  return url.split('/')[-1]
 }

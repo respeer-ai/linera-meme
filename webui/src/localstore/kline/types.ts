@@ -1,19 +1,19 @@
 export interface KPoint {
-  Nums: number[];
-  Times: number[];
-  FormatTimes: string[];
+  Nums: number[]
+  Times: number[]
+  FormatTimes: string[]
 }
 
 export interface EchartKPoints {
-  CategoryItems: string[];
-  Nums: number[][];
+  CategoryItems: string[]
+  Nums: number[][]
 }
 
 export interface GetKPointsForLineResponse {
-  KPointType: string;
-  KPoints: KPoint[];
-  Limit: number;
-  Offset: number;
-  OriginalTime: number;
-  TokenPairID: number;
+  KPointType: string
+  KPoints: KPoint[]
+  Limit: number
+  Offset: number
+  OriginalTime: number
+  TokenPairID: number
 }

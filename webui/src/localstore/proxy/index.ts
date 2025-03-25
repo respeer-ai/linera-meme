@@ -15,12 +15,22 @@ export const useProxyStore = defineStore('proxy', {
     chains: [] as Array<Chain>
   }),
   actions: {
-    getApplications(req: GetChainsRequest, done?: (error: boolean, rows?: Chain[]) => void) {
-      const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(apolloClient)(() => useQuery(MEME_APPLICATIONS, {
-        endpoint: 'proxy'
-      }, {
-        fetchPolicy: 'network-only'
-      }))
+    getApplications(
+      req: GetChainsRequest,
+      done?: (error: boolean, rows?: Chain[]) => void
+    ) {
+      const { /* result, refetch, fetchMore, */ onResult, onError } =
+        provideApolloClient(apolloClient)(() =>
+          useQuery(
+            MEME_APPLICATIONS,
+            {
+              endpoint: 'proxy'
+            },
+            {
+              fetchPolicy: 'network-only'
+            }
+          )
+        )
 
       onResult((res) => {
         const chains = graphqlResult.data(res, 'memeApplications') as Chain[]
@@ -34,7 +44,9 @@ export const useProxyStore = defineStore('proxy', {
     },
     appendChains(chains: Chain[]) {
       chains.forEach((chain) => {
-        const index = this.chains.findIndex((el) => el.chainId === chain.chainId)
+        const index = this.chains.findIndex(
+          (el) => el.chainId === chain.chainId
+        )
         this.chains.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, chain)
       })
     }

@@ -9,6 +9,4 @@ const createAPI = (url: string): AxiosInstance | undefined => {
   })
 }
 
-export {
-  createAPI
-}
+export { createAPI }

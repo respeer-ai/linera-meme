@@ -7,13 +7,7 @@ export const BALANCES = gql`
 `
 
 export const PREPARE_BLOB = gql`
-  mutation prepareBlob($chainId: ChainId!, bytes: [Int!]!) {
+  mutation prepareBlob($chainId: ChainId!, $bytes: [Int!]!) {
     prepareBlob(chainId: $chainId, bytes: $bytes)
-  }
-`
-
-export const PUBLISH_DATA_BLOB = gql`
-  mutation publishDataBlob($chainId: ChainId!, blobHash: CryptoHash!) {
-    publishDataBlob(chainId: $chainId, blobHash: $blobHash)
   }
 `

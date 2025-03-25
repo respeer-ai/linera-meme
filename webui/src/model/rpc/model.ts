@@ -18,9 +18,6 @@ export const ownerBalance = (
   return balances[chainId].ownerBalances[accountOwner(owner)] || '0.'
 }
 
-export const chainBalance = (
-  balances: Balances,
-  chainId: string
-) => {
+export const chainBalance = (balances: Balances, chainId: string) => {
   return balances[chainId].chainBalance
 }

@@ -1,96 +1,11 @@
 <template>
   <q-page class='flex items-center justify-center'>
-    <q-stepper
-      v-model='step'
-      header-nav
-      ref='stepper'
-      color='primary'
-      class='content-narrow'
-      animated
-      vertical
-      flat
-    >
-      <q-step
-        :name='1'
-        :title='$t("MSG_CREATE_MEME_APPLICATION")'
-        icon='settings'
-        :done='step > 1'
-        :header-nav='step > 1'
-      >
-        <CreateMemeInner @created='onMemeTokenCreated' @init-pool-liquidity='onPoolInitLiquidity' @creating='onMemeTokenCreating' @error='onCreateMemeTokenError' />
-      </q-step>
-
-      <q-step
-        :name='2'
-        :title='$t("MSG_REQUEST_WLINERA")'
-        icon='create_new_folder'
-        :done='step > 2'
-        :header-nav='step > 2'
-      />
-
-      <q-step
-        :name='3'
-        :title='$t("MSG_REQUEST_SWAP")'
-        icon='create_new_folder'
-        :done='step > 3'
-        :header-nav='step > 3'
-      />
-
-      <q-step
-        :name='4'
-        :title='$t("MSG_REQUEST_APPLICATION_TO_SWAP_CHAIN")'
-        icon='create_new_folder'
-        :done='step > 4'
-        :header-nav='step > 4'
-      />
-
-      <q-step
-        :name='5'
-        :title='$t("MSG_SUBSCRIBE_WLINERA_CREATOR_CHAIN")'
-        icon='create_new_folder'
-        :done='step > 5'
-        :header-nav='step > 5'
-      />
-
-      <q-step
-        :name='6'
-        :title='$t("MSG_SUBSCRIBE_SWAP_CREATOR_CHAIN")'
-        icon='create_new_folder'
-        :done='step > 6'
-        :header-nav='step > 6'
-      />
-
-      <q-step
-        :name='7'
-        :title='$t("MSG_AUTHORIZE_INITIAL_BALANCE_TO_SWAP")'
-        :done='step > 7'
-        :header-nav='step > 7'
-      />
-
-      <q-step
-        :name='8'
-        :title='$t("MSG_MINT_WLINERA")'
-        icon='create_new_folder'
-        :done='step > 8'
-        :header-nav='step > 8'
-      />
-
-      <q-step
-        :name='9'
-        :title='$t("MSG_AUTHORIZE_INITIAL_WLINERA_TO_SWAP")'
-        icon='create_new_folder'
-        :done='step > 9'
-        :header-nav='step > 9'
-      />
-
-      <q-step
-        :name='10'
-        :title='$t("MSG_CREATE_LIQUIDITY_POOL")'
-        icon='create_new_folder'
-        :done='step > 10'
-        :header-nav='step > 10'
-      />
-    </q-stepper>
+    <div class='text-center'>
+      <div class='text-bold text-grey-9' :style='{fontSize: "28px"}'>
+        Let's Pump
+      </div>
+      <CreateMemeInner @created='onMemeTokenCreated' @creating='onMemeTokenCreating' @error='onCreateMemeTokenError' />
+    </div>
   </q-page>
   <q-dialog v-model='showing' :persistent='creating' @hide='onConfirmed'>
     <q-card class='dialog flex items-center justify-center'>
@@ -150,12 +65,6 @@ const onConfirmed = () => {
 const onContinueClick = () => {
   showing.value = false
   void router.push({ path: '/meme' })
-}
-
-const step = ref(1)
-
-const onPoolInitLiquidity = () => {
-  // TODO
 }
 
 const chainMemeBridge = ref<InstanceType<typeof ChainMemeBridge>>()

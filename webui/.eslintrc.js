@@ -17,7 +17,7 @@ module.exports = {
     project: resolve(__dirname, './tsconfig.json'),
     tsconfigRootDir: __dirname,
     ecmaVersion: 2018, // Allows for the parsing of modern ECMAScript features
-    sourceType: 'module', // Allows for the use of imports
+    sourceType: 'module' // Allows for the use of imports
   },
 
   env: {
@@ -45,7 +45,7 @@ module.exports = {
     'plugin:vue/vue3-strongly-recommended', // Priority B: Strongly Recommended (Improving Readability)
     // 'plugin:vue/vue3-recommended', // Priority C: Recommended (Minimizing Arbitrary Choices and Cognitive Overhead)
 
-    'standard',
+    'standard'
   ],
 
   plugins: [
@@ -54,7 +54,7 @@ module.exports = {
 
     // https://eslint.vuejs.org/user-guide/#why-doesn-t-it-work-on-vue-file
     // required to lint *.vue files
-    'vue',
+    'vue'
   ],
 
   globals: {
@@ -67,7 +67,7 @@ module.exports = {
     __QUASAR_SSR_PWA__: 'readonly',
     process: 'readonly',
     Capacitor: 'readonly',
-    chrome: 'readonly',
+    chrome: 'readonly'
   },
 
   // add your custom rules here
@@ -90,22 +90,22 @@ module.exports = {
         html: {
           void: 'never',
           normal: 'always',
-          component: 'always',
+          component: 'always'
         },
         svg: 'always',
-        math: 'always',
-      },
+        math: 'always'
+      }
     ],
     'vue/max-attributes-per-line': [
       'error',
       {
         singleline: {
-          max: 4,
+          max: 4
         },
         multiline: {
-          max: 4,
-        },
-      },
+          max: 4
+        }
+      }
     ],
 
     'import/first': 'off',
@@ -130,6 +130,6 @@ module.exports = {
     'space-before-function-paren': 'off',
 
     // For prettier curly fix
-    'curly': 'off'
-  },
+    curly: 'off'
+  }
 }

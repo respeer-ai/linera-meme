@@ -15,9 +15,11 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  */
 type Documents = {
     "\n  query balances($chainOwners: JSONObject!) {\n    balances(chainOwners: $chainOwners)\n  }\n": typeof types.BalancesDocument,
+    "\n  mutation prepareBlob($chainId: ChainId!, $bytes: [Int!]!) {\n    prepareBlob(chainId: $chainId, bytes: $bytes)\n  }\n": typeof types.PrepareBlobDocument,
 };
 const documents: Documents = {
     "\n  query balances($chainOwners: JSONObject!) {\n    balances(chainOwners: $chainOwners)\n  }\n": types.BalancesDocument,
+    "\n  mutation prepareBlob($chainId: ChainId!, $bytes: [Int!]!) {\n    prepareBlob(chainId: $chainId, bytes: $bytes)\n  }\n": types.PrepareBlobDocument,
 };
 
 /**
@@ -38,6 +40,10 @@ export function graphql(source: string): unknown;
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query balances($chainOwners: JSONObject!) {\n    balances(chainOwners: $chainOwners)\n  }\n"): (typeof documents)["\n  query balances($chainOwners: JSONObject!) {\n    balances(chainOwners: $chainOwners)\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  mutation prepareBlob($chainId: ChainId!, $bytes: [Int!]!) {\n    prepareBlob(chainId: $chainId, bytes: $bytes)\n  }\n"): (typeof documents)["\n  mutation prepareBlob($chainId: ChainId!, $bytes: [Int!]!) {\n    prepareBlob(chainId: $chainId, bytes: $bytes)\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

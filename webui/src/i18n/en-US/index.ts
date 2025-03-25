@@ -5,7 +5,8 @@ export default {
   MSG_NAME: 'Name',
   MSG_TICKER: 'Ticker',
   MSG_DESCRIPTION: 'Description',
-  MSG_MINTABLE_WITH_CAPTION: 'Mintable (users can mint tokens by sending WTLINERA or TLINERA)',
+  MSG_MINTABLE_WITH_CAPTION:
+    'Mintable (users can mint tokens by sending WTLINERA or TLINERA)',
   MSG_CLICK_OR_DRAG_IMAGE: 'Click or drag to upload an image.',
   MSG_MORE_OPTIONS: 'More options',
   MSG_OFFICIAL_WEBSITE: 'Official website',
@@ -14,10 +15,12 @@ export default {
   MSG_TELEGRAM: 'Telegram',
   MSG_GITHUB: 'Github',
   MSG_OPTIONAL: 'optional',
-  MSG_FIXED_CURRENCY_WITH_CAPTION: 'Fixed currency (this token will always be minted with initial currency)',
+  MSG_FIXED_CURRENCY_WITH_CAPTION:
+    'Fixed currency (this token will always be minted with initial currency)',
   MSG_INITIAL_SUPPLY: 'Initial supply',
   MSG_DECIMALS: 'Decimals',
-  MSG_INITIAL_CURRENCY: 'Initial currency (token initial mint currency, will be changed by swap currency if not fixed)',
+  MSG_INITIAL_CURRENCY:
+    'Initial currency (token initial mint currency, will be changed by swap currency if not fixed)',
   MSG_FEE_PERCENT: 'Fee percent',
   MSG_CREATE_MEME_TOKEN: 'create meme token',
   MSG_CREATING: 'Creating ...',
@@ -31,7 +34,8 @@ export default {
   MSG_SUBSCRIBE_SWAP_CREATOR_CHAIN: 'Subscribe Swap creator chain',
   MSG_AUTHORIZE_INITIAL_BALANCE_TO_SWAP: 'Authorize initial balance to Swap',
   MSG_MINT_WLINERA: 'Mint Wlinera for initial liquidity',
-  MSG_AUTHORIZE_INITIAL_WLINERA_TO_SWAP: 'Authorize initial Wlinera balance to Swap',
+  MSG_AUTHORIZE_INITIAL_WLINERA_TO_SWAP:
+    'Authorize initial Wlinera balance to Swap',
   MSG_CREATE_LIQUIDITY_POOL: 'Create liquidity pool',
   MSG_REQUESTING_WLINERA: 'Requesting Wlinera ...',
   MSG_CREATE_MEME_APPLICATION: 'Create meme application',
@@ -55,9 +59,12 @@ export default {
   MSG_CREATING_LIQUIDITY_POOL: 'Creating liquidity pool ...',
   MSG_AUTHORIZING_WLINERA_TO_SWAP: 'Authorizing WTLINERA to SWAP ...',
   MSG_MINTING_WLINERA: 'Minting WTLINERA ...',
-  MSG_AUTHORIZING_INITIAL_BALANCE_TO_SWAP: 'Authorizing initial balance to SWAP ...',
+  MSG_AUTHORIZING_INITIAL_BALANCE_TO_SWAP:
+    'Authorizing initial balance to SWAP ...',
   MSG_SUBSCRIBING_SWAP_CREATOR_CHAIN: 'Subscribing SWAP creator chain ...',
-  MSG_SUBSCRIBING_WLINERA_CREATOR_CHAIN: 'Subscribing WTLINERA creator chain ...',
-  MSG_REQUESTING_CREATED_APPLICATION_TO_SWAP_CHAIN: 'Requesting created application to SWAP chain ...',
+  MSG_SUBSCRIBING_WLINERA_CREATOR_CHAIN:
+    'Subscribing WTLINERA creator chain ...',
+  MSG_REQUESTING_CREATED_APPLICATION_TO_SWAP_CHAIN:
+    'Requesting created application to SWAP chain ...',
   MSG_REQUESTING_SWAP: 'Requesting SWAP ...'
 }
