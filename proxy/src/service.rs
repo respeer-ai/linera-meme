@@ -111,7 +111,21 @@ impl QueryRoot {
             .collect()
     }
 
-    async fn meme_applications(&self) -> Vec<Option<ApplicationId>> {
+    async fn meme_applications(&self) -> Vec<Chain> {
+        self.state
+            .chains
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, chain)| chain)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter(|chain| chain.token.is_some())
+            .collect()
+    }
+
+    async fn meme_application_ids(&self) -> Vec<Option<ApplicationId>> {
         self.state
             .chains
             .index_values()
