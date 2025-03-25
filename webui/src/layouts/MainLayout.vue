@@ -13,18 +13,18 @@
 
 <script setup lang='ts'>
 import { onMounted } from 'vue'
-import { notification } from 'src/mystore'
+import { notify } from 'src/localstore'
 
 import Header from 'src/components/header/Header.vue'
 
-const _notification = notification.useNotificationStore()
+const _notify = notify.useNotificationStore()
 
 onMounted(() => {
-  _notification.$subscribe((_, state) => {
+  _notify.$subscribe((_, state) => {
     state.Notifications.forEach((notif, index) => {
       if (notif.Popup) {
         state.Notifications.splice(index, 1)
-        notification.notify(notif)
+        notify.notify(notif)
       }
     })
   })

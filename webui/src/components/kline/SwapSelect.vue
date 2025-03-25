@@ -1,7 +1,7 @@
 <template>
   <div class='bg-white vertical-card-padding'>
     <q-select
-      dense v-model='swapStore.SelectedToken' :options='swapStore.Tokens' hide-dropdown-icon
+      dense v-model='token0' :options='[]' hide-dropdown-icon
       class='swap-token-option'
     >
       <template #option='scope'>
@@ -20,9 +20,9 @@
       </template>
       <template #selected>
         <div class='row'>
-          <q-img :src='processImg(swapStore.SelectedToken?.IconStoreType, swapStore.SelectedToken?.Icon)' width='24px' height='24px' fit='contain' />
+          <q-img :src='processImg("AAAAA", "BBBBB")' width='24px' height='24px' fit='contain' />
           <div class='swap-token-name text-bold swap-token-label flex items-center justify-center'>
-            {{ swapStore.SelectedToken?.Symbol }}
+            AAAAAAA
           </div>
         </div>
       </template>
@@ -31,7 +31,7 @@
       /
     </div>
     <q-select
-      dense v-model='swapStore.SelectedTokenPair' :options='swapStore.TokenPairs' hide-dropdown-icon
+      dense v-model='tokenPair' :options='[]' hide-dropdown-icon
       class='swap-token-option'
     >
       <template #option='scope'>
@@ -50,9 +50,9 @@
       </template>
       <template #selected>
         <div class='row'>
-          <q-img :src='processImg(swapStore.SelectedTokenPair?.TokenOneIconStoreType, swapStore.SelectedTokenPair?.TokenOneIcon)' width='24px' height='24px' fit='contain' />
+          <q-img :src='processImg("AAAAA", "BBBBB")' width='24px' height='24px' fit='contain' />
           <div class='swap-token-name text-bold swap-token-label flex items-center justify-center'>
-            {{ swapStore.SelectedTokenPair?.TokenOneSymbol }}
+            AAAAAA
           </div>
         </div>
       </template>
@@ -61,93 +61,19 @@
 </template>
 
 <script setup lang='ts'>
-import { useHostStore } from 'src/mystore/host'
-import { useSwapStore } from 'src/mystore/swap'
 import { shortid } from 'src/utils'
-import { computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { blob, store } from 'src/localstore'
+import { ref } from 'vue'
 
-const swapStore = useSwapStore()
-
-const router = useRouter()
-const t0Addr = router.currentRoute.value.query.token0
-const t1Addr = router.currentRoute.value.query.token1
-
-const selectedToken = computed(() => swapStore.SelectedToken)
+const token0 = ref(undefined as unknown)
+const tokenPair = ref(undefined as unknown)
 
 const processImg = (storeType: string | undefined, imageHash: string | undefined): string => {
   if (storeType === undefined || imageHash === undefined) {
     return ''
   }
-  return useHostStore().blobDataPath(storeType, imageHash)
+  return blob.BlobGateway.imagePath(storeType as store.StoreType, imageHash)
 }
-
-const getTokenPairs = () => {
-  if (!swapStore.SelectedToken) {
-    swapStore.SelectedTokenPair = null
-    return
-  }
-  swapStore.getTokenPairsByTokenZeroID((error) => {
-    if (error) return
-    if (swapStore.TokenPairs.length === 0) {
-      swapStore.SelectedTokenPair = null
-      return
-    }
-
-    const _t0Addr = t0Addr || selectedToken.value?.Address
-    const _t1Addr = t1Addr || useHostStore().wlineraApplicationId
-
-    if (_t0Addr) {
-      for (const info of swapStore.TokenPairs) {
-        if (_t0Addr !== info.TokenZeroAddress && _t0Addr !== info.TokenOneAddress) {
-          continue
-        }
-        if (_t1Addr !== info.TokenZeroAddress && _t1Addr !== info.TokenOneAddress) {
-          continue
-        }
-        swapStore.SelectedTokenPair = info
-        return
-      }
-    }
-
-    if (!swapStore.SelectedTokenPair) {
-      swapStore.SelectedTokenPair = swapStore.TokenPairs[0]
-    }
-  })
-}
-
-watch(selectedToken, () => {
-  getTokenPairs()
-})
-
-const refreshTokens = () => {
-  swapStore.getTokens((error) => {
-    if (error) return
-    if (swapStore.Tokens.length === 0) {
-      swapStore.SelectedToken = null
-      return
-    }
-    const _t0Addr = t0Addr || selectedToken.value?.Address
-    if (_t0Addr) {
-      for (const info of swapStore.Tokens) {
-        if (_t0Addr && _t0Addr === info.Address) {
-          swapStore.SelectedToken = info
-          getTokenPairs()
-          return
-        }
-      }
-    }
-
-    if (!swapStore.SelectedToken) {
-      swapStore.SelectedToken = swapStore.Tokens[0]
-      getTokenPairs()
-    }
-  })
-}
-
-onMounted(() => {
-  refreshTokens()
-})
 
 </script>
 

@@ -1,7 +1,3 @@
-export enum API {
-  GetKPointsForLine = '/v1/get/kpoints/for/line',
-}
-
 export interface KPoint {
   Nums: number[];
   Times: number[];

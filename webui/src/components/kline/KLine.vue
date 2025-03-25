@@ -6,7 +6,7 @@
       </div>
       <div class='radio-buttons-tip'>
         <div class='radio-buttons'>
-          <div class='radio-button' v-for='(val,idx) in swapStore.KPointTypes' :key='idx' :value='val.KPointType'>
+          <div class='radio-button' v-for='(val,idx) in [] as Array<KPoint>' :key='idx' :value='val.KPointType'>
             <input
               class='radio-input'
               type='radio'
@@ -25,53 +25,19 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, watch, onBeforeUnmount, computed } from 'vue'
-import { useSwapStore } from 'src/mystore/swap'
-import { initEchart, setKPointsToEchart, setStartAndEnd, calculateZoomStart } from './KLineOption'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { initEchart, setStartAndEnd } from './KLineOption'
 import * as echarts from 'echarts/core'
-import { useKLineStore } from 'src/mystore/kline'
+
 import SwapSelect from './SwapSelect.vue'
 
 const selectedKPType = ref('')
-const swapStore = useSwapStore()
-const klineStore = useKLineStore()
-
-const selectedTokenPairId = computed(() => swapStore.SelectedTokenPair?.ID)
-const kPointTypes = computed(() => [...swapStore.KPointTypes])
 
 let myChart: echarts.ECharts
-let intervalID: number
 
-watch(kPointTypes, (items) => {
-  if (items === null || items.length === 0) {
-    return
-  }
-  selectedKPType.value = items[0].KPointType
-})
-
-watch(selectedKPType, (selected) => {
-  klineStore.SelectedKPType = selected
-  initKPointsStore()
-})
-
-watch(selectedTokenPairId, () => {
-  klineStore.SelectedTokenPairID = selectedTokenPairId.value || -1
-  initKPointsStore()
-})
-
-watch(klineStore.EchartPoinsData, () => {
-  setKPointsToEchart(myChart, klineStore.EchartPoinsData)
-  if (klineStore.ResetKLineViewLock + 60000 < new Date().getTime()) {
-    setStartAndEnd(myChart, calculateZoomStart(klineStore.EchartPoinsData.CategoryItems.length), 100)
-  }
-}, { deep: true })
-
-const initKPointsStore = () => {
-  klineStore.OriginalTime = 0
-  klineStore.EchartPoinsData.CategoryItems = []
-  klineStore.EchartPoinsData.Nums = []
-  klineStore.ResetKLineViewLock = 0
-  klineStore.refreshHistoryKPoints()
+interface KPoint {
+  KPointType: string
+  ShortName: string
 }
 
 interface eventParams {
@@ -85,38 +51,19 @@ interface eventParams {
 }
 
 onMounted(() => {
-  swapStore.getKPointTypes()
   myChart = initEchart('chart-container')
   myChart.on('datazoom', (params) => {
     const _params = params as eventParams
     const start: number | undefined = _params.start || _params.batch?.[0].start
     const end: number | undefined = _params.end || _params.batch?.[0].end
     if (start === undefined || start < 1) {
-      klineStore.refreshHistoryKPoints()
       setStartAndEnd(myChart, 1, end || 0)
     }
-    klineStore.ResetKLineViewLock = new Date().getTime()
   })
-
-  // update kline
-  intervalID = window.setInterval(() => {
-    klineStore.refreshNewKPoints()
-    if (klineStore.ResetKLineViewLock + 60000 < new Date().getTime()) {
-      klineStore.ResetKLineViewLock = new Date().getTime()
-    }
-  }, 6000)
-
-  if (!klineStore.NeedInitKLine) {
-    setKPointsToEchart(myChart, klineStore.EchartPoinsData)
-    setStartAndEnd(myChart, calculateZoomStart(klineStore.EchartPoinsData.CategoryItems.length), 100)
-    return
-  }
-  klineStore.NeedInitKLine = false
 })
 
 onBeforeUnmount(() => {
   myChart.dispose()
-  if (intervalID) window.clearInterval(intervalID)
 })
 
 </script>

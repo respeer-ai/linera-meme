@@ -3,8 +3,7 @@
 </template>
 
 <script setup lang='ts'>
-import { defineAsyncComponent } from 'vue'
 
-const CreateMeme = defineAsyncComponent(() => import('src/components/meme/CreateMeme.vue'))
+import CreateMeme from 'src/components/meme/CreateMeme.vue'
 
 </script>

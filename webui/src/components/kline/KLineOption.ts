@@ -25,7 +25,7 @@ import {
 } from 'echarts/charts'
 import { UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
-import { EchartKPoints } from 'src/mystore/kline'
+import { kline } from 'src/localstore'
 
 echarts.use([
   ToolboxComponent,
@@ -172,7 +172,7 @@ const option: EChartsOption = {
       splitArea: {
         show: true
       },
-      boundaryGap: ["5%","5%"]
+      boundaryGap: ['5%', '5%']
     }
   ],
   dataZoom: [
@@ -258,7 +258,7 @@ export const initEchart = (elementID: string): (echarts.ECharts) => {
   return myChart
 }
 
-export const setKPointsToEchart = (myChart: echarts.ECharts, data: EchartKPoints) => {
+export const setKPointsToEchart = (myChart: echarts.ECharts, data: kline.EchartKPoints) => {
   const addOption = {
     xAxis: [
       {

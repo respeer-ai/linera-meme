@@ -44,8 +44,8 @@
           <div class='text-bold'>
             WTLINERA
           </div>
-          <div class='text-grey-8' :title='token1'>
-            {{ shortId(token1 || '', 5) }}
+          <div class='text-grey-8' title='AAAAAAAAAAAAAAAAAA'>
+            aaaaaaaaaaaaaaaa
           </div>
         </div>
         <q-space />
@@ -69,30 +69,22 @@
     </q-card>
     <q-btn
       rounded flat :label='$t("MSG_ADD_LIQUIDITY")' class='full-width border-red-4 vertical-inner-y-margin vertical-inner-y-margin-bottom'
-      @click='onAddLiquidity'
     />
   </div>
 </template>
 
 <script setup lang='ts'>
-import { gql } from '@apollo/client'
-import { dbModel } from 'src/model'
-import { useNotificationStore } from 'src/mystore/notification'
-import { useUserStore } from 'src/mystore/user'
-import { useWalletStore } from 'src/mystore/wallet'
-import { graphqlResult } from 'src/utils'
 import { shortId } from 'src/utils/shortid'
 import { ref, watch, onMounted, onUnmounted, toRef } from 'vue'
-import { useBlockStore } from 'src/stores/block'
-import { useHostStore } from 'src/mystore/host'
 
 interface Props {
   token0Id: string
   token0Ticker: string
 }
+
+// eslint-disable-next-line no-undef
 const props = defineProps<Props>()
 const token0Id = toRef(props, 'token0Id')
-const token1 = ref(useHostStore().wlineraApplicationId)
 
 const tokenZeroAmount = ref(0)
 const tokenOneAmount = ref(0)
@@ -103,263 +95,7 @@ const tokenOneAmountError = ref(false)
 const outBalance = ref(0)
 const inBalance = ref(0)
 
-const walletStore = useWalletStore()
-const userStore = useUserStore()
-const notificationStore = useNotificationStore()
-
 const subscriptionId = ref(undefined as unknown as string)
-const block = useBlockStore()
-
-const validateAmount = (): boolean => {
-  tokenZeroAmountError.value = tokenZeroAmount.value > outBalance.value
-  tokenOneAmountError.value = tokenOneAmount.value > inBalance.value
-  return !(tokenZeroAmountError.value || tokenOneAmountError.value)
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const approveToSwap = async (appID: string, publicKey: string, amount: string): Promise<any> => {
-  const chainId = useHostStore().swapCreationChainId
-  const owner = 'Application:' + useHostStore().swapApplicationId
-
-  const query = gql`
-    mutation approve($chainId: String!, $owner: String!, $amount: String!) {
-      approve(spender: {chain_id: $chainId, owner: $owner}, value: $amount)
-    }`
-  return new Promise((resolve, reject) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    window.linera.request({
-      method: 'linera_graphqlMutation',
-      params: {
-        applicationId: appID,
-        publicKey: publicKey,
-        query: {
-          query: query.loc?.source?.body,
-          variables: {
-            chainId,
-            owner,
-            amount
-          },
-          operationName: 'approve'
-        }
-      }
-    }).then((result) => {
-      resolve(result)
-    }).catch((e) => {
-      reject(e)
-    })
-  })
-}
-
-const chainApplications = async (): Promise<string[]> => {
-  const applications = gql`
-    query applications($chainId: String!) {
-      applications(chainId: $chainId) {
-        id
-      }
-    }
-  `
-
-  try {
-    const res = await window.linera?.request({
-      method: 'linera_graphqlQuery',
-      params: {
-        publicKey: userStore.account,
-        query: {
-          query: applications.loc?.source?.body,
-          variables: {
-            chainId: userStore.chainId
-          }
-        }
-      }
-    })
-    return ((graphqlResult.keyValue(res, 'applications') || []) as Record<string, string>[]).map((el) => el.id)
-  } catch (e) {
-    console.log('Failed query applications', e)
-    return Promise.reject('Failed query applications')
-  }
-}
-
-const applicationCreatorChainId = (id: string) => {
-  const firstPartLength = 128
-  const middlePartLength = 64
-  const lastPartLength = 24
-  const totalLength = firstPartLength + middlePartLength + lastPartLength
-  if (id.length !== totalLength) {
-    throw new Error('Invalid ID length')
-  }
-
-  const middlePart = id.slice(firstPartLength, firstPartLength + middlePartLength)
-  return middlePart
-}
-
-const requestApplication = async (appID: string) => {
-  const publicKey = userStore.account
-  const creatorChainId = applicationCreatorChainId(appID)
-  const query = gql`
-    mutation requestApplication ($chainId: String!, $applicationId: String!, $targetChainId: String!) {
-      requestApplication(chainId: $chainId, applicationId: $applicationId, targetChainId: $targetChainId)
-    }`
-  return new Promise((resolve, reject) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    window.linera.request({
-      method: 'linera_graphqlMutation',
-      params: {
-        publicKey: publicKey,
-        query: {
-          query: query.loc?.source?.body,
-          variables: {
-            chainId: userStore.chainId,
-            applicationId: appID,
-            targetChainId: creatorChainId
-          },
-          operationName: 'requestApplication'
-        }
-      }
-    }).then((result) => {
-      resolve(result)
-    }).catch((e) => {
-      reject(e)
-    })
-  })
-}
-
-const waitChainApplications = async (_applicationIds: string[], timeoutSeconds: number) => {
-  const applicationIds = await chainApplications()
-  for (const applicationId of _applicationIds) {
-    if (!applicationIds.includes(applicationId)) {
-      if (timeoutSeconds <= 0) return Promise.reject('Failed request application')
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          waitChainApplications(_applicationIds, timeoutSeconds - 1).then(() => {
-            resolve(undefined)
-          }).catch((e) => {
-            reject(e)
-          })
-        }, 1000)
-      })
-    }
-  }
-  return Promise.resolve(undefined)
-}
-
-const applicationSubscribed = async (applicationId: string) => {
-  const subscribedCreatorChain = gql`
-    query subscribedCreatorChain {
-      subscribedCreatorChain
-    }
-  `
-
-  try {
-    const res = await window.linera?.request({
-      method: 'linera_graphqlQuery',
-      params: {
-        publicKey: userStore.account,
-        applicationId,
-        query: {
-          query: subscribedCreatorChain.loc?.source?.body,
-          variables: {}
-        }
-      }
-    })
-    return graphqlResult.keyValue(res, 'subscribedCreatorChain') || false
-  } catch (e) {
-    console.log('Failed query subscribed application', e)
-    return Promise.reject('Failed query subscribed application')
-  }
-}
-
-const subscribeApplicationCreatorChain = async (applicationId: string) => {
-  const subscribeCreatorChain = gql`
-    mutation subscribeCreatorChain {
-      subscribeCreatorChain
-    }
-  `
-
-  try {
-    const res = await window.linera?.request({
-      method: 'linera_graphqlMutation',
-      params: {
-        publicKey: userStore.account,
-        applicationId,
-        query: {
-          query: subscribeCreatorChain.loc?.source?.body,
-          variables: {}
-        }
-      }
-    })
-    return graphqlResult.keyValue(res, 'subscribeCreatorChain')
-  } catch (e) {
-    console.log('Failed subscribe application', e)
-    return Promise.reject('Failed subscribe application')
-  }
-}
-
-const delay = async (milliSeconds: number) => {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(undefined), milliSeconds)
-  })
-}
-
-const onAddLiquidity = async () => {
-  if (!userStore.account) return
-  if (!tokenZeroAmount.value || tokenZeroAmount.value < 0) {
-    return
-  }
-  if (!tokenOneAmount.value || tokenOneAmount.value < 0) {
-    return
-  }
-  if (!validateAmount()) return
-
-  const applicationIds = await chainApplications()
-  if (!applicationIds.includes(token0Id.value)) {
-    await requestApplication(token0Id.value)
-  }
-  await delay(100)
-  if (!applicationIds.includes(token1.value)) {
-    await requestApplication(token1.value)
-  }
-  await delay(100)
-  try {
-    await waitChainApplications([token0Id.value, token1.value], 10)
-  } catch (e) {
-    console.log('Failed wait applications', e)
-    return
-  }
-  await delay(100)
-  if (!await applicationSubscribed(token0Id.value)) {
-    await subscribeApplicationCreatorChain(token0Id.value)
-  }
-  await delay(100)
-  if (!await applicationSubscribed(token1.value)) {
-    await subscribeApplicationCreatorChain(token1.value)
-  }
-  await delay(100)
-
-  await approveToSwap(token0Id.value, userStore.account, tokenZeroAmount.value.toString())
-  await delay(100)
-  await approveToSwap(token1.value, userStore.account, tokenOneAmount.value.toString())
-  await delay(100)
-
-  dbModel.ownerFromPublicKey(userStore.account).then(() => {
-    walletStore.addLiquidity(
-      token0Id.value || '',
-      token1.value || '',
-      userStore.account,
-      tokenZeroAmount.value,
-      tokenOneAmount.value
-    ).then().catch((e) => {
-      notificationStore.pushNotification({
-        Title: 'Add liquidity',
-        Message: e as string
-      })
-    })
-  }).catch((e) => {
-    notificationStore.pushNotification({
-      Title: 'Invalid account',
-      Message: e as string
-    })
-  })
-}
 
 watch(tokenZeroAmount, (amount) => {
   if (amount === null || amount < 0) {
@@ -373,49 +109,11 @@ watch(tokenOneAmount, (amount) => {
   }
 })
 
-const subscriptionHandler = (msg: unknown) => {
-  const data = (graphqlResult.keyValue(msg, 'data') || []) as Record<string, Record<string, Record<string, Record<string, Record<string, unknown>>>>>
-  if (data.result.notifications.reason.NewBlock) {
-    const blockChainId = data.result.notifications.chain_id.toString()
-    if (blockChainId === userStore.chainId) {
-      block.blockHeight = data.result.notifications.reason.NewBlock.height as number
-      block.blockHash = data.result.notifications.reason.NewBlock.hash as string
-    }
-  }
+const subscriptionHandler = () => {
+  // TODO
 }
-
-const refreshBalance = () => {
-  if (!userStore.account) return
-
-  dbModel.ownerFromPublicKey(userStore.account).then((v) => {
-    walletStore.getBalance(token0Id.value, userStore.chainId, v, (error, balance) => {
-      if (error) {
-        return
-      }
-      outBalance.value = Number(balance)
-      validateAmount()
-    })
-    walletStore.getBalance(token1.value, userStore.chainId, v, (error, balance) => {
-      if (error) {
-        return
-      }
-      inBalance.value = Number(balance)
-      validateAmount()
-    })
-  }).catch((e) => {
-    notificationStore.pushNotification({
-      Title: 'Invalid account',
-      Message: e as string
-    })
-  })
-}
-
-watch(() => block.blockHeight, () => {
-  refreshBalance()
-})
 
 onMounted(() => {
-  refreshBalance()
   if (subscriptionId.value) return
   window.linera?.request({
     method: 'linera_subscribe'

@@ -4,26 +4,28 @@ import { createHttpLink, InMemoryCache, split } from '@apollo/client/core'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient } from 'graphql-ws'
 import { getMainDefinition } from '@apollo/client/utilities'
-import { useHostStore } from 'src/localstore/host'
+import { constants } from 'src/constant'
 
 export /* async */ function getClientOptions (/* {app, router, ...}, options?: Partial<BootFileParams<unknown>> */) {
   const wsLink = new GraphQLWsLink(
     createClient({
-      url: 'ws://api.rpc.respeer.ai/ws'
+      url: constants.RPC_WS_URL
     })
   )
-
-  const host = useHostStore()
 
   const httpLink = createHttpLink({
     uri: (operation) => {
       switch (operation.variables.endpoint) {
         case 'swap':
-          return host.swapUrl
+          return constants.APPLICATION_URLS.SWAP
         case 'ams':
-          return host.amsUrl
+          return constants.APPLICATION_URLS.AMS
+        case 'blob':
+          return constants.APPLICATION_URLS.BLOB_GATEWAY
+        case 'proxy':
+          return constants.APPLICATION_URLS.PROXY
         default:
-          return 'https://api.rpc.respeer.ai/api/rpc'
+          return constants.RPC_URL
       }
     }
   })

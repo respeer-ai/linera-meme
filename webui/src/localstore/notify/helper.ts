@@ -1,5 +1,5 @@
-import { Notification } from './types'
 import { NotifyType } from './const'
+import { Notification } from './types'
 import { Notify } from 'quasar'
 
 const mergeMessage = (notification: Notification) => {
@@ -38,7 +38,7 @@ const warning = (notification: Notification): void => {
 
 const info = (notification: Notification): void => {
   Notify.create({
-    type: 'info',
+    type: 'positive',
     message: notification.Title,
     caption: mergeMessage(notification)
   })

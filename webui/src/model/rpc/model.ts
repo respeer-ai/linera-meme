@@ -1,8 +1,8 @@
 export type Balances = Record<
   string,
   {
-    chainBalance: number
-    ownerBalances: Record<string, number>
+    chainBalance: string
+    ownerBalances: Record<string, string>
   }
 >
 
@@ -15,7 +15,7 @@ export const ownerBalance = (
   chainId: string,
   owner: string
 ) => {
-  return balances[chainId].ownerBalances[accountOwner(owner)] || 0
+  return balances[chainId].ownerBalances[accountOwner(owner)] || '0.'
 }
 
 export const chainBalance = (

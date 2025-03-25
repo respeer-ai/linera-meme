@@ -5,15 +5,15 @@
 </template>
 
 <script setup lang='ts'>
-import { defineAsyncComponent, ref } from 'vue'
+import { ref } from 'vue'
 import { useRoute } from 'vue-router'
+
+import AddTokenLiquidity from 'src/components/liquidity/AddTokenLiquidity.vue'
 
 interface Query {
   token0Id: string
   token0Ticker: string
 }
-
-const AddTokenLiquidity = defineAsyncComponent(() => import('src/components/liquidity/AddTokenLiquidity.vue'))
 
 const route = useRoute()
 const token0Id = ref((route.query as unknown as Query).token0Id)
