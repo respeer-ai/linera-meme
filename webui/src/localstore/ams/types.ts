@@ -1,10 +1,5 @@
 import { BaseRequest } from '../request'
-
-export enum StoreType {
-  Blob = 'Blob',
-  Ipfs = 'Ipfs',
-  S3 = 'S3'
-}
+import { StoreType } from '../store'
 
 export interface Application {
   // TODO: use Account after fix https://github.com/linera-io/linera-protocol/issues/3462

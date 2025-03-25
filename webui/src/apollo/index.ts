@@ -24,6 +24,7 @@ export /* async */ function getClientOptions (/* {app, router, ...}, options?: P
           return constants.APPLICATION_URLS.BLOB_GATEWAY
         case 'proxy':
           return constants.APPLICATION_URLS.PROXY
+        case 'rpc':
         default:
           return constants.RPC_URL
       }

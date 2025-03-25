@@ -19,7 +19,8 @@
     "test:unit:watchAll": "jest --watchAll",
     "serve:test:coverage": "quasar serve test/jest/coverage/lcov-report/ --port 8788",
     "concurrently:dev:jest": "concurrently \"quasar dev\" \"jest --watch\"",
-    "graphql:generate": "graphql-codegen --config graphql-codegen.ts"
+    "graphql:generate": "graphql-codegen --config graphql-codegen.ts",
+    "build:wasm": "wasm-pack build --out-dir ../dist/wasm --target web wasm"
   },
   "pre-commit": [
     "lint",

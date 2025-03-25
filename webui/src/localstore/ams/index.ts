@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
-import { Application, GetApplicationsRequest, StoreType } from './types'
+import { Application, GetApplicationsRequest } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { APPLICATIONS } from 'src/graphql'
 import { constants } from 'src/constant'
 import { graphqlResult } from 'src/utils'
+import { StoreType } from '../store'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
