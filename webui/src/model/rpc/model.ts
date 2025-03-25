@@ -15,9 +15,9 @@ export const ownerBalance = (
   chainId: string,
   owner: string
 ) => {
-  return balances[chainId].ownerBalances[accountOwner(owner)] || '0.'
+  return balances[chainId]?.ownerBalances[accountOwner(owner)] || '0.'
 }
 
 export const chainBalance = (balances: Balances, chainId: string) => {
-  return balances[chainId].chainBalance
+  return balances[chainId]?.chainBalance || '0.'
 }

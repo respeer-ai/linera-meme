@@ -10,6 +10,8 @@ arguments to these functions cannot be trusted and _must_ be verified!
 */
 use async_graphql::{http::parse_query_string, EmptySubscription, Schema};
 
+use linera_base::{crypto::CryptoHash, data_types::BlobContent};
+
 use wasm_bindgen::prelude::*;
 use web_sys::*;
 
@@ -32,4 +34,10 @@ pub async fn graphql_deserialize_proxy_operation(
         todo!()
     }
     Ok(format!("{:?}", values))
+}
+
+#[wasm_bindgen]
+pub async fn blob_hash(blob: &str) -> Result<String, JsError> {
+    let bytes: Vec<u8> = serde_json::from_str(blob)?;
+    Ok(CryptoHash::new(&BlobContent::new_data(bytes)).to_string())
 }

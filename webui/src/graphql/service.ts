@@ -5,9 +5,3 @@ export const BALANCES = gql`
     balances(chainOwners: $chainOwners)
   }
 `
-
-export const PREPARE_BLOB = gql`
-  mutation prepareBlob($chainId: ChainId!, $bytes: [Int!]!) {
-    prepareBlob(chainId: $chainId, bytes: $bytes)
-  }
-`

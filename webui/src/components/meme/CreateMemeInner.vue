@@ -78,7 +78,7 @@
 <script lang='ts' setup>
 import { QInput } from 'quasar'
 import { CREATE_MEME, PUBLISH_DATA_BLOB } from 'src/graphql'
-import { meme, blob, user, store } from 'src/localstore'
+import { meme, user, store } from 'src/localstore'
 import { computed, ref } from 'vue'
 import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { stringify } from 'lossless-json'
@@ -112,7 +112,7 @@ const chainId = computed(() => _user.chainId)
 
 const MAXSIZE = 4 * 1024 * 1024
 const errorMessage = ref('')
-const logoBytes = ref([] as number[])
+const logoBytes = ref(new Uint8Array())
 const imageUrl = ref('')
 
 const onFileDrop = (event: DragEvent): void => {
@@ -135,8 +135,7 @@ const onFileDrop = (event: DragEvent): void => {
         imageUrl.value = url
 
         if (arrayBuffer instanceof ArrayBuffer) {
-          const byteArray = new Uint8Array(arrayBuffer)
-          logoBytes.value = Array.from(byteArray)
+          logoBytes.value = new Uint8Array(arrayBuffer)
         }
       }
     }
@@ -164,8 +163,7 @@ const onFileChange = (event: Event): void => {
         imageUrl.value = url
 
         if (arrayBuffer instanceof ArrayBuffer) {
-          const byteArray = new Uint8Array(arrayBuffer)
-          logoBytes.value = Array.from(byteArray)
+          logoBytes.value = new Uint8Array(arrayBuffer)
         }
       }
     }
@@ -177,13 +175,6 @@ const fileInput = ref<HTMLInputElement>()
 
 const onInputImage = () => {
   fileInput.value?.click()
-}
-
-const prepareBlob = async () => {
-  return await blob.BlobGateway.prepareBlob({
-    chainId: _user.chainId,
-    bytes: logoBytes.value
-  }) as string
 }
 
 const publishDataBlob = (): Promise<string> => {
@@ -228,7 +219,8 @@ const createMeme = async (): Promise<string> => {
             chainId: chainId.value,
             blobHash: argument.value.meme.metadata.logo
           },
-          bytes: queryBytes
+          bytes: queryBytes,
+          blobs: [logoBytes.value]
         },
         operationName: 'createMeme'
       }
@@ -242,7 +234,7 @@ const createMeme = async (): Promise<string> => {
 
 const onCreateMemeClick = async () => {
   try {
-    const blobHash = await prepareBlob()
+    const blobHash = await lineraWasm.blob_hash(`[${logoBytes.value.toString()}]`)
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
     await publishDataBlob()

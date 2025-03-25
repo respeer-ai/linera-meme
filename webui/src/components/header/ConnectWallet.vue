@@ -83,7 +83,7 @@
 import { computed, onMounted } from 'vue'
 import { Cookies } from 'quasar'
 import { user } from 'src/localstore'
-import { shortid, graphqlResult } from 'src/utils'
+import { shortid } from 'src/utils'
 import { Web3 } from 'web3'
 import { addressIcon, microchainIcon, copyIcon } from 'src/assets'
 import { BALANCES } from 'src/graphql'
@@ -168,7 +168,7 @@ const getBalances = async () => {
       }
     }
   }).then((result) => {
-    const balances = graphqlResult.keyValue(result, 'balances') as rpcModel.Balances
+    const balances = result as rpcModel.Balances
     _user.chainBalance = rpcModel.chainBalance(balances, chainId.value)
     _user.accountBalance = rpcModel.ownerBalance(balances, chainId.value, owner)
   }).catch((e) => {
