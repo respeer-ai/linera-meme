@@ -14,12 +14,16 @@
 <script setup lang='ts'>
 import { onMounted } from 'vue'
 import { notify } from 'src/localstore'
+import initWasm from '../../dist/wasm/linera_wasm'
+import wasmModuleUrl from '../../dist/wasm/linera_wasm_bg.wasm?url'
 
 import Header from 'src/components/header/Header.vue'
 
 const _notify = notify.useNotificationStore()
 
-onMounted(() => {
+onMounted(async () => {
+  await initWasm(await fetch(wasmModuleUrl))
+
   _notify.$subscribe((_, state) => {
     state.Notifications.forEach((notif, index) => {
       if (notif.Popup) {

@@ -235,6 +235,7 @@ const createMeme = async (): Promise<string> => {
 const onCreateMemeClick = async () => {
   try {
     const blobHash = await lineraWasm.blob_hash(`[${logoBytes.value.toString()}]`)
+    console.log(blobHash)
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
     await publishDataBlob()
