@@ -212,6 +212,7 @@ function open_multi_owner_chain() {
     chain_id=${chain_message[1]}
 
     # Assign newly created chain to unassigned key.
+    assign_chain_to_owner $wallet_name creator $message_id > /dev/null 2>&1
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         assign_chain_to_owner $wallet_name $i $message_id > /dev/null 2>&1
     done
@@ -257,35 +258,38 @@ function create_application() {
     module_id=$2
     argument=$3
     parameters=$4
+    chain_id=$5
+
+    # Creator chain is not owner of multi-owner chain so we just create application on the first owner
 
     if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-               create-application $module_id \
+        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+               create-application $module_id $chain_id \
                --json-argument "$argument" \
                --json-parameters "$parameters"
     elif [ "x$argument" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-               create-application $module_id \
+        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+               create-application $module_id $chain_id \
                --json-argument "$argument"
     elif [ "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-               create-application $module_id \
+        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+               create-application $module_id $chain_id \
                --json-parameters "$parameters"
     else
-        linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-               create-application $module_id
+        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+               create-application $module_id $chain_id
     fi
 }
 
 # Create applications
-BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID)
-AMS_APPLICATION_ID=$(create_application ams $AMS_MODULE_ID '{}')
-SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}')
-PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}")
+BLOB_GATEWAY_APPLICATION_ID=$(create_application blob-gateway $BLOB_GATEWAY_MODULE_ID '' '' $BLOB_GATEWAY_CHAIN_ID)
+AMS_APPLICATION_ID=$(create_application ams $AMS_MODULE_ID '{}' '' $AMS_CHAIN_ID)
+SWAP_APPLICATION_ID=$(create_application swap $SWAP_MODULE_ID "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" '{}' $SWAP_CHAIN_ID)
+PROXY_APPLICATION_ID=$(create_application proxy $PROXY_MODULE_ID "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}" '' $PROXY_CHAIN_ID)
 
 # Exhaust chain messages
 process_inboxes blob-gateway
@@ -341,10 +345,10 @@ echo -e "   http://graphiql.blobgateway.com"
 echo -e "   http://graphiql.ams.respeer.ai"
 echo -e "   http://graphiql.linerameme.fun"
 echo -e "   http://graphiql.lineraswap.fun"
-echo -e "   http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
-echo -e "   http://api.ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
-echo -e "   http://api.linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
-echo -e "   http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID\n\n"
+echo -e "   'http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
+echo -e "   'http://api.ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
+echo -e "   'http://api.linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
+echo -e "   'http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID'\n\n"
 
 function run_service() {
     wallet_name=$1
