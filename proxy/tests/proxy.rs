@@ -587,7 +587,6 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
         .approve_add_genesis_miner(&operator_chain_2, meme_user_owner)
         .await;
 
-    /*
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
@@ -597,7 +596,6 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
     let expected =
         json!({"genesisMiners": [proxy_user_2, proxy_user_3, proxy_user_1, meme_user_owner]});
     assert_eq!(response, expected);
-    */
 
     suite
         .fund_chain(
