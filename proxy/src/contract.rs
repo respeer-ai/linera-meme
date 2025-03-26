@@ -624,9 +624,10 @@ impl ProxyContract {
 
     async fn on_msg_create_meme(
         &mut self,
-        meme: MemeInstantiationArgument,
+        mut meme: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
+        meme.swap_application_id = Some(self.state.swap_application_id().await);
         self.on_creation_chain_msg_create_meme(meme, parameters)
             .await
     }
