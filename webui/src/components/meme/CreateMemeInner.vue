@@ -209,7 +209,7 @@ const publishDataBlob = (): Promise<string> => {
 
 const createMeme = async (): Promise<string> => {
   parameters.value.creator = await user.User.ownerAccount()
-  parameters.value.swapCreatorChainId = await constants.creatorChainId('proxy')
+  parameters.value.swapCreatorChainId = await constants.creatorChainId('swap')
 
   const variables = {
     memeInstantiationArgument: argument.value,
@@ -245,7 +245,7 @@ const onCreateMemeClick = async () => {
     const blobHash = await lineraWasm.blob_hash(`[${logoBytes.value.toString()}]`)
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
-    // await publishDataBlob()
+    await publishDataBlob()
     await createMeme()
   } catch (e) {
     console.log(e)
