@@ -265,7 +265,9 @@ impl MemeContract {
                     discord: self.state.discord(),
                     website: self.state.website(),
                     github: self.state.github(),
-                    spec: format!("{:?}", self.state.meme()).into(),
+                    spec: Some(
+                        serde_json::to_string(&self.state.meme()).expect("Failed serialize meme"),
+                    ),
                     created_at: self.runtime.system_time(),
                 },
             };

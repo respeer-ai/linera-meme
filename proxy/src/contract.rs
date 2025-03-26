@@ -697,7 +697,9 @@ mod tests {
     };
     use futures::FutureExt as _;
     use linera_sdk::{
-        linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, Owner},
+        linera_base_types::{
+            Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, ModuleId, Owner,
+        },
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -793,6 +795,7 @@ mod tests {
             .with_authenticated_signer(owner)
             .with_chain_id(chain_id)
             .with_application_creator_chain_id(chain_id)
+            .with_chain_ownership(ChainOwnership::single(owner))
             .with_application_id(application_id);
         let mut contract = ProxyContract {
             state: ProxyState::load(runtime.root_view_storage_context())

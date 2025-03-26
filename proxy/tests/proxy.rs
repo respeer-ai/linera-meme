@@ -148,10 +148,7 @@ impl TestSuite {
             .add_block(|block| {
                 block.with_operation(
                     self.proxy_application_id.unwrap(),
-                    ProxyOperation::ProposeAddGenesisMiner {
-                        owner,
-                        endpoint: None,
-                    },
+                    ProxyOperation::ProposeAddGenesisMiner { owner },
                 );
             })
             .await;
@@ -260,9 +257,10 @@ async fn proxy_create_meme_test() {
     let operator_chain_2 = &suite.operator_chain_2.clone();
     let swap_chain = &suite.swap_chain.clone();
 
+    let proxy_owner = suite.chain_owner_account(proxy_chain);
     let operator_1 = suite.chain_owner_account(operator_chain_1);
     let operator_2 = suite.chain_owner_account(operator_chain_2);
-    let owner = suite.chain_owner_account(meme_user_chain);
+    let meme_user_owner = suite.chain_owner_account(meme_user_chain);
     let meme_user_key_pair = meme_user_chain.key_pair();
 
     suite.create_swap_application().await;
@@ -280,10 +278,10 @@ async fn proxy_create_meme_test() {
     assert_eq!(response, expected);
 
     suite
-        .propose_add_genesis_miner(&operator_chain_1, owner)
+        .propose_add_genesis_miner(&operator_chain_1, meme_user_owner)
         .await;
     suite
-        .approve_add_genesis_miner(&operator_chain_2, owner)
+        .approve_add_genesis_miner(&operator_chain_2, meme_user_owner)
         .await;
 
     let QueryOutcome { response, .. } = proxy_chain
@@ -292,7 +290,7 @@ async fn proxy_create_meme_test() {
             "query { genesisMiners }",
         )
         .await;
-    let expected = json!({"genesisMiners": [owner]});
+    let expected = json!({"genesisMiners": [proxy_owner, meme_user_owner]});
     assert_eq!(response, expected);
 
     suite

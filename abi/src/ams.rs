@@ -48,6 +48,7 @@ pub const APPLICATION_TYPES: &'static [&'static str] = &[
 ];
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Metadata {
     pub creator: Account,
     pub application_name: String,
