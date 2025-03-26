@@ -31,13 +31,11 @@ impl ServiceAbi for ProxyAbi {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Miner {
     pub owner: Account,
-    pub endpoint: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GenesisMiner {
     pub owner: Account,
-    pub endpoint: Option<String>,
     pub approval: Approval,
 }
 
@@ -54,8 +52,6 @@ pub struct Chain {
 pub enum ProxyOperation {
     ProposeAddGenesisMiner {
         owner: Account,
-        // Endpoint is used to notify new chain to miner
-        endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
         owner: Account,
@@ -69,9 +65,7 @@ pub enum ProxyOperation {
     },
 
     // Miner can only register from their client
-    RegisterMiner {
-        endpoint: Option<String>,
-    },
+    RegisterMiner,
     DeregisterMiner,
 
     CreateMeme {
@@ -99,7 +93,6 @@ pub enum ProxyMessage {
     ProposeAddGenesisMiner {
         operator: Account,
         owner: Account,
-        endpoint: Option<String>,
     },
     ApproveAddGenesisMiner {
         operator: Account,
@@ -117,7 +110,6 @@ pub enum ProxyMessage {
 
     RegisterMiner {
         owner: Account,
-        endpoint: Option<String>,
     },
     DeregisterMiner {
         owner: Account,

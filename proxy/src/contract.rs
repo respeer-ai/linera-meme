@@ -49,9 +49,9 @@ impl Contract for ProxyContract {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
-        let owner = self.owner_account();
+        let owners = self.owner_accounts();
         self.state
-            .initantiate(argument, owner)
+            .instantiate(argument, owners)
             .await
             .expect("Failed instantiate");
     }
@@ -63,8 +63,8 @@ impl Contract for ProxyContract {
         }
 
         match operation {
-            ProxyOperation::ProposeAddGenesisMiner { owner, endpoint } => self
-                .on_op_propose_add_genesis_miner(owner, endpoint)
+            ProxyOperation::ProposeAddGenesisMiner { owner } => self
+                .on_op_propose_add_genesis_miner(owner)
                 .expect("Failed OP: propose add genesis miner"),
             ProxyOperation::ApproveAddGenesisMiner { owner } => self
                 .on_op_approve_add_genesis_miner(owner)
@@ -77,8 +77,8 @@ impl Contract for ProxyContract {
                 .on_op_approve_remove_genesis_miner(owner)
                 .expect("Failed OP: approve remove genesis miner"),
 
-            ProxyOperation::RegisterMiner { endpoint } => self
-                .on_op_register_miner(endpoint)
+            ProxyOperation::RegisterMiner => self
+                .on_op_register_miner()
                 .expect("Failed OP: register miner"),
             ProxyOperation::DeregisterMiner => self
                 .on_op_deregister_miner()
@@ -114,12 +114,8 @@ impl Contract for ProxyContract {
         }
 
         match message {
-            ProxyMessage::ProposeAddGenesisMiner {
-                operator,
-                owner,
-                endpoint,
-            } => self
-                .on_msg_propose_add_genesis_miner(operator, owner, endpoint)
+            ProxyMessage::ProposeAddGenesisMiner { operator, owner } => self
+                .on_msg_propose_add_genesis_miner(operator, owner)
                 .await
                 .expect("Failed MSG: propose add genesis miner"),
             ProxyMessage::ApproveAddGenesisMiner { operator, owner } => self
@@ -136,8 +132,8 @@ impl Contract for ProxyContract {
                 .await
                 .expect("Failed MSG: approve remove genesis miner"),
 
-            ProxyMessage::RegisterMiner { owner, endpoint } => self
-                .on_msg_register_miner(owner, endpoint)
+            ProxyMessage::RegisterMiner { owner } => self
+                .on_msg_register_miner(owner)
                 .await
                 .expect("Failed MSG: register miner"),
             ProxyMessage::DeregisterMiner { owner } => self
@@ -208,18 +204,25 @@ impl ProxyContract {
         }
     }
 
+    fn owner_accounts(&mut self) -> Vec<Account> {
+        let chain_id = self.runtime.chain_id();
+        self.runtime
+            .chain_ownership()
+            .all_owners()
+            .map(|&owner| Account {
+                chain_id,
+                owner: Some(AccountOwner::User(owner)),
+            })
+            .collect()
+    }
+
     fn on_op_propose_add_genesis_miner(
         &mut self,
         owner: Account,
-        endpoint: Option<String>,
     ) -> Result<ProxyResponse, ProxyError> {
         let operator = self.owner_account();
         self.runtime
-            .prepare_message(ProxyMessage::ProposeAddGenesisMiner {
-                operator,
-                owner,
-                endpoint,
-            })
+            .prepare_message(ProxyMessage::ProposeAddGenesisMiner { operator, owner })
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
@@ -261,13 +264,10 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    fn on_op_register_miner(
-        &mut self,
-        endpoint: Option<String>,
-    ) -> Result<ProxyResponse, ProxyError> {
+    fn on_op_register_miner(&mut self) -> Result<ProxyResponse, ProxyError> {
         let owner = self.owner_account();
         self.runtime
-            .prepare_message(ProxyMessage::RegisterMiner { owner, endpoint })
+            .prepare_message(ProxyMessage::RegisterMiner { owner })
             .send_to(self.runtime.application_creator_chain_id());
         Ok(ProxyResponse::Ok)
     }
@@ -429,9 +429,8 @@ impl ProxyContract {
         &mut self,
         operator: Account,
         owner: Account,
-        endpoint: Option<String>,
     ) -> Result<(), ProxyError> {
-        self.state.add_genesis_miner(owner, endpoint).await?;
+        self.state.add_genesis_miner(owner).await?;
         // Everybody can propose add genesis miner. If it's proposed by operator, approve it
         self.state.validate_operator(operator).await?;
         self.state.approve_add_genesis_miner(owner, operator).await
@@ -469,12 +468,8 @@ impl ProxyContract {
             .await
     }
 
-    async fn on_msg_register_miner(
-        &mut self,
-        owner: Account,
-        endpoint: Option<String>,
-    ) -> Result<(), ProxyError> {
-        self.state.register_miner(owner, endpoint).await
+    async fn on_msg_register_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
+        self.state.register_miner(owner).await
     }
 
     fn on_msg_deregister_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
@@ -729,10 +724,7 @@ mod tests {
         };
 
         let response = proxy
-            .execute_operation(ProxyOperation::ProposeAddGenesisMiner {
-                owner,
-                endpoint: None,
-            })
+            .execute_operation(ProxyOperation::ProposeAddGenesisMiner { owner })
             .now_or_never()
             .expect("Execution of proxy operation should not await anything");
 
@@ -763,11 +755,7 @@ mod tests {
         };
 
         proxy
-            .execute_message(ProxyMessage::ProposeAddGenesisMiner {
-                operator,
-                owner,
-                endpoint: None,
-            })
+            .execute_message(ProxyMessage::ProposeAddGenesisMiner { operator, owner })
             .await;
 
         assert_eq!(
@@ -779,15 +767,6 @@ mod tests {
                 .unwrap(),
             true
         );
-
-        let miner = proxy
-            .state
-            .genesis_miners
-            .get(&owner)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(miner.endpoint, None);
     }
 
     #[test]
