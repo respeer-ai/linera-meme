@@ -50,6 +50,7 @@ pub struct InstantiationArgument {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MemeParameters {
     pub creator: Account,
     pub initial_liquidity: Option<Liquidity>,
