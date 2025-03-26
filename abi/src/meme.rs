@@ -23,6 +23,7 @@ pub struct Metadata {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
+#[serde(rename_all = "camelCase")]
 pub struct Liquidity {
     pub fungible_amount: Amount,
     pub native_amount: Amount,
