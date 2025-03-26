@@ -112,7 +112,7 @@ const chainId = computed(() => _user.chainId)
 
 const MAXSIZE = 4 * 1024 * 1024
 const errorMessage = ref('')
-const logoBytes = ref(new Uint8Array())
+const logoBytes = ref([] as number[])
 const imageUrl = ref('')
 
 const onFileDrop = (event: DragEvent): void => {
@@ -135,7 +135,7 @@ const onFileDrop = (event: DragEvent): void => {
         imageUrl.value = url
 
         if (arrayBuffer instanceof ArrayBuffer) {
-          logoBytes.value = new Uint8Array(arrayBuffer)
+          logoBytes.value = Array.from(new Uint8Array(arrayBuffer))
         }
       }
     }
@@ -163,7 +163,7 @@ const onFileChange = (event: Event): void => {
         imageUrl.value = url
 
         if (arrayBuffer instanceof ArrayBuffer) {
-          logoBytes.value = new Uint8Array(arrayBuffer)
+          logoBytes.value = Array.from(new Uint8Array(arrayBuffer))
         }
       }
     }
@@ -178,6 +178,7 @@ const onInputImage = () => {
 }
 
 const publishDataBlob = (): Promise<string> => {
+  // Uint8Array will be stringify to map so we should transfer it to array
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   return new Promise((resolve, reject) => {
     window.linera.request({
@@ -189,7 +190,8 @@ const publishDataBlob = (): Promise<string> => {
           variables: {
             chainId: chainId.value,
             blobHash: argument.value.meme.metadata.logo
-          }
+          },
+          blobBytes: [JSON.stringify(logoBytes.value)]
         },
         operationName: 'publishDataBlob'
       }
@@ -219,8 +221,7 @@ const createMeme = async (): Promise<string> => {
             chainId: chainId.value,
             blobHash: argument.value.meme.metadata.logo
           },
-          bytes: queryBytes,
-          blobs: [logoBytes.value]
+          bytes: queryBytes
         },
         operationName: 'createMeme'
       }
