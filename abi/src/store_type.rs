@@ -1,7 +1,9 @@
+use anyhow::anyhow;
 use async_graphql::Enum;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
-#[derive(Default, Debug, Serialize, Clone, Eq, PartialEq, Enum, Copy)]
+#[derive(Default, Debug, Deserialize, Serialize, Clone, Eq, PartialEq, Enum, Copy)]
 pub enum StoreType {
     #[default]
     Blob,
@@ -9,17 +11,15 @@ pub enum StoreType {
     S3,
 }
 
-impl<'de> Deserialize<'de> for StoreType {
-    fn deserialize<D>(de: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let variant = String::deserialize(de)?;
-        Ok(match variant.as_str() {
-            "Blob" => StoreType::Blob,
-            "Ipfs" => StoreType::Ipfs,
-            "S3" => StoreType::S3,
-            _ => todo!(),
-        })
+impl FromStr for StoreType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Blob" => Ok(Self::Blob),
+            "Ipfs" => Ok(Self::Ipfs),
+            "S3" => Ok(Self::S3),
+            _ => Err(anyhow!("Invalid enum! Enum: {}", s)),
+        }
     }
 }
