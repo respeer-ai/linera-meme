@@ -23,7 +23,7 @@ use linera_sdk::{
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use serde_json::json;
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 #[derive(Clone)]
 struct TestSuite {
@@ -529,14 +529,15 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
 
     let proxy_chain = &suite.proxy_chain.clone();
     let meme_user_chain = &suite.meme_user_chain.clone();
+    let meme_miner_chain = &suite.meme_user_chain.clone();
     let operator_chain_1 = &suite.operator_chain_1.clone();
     let operator_chain_2 = &suite.operator_chain_2.clone();
     let swap_chain = &suite.swap_chain.clone();
 
     let operator_1 = suite.chain_owner_account(operator_chain_1);
     let operator_2 = suite.chain_owner_account(operator_chain_2);
-    let meme_user_owner = suite.chain_owner_account(meme_user_chain);
     let meme_user_key_pair = meme_user_chain.key_pair();
+    let meme_miner_owner = suite.chain_owner_account(meme_miner_chain);
 
     let proxy_key_1 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
     let proxy_key_2 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
@@ -581,11 +582,12 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
     assert_eq!(response, expected);
 
     suite
-        .propose_add_genesis_miner(&operator_chain_1, meme_user_owner)
+        .propose_add_genesis_miner(&operator_chain_1, meme_miner_owner)
         .await;
     suite
-        .approve_add_genesis_miner(&operator_chain_2, meme_user_owner)
+        .approve_add_genesis_miner(&operator_chain_2, meme_miner_owner)
         .await;
+    proxy_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -593,13 +595,22 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
             "query { genesisMiners }",
         )
         .await;
-    let expected = [proxy_user_1, proxy_user_2, proxy_user_3, meme_user_owner];
-    let response = response["genesisMiners"].as_array().unwrap();
-    let equal = expected
-        .iter()
-        .zip(response.iter())
-        .all(|(&a, b)| a == serde_json::from_value::<Account>(b.clone()).unwrap());
-    assert!(equal);
+    let expected = [proxy_user_1, proxy_user_2, proxy_user_3, meme_miner_owner];
+    let response: Vec<Account> = response["genesisMiners"]
+        .as_array()
+        .unwrap()
+        .into_iter()
+        .map(|owner| serde_json::from_value::<Account>(owner.clone()).unwrap())
+        .collect();
+    assert_eq!(response.len(), 4);
+
+    let expected: HashSet<_> = expected.iter().cloned().collect();
+    let response: HashSet<_> = response.iter().cloned().collect();
+
+    let diff: Vec<_> = expected.difference(&response).cloned().collect();
+    assert_eq!(diff.len(), 0);
+    let diff: Vec<_> = response.difference(&expected).cloned().collect();
+    assert_eq!(diff.len(), 0);
 
     suite
         .fund_chain(
