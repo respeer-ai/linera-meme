@@ -55,8 +55,6 @@ impl ProxyState {
         for owner in owners {
             let mut approval = Approval::new(1);
             approval.approve(owner);
-
-            self.operators.insert(&owner, approval.clone())?;
             self.genesis_miners.insert(
                 &owner,
                 GenesisMiner {
@@ -64,7 +62,8 @@ impl ProxyState {
                     approval: approval.clone(),
                 },
             )?;
-            self.operators.insert(&owner, approval)?;
+            // We don't add owner as operator in default. Operator should be added with clear
+            // definition
         }
 
         Ok(())

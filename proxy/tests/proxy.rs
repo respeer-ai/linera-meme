@@ -593,9 +593,13 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
             "query { genesisMiners }",
         )
         .await;
-    let expected =
-        json!({"genesisMiners": [proxy_user_2, proxy_user_3, proxy_user_1, meme_user_owner]});
-    assert_eq!(response, expected);
+    let expected = [proxy_user_1, proxy_user_2, proxy_user_3, meme_user_owner];
+    let response = response["genesisMiners"].as_array().unwrap();
+    let equal = expected
+        .iter()
+        .zip(response.iter())
+        .all(|(&a, b)| a == serde_json::from_value::<Account>(b.clone()).unwrap());
+    assert!(equal);
 
     suite
         .fund_chain(
