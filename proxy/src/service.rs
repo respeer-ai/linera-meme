@@ -7,7 +7,7 @@ mod state;
 
 use std::sync::Arc;
 
-use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
+use abi::proxy::{Chain, ProxyAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId, WithServiceAbi},
