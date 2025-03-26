@@ -1,3 +1,9 @@
+import { ApolloClient } from '@apollo/client/core'
+import { getClientOptions } from 'src/apollo'
+import { provideApolloClient, useQuery } from '@vue/apollo-composable'
+import { CREATOR_CHAIN_ID } from 'src/graphql'
+import { graphqlResult } from 'src/utils'
+
 const URLS = [
   'http://api.blobgateway.com/api/blobs/chains/19f19c17072df551d9b800a95e84d257a923b7fe24027fbd74bc07495900145b/applications/a4cda42645b757b2450a2603bd8372c1e0cdc5cfa89deb3709a1853c96341d0a',
   'http://api.ams.respeer.ai/api/ams/chains/7f004722274de5c0ca6d8c9809f10223ee569d1b0146b293c2ed369cf6adabea/applications/2c37f8b8a968c984be315efc51d493a900edf146d5a095f7ad8232a811ecbba2',
@@ -23,5 +29,35 @@ export const formalizeSchema = (url: string) => {
 }
 
 export const applicationId = (url: string) => {
-  return url.split('/')[-1]
+  return url.split('/').at(-1)
+}
+
+const options = /* await */ getClientOptions()
+const apolloClient = new ApolloClient(options)
+
+export const creatorChainId = async (
+  endpoint: 'proxy' | 'swap'
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const { /* result, refetch, fetchMore, */ onResult, onError } =
+      provideApolloClient(apolloClient)(() =>
+        useQuery(
+          CREATOR_CHAIN_ID,
+          {
+            endpoint
+          },
+          {
+            fetchPolicy: 'network-only'
+          }
+        )
+      )
+
+    onResult((res) => {
+      resolve(graphqlResult.data(res, 'creatorChainId') as string)
+    })
+
+    onError((e) => {
+      reject(e)
+    })
+  })
 }

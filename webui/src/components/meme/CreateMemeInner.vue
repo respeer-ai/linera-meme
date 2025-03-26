@@ -84,9 +84,14 @@ import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { stringify } from 'lossless-json'
 import { constants } from 'src/constant'
 
+const _user = user.useUserStore()
+const publicKey = computed(() => _user.publicKey)
+const chainId = computed(() => _user.chainId)
+
 const argument = ref({
   meme: {
     initialSupply: '21000000',
+    totalSupply: '21000000',
     decimals: 6,
     metadata: {
       description: "Creator didn't leave any information about this token. You should know if you interact with malfunction application, you may lose your assets!"
@@ -98,17 +103,15 @@ const initialLiquidity = ref({
   fungibleAmount: '0',
   nativeAmount: '0'
 } as meme.Liquidity)
-const parameters = ref({} as meme.MemeParameters)
+const parameters = ref({
+  virtualInitialLiquidity: true
+} as meme.MemeParameters)
 
 const nameError = ref(false)
 const tickerError = ref(false)
 const imageError = ref(false)
 
 const expanded = ref(false)
-
-const _user = user.useUserStore()
-const publicKey = computed(() => _user.publicKey)
-const chainId = computed(() => _user.chainId)
 
 const MAXSIZE = 4 * 1024 * 1024
 const errorMessage = ref('')
@@ -177,6 +180,7 @@ const onInputImage = () => {
   fileInput.value?.click()
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const publishDataBlob = (): Promise<string> => {
   // Uint8Array will be stringify to map so we should transfer it to array
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -204,6 +208,9 @@ const publishDataBlob = (): Promise<string> => {
 }
 
 const createMeme = async (): Promise<string> => {
+  parameters.value.creator = await user.User.ownerAccount()
+  parameters.value.swapCreatorChainId = await constants.creatorChainId('proxy')
+
   const variables = {
     memeInstantiationArgument: argument.value,
     memeParameters: parameters.value
@@ -216,12 +223,12 @@ const createMeme = async (): Promise<string> => {
         applicationId: constants.applicationId(constants.APPLICATION_URLS.PROXY),
         publicKey: publicKey.value,
         query: {
-          query: PUBLISH_DATA_BLOB.loc?.source?.body,
+          query: CREATE_MEME.loc?.source?.body,
           variables: {
-            chainId: chainId.value,
-            blobHash: argument.value.meme.metadata.logo
+            memeInstantiationArgument: stringify(argument.value),
+            memeParameters: stringify(parameters.value)
           },
-          bytes: queryBytes
+          applicationOperationBytes: queryBytes
         },
         operationName: 'createMeme'
       }
@@ -236,10 +243,9 @@ const createMeme = async (): Promise<string> => {
 const onCreateMemeClick = async () => {
   try {
     const blobHash = await lineraWasm.blob_hash(`[${logoBytes.value.toString()}]`)
-    console.log(blobHash)
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
-    await publishDataBlob()
+    // await publishDataBlob()
     await createMeme()
   } catch (e) {
     console.log(e)

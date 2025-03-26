@@ -1,3 +1,4 @@
+import { Account } from '../account'
 import { StoreType } from '../store'
 
 // TODO: export those from meme application
@@ -33,7 +34,8 @@ export interface InstantiationArgument {
 }
 
 export interface MemeParameters {
-  creator: string
+  creator: Account
   initialLiquidity?: Liquidity
   virtualInitialLiquidity: boolean
+  swapCreatorChainId: string
 }
