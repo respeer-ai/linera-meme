@@ -17,8 +17,8 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, Owner, TestString,
+        Account, AccountOwner, AccountSecretKey, Amount, ApplicationId, ChainDescription, ChainId,
+        CryptoHash, Ed25519SecretKey, MessageId, ModuleId, Owner, TestString, TimeoutConfig,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -245,6 +245,21 @@ impl TestSuite {
             })
             .await;
     }
+
+    async fn change_ownership(&self, chain: &ActiveChain, owners: Vec<Owner>) {
+        chain
+            .add_block(move |block| {
+                block.with_owner_change(
+                    Vec::new(),
+                    owners.into_iter().map(|owner| (owner, 100)).collect(),
+                    20,
+                    false,
+                    TimeoutConfig::default(),
+                );
+            })
+            .await;
+        chain.handle_received_messages().await;
+    }
 }
 
 /// Test setting a proxy and testing its coherency across microchains.
@@ -252,7 +267,7 @@ impl TestSuite {
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn proxy_create_meme_virtual_initial_liquidity_test() {
+async fn proxy_create_meme_virtual_initial_liquidity_single_owner_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
@@ -344,8 +359,12 @@ async fn proxy_create_meme_virtual_initial_liquidity_test() {
 
     suite.validator.add_chain(meme_chain.clone());
 
+    proxy_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
     proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -358,6 +377,13 @@ async fn proxy_create_meme_virtual_initial_liquidity_test() {
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
 
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
 }
@@ -367,7 +393,7 @@ async fn proxy_create_meme_virtual_initial_liquidity_test() {
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn proxy_create_meme_real_initial_liquidity_test() {
+async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
@@ -413,6 +439,165 @@ async fn proxy_create_meme_real_initial_liquidity_test() {
         .await;
     let expected = json!({"genesisMiners": [proxy_owner, meme_user_owner]});
     assert_eq!(response, expected);
+
+    suite
+        .fund_chain(
+            &meme_user_chain,
+            OPEN_CHAIN_FEE_BUDGET.try_add(suite.initial_native).unwrap(),
+        )
+        .await;
+    suite.create_meme_application(&meme_user_chain, false).await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeChainCreationMessages }",
+        )
+        .await;
+    assert_eq!(
+        response["memeChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let message_id = MessageId::from_str(
+        response["memeChainCreationMessages"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplicationIds }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert_eq!(meme_application.is_none(), true);
+
+    let description = ChainDescription::Child(message_id);
+    let meme_chain = ActiveChain::new(
+        meme_user_key_pair.copy(),
+        description,
+        suite.clone().validator,
+    );
+
+    suite.validator.add_chain(meme_chain.clone());
+
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplicationIds }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert_eq!(meme_application.is_some(), true);
+
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+}
+
+/// Test setting a proxy and testing its coherency across microchains.
+///
+/// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
+/// which is then checked.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let mut suite = TestSuite::new().await;
+
+    let proxy_chain = &suite.proxy_chain.clone();
+    let meme_user_chain = &suite.meme_user_chain.clone();
+    let operator_chain_1 = &suite.operator_chain_1.clone();
+    let operator_chain_2 = &suite.operator_chain_2.clone();
+    let swap_chain = &suite.swap_chain.clone();
+
+    let operator_1 = suite.chain_owner_account(operator_chain_1);
+    let operator_2 = suite.chain_owner_account(operator_chain_2);
+    let meme_user_owner = suite.chain_owner_account(meme_user_chain);
+    let meme_user_key_pair = meme_user_chain.key_pair();
+
+    let proxy_key_1 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let proxy_key_2 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let proxy_key_3 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
+    let proxy_user_1 = Account {
+        chain_id: proxy_chain.id(),
+        owner: Some(AccountOwner::User(proxy_key_1.public().into())),
+    };
+    let proxy_user_2 = Account {
+        chain_id: proxy_chain.id(),
+        owner: Some(AccountOwner::User(proxy_key_2.public().into())),
+    };
+    let proxy_user_3 = Account {
+        chain_id: proxy_chain.id(),
+        owner: Some(AccountOwner::User(proxy_key_3.public().into())),
+    };
+
+    suite
+        .change_ownership(
+            &proxy_chain,
+            [
+                proxy_key_1.public().into(),
+                proxy_key_2.public().into(),
+                proxy_key_3.public().into(),
+            ]
+            .to_vec(),
+        )
+        .await;
+
+    suite.create_swap_application().await;
+    suite
+        .create_proxy_application(vec![operator_1, operator_2])
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeBytecodeId }",
+        )
+        .await;
+    let expected = json!({"memeBytecodeId": suite.meme_bytecode_id});
+    assert_eq!(response, expected);
+
+    suite
+        .propose_add_genesis_miner(&operator_chain_1, meme_user_owner)
+        .await;
+    suite
+        .approve_add_genesis_miner(&operator_chain_2, meme_user_owner)
+        .await;
+
+    /*
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { genesisMiners }",
+        )
+        .await;
+    let expected =
+        json!({"genesisMiners": [proxy_user_2, proxy_user_3, proxy_user_1, meme_user_owner]});
+    assert_eq!(response, expected);
+    */
 
     suite
         .fund_chain(
