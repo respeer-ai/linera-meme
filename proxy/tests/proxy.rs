@@ -40,6 +40,9 @@ struct TestSuite {
     pub meme_bytecode_id: ModuleId,
     pub proxy_application_id: Option<ApplicationId<ProxyAbi>>,
     pub swap_application_id: Option<ApplicationId<SwapAbi>>,
+
+    pub initial_liquidity: Amount,
+    pub initial_native: Amount,
 }
 
 impl TestSuite {
@@ -70,6 +73,9 @@ impl TestSuite {
             meme_bytecode_id,
             proxy_application_id: None,
             swap_application_id: None,
+
+            initial_liquidity: Amount::from_tokens(11000000),
+            initial_native: Amount::from_tokens(10),
         }
     }
 
@@ -183,7 +189,7 @@ impl TestSuite {
             .await;
     }
 
-    async fn create_meme_application(&self, chain: &ActiveChain) {
+    async fn create_meme_application(&self, chain: &ActiveChain, virtual_initial_liquidity: bool) {
         let certificate = chain
             .add_block(|block| {
                 block.with_operation(
@@ -219,10 +225,10 @@ impl TestSuite {
                         meme_parameters: MemeParameters {
                             creator: self.chain_owner_account(chain),
                             initial_liquidity: Some(Liquidity {
-                                fungible_amount: Amount::from_tokens(10000000),
-                                native_amount: Amount::from_tokens(10),
+                                fungible_amount: self.initial_liquidity,
+                                native_amount: self.initial_native,
                             }),
-                            virtual_initial_liquidity: true,
+                            virtual_initial_liquidity,
                             swap_creator_chain_id: self.swap_chain.id(),
                         },
                     },
@@ -246,7 +252,7 @@ impl TestSuite {
 /// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
 /// which is then checked.
 #[tokio::test(flavor = "multi_thread")]
-async fn proxy_create_meme_test() {
+async fn proxy_create_meme_virtual_initial_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let mut suite = TestSuite::new().await;
@@ -296,7 +302,7 @@ async fn proxy_create_meme_test() {
     suite
         .fund_chain(&meme_user_chain, OPEN_CHAIN_FEE_BUDGET)
         .await;
-    suite.create_meme_application(&meme_user_chain).await;
+    suite.create_meme_application(&meme_user_chain, true).await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -352,6 +358,135 @@ async fn proxy_create_meme_test() {
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
 
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+}
+
+/// Test setting a proxy and testing its coherency across microchains.
+///
+/// Creates the application on a `chain`, initializing it with a 42 then adds 15 and obtains 57.
+/// which is then checked.
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_create_meme_real_initial_liquidity_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let mut suite = TestSuite::new().await;
+
+    let proxy_chain = &suite.proxy_chain.clone();
+    let meme_user_chain = &suite.meme_user_chain.clone();
+    let operator_chain_1 = &suite.operator_chain_1.clone();
+    let operator_chain_2 = &suite.operator_chain_2.clone();
+    let swap_chain = &suite.swap_chain.clone();
+
+    let proxy_owner = suite.chain_owner_account(proxy_chain);
+    let operator_1 = suite.chain_owner_account(operator_chain_1);
+    let operator_2 = suite.chain_owner_account(operator_chain_2);
+    let meme_user_owner = suite.chain_owner_account(meme_user_chain);
+    let meme_user_key_pair = meme_user_chain.key_pair();
+
+    suite.create_swap_application().await;
+    suite
+        .create_proxy_application(vec![operator_1, operator_2])
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeBytecodeId }",
+        )
+        .await;
+    let expected = json!({"memeBytecodeId": suite.meme_bytecode_id});
+    assert_eq!(response, expected);
+
+    suite
+        .propose_add_genesis_miner(&operator_chain_1, meme_user_owner)
+        .await;
+    suite
+        .approve_add_genesis_miner(&operator_chain_2, meme_user_owner)
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { genesisMiners }",
+        )
+        .await;
+    let expected = json!({"genesisMiners": [proxy_owner, meme_user_owner]});
+    assert_eq!(response, expected);
+
+    suite
+        .fund_chain(
+            &meme_user_chain,
+            OPEN_CHAIN_FEE_BUDGET.try_add(suite.initial_native).unwrap(),
+        )
+        .await;
+    suite.create_meme_application(&meme_user_chain, false).await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeChainCreationMessages }",
+        )
+        .await;
+    assert_eq!(
+        response["memeChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let message_id = MessageId::from_str(
+        response["memeChainCreationMessages"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplicationIds }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert_eq!(meme_application.is_none(), true);
+
+    let description = ChainDescription::Child(message_id);
+    let meme_chain = ActiveChain::new(
+        meme_user_key_pair.copy(),
+        description,
+        suite.clone().validator,
+    );
+
+    suite.validator.add_chain(meme_chain.clone());
+
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplicationIds }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert_eq!(meme_application.is_some(), true);
+
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
 }

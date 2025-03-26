@@ -499,7 +499,8 @@ impl ProxyContract {
         // We have to let meme application change permissions
         let permissions = ApplicationPermissions {
             execute_operations: Some(vec![application_id]),
-            mandatory_applications: vec![application_id],
+            // Don't mandatory any application
+            mandatory_applications: vec![],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
             call_service_as_oracle: Some(vec![application_id]),
@@ -598,7 +599,8 @@ impl ProxyContract {
 
         let permissions = ApplicationPermissions {
             execute_operations: Some(vec![application_id]),
-            mandatory_applications: vec![application_id],
+            // Don't mandatory any application
+            mandatory_applications: vec![],
             close_chain: vec![application_id],
             change_application_permissions: vec![application_id],
             call_service_as_oracle: Some(vec![application_id]),
