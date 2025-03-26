@@ -8,7 +8,7 @@ mod state;
 use std::sync::Arc;
 
 use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
-use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId, WithServiceAbi},
     views::View,
@@ -47,26 +47,11 @@ impl Service for ProxyService {
                 state: self.state.clone(),
                 runtime: self.runtime.clone(),
             },
-            MutationRoot {
-                runtime: self.runtime.clone(),
-            },
+            EmptyMutation,
             EmptySubscription,
         )
         .finish();
         schema.execute(request).await
-    }
-}
-
-struct MutationRoot {
-    runtime: Arc<ServiceRuntime<ProxyService>>,
-}
-
-#[Object]
-impl MutationRoot {
-    async fn propose_add_genesis_miner(&self, owner: Account, endpoint: Option<String>) -> [u8; 0] {
-        self.runtime
-            .schedule_operation(&ProxyOperation::ProposeAddGenesisMiner { owner, endpoint });
-        []
     }
 }
 
