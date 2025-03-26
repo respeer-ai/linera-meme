@@ -36,25 +36,38 @@ pub struct ProxyState {
 
 #[allow(dead_code)]
 impl ProxyState {
-    pub(crate) async fn initantiate(
+    pub(crate) async fn instantiate(
         &mut self,
         argument: InstantiationArgument,
-        owner: Account,
+        owners: Vec<Account>,
     ) -> Result<(), ProxyError> {
         self.meme_bytecode_id.set(Some(argument.meme_bytecode_id));
 
         for operator in argument.operators {
             let mut approval = Approval::new(1);
-            approval.approve(owner);
+            approval.approve(owners[0]);
             self.operators.insert(&operator, approval)?;
         }
 
         self.swap_application_id
             .set(Some(argument.swap_application_id));
 
-        let mut approval = Approval::new(1);
-        approval.approve(owner);
-        Ok(self.operators.insert(&owner, approval)?)
+        for owner in owners {
+            let mut approval = Approval::new(1);
+            approval.approve(owner);
+
+            self.operators.insert(&owner, approval.clone())?;
+            self.genesis_miners.insert(
+                &owner,
+                GenesisMiner {
+                    owner,
+                    approval: approval.clone(),
+                },
+            )?;
+            self.operators.insert(&owner, approval)?;
+        }
+
+        Ok(())
     }
 
     async fn initial_approval(&self) -> Result<Approval, ProxyError> {
@@ -62,24 +75,15 @@ impl ProxyState {
         Ok(Approval::new(std::cmp::max(operators * 2 / 3, 1)))
     }
 
-    pub(crate) async fn add_genesis_miner(
-        &mut self,
-        owner: Account,
-        endpoint: Option<String>,
-    ) -> Result<(), ProxyError> {
+    pub(crate) async fn add_genesis_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
         assert!(
             !self.genesis_miners.contains_key(&owner).await?,
             "Already exists",
         );
         let approval = self.initial_approval().await?;
-        Ok(self.genesis_miners.insert(
-            &owner,
-            GenesisMiner {
-                owner,
-                endpoint,
-                approval,
-            },
-        )?)
+        Ok(self
+            .genesis_miners
+            .insert(&owner, GenesisMiner { owner, approval })?)
     }
 
     pub(crate) async fn approve_add_genesis_miner(
@@ -261,11 +265,7 @@ impl ProxyState {
         Ok(self.chains.insert(&chain_id, chain)?)
     }
 
-    pub(crate) async fn register_miner(
-        &mut self,
-        owner: Account,
-        endpoint: Option<String>,
-    ) -> Result<(), ProxyError> {
+    pub(crate) async fn register_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
         assert!(
             self.miners()
                 .await?
@@ -276,7 +276,7 @@ impl ProxyState {
                 == 0,
             "Already registered"
         );
-        Ok(self.miners.insert(&owner, Miner { owner, endpoint })?)
+        Ok(self.miners.insert(&owner, Miner { owner })?)
     }
 
     pub(crate) fn deregister_miner(&mut self, owner: Account) -> Result<(), ProxyError> {
