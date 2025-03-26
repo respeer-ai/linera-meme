@@ -40,7 +40,7 @@ pub struct Meme {
     pub metadata: Metadata,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
+#[derive(Default, Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
     pub meme: Meme,
     pub blob_gateway_application_id: Option<ApplicationId>,
@@ -50,6 +50,7 @@ pub struct InstantiationArgument {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MemeParameters {
     pub creator: Account,
     pub initial_liquidity: Option<Liquidity>,

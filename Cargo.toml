@@ -17,8 +17,8 @@ resolver = "2"
 async-graphql = { version = "=7.0.2", default-features = false }
 # linera-sdk = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69" }
 # linera-views = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "984009a69", default-features = false }
-linera-sdk = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "870d32b7e4" }
-linera-views = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "870d32b7e4", default-features = false }
+linera-sdk = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "845360df1d" }
+linera-views = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "845360df1d", default-features = false }
 futures = { version = "0.3 "}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
@@ -31,6 +31,7 @@ primitive-types = { version = "^0.13.1", features = ["serde"] }
 rust_decimal = { version = "1.36", default-features = false, features = [ "serde-str", "std" ] }
 getrandom = { version = "0.2.12", default-features = false, features = [ "custom" ] }
 tempfile = "=3.12.0"
+anyhow = "1.0.80"
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }
