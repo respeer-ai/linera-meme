@@ -49,7 +49,7 @@ impl Contract for MemeContract {
         MemeContract { state, runtime }
     }
 
-    async fn instantiate(&mut self, instantiation_argument: InstantiationArgument) {
+    async fn instantiate(&mut self, mut instantiation_argument: InstantiationArgument) {
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
@@ -59,6 +59,9 @@ impl Contract for MemeContract {
 
         let owner = self.owner_account();
         let application = self.application_account();
+
+        instantiation_argument.meme.virtual_initial_liquidity = self.virtual_initial_liquidity();
+        instantiation_argument.meme.initial_liquidity = self.initial_liquidity();
 
         self.state
             .instantiate(owner, application, instantiation_argument)
@@ -1021,7 +1024,7 @@ mod tests {
             .with_authenticated_caller_id(swap_application_id)
             .with_call_application_handler(mock_application_call)
             .with_application_creator_chain_id(chain_id)
-            .with_application_parameters(parameters)
+            .with_application_parameters(parameters.clone())
             .with_authenticated_signer(operator);
         let mut contract = MemeContract {
             state: MemeState::load(runtime.root_view_storage_context())
@@ -1048,6 +1051,7 @@ mod tests {
                     github: None,
                 },
                 virtual_initial_liquidity: true,
+                initial_liquidity: parameters.initial_liquidity,
             },
             blob_gateway_application_id: None,
             ams_application_id: None,

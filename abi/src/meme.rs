@@ -23,12 +23,14 @@ pub struct Metadata {
     pub github: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Liquidity {
     pub fungible_amount: Amount,
     pub native_amount: Amount,
 }
+
+scalar!(Liquidity);
 
 #[derive(
     Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject, SimpleObject,
@@ -42,6 +44,7 @@ pub struct Meme {
     pub decimals: u8,
     pub metadata: Metadata,
     pub virtual_initial_liquidity: bool,
+    pub initial_liquidity: Option<Liquidity>,
 }
 
 #[derive(Default, Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
