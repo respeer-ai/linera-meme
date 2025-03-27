@@ -1,10 +1,13 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::swap::pool::{InstantiationArgument, Pool, PoolParameters};
+use abi::swap::{
+    pool::{InstantiationArgument, Pool, PoolParameters},
+    transaction::{Transaction, TransactionType},
+};
 use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId, Timestamp},
-    views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
+    views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
 };
 use pool::{FundRequest, PoolError};
 
@@ -20,7 +23,12 @@ pub struct PoolState {
 
     pub total_supply: RegisterView<Amount>,
     pub shares: MapView<Account, Amount>,
+
+    pub latest_transactions: QueueView<Transaction>,
+    pub transaction_id: RegisterView<u32>,
 }
+
+pub const MAX_LAST_TRANSACTIONS: usize = 5000;
 
 #[allow(dead_code)]
 impl PoolState {
@@ -30,7 +38,7 @@ impl PoolState {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<(), PoolError> {
+    ) -> Result<Amount, PoolError> {
         self.pool.set(Some(Pool::create(
             parameters.token_0,
             parameters.token_1,
@@ -46,16 +54,21 @@ impl PoolState {
             .set(Some(argument.router_application_id));
         self.transfer_id.set(1000);
 
+        let mut liquidity = Amount::ZERO;
+
         if argument.amount_0 > Amount::ZERO && argument.amount_1 > Amount::ZERO {
             if !parameters.virtual_initial_liquidity {
-                self.mint_shares(argument.amount_0, argument.amount_1, owner)
+                liquidity = self
+                    .mint_shares(argument.amount_0, argument.amount_1, owner)
                     .await?;
             }
             pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
         }
 
         self.pool.set(Some(pool));
-        Ok(())
+        self.transaction_id.set(1000);
+
+        Ok(liquidity)
     }
 
     pub(crate) fn pool(&self) -> Pool {
@@ -166,8 +179,8 @@ impl PoolState {
         amount_1: Amount,
         to: Account,
         block_timestamp: Timestamp,
-    ) -> Result<(), PoolError> {
-        self.mint_shares(amount_0, amount_1, to).await?;
+    ) -> Result<Amount, PoolError> {
+        let liquidity = self.mint_shares(amount_0, amount_1, to).await?;
 
         let mut pool: Pool = self.pool();
         pool.liquid(
@@ -176,7 +189,7 @@ impl PoolState {
             block_timestamp,
         );
         self.pool.set(Some(pool));
-        Ok(())
+        Ok(liquidity)
     }
 
     pub(crate) async fn liquidity(&self, account: Account) -> Result<Amount, PoolError> {
@@ -206,7 +219,7 @@ impl PoolState {
         amount_0: Amount,
         amount_1: Amount,
         to: Account,
-    ) -> Result<(), PoolError> {
+    ) -> Result<Amount, PoolError> {
         assert!(amount_0 > Amount::ZERO, "Invalid amount");
         assert!(amount_1 > Amount::ZERO, "Invalid amount");
 
@@ -219,7 +232,7 @@ impl PoolState {
         let liquidity = pool.calculate_liquidity(total_supply, amount_0, amount_1);
         self.mint(to, liquidity).await?;
 
-        Ok(())
+        Ok(liquidity)
     }
 
     pub(crate) fn set_fee_to(&mut self, operator: Account, account: Account) {
@@ -238,5 +251,55 @@ impl PoolState {
         pool.fee_to_setter = account;
 
         self.pool.set(Some(pool));
+    }
+
+    pub(crate) fn build_transaction(
+        &mut self,
+        owner: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out: Option<Amount>,
+        amount_1_out: Option<Amount>,
+        liquidity: Option<Amount>,
+        timestamp: Timestamp,
+    ) -> Transaction {
+        let transaction_type =
+            if amount_0_in.is_some() && amount_1_in.is_some() && liquidity.is_some() {
+                TransactionType::AddLiquidity
+            } else if amount_0_out.is_some() && amount_1_out.is_some() && liquidity.is_some() {
+                TransactionType::RemoveLiquidity
+            } else if amount_0_in.is_some() && amount_1_out.is_some() {
+                TransactionType::SellToken0
+            } else if amount_0_out.is_some() && amount_1_in.is_some() {
+                TransactionType::BuyToken0
+            } else {
+                unreachable!();
+            };
+
+        Transaction {
+            transaction_id: None,
+            transaction_type,
+            from: owner,
+            amount_0_in,
+            amount_1_in,
+            amount_0_out,
+            amount_1_out,
+            liquidity,
+            created_at: timestamp,
+        }
+    }
+
+    pub(crate) fn create_transaction(&mut self, mut transaction: Transaction) -> Transaction {
+        let transaction_id = *self.transaction_id.get();
+
+        transaction.transaction_id = Some(transaction_id);
+        self.latest_transactions.push_back(transaction.clone());
+
+        if self.latest_transactions.count() > MAX_LAST_TRANSACTIONS {
+            self.latest_transactions.delete_front();
+        }
+        self.transaction_id.set(transaction_id + 1);
+
+        transaction
     }
 }

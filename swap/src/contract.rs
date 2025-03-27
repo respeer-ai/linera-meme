@@ -17,6 +17,7 @@ use abi::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
             SwapResponse,
         },
+        transaction::Transaction,
     },
 };
 use linera_sdk::{
@@ -80,7 +81,6 @@ impl Contract for SwapContract {
                     virtual_liquidity,
                     to,
                 )
-                .await
                 .expect("Failed OP: initialize liquidity"),
             SwapOperation::CreatePool {
                 token_0,
@@ -90,8 +90,14 @@ impl Contract for SwapContract {
                 to,
             } => self
                 .on_op_create_pool(token_0, token_1, amount_0, amount_1, to)
-                .await
                 .expect("Failed OP: create pool"),
+            SwapOperation::NewTransaction {
+                token_0,
+                token_1,
+                transaction,
+            } => self
+                .on_call_new_transaction(token_0, token_1, transaction)
+                .expect("Failed OP: new transaction"),
         }
     }
 
@@ -196,6 +202,14 @@ impl Contract for SwapContract {
                 )
                 .await
                 .expect("Failed MSG: user pool created"),
+            SwapMessage::NewTransaction {
+                token_0,
+                token_1,
+                transaction,
+            } => self
+                .on_msg_new_transaction(token_0, token_1, transaction)
+                .await
+                .expect("Failed MSG: new transaction"),
         }
     }
 
@@ -325,7 +339,7 @@ impl SwapContract {
         }
     }
 
-    async fn on_call_initialize_liquidity(
+    fn on_call_initialize_liquidity(
         &mut self,
         token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
@@ -373,7 +387,7 @@ impl SwapContract {
     // Create pool with initial liquidity
     // If pool exists, do nothing
     // If not, create pool then let caller chain add liquidity
-    async fn on_op_create_pool(
+    fn on_op_create_pool(
         &mut self,
         token_0: ApplicationId,
         token_1: ApplicationId,
@@ -392,6 +406,23 @@ impl SwapContract {
                 amount_0,
                 amount_1,
                 to,
+            })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
+        Ok(SwapResponse::Ok)
+    }
+
+    fn on_call_new_transaction(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        transaction: Transaction,
+    ) -> Result<SwapResponse, SwapError> {
+        self.runtime
+            .prepare_message(SwapMessage::NewTransaction {
+                token_0,
+                token_1,
+                transaction,
             })
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
@@ -690,6 +721,18 @@ impl SwapContract {
             None,
         )
         .await
+    }
+
+    async fn on_msg_new_transaction(
+        &mut self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        transaction: Transaction,
+    ) -> Result<(), SwapError> {
+        let Some(pool) = self.state.get_pool_exchangable(token_0, token_1).await? else {
+            panic!("Invalid pool");
+        };
+        self.state.new_transaction(pool.pool_id, transaction)
     }
 }
 
