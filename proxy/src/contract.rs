@@ -354,6 +354,8 @@ impl ProxyContract {
     ) -> Result<ProxyResponse, ProxyError> {
         meme_instantiation_argument.proxy_application_id =
             Some(self.runtime.application_id().forget_abi());
+        meme_instantiation_argument.meme.virtual_initial_liquidity =
+            meme_parameters.virtual_initial_liquidity;
 
         // Fund proxy application on the creation chain, it'll fund meme chain for fee and
         // initial liquidity
