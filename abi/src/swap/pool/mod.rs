@@ -10,6 +10,8 @@ use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::swap::transaction::Transaction;
+
 pub struct PoolAbi;
 
 impl ContractAbi for PoolAbi {
@@ -112,6 +114,9 @@ pub enum PoolMessage {
     SetFeeToSetter {
         operator: Account,
         account: Account,
+    },
+    NewTransaction {
+        transaction: Transaction,
     },
 }
 

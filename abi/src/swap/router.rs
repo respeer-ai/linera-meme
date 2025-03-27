@@ -10,6 +10,8 @@ use linera_sdk::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::swap::transaction::Transaction;
+
 pub struct SwapAbi;
 
 impl ContractAbi for SwapAbi {
@@ -43,6 +45,12 @@ pub enum SwapOperation {
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,
+    },
+    // Notify swap of new transaction, called from pool chain
+    NewTransaction {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        transaction: Transaction,
     },
 }
 
@@ -106,6 +114,11 @@ pub enum SwapMessage {
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,
+    },
+    NewTransaction {
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        transaction: Transaction,
     },
 }
 

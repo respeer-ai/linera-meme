@@ -7,8 +7,13 @@ mod state;
 
 use abi::{
     meme::{MemeAbi, MemeOperation, MemeResponse},
-    swap::pool::{
-        InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
+    swap::{
+        pool::{
+            InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters,
+            PoolResponse,
+        },
+        router::{SwapAbi, SwapOperation},
+        transaction::Transaction,
     },
 };
 use linera_sdk::{
@@ -49,12 +54,29 @@ impl Contract for PoolContract {
         // Validate that the application parameters were configured correctly.
         let parameters = self.runtime.application_parameters();
 
+        // TODO: here creator may should be in parameters. Owner account won't get correct creator
         let creator = self.owner_account();
         let timestamp = self.runtime.system_time();
-        self.state
+        let liquidity = self
+            .state
             .instantiate(argument.clone(), parameters, creator, timestamp)
             .await
             .expect("Failed instantiate");
+
+        let transaction = self.state.build_transaction(
+            creator,
+            Some(argument.amount_0),
+            Some(argument.amount_1),
+            None,
+            None,
+            Some(liquidity),
+            timestamp,
+        );
+        let chain_id = self.runtime.chain_id();
+        self.runtime
+            .prepare_message(PoolMessage::NewTransaction { transaction })
+            .with_authentication()
+            .send_to(chain_id);
     }
 
     async fn execute_operation(&mut self, operation: PoolOperation) -> PoolResponse {
@@ -205,6 +227,9 @@ impl Contract for PoolContract {
             PoolMessage::SetFeeToSetter { operator, account } => self
                 .on_msg_set_fee_to_setter(operator, account)
                 .expect("Failed MSG: set fee to setter"),
+            PoolMessage::NewTransaction { transaction } => self
+                .on_msg_new_transaction(transaction)
+                .expect("Failed MSG: new transaction"),
         }
     }
 
@@ -740,6 +765,30 @@ impl PoolContract {
 
         self.state.liquid(balance_0, balance_1, timestamp);
 
+        let transaction = self.state.build_transaction(
+            origin,
+            amount_0_in,
+            amount_1_in,
+            if amount_0_out > Amount::ZERO {
+                Some(amount_0_out)
+            } else {
+                None
+            },
+            if amount_1_out > Amount::ZERO {
+                Some(amount_1_out)
+            } else {
+                None
+            },
+            None,
+            timestamp,
+        );
+        // We already on creator chain
+        let chain_id = self.runtime.chain_id();
+        self.runtime
+            .prepare_message(PoolMessage::NewTransaction { transaction })
+            .with_authentication()
+            .send_to(chain_id);
+
         Ok(())
     }
 
@@ -763,7 +812,8 @@ impl PoolContract {
 
         let to = to.unwrap_or(origin);
         let timestamp = self.runtime.system_time();
-        self.state
+        let liquidity = self
+            .state
             .add_liquidity(amount_0, amount_1, to, timestamp)
             .await?;
 
@@ -784,6 +834,21 @@ impl PoolContract {
                 }
             };
         }
+
+        let transaction = self.state.build_transaction(
+            origin,
+            Some(amount_0),
+            Some(amount_1),
+            None,
+            None,
+            Some(liquidity),
+            timestamp,
+        );
+        let chain_id = self.runtime.chain_id();
+        self.runtime
+            .prepare_message(PoolMessage::NewTransaction { transaction })
+            .with_authentication()
+            .send_to(chain_id);
 
         Ok(())
     }
@@ -816,7 +881,25 @@ impl PoolContract {
         };
 
         // 3: Burn liquidity
-        self.state.burn(origin, liquidity).await
+        self.state.burn(origin, liquidity).await?;
+
+        let timestamp = self.runtime.system_time();
+        let transaction = self.state.build_transaction(
+            origin,
+            None,
+            None,
+            Some(amount_0),
+            Some(amount_1),
+            Some(liquidity),
+            timestamp,
+        );
+        let chain_id = self.runtime.chain_id();
+        self.runtime
+            .prepare_message(PoolMessage::NewTransaction { transaction })
+            .with_authentication()
+            .send_to(chain_id);
+
+        Ok(())
     }
 
     fn on_msg_set_fee_to(&mut self, operator: Account, account: Account) -> Result<(), PoolError> {
@@ -830,6 +913,23 @@ impl PoolContract {
         account: Account,
     ) -> Result<(), PoolError> {
         self.state.set_fee_to_setter(operator, account);
+        Ok(())
+    }
+
+    fn on_msg_new_transaction(&mut self, transaction: Transaction) -> Result<(), PoolError> {
+        // Here we got transaction id
+        let transaction = self.state.create_transaction(transaction);
+
+        let call = SwapOperation::NewTransaction {
+            token_0: self.token_0(),
+            token_1: self.token_1(),
+            transaction,
+        };
+        let _ = self.runtime.call_application(
+            true,
+            self.state.router_application_id().with_abi::<SwapAbi>(),
+            &call,
+        );
         Ok(())
     }
 }

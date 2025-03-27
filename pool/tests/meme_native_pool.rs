@@ -165,6 +165,7 @@ impl TestSuite {
                     website: None,
                     github: None,
                 },
+                virtual_initial_liquidity,
             },
             blob_gateway_application_id: None,
             ams_application_id: None,
@@ -223,6 +224,7 @@ impl TestSuite {
             .handle_received_messages()
             .await;
         self.meme_chain.handle_received_messages().await;
+        self.swap_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
     }
 

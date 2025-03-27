@@ -14,6 +14,7 @@ use linera_sdk::{
     views::View,
     Service, ServiceRuntime,
 };
+use swap::TransactionExt;
 
 use self::state::SwapState;
 
@@ -95,6 +96,17 @@ impl QueryRoot {
 
     async fn creator_chain_id(&self) -> ChainId {
         self.runtime.application_creator_chain_id()
+    }
+
+    async fn latest_transactions(&self) -> Vec<TransactionExt> {
+        self.state
+            .latest_transactions
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|(_, transaction)| transaction)
+            .collect()
     }
 }
 
