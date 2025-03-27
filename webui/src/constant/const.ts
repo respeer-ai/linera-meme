@@ -5,10 +5,10 @@ import { CREATOR_CHAIN_ID } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
 
 const URLS = [
-  'http://api.blobgateway.com/api/blobs/chains/56381194be19cddc8bfe09b3d3e63b7462026f0bb238b21ef91b65023d3c53bc/applications/6605301e41caa7ef70c8136168c9011a91dd1d6195a3dd3b8b16485e39e4133b',
-  'http://api.ams.respeer.ai/api/ams/chains/45e21c3d39a4d35bd905a02b8a4f9753c63cb5a02dce306af691794d72dbbb16/applications/6ff725592a0639794a41ef2800eec6e5dd4c0fad00032cf48988fce43f62e364',
-  'http://api.linerameme.fun/api/proxy/chains/64116b2bcfddb4bf79ec4f265bbc2a7bc3a0e8b3b347421986736faa5fa5d9fd/applications/593604ef27bb4f0a801056dc6a5cc73c4c7918c70714633328224454d910f617',
-  'http://api.lineraswap.fun/api/swap/chains/4c8dcd102356fbd1ec69f4c2d245b3a1ab155adf9744285bbfcf6bd9ecce65a4/applications/c329097a0c479673fffa63f7cf5ce6a9a1d32a30973d4f2392c4e8596383bc92'
+  'http://api.blobgateway.com/api/blobs/chains/54152886b4fc4e44bc3dd17c0e6b2b38aa57ea786e69598f1043fc5416c00b7f/applications/dbbf9305fb0025d306b75056a70137f96a9e77b3774507d713f2c3fbcdb9e693',
+  'http://api.ams.respeer.ai/api/ams/chains/85ae40f0c028600108db00521a4be4b4def15da98317b5f32cbd5367520bfcae/applications/f16689dc9d037b835c18bde8515e82d4c34b4ae989c84a4d259f3b19cc5f4bab',
+  'http://api.linerameme.fun/api/proxy/chains/b012a4ff2b0cc83edd01797b94eeedfc5308da29255f2c0c56fa893d0f2de57a/applications/06dde12ccb705473d48ad43b0d08e49d9126309949e8fc6dc8c883e227eefd54',
+  'http://api.lineraswap.fun/api/swap/chains/46afaeae5c8ba8baf5dcae6724ce4f92d3de28537bda44dda289cda34dd9abb8/applications/ce374b55ed6e2d526099bef1ba4a63d708b1c939852783e246b0c689917b36ca'
 ]
 
 export const APPLICATION_URLS = {

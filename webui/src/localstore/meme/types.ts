@@ -25,6 +25,7 @@ export interface Meme {
   ticker: string
   decimals: number
   metadata: Metadata
+  virtualInitialLiquidity: boolean
 }
 
 export interface InstantiationArgument {
