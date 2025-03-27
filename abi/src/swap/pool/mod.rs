@@ -485,6 +485,34 @@ impl Pool {
 
         Ok((amount_0, amount_1))
     }
+
+    pub fn calculate_price_pair(&self) -> (Amount, Amount) {
+        let time_elapsed = 1000;
+        let (price_0_cumulative, price_1_cumulative) =
+            self.calculate_price_cumulative_pair(time_elapsed as u128);
+        (
+            Amount::from_str(
+                &price_1_cumulative
+                    .checked_sub(self.price_1_cumulative)
+                    .unwrap()
+                    .checked_div(Decimal::new(time_elapsed, 0))
+                    .unwrap()
+                    .round_dp(Amount::DECIMAL_PLACES as u32)
+                    .to_string(),
+            )
+            .unwrap(),
+            Amount::from_str(
+                &price_0_cumulative
+                    .checked_sub(self.price_0_cumulative)
+                    .unwrap()
+                    .checked_div(Decimal::new(time_elapsed, 0))
+                    .unwrap()
+                    .round_dp(Amount::DECIMAL_PLACES as u32)
+                    .to_string(),
+            )
+            .unwrap(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -621,5 +649,9 @@ mod tests {
             .unwrap();
         assert_eq!(amount_0, Amount::from_str("0.666666666666666666").unwrap());
         assert_eq!(amount_1, Amount::from_str("14.156133333333333333").unwrap());
+
+        let (price_0, price_1) = pool.calculate_price_pair();
+        assert_eq!(price_0, Amount::from_str("0.047093839183957955").unwrap());
+        assert_eq!(price_1, Amount::from_str("21.2342").unwrap());
     }
 }

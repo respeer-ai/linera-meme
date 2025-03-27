@@ -17,7 +17,7 @@ use abi::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
             SwapResponse,
         },
-        transaction::Transaction as PoolTransaction,
+        transaction::Transaction,
     },
 };
 use linera_sdk::{
@@ -28,7 +28,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use swap::{SwapError, TransactionExt};
+use swap::SwapError;
 
 use self::state::SwapState;
 
@@ -91,13 +91,15 @@ impl Contract for SwapContract {
             } => self
                 .on_op_create_pool(token_0, token_1, amount_0, amount_1, to)
                 .expect("Failed OP: create pool"),
-            SwapOperation::NewTransaction {
+            SwapOperation::UpdatePool {
                 token_0,
                 token_1,
                 transaction,
+                token_0_price,
+                token_1_price,
             } => self
-                .on_call_new_transaction(token_0, token_1, transaction)
-                .expect("Failed OP: new transaction"),
+                .on_call_update_pool(token_0, token_1, transaction, token_0_price, token_1_price)
+                .expect("Failed OP: update pool"),
         }
     }
 
@@ -202,14 +204,16 @@ impl Contract for SwapContract {
                 )
                 .await
                 .expect("Failed MSG: user pool created"),
-            SwapMessage::NewTransaction {
+            SwapMessage::UpdatePool {
                 token_0,
                 token_1,
                 transaction,
+                token_0_price,
+                token_1_price,
             } => self
-                .on_msg_new_transaction(token_0, token_1, transaction)
+                .on_msg_update_pool(token_0, token_1, transaction, token_0_price, token_1_price)
                 .await
-                .expect("Failed MSG: new transaction"),
+                .expect("Failed MSG: update pool"),
         }
     }
 
@@ -412,17 +416,21 @@ impl SwapContract {
         Ok(SwapResponse::Ok)
     }
 
-    fn on_call_new_transaction(
+    fn on_call_update_pool(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        transaction: PoolTransaction,
+        transaction: Transaction,
+        token_0_price: Amount,
+        token_1_price: Amount,
     ) -> Result<SwapResponse, SwapError> {
         self.runtime
-            .prepare_message(SwapMessage::NewTransaction {
+            .prepare_message(SwapMessage::UpdatePool {
                 token_0,
                 token_1,
                 transaction,
+                token_0_price,
+                token_1_price,
             })
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
@@ -723,23 +731,17 @@ impl SwapContract {
         .await
     }
 
-    async fn on_msg_new_transaction(
+    async fn on_msg_update_pool(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        transaction: PoolTransaction,
+        transaction: Transaction,
+        token_0_price: Amount,
+        token_1_price: Amount,
     ) -> Result<(), SwapError> {
-        let Some(pool) = self.state.get_pool_exchangable(token_0, token_1).await? else {
-            panic!("Invalid pool");
-        };
-        self.state.new_transaction(
-            pool.pool_id,
-            TransactionExt {
-                token_0,
-                token_1,
-                transaction,
-            },
-        )
+        self.state
+            .update_pool(token_0, token_1, transaction, token_0_price, token_1_price)
+            .await
     }
 }
 

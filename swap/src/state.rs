@@ -1,13 +1,16 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::swap::router::{InstantiationArgument, Pool};
+use abi::swap::{
+    router::{InstantiationArgument, Pool},
+    transaction::Transaction,
+};
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId},
+    linera_base_types::{Account, Amount, ApplicationId, ChainId, MessageId, ModuleId},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
-use swap::{SwapError, TransactionExt};
+use swap::SwapError;
 
 /// The application state.
 #[derive(RootView)]
@@ -25,9 +28,6 @@ pub struct SwapState {
 
     pub pool_chains: MapView<ChainId, MessageId>,
     pub token_creator_chain_ids: MapView<ApplicationId, ChainId>,
-
-    // Latest transaction of each pool
-    pub latest_transactions: MapView<u64, TransactionExt>,
 }
 
 #[allow(dead_code)]
@@ -88,6 +88,9 @@ impl SwapState {
             token_0,
             token_1,
             pool_application,
+            latest_transaction: None,
+            token_0_price: None,
+            token_1_price: None,
         };
 
         if let Some(token_1) = token_1 {
@@ -132,11 +135,32 @@ impl SwapState {
         Ok(self.token_creator_chain_ids.get(&token).await?.unwrap())
     }
 
-    pub(crate) fn new_transaction(
+    pub(crate) async fn update_pool(
         &mut self,
-        pool_id: u64,
-        transaction: TransactionExt,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        transaction: Transaction,
+        token_0_price: Amount,
+        token_1_price: Amount,
     ) -> Result<(), SwapError> {
-        Ok(self.latest_transactions.insert(&pool_id, transaction)?)
+        let Some(mut pool) = self.get_pool_exchangable(token_0, token_1).await? else {
+            panic!("Invalid pool");
+        };
+        pool.latest_transaction = Some(transaction);
+        pool.token_0_price = Some(token_0_price);
+        pool.token_1_price = Some(token_1_price);
+
+        if let Some(token_1) = token_1 {
+            let mut pools = self
+                .meme_meme_pools
+                .get(&token_0)
+                .await?
+                .unwrap_or(HashMap::new());
+            pools.insert(token_1, pool);
+            self.meme_meme_pools.insert(&token_0, pools)?;
+        } else {
+            self.meme_native_pools.insert(&token_0, pool)?;
+        }
+        Ok(())
     }
 }

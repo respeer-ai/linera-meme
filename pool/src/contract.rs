@@ -919,11 +919,14 @@ impl PoolContract {
     fn on_msg_new_transaction(&mut self, transaction: Transaction) -> Result<(), PoolError> {
         // Here we got transaction id
         let transaction = self.state.create_transaction(transaction);
+        let (token_0_price, token_1_price) = self.state.calculate_price_pair();
 
-        let call = SwapOperation::NewTransaction {
+        let call = SwapOperation::UpdatePool {
             token_0: self.token_0(),
             token_1: self.token_1(),
             transaction,
+            token_0_price,
+            token_1_price,
         };
         let _ = self.runtime.call_application(
             true,
