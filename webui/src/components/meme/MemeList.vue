@@ -2,8 +2,8 @@
   <q-page>
     <q-infinite-scroll :offset='300' :style='{padding: "0 8px"}'>
       <div class='row'>
-        <div v-for='item in applications' :key='item.applicationId' class='col-xs-12 col-sm-6 col-md-4'>
-          <MemeCard :meme-info='item' />
+        <div v-for='application in applications' :key='application.applicationId' class='col-xs-12 col-sm-6 col-md-4'>
+          <MemeCard :application='application' />
         </div>
       </div>
     </q-infinite-scroll>
@@ -27,7 +27,7 @@ import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 const _ams = ams.useAmsStore()
 const _proxy = proxy.useProxyStore()
-const applications = computed(() => _ams.applications.filter((el) => _proxy.chains.map((el: Chain) => el.token as string).includes(el.applicationId)))
+const applications = computed(() => _ams.applications.filter((el) => _proxy.chains.map((_el: Chain) => _el.token as string).includes(el.applicationId)))
 
 const getMemeApplications = () => {
   _proxy.getApplications({

@@ -34,6 +34,22 @@
       v-model='expanded'
       class='vertical-inner-y-margin text-grey-8 text-left text-bold'
     >
+      <q-toggle dense v-model='hasInitialLiquidity' class='vertical-inner-y-margin' :label='$t("MSG_INITIAL_LIQUIDITY")' />
+      <div class='vertical-inner-y-margin' />
+      <div v-if='hasInitialLiquidity'>
+        <q-input
+          dense
+          v-model='initialLiquidity.fungibleAmount' type='number' :label='$t("MSG_TOKEN_AMOUNT")' :rules='[val => !!val || "Field is required"]'
+          hide-bottom-space
+        />
+        <q-input
+          dense
+          v-model='initialLiquidity.nativeAmount' type='number' :label='$t("MSG_NATIVE_AMOUNT")' :rules='[val => !!val || "Field is required"]'
+          hide-bottom-space
+        />
+        <q-toggle dense v-model='parameters.virtualInitialLiquidity' class='vertical-inner-y-margin' :label='$t("MSG_VIRTUAL_INITIAL_LIQUIDITY")' />
+        <div class='vertical-inner-y-margin' />
+      </div>
       <div>
         <q-input dense v-model='argument.meme.metadata.website' :label='$t("MSG_OFFICIAL_WEBSITE") + " (" + $t("MSG_OPTIONAL") + ")"' />
         <q-input dense v-model='argument.meme.metadata.twitter' :label='$t("MSG_TWITTER") + " (" + $t("MSG_OPTIONAL") + ")"' />
@@ -50,22 +66,6 @@
           v-model='argument.meme.decimals' type='number' :label='$t("MSG_DECIMALS")' :rules='[val => !!val || "Field is required"]'
           hide-bottom-space
         />
-        <q-toggle dense v-model='hasInitialLiquidity' class='vertical-inner-y-margin' :label='$t("MSG_INITIAL_LIQUIDITY")' />
-        <div class='vertical-inner-y-margin' />
-        <div v-if='hasInitialLiquidity'>
-          <q-input
-            dense
-            v-model='initialLiquidity.fungibleAmount' type='number' :label='$t("MSG_TOKEN_AMOUNT")' :rules='[val => !!val || "Field is required"]'
-            hide-bottom-space
-          />
-          <q-input
-            dense
-            v-model='initialLiquidity.nativeAmount' type='number' :label='$t("MSG_NATIVE_AMOUNT")' :rules='[val => !!val || "Field is required"]'
-            hide-bottom-space
-          />
-          <q-toggle dense v-model='parameters.virtualInitialLiquidity' class='vertical-inner-y-margin' :label='$t("MSG_VIRTUAL_INITIAL_LIQUIDITY")' />
-          <div class='vertical-inner-y-margin' />
-        </div>
       </div>
     </q-expansion-item>
     <q-btn
@@ -207,9 +207,20 @@ const publishDataBlob = (): Promise<string> => {
   })
 }
 
+// TODO: check meme exists
+// TODO: check blob exists
+// TODO: error process
+
 const createMeme = async (): Promise<string> => {
   parameters.value.creator = await user.User.ownerAccount()
   parameters.value.swapCreatorChainId = await constants.creatorChainId('swap')
+
+  if (hasInitialLiquidity.value) {
+    parameters.value.initialLiquidity = initialLiquidity.value
+  }
+
+  argument.value.amsApplicationId = constants.applicationId(constants.APPLICATION_URLS.AMS)
+  argument.value.blobGatewayApplicationId = constants.applicationId(constants.APPLICATION_URLS.BLOB_GATEWAY)
 
   const variables = {
     memeInstantiationArgument: argument.value,
