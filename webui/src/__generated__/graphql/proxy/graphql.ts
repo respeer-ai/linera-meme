@@ -36,17 +36,6 @@ export type Chain = {
   token?: Maybe<Scalars['ApplicationId']['output']>;
 };
 
-export type MutationRoot = {
-  __typename?: 'MutationRoot';
-  proposeAddGenesisMiner: Array<Scalars['Int']['output']>;
-};
-
-
-export type MutationRootProposeAddGenesisMinerArgs = {
-  endpoint?: InputMaybe<Scalars['String']['input']>;
-  owner: Scalars['Account']['input'];
-};
-
 export type QueryRoot = {
   __typename?: 'QueryRoot';
   creatorChainId: Scalars['ChainId']['output'];

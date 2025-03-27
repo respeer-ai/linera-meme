@@ -1,6 +1,6 @@
 <template>
-  <q-page>
-    <q-infinite-scroll :offset='300' :style='{padding: "0 8px"}'>
+  <q-page class='flex justify-center'>
+    <q-infinite-scroll :offset='300' :style='{padding: "0 8px", maxWidth: "1440px"}'>
       <div class='row'>
         <div v-for='application in applications' :key='application.applicationId' class='col-xs-12 col-sm-6 col-md-4'>
           <MemeCard :application='application' />
@@ -20,13 +20,15 @@
 <script setup lang='ts'>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { QAjaxBar } from 'quasar'
-import { ams, proxy, notify } from 'src/localstore'
+import { ams, proxy, notify, swap } from 'src/localstore'
 
 import MemeCard from './MemeCard.vue'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 const _ams = ams.useAmsStore()
 const _proxy = proxy.useProxyStore()
+const _swap = swap.useSwapStore()
+
 const applications = computed(() => _ams.applications.filter((el) => _proxy.chains.map((_el: Chain) => _el.token as string).includes(el.applicationId)))
 
 const getMemeApplications = () => {
@@ -64,10 +66,24 @@ const getApplications = () => {
   })
 }
 
+const getLatestTransactions = () => {
+  _swap.latestTransactions({
+    Message: {
+      Error: {
+        Title: 'Get latest transactions',
+        Message: 'Failed get latest transactions',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  })
+}
+
 const loadApplications = () => {
   loading.value = true
   getMemeApplications()
   getApplications()
+  getLatestTransactions()
   loading.value = false
 }
 

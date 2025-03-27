@@ -66,5 +66,9 @@ export default {
     'Subscribing WTLINERA creator chain ...',
   MSG_REQUESTING_CREATED_APPLICATION_TO_SWAP_CHAIN:
     'Requesting created application to SWAP chain ...',
-  MSG_REQUESTING_SWAP: 'Requesting SWAP ...'
+  MSG_REQUESTING_SWAP: 'Requesting SWAP ...',
+  MSG_BEFORE_SECONDS: 'before { VALUE } seconds',
+  MSG_BEFORE_MINUTES: 'before { VALUE } minutes',
+  MSG_BEFORE_HOURS: 'before { VALUE } hours',
+  MSG_BEFORE_DAYS: 'before { VALUE } days'
 }

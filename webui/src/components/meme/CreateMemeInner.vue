@@ -83,6 +83,7 @@ import { computed, ref } from 'vue'
 import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { stringify } from 'lossless-json'
 import { constants } from 'src/constant'
+import { creatorChainId } from 'src/utils'
 
 const _user = user.useUserStore()
 const publicKey = computed(() => _user.publicKey)
@@ -95,7 +96,8 @@ const argument = ref({
     decimals: 6,
     metadata: {
       description: "Creator didn't leave any information about this token. You should know if you interact with malfunction application, you may lose your assets!"
-    }
+    },
+    virtualInitialLiquidity: true
   }
 } as meme.InstantiationArgument)
 const hasInitialLiquidity = ref(false)
@@ -213,7 +215,7 @@ const publishDataBlob = (): Promise<string> => {
 
 const createMeme = async (): Promise<string> => {
   parameters.value.creator = await user.User.ownerAccount()
-  parameters.value.swapCreatorChainId = await constants.creatorChainId('swap')
+  parameters.value.swapCreatorChainId = await creatorChainId.creatorChainId('swap')
 
   if (hasInitialLiquidity.value) {
     parameters.value.initialLiquidity = initialLiquidity.value
@@ -257,7 +259,9 @@ const onCreateMemeClick = async () => {
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
     await publishDataBlob()
-    await createMeme()
+    setTimeout(() => {
+      void createMeme()
+    }, 100)
   } catch (e) {
     console.log(e)
   }

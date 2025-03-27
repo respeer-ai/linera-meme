@@ -22,6 +22,7 @@ export type Scalars = {
   ChainId: { input: any; output: any; }
   /** The index of a message in a chain */
   MessageId: { input: any; output: any; }
+  Transaction: { input: any; output: any; }
 };
 
 export type Pool = {
@@ -35,9 +36,17 @@ export type Pool = {
 export type QueryRoot = {
   __typename?: 'QueryRoot';
   creatorChainId: Scalars['ChainId']['output'];
+  latestTransactions: Array<TransactionExt>;
   poolChainCreationMessages: Array<Scalars['MessageId']['output']>;
   poolId: Scalars['Int']['output'];
   pools: Array<Pool>;
+};
+
+export type TransactionExt = {
+  __typename?: 'TransactionExt';
+  token0: Scalars['ApplicationId']['output'];
+  token1?: Maybe<Scalars['ApplicationId']['output']>;
+  transaction: Scalars['Transaction']['output'];
 };
 
 export type PoolsQueryVariables = Exact<{ [key: string]: never; }>;
@@ -45,5 +54,11 @@ export type PoolsQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type PoolsQuery = { __typename?: 'QueryRoot', pools: Array<{ __typename?: 'Pool', poolId: number, token0: any, token1?: any | null }> };
 
+export type LatestTransactionsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type LatestTransactionsQuery = { __typename?: 'QueryRoot', latestTransactions: Array<{ __typename?: 'TransactionExt', token0: any, token1?: any | null, transaction: any }> };
+
 
 export const PoolsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"pools"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pools"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"poolId"}},{"kind":"Field","name":{"kind":"Name","value":"token0"}},{"kind":"Field","name":{"kind":"Name","value":"token1"}}]}}]}}]} as unknown as DocumentNode<PoolsQuery, PoolsQueryVariables>;
+export const LatestTransactionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"latestTransactions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"latestTransactions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"token0"}},{"kind":"Field","name":{"kind":"Name","value":"token1"}},{"kind":"Field","name":{"kind":"Name","value":"transaction"}}]}}]}}]} as unknown as DocumentNode<LatestTransactionsQuery, LatestTransactionsQueryVariables>;

@@ -15,9 +15,11 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  */
 type Documents = {
     "\n  query pools {\n    pools {\n      poolId\n      token0\n      token1\n    }\n  }\n": typeof types.PoolsDocument,
+    "\n  query latestTransactions {\n    latestTransactions {\n      token0\n      token1\n      transaction\n    }\n  }\n": typeof types.LatestTransactionsDocument,
 };
 const documents: Documents = {
     "\n  query pools {\n    pools {\n      poolId\n      token0\n      token1\n    }\n  }\n": types.PoolsDocument,
+    "\n  query latestTransactions {\n    latestTransactions {\n      token0\n      token1\n      transaction\n    }\n  }\n": types.LatestTransactionsDocument,
 };
 
 /**
@@ -38,6 +40,10 @@ export function graphql(source: string): unknown;
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query pools {\n    pools {\n      poolId\n      token0\n      token1\n    }\n  }\n"): (typeof documents)["\n  query pools {\n    pools {\n      poolId\n      token0\n      token1\n    }\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query latestTransactions {\n    latestTransactions {\n      token0\n      token1\n      transaction\n    }\n  }\n"): (typeof documents)["\n  query latestTransactions {\n    latestTransactions {\n      token0\n      token1\n      transaction\n    }\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

@@ -9,3 +9,13 @@ export const POOLS = gql`
     }
   }
 `
+
+export const LATEST_TRANSACTIONS = gql`
+  query latestTransactions {
+    latestTransactions {
+      token0
+      token1
+      transaction
+    }
+  }
+`
