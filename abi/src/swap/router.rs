@@ -47,10 +47,12 @@ pub enum SwapOperation {
         to: Option<Account>,
     },
     // Notify swap of new transaction, called from pool chain
-    NewTransaction {
+    UpdatePool {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         transaction: Transaction,
+        token_0_price: Amount,
+        token_1_price: Amount,
     },
 }
 
@@ -115,10 +117,12 @@ pub enum SwapMessage {
         amount_1: Amount,
         to: Option<Account>,
     },
-    NewTransaction {
+    UpdatePool {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         transaction: Transaction,
+        token_0_price: Amount,
+        token_1_price: Amount,
     },
 }
 
@@ -129,6 +133,9 @@ pub struct Pool {
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub pool_application: Account,
+    pub latest_transaction: Option<Transaction>,
+    pub token_0_price: Option<Amount>,
+    pub token_1_price: Option<Amount>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]

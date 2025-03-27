@@ -253,6 +253,10 @@ impl PoolState {
         self.pool.set(Some(pool));
     }
 
+    pub(crate) fn calculate_price_pair(&self) -> (Amount, Amount) {
+        self.pool().calculate_price_pair()
+    }
+
     pub(crate) fn build_transaction(
         &mut self,
         owner: Account,

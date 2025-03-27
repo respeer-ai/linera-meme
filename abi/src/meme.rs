@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject, SimpleObject,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Metadata {
     pub logo_store_type: StoreType,
     pub logo: Option<CryptoHash>,
@@ -32,6 +33,7 @@ pub struct Liquidity {
 #[derive(
     Default, Debug, Clone, Deserialize, Serialize, Eq, PartialEq, InputObject, SimpleObject,
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Meme {
     pub initial_supply: Amount,
     pub total_supply: Amount,
