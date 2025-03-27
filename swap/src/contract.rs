@@ -349,15 +349,11 @@ impl SwapContract {
 
         // Here allowance is already approved, so just transfer native amount then create pool
         // chain and application
-        // This call should always be from token application on creation chain, and the funds is already deposit to swap application of current chain
-        // We cannot transfer from meme application here due to security restrict. We must transfer
-        // to swap application of current chain then transfer to swap application creation chain to
-        // add liquidity
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        self.fund_swap_creation_chain(application, None, OPEN_CHAIN_FEE_BUDGET);
-        if !virtual_liquidity {
-            self.fund_swap_creation_chain(application, Some(application), amount_1);
-        }
+        // ATM liquidity fund and fee budget should already deposited to signer of swap chain
+        // Meme creator already fund swap chain in meme application so we don't need to charge pool
+        // chain open fee here
+        // If native liquidity is needed, at that time it's already been deposited to swap application
+        // on swap chain
 
         self.runtime
             .prepare_message(SwapMessage::InitializeLiquidity {

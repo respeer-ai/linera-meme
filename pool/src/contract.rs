@@ -709,16 +709,6 @@ impl PoolContract {
         let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
         let token_0 = self.token_0();
 
-        log::warn!(
-            "Amount {:?}, {:?}, {}, {} to {} balance {:?}",
-            amount_0_in,
-            amount_1_in,
-            amount_0_out,
-            amount_1_out,
-            to,
-            self.runtime.owner_balance(application)
-        );
-
         if amount_0_out > Amount::ZERO {
             self.transfer_meme(token_0, to, amount_0_out);
         }

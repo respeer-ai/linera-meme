@@ -6,6 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
         MemeOperation, MemeParameters, Metadata,
@@ -226,8 +227,7 @@ async fn meme_work_flow_test() {
     let meme_owner_account = suite.chain_owner_account(&meme_chain);
     let user_owner_account = suite.chain_owner_account(&user_chain);
 
-    let balance = Amount::from_tokens(1);
-    suite.fund_chain(&meme_chain, balance).await;
+    suite.fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET).await;
 
     suite.create_swap_application().await;
     suite.create_meme_application().await;
@@ -396,8 +396,7 @@ async fn transfer_insufficient_funds_test() {
     let meme_chain = suite.meme_chain.clone();
     let user_chain = suite.user_chain.clone();
 
-    let balance = Amount::from_tokens(1);
-    suite.fund_chain(&meme_chain, balance).await;
+    suite.fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET).await;
 
     suite.create_swap_application().await;
 

@@ -326,7 +326,11 @@ impl ProxyContract {
     }
 
     fn fund_proxy_chain_fee_budget(&mut self) {
+        // Open chain budget fee for meme chain
         self.fund_proxy_chain(None, OPEN_CHAIN_FEE_BUDGET);
+        // Open chain budget fee for pool chain
+        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        self.fund_proxy_chain(Some(signer), OPEN_CHAIN_FEE_BUDGET);
     }
 
     fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
@@ -336,8 +340,11 @@ impl ProxyContract {
         let Some(liquidity) = meme_parameters.initial_liquidity else {
             return;
         };
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        self.fund_proxy_chain(Some(application), liquidity.native_amount);
+        // We cannot fund to application directly. Due to we're not owner of the chain then we
+        // cannot transfer the fund to swap. We should fund ourself on the target chain
+        // let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        self.fund_proxy_chain(Some(signer), liquidity.native_amount);
     }
 
     fn on_op_create_meme(
@@ -516,29 +523,33 @@ impl ProxyContract {
         meme_chain_id: ChainId,
         parameters: MemeParameters,
     ) {
-        if parameters.virtual_initial_liquidity {
-            return;
-        }
+        // We always deduct one for pool chain
+        let mut amount = OPEN_CHAIN_FEE_BUDGET;
 
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        let balance = self.runtime.owner_balance(application);
-        let Some(liquidity) = parameters.initial_liquidity else {
-            return;
+        // Balance is already fund to signer on proxy chain, so we transfer to meme chain
+        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let balance = self.runtime.owner_balance(signer);
+
+        if let Some(liquidity) = parameters.initial_liquidity {
+            if !parameters.virtual_initial_liquidity {
+                amount = amount.try_add(liquidity.native_amount).unwrap();
+            }
         };
 
-        let native_amount = liquidity.native_amount;
         assert!(
-            balance >= native_amount,
-            "Proxy application should already funded"
+            balance >= amount,
+            "User on proxy chain should already funded ({} < {})",
+            balance,
+            amount
         );
 
         self.runtime.transfer(
-            Some(application),
+            Some(signer),
             Account {
                 chain_id: meme_chain_id,
-                owner: None,
+                owner: Some(signer),
             },
-            native_amount,
+            amount,
         );
     }
 
