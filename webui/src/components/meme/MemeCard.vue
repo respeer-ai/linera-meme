@@ -20,6 +20,12 @@
         <div class='vertical-inner-y-margin'>
           {{ transactionDisplay }}
         </div>
+        <div class='vertical-inner-y-margin'>
+          {{ price }} TLINERA
+        </div>
+        <div class='vertical-inner-y-margin'>
+          {{ marketCapacity }}
+        </div>
       </q-item-label>
       <q-item-label caption>
         <div class='row vertical-section-y-margin'>
@@ -76,10 +82,12 @@ const logo = ref(_ams.applicationLogo(application.value))
 const transaction = computed(() => _swap.latestTransaction(application.value.applicationId))
 const transactionDisplay = computed(() => {
   if (!transaction.value) return ''
-  const _transaction = transaction.value?.transaction as swap.Transaction
-  const _timestamp = timestamp.timestamp2HumanReadable(_transaction.createdAt)
-  return shortid.shortId(_transaction.from.owner as string, 12) + ' ' + _transaction.transactionType.toString() + ' ' + t(_timestamp.msg, { VALUE: _timestamp.value })
+  const _timestamp = timestamp.timestamp2HumanReadable(transaction.value.createdAt)
+  return shortid.shortId(transaction.value.from.owner as string, 12) + ' ' + transaction.value.transactionType.toString() + ' ' + t(_timestamp.msg, { VALUE: _timestamp.value })
 })
+
+const price = computed(() => _swap.price(application.value.applicationId))
+const marketCapacity = computed(() => Number(price.value) * Number(_meme.value.totalSupply))
 
 </script>
 

@@ -4,7 +4,7 @@ export const timestamp2HumanReadable = (timestamp: number) => {
   if (now - timestampSec < 60) {
     return {
       msg: 'MSG_BEFORE_SECONDS',
-      value: now - timestampSec
+      value: Math.floor(now - timestampSec)
     }
   }
   if (now - timestampSec < 3600) {

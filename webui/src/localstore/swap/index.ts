@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
-import { LatestTransactionsRequest } from './types'
+import { LatestTransactionsRequest, Transaction } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
-import { LATEST_TRANSACTIONS } from 'src/graphql'
-import { TransactionExt } from 'src/__generated__/graphql/swap/graphql'
+import { POOLS } from 'src/graphql'
+import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { graphqlResult } from 'src/utils'
 
 const options = /* await */ getClientOptions()
@@ -12,17 +12,17 @@ const apolloClient = new ApolloClient(options)
 
 export const useSwapStore = defineStore('swap', {
   state: () => ({
-    transactions: [] as Array<TransactionExt>
+    pools: [] as Array<Pool>
   }),
   actions: {
     latestTransactions(
       req: LatestTransactionsRequest,
-      done?: (error: boolean, rows?: TransactionExt[]) => void
+      done?: (error: boolean, rows?: Pool[]) => void
     ) {
       const { /* result, refetch, fetchMore, */ onResult, onError } =
         provideApolloClient(apolloClient)(() =>
           useQuery(
-            LATEST_TRANSACTIONS,
+            POOLS,
             {
               endpoint: 'swap'
             },
@@ -33,10 +33,7 @@ export const useSwapStore = defineStore('swap', {
         )
 
       onResult((res) => {
-        const chains = graphqlResult.data(
-          res,
-          'latestTransactions'
-        ) as TransactionExt[]
+        const chains = graphqlResult.data(res, 'pools') as Pool[]
         this.appendChains(chains)
         done?.(false, chains)
       })
@@ -45,24 +42,26 @@ export const useSwapStore = defineStore('swap', {
         done?.(true)
       })
     },
-    appendChains(chains: TransactionExt[]) {
-      chains.forEach((transaction) => {
-        const index = this.transactions.findIndex(
-          (el) =>
-            el.token0 === transaction.token0 && el.token1 === transaction.token1
-        )
-        this.transactions.splice(
-          index >= 0 ? index : 0,
-          index >= 0 ? 1 : 0,
-          transaction
-        )
+    appendChains(pools: Pool[]) {
+      pools.forEach((pool) => {
+        const index = this.pools.findIndex((el) => el.poolId === pool.poolId)
+        this.pools.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, pool)
       })
     }
   },
   getters: {
-    latestTransaction(): (token: string) => TransactionExt | undefined {
+    latestTransaction(): (token: string) => Transaction | undefined {
       return (token: string) => {
-        return this.transactions.find((el) => el.token0 === token)
+        return this.pools.find((el) => el.token0 === token)
+          ?.latestTransaction as Transaction
+      }
+    },
+    price(): (token: string) => string {
+      return (token: string) => {
+        return Number(
+          this.pools.find((el) => el.token0 === token && !el.token1)
+            ?.token1Price
+        ).toFixed(8)
       }
     }
   }

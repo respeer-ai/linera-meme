@@ -6,16 +6,10 @@ export const POOLS = gql`
       poolId
       token0
       token1
-    }
-  }
-`
-
-export const LATEST_TRANSACTIONS = gql`
-  query latestTransactions {
-    latestTransactions {
-      token0
-      token1
-      transaction
+      poolApplication
+      latestTransaction
+      token0Price
+      token1Price
     }
   }
 `

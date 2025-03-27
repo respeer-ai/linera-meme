@@ -21,9 +21,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { QAjaxBar } from 'quasar'
 import { ams, proxy, notify, swap } from 'src/localstore'
+import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 import MemeCard from './MemeCard.vue'
-import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 const _ams = ams.useAmsStore()
 const _proxy = proxy.useProxyStore()
