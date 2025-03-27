@@ -15,7 +15,7 @@ export const useSwapStore = defineStore('swap', {
     pools: [] as Array<Pool>
   }),
   actions: {
-    latestTransactions(
+    getPools(
       req: LatestTransactionsRequest,
       done?: (error: boolean, rows?: Pool[]) => void
     ) {

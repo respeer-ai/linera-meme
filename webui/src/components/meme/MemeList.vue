@@ -1,6 +1,6 @@
 <template>
   <q-page class='flex justify-center'>
-    <q-infinite-scroll :offset='300' :style='{padding: "0 8px", maxWidth: "1440px"}'>
+    <q-infinite-scroll :offset='300' :style='{maxWidth: "1440px"}'>
       <div class='row'>
         <div v-for='(application, index) in applications' :key='application.applicationId' class='col-xs-12 col-sm-6 col-md-4' :style='{marginLeft: index % 3 != 0 ? "12px" : "0", width: "472px"}'>
           <MemeCard :application='application' />
@@ -66,8 +66,8 @@ const getApplications = () => {
   })
 }
 
-const getLatestTransactions = () => {
-  _swap.latestTransactions({
+const getPools = () => {
+  _swap.getPools({
     Message: {
       Error: {
         Title: 'Get latest transactions',
@@ -83,7 +83,7 @@ const loadApplications = () => {
   loading.value = true
   getMemeApplications()
   getApplications()
-  getLatestTransactions()
+  getPools()
   loading.value = false
 }
 
