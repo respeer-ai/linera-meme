@@ -17,7 +17,7 @@ use abi::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
             SwapResponse,
         },
-        transaction::Transaction,
+        transaction::Transaction as PoolTransaction,
     },
 };
 use linera_sdk::{
@@ -28,7 +28,7 @@ use linera_sdk::{
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use swap::SwapError;
+use swap::{SwapError, TransactionExt};
 
 use self::state::SwapState;
 
@@ -416,7 +416,7 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        transaction: Transaction,
+        transaction: PoolTransaction,
     ) -> Result<SwapResponse, SwapError> {
         self.runtime
             .prepare_message(SwapMessage::NewTransaction {
@@ -727,12 +727,19 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        transaction: Transaction,
+        transaction: PoolTransaction,
     ) -> Result<(), SwapError> {
         let Some(pool) = self.state.get_pool_exchangable(token_0, token_1).await? else {
             panic!("Invalid pool");
         };
-        self.state.new_transaction(pool.pool_id, transaction)
+        self.state.new_transaction(
+            pool.pool_id,
+            TransactionExt {
+                token_0,
+                token_1,
+                transaction,
+            },
+        )
     }
 }
 

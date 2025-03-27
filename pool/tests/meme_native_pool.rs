@@ -224,6 +224,7 @@ impl TestSuite {
             .handle_received_messages()
             .await;
         self.meme_chain.handle_received_messages().await;
+        self.swap_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
     }
 

@@ -7,7 +7,10 @@ mod state;
 
 use std::{str::FromStr, sync::Arc};
 
-use abi::swap::pool::{Pool, PoolAbi, PoolParameters};
+use abi::swap::{
+    pool::{Pool, PoolAbi, PoolParameters},
+    transaction::Transaction,
+};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, WithServiceAbi},
@@ -90,6 +93,18 @@ impl QueryRoot {
 
     async fn virtual_initial_liquidity(&self) -> bool {
         self.service.virtual_initial_liquidity()
+    }
+
+    async fn latest_transactions(&self, start_id: Option<u32>) -> Vec<Transaction> {
+        self.service
+            .state()
+            .latest_transactions
+            .elements()
+            .await
+            .expect("Failed get transactions")
+            .into_iter()
+            .filter(|transaction| transaction.transaction_id >= start_id)
+            .collect()
     }
 }
 

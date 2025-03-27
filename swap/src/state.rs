@@ -1,16 +1,13 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::swap::{
-    router::{InstantiationArgument, Pool},
-    transaction::Transaction,
-};
+use abi::swap::router::{InstantiationArgument, Pool};
 use linera_sdk::{
     linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
-use swap::SwapError;
+use swap::{SwapError, TransactionExt};
 
 /// The application state.
 #[derive(RootView)]
@@ -30,7 +27,7 @@ pub struct SwapState {
     pub token_creator_chain_ids: MapView<ApplicationId, ChainId>,
 
     // Latest transaction of each pool
-    pub latest_transactions: MapView<u64, Transaction>,
+    pub latest_transactions: MapView<u64, TransactionExt>,
 }
 
 #[allow(dead_code)]
@@ -138,7 +135,7 @@ impl SwapState {
     pub(crate) fn new_transaction(
         &mut self,
         pool_id: u64,
-        transaction: Transaction,
+        transaction: TransactionExt,
     ) -> Result<(), SwapError> {
         Ok(self.latest_transactions.insert(&pool_id, transaction)?)
     }
