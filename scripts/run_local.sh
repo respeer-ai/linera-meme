@@ -26,7 +26,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 
 # All generated files will be put here
-OUTPUT_DIR="${SCRIPT_DIR}/../target/output/local"
+OUTPUT_DIR="${SCRIPT_DIR}/../output/local"
 mkdir -p $OUTPUT_DIR
 
 # Generate config

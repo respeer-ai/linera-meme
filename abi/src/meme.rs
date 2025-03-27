@@ -39,6 +39,7 @@ pub struct Meme {
     pub ticker: String,
     pub decimals: u8,
     pub metadata: Metadata,
+    pub virtual_initial_liquidity: bool,
 }
 
 #[derive(Default, Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
