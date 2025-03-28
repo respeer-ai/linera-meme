@@ -131,6 +131,7 @@ const token1Amount = ref(0)
 const token0AmountError = ref(false)
 
 const blockHeight = computed(() => _block.blockHeight)
+const publicKey = computed(() => _user.publicKey)
 
 const balanceOfMeme = async (tokenApplication: account.Account, done: (balance: string) => void) => {
   const owner = await _user.account()
@@ -179,30 +180,37 @@ watch(userBalance, () => {
   if (selectedToken1.value === constants.LINERA_NATIVE_ID) {
     token1Balance.value = userBalance.value
   }
-})
+}, { immediate: true, deep: true })
 
 watch(blockHeight, async () => {
   await refreshBalances()
-})
+}, { immediate: true, deep: true })
 
 watch(token0Chain, async () => {
   await refreshBalances()
-})
+}, { immediate: true, deep: true })
 
 watch(token1Chain, async () => {
   await refreshBalances()
-})
+}, { immediate: true, deep: true })
 
 watch(token0Amount, () => {
-  const price = selectedToken0.value === selectedPool.value.token0 ? selectedPool.value.token0Price : selectedPool.value.token1Price
-  token1Amount.value = token0Amount.value * price
+  const price = selectedToken0.value === selectedPool.value?.token0 ? selectedPool.value?.token0Price : selectedPool.value?.token1Price
+  setTimeout(() => {
+    token1Amount.value = Number(((token0Amount.value * price) || 0).toFixed(4))
+  }, 1000)
 })
 
 watch(token1Amount, () => {
-  const price = selectedToken1.value === selectedPool.value.token1 ? selectedPool.value.token1Price : selectedPool.value.token0Price
-  token0Amount.value = token1Amount.value * price
+  const price = selectedToken1.value === selectedPool.value?.token1 ? selectedPool.value?.token1Price : selectedPool.value?.token0Price
+  setTimeout(() => {
+    token0Amount.value = Number(((token1Amount.value * price) || 0).toFixed(4))
+  }, 1000)
 })
 
+watch(publicKey, async () => {
+  await refreshBalances()
+}, { immediate: true, deep: true })
 
 const onExchangeClick = () => {
   _swap.selectedToken0 = selectedToken1.value
@@ -210,8 +218,6 @@ const onExchangeClick = () => {
   token0Amount.value = 0
   token1Amount.value = 0
 }
-
-const publicKey = computed(() => _user.publicKey)
 
 const onSwapClick = async () => {
   token0AmountError.value = token0Amount.value > token0Balance.value
