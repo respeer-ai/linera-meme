@@ -492,8 +492,8 @@ impl Pool {
             self.calculate_price_cumulative_pair(time_elapsed as u128);
         (
             Amount::from_str(
-                &price_1_cumulative
-                    .checked_sub(self.price_1_cumulative)
+                &price_0_cumulative
+                    .checked_sub(self.price_0_cumulative)
                     .unwrap()
                     .checked_div(Decimal::new(time_elapsed, 0))
                     .unwrap()
@@ -502,8 +502,8 @@ impl Pool {
             )
             .unwrap(),
             Amount::from_str(
-                &price_0_cumulative
-                    .checked_sub(self.price_0_cumulative)
+                &price_1_cumulative
+                    .checked_sub(self.price_1_cumulative)
                     .unwrap()
                     .checked_div(Decimal::new(time_elapsed, 0))
                     .unwrap()
@@ -651,7 +651,7 @@ mod tests {
         assert_eq!(amount_1, Amount::from_str("14.156133333333333333").unwrap());
 
         let (price_0, price_1) = pool.calculate_price_pair();
-        assert_eq!(price_0, Amount::from_str("0.047093839183957955").unwrap());
-        assert_eq!(price_1, Amount::from_str("21.2342").unwrap());
+        assert_eq!(price_0, Amount::from_str("21.2342").unwrap());
+        assert_eq!(price_1, Amount::from_str("0.047093839183957955").unwrap());
     }
 }
