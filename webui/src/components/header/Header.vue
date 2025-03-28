@@ -19,7 +19,7 @@
       <q-tab name='meme' label='meme' />
       <q-tab name='swap' label='swap' />
       <q-tab name='blob' label='blob' />
-      <q-tab name='campaign' label='campaign' />
+      <q-tab v-if='false' name='campaign' label='campaign' />
     </q-tabs>
     <ConnectWallet />
     <q-btn
