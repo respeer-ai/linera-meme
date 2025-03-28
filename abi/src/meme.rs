@@ -21,6 +21,7 @@ pub struct Metadata {
     pub discord: Option<String>,
     pub website: Option<String>,
     pub github: Option<String>,
+    pub live_stream: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]

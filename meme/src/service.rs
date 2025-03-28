@@ -151,6 +151,7 @@ mod tests {
                     discord: None,
                     website: None,
                     github: None,
+                    live_stream: None,
                 },
                 virtual_initial_liquidity: true,
                 initial_liquidity: None,
