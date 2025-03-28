@@ -164,6 +164,7 @@ impl TestSuite {
                     discord: None,
                     website: None,
                     github: None,
+                    live_stream: None,
                 },
                 virtual_initial_liquidity,
                 initial_liquidity: None,

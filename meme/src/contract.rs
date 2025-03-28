@@ -250,14 +250,12 @@ impl MemeContract {
             let call = AmsOperation::Register {
                 metadata: Metadata {
                     creator: self.owner_account(),
-                    application_name: format!("{} (Powered by ResPeer)", self.state.name()),
+                    application_name: self.state.name(),
                     application_id: self.runtime.application_id().forget_abi(),
                     application_type: MEME.to_string(),
                     key_words: vec![
                         "Linera".to_string(),
                         "Meme".to_string(),
-                        "ResPeer".to_string(),
-                        "Minable".to_string(),
                         "PoW microchain".to_string(),
                     ],
                     logo_store_type: self.state.logo_store_type(),
@@ -1049,6 +1047,7 @@ mod tests {
                     discord: None,
                     website: None,
                     github: None,
+                    live_stream: None,
                 },
                 virtual_initial_liquidity: true,
                 initial_liquidity: parameters.initial_liquidity,
