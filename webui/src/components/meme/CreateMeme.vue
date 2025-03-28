@@ -61,6 +61,7 @@ const onContinueClick = () => {
 }
 
 const onMemeTokenCreated = () => {
+  creating.value = false
   createMessage.value = t('MSG_APPLICATION_CREATED')
 }
 
