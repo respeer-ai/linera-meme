@@ -10,7 +10,7 @@
         <div class='row'>
           <q-icon name='bi-wallet-fill' class='text-grey-8 swap-amount-icon' size='16px' />
           <div class='swap-amount-label text-grey-9 text-bold'>
-            {{ Number(outBalance).toFixed(2) }}
+            {{ token0Balance }}
           </div>
           <div class='text-grey-8'>
             {{ token0Ticker }}
@@ -50,7 +50,7 @@
         <div class='row'>
           <q-icon name='bi-wallet-fill' class='text-grey-8 swap-amount-icon' size='16px' />
           <div class='swap-amount-label text-grey-9 text-bold'>
-            {{ Number(inBalance).toFixed(2) }}
+            {{ token1Balance }}
           </div>
           <div class='text-grey-8'>
             {{ token1Ticker }}
@@ -80,59 +80,122 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { swap, ams, meme } from 'src/localstore'
+import { ref, computed, watch, onMounted } from 'vue'
+import { swap, ams, meme, user, block, account, notify, proxy } from 'src/localstore'
 import { constants } from 'src/constant'
 import { shortid } from 'src/utils'
+import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
+const _user = user.useUserStore()
+const _block = block.useBlockStore()
+const _meme = meme.useMemeStore()
+const _proxy = proxy.useProxyStore()
 
 const selectedPool = computed(() => _swap.selectedPool)
+
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const token0Ticker = computed(() => selectedToken0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(selectedToken0.value)?.spec || '{}') as meme.Meme).ticker)
 const token1Ticker = computed(() => selectedToken1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(selectedToken1.value)?.spec || '{}') as meme.Meme).ticker)
+const token0Chain = computed(() => _proxy.chain(selectedToken0.value) as Chain)
+const token1Chain = computed(() => _proxy.chain(selectedToken1.value) as Chain)
+const token0Application = computed(() => {
+  return {
+    chainId: token0Chain.value?.chainId,
+    owner: `Application:${token0Chain.value?.token}`
+  }
+})
+const token1Application = computed(() => {
+  return {
+    chainId: token1Chain.value?.chainId,
+    owner: `Application:${token1Chain.value?.token}`
+  }
+})
+const userChainBalance = computed(() => _user.chainBalance)
+const userOwnerBalance = computed(() => _user.accountBalance)
+const userBalance = computed(() => Number((Number(userChainBalance.value) + Number(userOwnerBalance.value)).toFixed(4)))
+
+const token0Balance = ref(0)
+const token1Balance = ref(0)
 
 const outAmount = ref(0)
 const inAmount = ref(0)
 
 const outAmountError = ref(false)
 
-const outBalance = ref(0)
-const inBalance = ref(0)
+const blockHeight = computed(() => _block.blockHeight)
 
-const subscriptionId = ref(undefined as unknown as string)
+const balanceOfMeme = async (tokenApplication: account.Account, done: (balance: string) => void) => {
+  const owner = await _user.account()
+  if (!owner.owner || !token0Chain.value || !tokenApplication.owner) return
+  const owenrDescription = account._Account.accountDescription(owner)
 
-const subscriptionHandler = () => {
-  // TODO
+  _meme.balanceOf({
+    owner: owenrDescription,
+    Message: {
+      Error: {
+        Title: 'Balance of meme',
+        Message: 'Failed get balance of meme',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  }, tokenApplication, (error: boolean, balance?: string) => {
+    if (error) return
+    done(balance as string)
+  })
 }
 
-onMounted(() => {
-  if (subscriptionId.value) return
-  window.linera?.request({
-    method: 'linera_subscribe'
-  }).then((_subscriptionId) => {
-    subscriptionId.value = _subscriptionId as string
-    window.linera.on('message', subscriptionHandler)
-  }).catch((e) => {
-    console.log('Fail subscribe', e)
-  })
+const refreshBalances = async () => {
+  if (selectedToken0.value === constants.LINERA_NATIVE_ID) {
+    token0Balance.value = userBalance.value
+  } else {
+    await balanceOfMeme(token0Application.value, (balance: string) => {
+      token0Balance.value = Number(Number(balance).toFixed(4))
+    })
+  }
+
+  if (selectedToken1.value === constants.LINERA_NATIVE_ID) {
+    token1Balance.value = userBalance.value
+  } else {
+    await balanceOfMeme(token1Application.value, (balance: string) => {
+      token1Balance.value = Number(Number(balance).toFixed(4))
+    })
+  }
+}
+
+watch(userBalance, () => {
+  if (selectedToken0.value === constants.LINERA_NATIVE_ID) {
+    token0Balance.value = userBalance.value
+  }
+
+  if (selectedToken1.value === constants.LINERA_NATIVE_ID) {
+    token1Balance.value = userBalance.value
+  }
 })
 
-onUnmounted(() => {
-  if (!subscriptionId.value) return
-  void window.linera?.request({
-    method: 'linera_unsubscribe',
-    params: [subscriptionId.value]
-  })
-  subscriptionId.value = undefined as unknown as string
+watch(blockHeight, async () => {
+  await refreshBalances()
+})
+
+watch(token0Chain, async () => {
+  await refreshBalances()
+})
+
+watch(token1Chain, async () => {
+  await refreshBalances()
 })
 
 const onExchangeClick = () => {
   _swap.selectedToken0 = selectedToken1.value
   _swap.selectedToken1 = selectedToken0.value
 }
+
+onMounted(async () => {
+  await refreshBalances()
+})
 
 </script>
 

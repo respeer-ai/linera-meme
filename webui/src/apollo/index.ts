@@ -6,7 +6,7 @@ import { createClient } from 'graphql-ws'
 import { getMainDefinition } from '@apollo/client/utilities'
 import { constants } from 'src/constant'
 
-export /* async */ function getClientOptions(/* {app, router, ...}, options?: Partial<BootFileParams<unknown>> */) {
+export /* async */ function getClientOptions(httpUrl?: string) {
   const wsLink = new GraphQLWsLink(
     createClient({
       url: constants.RPC_WS_URL
@@ -15,6 +15,8 @@ export /* async */ function getClientOptions(/* {app, router, ...}, options?: Pa
 
   const httpLink = createHttpLink({
     uri: (operation) => {
+      if (httpUrl?.length) return httpUrl
+
       switch (operation.variables.endpoint) {
         case 'swap':
           return constants.APPLICATION_URLS.SWAP

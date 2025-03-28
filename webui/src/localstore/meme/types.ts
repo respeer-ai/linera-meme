@@ -1,4 +1,5 @@
 import { Account } from '../account'
+import { BaseRequest } from '../request'
 import { StoreType } from '../store'
 
 // TODO: export those from meme application
@@ -41,4 +42,8 @@ export interface MemeParameters {
   initialLiquidity?: Liquidity
   virtualInitialLiquidity: boolean
   swapCreatorChainId: string
+}
+
+export interface BalanceOfRequest extends BaseRequest {
+  owner: string // 1231321321213:User:1231431321321321321
 }

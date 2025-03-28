@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { dbModel } from 'src/model'
+import { dbModel } from '../../model'
 import { Account } from '../account'
 
 export class User {
@@ -20,6 +20,18 @@ export const useUserStore = defineStore('user', {
     accountBalance: '0.',
     chainBalance: '0.'
   }),
-  getters: {},
+  getters: {
+    account (): () => Promise<Account> {
+      return async () => {
+        if (!this.publicKey) return {
+          chainId: this.chainId
+        }
+        return {
+          chainId: this.chainId,
+          owner: `User:${await dbModel.ownerFromPublicKey(this.publicKey)}`
+        }
+      }
+    }
+  },
   actions: {}
 })

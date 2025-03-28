@@ -30,8 +30,10 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { graphqlResult } from 'src/utils'
+import { block, user } from 'src/localstore'
 
 import { blobGatewayLogo, lineraMemeLogo, lineraSwapLogo } from 'src/assets'
 
@@ -40,6 +42,9 @@ import ConnectWallet from './ConnectWallet.vue'
 const route = useRoute()
 const router = useRouter()
 const path = computed(() => route.path)
+
+const _block = block.useBlockStore()
+const _user = user.useUserStore()
 
 const path2tab = () => {
   if (path.value.includes('meme')) return 'meme'
@@ -74,6 +79,40 @@ onMounted(() => {
     selectedIcon.value = lineraMemeLogo
     void router.push({ path: window.location.pathname === '/' ? '/meme' : window.location.pathname })
   }
+})
+
+const subscriptionId = ref(undefined as unknown as string)
+
+const subscriptionHandler = (msg: unknown) => {
+  const data = (graphqlResult.keyValue(msg, 'data') || []) as Record<string, Record<string, Record<string, Record<string, Record<string, unknown>>>>>
+  if (data.result.notifications.reason.NewBlock) {
+    const blockChainId = data.result.notifications.chain_id.toString()
+    if (blockChainId === _user.chainId) {
+      _block.blockHeight = data.result.notifications.reason.NewBlock.height as number
+      _block.blockHash = data.result.notifications.reason.NewBlock.hash as string
+    }
+  }
+}
+
+onMounted(() => {
+  if (subscriptionId.value) return
+  window.linera?.request({
+    method: 'linera_subscribe'
+  }).then((_subscriptionId) => {
+    subscriptionId.value = _subscriptionId as string
+    window.linera.on('message', subscriptionHandler)
+  }).catch((e) => {
+    console.log('Fail subscribe', e)
+  })
+})
+
+onUnmounted(() => {
+  if (!subscriptionId.value) return
+  void window.linera?.request({
+    method: 'linera_unsubscribe',
+    params: [subscriptionId.value]
+  })
+  subscriptionId.value = undefined as unknown as string
 })
 
 </script>

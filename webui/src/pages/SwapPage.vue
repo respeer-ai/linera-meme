@@ -39,7 +39,7 @@
 
 <script setup lang='ts'>
 import { onMounted, ref } from 'vue'
-import { swap, notify, ams } from 'src/localstore'
+import { swap, notify, ams, proxy } from 'src/localstore'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { useRoute } from 'vue-router'
 import { constants } from 'src/constant'
@@ -51,6 +51,7 @@ import KLine from 'src/components/kline/KLine.vue'
 import Swap from 'src/components/swap/Swap.vue'
 import Trades from 'src/components/trades/Trades.vue'
 import AddLiquidity from './AddLiquidity.vue'
+import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 interface Query {
   token0: string
@@ -65,6 +66,7 @@ const tab = ref('swap')
 
 const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
+const _proxy = proxy.useProxyStore()
 
 const getPools = () => {
   _swap.getPools({
@@ -101,9 +103,27 @@ const getApplications = () => {
   })
 }
 
+const getMemeApplications = () => {
+  _proxy.getApplications({
+    Message: {
+      Error: {
+        Title: 'Get meme applications',
+        Message: 'Failed get meme applications',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  }, (error: boolean, rows?: Chain[]) => {
+    // eslint-disable-next-line no-useless-return
+    if (error || !rows?.length) return
+    // Continue to fetch
+  })
+}
+
 onMounted(() => {
   getPools()
   getApplications()
+  getMemeApplications()
   _swap.selectedPool = _swap.getPool(token0.value, token1.value) as Pool
 })
 

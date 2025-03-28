@@ -80,9 +80,9 @@
   </q-btn>
 </template>
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { Cookies } from 'quasar'
-import { user } from 'src/localstore'
+import { user, block } from 'src/localstore'
 import { shortid } from 'src/utils'
 import { Web3 } from 'web3'
 import { addressIcon, microchainIcon, copyIcon } from 'src/assets'
@@ -90,10 +90,14 @@ import { BALANCES } from 'src/graphql'
 import { dbModel, rpcModel } from 'src/model'
 
 const _user = user.useUserStore()
+const _block = block.useBlockStore()
+
 const publicKey = computed(() => _user.publicKey?.trim())
 const chainId = computed(() => _user.chainId?.trim())
 const accountBalance = computed(() => _user.accountBalance)
 const chainBalance = computed(() => _user.chainBalance)
+
+const blockHeight = computed(() => _block.blockHeight)
 
 const getProviderState = () => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -175,6 +179,10 @@ const getBalances = async () => {
     console.log(e)
   })
 }
+
+watch(blockHeight, async () => {
+  await getBalances()
+})
 
 </script>
 

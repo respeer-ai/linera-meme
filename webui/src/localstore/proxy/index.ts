@@ -50,5 +50,12 @@ export const useProxyStore = defineStore('proxy', {
         this.chains.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, chain)
       })
     }
+  },
+  getters: {
+    chain(): (token: string) => Chain | undefined {
+      return (token: string) => {
+        return this.chains.find((el) => el.token === token)
+      }
+    }
   }
 })
