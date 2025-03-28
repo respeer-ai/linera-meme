@@ -96,7 +96,8 @@ impl QueryRoot {
     }
 
     async fn latest_transactions(&self, start_id: Option<u32>) -> Vec<Transaction> {
-        self.service
+        let mut transactions: Vec<_> = self
+            .service
             .state()
             .latest_transactions
             .elements()
@@ -104,7 +105,9 @@ impl QueryRoot {
             .expect("Failed get transactions")
             .into_iter()
             .filter(|transaction| transaction.transaction_id >= start_id)
-            .collect()
+            .collect();
+        transactions.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        transactions
     }
 }
 
