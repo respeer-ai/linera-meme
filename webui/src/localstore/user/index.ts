@@ -21,11 +21,12 @@ export const useUserStore = defineStore('user', {
     chainBalance: '0.'
   }),
   getters: {
-    account (): () => Promise<Account> {
+    account(): () => Promise<Account> {
       return async () => {
-        if (!this.publicKey) return {
-          chainId: this.chainId
-        }
+        if (!this.publicKey)
+          return {
+            chainId: this.chainId
+          }
         return {
           chainId: this.chainId,
           owner: `User:${await dbModel.ownerFromPublicKey(this.publicKey)}`

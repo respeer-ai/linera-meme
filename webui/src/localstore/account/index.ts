@@ -13,6 +13,11 @@ export class _Account {
     if (account.owner) description += ':' + account.owner
     return description
   }
+
+  static accountOwner = (account: Account) => {
+    if (!account.owner) return
+    return account.owner.split(':')[1]
+  }
 }
 
 export * from './types'

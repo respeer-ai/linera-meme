@@ -10,7 +10,11 @@ import { _Account, Account } from '../account'
 export const useMemeStore = defineStore('meme', {
   state: () => ({}),
   actions: {
-    balanceOf(req: BalanceOfRequest, memeApplication: Account, done?: (error: boolean, balance?: string) => void) {
+    balanceOf(
+      req: BalanceOfRequest,
+      memeApplication: Account,
+      done?: (error: boolean, balance?: string) => void
+    ) {
       const url = _Account.applicationUrl(memeApplication)
       const options = /* await */ getClientOptions(url)
       const apolloClient = new ApolloClient(options)
@@ -20,7 +24,7 @@ export const useMemeStore = defineStore('meme', {
           useQuery(
             BALANCE_OF,
             {
-              owner: req.owner,
+              owner: req.owner
             },
             {
               fetchPolicy: 'network-only'

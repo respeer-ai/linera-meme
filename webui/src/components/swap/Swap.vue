@@ -28,9 +28,9 @@
         </div>
         <q-space />
         <q-input
-          class='swap-amount-input text-grey-8' dense v-model.number='outAmount' reverse-fill-mask
+          class='swap-amount-input text-grey-8' dense v-model.number='token0Amount' reverse-fill-mask
           input-class='text-right'
-          :error='outAmountError'
+          :error='token0AmountError'
         />
       </div>
     </q-card>
@@ -68,13 +68,15 @@
         </div>
         <q-space />
         <q-input
-          class='swap-amount-input' dense v-model.number='inAmount' reverse-fill-mask
+          class='swap-amount-input' dense v-model.number='token1Amount' reverse-fill-mask
           input-class='text-right'
         />
       </div>
     </q-card>
     <q-btn
       rounded flat :label='$t("MSG_SWAP")' class='full-width border-red-4 vertical-inner-y-margin vertical-inner-y-margin-bottom'
+      @click='onSwapClick'
+      :disable='token0Amount === 0 || token1Amount === 0'
     />
   </div>
 </template>
@@ -85,6 +87,9 @@ import { swap, ams, meme, user, block, account, notify, proxy } from 'src/locals
 import { constants } from 'src/constant'
 import { shortid } from 'src/utils'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
+import { SWAP } from 'src/graphql'
+import * as lineraWasm from '../../../dist/wasm/linera_wasm'
+import { stringify } from 'lossless-json'
 
 const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
@@ -120,16 +125,16 @@ const userBalance = computed(() => Number((Number(userChainBalance.value) + Numb
 const token0Balance = ref(0)
 const token1Balance = ref(0)
 
-const outAmount = ref(0)
-const inAmount = ref(0)
+const token0Amount = ref(0)
+const token1Amount = ref(0)
 
-const outAmountError = ref(false)
+const token0AmountError = ref(false)
 
 const blockHeight = computed(() => _block.blockHeight)
 
 const balanceOfMeme = async (tokenApplication: account.Account, done: (balance: string) => void) => {
   const owner = await _user.account()
-  if (!owner.owner || !token0Chain.value || !tokenApplication.owner) return
+  if (!owner.owner || !tokenApplication.owner) return
   const owenrDescription = account._Account.accountDescription(owner)
 
   _meme.balanceOf({
@@ -188,9 +193,59 @@ watch(token1Chain, async () => {
   await refreshBalances()
 })
 
+watch(token0Amount, () => {
+  const price = selectedToken0.value === selectedPool.value.token0 ? selectedPool.value.token0Price : selectedPool.value.token1Price
+  token1Amount.value = token0Amount.value * price
+})
+
+watch(token1Amount, () => {
+  const price = selectedToken1.value === selectedPool.value.token1 ? selectedPool.value.token1Price : selectedPool.value.token0Price
+  token0Amount.value = token1Amount.value * price
+})
+
+
 const onExchangeClick = () => {
   _swap.selectedToken0 = selectedToken1.value
   _swap.selectedToken1 = selectedToken0.value
+  token0Amount.value = 0
+  token1Amount.value = 0
+}
+
+const publicKey = computed(() => _user.publicKey)
+
+const onSwapClick = async () => {
+  token0AmountError.value = token0Amount.value > token0Balance.value
+  if (token0AmountError.value) return
+
+  const variables = {
+    amount0In: selectedToken0.value === selectedPool.value.token0 ? token0Amount.value.toString() : undefined,
+    amount1In: selectedToken0.value === selectedPool.value.token1 ? token0Amount.value.toString() : undefined,
+    amount0OutMin: undefined,
+    amount1OutMin: undefined,
+    to: undefined,
+    blockTimestamp: undefined
+  }
+  const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(SWAP.loc?.source?.body as string, stringify(variables) as string)
+  return new Promise((resolve, reject) => {
+    window.linera.request({
+      method: 'linera_graphqlMutation',
+      params: {
+        applicationId: account._Account.accountOwner(selectedPool.value.poolApplication),
+        publicKey: publicKey.value,
+        query: {
+          query: SWAP.loc?.source?.body,
+          variables,
+          applicationOperationBytes: queryBytes
+        },
+        operationName: 'createMeme'
+      }
+    }).then((hash) => {
+      resolve(hash as string)
+      void refreshBalances()
+    }).catch((e) => {
+      reject(e)
+    })
+  })
 }
 
 onMounted(async () => {
