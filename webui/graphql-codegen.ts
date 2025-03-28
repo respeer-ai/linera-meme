@@ -28,6 +28,14 @@ const config: CodegenConfig = {
       documents: ['src/graphql/proxy.ts'],
       preset: 'client',
       plugins: []
+    },
+    './src/__generated__/graphql/blob/': {
+      schema: constants.formalizeSchema(
+        constants.APPLICATION_URLS.BLOB_GATEWAY
+      ),
+      documents: ['src/graphql/blob.ts'],
+      preset: 'client',
+      plugins: []
     }
   }
 }

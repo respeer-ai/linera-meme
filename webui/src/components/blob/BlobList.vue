@@ -1,18 +1,18 @@
 <template>
   <q-page class='flex justify-center'>
-    <div :style='{maxWidth: "1440px"}'>
+    <div :style='{maxWidth: "960px"}'>
       <q-table
         flat
-        :rows='[]'
-        :columns='columns'
+        :rows='blobs'
+        :columns='(columns as never)'
         row-key='id'
         :pagination='initialPagination'
-        :style='{minWidth: "1280px"}'
+        :style='{minWidth: "960px"}'
       >
         <template #body-cell-thumbnail='props'>
           <q-td :props='props'>
             <q-img
-              :src='props.row.thumbnail'
+              :src='_blob.blobPath(props.row)'
               :alt='props.row.blobHash'
               style='max-width: 50px; max-height: 50px;'
               contain
@@ -27,6 +27,9 @@
 <script setup lang='ts'>
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { blob, notify, account } from 'src/localstore'
+import { BlobData } from 'src/__generated__/graphql/blob/graphql'
+import { shortid, timestamp } from 'src/utils'
 
 // eslint-disable-next-line @typescript-eslint/unbound-method
 const { t } = useI18n({ useScope: 'global' })
@@ -38,46 +41,57 @@ const initialPagination = ref({
   rowsPerPage: 5
 })
 
-onMounted(async () => {
-  await Promise.resolve()
+const _blob = blob.useBlobStore()
+const blobs = computed(() => _blob.blobs)
+
+onMounted(() => {
+  _blob.listBlobs({
+    limit: 40,
+    Message: {
+      Error: {
+        Title: 'List blobs',
+        Message: 'Failed list blobs',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  })
 })
 
 const columns = computed(() => [
   {
-    name: 'ID',
-    label: t('MSG_ID'),
-    sortable: true,
-    field: 'ID'
-  },
-  {
     name: 'blobHash',
     label: t('MSG_BLOB_HASH'),
+    align: 'left',
     sortable: true,
-    field: 'BlobHash'
+    field: (row: BlobData) => shortid.shortId(row.blobHash as string, 12, 12)
   },
   {
     name: 'dataType',
     label: t('MSG_DATATYPE'),
     sortable: true,
-    field: 'DataType'
+    field: (row: BlobData) => row.dataType
   },
   {
     name: 'creator',
     label: t('MSG_CREATOR'),
     sortable: true,
-    field: 'Creator'
+    field: (row: BlobData) => shortid.shortId((row.creator as account.Account).owner as string, 16, 12)
   },
   {
     name: 'createdAt',
     label: t('MSG_CREATED_AT'),
     sortable: true,
-    field: 'CreatedAt'
+    field: (row: BlobData) => {
+      const createdAt = timestamp.timestamp2HumanReadable(row.createdAt as number)
+      return t(createdAt.msg, { VALUE: createdAt.value })
+    }
   },
   {
     name: 'thumbnail',
     label: t('MSG_THUMBNAIL'),
-    sortable: true,
-    field: 'Thumbnail'
+    sortable: false,
+    field: (row: BlobData) => _blob.blobPath(row)
   }
 ])
 

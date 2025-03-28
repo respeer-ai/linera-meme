@@ -4,9 +4,8 @@ import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { APPLICATIONS } from 'src/graphql'
-import { constants } from 'src/constant'
 import { graphqlResult } from 'src/utils'
-import { StoreType } from '../store'
+import { BlobGateway } from '../blob'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
@@ -64,17 +63,10 @@ export const useAmsStore = defineStore('ams', {
   getters: {
     applicationLogo(): (application: Application) => string {
       return (application: Application) => {
-        switch (application.logoStoreType) {
-          case StoreType.Blob:
-          case StoreType.S3:
-            return (
-              constants.APPLICATION_URLS.BLOB_GATEWAY +
-              '/images/' +
-              application.logo
-            )
-          case StoreType.Ipfs:
-            return application.logo
-        }
+        return BlobGateway.imagePath(
+          application.logoStoreType,
+          application.logo
+        )
       }
     }
   }
