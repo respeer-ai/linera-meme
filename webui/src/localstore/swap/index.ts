@@ -14,7 +14,9 @@ const apolloClient = new ApolloClient(options)
 export const useSwapStore = defineStore('swap', {
   state: () => ({
     pools: [] as Array<Pool>,
-    selectedPool: undefined as unknown as Pool
+    selectedPool: undefined as unknown as Pool,
+    selectedToken0: undefined as unknown as string,
+    selectedToken1: undefined as unknown as string
   }),
   actions: {
     getPools(

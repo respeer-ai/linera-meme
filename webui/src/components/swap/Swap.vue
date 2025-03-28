@@ -13,17 +13,17 @@
             {{ Number(outBalance).toFixed(2) }}
           </div>
           <div class='text-grey-8'>
-            AAA
+            {{ token0Ticker }}
           </div>
         </div>
       </div>
       <div class='row vertical-card-align swap-token'>
         <div>
           <div class='text-bold'>
-            BBB
+            {{ token0Ticker }}
           </div>
           <div class='text-grey-8' title='aaaaaaaaaaa'>
-            aaaaaaaaaaa
+            {{ shortid.shortId(selectedToken0, 12) }}
           </div>
         </div>
         <q-space />
@@ -37,7 +37,7 @@
     <div class='row vertical-card-align'>
       <div class='decorate-border-bottom-bold exchange-separator' />
       <div class='exchange-symbol' size='28px'>
-        <q-icon name='bi-arrow-down-up' size='14px' class='text-grey-6' />
+        <q-icon name='bi-arrow-down-up' size='14px' class='text-grey-6 cursor-pointer' @click='onExchangeClick' />
       </div>
       <div class='decorate-border-bottom-bold exchange-separator' />
     </div>
@@ -53,17 +53,17 @@
             {{ Number(inBalance).toFixed(2) }}
           </div>
           <div class='text-grey-8'>
-            BBB
+            {{ token1Ticker }}
           </div>
         </div>
       </div>
       <div class='row vertical-card-align swap-token'>
         <div>
           <div class='text-bold'>
-            BBB
+            {{ token1Ticker }}
           </div>
           <div class='text-grey-8' title='aaaaaaaaaaa'>
-            aaaaaaaaaaa
+            {{ shortid.shortId(selectedToken1, 12) }}
           </div>
         </div>
         <q-space />
@@ -80,7 +80,19 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { swap, ams, meme } from 'src/localstore'
+import { constants } from 'src/constant'
+import { shortid } from 'src/utils'
+
+const _swap = swap.useSwapStore()
+const _ams = ams.useAmsStore()
+
+const selectedPool = computed(() => _swap.selectedPool)
+const selectedToken0 = computed(() => _swap.selectedToken0)
+const selectedToken1 = computed(() => _swap.selectedToken1)
+const token0Ticker = computed(() => selectedToken0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(selectedToken0.value)?.spec || '{}') as meme.Meme).ticker)
+const token1Ticker = computed(() => selectedToken1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(selectedToken1.value)?.spec || '{}') as meme.Meme).ticker)
 
 const outAmount = ref(0)
 const inAmount = ref(0)
@@ -116,6 +128,11 @@ onUnmounted(() => {
   })
   subscriptionId.value = undefined as unknown as string
 })
+
+const onExchangeClick = () => {
+  _swap.selectedToken0 = selectedToken1.value
+  _swap.selectedToken1 = selectedToken0.value
+}
 
 </script>
 

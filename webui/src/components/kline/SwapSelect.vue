@@ -64,6 +64,7 @@
 import { swap, ams, meme } from 'src/localstore'
 import { computed, onMounted, ref, watch } from 'vue'
 import { constants } from 'src/constant'
+import { Pool } from 'src/__generated__/graphql/swap/graphql'
 
 const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
@@ -78,6 +79,8 @@ interface TokenItem {
 const pools = computed(() => _swap.pools)
 const applications = computed(() => _ams.applications)
 const poolTokens = ref([] as TokenItem[])
+const selectedToken0 = computed(() => _swap.selectedToken0)
+const selectedToken1 = computed(() => _swap.selectedToken1)
 
 const buildTokens = () => {
   const tokens = new Map<string, TokenItem>()
@@ -120,10 +123,16 @@ const token1Items = computed(() => {
   }))
 })
 
-const selectedPool = computed(() => _swap.selectedPool)
-
 const token0 = ref(undefined as unknown as TokenItem)
 const token1 = ref(undefined as unknown as TokenItem)
+
+watch(selectedToken0, () => {
+  token0.value = poolTokens.value.find((el) => el.token === selectedToken0.value) as TokenItem
+})
+
+watch(selectedToken1, () => {
+  token1.value = poolTokens.value.find((el) => el.token === selectedToken1.value) as TokenItem
+})
 
 watch(token0Items, () => {
   if (!token0.value?.logo || !token0.value?.name || !token0.value?.ticker || !token0.value?.token) token0.value = token0Items.value[0]
@@ -133,6 +142,11 @@ watch(token0, () => {
   if (!token0.value) return
   if (!_swap.existPool(token0.value.token, token1.value?.token)) {
     token1.value = token1Items.value[0]
+  }
+  if (token0.value && token1.value) {
+    _swap.selectedPool = _swap.getPool(token0.value.token, token1.value.token) as Pool
+    _swap.selectedToken0 = token0.value.token
+    _swap.selectedToken1 = token1.value.token
   }
 }, { immediate: true, deep: true })
 
