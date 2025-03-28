@@ -19,3 +19,9 @@ export const SWAP = gql`
     )
   }
 `
+
+export const LATEST_TRANSACTIONS = gql`
+  query latestTransactions($startId: Int) {
+    latestTransactions(startId: $startId)
+  }
+`

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { LatestTransactionsRequest, Transaction } from './types'
+import { LatestTransactionsRequest } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
@@ -7,6 +7,7 @@ import { POOLS } from 'src/graphql'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { formalizeFloat, graphqlResult } from 'src/utils'
 import { constants } from 'src/constant'
+import { Transaction } from '../transaction'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
@@ -66,9 +67,12 @@ export const useSwapStore = defineStore('swap', {
     },
     price(): (token: string) => string | undefined {
       return (token: string) => {
-        const pool = this.pools.find((el) => el.token0 === token && !el.token1)
+        const pool = this.pools.find(
+          (el) =>
+            el.token0 === token && el.token1 === constants.LINERA_NATIVE_ID
+        )
         return pool
-          ? formalizeFloat.trimZeros(Number(pool?.token1Price).toFixed(8))
+          ? formalizeFloat.trimZeros(Number(pool?.token0Price).toFixed(8))
           : undefined
       }
     },

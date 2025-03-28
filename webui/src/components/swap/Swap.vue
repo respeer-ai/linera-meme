@@ -83,7 +83,7 @@
 
 <script setup lang='ts'>
 import { ref, computed, watch, onMounted } from 'vue'
-import { swap, ams, meme, user, block, account, notify, proxy } from 'src/localstore'
+import { swap, ams, meme, user, block, account, notify, proxy, pool } from 'src/localstore'
 import { constants } from 'src/constant'
 import { shortid } from 'src/utils'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
@@ -97,6 +97,7 @@ const _user = user.useUserStore()
 const _block = block.useBlockStore()
 const _meme = meme.useMemeStore()
 const _proxy = proxy.useProxyStore()
+const _pool = pool.usePoolStore()
 
 const selectedPool = computed(() => _swap.selectedPool)
 
@@ -208,6 +209,12 @@ watch(token1Amount, () => {
   }, 1000)
 })
 
+const getLatestTransactions = () => {
+  _pool.latestTransactions({
+    startId: _pool.nextStartId(selectedPool.value.poolId)
+  }, selectedPool.value.poolId, selectedPool.value.poolApplication)
+}
+
 watch(publicKey, async () => {
   await refreshBalances()
 }, { immediate: true, deep: true })
@@ -248,6 +255,7 @@ const onSwapClick = async () => {
     }).then((hash) => {
       resolve(hash as string)
       void refreshBalances()
+      getLatestTransactions()
     }).catch((e) => {
       reject(e)
     })

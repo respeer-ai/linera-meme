@@ -1,11 +1,15 @@
 import { Account } from './types'
 
 export class _Account {
-  static applicationUrl = (application: Account) => {
+  static applicationUrl = (
+    host: string,
+    endpoint: string,
+    application: Account
+  ) => {
     if (!application.owner) return
     const chainId = application.chainId
     const applicationId = application.owner.split(':')[1]
-    return `http://api.linerameme.fun/api/proxy/chains/${chainId}/applications/${applicationId}`
+    return `http://${host}/api/${endpoint}/chains/${chainId}/applications/${applicationId}`
   }
 
   static accountDescription = (account: Account) => {

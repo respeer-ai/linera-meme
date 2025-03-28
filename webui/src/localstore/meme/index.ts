@@ -15,7 +15,11 @@ export const useMemeStore = defineStore('meme', {
       memeApplication: Account,
       done?: (error: boolean, balance?: string) => void
     ) {
-      const url = _Account.applicationUrl(memeApplication)
+      const url = _Account.applicationUrl(
+        'api.linerameme.fun',
+        'proxy',
+        memeApplication
+      )
       const options = /* await */ getClientOptions(url)
       const apolloClient = new ApolloClient(options)
 
