@@ -14,10 +14,10 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "\n  query list($createdBefore: Timestamp, $createdAfter: Timestamp!, $dataType: BlobDataType, $limit: Int!) {\n    list(createdBefore: $createdBefore, createdAfter: $createdAfter, dataType: $dataType, limit: $limit) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n": typeof types.ListDocument,
+    "\n  query list(\n    $createdBefore: Timestamp\n    $createdAfter: Timestamp\n    $dataType: BlobDataType\n    $limit: Int!\n  ) {\n    list(\n      createdBefore: $createdBefore\n      createdAfter: $createdAfter\n      dataType: $dataType\n      limit: $limit\n    ) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n": typeof types.ListDocument,
 };
 const documents: Documents = {
-    "\n  query list($createdBefore: Timestamp, $createdAfter: Timestamp!, $dataType: BlobDataType, $limit: Int!) {\n    list(createdBefore: $createdBefore, createdAfter: $createdAfter, dataType: $dataType, limit: $limit) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n": types.ListDocument,
+    "\n  query list(\n    $createdBefore: Timestamp\n    $createdAfter: Timestamp\n    $dataType: BlobDataType\n    $limit: Int!\n  ) {\n    list(\n      createdBefore: $createdBefore\n      createdAfter: $createdAfter\n      dataType: $dataType\n      limit: $limit\n    ) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n": types.ListDocument,
 };
 
 /**
@@ -37,7 +37,7 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query list($createdBefore: Timestamp, $createdAfter: Timestamp!, $dataType: BlobDataType, $limit: Int!) {\n    list(createdBefore: $createdBefore, createdAfter: $createdAfter, dataType: $dataType, limit: $limit) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n"): (typeof documents)["\n  query list($createdBefore: Timestamp, $createdAfter: Timestamp!, $dataType: BlobDataType, $limit: Int!) {\n    list(createdBefore: $createdBefore, createdAfter: $createdAfter, dataType: $dataType, limit: $limit) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n"];
+export function graphql(source: "\n  query list(\n    $createdBefore: Timestamp\n    $createdAfter: Timestamp\n    $dataType: BlobDataType\n    $limit: Int!\n  ) {\n    list(\n      createdBefore: $createdBefore\n      createdAfter: $createdAfter\n      dataType: $dataType\n      limit: $limit\n    ) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n"): (typeof documents)["\n  query list(\n    $createdBefore: Timestamp\n    $createdAfter: Timestamp\n    $dataType: BlobDataType\n    $limit: Int!\n  ) {\n    list(\n      createdBefore: $createdBefore\n      createdAfter: $createdAfter\n      dataType: $dataType\n      limit: $limit\n    ) {\n      storeType\n      dataType\n      blobHash\n      creator\n      createdAt\n    }\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};

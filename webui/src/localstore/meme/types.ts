@@ -11,6 +11,7 @@ export interface Metadata {
   discord?: string
   website?: string
   github?: string
+  liveStream?: string
 }
 
 export interface Liquidity {

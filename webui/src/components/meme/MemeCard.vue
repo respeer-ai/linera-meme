@@ -22,7 +22,7 @@
             <span class='label text-grey-8'>Last Transaction</span>
             <span>
               <div class='text-bold text-grey-9'>{{ transactionUser }}</div>
-              <div :style='{marginTop: "2px", marginBottom: "2px"}'>{{ transactionInfo }}</div>
+              <div class='text-grey-8' :style='{marginTop: "2px", marginBottom: "2px"}'>{{ transactionInfo }}</div>
             </span>
           </div>
           <div v-if='price' class='row meme-info-inner'>
@@ -35,7 +35,17 @@
             <span class='label text-grey-8'>Total Supply</span> {{ _meme.totalSupply }} {{ _meme.ticker }}
           </div>
           <div class='row meme-info-inner'>
-            <span class='label text-grey-8'>Initial Liquidity</span> {{ initialLiquidity }}
+            <span class='label text-grey-8'>Initial Liquidity</span>
+            <span class='content'>
+              <div class='row'>
+                <div class='text-bold text-grey-9'>{{ initialLiquidity }}</div>
+                <div class='horizontal-inner-x-margin-left text-grey-8'>{{ initialLiquidityValue }}</div>
+                <q-tooltip anchor='bottom middle' self='top middle' :offset='[10, 10]'>
+                  <strong>{{ initialLiquidity }}</strong> {{ liquidityDescription }}
+                  <div v-html='miningDescription' />
+                </q-tooltip>
+              </div>
+            </span>
           </div>
         </div>
       </q-item-label>
@@ -59,6 +69,10 @@
           />
           <q-img
             v-if='_meme.metadata.website?.length' :src='internetLogo' width='20px' height='20px'
+            class='cursor-pointer'
+          />
+          <q-img
+            v-if='_meme.metadata.liveStream?.length' :src='internetLogo' width='20px' height='20px'
             class='cursor-pointer'
           />
         </div>
@@ -103,11 +117,34 @@ const transactionInfo = computed(() => {
   return transaction.value.transactionType.toString() + ' ' + t(_timestamp.msg, { VALUE: _timestamp.value })
 })
 
-const showCaption = computed(() => _meme.value.metadata.github?.length || _meme.value.metadata.twitter?.length || _meme.value.metadata.website?.length || _meme.value.metadata.discord?.length || _meme.value.metadata.telegram?.length)
+const showCaption = computed(() => {
+  return _meme.value.metadata.github?.length ||
+         _meme.value.metadata.twitter?.length ||
+         _meme.value.metadata.website?.length ||
+         _meme.value.metadata.discord?.length ||
+         _meme.value.metadata.telegram?.length ||
+         _meme.value.metadata.liveStream?.length
+})
 
 const price = computed(() => _swap.price(application.value.applicationId))
 const marketCapacity = computed(() => formalizeFloat.trimZeros((Number(price.value) * Number(_meme.value.totalSupply)).toFixed(8)))
+const initialLiquidityValue = computed(() => _meme.value.initialLiquidity ? `${_meme.value.initialLiquidity.fungibleAmount} ${_meme.value.ticker}/${_meme.value.initialLiquidity.nativeAmount} ${constants.LINEAR_TICKER}` : '')
 const initialLiquidity = computed(() => _meme.value.initialLiquidity ? _meme.value.virtualInitialLiquidity ? 'Virtual' : 'Real' : 'None')
+const liquidityDescription = computed(() => {
+  switch (initialLiquidity.value) {
+    case 'Virtual': return "means creator didn't pay for initial liquidity."
+    case 'Real': return 'means creator paid for initial liquidity.'
+    case 'None': default: return 'means this meme is for mining only.'
+  }
+})
+const liquidityPercent = computed(() => _meme.value.initialLiquidity ? Number(_meme.value.initialLiquidity.fungibleAmount) / Number(_meme.value.totalSupply) : 0)
+const miningDescription = computed(() => {
+  if (initialLiquidity.value === 'None') return ''
+  if (liquidityPercent.value >= 1) {
+    return 'This token is for <strong>mining only</strong>.'
+  }
+  return `<strong>${((1 - liquidityPercent.value) * 100).toFixed(0)}%</strong> of total supply is for mining.`
+})
 
 </script>
 
@@ -137,4 +174,6 @@ const initialLiquidity = computed(() => _meme.value.initialLiquidity ? _meme.val
   .change
     font-size: 12px
     margin-left: 6px
+  .content
+    width: calc(100% - 180px)
 </style>

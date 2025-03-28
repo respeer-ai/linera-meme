@@ -33,28 +33,21 @@
       </div>
     </q-card>
   </q-dialog>
-  <ChainMemeBridge ref='chainMemeBridge' />
 </template>
 <script setup lang='ts'>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { user } from 'src/localstore'
 
 import CreateMemeInner from './CreateMemeInner.vue'
-import ChainMemeBridge from '../bridge/db/ChainMemeBridge.vue'
 
 const { t } = useI18n({ useScope: 'global' })
-
-const _user = user.useUserStore()
-const chainId = computed(() => _user.chainId?.trim())
 
 const showing = ref(false)
 const creating = ref(false)
 const createError = ref(false)
 const loadingLabel = ref(t('MSG_CREATING'))
 const createMessage = ref('')
-const applicationId = ref('')
 
 const router = useRouter()
 
@@ -67,12 +60,8 @@ const onContinueClick = () => {
   void router.push({ path: '/meme' })
 }
 
-const chainMemeBridge = ref<InstanceType<typeof ChainMemeBridge>>()
-
-const onMemeTokenCreated = async (_applicationId: string) => {
-  applicationId.value = _applicationId
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-  await chainMemeBridge.value?.add(chainId.value, _applicationId)
+const onMemeTokenCreated = () => {
+  createMessage.value = t('MSG_APPLICATION_CREATED')
 }
 
 const onMemeTokenCreating = () => {

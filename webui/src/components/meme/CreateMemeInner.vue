@@ -56,6 +56,7 @@
         <q-input dense v-model='argument.meme.metadata.telegram' :label='$t("MSG_TELEGRAM") + " (" + $t("MSG_OPTIONAL") + ")"' />
         <q-input dense v-model='argument.meme.metadata.discord' :label='$t("MSG_DISCORD") + " (" + $t("MSG_OPTIONAL") + ")"' />
         <q-input dense v-model='argument.meme.metadata.github' :label='$t("MSG_GITHUB") + " (" + $t("MSG_OPTIONAL") + ")"' />
+        <q-input dense v-model='argument.meme.metadata.liveStream' :label='$t("MSG_LIVE_STREAM") + " (" + $t("MSG_OPTIONAL") + ")"' />
         <q-input
           dense
           v-model='argument.meme.initialSupply' type='number' :label='$t("MSG_INITIAL_SUPPLY")' :rules='[val => !!val || "Field is required"]'
@@ -212,10 +213,6 @@ const publishDataBlob = (): Promise<string> => {
   })
 }
 
-// TODO: check meme exists
-// TODO: check blob exists
-// TODO: error process
-
 const createMeme = async (): Promise<string> => {
   parameters.value.creator = await user.User.ownerAccount()
   parameters.value.swapCreatorChainId = await creatorChainId.creatorChainId('swap')
@@ -248,13 +245,19 @@ const createMeme = async (): Promise<string> => {
         },
         operationName: 'createMeme'
       }
-    }).then((blobHash) => {
-      resolve(blobHash as string)
+    }).then((hash) => {
+      resolve(hash as string)
     }).catch((e) => {
       reject(e)
     })
   })
 }
+
+// eslint-disable-next-line no-undef
+const emit = defineEmits<{(ev: 'created'): void,
+  (ev: 'creating'): void,
+  (ev: 'error', error: string)
+}>()
 
 const onCreateMemeClick = async () => {
   try {
@@ -276,11 +279,17 @@ const onCreateMemeClick = async () => {
       return
     }
 
+    emit('creating')
+
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
     await publishDataBlob()
     setTimeout(() => {
-      void createMeme()
+      createMeme().then(() => {
+        emit('created')
+      }).catch((e: string) => {
+        emit('error', e)
+      })
     }, 100)
   } catch (e) {
     console.log(e)
