@@ -147,6 +147,7 @@ impl TestSuite {
                     github: None,
                 },
                 virtual_initial_liquidity: true,
+                initial_liquidity: None,
             },
             blob_gateway_application_id: None,
             ams_application_id: None,
