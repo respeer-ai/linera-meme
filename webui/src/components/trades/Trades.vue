@@ -36,26 +36,26 @@ const columns = computed(() => [
     field: (row: transaction.Transaction) => shortid.shortId(row.from.owner as string, 12, 8)
   },
   {
-    name: 'Amount 0 In',
-    label: t('MSG_AMOUNT_0_IN'),
+    name: 'Amount 0 Deposit',
+    label: t('MSG_AMOUNT_0_DEPOSIT'),
     align: 'center',
     field: (row: transaction.Transaction) => row.amount0In || '-'
   },
   {
-    name: 'Amount 0 Out',
-    label: t('MSG_AMOUNT_0_OUT'),
+    name: 'Amount 0 Withdraw',
+    label: t('MSG_AMOUNT_0_WITHDRAW'),
     align: 'center',
     field: (row: transaction.Transaction) => row.amount0Out || '-'
   },
   {
-    name: 'Amount 1 In',
-    label: t('MSG_AMOUNT_1_IN'),
+    name: 'Amount 1 Deposit',
+    label: t('MSG_AMOUNT_1_DEPOSIT'),
     align: 'center',
     field: (row: transaction.Transaction) => row.amount1In || '-'
   },
   {
-    name: 'Amount 1 Out',
-    label: t('MSG_AMOUNT_1_OUT'),
+    name: 'Amount 1 Withdraw',
+    label: t('MSG_AMOUNT_1_WITHDRAW'),
     align: 'center',
     field: (row: transaction.Transaction) => row.amount1Out || '-'
   },
