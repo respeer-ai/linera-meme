@@ -78,8 +78,8 @@
 <script lang='ts' setup>
 import { QInput } from 'quasar'
 import { CREATE_MEME, PUBLISH_DATA_BLOB } from 'src/graphql'
-import { meme, user, store } from 'src/localstore'
-import { computed, ref } from 'vue'
+import { meme, user, store, blob, ams, notify } from 'src/localstore'
+import { computed, onMounted, ref } from 'vue'
 import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { stringify } from 'lossless-json'
 import { constants } from 'src/constant'
@@ -114,6 +114,9 @@ const tickerError = ref(false)
 const imageError = ref(false)
 
 const expanded = ref(false)
+
+const _blob = blob.useBlobStore()
+const _ams = ams.useAmsStore()
 
 const MAXSIZE = 4 * 1024 * 1024
 const errorMessage = ref('')
@@ -255,7 +258,24 @@ const createMeme = async (): Promise<string> => {
 
 const onCreateMemeClick = async () => {
   try {
+    if (logoBytes.value.length === 0) imageError.value = true
+    if (!argument.value.meme.name?.length) nameError.value = true
+    if (!argument.value.meme.ticker?.length) tickerError.value = true
+
+    if (imageError.value || nameError.value || tickerError.value) {
+      return
+    }
+
     const blobHash = await lineraWasm.blob_hash(`[${logoBytes.value.toString()}]`)
+
+    imageError.value = _blob.existBlob(blobHash)
+    nameError.value = _ams.existMeme(argument.value.meme.name)
+    tickerError.value = _ams.existMeme(undefined, argument.value.meme.ticker)
+
+    if (imageError.value || nameError.value || tickerError.value) {
+      return
+    }
+
     argument.value.meme.metadata.logo = blobHash
     argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
     await publishDataBlob()
@@ -266,6 +286,43 @@ const onCreateMemeClick = async () => {
     console.log(e)
   }
 }
+
+const getApplications = () => {
+  _ams.getApplications({
+    limit: 40,
+    Message: {
+      Error: {
+        Title: 'Get applications',
+        Message: 'Failed get applications',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  }, (error: boolean, rows?: ams.Application[]) => {
+    // eslint-disable-next-line no-useless-return
+    if (error || !rows?.length) return
+    // Continue to fetch
+  })
+}
+
+const listBlobs = () => {
+  _blob.listBlobs({
+    limit: 40,
+    Message: {
+      Error: {
+        Title: 'List blobs',
+        Message: 'Failed list blobs',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  })
+}
+
+onMounted(() => {
+  getApplications()
+  listBlobs()
+})
 
 </script>
 

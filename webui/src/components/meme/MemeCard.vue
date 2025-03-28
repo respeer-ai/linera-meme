@@ -18,17 +18,29 @@
       </q-item-label>
       <q-item-label>
         <div class='vertical-inner-y-margin'>
-          {{ transactionDisplay }}
-        </div>
-        <div class='vertical-inner-y-margin'>
-          {{ price }} TLINERA
-        </div>
-        <div class='vertical-inner-y-margin'>
-          {{ marketCapacity }}
+          <div v-if='transactionUser' class='row meme-info-inner'>
+            <span class='label text-grey-8'>Last Transaction</span>
+            <span>
+              <div class='text-bold text-grey-9'>{{ transactionUser }}</div>
+              <div :style='{marginTop: "2px", marginBottom: "2px"}'>{{ transactionInfo }}</div>
+            </span>
+          </div>
+          <div v-if='price' class='row meme-info-inner'>
+            <span class='label text-grey-8'>{{ _meme.ticker }}/{{ constants.LINEAR_TICKER }}</span> {{ price }} {{ constants.LINEAR_TICKER }}
+          </div>
+          <div v-if='marketCapacity' class='row meme-info-inner'>
+            <span class='label text-grey-8'>Market Capacity</span> {{ marketCapacity }} {{ constants.LINEAR_TICKER }}
+          </div>
+          <div class='row meme-info-inner'>
+            <span class='label text-grey-8'>Total Supply</span> {{ _meme.totalSupply }} {{ _meme.ticker }}
+          </div>
+          <div class='row meme-info-inner'>
+            <span class='label text-grey-8'>Initial Liquidity</span> {{ initialLiquidity }}
+          </div>
         </div>
       </q-item-label>
       <q-item-label caption>
-        <div class='row vertical-section-y-margin'>
+        <div class='row vertical-section-y-margin' v-if='showCaption'>
           <q-img
             v-if='_meme.metadata.github?.length' :src='githubLogo' width='20px' height='20px'
             class='cursor-pointer horizontal-inner-x-margin-right'
@@ -50,6 +62,9 @@
             class='cursor-pointer'
           />
         </div>
+        <div class='row vertical-section-y-margin' v-else>
+          Creator didn't leave any social information!
+        </div>
       </q-item-label>
     </div>
   </q-card>
@@ -60,8 +75,9 @@ import { toRef, ref, computed } from 'vue'
 import { discordLogo, githubLogo, internetLogo, telegramLogo, twitterLogo } from 'src/assets'
 import { ams, meme, swap } from 'src/localstore'
 import { _copyToClipboard } from 'src/utils/copy_to_clipboard'
-import { timestamp, shortid } from 'src/utils'
+import { timestamp, shortid, formalizeFloat } from 'src/utils'
 import { useI18n } from 'vue-i18n'
+import { constants } from 'src/constant'
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -80,14 +96,18 @@ const _meme = ref(JSON.parse(application.value.spec) as meme.Meme)
 const logo = ref(_ams.applicationLogo(application.value))
 
 const transaction = computed(() => _swap.latestTransaction(application.value.applicationId))
-const transactionDisplay = computed(() => {
-  if (!transaction.value) return ''
+const transactionUser = computed(() => transaction.value ? shortid.shortId(transaction.value.from.owner as string, 12) : undefined)
+const transactionInfo = computed(() => {
+  if (!transaction.value) return undefined
   const _timestamp = timestamp.timestamp2HumanReadable(transaction.value.createdAt)
-  return shortid.shortId(transaction.value.from.owner as string, 12) + ' ' + transaction.value.transactionType.toString() + ' ' + t(_timestamp.msg, { VALUE: _timestamp.value })
+  return transaction.value.transactionType.toString() + ' ' + t(_timestamp.msg, { VALUE: _timestamp.value })
 })
 
+const showCaption = computed(() => _meme.value.metadata.github?.length || _meme.value.metadata.twitter?.length || _meme.value.metadata.website?.length || _meme.value.metadata.discord?.length || _meme.value.metadata.telegram?.length)
+
 const price = computed(() => _swap.price(application.value.applicationId))
-const marketCapacity = computed(() => Number(price.value) * Number(_meme.value.totalSupply))
+const marketCapacity = computed(() => formalizeFloat.trimZeros((Number(price.value) * Number(_meme.value.totalSupply)).toFixed(8)))
+const initialLiquidity = computed(() => _meme.value.initialLiquidity ? _meme.value.virtualInitialLiquidity ? 'Virtual' : 'Real' : 'None')
 
 </script>
 
@@ -107,5 +127,14 @@ const marketCapacity = computed(() => Number(price.value) * Number(_meme.value.t
   height: 128px
 
 .meme-info
-  padding: 16px
+  padding: 24px 16px
+
+.meme-info-inner
+  border-bottom: 1px dashed $grey-4
+  padding: 4px 0 0 0
+  .label
+    width: 180px
+  .change
+    font-size: 12px
+    margin-left: 6px
 </style>

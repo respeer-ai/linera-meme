@@ -25,3 +25,5 @@ export const formalizeSchema = (url: string) => {
 export const applicationId = (url: string) => {
   return url.split('/').at(-1)
 }
+
+export const LINEAR_TICKER = 'TLINERA'

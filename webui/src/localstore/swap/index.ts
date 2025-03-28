@@ -5,7 +5,7 @@ import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { POOLS } from 'src/graphql'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
-import { graphqlResult } from 'src/utils'
+import { formalizeFloat, graphqlResult } from 'src/utils'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
@@ -56,12 +56,12 @@ export const useSwapStore = defineStore('swap', {
           ?.latestTransaction as Transaction
       }
     },
-    price(): (token: string) => string {
+    price(): (token: string) => string | undefined {
       return (token: string) => {
-        return Number(
-          this.pools.find((el) => el.token0 === token && !el.token1)
-            ?.token1Price
-        ).toFixed(8)
+        const pool = this.pools.find((el) => el.token0 === token && !el.token1)
+        return pool
+          ? formalizeFloat.trimZeros(Number(pool?.token1Price).toFixed(8))
+          : undefined
       }
     }
   }

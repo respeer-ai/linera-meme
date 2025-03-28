@@ -81,6 +81,11 @@ export const useBlobStore = defineStore('blob', {
           blob.blobHash as string
         )
       }
+    },
+    existBlob(): (blobHash: string) => boolean {
+      return (blobHash: string) => {
+        return this.blobs.findIndex((el) => el.blobHash === blobHash) >= 0
+      }
     }
   }
 })
