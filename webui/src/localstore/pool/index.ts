@@ -54,7 +54,7 @@ export const usePoolStore = defineStore('pool', {
       })
     },
     appendTransactions(poolId: number, transactions: Transaction[]) {
-      const _transactions = this.transactions.get(poolId) || []
+      const _transactions = [ ...(this.transactions.get(poolId) || []) ]
       transactions.forEach((transaction) => {
         const index = _transactions.findIndex(
           (el) => el.transactionId === transaction.transactionId
@@ -62,7 +62,7 @@ export const usePoolStore = defineStore('pool', {
         _transactions.splice(
           index >= 0 ? index : 0,
           index >= 0 ? 1 : 0,
-          transaction
+          { ...transaction }
         )
       })
       this.transactions.set(poolId, transactions)
