@@ -26,4 +26,7 @@ export const applicationId = (url: string) => {
   return url.split('/').at(-1)
 }
 
-export const LINEAR_TICKER = 'TLINERA'
+export const LINERA_TICKER = 'TLINERA'
+export const LINERA_NATIVE_ID = LINERA_TICKER
+export const LINERA_LOGO =
+  'https://avatars.githubusercontent.com/u/107513858?s=48&v=4'

@@ -38,7 +38,11 @@
 </template>
 
 <script setup lang='ts'>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { swap, notify, ams } from 'src/localstore'
+import { Pool } from 'src/__generated__/graphql/swap/graphql'
+import { useRoute } from 'vue-router'
+import { constants } from 'src/constant'
 
 import VolumeBulletin from 'src/components/bulletin/Volume.vue'
 import HolderBulletin from 'src/components/bulletin/Holder.vue'
@@ -48,7 +52,60 @@ import Swap from 'src/components/swap/Swap.vue'
 import Trades from 'src/components/trades/Trades.vue'
 import AddLiquidity from './AddLiquidity.vue'
 
+interface Query {
+  token0: string
+  token1: string
+}
+
+const route = useRoute()
+const token0 = ref((route.query as unknown as Query).token0)
+const token1 = ref((route.query as unknown as Query).token1)
+
 const tab = ref('swap')
+
+const _swap = swap.useSwapStore()
+const _ams = ams.useAmsStore()
+
+const getPools = () => {
+  _swap.getPools({
+    Message: {
+      Error: {
+        Title: 'Get pools',
+        Message: 'Failed get pools',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  }, (error: boolean, rows?: Pool[]) => {
+    // eslint-disable-next-line no-useless-return
+    if (error || !rows?.length) return
+    // Continue to fetch
+  })
+}
+
+const getApplications = () => {
+  _ams.getApplications({
+    limit: 40,
+    Message: {
+      Error: {
+        Title: 'Get applications',
+        Message: 'Failed get applications',
+        Popup: true,
+        Type: notify.NotifyType.Error
+      }
+    }
+  }, (error: boolean, rows?: ams.Application[]) => {
+    // eslint-disable-next-line no-useless-return
+    if (error || !rows?.length) return
+    // Continue to fetch
+  })
+}
+
+onMounted(() => {
+  getPools()
+  getApplications()
+  _swap.selectedPool = _swap.getPool(token0.value, token1.value) as Pool
+})
 
 </script>
 

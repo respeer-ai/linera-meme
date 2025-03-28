@@ -26,10 +26,10 @@
             </span>
           </div>
           <div v-if='price' class='row meme-info-inner'>
-            <span class='label text-grey-8'>{{ _meme.ticker }}/{{ constants.LINEAR_TICKER }}</span> {{ price }} {{ constants.LINEAR_TICKER }}
+            <span class='label text-grey-8'>{{ _meme.ticker }}/{{ constants.LINERA_TICKER }}</span> {{ price }} {{ constants.LINERA_TICKER }}
           </div>
           <div v-if='marketCapacity' class='row meme-info-inner'>
-            <span class='label text-grey-8'>Market Capacity</span> {{ marketCapacity }} {{ constants.LINEAR_TICKER }}
+            <span class='label text-grey-8'>Market Capacity</span> {{ marketCapacity }} {{ constants.LINERA_TICKER }}
           </div>
           <div class='row meme-info-inner'>
             <span class='label text-grey-8'>Total Supply</span> {{ _meme.totalSupply }} {{ _meme.ticker }}
@@ -128,7 +128,7 @@ const showCaption = computed(() => {
 
 const price = computed(() => _swap.price(application.value.applicationId))
 const marketCapacity = computed(() => price.value?.length ? formalizeFloat.trimZeros((Number(price.value) * Number(_meme.value.totalSupply)).toFixed(8)) : undefined)
-const initialLiquidityValue = computed(() => _meme.value.initialLiquidity ? `${_meme.value.initialLiquidity.fungibleAmount} ${_meme.value.ticker}/${_meme.value.initialLiquidity.nativeAmount} ${constants.LINEAR_TICKER}` : '')
+const initialLiquidityValue = computed(() => _meme.value.initialLiquidity ? `${_meme.value.initialLiquidity.fungibleAmount} ${_meme.value.ticker}/${_meme.value.initialLiquidity.nativeAmount} ${constants.LINERA_TICKER}` : '')
 const initialLiquidity = computed(() => _meme.value.initialLiquidity ? _meme.value.virtualInitialLiquidity ? 'Virtual' : 'Real' : 'None')
 const liquidityDescription = computed(() => {
   switch (initialLiquidity.value) {

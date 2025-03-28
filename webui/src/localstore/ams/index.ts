@@ -65,8 +65,8 @@ export const useAmsStore = defineStore('ams', {
     applicationLogo(): (application: Application) => string {
       return (application: Application) => {
         return BlobGateway.imagePath(
-          application.logoStoreType,
-          application.logo
+          application?.logoStoreType,
+          application?.logo
         )
       }
     },
@@ -84,6 +84,13 @@ export const useAmsStore = defineStore('ams', {
             }
             return ok
           }) >= 0
+        )
+      }
+    },
+    application(): (applicationId: string) => Application | undefined {
+      return (applicationId: string) => {
+        return this.applications.find(
+          (el) => el.applicationId === applicationId
         )
       }
     }

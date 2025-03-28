@@ -6,13 +6,15 @@ import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { POOLS } from 'src/graphql'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { formalizeFloat, graphqlResult } from 'src/utils'
+import { constants } from 'src/constant'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
 
 export const useSwapStore = defineStore('swap', {
   state: () => ({
-    pools: [] as Array<Pool>
+    pools: [] as Array<Pool>,
+    selectedPool: undefined as unknown as Pool
   }),
   actions: {
     getPools(
@@ -45,7 +47,11 @@ export const useSwapStore = defineStore('swap', {
     appendChains(pools: Pool[]) {
       pools.forEach((pool) => {
         const index = this.pools.findIndex((el) => el.poolId === pool.poolId)
-        this.pools.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, pool)
+        const _pool = {
+          ...pool,
+          token1: pool.token1 || constants.LINERA_NATIVE_ID
+        } as Pool
+        this.pools.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, _pool)
       })
     }
   },
@@ -62,6 +68,35 @@ export const useSwapStore = defineStore('swap', {
         return pool
           ? formalizeFloat.trimZeros(Number(pool?.token1Price).toFixed(8))
           : undefined
+      }
+    },
+    getPool(): (token0: string, token1: string) => Pool | undefined {
+      return (token0: string, token1: string) => {
+        return this.pools.find(
+          (el) =>
+            (el.token0 === token0 && el.token1 === token1) ||
+            (el.token1 === token0 && el.token0 === token1)
+        )
+      }
+    },
+    existPool(): (token0: string, token1: string) => boolean {
+      return (token0: string, token1: string) => {
+        return (
+          this.pools.findIndex(
+            (el) =>
+              (el.token0 === token0 && el.token1 === token1) ||
+              (el.token1 === token0 && el.token0 === token1)
+          ) >= 0
+        )
+      }
+    },
+    existTokenPool(): (token: string) => boolean {
+      return (token: string) => {
+        return (
+          this.pools.findIndex(
+            (el) => el.token0 === token || el.token1 === token
+          ) >= 0
+        )
       }
     }
   }

@@ -2,7 +2,13 @@
   <q-page class='flex justify-center'>
     <q-infinite-scroll :offset='300' :style='{maxWidth: "1440px"}'>
       <div class='row'>
-        <div v-for='(application, index) in applications' :key='application.applicationId' class='col-xs-12 col-sm-6 col-md-4' :style='{marginLeft: index % 3 != 0 ? "12px" : "0", width: "472px"}'>
+        <div
+          v-for='(application, index) in applications'
+          :key='application.applicationId'
+          class='col-xs-12 col-sm-6 col-md-4'
+          :style='{marginLeft: index % 3 != 0 ? "12px" : "0", width: "472px"}'
+          @click='onTokenClick(application)'
+        >
           <MemeCard :application='application' />
         </div>
       </div>
@@ -22,6 +28,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { QAjaxBar } from 'quasar'
 import { ams, proxy, notify, swap } from 'src/localstore'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
+import { useRouter } from 'vue-router'
+import { constants } from 'src/constant'
 
 import MemeCard from './MemeCard.vue'
 
@@ -111,6 +119,18 @@ onBeforeUnmount(() => {
     applicationRefresher.value = -1
   }
 })
+
+const router = useRouter()
+
+const onTokenClick = (application: ams.Application) => {
+  void router.push({
+    path: 'swap',
+    query: {
+      token0: application.applicationId,
+      token1: constants.LINERA_NATIVE_ID
+    }
+  })
+}
 
 </script>
 
