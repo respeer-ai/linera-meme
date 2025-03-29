@@ -1,0 +1,8 @@
+fastapi
+pandas
+mysql-connector-python
+uvicorn
+argparse
+dataclasses
+requests
+dataclasses-json

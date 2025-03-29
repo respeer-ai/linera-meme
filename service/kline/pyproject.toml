@@ -1,0 +1,11 @@
+[project]
+name = "linera-swap-kline"
+version = "0.1"
+description = "Linera swap Kline server."
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 128
