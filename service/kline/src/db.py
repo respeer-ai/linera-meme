@@ -198,7 +198,8 @@ class Db:
             'volume': 'sum'
         })
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
-        df_interval = df_interval.applymap(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
+        df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
+        df_interval = df_interval.loc[~(df_interval[['open', 'high', 'low', 'close', 'volume']] == 0).all(axis=1)]
 
         json_data = []
         for index, row in df_interval.iterrows():
