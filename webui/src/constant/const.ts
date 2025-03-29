@@ -34,3 +34,5 @@ export const LINERA_TICKER = 'TLINERA'
 export const LINERA_NATIVE_ID = LINERA_TICKER
 export const LINERA_LOGO =
   'https://avatars.githubusercontent.com/u/107513858?s=48&v=4'
+
+export const KLINE_WS_URL = 'ws://api.kline.lineraswap.fun/api/kline/ws'

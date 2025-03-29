@@ -1,69 +1,41 @@
 <template>
   <div>
-    <div style='padding: 5px;width: 100%;'>
-      <div class='token-pair-tip'>
-        <SwapSelect />
-      </div>
-      <div class='radio-buttons-tip'>
-        <div class='radio-buttons'>
-          <div class='radio-button' v-for='(val,idx) in [] as Array<KPoint>' :key='idx' :value='val.KPointType'>
-            <input
-              class='radio-input'
-              type='radio'
-              :id='val.KPointType'
-              :value='val.KPointType'
-              v-model='selectedKPType'
-              :checked='idx==0'
-            >
-            <label class='radio-lable' :for='val.KPointType'>{{ val.ShortName }}</label>
-          </div>
-        </div>
-      </div>
+    <div class='token-pair-tip'>
+      <SwapSelect />
     </div>
-    <div id='chart-container' />
+    <div id='chart' style="width:100%; height:600px"/>
   </div>
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { initEchart, setStartAndEnd } from './KLineOption'
-import * as echarts from 'echarts/core'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { init, dispose, Chart, Nullable, KLineData } from 'klinecharts'
+import { kline, swap } from 'src/localstore'
 
 import SwapSelect from './SwapSelect.vue'
 
-const selectedKPType = ref('')
+const _kline = kline.useKlineStore()
+const _swap = swap.useSwapStore()
 
-let myChart: echarts.ECharts
+const selectedToken0 = computed(() => _swap.selectedToken0)
+const selectedToken1 = computed(() => _swap.selectedToken1)
 
-interface KPoint {
-  KPointType: string
-  ShortName: string
-}
+const points = computed(() => _kline._points('1ME', selectedToken0.value, selectedToken1.value) as KLineData[])
+const latestPoints = computed(() => _kline.latestPoints['1ME'] || [])
 
-interface eventParams {
-  type: string
-  start?: number
-  end?: number
-  batch?: {
-    start: number
-    end: number
-  }[]
-}
+const chart = ref<Nullable<Chart>>()
+
+watch(latestPoints, () => {
+  chart.value?.updateData(latestPoints.value)
+})
 
 onMounted(() => {
-  myChart = initEchart('chart-container')
-  myChart.on('datazoom', (params) => {
-    const _params = params as eventParams
-    const start: number | undefined = _params.start || _params.batch?.[0].start
-    const end: number | undefined = _params.end || _params.batch?.[0].end
-    if (start === undefined || start < 1) {
-      setStartAndEnd(myChart, 1, end || 0)
-    }
-  })
+  chart.value = init('chart')
+  chart.value?.applyNewData(points.value, true)
 })
 
 onBeforeUnmount(() => {
-  myChart.dispose()
+  dispose('chart')
 })
 
 </script>

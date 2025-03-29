@@ -33,7 +33,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { graphqlResult } from 'src/utils'
-import { block, user } from 'src/localstore'
+import { block, user, kline } from 'src/localstore'
 
 import { blobGatewayLogo, lineraMemeLogo, lineraSwapLogo } from 'src/assets'
 
@@ -45,6 +45,7 @@ const path = computed(() => route.path)
 
 const _block = block.useBlockStore()
 const _user = user.useUserStore()
+const _kline = kline.useKlineStore()
 
 const path2tab = () => {
   if (path.value.includes('meme')) return 'meme'
@@ -66,6 +67,8 @@ const onCreateMemeTokenClick = () => {
 }
 
 onMounted(() => {
+  _kline.initializeKline()
+
   if (window.location.hostname.endsWith('linerameme.fun')) {
     selectedIcon.value = lineraMemeLogo
     void router.push({ path: window.location.pathname === '/' ? '/meme' : window.location.pathname })
