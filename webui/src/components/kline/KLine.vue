@@ -31,6 +31,7 @@ watch(latestPoints, () => {
 
 const getKline = () => {
   if (!selectedToken0.value || !selectedToken1.value) return
+  if (selectedToken0.value === selectedToken1.value) return
 
   _kline.getKline({
     token0: selectedToken0.value,
