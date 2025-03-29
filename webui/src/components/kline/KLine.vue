@@ -20,7 +20,7 @@ const _swap = swap.useSwapStore()
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 
-const points = computed(() => _kline._points('1ME', selectedToken0.value, selectedToken1.value) as KLineData[])
+const points = computed(() => _kline._points('1d', selectedToken0.value, selectedToken1.value) as KLineData[])
 const latestPoints = computed(() => _kline.latestPoints['1ME'] || [])
 
 const chart = ref<Nullable<Chart>>()
@@ -29,9 +29,32 @@ watch(latestPoints, () => {
   chart.value?.updateData(latestPoints.value)
 })
 
+const getKline = () => {
+  if (!selectedToken0.value || !selectedToken1.value) return
+
+  _kline.getKline({
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    startAt: Math.floor(Date.now() / 1000 - 24 * 3600 * 90),
+    endAt: Math.floor(Date.now() / 1000),
+    interval: '1d'
+  }, (error: boolean) => {
+    if (error) return
+    chart.value?.applyNewData(points.value, true)
+  })
+}
+
+watch(selectedToken0, () => {
+  getKline()
+})
+
+watch(selectedToken1, () => {
+  getKline()
+})
+
 onMounted(() => {
   chart.value = init('chart')
-  chart.value?.applyNewData(points.value, true)
+  getKline()
 })
 
 onBeforeUnmount(() => {

@@ -23,4 +23,10 @@ export interface Notification {
   value: Map<string, Points[]>
 }
 
-export type GetKPointsResponse = BaseRequest
+export interface GetKlineRequest extends BaseRequest {
+  token0: string
+  token1: string
+  startAt: number
+  endAt: number
+  interval: string
+}

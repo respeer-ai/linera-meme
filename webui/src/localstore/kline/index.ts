@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { Points, Point } from './types'
+import { Points, Point, GetKlineRequest } from './types'
 import { _WebSocket } from './websocket'
 import { constants } from 'src/constant'
+import { doGetWithError } from '../request'
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
@@ -23,16 +24,28 @@ export const useKlineStore = defineStore('kline', {
           const ___points = __points.get(`${points.token_0}:${points.token_1}`) || []
           points.points.forEach((point) => {
             const index = ___points.findIndex((el) => el.timestamp === point.timestamp)
-            point.timestamp = Math.floor(point.timestamp)
+            point.timestamp = Math.floor(Date.parse(point.timestamp as unknown as string))
             ___points.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, point)
           })
           __points.set(`${points.token_0}:${points.token_1}`, ___points)
         })
+        console.log(__points)
         this.points.set(key, __points)
       })
     },
     onError (e: Event) {
       console.log(`Kline error: ${JSON.stringify(e)}`)
+    },
+    getKline (req: GetKlineRequest, done?: (error: boolean, rows?: Map<string, Points[]>) => void) {
+      const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/kline/token0/${req.token0}/token1/${req.token1}/start_at/${req.startAt}/end_at/${req.endAt}/interval/${req.interval}`)
+      doGetWithError(url, req, req.Message, (resp: Points) => {
+        const r = new Map<string, Points[]>()
+        r.set(req.interval, [resp])
+        this.onMessage(r)
+        done?.(false)
+      }, () => {
+        done?.(true)
+      })
     }
   },
   getters: {

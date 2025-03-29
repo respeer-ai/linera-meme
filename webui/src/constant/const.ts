@@ -36,3 +36,4 @@ export const LINERA_LOGO =
   'https://avatars.githubusercontent.com/u/107513858?s=48&v=4'
 
 export const KLINE_WS_URL = 'ws://api.kline.lineraswap.fun/api/kline/ws'
+export const KLINE_HTTP_URL = 'http://api.kline.lineraswap.fun/api/kline'
