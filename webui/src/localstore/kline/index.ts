@@ -50,10 +50,16 @@ export const useKlineStore = defineStore('kline', {
   getters: {
     _points (): (key: string, token_0: string, token_1: string) => Point[] {
       return (key: string, token_0: string, token_1: string) => {
-        return (this.points.get(key) || new Map<string, Point[]>()).get(`${token_0}:${token_1}`) || []
+        return ((this.points.get(key) || new Map<string, Point[]>()).get(`${token_0}:${token_1}`) || []).sort((a, b) => a.timestamp - b.timestamp)
+      }
+    },
+    _latestPoints (): (key: string, token_0: string, token_1: string) => Point[] {
+      return (key: string, token_0: string, token_1: string) => {
+        return ((this.latestPoints.get(key) || []).find((el) => el.token_0 === token_0 && el.token_1 === token_1)?.points || []).sort((a, b) => a.timestamp - b.timestamp)
       }
     }
   }
 })
 
 export * from './types'
+export * from './const'

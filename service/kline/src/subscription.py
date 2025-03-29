@@ -45,8 +45,8 @@ class WebSocketManager:
                 })
                 (token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(pool.token_1, pool.token_0, interval)
                 interval_points.append({
-                    'token_0': pool.token_1,
-                    'token_1': pool.token_0,
+                    'token_0': token_0,
+                    'token_1': token_1,
                     'interval': interval,
                     'start_at': start_at,
                     'end_at': end_at,

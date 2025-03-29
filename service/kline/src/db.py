@@ -142,7 +142,7 @@ class Db:
 
         self.connection.commit()
 
-    def get_pool_id(self, token_0: str, token_1: str) -> int:
+    def get_pool_id(self, token_0: str, token_1: str) -> (int, str, str, bool):
         token_1 = token_1 if token_1 is not None else 'TLINERA'
         token_0 = token_0 if token_0 is not None else 'TLINERA'
 
