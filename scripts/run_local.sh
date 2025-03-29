@@ -385,8 +385,8 @@ function run_kline() {
     pip3 install -r requirements.txt
     pip3 install -e .
 
-    pip3 uninstall websocket
-    pip3 uninstall websocket-client
+    pip3 uninstall websocket -y
+    pip3 uninstall websocket-client -y
     pip3 install websocket-client
 
     python3 src/main.py &

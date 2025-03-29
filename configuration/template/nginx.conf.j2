@@ -43,7 +43,7 @@ server {
         proxy_pass http://{{ service.endpoint }}/;
     }
 
-    location /api/{service.api_endpoint}/ws {
+    location /api/{{ service.api_endpoint }}/ws {
         proxy_pass http://{{ service.endpoint }}/ws;
 
         proxy_http_version 1.1;
