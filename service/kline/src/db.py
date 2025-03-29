@@ -192,6 +192,21 @@ class Db:
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
         return df_interval
 
+    def get_last_kline(self, token_0: str, token_1: str, interval: str):
+        end_at = time.time()
+        intervals = {
+            '1T': 60,
+            '5T': 300,
+            '10T': 600,
+            '1H': 3600,
+            '1D': 86400,
+            '1W': 86400 * 7,
+            '1M': 86400 * 30
+        }
+        interval = interval if interval in intervals else '5T'
+        start_at = end_at - intervals[interval]
+
+        return  (start_at, end_at, self.get_line(token_0, token_1, start_at, end_at, interval), interval)
 
     def close(self):
         self.cursor.close()

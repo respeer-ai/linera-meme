@@ -13,22 +13,36 @@ from db import Db
 
 app = FastAPI()
 _swap = None
-manager = WebSocketManager()
+manager = None
 _ticker = None
 _db = None
 
 
 @app.get('/kline/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
 async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, interval: str):
-    return _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
+    points = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
+    return {
+        'token_0': token0,
+        'token_1': token1,
+        'interval': interval,
+        'start_at': start_at,
+        'end_at': end_at,
+        'points': points,
+    }
 
 
 @app.websocket('/ws')
 async def on_subscribe(websocket: WebSocket):
     await websocket.accept()
-    while True:
-        print('Get & store & broadcast data here')
-        asyncio.sleep(60)
+    manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # TODO: process incoming data
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        manager.close(websocket)
 
 
 ## Must not exposed
@@ -58,6 +72,7 @@ if __name__ == '__main__':
     _swap.get_swap_application()
 
     _db = Db(args.database_host, args.database_name, args.database_user, args.database_password)
+    manager = WebSocketManager(_swap, _db)
 
     uvicorn.run(app, host=args.host, port=args.port)
 
