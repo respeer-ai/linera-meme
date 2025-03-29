@@ -197,7 +197,19 @@ class Db:
             'volume': 'sum'
         })
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
-        return (token_0, token_1, df_interval)
+
+        json_data = []
+        for index, row in df_interval.iterrows():
+            json_data.append({
+                'timestamp': index.strftime('%Y-%m-%dT%H:%M:%S'),
+                'open': row['open'],
+                'high': row['high'],
+                'low': row['low'],
+                'close': row['close'],
+                'volume': row['volume'],
+            })
+
+        return (token_0, token_1, json_data)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         end_at = time.time()
