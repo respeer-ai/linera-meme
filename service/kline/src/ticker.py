@@ -4,7 +4,7 @@ from swap import Pool, Transaction
 
 class Ticker:
     def __init__(self, manager, swap, db):
-        self.interval = 10 # seconds
+        self.interval = 60 # seconds
         self.manager = manager
         self.swap = swap
         self.db = db
