@@ -6,7 +6,7 @@ import argparse
 
 
 from swap import Swap
-from websocket import WebSocketManager
+from subscription import WebSocketManager
 from ticker import Ticker
 from db import Db
 
@@ -20,10 +20,10 @@ _db = None
 
 @app.get('/kline/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
 async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, interval: str):
-    points = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
+    (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
     return {
-        'token_0': token0,
-        'token_1': token1,
+        'token_0': token_0,
+        'token_1': token_1,
         'interval': interval,
         'start_at': start_at,
         'end_at': end_at,
@@ -34,20 +34,12 @@ async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, int
 @app.websocket('/ws')
 async def on_subscribe(websocket: WebSocket):
     await websocket.accept()
-    manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            # TODO: process incoming data
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        manager.close(websocket)
+    await manager.connect(websocket)
 
 
 ## Must not exposed
 @app.post('/run/ticker')
-async def on_subscribe():
+async def on_run_ticker():
     _ticker = Ticker(manager, _swap, _db)
     await _ticker.run()
 

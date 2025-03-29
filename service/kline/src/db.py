@@ -2,6 +2,8 @@ import mysql.connector
 from swap import Transaction, Pool
 from datetime import datetime
 import pandas as pd
+import time
+import warnings
 
 
 class Db:
@@ -14,8 +16,12 @@ class Db:
             'user': self.username,
             'password': self.password,
             'host': self.host,
-            'raise_on_warnings': True,
+            'raise_on_warnings': False, # TODO: Test with alchemy
         }
+
+        # TODO: use alchemy in feature
+        warnings.filterwarnings("ignore", category=UserWarning)
+
         self.connection = mysql.connector.connect(**self.config)
         self.cursor = self.connection.cursor()
 
@@ -137,6 +143,7 @@ class Db:
 
     def get_pool_id(self, token_0: str, token_1: str) -> int:
         token_1 = token_1 if token_1 is not None else 'TLINERA'
+        token_0 = token_0 if token_0 is not None else 'TLINERA'
 
         self.cursor.execute(
             f'''SELECT pool_id FROM {self.pools_table}
@@ -163,10 +170,10 @@ class Db:
         if len(pool_ids) != 1:
             raise(Exception('Invalid token pair'))
 
-        return (pool_ids[0], token_reversed)
+        return (pool_ids[0], token_0, token_1, token_reversed)
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
-        (pool_id, token_reversed) = self.get_pool_id(token_0, token_1)
+        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
 
         start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')
         end_at = datetime.fromtimestamp(end_at).strftime('%Y-%m-%d %H:%M:%S')
@@ -190,23 +197,25 @@ class Db:
             'volume': 'sum'
         })
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
-        return df_interval
+        return (token_0, token_1, df_interval)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         end_at = time.time()
         intervals = {
-            '1T': 60,
-            '5T': 300,
-            '10T': 600,
-            '1H': 3600,
+            '1min': 60,
+            '5min': 300,
+            '10min': 600,
+            '1h': 3600,
             '1D': 86400,
             '1W': 86400 * 7,
-            '1M': 86400 * 30
+            '1ME': 86400 * 30
         }
-        interval = interval if interval in intervals else '5T'
+        interval = interval if interval in intervals else '5min'
         start_at = end_at - intervals[interval]
 
-        return  (start_at, end_at, self.get_line(token_0, token_1, start_at, end_at, interval), interval)
+        (token_0, token_1, points) = self.get_kline(token_0, token_1, start_at, end_at, interval)
+
+        return  (token_0, token_1, start_at, end_at, interval, points)
 
     def close(self):
         self.cursor.close()

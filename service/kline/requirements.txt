@@ -6,3 +6,5 @@ argparse
 dataclasses
 requests
 dataclasses-json
+rel
+websocket-client
