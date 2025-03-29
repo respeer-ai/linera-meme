@@ -40,6 +40,7 @@ async def on_subscribe(websocket: WebSocket):
 ## Must not exposed
 @app.post('/run/ticker')
 async def on_run_ticker():
+    global _ticker
     if _ticker is not None:
         return
     _ticker = Ticker(manager, _swap, _db)
