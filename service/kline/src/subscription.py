@@ -57,6 +57,6 @@ class WebSocketManager:
         for connection in self.connections:
             await connection.send_json({
                 'notification': 'kline',
-                'value': json.dumps(points)
+                'value': points
             })
 
