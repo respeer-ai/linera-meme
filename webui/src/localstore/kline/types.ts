@@ -30,3 +30,10 @@ export interface GetKlineRequest extends BaseRequest {
   endAt: number
   interval: string
 }
+
+export interface GetTransactionsRequest extends BaseRequest {
+  token0: string
+  token1: string
+  startAt: number
+  endAt: number
+}
