@@ -331,12 +331,14 @@ generate_nginx_conf 20080 blobs blobgateway.com
 generate_nginx_conf 21080 ams ams.respeer.ai
 generate_nginx_conf 22080 swap lineraswap.fun
 generate_nginx_conf 23080 proxy linerameme.fun
+generate_nginx_conf 25080 kline kline.lineraswap.fun
 
 echo -e "\n\nService domain"
 echo -e "   $LAN_IP api.blobgateway.com"
 echo -e "   $LAN_IP api.ams.respeer.ai"
 echo -e "   $LAN_IP api.linerameme.fun"
 echo -e "   $LAN_IP api.lineraswap.fun"
+echo -e "   $LAN_IP api.kline.lineraswap.fun"
 echo -e "   $LAN_IP graphiql.blobgateway.com"
 echo -e "   $LAN_IP graphiql.ams.respeer.ai"
 echo -e "   $LAN_IP graphiql.linerameme.fun"
@@ -376,5 +378,22 @@ run_services blob-gateway 20080
 run_services ams 21080
 run_services swap 22080
 run_services proxy 23080
+
+function run_kline() {
+    cd service/kline
+    pip3 install --upgrade pip
+    pip3 install -r requirements.txt
+    pip3 install -e .
+
+    pip3 uninstall websocket
+    pip3 uninstall websocket-client
+    pip3 install websocket-client
+
+    python3 src/main.py &
+    sleep 10
+    curl -X POST http://localhost:25080/run/ticker
+}
+
+run_kline &
 
 read
