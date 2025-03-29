@@ -216,6 +216,12 @@ function open_multi_owner_chain() {
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         assign_chain_to_owner $wallet_name $i $message_id > /dev/null 2>&1
     done
+
+    linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
+	   wallet set-default \
+	   $chain_id > /dev/null 2>&1
+
     echo $chain_id
 }
 
