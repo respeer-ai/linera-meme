@@ -123,13 +123,23 @@ onBeforeUnmount(() => {
 const router = useRouter()
 
 const onTokenClick = (application: ams.Application) => {
-  void router.push({
-    path: 'swap',
-    query: {
-      token0: application.applicationId,
-      token1: constants.LINERA_NATIVE_ID
-    }
-  })
+  if (_swap.existPool(application.applicationId, constants.LINERA_NATIVE_ID)) {
+    void router.push({
+      path: 'swap',
+      query: {
+        token0: application.applicationId,
+        token1: constants.LINERA_NATIVE_ID
+      }
+    })
+  } else {
+    void router.push({
+      path: 'add/liquidity',
+      query: {
+        token0: application.applicationId,
+        token1: constants.LINERA_NATIVE_ID
+      }
+    })
+  }
 }
 
 </script>
