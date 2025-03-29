@@ -18,3 +18,19 @@ export interface Transaction {
   liquidity?: string
   createdAt: number
 }
+
+export interface TransactionExt {
+  transaction_id: number
+  transaction_type: TransactionType
+  from_account: string
+  amount_0_in?: string
+  amount_1_in?: string
+  amount_0_out?: string
+  amount_1_out?: string
+  liquidity?: string
+  created_at: number
+  price: string
+  volume: string
+  direction: string
+  token_reversed: boolean
+}
