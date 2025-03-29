@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 import time
 import warnings
+import numpy as np
 
 
 class Db:
@@ -197,6 +198,7 @@ class Db:
             'volume': 'sum'
         })
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
+        df_interval = df_interval.applymap(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
 
         json_data = []
         for index, row in df_interval.iterrows():

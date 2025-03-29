@@ -8,3 +8,4 @@ requests
 dataclasses-json
 rel
 websocket-client
+numpy
