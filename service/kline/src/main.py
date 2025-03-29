@@ -18,7 +18,7 @@ _ticker = None
 _db = None
 
 
-@app.get('/kline/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
+@app.get('/points/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
 async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, interval: str):
     (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
     return {
@@ -29,6 +29,11 @@ async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, int
         'end_at': end_at,
         'points': points,
     }
+
+
+@app.get('/transactions/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}')
+async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int):
+    return _db.get_transactions(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at)
 
 
 @app.websocket('/ws')

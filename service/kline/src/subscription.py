@@ -26,7 +26,14 @@ class WebSocketManager:
         finally:
             self.close(websocket)
 
-    async def notify(self):
+    async def notify_transactions(self, payload):
+        for connection in self.connections:
+            await connection.send_json({
+                'notification': 'transactions',
+                'value': payload
+            })
+
+    async def notify_kline(self):
         points = {}
         intervals = ['1min', '5min', '10min', '1h', '1D', '1W', '1ME']
 
@@ -45,8 +52,8 @@ class WebSocketManager:
                 })
                 (token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(pool.token_1, pool.token_0, interval)
                 interval_points.append({
-                    'token_0': pool.token_1,
-                    'token_1': pool.token_0,
+                    'token_0': token_0,
+                    'token_1': token_1,
                     'interval': interval,
                     'start_at': start_at,
                     'end_at': end_at,
@@ -59,4 +66,10 @@ class WebSocketManager:
                 'notification': 'kline',
                 'value': points
             })
+
+    async def notify(self, topic: str, payload):
+        if topic == 'kline':
+            await self.notify_kline()
+        elif topic == 'transactions':
+            await self.notify_transactions(payload)
 

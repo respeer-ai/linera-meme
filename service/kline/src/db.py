@@ -39,6 +39,7 @@ class Db:
         self.connection.close()
 
         self.config['database'] = self.db_name
+
         self.connection = mysql.connector.connect(**self.config)
         self.cursor = self.connection.cursor()
 
@@ -77,6 +78,9 @@ class Db:
                 )
             ''')
             self.connection.commit()
+
+        self.cursor_dict = self.connection.cursor(dictionary=True)
+
 
     def new_pools(self, pools: list[Pool]):
         for pool in pools:
@@ -133,16 +137,37 @@ class Db:
              datetime.fromtimestamp(transaction.created_at / 1000000).strftime('%Y-%m-%d %H:%M:%S'))
         )
 
+        return {
+            'pool_id': pool_id,
+            'transaction_id': transaction.transaction_id,
+            'transaction_type': transaction.transaction_type,
+            'from_account': f'{transaction.from_.chain_id}:{transaction.from_.owner}',
+            'amount_0_in': transaction.amount_0_in,
+            'amount_0_out': transaction.amount_0_out,
+            'amount_1_in': transaction.amount_1_in,
+            'amount_1_out': transaction.amount_1_out,
+            'liquidity': transaction.liquidity,
+            'price': price,
+            'volume': volume,
+            'direction': direction,
+            'token_reversed': token_reversed,
+            'created_at': datetime.fromtimestamp(transaction.created_at / 1000000).strftime('%Y-%m-%d %H:%M:%S')
+        }
+
     def new_transactions(self, pool_id: int, transactions: list[Transaction]):
+        _transactions = []
+
         for transaction in transactions:
             # For each transaction we actually have two direction so we need to create two transactions
-            self.new_transaction(pool_id, transaction, False)
+            _transactions.append(self.new_transaction(pool_id, transaction, False))
             if transaction.record_reverse():
-                self.new_transaction(pool_id, transaction, True)
+                _transactions.append(self.new_transaction(pool_id, transaction, True))
 
         self.connection.commit()
 
-    def get_pool_id(self, token_0: str, token_1: str) -> int:
+        return _transactions
+
+    def get_pool_id(self, token_0: str, token_1: str) -> (int, str, str, bool):
         token_1 = token_1 if token_1 is not None else 'TLINERA'
         token_0 = token_0 if token_0 is not None else 'TLINERA'
 
@@ -172,6 +197,21 @@ class Db:
             raise(Exception('Invalid token pair'))
 
         return (pool_ids[0], token_0, token_1, token_reversed)
+
+    def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
+        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+
+        start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')
+        end_at = datetime.fromtimestamp(end_at).strftime('%Y-%m-%d %H:%M:%S')
+
+        query = f'''
+            SELECT * FROM {self.transactions_table}
+            WHERE pool_id = {pool_id}
+            AND created_at BETWEEN '{start_at}' AND '{end_at}'
+            AND token_reversed = {token_reversed}
+        '''
+        self.cursor_dict.execute(query)
+        return self.cursor_dict.fetchall()
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
@@ -235,5 +275,6 @@ class Db:
 
     def close(self):
         self.cursor.close()
+        self.cursor_dict.close()
         self.connection.close()
 

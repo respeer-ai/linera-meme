@@ -1,4 +1,5 @@
 import { BaseRequest } from '../request'
+import { TransactionExt } from '../transaction'
 
 export interface Point {
   open: number
@@ -20,7 +21,13 @@ export interface Points {
 
 export interface Notification {
   notification: string
-  value: Map<string, Points[]>
+  value: unknown
+}
+
+export interface Transactions {
+  token_0: string
+  token_1: string
+  transactions: Array<TransactionExt>
 }
 
 export interface GetKlineRequest extends BaseRequest {
@@ -29,4 +36,11 @@ export interface GetKlineRequest extends BaseRequest {
   startAt: number
   endAt: number
   interval: string
+}
+
+export interface GetTransactionsRequest extends BaseRequest {
+  token0: string
+  token1: string
+  startAt: number
+  endAt: number
 }

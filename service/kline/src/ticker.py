@@ -21,11 +21,20 @@ class Ticker:
             pools = self.get_pools()
             self.db.new_pools(pools)
 
+            _transactions = []
+
             for pool in pools:
                 transactions = self.get_pool_transactions(pool)
-                self.db.new_transactions(pool.pool_id, transactions)
+                __transactions = self.db.new_transactions(pool.pool_id, transactions)
+                _transactions.append({
+                    'token_0': pool.token_0,
+                    'token_1': pool.token_1 if pool.token_1 is not None else 'TLINERA',
+                    'transactions': __transactions,
+                })
 
-            await self.manager.notify()
+            await self.manager.notify('kline', None)
+            await self.manager.notify('transactions', _transactions)
+
             await asyncio.sleep(self.interval)
 
     def stop(self):
