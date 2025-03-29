@@ -26,7 +26,14 @@ class WebSocketManager:
         finally:
             self.close(websocket)
 
-    async def notify(self):
+    async def notify_transactions(self, payload):
+        for connection in self.connections:
+            await connection.send_json({
+                'notification': 'transactions',
+                'value': payload
+            })
+
+    async def notify_kline(self):
         points = {}
         intervals = ['1min', '5min', '10min', '1h', '1D', '1W', '1ME']
 
@@ -59,4 +66,10 @@ class WebSocketManager:
                 'notification': 'kline',
                 'value': points
             })
+
+    async def notify(self, topic: str, payload):
+        if topic == 'kline':
+            await self.notify_kline()
+        elif topic == 'transactions':
+            await self.notify_transactions(payload)
 
