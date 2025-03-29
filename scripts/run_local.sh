@@ -395,7 +395,7 @@ function run_kline() {
     pip3 uninstall websocket-client -y
     pip3 install websocket-client
 
-    python3 src/main.py &
+    python3 src/main.py --swap-application-id $SWAP_APPLICATION_ID &
     sleep 10
     curl -X POST http://localhost:25080/run/ticker
 }
