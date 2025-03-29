@@ -23,13 +23,12 @@ export const useKlineStore = defineStore('kline', {
         _points.forEach((points) => {
           const ___points = __points.get(`${points.token_0}:${points.token_1}`) || []
           points.points.forEach((point) => {
-            const index = ___points.findIndex((el) => el.timestamp === point.timestamp)
             point.timestamp = Math.floor(Date.parse(point.timestamp as unknown as string))
+            const index = ___points.findIndex((el) => el.timestamp === point.timestamp)
             ___points.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, point)
           })
           __points.set(`${points.token_0}:${points.token_1}`, ___points)
         })
-        console.log(__points)
         this.points.set(key, __points)
       })
     },
