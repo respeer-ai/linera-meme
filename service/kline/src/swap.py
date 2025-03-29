@@ -65,13 +65,14 @@ class Pool:
 
 
 class Swap:
-    def __init__(self, host: str):
+    def __init__(self, host: str, application_id: str):
         self.host = host
         self.chain_id = None
         self.application_id = None
         self.base_url = f'http://{host}/api/swap'
+        self.base_url = f'http://{host}'
         self.chain = None
-        self.application = None
+        self.application = application_id if len(application_id) > 0 else None
 
     def application_url(self) -> str:
         return f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
@@ -99,6 +100,9 @@ class Swap:
         }
         resp = requests.post(url=self.base_url, json=json)
         self.chain = resp.json()['data']['chains']['default']
+        print('---------------------------------------------------------------------------------------------------------')
+        print(f'       Swap chain: {self.chain}')
+        print('---------------------------------------------------------------------------------------------------------')
 
     def check_swap_application(self, application_id: str) -> bool:
         json = {
@@ -122,5 +126,10 @@ class Swap:
             if self.check_swap_application(application_id) is True:
                 self.application = application_id
                 break
+        print('---------------------------------------------------------------------------------------------------------')
+        print(f'       Swap application: {self.application}')
+        print('---------------------------------------------------------------------------------------------------------')
+        if self.application is None:
+            raise Exception('Invalid swap application')
 
 

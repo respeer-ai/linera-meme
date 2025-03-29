@@ -55,14 +55,15 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default='0.0.0.0', help='Listened ip')
     parser.add_argument('--port', type=int, default=25080, help='Listened port')
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
-    parser.add_argument('--database-host', type=str, default='172.16.31.42', help='Kline database host')
+    parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
+    parser.add_argument('--database-host', type=str, default='172.16.31.44', help='Kline database host')
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
-    parser.add_argument('--database-password', type=str, default='SwZoiC7n8azn1EKG', help='Kline database password')
+    parser.add_argument('--database-password', type=str, default='4waB4C6hbPv7cm5U', help='Kline database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
 
     args = parser.parse_args()
 
-    _swap = Swap(args.swap_host)
+    _swap = Swap(args.swap_host, args.swap_application_id)
     _swap.get_swap_chain()
     _swap.get_swap_application()
 
