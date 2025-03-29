@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { Points, Point, GetKlineRequest, GetTransactionsRequest } from './types'
+import { Points, Point, GetKlineRequest, GetTransactionsRequest, Notification, Transactions } from './types'
 import { _WebSocket } from './websocket'
 import { constants } from 'src/constant'
 import { doGetWithError } from '../request'
@@ -18,7 +18,14 @@ export const useKlineStore = defineStore('kline', {
       this.websocket.withOnMessage(this.onMessage)
       this.websocket.withOnError(this.onError)
     },
-    onMessage (points: Map<string, Points[]>) {
+    onMessage (notification: Notification) {
+      if (notification.notification === 'kline') {
+        this.onKline(new Map(Object.entries(notification.value as Record<string, Points[]>)))
+      } else if (notification.notification === 'transactions') {
+        this.onTransactions(notification.value as Transactions[])
+      }
+    },
+    onKline (points: Map<string, Points[]>) {
       this.latestPoints = points
       points.forEach((_points, key) => {
         const __points = this.points.get(key) || new Map<string, Point[]>()
@@ -42,7 +49,7 @@ export const useKlineStore = defineStore('kline', {
       doGetWithError(url, req, req.Message, (resp: Points) => {
         const r = new Map<string, Points[]>()
         r.set(req.interval, [resp])
-        this.onMessage(r)
+        this.onKline(r)
         done?.(false)
       }, () => {
         done?.(true)
@@ -55,6 +62,11 @@ export const useKlineStore = defineStore('kline', {
         done?.(false)
       }, () => {
         done?.(true)
+      })
+    },
+    onTransactions (transactions: Transactions[]) {
+      transactions.forEach((_transactions) => {
+        this.appendTransactions(_transactions.token_0, _transactions.token_1, _transactions.transactions)
       })
     },
     appendTransactions (token0: string, token1: string, transactions: TransactionExt[]) {

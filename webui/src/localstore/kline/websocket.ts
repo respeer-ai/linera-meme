@@ -1,7 +1,7 @@
-import { Points, Notification } from './types'
+import { Notification } from './types'
 
 export class _WebSocket {
-  private onMessageCb: (message: Map<string, Points[]>) => void = undefined as unknown as (message: Map<string, Points[]>) => void
+  private onMessageCb: (message: Notification) => void = undefined as unknown as (message: Notification) => void
   private onErrorCb: (e: Event) => void = undefined as unknown as (e: Event) => void
 
   constructor(url: string) {
@@ -17,14 +17,13 @@ export class _WebSocket {
     console.log('Kline websocket opened')
   }
 
-  withOnMessage (cb: (message: Map<string, Points[]>) => void) {
+  withOnMessage (cb: (message: Notification) => void) {
     this.onMessageCb = cb
   }
 
   onMessage (message: MessageEvent) {
     const notification = JSON.parse(message.data) as Notification
-    if (notification.notification !== 'kline') return
-    this.onMessageCb?.(new Map(Object.entries(notification.value)))
+    this.onMessageCb?.(notification)
   }
 
   onClose () {
