@@ -29,4 +29,4 @@ class Ticker:
             await asyncio.sleep(self.interval)
 
     def stop(self):
-        self.running = Flase
+        self.running = False

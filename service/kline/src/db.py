@@ -190,6 +190,7 @@ class Db:
         df = pd.read_sql(query, self.connection)
         df['created_at'] = pd.to_datetime(df['created_at'])
         df.set_index('created_at', inplace=True)
+        df.sort_index(inplace=True)
 
         # 1 minute in default
         interval = interval if interval is not None else '1T'
