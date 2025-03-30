@@ -40,16 +40,7 @@ const _swap = swap.useSwapStore()
 const applications = computed(() => _ams.applications.filter((el) => _proxy.chains.map((_el: Chain) => _el.token as string).includes(el.applicationId)))
 
 const getMemeApplications = () => {
-  _proxy.getApplications({
-    Message: {
-      Error: {
-        Title: 'Get meme applications',
-        Message: 'Failed get meme applications',
-        Popup: true,
-        Type: notify.NotifyType.Error
-      }
-    }
-  }, (error: boolean, rows?: Chain[]) => {
+  proxy.getMemeApplications( (error: boolean, rows?: Chain[]) => {
     // eslint-disable-next-line no-useless-return
     if (error || !rows?.length) return
     // Continue to fetch
@@ -57,17 +48,7 @@ const getMemeApplications = () => {
 }
 
 const getApplications = () => {
-  _ams.getApplications({
-    limit: 40,
-    Message: {
-      Error: {
-        Title: 'Get applications',
-        Message: 'Failed get applications',
-        Popup: true,
-        Type: notify.NotifyType.Error
-      }
-    }
-  }, (error: boolean, rows?: ams.Application[]) => {
+  ams.getApplications((error: boolean, rows?: ams.Application[]) => {
     // eslint-disable-next-line no-useless-return
     if (error || !rows?.length) return
     // Continue to fetch
@@ -75,16 +56,7 @@ const getApplications = () => {
 }
 
 const getPools = () => {
-  _swap.getPools({
-    Message: {
-      Error: {
-        Title: 'Get latest transactions',
-        Message: 'Failed get latest transactions',
-        Popup: true,
-        Type: notify.NotifyType.Error
-      }
-    }
-  })
+  swap.getPools()
 }
 
 const loadApplications = () => {
@@ -125,7 +97,7 @@ const router = useRouter()
 const onTokenClick = (application: ams.Application) => {
   if (_swap.existPool(application.applicationId, constants.LINERA_NATIVE_ID)) {
     void router.push({
-      path: 'swap',
+      path: '/swap',
       query: {
         token0: application.applicationId,
         token1: constants.LINERA_NATIVE_ID
@@ -133,7 +105,7 @@ const onTokenClick = (application: ams.Application) => {
     })
   } else {
     void router.push({
-      path: 'add/liquidity',
+      path: '/create/pool',
       query: {
         token0: application.applicationId,
         token1: constants.LINERA_NATIVE_ID

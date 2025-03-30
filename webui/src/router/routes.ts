@@ -25,7 +25,7 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
-        path: '/Meme',
+        path: '/meme',
         component: () => import('pages/MemePage.vue'),
         meta: {
           NeedLogined: false
@@ -46,8 +46,8 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
-        path: '/add/liquidity',
-        component: () => import('pages/AddLiquidity.vue'),
+        path: '/create/pool',
+        component: () => import('pages/CreatePool.vue'),
         meta: {
           NeedLogined: false
         }

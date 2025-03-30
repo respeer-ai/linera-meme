@@ -1,6 +1,6 @@
 <template>
   <div class='bg-white popup-padding'>
-    <h5>Add Liquidity</h5>
+    <h5>Create pool</h5>
     <q-separator />
     <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-inner-y-margin'>
       <div class='row'>
@@ -8,8 +8,8 @@
           <div class='text-bold'>
             {{ token0Ticker }}
           </div>
-          <div class='text-grey-8' :title='token0Id'>
-            {{ shortId(token0Id || '', 5) }}
+          <div class='text-grey-8'>
+            {{ shortId(token0 || '', 5) }}
           </div>
         </div>
         <q-space />
@@ -25,9 +25,9 @@
       </div>
       <div class='row vertical-card-align swap-token'>
         <q-input
-          class='swap-amount-input text-grey-8' dense v-model.number='tokenZeroAmount' reverse-fill-mask
+          class='swap-amount-input text-grey-8' dense v-model.number='token0Amount' reverse-fill-mask
           input-class='text-right'
-          :error='tokenZeroAmountError'
+          :error='token0AmountError'
         />
       </div>
     </q-card>
@@ -42,10 +42,10 @@
       <div class='row'>
         <div>
           <div class='text-bold'>
-            WTLINERA
+            {{ token1Ticker }}
           </div>
-          <div class='text-grey-8' title='AAAAAAAAAAAAAAAAAA'>
-            aaaaaaaaaaaaaaaa
+          <div class='text-grey-8'>
+            {{ shortId(token1 || '', 5) }}
           </div>
         </div>
         <q-space />
@@ -55,15 +55,15 @@
             {{ Number(inBalance).toFixed(2) }}
           </div>
           <div class='text-grey-8'>
-            WTLINERA
+            {{ token1Ticker }}
           </div>
         </div>
       </div>
       <div class='row vertical-card-align swap-token'>
         <q-input
-          class='swap-amount-input' dense v-model.number='tokenOneAmount' reverse-fill-mask
+          class='swap-amount-input' dense v-model.number='token1Amount' reverse-fill-mask
           input-class='text-right'
-          :error='tokenOneAmountError'
+          :error='token1AmountError'
         />
       </div>
     </q-card>
@@ -75,63 +75,51 @@
 
 <script setup lang='ts'>
 import { shortId } from 'src/utils/shortid'
-import { ref, watch, onMounted, onUnmounted, toRef } from 'vue'
+import { ref, watch, onMounted, toRef, computed } from 'vue'
+import { ams, meme } from 'src/localstore'
 
 interface Props {
-  token0Id: string
-  token0Ticker: string
+  token0: string
+  token1: string
 }
 
 // eslint-disable-next-line no-undef
 const props = defineProps<Props>()
-const token0Id = toRef(props, 'token0Id')
+const token0 = toRef(props, 'token0')
+const token1 = toRef(props, 'token1')
 
-const tokenZeroAmount = ref(0)
-const tokenOneAmount = ref(0)
+const _ams = ams.useAmsStore()
 
-const tokenZeroAmountError = ref(false)
-const tokenOneAmountError = ref(false)
+const token0Ticker = computed(() => (JSON.parse(_ams.application(token0.value)?.spec || '{}') as meme.Meme).ticker)
+const token1Ticker = computed(() => (JSON.parse(_ams.application(token1.value)?.spec || '{}') as meme.Meme).ticker)
+
+const token0Amount = ref(0)
+const token1Amount = ref(0)
+
+const token0AmountError = ref(false)
+const token1AmountError = ref(false)
 
 const outBalance = ref(0)
 const inBalance = ref(0)
 
-const subscriptionId = ref(undefined as unknown as string)
-
-watch(tokenZeroAmount, (amount) => {
-  if (amount === null || amount < 0) {
-    tokenZeroAmount.value = 0
-  }
+watch(token0Amount, () => {
+  token0Amount.value = token0Amount.value < 0 ? 0 : token0Amount.value
 })
 
-watch(tokenOneAmount, (amount) => {
-  if (amount === null || amount < 0) {
-    tokenOneAmount.value = 0
-  }
+watch(token1Amount, (amount) => {
+  token1Amount.value = token1Amount.value < 0 ? 0 : token1Amount.value
 })
 
-const subscriptionHandler = () => {
-  // TODO
+const getApplications = () => {
+  ams.getApplications((error: boolean, rows?: ams.Application[]) => {
+    // eslint-disable-next-line no-useless-return
+    if (error || !rows?.length) return
+    // Continue to fetch
+  })
 }
 
 onMounted(() => {
-  if (subscriptionId.value) return
-  window.linera?.request({
-    method: 'linera_subscribe'
-  }).then((_subscriptionId) => {
-    subscriptionId.value = _subscriptionId as string
-    window.linera.on('message', subscriptionHandler)
-  }).catch((e) => {
-    console.log('Fail subscribe', e)
-  })
-})
-
-onUnmounted(() => {
-  if (!subscriptionId.value) return
-  void window.linera?.request({
-    method: 'linera_unsubscribe',
-    params: [subscriptionId.value]
-  })
-  subscriptionId.value = undefined as unknown as string
+  getApplications()
 })
 
 </script>
