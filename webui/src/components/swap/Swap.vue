@@ -83,7 +83,7 @@
 
 <script setup lang='ts'>
 import { ref, computed, watch, onMounted } from 'vue'
-import { swap, ams, meme, user, block, account, notify, proxy, pool } from 'src/localstore'
+import { swap, ams, meme, user, block, account, proxy, pool } from 'src/localstore'
 import { constants } from 'src/constant'
 import { shortid } from 'src/utils'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
@@ -95,7 +95,6 @@ const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
 const _user = user.useUserStore()
 const _block = block.useBlockStore()
-const _meme = meme.useMemeStore()
 const _proxy = proxy.useProxyStore()
 const _pool = pool.usePoolStore()
 
@@ -109,14 +108,14 @@ const token0Chain = computed(() => _proxy.chain(selectedToken0.value) as Chain)
 const token1Chain = computed(() => _proxy.chain(selectedToken1.value) as Chain)
 const token0Application = computed(() => {
   return {
-    chainId: token0Chain.value?.chainId,
-    owner: `Application:${token0Chain.value?.token}`
+    chainId: token0Chain.value?.chainId as string,
+    owner: `Application:${token0Chain.value?.token as string}`
   }
 })
 const token1Application = computed(() => {
   return {
-    chainId: token1Chain.value?.chainId,
-    owner: `Application:${token1Chain.value?.token}`
+    chainId: token1Chain.value?.chainId as string,
+    owner: `Application:${token1Chain.value?.token as string}`
   }
 })
 const userChainBalance = computed(() => _user.chainBalance)
@@ -134,32 +133,11 @@ const token0AmountError = ref(false)
 const blockHeight = computed(() => _block.blockHeight)
 const publicKey = computed(() => _user.publicKey)
 
-const balanceOfMeme = async (tokenApplication: account.Account, done: (balance: string) => void) => {
-  const owner = await _user.account()
-  if (!owner.owner || !tokenApplication.owner) return
-  const owenrDescription = account._Account.accountDescription(owner)
-
-  _meme.balanceOf({
-    owner: owenrDescription,
-    Message: {
-      Error: {
-        Title: 'Balance of meme',
-        Message: 'Failed get balance of meme',
-        Popup: true,
-        Type: notify.NotifyType.Error
-      }
-    }
-  }, tokenApplication, (error: boolean, balance?: string) => {
-    if (error) return
-    done(balance as string)
-  })
-}
-
 const refreshBalances = async () => {
   if (selectedToken0.value === constants.LINERA_NATIVE_ID) {
     token0Balance.value = userBalance.value
   } else {
-    await balanceOfMeme(token0Application.value, (balance: string) => {
+    await meme.balanceOfMeme(token0Application.value, (balance: string) => {
       token0Balance.value = Number(Number(balance).toFixed(4))
     })
   }
@@ -167,7 +145,7 @@ const refreshBalances = async () => {
   if (selectedToken1.value === constants.LINERA_NATIVE_ID) {
     token1Balance.value = userBalance.value
   } else {
-    await balanceOfMeme(token1Application.value, (balance: string) => {
+    await meme.balanceOfMeme(token1Application.value, (balance: string) => {
       token1Balance.value = Number(Number(balance).toFixed(4))
     })
   }
@@ -196,14 +174,14 @@ watch(token1Chain, async () => {
 }, { immediate: true, deep: true })
 
 watch(token0Amount, () => {
-  const price = selectedToken0.value === selectedPool.value?.token0 ? selectedPool.value?.token0Price : selectedPool.value?.token1Price
+  const price = Number((selectedToken0.value === selectedPool.value?.token0 ? selectedPool.value?.token0Price : selectedPool.value?.token1Price) as string)
   setTimeout(() => {
     token1Amount.value = Number(((token0Amount.value * price) || 0).toFixed(4))
   }, 1000)
 })
 
 watch(token1Amount, () => {
-  const price = selectedToken1.value === selectedPool.value?.token1 ? selectedPool.value?.token1Price : selectedPool.value?.token0Price
+  const price = Number((selectedToken1.value === selectedPool.value?.token1 ? selectedPool.value?.token1Price : selectedPool.value?.token0Price) as string)
   setTimeout(() => {
     token0Amount.value = Number(((token1Amount.value * price) || 0).toFixed(4))
   }, 1000)
@@ -212,7 +190,7 @@ watch(token1Amount, () => {
 const getLatestTransactions = () => {
   _pool.latestTransactions({
     startId: _pool.nextStartId(selectedPool.value.poolId)
-  }, selectedPool.value.poolId, selectedPool.value.poolApplication)
+  }, selectedPool.value.poolId, selectedPool.value.poolApplication as account.Account)
 }
 
 watch(publicKey, async () => {
@@ -243,7 +221,7 @@ const onSwapClick = async () => {
     window.linera.request({
       method: 'linera_graphqlMutation',
       params: {
-        applicationId: account._Account.accountOwner(selectedPool.value.poolApplication),
+        applicationId: account._Account.accountOwner(selectedPool.value.poolApplication as account.Account),
         publicKey: publicKey.value,
         query: {
           query: SWAP.loc?.source?.body,

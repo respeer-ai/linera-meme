@@ -6,6 +6,7 @@ import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { MEME_APPLICATIONS } from 'src/graphql'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 import { graphqlResult } from 'src/utils'
+import { Account } from '../account'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
@@ -55,6 +56,15 @@ export const useProxyStore = defineStore('proxy', {
     chain(): (token: string) => Chain | undefined {
       return (token: string) => {
         return this.chains.find((el) => el.token === token)
+      }
+    },
+    application(): (token: string) => Account | undefined {
+      return (token: string) => {
+        const chain = this.chains.find((el) => el.token === token)
+        return {
+          chainId: chain?.chainId as string,
+          owner: `Application:${chain?.token as string}`
+        }
       }
     }
   }
