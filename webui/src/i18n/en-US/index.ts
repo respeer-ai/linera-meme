@@ -73,5 +73,9 @@ export default {
   MSG_BEFORE_DAYS: 'before { VALUE } days',
   MSG_APPLICATION_CREATED: 'Application was created successfully.',
   MSG_MAX: 'Max',
-  MSG_CREATE_POOL: 'Create pool'
+  MSG_CREATE_POOL: 'Create pool',
+  MSG_TRANSACTION_ID: 'Transaction ID',
+  MSG_DIRECTION: 'Direction',
+  MSG_PRICE: 'Price',
+  MSG_VOLUME: 'Volume'
 }

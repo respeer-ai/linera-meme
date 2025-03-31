@@ -42,7 +42,7 @@ import { onMounted, ref } from 'vue'
 import { swap, notify, ams, proxy } from 'src/localstore'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { useRoute } from 'vue-router'
-import { constants } from 'src/constant'
+import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 import VolumeBulletin from 'src/components/bulletin/Volume.vue'
 import HolderBulletin from 'src/components/bulletin/Holder.vue'
@@ -50,8 +50,7 @@ import RemoveLiquidity from 'src/components/liquidity/RemoveLiquidity.vue'
 import KLine from 'src/components/kline/KLine.vue'
 import Swap from 'src/components/swap/Swap.vue'
 import Trades from 'src/components/trades/Trades.vue'
-import AddLiquidity from './AddLiquidity.vue'
-import { Chain } from 'src/__generated__/graphql/proxy/graphql'
+import AddLiquidity from 'src/components/liquidity/AddLiquidity.vue'
 
 interface Query {
   token0: string
