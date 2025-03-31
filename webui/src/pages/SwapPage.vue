@@ -1,40 +1,42 @@
 <template>
-  <div class='row vertical-card-align bg-grey-2'>
-    <div class='kline'>
-      <div class='bg-white'>
-        <KLine />
+  <q-page class='flex justify-center items-center'>
+    <div class='row vertical-card-align bg-grey-2' :style='{width: "1440px"}'>
+      <div class='kline'>
+        <div class='bg-white'>
+          <KLine />
+        </div>
+        <div class='bg-grey-1 history'>
+          <Trades />
+        </div>
       </div>
-      <div class='bg-white history'>
-        <Trades />
+      <q-space />
+      <div class='swap vertical-card-padding'>
+        <q-tabs v-model='tab' dense>
+          <q-tab name='swap' label='Swap' />
+          <q-tab name='addLiquidity' label='Add Liquidity' />
+          <q-tab name='removeLiquidity' label='Remove Liquidity' />
+        </q-tabs>
+        <q-separator />
+        <q-tab-panels v-model='tab' animated>
+          <q-tab-panel name='swap'>
+            <Swap />
+          </q-tab-panel>
+          <q-tab-panel name='addLiquidity'>
+            <AddLiquidity />
+          </q-tab-panel>
+          <q-tab-panel name='removeLiquidity'>
+            <RemoveLiquidity />
+          </q-tab-panel>
+        </q-tab-panels>
+        <div class='bg-white vertical-card-align bulletin-padding'>
+          <VolumeBulletin />
+        </div>
+        <div class='bg-white vertical-card-align bulletin-padding'>
+          <HolderBulletin />
+        </div>
       </div>
     </div>
-    <q-space />
-    <div class='swap vertical-card-padding'>
-      <q-tabs v-model='tab' dense>
-        <q-tab name='swap' label='Swap' />
-        <q-tab name='addLiquidity' label='Add Liquidity' />
-        <q-tab name='removeLiquidity' label='Remove Liquidity' />
-      </q-tabs>
-      <q-separator />
-      <q-tab-panels v-model='tab' animated>
-        <q-tab-panel name='swap'>
-          <Swap />
-        </q-tab-panel>
-        <q-tab-panel name='addLiquidity'>
-          <AddLiquidity />
-        </q-tab-panel>
-        <q-tab-panel name='removeLiquidity'>
-          <RemoveLiquidity />
-        </q-tab-panel>
-      </q-tab-panels>
-      <div class='bg-white vertical-card-align bulletin-padding'>
-        <VolumeBulletin />
-      </div>
-      <div class='bg-white vertical-card-align bulletin-padding'>
-        <HolderBulletin />
-      </div>
-    </div>
-  </div>
+  </q-page>
 </template>
 
 <script setup lang='ts'>
@@ -130,8 +132,9 @@ onMounted(() => {
 
 <style scoped lang='sass'>
 .swap
-  width: 360px
+  width: 380px
   margin-left: 4px
+  margin-right: 4px
 
 .swap-padding
   padding: 0 16px
@@ -140,7 +143,8 @@ onMounted(() => {
   padding: 16px
 
 .kline
-  width: calc(100% - 360px - 4px)
+  width: calc(100% - 380px - 8px)
+  padding: 0 0 0 4px
 
 .history
   margin-top: 4px

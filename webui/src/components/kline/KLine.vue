@@ -3,7 +3,7 @@
     <div class='token-pair-tip'>
       <SwapSelect />
     </div>
-    <div id='chart' style="width:100%; height:600px"/>
+    <div id='chart' style='width:100%; height:600px' />
   </div>
 </template>
 
@@ -57,7 +57,7 @@ watch(selectedToken1, () => {
 
 onMounted(() => {
   chart.value = init('chart')
-  chart.value?.setPrecision({ price: 10 })
+  chart.value?.setPrecision({ price: 8 })
   chart.value?.applyNewData(points.value, true)
   getKline()
 })

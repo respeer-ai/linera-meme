@@ -1,7 +1,8 @@
 <template>
   <div class='bg-white vertical-card-padding'>
     <q-select
-      dense v-model='token0' :options='token0Items' hide-dropdown-icon
+      dense outlined hide-dropdown-icon
+      v-model='token0' :options='token0Items'
       class='swap-token-option'
     >
       <template #option='scope'>
@@ -31,7 +32,8 @@
       /
     </div>
     <q-select
-      dense v-model='token1' :options='token1Items' hide-dropdown-icon
+      dense outlined hide-dropdown-icon
+      v-model='token1' :options='token1Items'
       class='swap-token-option'
     >
       <template #option='scope'>
@@ -62,7 +64,7 @@
 
 <script setup lang='ts'>
 import { swap, ams, meme } from 'src/localstore'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { constants } from 'src/constant'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 
@@ -85,9 +87,9 @@ const selectedToken1 = computed(() => _swap.selectedToken1)
 const buildTokens = () => {
   const tokens = new Map<string, TokenItem>()
   pools.value.forEach((el) => {
-    const application = _ams.application(el.token0) as ams.Application
-    tokens.set(el.token0, {
-      token: el.token0,
+    const application = _ams.application(el.token0 as string) as ams.Application
+    tokens.set(el.token0 as string, {
+      token: el.token0 as string,
       logo: _ams.applicationLogo(application),
       ticker: (JSON.parse(application?.spec || '{}') as meme.Meme).ticker,
       name: (JSON.parse(application?.spec || '{}') as meme.Meme).name
@@ -101,9 +103,9 @@ const buildTokens = () => {
         name: 'Linera native token'
       } as TokenItem)
     } else {
-      const application = _ams.application(el.token1) as ams.Application
-      tokens.set(el.token1, {
-        token: el.token1,
+      const application = _ams.application(el.token1 as string) as ams.Application
+      tokens.set(el.token1 as string, {
+        token: el.token1 as string,
         logo: _ams.applicationLogo(application),
         ticker: (JSON.parse(application?.spec || '{}') as meme.Meme).ticker,
         name: (JSON.parse(application?.spec || '{}') as meme.Meme).name
@@ -180,8 +182,8 @@ watch(pools, () => {
 .separator
   display: inline-block
   font-size: 24px
-  margin-left: 15px
-  margin-right: 15px
+  margin-left: 8px
+  margin-right: 8px
   font-weight: bolder
   color: #aaa
 </style>

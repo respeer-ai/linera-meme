@@ -12,7 +12,7 @@
           <div class='swap-amount-label text-grey-9 text-bold'>
             {{ token0Balance }}
           </div>
-          <div class='text-grey-8'>
+          <div class='text-grey-8' v-if='selectedToken0 !== constants.LINERA_NATIVE_ID'>
             {{ token0Ticker }}
           </div>
         </div>
@@ -22,14 +22,16 @@
           <div class='text-bold'>
             {{ token0Ticker }}
           </div>
-          <div class='text-grey-8' title='aaaaaaaaaaa'>
-            {{ shortid.shortId(selectedToken0, 12) }}
+          <div class='text-grey-8'>
+            {{ selectedToken0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(selectedToken0, 12) }}
           </div>
         </div>
         <q-space />
         <q-input
-          class='swap-amount-input text-grey-8' dense v-model.number='token0Amount' reverse-fill-mask
-          input-class='text-right'
+          dense filled reverse-fill-mask hide-bottom-space
+          class='swap-amount-input text-grey-8' v-model.number='token0Amount'
+          input-class='text-right text-bold text-green-8'
+          :input-style='{fontSize: "20px"}'
           :error='token0AmountError'
         />
       </div>
@@ -62,19 +64,21 @@
           <div class='text-bold'>
             {{ token1Ticker }}
           </div>
-          <div class='text-grey-8' title='aaaaaaaaaaa'>
-            {{ shortid.shortId(selectedToken1, 12) }}
+          <div class='text-grey-8'>
+            {{ selectedToken1 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(selectedToken1, 12) }}
           </div>
         </div>
         <q-space />
         <q-input
-          class='swap-amount-input' dense v-model.number='token1Amount' reverse-fill-mask
-          input-class='text-right'
+          dense filled reverse-fill-mask hide-bottom-space
+          class='swap-amount-input' v-model.number='token1Amount'
+          input-class='text-right text-bold text-green-8'
+          :input-style='{fontSize: "20px"}'
         />
       </div>
     </q-card>
     <q-btn
-      rounded flat :label='$t("MSG_SWAP")' class='full-width border-red-4 vertical-inner-y-margin vertical-inner-y-margin-bottom'
+      rounded flat :label='$t("MSG_SWAP")' class='full-width border-red-4 vertical-inner-y-margin'
       @click='onSwapClick'
       :disable='token0Amount === 0 || token1Amount === 0'
     />
@@ -257,6 +261,7 @@ onMounted(async () => {
   margin-top: 2px
 
 :deep(.swap-token)
+  margin: 8px 0 0 0
   .q-select
     .q-icon
       font-size: 16px
