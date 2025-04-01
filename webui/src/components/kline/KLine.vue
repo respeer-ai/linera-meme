@@ -1,8 +1,16 @@
 <template>
   <div>
-    <div class='token-pair-tip'>
-      <SwapSelect />
+    <div class='row'>
+      <div :style='{marginLeft: "4px"}'>
+        <SwapSelect />
+      </div>
+      <q-space />
+      <q-btn
+        flat label='Create pool' class='text-blue-8' rounded :style='{margin: "4px 0"}'
+        @click='onCreatePoolClick'
+      />
     </div>
+    <q-separator />
     <div id='chart' style='width:100%; height:600px' />
   </div>
 </template>
@@ -11,6 +19,8 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { init, dispose, Chart, Nullable, KLineData } from 'klinecharts'
 import { kline, swap } from 'src/localstore'
+import { useRouter } from 'vue-router'
+import { constants } from 'src/constant'
 
 import SwapSelect from './SwapSelect.vue'
 
@@ -66,13 +76,20 @@ onBeforeUnmount(() => {
   dispose('chart')
 })
 
+const router = useRouter()
+
+const onCreatePoolClick = () => {
+  void router.push({
+    path: '/create/pool',
+    query: {
+      token0: selectedToken0.value === constants.LINERA_NATIVE_ID ? selectedToken1.value : selectedToken0.value
+    }
+  })
+}
+
 </script>
 
 <style scoped lang="sass">
-*
-  margin: 0
-  padding: 0
-
 #chart-container
   position: relative
   height: 50vh
@@ -80,61 +97,4 @@ onBeforeUnmount(() => {
   display: block
   overflow: auto
   background: red
-
-.token-pair-tip
-  width: 63%
-  display: inline-block
-  vertical-align: middle
-
-.token-pair-tip img
-  width: 1.5rem
-  border: 2px solid #dadada
-  border-radius: 0.7rem
-  display: inline-block
-  vertical-align: middle
-
-.token-pair-tip div
-  margin-left: 5px
-  font-size: 0.9rem
-  font-weight: bold
-  color: #555
-  display: inline-block
-  vertical-align: middle
-
-.radio-buttons-tip
-  width: 37%
-  display: inline-block
-  vertical-align: middle
-  text-align: right
-
-.radio-buttons
-  display: inline-block
-  padding: 2px
-  background-color: #dadada
-  border-radius: 5px
-
-.radio-buttons:hover *
-  cursor: pointer
-
-.radio-button
-  display: inline-block
-
-.radio-input
-  display: none
-
-.radio-lable
-  width: 2rem
-  margin: 1px
-  font-size: 0.8rem
-  border-radius: 3px
-  background-color: #e5e5e5
-  text-align: center
-  display: inline-block
-  color: gray
-
-.radio-input:checked+label
-  display: inline-block
-  color: black
-  background-color: #eee
-  font-weight: bold
 </style>

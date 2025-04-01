@@ -8,7 +8,7 @@
       <template #option='scope'>
         <q-item dense v-bind='scope.itemProps'>
           <q-img :src='scope.opt.logo' width='24px' height='24px' fit='contain' />
-          <div class='swap-token-list horizontal-inner-x-margin-left'>
+          <div class='horizontal-inner-x-margin-left'>
             <div class='row'>
               <div class='swap-token-name text-bold'>
                 {{ scope.opt.ticker }}
@@ -39,7 +39,7 @@
       <template #option='scope'>
         <q-item dense v-bind='scope.itemProps'>
           <q-img :src='scope.opt.logo' width='24px' height='24px' fit='contain' />
-          <div class='swap-token-list horizontal-inner-x-margin-left'>
+          <div class='horizontal-inner-x-margin-left'>
             <div class='row'>
               <div class='swap-token-name text-bold'>
                 {{ scope.opt.ticker }}
@@ -71,21 +71,14 @@ import { Pool } from 'src/__generated__/graphql/swap/graphql'
 const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
 
-interface TokenItem {
-  token: string
-  logo: string
-  ticker: string
-  name: string
-}
-
 const pools = computed(() => _swap.pools)
 const applications = computed(() => _ams.applications)
-const poolTokens = ref([] as TokenItem[])
+const poolTokens = ref([] as meme.TokenItem[])
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 
 const buildTokens = () => {
-  const tokens = new Map<string, TokenItem>()
+  const tokens = new Map<string, meme.TokenItem>()
   pools.value.forEach((el) => {
     const application = _ams.application(el.token0 as string) as ams.Application
     tokens.set(el.token0 as string, {
@@ -93,7 +86,7 @@ const buildTokens = () => {
       logo: _ams.applicationLogo(application),
       ticker: (JSON.parse(application?.spec || '{}') as meme.Meme).ticker,
       name: (JSON.parse(application?.spec || '{}') as meme.Meme).name
-    } as TokenItem)
+    } as meme.TokenItem)
     // Native token
     if (el.token1 === constants.LINERA_TICKER) {
       tokens.set(constants.LINERA_NATIVE_ID, {
@@ -101,7 +94,7 @@ const buildTokens = () => {
         logo: constants.LINERA_LOGO,
         ticker: constants.LINERA_TICKER,
         name: 'Linera native token'
-      } as TokenItem)
+      } as meme.TokenItem)
     } else {
       const application = _ams.application(el.token1 as string) as ams.Application
       tokens.set(el.token1 as string, {
@@ -109,7 +102,7 @@ const buildTokens = () => {
         logo: _ams.applicationLogo(application),
         ticker: (JSON.parse(application?.spec || '{}') as meme.Meme).ticker,
         name: (JSON.parse(application?.spec || '{}') as meme.Meme).name
-      } as TokenItem)
+      } as meme.TokenItem)
     }
   })
   return Array.from(tokens.values())
@@ -125,15 +118,15 @@ const token1Items = computed(() => {
   }))
 })
 
-const token0 = ref(undefined as unknown as TokenItem)
-const token1 = ref(undefined as unknown as TokenItem)
+const token0 = ref(undefined as unknown as meme.TokenItem)
+const token1 = ref(undefined as unknown as meme.TokenItem)
 
 watch(selectedToken0, () => {
-  token0.value = poolTokens.value.find((el) => el.token === selectedToken0.value) as TokenItem
+  token0.value = poolTokens.value.find((el) => el.token === selectedToken0.value) as meme.TokenItem
 })
 
 watch(selectedToken1, () => {
-  token1.value = poolTokens.value.find((el) => el.token === selectedToken1.value) as TokenItem
+  token1.value = poolTokens.value.find((el) => el.token === selectedToken1.value) as meme.TokenItem
 })
 
 watch(token0Items, () => {

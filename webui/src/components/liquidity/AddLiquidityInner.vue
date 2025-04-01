@@ -7,8 +7,11 @@
     <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-inner-y-margin'>
       <div class='row'>
         <div>
-          <div class='text-bold'>
-            {{ token0Ticker }}
+          <div class='row'>
+            <q-img :src='token0Logo' width='24px' height='24px' fit='contain' />
+            <div class='text-bold'>
+              {{ token0Ticker }}
+            </div>
           </div>
           <div class='text-grey-8'>
             {{ shortId(token0 || '', 8, 6) }}
@@ -59,12 +62,42 @@
     </div>
     <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-card-align'>
       <div class='row'>
-        <div>
+        <div v-if='selectable'>
+          <q-select
+            dense filled hide-dropdown-icon
+            v-model='selectedToken1' :options='token1Items'
+            class='swap-token-option'
+          >
+            <template #option='scope'>
+              <q-item dense v-bind='scope.itemProps'>
+                <q-img :src='scope.opt.logo' width='24px' height='24px' fit='contain' />
+                <div class='horizontal-inner-x-margin-left'>
+                  <div class='row'>
+                    <div class='swap-token-name text-bold'>
+                      {{ scope.opt.ticker }}
+                    </div>
+                    <q-space />
+                  </div>
+                  <div>{{ scope.opt.name }}</div>
+                </div>
+              </q-item>
+            </template>
+            <template #selected>
+              <div class='row'>
+                <q-img :src='selectedToken1?.logo' width='24px' height='24px' fit='contain' />
+                <div class='swap-token-name text-bold swap-token-label flex items-center justify-center' :style='{marginLeft: "8px"}'>
+                  {{ selectedToken1?.ticker }}
+                </div>
+              </div>
+            </template>
+          </q-select>
+        </div>
+        <div v-else>
           <div class='text-bold'>
             {{ token1Ticker }}
           </div>
           <div class='text-grey-8'>
-            {{ token1 === constants.LINERA_NATIVE_ID ? '' : shortId(token1 || '', 12, 8) }}
+            {{ _token1 === constants.LINERA_NATIVE_ID ? '' : shortId(_token1 || '', 12, 8) }}
           </div>
         </div>
         <q-space />
@@ -103,55 +136,57 @@
         </q-input>
       </div>
     </q-card>
-    <div class='vertical-item-y-margin text-grey-8 text-left text-bold'>
-      {{ $t("MSG_ESTIMATED_SHARE") }}
-    </div>
-    <q-card flat class='bg-red-1 border-radius-8px popup-padding'>
-      <div class='row'>
-        <div class='text-bold'>
-          {{ $t('MSG_LIQUIDITY') }}
-        </div>
-        <q-space />
-        <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.liquidity || '0').toFixed(10) }}</div>
-        </div>
+    <div v-if='!selectable'>
+      <div class='vertical-item-y-margin text-grey-8 text-left text-bold'>
+        {{ $t("MSG_ESTIMATED_SHARE") }}
       </div>
-    </q-card>
-    <div class='vertical-item-y-margin text-grey-8 text-left text-bold'>
-      {{ $t("MSG_ESTIMATED_DEPOSIT") }}
-    </div>
-    <q-card flat class='bg-red-1 border-radius-8px popup-padding'>
-      <div class='row'>
-        <div>
+      <q-card flat class='bg-red-1 border-radius-8px popup-padding'>
+        <div class='row'>
           <div class='text-bold'>
-            {{ token0Ticker }}
+            {{ $t('MSG_LIQUIDITY') }}
           </div>
-          <div class='text-grey-8' v-if='token0 !== constants.LINERA_NATIVE_ID'>
-            {{ token0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token0, 12) }}
+          <q-space />
+          <div class='swap-token text-right'>
+            <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.liquidity || '0').toFixed(10) }}</div>
           </div>
         </div>
-        <q-space />
-        <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount0 || '0').toFixed(10) }}</div>
-        </div>
+      </q-card>
+      <div class='vertical-item-y-margin text-grey-8 text-left text-bold'>
+        {{ $t("MSG_ESTIMATED_DEPOSIT") }}
       </div>
-    </q-card>
-    <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-card-align'>
-      <div class='row'>
-        <div>
-          <div class='text-bold'>
-            {{ token1Ticker }}
+      <q-card flat class='bg-red-1 border-radius-8px popup-padding'>
+        <div class='row'>
+          <div>
+            <div class='text-bold'>
+              {{ token0Ticker }}
+            </div>
+            <div class='text-grey-8' v-if='token0 !== constants.LINERA_NATIVE_ID'>
+              {{ token0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token0, 12) }}
+            </div>
           </div>
-          <div class='text-grey-8' v-if='token1 !== constants.LINERA_NATIVE_ID'>
-            {{ token1 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token1, 12) }}
+          <q-space />
+          <div class='swap-token text-right'>
+            <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount0 || '0').toFixed(10) }}</div>
           </div>
         </div>
-        <q-space />
-        <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount1 || '0').toFixed(10) }}</div>
+      </q-card>
+      <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-card-align'>
+        <div class='row'>
+          <div>
+            <div class='text-bold'>
+              {{ token1Ticker }}
+            </div>
+            <div class='text-grey-8' v-if='_token1 !== constants.LINERA_NATIVE_ID'>
+              {{ _token1 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(_token1, 12) }}
+            </div>
+          </div>
+          <q-space />
+          <div class='swap-token text-right'>
+            <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount1 || '0').toFixed(10) }}</div>
+          </div>
         </div>
-      </div>
-    </q-card>
+      </q-card>
+    </div>
     <q-btn
       rounded
       flat
@@ -175,6 +210,8 @@ interface Props {
   token0: string
   token1: string
   inPage?: boolean
+  selectable?: boolean
+  token1Items?: meme.TokenItem[]
 }
 
 // TODO: calculate token pair amount
@@ -182,10 +219,15 @@ interface Props {
 // eslint-disable-next-line no-undef
 const props = withDefaults(defineProps<Props>(), {
   title: undefined,
-  inPage: true
+  inPage: true,
+  selectable: false
 })
 const token0 = toRef(props, 'token0')
 const token1 = toRef(props, 'token1')
+const token1Items = toRef(props, 'token1Items')
+const selectable = toRef(props, 'selectable')
+
+const _token1 = ref(token1.value)
 
 const _ams = ams.useAmsStore()
 const _user = user.useUserStore()
@@ -193,11 +235,13 @@ const _proxy = proxy.useProxyStore()
 const _swap = swap.useSwapStore()
 
 const selectedPool = computed(() => _swap.selectedPool)
+const selectedToken1 = ref(token1Items.value?.[0] as unknown as meme.TokenItem)
 
 const token0Application = computed(() => _proxy.application(token0.value) as account.Account)
-const token1Application = computed(() => _proxy.application(token1.value) as account.Account)
+const token1Application = computed(() => _proxy.application(_token1.value) as account.Account)
 const token0Ticker = computed(() => token0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(token0.value)?.spec || '{}') as meme.Meme).ticker)
-const token1Ticker = computed(() => token1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(token1.value)?.spec || '{}') as meme.Meme).ticker)
+const token0Logo = computed(() => token0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_LOGO : _ams.applicationLogo(_ams.application(token0.value) as ams.Application))
+const token1Ticker = computed(() => _token1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(_token1.value)?.spec || '{}') as meme.Meme).ticker)
 
 const token0Amount = ref(0)
 const token1Amount = ref(0)
@@ -244,7 +288,7 @@ const refreshBalances = async () => {
     })
   }
 
-  if (token1.value === constants.LINERA_NATIVE_ID) {
+  if (_token1.value === constants.LINERA_NATIVE_ID) {
     token1Balance.value = userBalance.value
   } else {
     await meme.balanceOfMeme(token1Application.value, (balance: string) => {
@@ -300,7 +344,19 @@ const onToken1AmountFocus = () => {
   token1AmountError.value = false
 }
 
+watch(token1Items, () => {
+  selectedToken1.value = token1Items.value?.[0] as meme.TokenItem
+})
+
+watch(selectedToken1, () => {
+  if (!selectable.value) return
+  _token1.value = selectedToken1.value.token
+})
+
 onMounted(async () => {
+  if (selectable.value && !_token1.value) {
+    _token1.value = selectedToken1.value?.token
+  }
   getApplications()
   await refreshBalances()
   calculateLiquidityAmount()
@@ -345,6 +401,13 @@ onMounted(async () => {
   width: 28px
   height: 28px
   padding: 2px 5px
+
+.swap-token-option
+  display: inline-block
+  border-radius: 4px
+
+.swap-token-name
+  line-height: 26px
 
 .exchange-separator
   width: calc(50% - 14px)

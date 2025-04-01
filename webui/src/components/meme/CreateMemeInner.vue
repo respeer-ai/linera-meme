@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div :style='{paddingBottom: "16px"}'>
     <q-input v-model='argument.meme.name' :label='$t("MSG_NAME")' hide-bottom-space :error='nameError' />
     <q-input v-model='argument.meme.ticker' :label='$t("MSG_TICKER")' hide-bottom-space :error='tickerError' />
     <div
