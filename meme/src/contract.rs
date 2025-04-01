@@ -518,7 +518,9 @@ impl MemeContract {
             return Ok(());
         };
 
+        let creator = self.creator();
         let call = SwapOperation::InitializeLiquidity {
+            creator,
             token_0_creator_chain_id: self.runtime.chain_id(),
             token_0: self.runtime.application_id().forget_abi(),
             amount_0: liquidity.fungible_amount,

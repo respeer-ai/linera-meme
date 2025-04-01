@@ -28,6 +28,7 @@ impl ServiceAbi for SwapAbi {
 pub enum SwapOperation {
     // Token 1 can only be native token when initializing
     InitializeLiquidity {
+        creator: Account,
         // TODO: use to avoid reentrant invocation before
         // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
         token_0_creator_chain_id: ChainId,
@@ -41,7 +42,7 @@ pub enum SwapOperation {
     // User can only create meme meme pair. Meme native pair is created by creator
     CreatePool {
         token_0: ApplicationId,
-        token_1: ApplicationId,
+        token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,
@@ -66,6 +67,7 @@ pub enum SwapResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SwapMessage {
     InitializeLiquidity {
+        creator: Account,
         // TODO: use to avoid reentrant invocation before
         // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
         token_0_creator_chain_id: ChainId,
@@ -103,7 +105,8 @@ pub enum SwapMessage {
     // Execute on swap creation chain
     CreateUserPool {
         token_0: ApplicationId,
-        token_1: ApplicationId,
+        // It should be option for mining only meme
+        token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,

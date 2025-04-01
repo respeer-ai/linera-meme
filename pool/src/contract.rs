@@ -54,8 +54,7 @@ impl Contract for PoolContract {
         // Validate that the application parameters were configured correctly.
         let parameters = self.runtime.application_parameters();
 
-        // TODO: here creator may should be in parameters. Owner account won't get correct creator
-        let creator = self.owner_account();
+        let creator = self.creator();
         let timestamp = self.runtime.system_time();
         let liquidity = self
             .state
@@ -239,6 +238,10 @@ impl Contract for PoolContract {
 }
 
 impl PoolContract {
+    fn creator(&mut self) -> Account {
+        self.runtime.application_parameters().creator
+    }
+
     fn owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
@@ -1205,9 +1208,14 @@ mod tests {
         let owner =
             Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
                 .unwrap();
+        let creator = Account {
+            chain_id,
+            owner: Some(AccountOwner::User(owner)),
+        };
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
         let runtime = ContractRuntime::new()
             .with_application_parameters(PoolParameters {
+                creator,
                 token_0,
                 token_1: Some(token_1),
                 virtual_initial_liquidity,

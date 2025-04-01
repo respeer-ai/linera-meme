@@ -24,6 +24,7 @@ tokio = { workspace = true, features = ["rt", "sync"] }
 [dev-dependencies]
 assert_matches.workspace = true
 linera-sdk = { workspace = true, features = ["test"] }
+pool.workspace = true
 
 [[bin]]
 name = "proxy_contract"

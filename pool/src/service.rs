@@ -95,7 +95,7 @@ impl QueryRoot {
             .service
             .state()
             .try_calculate_liquidity_amount_pair(liquidity, None, None)
-            .unwrap();
+            .unwrap_or((Amount::ZERO, Amount::ZERO));
         LiquidityAmount {
             liquidity,
             amount_0,

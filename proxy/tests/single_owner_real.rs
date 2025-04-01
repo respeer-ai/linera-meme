@@ -5,11 +5,14 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::constant::OPEN_CHAIN_FEE_BUDGET;
+use abi::{constant::OPEN_CHAIN_FEE_BUDGET, swap::pool::PoolAbi};
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, ChainDescription, MessageId},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ChainDescription, MessageId,
+    },
     test::{ActiveChain, QueryOutcome},
 };
+use pool::LiquidityAmount;
 use serde_json::json;
 use std::{collections::HashSet, str::FromStr};
 
@@ -37,7 +40,9 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let operator_1 = suite.chain_owner_account(operator_chain_1);
     let operator_2 = suite.chain_owner_account(operator_chain_2);
     let meme_user_key_pair = meme_user_chain.key_pair();
+    let swap_key_pair = swap_chain.key_pair();
     let meme_miner_owner = suite.chain_owner_account(meme_miner_chain);
+    let meme_user_owner = suite.chain_owner_account(meme_user_chain);
 
     suite.create_swap_application().await;
     suite
@@ -163,4 +168,73 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+
+    // Check create liquidity
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { poolChainCreationMessages }",
+        )
+        .await;
+    assert_eq!(
+        response["poolChainCreationMessages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let message_id = MessageId::from_str(
+        response["poolChainCreationMessages"].as_array().unwrap()[0]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    let description = ChainDescription::Child(message_id);
+    let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
+
+    suite.validator.add_chain(pool_chain.clone());
+
+    pool_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    pool_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+    pool_chain.handle_received_messages().await;
+    proxy_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    meme_chain.handle_received_messages().await;
+
+    // Get pool application
+    let QueryOutcome { response, .. } = swap_chain
+        .graphql_query(
+            suite.swap_application_id.unwrap(),
+            "query { pools { poolApplication } }",
+        )
+        .await;
+    assert_eq!(response["pools"].as_array().unwrap().len(), 1);
+    let pool_application: Account = serde_json::from_value(
+        response["pools"].as_array().unwrap()[0].clone()["poolApplication"].clone(),
+    )
+    .unwrap();
+    let Some(AccountOwner::Application(pool_application_id)) = pool_application.owner else {
+        todo!();
+    };
+    let pool_application_id = pool_application_id.with_abi::<PoolAbi>();
+
+    let query = format!(
+        "query {{ liquidity(owner:\"{}\") {{ liquidity amount0 amount1 }} }}",
+        meme_user_owner
+    );
+    let QueryOutcome { response, .. } = pool_chain.graphql_query(pool_application_id, query).await;
+    let liquidity: LiquidityAmount = serde_json::from_value(response["liquidity"].clone()).unwrap();
+
+    assert_eq!(
+        liquidity.liquidity,
+        Amount::from_attos(10488088481701515469914)
+    );
+    assert_eq!(liquidity.amount_0, suite.initial_liquidity);
+    assert_eq!(liquidity.amount_1, suite.initial_native);
 }

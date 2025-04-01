@@ -122,6 +122,7 @@ pub enum PoolMessage {
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct PoolParameters {
+    pub creator: Account,
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub virtual_initial_liquidity: bool,
