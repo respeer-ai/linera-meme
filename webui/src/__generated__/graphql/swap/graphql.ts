@@ -29,6 +29,7 @@ export type Scalars = {
 
 export type Pool = {
   __typename?: 'Pool';
+  creator: Scalars['Account']['output'];
   latestTransaction?: Maybe<Scalars['Transaction']['output']>;
   poolApplication: Scalars['Account']['output'];
   poolId: Scalars['Int']['output'];
@@ -49,7 +50,7 @@ export type QueryRoot = {
 export type PoolsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type PoolsQuery = { __typename?: 'QueryRoot', pools: Array<{ __typename?: 'Pool', poolId: number, token0: any, token1?: any | null, poolApplication: any, latestTransaction?: any | null, token0Price?: any | null, token1Price?: any | null }> };
+export type PoolsQuery = { __typename?: 'QueryRoot', pools: Array<{ __typename?: 'Pool', creator: any, poolId: number, token0: any, token1?: any | null, poolApplication: any, latestTransaction?: any | null, token0Price?: any | null, token1Price?: any | null }> };
 
 
-export const PoolsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"pools"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pools"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"poolId"}},{"kind":"Field","name":{"kind":"Name","value":"token0"}},{"kind":"Field","name":{"kind":"Name","value":"token1"}},{"kind":"Field","name":{"kind":"Name","value":"poolApplication"}},{"kind":"Field","name":{"kind":"Name","value":"latestTransaction"}},{"kind":"Field","name":{"kind":"Name","value":"token0Price"}},{"kind":"Field","name":{"kind":"Name","value":"token1Price"}}]}}]}}]} as unknown as DocumentNode<PoolsQuery, PoolsQueryVariables>;
+export const PoolsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"pools"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pools"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"creator"}},{"kind":"Field","name":{"kind":"Name","value":"poolId"}},{"kind":"Field","name":{"kind":"Name","value":"token0"}},{"kind":"Field","name":{"kind":"Name","value":"token1"}},{"kind":"Field","name":{"kind":"Name","value":"poolApplication"}},{"kind":"Field","name":{"kind":"Name","value":"latestTransaction"}},{"kind":"Field","name":{"kind":"Name","value":"token0Price"}},{"kind":"Field","name":{"kind":"Name","value":"token1Price"}}]}}]}}]} as unknown as DocumentNode<PoolsQuery, PoolsQueryVariables>;

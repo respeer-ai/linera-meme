@@ -51,3 +51,41 @@ export const LIQUIDITY = gql`
     }
   }
 `
+
+export const ADD_LIQUIDITY = gql`
+  mutation addLiquidity(
+    $amount0In: Amount!
+    $amount1In: Amount!
+    $amount0OutMin: Amount
+    $amount1OutMin: Amount
+    $to: Account
+    $blockTimestamp: Timestamp
+  ) {
+    addLiquidity(
+      amount0In: $amount0In
+      amount1In: $amount1In
+      amount0OutMin: $amount0OutMin
+      amount1OutMin: $amount1OutMin
+      to: $to
+      blockTimestamp: $blockTimestamp
+    )
+  }
+`
+
+export const REMOVE_LIQUIDITY = gql`
+  mutation removeLiquidity(
+    $liquidity: Amount!
+    $amount0OutMin: Amount
+    $amount1OutMin: Amount
+    $to: Account
+    $blockTimestamp: Timestamp
+  ) {
+    removeLiquidity(
+      liquidity: $liquidity
+      amount0OutMin: $amount0OutMin
+      amount1OutMin: $amount1OutMin
+      to: $to
+      blockTimestamp: $blockTimestamp
+    )
+  }
+`

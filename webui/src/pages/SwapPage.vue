@@ -28,10 +28,10 @@
             <RemoveLiquidity />
           </q-tab-panel>
         </q-tab-panels>
-        <div class='bg-white vertical-card-align bulletin-padding'>
+        <div v-if='false' class='bg-white vertical-card-align bulletin-padding'>
           <VolumeBulletin />
         </div>
-        <div class='bg-white vertical-card-align bulletin-padding'>
+        <div v-if='false' class='bg-white vertical-card-align bulletin-padding'>
           <HolderBulletin />
         </div>
       </div>

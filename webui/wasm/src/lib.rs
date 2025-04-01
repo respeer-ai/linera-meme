@@ -18,6 +18,9 @@ use web_sys::*;
 mod fake_proxy;
 use fake_proxy::{MutationRoot as ProxyMutationRoot, QueryRoot as ProxyQueryRoot};
 
+mod fake_swap;
+use fake_swap::{MutationRoot as SwapMutationRoot, QueryRoot as SwapQueryRoot};
+
 mod fake_pool;
 use fake_pool::{MutationRoot as PoolMutationRoot, QueryRoot as PoolQueryRoot};
 
@@ -46,6 +49,24 @@ pub async fn graphql_deserialize_pool_operation(
 ) -> Result<String, JsError> {
     let request = parse_query_string(&format!("query={}&variables={}", query, variables))?;
     let schema = Schema::new(PoolQueryRoot, PoolMutationRoot, EmptySubscription);
+    let value = schema.execute(request).await.into_result().unwrap().data;
+    let async_graphql::Value::Object(object) = value else {
+        todo!()
+    };
+    let values = object.values().collect::<Vec<&async_graphql::Value>>();
+    if values.len() == 0 {
+        todo!()
+    }
+    Ok(serde_json::to_string(&values[0])?)
+}
+
+#[wasm_bindgen]
+pub async fn graphql_deserialize_swap_operation(
+    query: &str,
+    variables: &str,
+) -> Result<String, JsError> {
+    let request = parse_query_string(&format!("query={}&variables={}", query, variables))?;
+    let schema = Schema::new(SwapQueryRoot, SwapMutationRoot, EmptySubscription);
     let value = schema.execute(request).await.into_result().unwrap().data;
     let async_graphql::Value::Object(object) = value else {
         todo!()

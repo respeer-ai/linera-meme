@@ -11,7 +11,7 @@
             {{ token0Ticker }}
           </div>
           <div class='text-grey-8'>
-            {{ shortId(token0 || '', 12, 8) }}
+            {{ shortId(token0 || '', 8, 6) }}
           </div>
         </div>
         <q-space />
@@ -113,7 +113,7 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(liquidity?.liquidity || '0').toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.liquidity || '0').toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -132,7 +132,7 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount0 || '0').toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount0 || '0').toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -148,7 +148,7 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount1 || '0').toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount1 || '0').toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -201,7 +201,8 @@ const token1Ticker = computed(() => token1.value === constants.LINERA_NATIVE_ID 
 
 const token0Amount = ref(0)
 const token1Amount = ref(0)
-const liquidity = ref({} as pool.LiquidityAmount)
+
+const estimatedLiquidity = ref({} as pool.LiquidityAmount)
 
 const token0AmountError = ref(false)
 const token1AmountError = ref(false)
@@ -216,7 +217,7 @@ const calculateLiquidityAmount = () => {
     return
   }
   pool.calculateAmountLiquidity(token0Amount.value.toString(), token1Amount.value.toString(), selectedPool.value.poolApplication, (_liquidity?: pool.LiquidityAmount) => {
-    liquidity.value = _liquidity as pool.LiquidityAmount
+    estimatedLiquidity.value = _liquidity as pool.LiquidityAmount
   })
 }
 

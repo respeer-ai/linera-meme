@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { LatestTransactionsRequest } from './types'
+import { CreatePoolRequest, LatestTransactionsRequest } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
@@ -55,6 +55,33 @@ export const useSwapStore = defineStore('swap', {
           token1: pool.token1 || constants.LINERA_NATIVE_ID
         } as Pool
         this.pools.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, _pool)
+      })
+    },
+    createPool(req: CreatePoolRequest, done?: (error: boolean) => void) {
+      const { /* result, refetch, fetchMore, */ onResult, onError } =
+        provideApolloClient(apolloClient)(() =>
+          useQuery(
+            POOLS,
+            {
+              token0: req.token0,
+              token1: req.token1,
+              amount0: req.amount0,
+              amount1: req.amount1,
+              to: req.to,
+              endpoint: 'swap'
+            },
+            {
+              fetchPolicy: 'network-only'
+            }
+          )
+        )
+
+      onResult(() => {
+        done?.(false)
+      })
+
+      onError(() => {
+        done?.(true)
       })
     }
   },

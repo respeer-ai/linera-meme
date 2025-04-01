@@ -51,7 +51,7 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount0).toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ token0Amount.toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -67,12 +67,13 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount1).toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ token1Amount.toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
     <q-btn
       rounded flat :label='$t("MSG_REMOVE_LIQUIDITY")' class='full-width border-red-4 vertical-inner-y-margin'
+      @click='onRemoveClick'
     />
   </div>
 </template>
@@ -82,10 +83,15 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { swap, ams, meme, pool, user, account } from 'src/localstore'
 import { constants } from 'src/constant'
 import { shortid } from 'src/utils'
+import * as lineraWasm from '../../../dist/wasm/linera_wasm'
+import { REMOVE_LIQUIDITY } from 'src/graphql'
+import { stringify } from 'lossless-json'
 
 const _swap = swap.useSwapStore()
 const _ams = ams.useAmsStore()
 const _user = user.useUserStore()
+
+const publicKey = computed(() => _user.publicKey)
 
 const token0 = computed(() => _swap.selectedToken0)
 const token1 = computed(() => _swap.selectedToken1)
@@ -99,6 +105,9 @@ const liquidity = ref({} as pool.LiquidityAmount)
 
 const liquidityAmount = ref(0)
 const liquidityAmountError = ref(false)
+
+const token0Amount = computed(() => Number(liquidity.value.liquidity) > 0 ? liquidityAmount.value / Number(liquidity.value.liquidity) * Number(liquidity.value.amount0) : 0)
+const token1Amount = computed(() => Number(liquidity.value.liquidity) > 0 ? liquidityAmount.value / Number(liquidity.value.liquidity) * Number(liquidity.value.amount1) : 0)
 
 watch(liquidityAmount, (amount) => {
   if (liquidityAmount.value > Number(liquidity.value?.liquidity)) {
@@ -115,10 +124,45 @@ const onMaxClick = () => {
   liquidityAmount.value = Number(liquidity.value?.liquidity)
 }
 
-onMounted(async () => {
+const onRemoveClick = async () => {
+  const variables = {
+    liquidity: liquidityAmount.value.toString(),
+    amount0OutMin: undefined,
+    amount1OutMin: undefined,
+    to: undefined,
+    blockTimestamp: undefined
+  }
+  const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(REMOVE_LIQUIDITY.loc?.source?.body as string, stringify(variables) as string)
+  return new Promise((resolve, reject) => {
+    window.linera.request({
+      method: 'linera_graphqlMutation',
+      params: {
+        applicationId: account._Account.accountOwner(poolApplication.value),
+        publicKey: publicKey.value,
+        query: {
+          query: REMOVE_LIQUIDITY.loc?.source?.body,
+          variables,
+          applicationOperationBytes: queryBytes
+        },
+        operationName: 'removeLiquidity'
+      }
+    }).then((hash) => {
+      resolve(hash as string)
+      void getLiquidity()
+    }).catch((e) => {
+      reject(e)
+    })
+  })
+}
+
+const getLiquidity = async () => {
   pool.liquidity(await _user.account(), poolApplication.value, (_liquidity?: pool.LiquidityAmount) => {
     liquidity.value = _liquidity as pool.LiquidityAmount
   })
+}
+
+onMounted(async () => {
+  await getLiquidity()
 })
 
 </script>

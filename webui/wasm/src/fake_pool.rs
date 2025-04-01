@@ -37,4 +37,40 @@ impl MutationRoot {
             block_timestamp
         })?)
     }
+
+    async fn add_liquidity(
+        &self,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>
+    ) -> Result<Vec<u8>, Error> {
+        Ok(bcs::to_bytes(&PoolOperation::AddLiquidity {
+            amount_0_in,
+            amount_1_in,
+            amount_0_out_min,
+            amount_1_out_min,
+            to,
+            block_timestamp
+        })?)
+    }
+
+    async fn remove_liquidity(
+        &self,
+        liquidity: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>
+    ) -> Result<Vec<u8>, Error> {
+        Ok(bcs::to_bytes(&PoolOperation::RemoveLiquidity {
+            liquidity,
+            amount_0_out_min,
+            amount_1_out_min,
+            to,
+            block_timestamp
+        })?)
+    }
 }
