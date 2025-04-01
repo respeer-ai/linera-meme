@@ -457,7 +457,7 @@ impl Pool {
                 .checked_mul(U256::from(u128::from(self.reserve_0)))
                 .unwrap()
                 .checked_div(U256::from(u128::from(total_supply)))
-                .unwrap()
+                .unwrap_or(U256::from(0))
                 .as_u128(),
         );
         let amount_1 = Amount::from_attos(
@@ -465,7 +465,7 @@ impl Pool {
                 .checked_mul(U256::from(u128::from(self.reserve_1)))
                 .unwrap()
                 .checked_div(U256::from(u128::from(total_supply)))
-                .unwrap()
+                .unwrap_or(U256::from(0))
                 .as_u128(),
         );
 
