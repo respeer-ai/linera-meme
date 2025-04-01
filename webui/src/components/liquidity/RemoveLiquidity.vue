@@ -45,13 +45,13 @@
           <div class='text-bold'>
             {{ token0Ticker }}
           </div>
-          <div class='text-grey-8'>
+          <div class='text-grey-8' v-if='token0 !== constants.LINERA_NATIVE_ID'>
             {{ token0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token0, 12) }}
           </div>
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount0).toFixed(4) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount0).toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -61,13 +61,13 @@
           <div class='text-bold'>
             {{ token1Ticker }}
           </div>
-          <div class='text-grey-8'>
+          <div class='text-grey-8' v-if='token1 !== constants.LINERA_NATIVE_ID'>
             {{ token1 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token1, 12) }}
           </div>
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount1).toFixed(4) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount1).toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -134,7 +134,6 @@ onMounted(async () => {
   margin-top: 2px
 
 :deep(.swap-token)
-  margin: 8px 0 0 0
   .q-select
     .q-icon
       font-size: 16px

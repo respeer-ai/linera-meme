@@ -108,17 +108,12 @@
     </div>
     <q-card flat class='bg-red-1 border-radius-8px popup-padding'>
       <div class='row'>
-        <div>
-          <div class='text-bold'>
-            {{ token0Ticker }}
-          </div>
-          <div class='text-grey-8'>
-            {{ token0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token0, 12) }}
-          </div>
+        <div class='text-bold'>
+          {{ $t('MSG_LIQUIDITY') }}
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount0 || '0').toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(liquidity?.liquidity || '0').toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -131,13 +126,13 @@
           <div class='text-bold'>
             {{ token0Ticker }}
           </div>
-          <div class='text-grey-8'>
+          <div class='text-grey-8' v-if='token0 !== constants.LINERA_NATIVE_ID'>
             {{ token0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token0, 12) }}
           </div>
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount0 || '0').toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount0 || '0').toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
@@ -147,13 +142,13 @@
           <div class='text-bold'>
             {{ token1Ticker }}
           </div>
-          <div class='text-grey-8'>
+          <div class='text-grey-8' v-if='token1 !== constants.LINERA_NATIVE_ID'>
             {{ token1 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token1, 12) }}
           </div>
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount1 || '0').toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>{{ Number(liquidity?.amount1 || '0').toFixed(10) }}</div>
         </div>
       </div>
     </q-card>
