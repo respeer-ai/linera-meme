@@ -49,7 +49,10 @@ async def on_run_ticker():
     if _ticker is not None:
         return
     _ticker = Ticker(manager, _swap, _db)
-    await _ticker.run()
+    try:
+        await _ticker.run()
+    except Exception as e:
+        print(f'Ticker quiting ... {e}')
 
 # Http and websocket must be deployed to different pod
 

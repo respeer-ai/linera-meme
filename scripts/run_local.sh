@@ -397,9 +397,11 @@ function run_kline() {
 
     python3 src/main.py --swap-application-id $SWAP_APPLICATION_ID &
     sleep 10
-    curl -X POST http://localhost:25080/run/ticker
+    curl -X POST http://localhost:25080/run/ticker > /dev/null 2>&1 &
 }
 
-run_kline &
+run_kline
 
 read
+
+kill -9 `ps -ef | grep $SWAP_APPLICATION_ID | awk '{print $2}'` > /dev/null 2>&1
