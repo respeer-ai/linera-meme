@@ -19,6 +19,7 @@ use linera_sdk::{
 };
 
 use self::state::PoolState;
+use pool::AmountPair;
 
 #[derive(Clone)]
 pub struct PoolService {
@@ -108,6 +109,25 @@ impl QueryRoot {
             .collect();
         transactions.sort_by(|a, b| a.created_at.cmp(&b.created_at));
         transactions
+    }
+
+    async fn calculate_swap_amount_pair(
+        &self,
+        amount_0_desired: Option<Amount>,
+        amount_1_desired: Option<Amount>,
+    ) -> AmountPair {
+        assert!(
+            amount_0_desired.is_some() || amount_1_desired.is_some(),
+            "Invalid amount"
+        );
+        let amount_0 = amount_0_desired.unwrap_or(Amount::MAX);
+        let amount_1 = amount_1_desired.unwrap_or(Amount::MAX);
+        let (amount_0, amount_1) = self
+            .service
+            .state()
+            .try_calculate_swap_amount_pair(amount_0, amount_1, None, None)
+            .expect("Failed calculate amount pair");
+        AmountPair { amount_0, amount_1 }
     }
 }
 

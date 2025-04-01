@@ -60,3 +60,9 @@ pub struct FundRequest {
     pub prev_request: Option<u64>,
     pub next_request: Option<u64>,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize, SimpleObject)]
+pub struct AmountPair {
+    pub amount_0: Amount,
+    pub amount_1: Amount,
+}
