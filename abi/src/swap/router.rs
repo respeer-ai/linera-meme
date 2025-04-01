@@ -133,6 +133,7 @@ pub enum SwapMessage {
 #[serde(rename_all = "camelCase")]
 pub struct Pool {
     pub pool_id: u64,
+    pub creator: Account,
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub pool_application: Account,

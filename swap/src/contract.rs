@@ -671,7 +671,7 @@ impl SwapContract {
         }
 
         self.state
-            .create_pool(token_0, token_1, pool_application)
+            .create_pool(creator, token_0, token_1, pool_application)
             .await
     }
 

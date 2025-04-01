@@ -324,6 +324,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                creator
                 poolId
                 token0
                 token1
@@ -548,6 +549,7 @@ async fn meme_native_real_initial_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                creator
                 poolId
                 token0
                 token1

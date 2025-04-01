@@ -73,6 +73,7 @@ impl SwapState {
 
     pub(crate) async fn create_pool(
         &mut self,
+        creator: Account,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         pool_application: Account,
@@ -84,6 +85,7 @@ impl SwapState {
 
         let pool_id = self.pool_id.get();
         let pool = Pool {
+            creator,
             pool_id: *pool_id,
             token_0,
             token_1,

@@ -265,6 +265,7 @@ async fn virtual_liquidity_native_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                creator
                 poolId
                 token0
                 token1
@@ -407,6 +408,7 @@ async fn real_liquidity_native_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                creator
                 poolId
                 token0
                 token1

@@ -391,6 +391,7 @@ async fn meme_meme_pair_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                creator
                 poolId
                 token0
                 token1
@@ -492,6 +493,7 @@ async fn meme_meme_pair_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
+                creator
                 poolId
                 token0
                 token1
