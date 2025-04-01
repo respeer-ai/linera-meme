@@ -25,3 +25,29 @@ export const LATEST_TRANSACTIONS = gql`
     latestTransactions(startId: $startId)
   }
 `
+
+export const CALCULATE_AMOUNT_LIQUIDITY = gql`
+  query calculateAmountLiquidity(
+    $amount0Desired: Amount
+    $amount1Desired: Amount
+  ) {
+    calculateAmountLiquidity(
+      amount0Desired: $amount0Desired
+      amount1Desired: $amount1Desired
+    ) {
+      liquidity
+      amount0
+      amount1
+    }
+  }
+`
+
+export const LIQUIDITY = gql`
+  query liquidity($owner: String!) {
+    liquidity(owner: $owner) {
+      liquidity
+      amount0
+      amount1
+    }
+  }
+`

@@ -41,11 +41,13 @@
           dense
           v-model='initialLiquidity.fungibleAmount' type='number' :label='$t("MSG_TOKEN_AMOUNT")' :rules='[val => !!val || "Field is required"]'
           hide-bottom-space
+          :error='fungibleAmountError'
         />
         <q-input
           dense
           v-model='initialLiquidity.nativeAmount' type='number' :label='$t("MSG_NATIVE_AMOUNT")' :rules='[val => !!val || "Field is required"]'
           hide-bottom-space
+          :error='nativeAmountError'
         />
         <q-toggle dense v-model='parameters.virtualInitialLiquidity' class='vertical-inner-y-margin' :label='$t("MSG_VIRTUAL_INITIAL_LIQUIDITY")' />
         <div class='vertical-inner-y-margin' />
@@ -109,6 +111,9 @@ const initialLiquidity = ref({
 const parameters = ref({
   virtualInitialLiquidity: true
 } as meme.MemeParameters)
+
+const fungibleAmountError = ref(false)
+const nativeAmountError = ref(false)
 
 const nameError = ref(false)
 const tickerError = ref(false)
@@ -214,6 +219,14 @@ const publishDataBlob = (): Promise<string> => {
 }
 
 const createMeme = async (): Promise<string> => {
+  if (hasInitialLiquidity.value) {
+    fungibleAmountError.value = Number(initialLiquidity.value.fungibleAmount) <= 0
+    nativeAmountError.value = Number(initialLiquidity.value.nativeAmount) <= 0
+    if (fungibleAmountError.value || nativeAmountError.value) {
+      return 'error'
+    }
+  }
+
   parameters.value.creator = await user.User.ownerAccount()
   parameters.value.swapCreatorChainId = await creatorChainId.creatorChainId('swap')
 

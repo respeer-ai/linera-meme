@@ -26,7 +26,7 @@
 <script setup lang='ts'>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { QAjaxBar } from 'quasar'
-import { ams, proxy, notify, swap } from 'src/localstore'
+import { ams, proxy, swap } from 'src/localstore'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 import { useRouter } from 'vue-router'
 import { constants } from 'src/constant'
@@ -40,7 +40,7 @@ const _swap = swap.useSwapStore()
 const applications = computed(() => _ams.applications.filter((el) => _proxy.chains.map((_el: Chain) => _el.token as string).includes(el.applicationId)))
 
 const getMemeApplications = () => {
-  proxy.getMemeApplications( (error: boolean, rows?: Chain[]) => {
+  proxy.getMemeApplications((error: boolean, rows?: Chain[]) => {
     // eslint-disable-next-line no-useless-return
     if (error || !rows?.length) return
     // Continue to fetch

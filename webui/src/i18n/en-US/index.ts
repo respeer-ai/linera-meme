@@ -77,5 +77,8 @@ export default {
   MSG_TRANSACTION_ID: 'Transaction ID',
   MSG_DIRECTION: 'Direction',
   MSG_PRICE: 'Price',
-  MSG_VOLUME: 'Volume'
+  MSG_VOLUME: 'Volume',
+  MSG_ESTIMATED_WITHDRAW: 'Estimated withdraw',
+  MSG_ESTIMATED_SHARE: 'Estimated share',
+  MSG_ESTIMATED_DEPOSIT: 'Estimated deposit'
 }

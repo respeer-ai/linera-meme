@@ -79,6 +79,7 @@ onBeforeUnmount(() => {
   min-height: 700px
   display: block
   overflow: auto
+  background: red
 
 .token-pair-tip
   width: 63%

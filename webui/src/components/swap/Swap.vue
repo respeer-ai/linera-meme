@@ -30,10 +30,20 @@
         <q-input
           dense filled reverse-fill-mask hide-bottom-space
           class='swap-amount-input text-grey-8' v-model.number='token0Amount'
-          input-class='text-right text-bold text-green-8'
+          input-class='text-left text-bold text-green-8'
           :input-style='{fontSize: "20px"}'
           :error='token0AmountError'
-        />
+        >
+          <template #append>
+            <q-btn
+              dense
+              flat
+              :label='$t("MSG_MAX")'
+              @click='onToken0MaxClick'
+              class='text-blue-6'
+            />
+          </template>
+        </q-input>
       </div>
     </q-card>
     <div class='row vertical-card-align'>
@@ -72,9 +82,19 @@
         <q-input
           dense filled reverse-fill-mask hide-bottom-space
           class='swap-amount-input' v-model.number='token1Amount'
-          input-class='text-right text-bold text-green-8'
+          input-class='text-left text-bold text-green-8'
           :input-style='{fontSize: "20px"}'
-        />
+        >
+          <template #append>
+            <q-btn
+              dense
+              flat
+              :label='$t("MSG_MAX")'
+              @click='onToken1MaxClick'
+              class='text-blue-6'
+            />
+          </template>
+        </q-input>
       </div>
     </q-card>
     <q-btn
@@ -206,6 +226,14 @@ const onExchangeClick = () => {
   _swap.selectedToken1 = selectedToken0.value
   token0Amount.value = 0
   token1Amount.value = 0
+}
+
+const onToken1MaxClick = () => {
+  token1Amount.value = token1Balance.value
+}
+
+const onToken0MaxClick = () => {
+  token0Amount.value = token0Balance.value
 }
 
 const onSwapClick = async () => {

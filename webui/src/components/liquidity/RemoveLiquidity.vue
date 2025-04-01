@@ -12,114 +12,96 @@
         <div class='row'>
           <q-icon name='bi-wallet-fill text-grey-8 swap-amount-icon' size='16px' />
           <div class='swap-amount-label text-grey-9 text-bold'>
-            {{ Number(ownerLiquidity).toFixed(4) }}
+            {{ Number(liquidity?.liquidity).toFixed(4) }}
           </div>
         </div>
       </div>
       <div class='row vertical-card-align swap-token'>
         <q-input
-          class='swap-amount-input text-grey-8' dense v-model.number='liquidityAmount' reverse-fill-mask
-          input-class='text-right'
+          dense filled reverse-fill-mask hide-bottom-space
+          class='swap-amount-input text-grey-8' v-model.number='liquidityAmount'
+          input-class='text-left text-bold text-green-8'
+          :input-style='{fontSize: "20px"}'
           :error='liquidityAmountError'
-        />
+        >
+          <template #append>
+            <q-btn
+              dense
+              flat
+              :label='$t("MSG_MAX")'
+              @click='onMaxClick'
+              class='text-blue-6'
+            />
+          </template>
+        </q-input>
       </div>
     </q-card>
-    <q-expansion-item
-      dense
-      expand-icon-toggle
-      expand-separator
-      :label='$t("MSG_MORE_OPTIONS")'
-      v-model='expanded'
-      class='decorate-border-bottom vertical-inner-y-margin text-grey-8'
-    >
-      <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-inner-y-margin'>
-        <div class='row'>
-          <div>
-            <div class='text-bold'>
-              BBBBBBBBBBBBBBBBB
-            </div>
-            <div class='text-grey-8' title='bbbbbbbbbbbbbbbbb'>
-              bbbbbbbbbbbbbbbbbbbb
-            </div>
+    <div class='vertical-item-y-margin text-grey-8 text-left text-bold'>
+      {{ $t("MSG_ESTIMATED_WITHDRAW") }}
+    </div>
+    <q-card flat class='bg-red-1 border-radius-8px popup-padding'>
+      <div class='row'>
+        <div>
+          <div class='text-bold'>
+            {{ token0Ticker }}
           </div>
-          <q-space />
-          <div class='row'>
-            <q-icon name='bi-wallet-fill text-grey-8 swap-amount-icon' size='16px' />
-            <div class='swap-amount-label text-grey-9 text-bold'>
-              {{ Number(outBalance).toFixed(2) }}
-            </div>
-            <div class='text-grey-8'>
-              BBBBBBBBBBBBBBBBBBB
-            </div>
+          <div class='text-grey-8'>
+            {{ token0 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token0, 12) }}
           </div>
         </div>
-        <div class='row vertical-card-align swap-token'>
-          <q-input
-            class='swap-amount-input text-grey-8' dense v-model.number='tokenZeroAmount' reverse-fill-mask
-            input-class='text-right'
-            label='MinAmount'
-            :error='tokenZeroAmountError'
-          />
+        <q-space />
+        <div class='swap-token text-right'>
+          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount0).toFixed(4) }}</div>
         </div>
-      </q-card>
-      <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-card-align'>
-        <div class='row'>
-          <div>
-            <div class='text-bold'>
-              BBBBBBBBBBBBBBB
-            </div>
-            <div class='text-grey-8' title='aaaaaaaaaaaaaaaaaa'>
-              aaaaaaaaaaaaa
-            </div>
+      </div>
+    </q-card>
+    <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-card-align'>
+      <div class='row'>
+        <div>
+          <div class='text-bold'>
+            {{ token1Ticker }}
           </div>
-          <q-space />
-          <div class='row'>
-            <q-icon name='bi-wallet-fill text-grey-8 swap-amount-icon' size='16px' />
-            <div class='swap-amount-label text-grey-9 text-bold'>
-              {{ Number(inBalance).toFixed(2) }}
-            </div>
-            <div class='text-grey-8'>
-              AAAAAAAAAAAA
-            </div>
+          <div class='text-grey-8'>
+            {{ token1 === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : shortid.shortId(token1, 12) }}
           </div>
         </div>
-        <div class='row vertical-card-align swap-token'>
-          <q-input
-            class='swap-amount-input' dense v-model.number='tokenOneAmount' reverse-fill-mask
-            input-class='text-right'
-            label='MinAmount'
-            :error='tokenOneAmountError'
-          />
+        <q-space />
+        <div class='swap-token text-right'>
+          <div class='swap-amount-input text-green-8 text-bold'>{{ Number(liquidity?.amount1).toFixed(4) }}</div>
         </div>
-      </q-card>
-    </q-expansion-item>
+      </div>
+    </q-card>
     <q-btn
-      rounded flat :label='$t("MSG_REMOVE_LIQUIDITY")' class='full-width border-red-4 vertical-inner-y-margin vertical-inner-y-margin-bottom'
+      rounded flat :label='$t("MSG_REMOVE_LIQUIDITY")' class='full-width border-red-4 vertical-inner-y-margin'
     />
   </div>
 </template>
 
 <script setup lang='ts'>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import { swap, ams, meme, pool, user, account } from 'src/localstore'
+import { constants } from 'src/constant'
+import { shortid } from 'src/utils'
 
-const liquidityAmount = ref(1)
-const tokenZeroAmount = ref(0)
-const tokenOneAmount = ref(0)
-const ownerLiquidity = ref(0)
+const _swap = swap.useSwapStore()
+const _ams = ams.useAmsStore()
+const _user = user.useUserStore()
 
+const token0 = computed(() => _swap.selectedToken0)
+const token1 = computed(() => _swap.selectedToken1)
+const selectedPool = computed(() => _swap.selectedPool)
+const poolApplication = computed(() => selectedPool.value?.poolApplication as account.Account)
+
+const token0Ticker = computed(() => token0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(token0.value)?.spec || '{}') as meme.Meme).ticker)
+const token1Ticker = computed(() => token1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(token1.value)?.spec || '{}') as meme.Meme).ticker)
+
+const liquidity = ref({} as pool.LiquidityAmount)
+
+const liquidityAmount = ref(0)
 const liquidityAmountError = ref(false)
-const tokenZeroAmountError = ref(false)
-const tokenOneAmountError = ref(false)
-
-const outBalance = ref(0)
-const inBalance = ref(0)
-
-const expanded = ref(false)
-
-const subscriptionId = ref(undefined as unknown as string)
 
 watch(liquidityAmount, (amount) => {
-  if (liquidityAmount.value > ownerLiquidity.value) {
+  if (liquidityAmount.value > Number(liquidity.value?.liquidity)) {
     liquidityAmountError.value = true
     return
   }
@@ -129,41 +111,14 @@ watch(liquidityAmount, (amount) => {
   }
 })
 
-watch(tokenZeroAmount, (amount) => {
-  if (amount === null || amount < 0) {
-    tokenZeroAmount.value = 0
-  }
-})
-
-watch(tokenOneAmount, (amount) => {
-  if (amount === null || amount < 0) {
-    tokenOneAmount.value = 0
-  }
-})
-
-const subscriptionHandler = () => {
-  // TODO
+const onMaxClick = () => {
+  liquidityAmount.value = Number(liquidity.value?.liquidity)
 }
 
-onMounted(() => {
-  if (subscriptionId.value) return
-  window.linera?.request({
-    method: 'linera_subscribe'
-  }).then((_subscriptionId) => {
-    subscriptionId.value = _subscriptionId as string
-    window.linera.on('message', subscriptionHandler)
-  }).catch((e) => {
-    console.log('Fail subscribe', e)
+onMounted(async () => {
+  pool.liquidity(await _user.account(), poolApplication.value, (_liquidity?: pool.LiquidityAmount) => {
+    liquidity.value = _liquidity as pool.LiquidityAmount
   })
-})
-
-onUnmounted(() => {
-  if (!subscriptionId.value) return
-  void window.linera?.request({
-    method: 'linera_unsubscribe',
-    params: [subscriptionId.value]
-  })
-  subscriptionId.value = undefined as unknown as string
 })
 
 </script>
@@ -179,6 +134,7 @@ onUnmounted(() => {
   margin-top: 2px
 
 :deep(.swap-token)
+  margin: 8px 0 0 0
   .q-select
     .q-icon
       font-size: 16px
@@ -196,4 +152,7 @@ onUnmounted(() => {
 .exchange-separator
   width: calc(50% - 14px)
   margin-bottom: 12px
+
+:deep(.q-item, .q-item--dense)
+  padding: 0 !important
 </style>

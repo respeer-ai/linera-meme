@@ -1,5 +1,5 @@
 <template>
-  <q-page class='flex justify-center items-center'>
+  <q-page class='flex justify-center' :style='{marginTop: "4px"}'>
     <div class='row vertical-card-align bg-grey-2' :style='{width: "1440px"}'>
       <div class='kline'>
         <div class='bg-white'>

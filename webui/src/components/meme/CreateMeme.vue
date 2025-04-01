@@ -57,7 +57,9 @@ const onConfirmed = () => {
 
 const onContinueClick = () => {
   showing.value = false
-  void router.push({ path: '/meme' })
+  setTimeout(() => {
+    void router.push({ path: '/meme' })
+  }, 1000)
 }
 
 const onMemeTokenCreated = () => {
