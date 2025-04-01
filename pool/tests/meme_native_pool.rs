@@ -30,6 +30,7 @@ use linera_sdk::{
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
+use pool::LiquidityAmount;
 use std::str::FromStr;
 
 #[derive(Clone)]
@@ -467,12 +468,20 @@ async fn meme_native_virtual_initial_liquidity_test() {
         Amount::from_attos(10778914284670008856429348),
     );
 
-    let query = format!("query {{ liquidity(owner: \"{}\")}}", user_account);
+    let query = format!(
+        "query {{ liquidity(owner: \"{}\") {{
+        liquidity
+        amount0
+        amount1
+    }} }}",
+        user_account
+    );
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), query)
         .await;
+    let liquidity: LiquidityAmount = serde_json::from_value(response["liquidity"].clone()).unwrap();
     assert_eq!(
-        Amount::from_str(response["liquidity"].as_str().unwrap()).unwrap(),
+        liquidity.liquidity,
         Amount::from_attos(10299999999999999981),
     );
 }

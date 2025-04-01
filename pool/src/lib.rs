@@ -62,7 +62,9 @@ pub struct FundRequest {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, SimpleObject)]
-pub struct AmountPair {
+#[serde(rename_all = "camelCase")]
+pub struct LiquidityAmount {
+    pub liquidity: Amount,
     pub amount_0: Amount,
     pub amount_1: Amount,
 }

@@ -235,6 +235,12 @@ impl PoolState {
         Ok(liquidity)
     }
 
+    pub(crate) fn calculate_liquidity(&self, amount_0: Amount, amount_1: Amount) -> Amount {
+        let total_supply = *self.total_supply.get();
+        self.pool()
+            .calculate_liquidity(total_supply, amount_0, amount_1)
+    }
+
     pub(crate) fn set_fee_to(&mut self, operator: Account, account: Account) {
         let mut pool = self.pool();
 

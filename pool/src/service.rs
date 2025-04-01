@@ -19,7 +19,7 @@ use linera_sdk::{
 };
 
 use self::state::PoolState;
-use pool::AmountPair;
+use pool::LiquidityAmount;
 
 #[derive(Clone)]
 pub struct PoolService {
@@ -84,12 +84,23 @@ impl QueryRoot {
     }
 
     // async fn liquidity(&self, owner: Account) -> Amount {
-    async fn liquidity(&self, owner: String) -> Amount {
-        self.service
+    async fn liquidity(&self, owner: String) -> LiquidityAmount {
+        let liquidity = self
+            .service
             .state()
             .liquidity(Account::from_str(&owner).unwrap())
             .await
-            .unwrap()
+            .unwrap();
+        let (amount_0, amount_1) = self
+            .service
+            .state()
+            .try_calculate_liquidity_amount_pair(liquidity, None, None)
+            .unwrap();
+        LiquidityAmount {
+            liquidity,
+            amount_0,
+            amount_1,
+        }
     }
 
     async fn virtual_initial_liquidity(&self) -> bool {
@@ -111,11 +122,11 @@ impl QueryRoot {
         transactions
     }
 
-    async fn calculate_swap_amount_pair(
+    async fn calculate_amount_liquidity(
         &self,
         amount_0_desired: Option<Amount>,
         amount_1_desired: Option<Amount>,
-    ) -> AmountPair {
+    ) -> LiquidityAmount {
         assert!(
             amount_0_desired.is_some() || amount_1_desired.is_some(),
             "Invalid amount"
@@ -127,7 +138,12 @@ impl QueryRoot {
             .state()
             .try_calculate_swap_amount_pair(amount_0, amount_1, None, None)
             .expect("Failed calculate amount pair");
-        AmountPair { amount_0, amount_1 }
+        let liquidity = self.service.state().calculate_liquidity(amount_0, amount_1);
+        LiquidityAmount {
+            liquidity,
+            amount_0,
+            amount_1,
+        }
     }
 }
 
