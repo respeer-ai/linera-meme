@@ -235,7 +235,7 @@ const _proxy = proxy.useProxyStore()
 const _swap = swap.useSwapStore()
 
 const selectedPool = computed(() => _swap.selectedPool)
-const selectedToken1 = ref(token1Items.value?.[0] as unknown as meme.TokenItem)
+const selectedToken1 = ref(token1Items.value?.find((el) => el.token === constants.LINERA_NATIVE_ID) as meme.TokenItem || token1Items.value?.[0] as meme.TokenItem)
 
 const token0Application = computed(() => _proxy.application(token0.value) as account.Account)
 const token1Application = computed(() => _proxy.application(_token1.value) as account.Account)
@@ -260,6 +260,7 @@ const calculateLiquidityAmount = () => {
   if (token0Amount.value <= 0 || token1Amount.value <= 0) {
     return
   }
+  if (!selectedPool.value) return
   pool.calculateAmountLiquidity(token0Amount.value.toString(), token1Amount.value.toString(), selectedPool.value.poolApplication, (_liquidity?: pool.LiquidityAmount) => {
     estimatedLiquidity.value = _liquidity as pool.LiquidityAmount
   })
@@ -326,14 +327,14 @@ const onToken0MaxClick = () => {
 }
 
 // eslint-disable-next-line no-undef
-const emit = defineEmits<{(ev: 'next', token0Amount: number, token1Amount: number): void}>()
+const emit = defineEmits<{(ev: 'next', token0Amount: number, token1Amount: number, token1?: string): void}>()
 
 const onNextClick = () => {
   token0AmountError.value = token0Amount.value <= 0 || token0Amount.value > token0Balance.value
   token1AmountError.value = token1Amount.value <= 0 || token1Amount.value > token1Balance.value
   if (token0AmountError.value || token1AmountError.value) return
 
-  emit('next', token0Amount.value, token1Amount.value)
+  emit('next', token0Amount.value, token1Amount.value, _token1.value)
 }
 
 const onToken0AmountFocus = () => {
@@ -345,17 +346,17 @@ const onToken1AmountFocus = () => {
 }
 
 watch(token1Items, () => {
-  selectedToken1.value = token1Items.value?.[0] as meme.TokenItem
+  selectedToken1.value = selectedToken1.value || token1Items.value?.find((el) => el.token === constants.LINERA_NATIVE_ID) as meme.TokenItem || token1Items.value?.[0] as meme.TokenItem
 })
 
 watch(selectedToken1, () => {
   if (!selectable.value) return
-  _token1.value = selectedToken1.value.token
+  _token1.value = selectedToken1.value.token || _token1.value
 })
 
 onMounted(async () => {
   if (selectable.value && !_token1.value) {
-    _token1.value = selectedToken1.value?.token
+    _token1.value = selectedToken1.value?.token || _token1.value
   }
   getApplications()
   await refreshBalances()

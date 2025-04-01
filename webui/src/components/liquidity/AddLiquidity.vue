@@ -47,7 +47,7 @@ const onNext = async (amount0: number, amount1: number) => {
           variables,
           applicationOperationBytes: queryBytes
         },
-        operationName: 'removeLiquidity'
+        operationName: 'addLiquidity'
       }
     }).then((hash) => {
       resolve(hash as string)

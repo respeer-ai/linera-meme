@@ -13,9 +13,12 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, ref, toRef } from 'vue'
-import { ams, meme, swap } from 'src/localstore'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
+import { ams, meme, swap, user } from 'src/localstore'
 import { constants } from 'src/constant'
+import * as lineraWasm from '../../../dist/wasm/linera_wasm'
+import { CREATE_POOL } from 'src/graphql'
+import { stringify } from 'lossless-json'
 
 import AddLiquidityInner from './AddLiquidityInner.vue'
 
@@ -29,56 +32,79 @@ const props = defineProps<Props>()
 const token0 = toRef(props, 'token0')
 const token1 = toRef(props, 'token1')
 
-const onNext = () => {
-  // TODO: create pool by miner
+const _user = user.useUserStore()
+const publicKey = computed(() => _user.publicKey)
+
+const onNext = async (amount0: number, amount1: number, _token1?: string) => {
+  const variables = {
+    token0: token0.value,
+    token1: _token1,
+    amount0: amount0.toString(),
+    amount1: amount1.toString(),
+    to: undefined
+  }
+  const queryBytes = await lineraWasm.graphql_deserialize_swap_operation(CREATE_POOL.loc?.source?.body as string, stringify(variables) as string)
+  return new Promise((resolve, reject) => {
+    window.linera.request({
+      method: 'linera_graphqlMutation',
+      params: {
+        applicationId: constants.applicationId(constants.APPLICATION_URLS.SWAP),
+        publicKey: publicKey.value,
+        query: {
+          query: CREATE_POOL.loc?.source?.body,
+          variables,
+          applicationOperationBytes: queryBytes
+        },
+        operationName: 'createPool'
+      }
+    }).then((hash) => {
+      resolve(hash as string)
+    }).catch((e) => {
+      reject(e)
+    })
+  })
 }
 
 const _ams = ams.useAmsStore()
 const _swap = swap.useSwapStore()
 
-const pools = computed(() => _swap.pools)
-const poolTokens = ref([] as meme.TokenItem[])
+const applications = computed(() => _ams.applications)
+const memeTokens = ref([] as meme.TokenItem[])
 
 const buildTokens = () => {
   const tokens = new Map<string, meme.TokenItem>()
-  pools.value.forEach((el) => {
-    const application = _ams.application(el.token0 as string) as ams.Application
-    tokens.set(el.token0 as string, {
-      token: el.token0 as string,
-      logo: _ams.applicationLogo(application),
-      ticker: (JSON.parse(application?.spec || '{}') as meme.Meme).ticker,
-      name: (JSON.parse(application?.spec || '{}') as meme.Meme).name
+  applications.value.filter((el) => el.applicationType === 'Meme').forEach((el) => {
+    tokens.set(el.applicationId as string, {
+      token: el.applicationId as string,
+      logo: _ams.applicationLogo(el),
+      ticker: (JSON.parse(el?.spec || '{}') as meme.Meme).ticker,
+      name: (JSON.parse(el?.spec || '{}') as meme.Meme).name
     } as meme.TokenItem)
-    // Native token
-    if (el.token1 === constants.LINERA_TICKER) {
-      tokens.set(constants.LINERA_NATIVE_ID, {
-        token: constants.LINERA_NATIVE_ID,
-        logo: constants.LINERA_LOGO,
-        ticker: constants.LINERA_TICKER,
-        name: 'Linera native token'
-      } as meme.TokenItem)
-    } else {
-      const application = _ams.application(el.token1 as string) as ams.Application
-      tokens.set(el.token1 as string, {
-        token: el.token1 as string,
-        logo: _ams.applicationLogo(application),
-        ticker: (JSON.parse(application?.spec || '{}') as meme.Meme).ticker,
-        name: (JSON.parse(application?.spec || '{}') as meme.Meme).name
-      } as meme.TokenItem)
-    }
   })
+  tokens.set(constants.LINERA_NATIVE_ID, {
+    token: constants.LINERA_NATIVE_ID,
+    logo: constants.LINERA_LOGO,
+    ticker: constants.LINERA_TICKER,
+    name: 'Linera native token'
+  } as meme.TokenItem)
   return Array.from(tokens.values())
 }
 
+watch(applications, () => {
+  memeTokens.value = buildTokens()
+}, { immediate: true, deep: true })
+
 const token1Items = computed(() => {
-  return Array.from(poolTokens.value.values().filter((el) => {
+  return Array.from(memeTokens.value.values().filter((el) => {
     if (!token0.value) return true
-    return el.token !== token0.value && _swap.existPool(el.token, token0.value)
+    return el.token !== token0.value && !_swap.existPool(el.token, token0.value)
   }))
 })
 
 onMounted(() => {
-  poolTokens.value = buildTokens()
+  memeTokens.value = buildTokens()
+  ams.getApplications()
+  swap.getPools()
 })
 
 </script>
