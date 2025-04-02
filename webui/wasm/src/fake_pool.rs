@@ -1,9 +1,9 @@
 use abi::swap::pool::PoolOperation;
+use async_graphql::{Error, Object};
 use linera_base::{
     data_types::{Amount, Timestamp},
     identifiers::Account,
 };
-use async_graphql::{Error, Object};
 
 pub struct QueryRoot;
 
@@ -26,7 +26,7 @@ impl MutationRoot {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
-        block_timestamp: Option<Timestamp>
+        block_timestamp: Option<Timestamp>,
     ) -> Result<Vec<u8>, Error> {
         Ok(bcs::to_bytes(&PoolOperation::Swap {
             amount_0_in,
@@ -34,7 +34,7 @@ impl MutationRoot {
             amount_0_out_min,
             amount_1_out_min,
             to,
-            block_timestamp
+            block_timestamp,
         })?)
     }
 
@@ -45,7 +45,7 @@ impl MutationRoot {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
-        block_timestamp: Option<Timestamp>
+        block_timestamp: Option<Timestamp>,
     ) -> Result<Vec<u8>, Error> {
         Ok(bcs::to_bytes(&PoolOperation::AddLiquidity {
             amount_0_in,
@@ -53,7 +53,7 @@ impl MutationRoot {
             amount_0_out_min,
             amount_1_out_min,
             to,
-            block_timestamp
+            block_timestamp,
         })?)
     }
 
@@ -63,14 +63,14 @@ impl MutationRoot {
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
-        block_timestamp: Option<Timestamp>
+        block_timestamp: Option<Timestamp>,
     ) -> Result<Vec<u8>, Error> {
         Ok(bcs::to_bytes(&PoolOperation::RemoveLiquidity {
             liquidity,
             amount_0_out_min,
             amount_1_out_min,
             to,
-            block_timestamp
+            block_timestamp,
         })?)
     }
 }

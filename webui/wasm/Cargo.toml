@@ -88,7 +88,7 @@ features = ["web", "indexeddb"]
 
 [dependencies.abi]
 git = "https://github.com/respeer-ai/linera-meme.git"
-rev = "54f3da6"
+rev = "d48de7c"
 
 [dependencies.web-sys]
 version = "0.3"

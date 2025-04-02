@@ -335,7 +335,7 @@ const onNextClick = () => {
   token1AmountError.value = token1Amount.value <= 0 || token1Amount.value > token1Balance.value
   if (token0AmountError.value || token1AmountError.value) return
 
-  emit('next', token0Amount.value, token1Amount.value, _token1.value)
+  emit('next', token0Amount.value, token1Amount.value, _token1.value === constants.LINERA_NATIVE_ID ? undefined : _token1.value)
 }
 
 const onToken0AmountFocus = () => {

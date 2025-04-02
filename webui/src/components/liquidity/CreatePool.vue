@@ -14,11 +14,12 @@
 
 <script setup lang='ts'>
 import { computed, onMounted, ref, toRef, watch } from 'vue'
-import { ams, meme, swap, user } from 'src/localstore'
+import { ams, meme, swap, user, proxy } from 'src/localstore'
 import { constants } from 'src/constant'
 import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { CREATE_POOL } from 'src/graphql'
 import { stringify } from 'lossless-json'
+import { useRouter } from 'vue-router'
 
 import AddLiquidityInner from './AddLiquidityInner.vue'
 
@@ -32,12 +33,18 @@ const props = defineProps<Props>()
 const token0 = toRef(props, 'token0')
 const token1 = toRef(props, 'token1')
 
+const _proxy = proxy.useProxyStore()
+
 const _user = user.useUserStore()
 const publicKey = computed(() => _user.publicKey)
 
+const router = useRouter()
+
 const onNext = async (amount0: number, amount1: number, _token1?: string) => {
   const variables = {
+    token0CreatorChainId: _proxy.chain(token0.value)?.chainId,
     token0: token0.value,
+    token1CreatorChainId: _token1 ? _proxy.chain(_token1)?.chainId : undefined,
     token1: _token1,
     amount0: amount0.toString(),
     amount1: amount1.toString(),
@@ -59,6 +66,7 @@ const onNext = async (amount0: number, amount1: number, _token1?: string) => {
       }
     }).then((hash) => {
       resolve(hash as string)
+      void router.push({ path: '/meme' })
     }).catch((e) => {
       reject(e)
     })
