@@ -193,6 +193,7 @@
       :label='$t(nextLabel)'
       :class='[ "full-width border-red-4", inPage ? "vertical-inner-y-margin-bottom vertical-section-y-margin" : "vertical-inner-y-margin" ]'
       @click='onNextClick'
+      :disable='token0Amount === 0 || token1Amount === 0'
     />
   </q-card>
 </template>

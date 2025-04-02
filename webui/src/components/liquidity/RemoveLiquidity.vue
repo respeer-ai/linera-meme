@@ -74,6 +74,7 @@
     <q-btn
       rounded flat :label='$t("MSG_REMOVE_LIQUIDITY")' class='full-width border-red-4 vertical-inner-y-margin'
       @click='onRemoveClick'
+      :disable='liquidityAmount === 0'
     />
   </div>
 </template>
