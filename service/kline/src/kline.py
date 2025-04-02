@@ -57,7 +57,7 @@ async def on_run_ticker():
     if _ticker is not None:
         return
     _ticker = Ticker(manager, _swap, _db)
-    while True:
+    while _ticker.running():
         try:
             await _ticker.run()
         except Exception as e:

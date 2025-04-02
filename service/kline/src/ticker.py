@@ -39,3 +39,6 @@ class Ticker:
 
     def stop(self):
         self.running = False
+
+    def running(self):
+        return self.running
