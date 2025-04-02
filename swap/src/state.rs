@@ -133,8 +133,8 @@ impl SwapState {
     pub(crate) async fn token_creator_chain_id(
         &self,
         token: ApplicationId,
-    ) -> Result<ChainId, SwapError> {
-        Ok(self.token_creator_chain_ids.get(&token).await?.unwrap())
+    ) -> Result<Option<ChainId>, SwapError> {
+        Ok(self.token_creator_chain_ids.get(&token).await?)
     }
 
     pub(crate) async fn update_pool(

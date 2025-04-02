@@ -85,13 +85,23 @@ impl Contract for SwapContract {
                 )
                 .expect("Failed OP: initialize liquidity"),
             SwapOperation::CreatePool {
+                token_0_creator_chain_id,
                 token_0,
+                token_1_creator_chain_id,
                 token_1,
                 amount_0,
                 amount_1,
                 to,
             } => self
-                .on_op_create_pool(token_0, token_1, amount_0, amount_1, to)
+                .on_op_create_pool(
+                    token_0_creator_chain_id,
+                    token_0,
+                    token_1_creator_chain_id,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    to,
+                )
                 .expect("Failed OP: create pool"),
             SwapOperation::UpdatePool {
                 token_0,
@@ -181,13 +191,23 @@ impl Contract for SwapContract {
                 .await
                 .expect("Failed MSG: pool created"),
             SwapMessage::CreateUserPool {
+                token_0_creator_chain_id,
                 token_0,
+                token_1_creator_chain_id,
                 token_1,
                 amount_0,
                 amount_1,
                 to,
             } => self
-                .on_msg_create_user_pool(token_0, token_1, amount_0, amount_1, to)
+                .on_msg_create_user_pool(
+                    token_0_creator_chain_id,
+                    token_0,
+                    token_1_creator_chain_id,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    to,
+                )
                 .await
                 .expect("Failed MSG: create user pool"),
             SwapMessage::UserPoolCreated {
@@ -399,7 +419,9 @@ impl SwapContract {
     // If not, create pool then let caller chain add liquidity
     fn on_op_create_pool(
         &mut self,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
+        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
@@ -411,7 +433,9 @@ impl SwapContract {
 
         self.runtime
             .prepare_message(SwapMessage::CreateUserPool {
+                token_0_creator_chain_id,
                 token_0,
+                token_1_creator_chain_id,
                 token_1,
                 amount_0,
                 amount_1,
@@ -704,7 +728,9 @@ impl SwapContract {
 
     async fn on_msg_create_user_pool(
         &mut self,
+        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
+        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
@@ -715,9 +741,18 @@ impl SwapContract {
             panic!("Pool exists");
         }
 
-        let token_0_creator_chain_id = self.state.token_creator_chain_id(token_0).await?;
+        let token_0_creator_chain_id =
+            if let Some(chain_id) = self.state.token_creator_chain_id(token_0).await? {
+                chain_id
+            } else {
+                token_0_creator_chain_id
+            };
         let token_1_creator_chain_id = if let Some(token_1) = token_1 {
-            Some(self.state.token_creator_chain_id(token_1).await?)
+            if let Some(chain_id) = self.state.token_creator_chain_id(token_1).await? {
+                Some(chain_id)
+            } else {
+                token_1_creator_chain_id
+            }
         } else {
             None
         };
@@ -825,10 +860,15 @@ mod tests {
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
         )
         .unwrap();
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
+                .unwrap();
 
         let response = swap
             .execute_operation(SwapOperation::CreatePool {
+                token_0_creator_chain_id: chain_id,
                 token_0: meme_1,
+                token_1_creator_chain_id: Some(chain_id),
                 token_1: Some(meme_2),
                 amount_0: Amount::ONE,
                 amount_1: Amount::ONE,
