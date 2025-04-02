@@ -5,7 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::{constant::OPEN_CHAIN_FEE_BUDGET, swap::pool::PoolAbi};
+use abi::{constant::OPEN_CHAIN_FEE_BUDGET, meme::MemeAbi, swap::pool::PoolAbi};
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, MessageId,
@@ -158,6 +158,25 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
         serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
             .unwrap();
     assert_eq!(meme_application.is_some(), true);
+
+    // Check meme creator balance
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(
+            meme_application.unwrap().with_abi::<MemeAbi>(),
+            "query { initialOwnerBalance }",
+        )
+        .await;
+    let initial_owner_balance =
+        Amount::from_str(response["initialOwnerBalance"].as_str().unwrap()).unwrap();
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_user_owner);
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(meme_application.unwrap().with_abi::<MemeAbi>(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        initial_owner_balance,
+    );
 
     proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;

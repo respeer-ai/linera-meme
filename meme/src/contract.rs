@@ -57,14 +57,14 @@ impl Contract for MemeContract {
         // Signer should be the same as the creator
         assert!(self.creator_signer() == signer, "Invalid owner");
 
-        let owner = self.owner_account();
+        let creator = self.creator();
         let application = self.application_account();
 
         instantiation_argument.meme.virtual_initial_liquidity = self.virtual_initial_liquidity();
         instantiation_argument.meme.initial_liquidity = self.initial_liquidity();
 
         self.state
-            .instantiate(owner, application, instantiation_argument)
+            .instantiate(creator, application, instantiation_argument)
             .await
             .expect("Failed instantiate");
 
@@ -76,9 +76,9 @@ impl Contract for MemeContract {
                 .expect("Failed initialize liquidity");
         }
 
-        // Let owner hold one hundred tokens for easy test
+        // Let creator hold one hundred tokens for easy test
         self.state
-            .initialize_balance(owner, self.state.initial_owner_balance().await)
+            .initialize_balance(creator, self.state.initial_owner_balance().await)
             .await
             .expect("Failed initialize balance");
 

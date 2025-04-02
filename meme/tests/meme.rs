@@ -348,7 +348,7 @@ async fn meme_work_flow_test() {
         .transfer_from(&user_chain, meme_owner_account, user_owner_account, amount)
         .await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account,);
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account);
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
