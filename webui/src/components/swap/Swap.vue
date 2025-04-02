@@ -266,6 +266,7 @@ const onSwapClick = async () => {
       resolve(hash as string)
       void refreshBalances()
       getLatestTransactions()
+      swap.getPools()
     }).catch((e) => {
       reject(e)
     })
