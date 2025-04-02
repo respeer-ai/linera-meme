@@ -1,7 +1,10 @@
 <template>
   <q-card bordered flat class='meme-card cursor-pointer shake'>
     <div class='text-center meme-card-banner' avatar>
-      <q-img :src='logo' width='128px' />
+      <q-img
+        :src='logo' width='100%' height='100%'
+        fit='contain'
+      />
     </div>
     <div class='meme-info'>
       <q-item-label class='text-h6'>
