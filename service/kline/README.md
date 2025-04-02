@@ -9,3 +9,5 @@ pip3 install websocket-client
 python3 src/kline.py
 python3 tests/websocket_test.py
 curl -X POST http://localhost:25080/run/ticker
+
+Must run maker.py with respeer linera without --disable-native-rpc.
