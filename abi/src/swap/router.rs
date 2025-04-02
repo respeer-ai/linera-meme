@@ -95,6 +95,7 @@ pub enum SwapMessage {
         amount_1: Amount,
         virtual_initial_liquidity: bool,
         to: Option<Account>,
+        user_pool: bool,
     },
     PoolCreated {
         creator: Account,
@@ -105,6 +106,7 @@ pub enum SwapMessage {
         amount_1: Amount,
         virtual_initial_liquidity: bool,
         to: Option<Account>,
+        user_pool: bool,
     },
     // Execute on swap creation chain
     CreateUserPool {
@@ -123,7 +125,7 @@ pub enum SwapMessage {
     UserPoolCreated {
         pool_application: Account,
         token_0: ApplicationId,
-        token_1: ApplicationId,
+        token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,

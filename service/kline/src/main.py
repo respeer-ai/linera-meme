@@ -20,7 +20,15 @@ _db = None
 
 @app.get('/points/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
 async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, interval: str):
-    (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
+    token_0 = token0
+    token_1 = token1
+    points = []
+
+    try:
+        (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
+    except Exception as e:
+        print(f'Failed get kline: {e}')
+
     return {
         'token_0': token_0,
         'token_1': token_1,

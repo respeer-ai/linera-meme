@@ -154,6 +154,7 @@ impl Contract for SwapContract {
                 amount_1,
                 virtual_initial_liquidity,
                 to,
+                user_pool,
             } => self
                 .on_msg_create_pool(
                     creator,
@@ -166,6 +167,7 @@ impl Contract for SwapContract {
                     amount_1,
                     virtual_initial_liquidity,
                     to,
+                    user_pool,
                 )
                 .expect("Failed MSG: create pool"),
             SwapMessage::PoolCreated {
@@ -177,6 +179,7 @@ impl Contract for SwapContract {
                 amount_1,
                 virtual_initial_liquidity,
                 to,
+                user_pool,
             } => self
                 .on_msg_pool_created(
                     creator,
@@ -187,6 +190,7 @@ impl Contract for SwapContract {
                     amount_1,
                     virtual_initial_liquidity,
                     to,
+                    user_pool,
                 )
                 .await
                 .expect("Failed MSG: pool created"),
@@ -480,6 +484,7 @@ impl SwapContract {
         virtual_liquidity: bool,
         to: Option<Account>,
         _deadline: Option<Timestamp>,
+        user_pool: bool,
     ) -> Result<(), SwapError> {
         // For initial pool, all assets should be already authenticated when we're here
         // For user pool, we just create a pool, then notify user to add liquidity
@@ -505,6 +510,7 @@ impl SwapContract {
                 amount_1,
                 virtual_initial_liquidity: virtual_liquidity,
                 to,
+                user_pool,
             })
             .with_authentication()
             .send_to(chain_id);
@@ -534,6 +540,7 @@ impl SwapContract {
             virtual_liquidity,
             to,
             None,
+            false,
         )
         .await
     }
@@ -550,6 +557,7 @@ impl SwapContract {
         amount_1: Amount,
         virtual_initial_liquidity: bool,
         to: Option<Account>,
+        user_pool: bool,
     ) -> Result<(), SwapError> {
         // Run on pool chain
         let application_id = self.runtime.application_id().forget_abi();
@@ -604,6 +612,7 @@ impl SwapContract {
                 amount_1,
                 virtual_initial_liquidity,
                 to,
+                user_pool,
             })
             .with_authentication()
             .send_to(creator_chain);
@@ -642,7 +651,7 @@ impl SwapContract {
         creator: Account,
         pool_application: Account,
         token_0: ApplicationId,
-        token_1: ApplicationId,
+        token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,
@@ -670,11 +679,12 @@ impl SwapContract {
         amount_1: Amount,
         virtual_initial_liquidity: bool,
         to: Option<Account>,
+        user_pool: bool,
     ) -> Result<(), SwapError> {
         assert!(amount_1 > Amount::ZERO, "Invalid amount");
         assert!(amount_0 > Amount::ZERO, "Invalid amount");
 
-        if let Some(token_1) = token_1 {
+        if user_pool {
             self.user_pool_created(
                 creator,
                 pool_application,
@@ -703,7 +713,7 @@ impl SwapContract {
         &mut self,
         pool_application: Account,
         _token_0: ApplicationId,
-        _token_1: ApplicationId,
+        _token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
         to: Option<Account>,
@@ -769,6 +779,7 @@ impl SwapContract {
             false,
             to,
             None,
+            true,
         )
         .await
     }
