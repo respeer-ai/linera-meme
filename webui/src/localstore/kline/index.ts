@@ -116,8 +116,12 @@ export const useKlineStore = defineStore('kline', {
       token1: string,
       transactions: TransactionExt[]
     ) {
-      const _transactions = this.transactions.get(`${token0}:${token1}`) || []
       transactions.forEach((transaction) => {
+        const _token0 = transaction.token_reversed ? token1 : token0
+        const _token1 = transaction.token_reversed ? token0 : token1
+
+        const _transactions =
+          this.transactions.get(`${_token0}:${_token1}`) || []
         const index = _transactions.findIndex(
           (el) => el.transaction_id === transaction.transaction_id
         )
@@ -126,8 +130,8 @@ export const useKlineStore = defineStore('kline', {
           index >= 0 ? 1 : 0,
           transaction
         )
+        this.transactions.set(`${_token0}:${_token1}`, _transactions)
       })
-      this.transactions.set(`${token0}:${token1}`, _transactions)
     }
   },
   getters: {

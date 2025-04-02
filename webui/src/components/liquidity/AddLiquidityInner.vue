@@ -97,7 +97,7 @@
             {{ token1Ticker }}
           </div>
           <div class='text-grey-8'>
-            {{ _token1 === constants.LINERA_NATIVE_ID ? '' : shortId(_token1 || '', 12, 8) }}
+            {{ _token1 === constants.LINERA_NATIVE_ID ? '' : shortId(_token1 || '', 8, 8) }}
           </div>
         </div>
         <q-space />
