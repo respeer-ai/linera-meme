@@ -406,8 +406,8 @@ impl SwapContract {
         to: Option<Account>,
     ) -> Result<SwapResponse, SwapError> {
         // Fund fee budget firstly. If not created, refund
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        self.fund_swap_creation_chain(application, None, OPEN_CHAIN_FEE_BUDGET);
+        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        self.fund_swap_creation_chain(signer, None, OPEN_CHAIN_FEE_BUDGET);
 
         self.runtime
             .prepare_message(SwapMessage::CreateUserPool {
