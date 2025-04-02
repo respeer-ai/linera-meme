@@ -1,4 +1,5 @@
 import random
+import time
 
 
 class Trader:
@@ -10,8 +11,12 @@ class Trader:
     def trade_in_pool(self, pool):
         # Generate trade direction
         buy = True if random.randint(0, 1) == 1 else False
-        # TODO: get balance
-        print(pool.token1)
+
+        account = self.wallet.account()
+        native_balance = self.wallet.balance() if pool.token_1 is None else self.meme.balance()
+
+        # TODO: get meme balance
+
         # TODO: trade
 
     def trade(self) -> float:
