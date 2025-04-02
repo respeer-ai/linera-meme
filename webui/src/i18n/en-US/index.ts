@@ -81,5 +81,6 @@ export default {
   MSG_ESTIMATED_WITHDRAW: 'Estimated withdraw',
   MSG_ESTIMATED_SHARE: 'Estimated share',
   MSG_ESTIMATED_DEPOSIT: 'Estimated deposit',
-  MSG_LIVE_STREAM: 'Live stream'
+  MSG_LIVE_STREAM: 'Live stream',
+  MSG_CREATE_MEME: 'Create meme'
 }
