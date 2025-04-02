@@ -8,7 +8,7 @@ class Ticker:
         self.manager = manager
         self.swap = swap
         self.db = db
-        self.running = True
+        self._running = True
 
     def get_pools(self) -> list[Pool]:
         return self.swap.get_pools()
@@ -17,7 +17,7 @@ class Ticker:
         return self.swap.get_pool_transactions(pool)
 
     async def run(self):
-        while self.running:
+        while self._running:
             pools = self.get_pools()
             self.db.new_pools(pools)
 
@@ -38,7 +38,7 @@ class Ticker:
             await asyncio.sleep(self.interval)
 
     def stop(self):
-        self.running = False
+        self._running = False
 
     def running(self):
-        return self.running
+        return self._running
