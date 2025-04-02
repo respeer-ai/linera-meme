@@ -2,11 +2,9 @@ import argparse
 
 
 from swap import Swap
+from meme import Meme
+from wallet import Wallet
 from trader import Trader
-
-
-def run_maker(swap, trader):
-    print('Run maker')
 
 
 if __name__ == '__main__':
@@ -15,6 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--wallet-host', type=str, default='localhost:8080', help='Host of wallet service')
+    parser.add_argument('--meme-host', type=str, default='api.linerameme.fun', help='Host of meme service')
 
     args = parser.parse_args()
 
@@ -22,8 +21,8 @@ if __name__ == '__main__':
     _swap.get_swap_chain()
     _swap.get_swap_application()
 
-    _trader = Trader(args.wallet_host)
+    _meme = Meme(args.meme_host)
+    _wallet = Wallet(args.wallet_host)
 
-    while True:
-        run_maker(_swap, _trader)
-        time.sleep(10)
+    _trader = Trader(_swap, _wallet, _meme)
+    _trader.run()
