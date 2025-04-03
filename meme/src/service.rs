@@ -10,7 +10,7 @@ use std::{str::FromStr, sync::Arc};
 use abi::meme::{MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, WithServiceAbi},
+    linera_base_types::{Account, Amount, ChainId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -45,6 +45,7 @@ impl Service for MemeService {
         let schema = Schema::build(
             QueryRoot {
                 state: self.state.clone(),
+                runtime: self.runtime.clone(),
             },
             MutationRoot {
                 runtime: self.runtime.clone(),
@@ -71,6 +72,7 @@ impl MutationRoot {
 
 struct QueryRoot {
     state: Arc<MemeState>,
+    runtime: Arc<ServiceRuntime<MemeService>>,
 }
 
 #[Object]
@@ -98,6 +100,10 @@ impl QueryRoot {
 
     async fn initial_owner_balance(&self) -> Amount {
         self.state.initial_owner_balance().await
+    }
+
+    async fn creator_chain_id(&self) -> ChainId {
+        self.runtime.application_creator_chain_id()
     }
 }
 

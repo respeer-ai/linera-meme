@@ -8,12 +8,12 @@ mod state;
 use std::{str::FromStr, sync::Arc};
 
 use abi::swap::{
-    pool::{Pool, PoolAbi, PoolParameters},
+    pool::{Pool, PoolAbi, PoolOperation, PoolParameters},
     transaction::Transaction,
 };
-use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
+use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, WithServiceAbi},
+    linera_base_types::{Account, Amount, Timestamp, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -53,7 +53,9 @@ impl Service for PoolService {
             QueryRoot {
                 service: self.clone(),
             },
-            EmptyMutation,
+            MutationRoot {
+                service: self.clone(),
+            },
             EmptySubscription,
         )
         .finish();
@@ -70,6 +72,41 @@ impl PoolService {
 
     fn state(&self) -> Arc<PoolState> {
         self.state.clone()
+    }
+}
+
+struct MutationRoot {
+    service: PoolService,
+}
+
+#[Object]
+impl MutationRoot {
+    async fn swap(
+        &self,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> [u8; 0] {
+        // Mutation should always be from other chain
+        assert!(
+            self.service.runtime.application_creator_chain_id() != self.service.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.service
+            .runtime
+            .schedule_operation(&PoolOperation::Swap {
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            });
+        []
     }
 }
 

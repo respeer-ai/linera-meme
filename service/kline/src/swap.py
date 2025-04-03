@@ -54,7 +54,9 @@ class Transaction:
 
 
 class Pool:
-    def __init__(self, _dict):
+    def __init__(self, _dict, wallet):
+        self.wallet = wallet
+
         self.pool_id = _dict['poolId']
         self.token_0 = _dict['token0']
         self.token_1 = _dict['token1']
@@ -63,15 +65,27 @@ class Pool:
         self.token_0_price = _dict['token0Price']
         self.token_1_price = _dict['token1Price']
 
+    def wallet_application_url(self):
+        return f'{self.wallet._wallet_url()}/chains/{self.wallet._chain()}/applications/{self.pool_application.short_owner}'
+
+    def swap(self, amount_0: str = None, amount_1: str = None):
+        json = {
+            'query': f'mutation {{\n swap(amount0In: "{amount_0}") \n}}'
+        } if amount_0 is not None else {
+            'query': f'mutation {{\n swap(amount1In: "{amount_1}") \n}}'
+        }
+        requests.post(url=self.wallet_application_url(), json=json)
+
 
 class Swap:
-    def __init__(self, host: str, application_id: str):
+    def __init__(self, host: str, application_id: str, wallet):
         self.host = host
         self.chain_id = None
         self.application_id = None
         self.base_url = f'http://{host}/api/swap'
         self.chain = None
         self.application = application_id if len(application_id) > 0 else None
+        self.wallet = wallet
 
     def application_url(self) -> str:
         return f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
@@ -81,7 +95,7 @@ class Swap:
             'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n }\n}'
         }
         resp = requests.post(url=self.application_url(), json=json)
-        return [Pool(v) for v in resp.json()['data']['pools']]
+        return [Pool(v, self.wallet) for v in resp.json()['data']['pools']]
 
     def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
         json = {
