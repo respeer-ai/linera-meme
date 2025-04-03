@@ -11,6 +11,12 @@ class Wallet:
     def account(self):
         return f'{self.chain}:User:{self.owner}'
 
+    def _chain(self):
+        return self.chain
+
+    def _wallet_url(self):
+        return self.wallet_url
+
     def balance(self):
         chain_owners = f'''[{{
             chainId: "{self.chain}",
