@@ -165,7 +165,10 @@ const getBalances = async () => {
       query: {
         query: BALANCES.loc?.source?.body,
         variables: {
-          chainOwners: Object.fromEntries(new Map([[chainId.value, [`User:${owner}`]]])),
+          chainOwners: [{
+            chainId: chainId.value,
+            owners: [`User:${owner}`]
+          }],
           chainId: chainId.value,
           publicKey: publicKey.value
         }

@@ -262,7 +262,7 @@ const calculateLiquidityAmount = () => {
     return
   }
   if (!selectedPool.value) return
-  pool.calculateAmountLiquidity(token0Amount.value.toString(), token1Amount.value.toString(), selectedPool.value.poolApplication, (_liquidity?: pool.LiquidityAmount) => {
+  pool.calculateAmountLiquidity(token0Amount.value.toString(), token1Amount.value.toString(), selectedPool.value.poolApplication as account.Account, (_liquidity?: pool.LiquidityAmount) => {
     estimatedLiquidity.value = _liquidity as pool.LiquidityAmount
   })
 }
