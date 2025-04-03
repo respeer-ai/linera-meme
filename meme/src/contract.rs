@@ -249,7 +249,7 @@ impl MemeContract {
         if let Some(ams_application_id) = self.state.ams_application_id() {
             let call = AmsOperation::Register {
                 metadata: Metadata {
-                    creator: self.owner_account(),
+                    creator: self.creator(),
                     application_name: self.state.name(),
                     application_id: self.runtime.application_id().forget_abi(),
                     application_type: MEME.to_string(),
