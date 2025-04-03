@@ -12,21 +12,12 @@ class Wallet:
         return f'{self.chain}:User:{self.owner}'
 
     def balance(self):
-        chain_owners = {
-            self.chain: [f'User:{self.owner}']
-        }
-        chain_owners_str = '{'
-        i = 0
-        j = 0
-        for chain, owners in chain_owners.items():
-            chain_owners_str += ('' if i == 0 else ',') + chain + ':['
-            for owner in owners:
-                chain_owners_str += ('' if i == 0 else ',') + f'"{owner}"'
-            chain_owners_str += ']'
-        chain_owners_str += '}'
-
+        chain_owners = f'''[{{
+            chainId: "{self.chain}",
+            owners: ["User:{self.owner}"]
+        }}]'''
         json = {
-            'query': f'query {{\n balances(chainOwners:{chain_owners_str}) \n}}'
+            'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         resp = requests.post(self.wallet_url, json=json)
         balances = resp.json()['data']['balances']
