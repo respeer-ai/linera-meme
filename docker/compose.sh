@@ -6,7 +6,6 @@
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
-GIT_COMMIT=7b3ae0b6
 CHAIN_OWNER_COUNT=4
 
 options="f:c:C:W:"
@@ -14,7 +13,6 @@ options="f:c:C:W:"
 while getopts $options opt; do
   case ${opt} in
     f) FAUCET_URL=${OPTARG} ;;
-    c) GIT_COMMIT=${OPTARG} ;;
   esac
 done
 
@@ -50,11 +48,11 @@ mkdir -p $DOCKER_DIR
 # Install official linera for genesis cluster
 cd $SOURCE_DIR
 rm linera-protocol -rf
-git clone https://github.com/linera-io/linera-protocol.git
+git clone https://github.com/respeer-ai/linera-protocol.git
 cd linera-protocol
+git checkout respeer-maas-7b3ae0b6-2025_03_15
 
 export PATH=$BIN_DIR:$PATH
-git checkout $GIT_COMMIT
 
 LATEST_COMMIT=`git rev-parse HEAD`
 LATEST_COMMIT=${LATEST_COMMIT:0:10}
@@ -66,10 +64,12 @@ if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
 fi
 
 # Build linera docker image. If we have, just use it
+# Official linera listen on localhost, so we use respeer here
+
 GIT_COMMIT=$(git rev-parse --short HEAD)
-image_exists=`docker images | grep linera-official | wc -l`
+image_exists=`docker images | grep linera-respeer | wc -l`
 if [ "x$image_exists" != "x1" ]; then
-    docker build --build-arg git_commit="$GIT_COMMIT" -f docker/Dockerfile . -t linera-official || exit 1
+    docker build --build-arg git_commit="$GIT_COMMIT" -f docker/Dockerfile . -t linera-respeer || exit 1
 fi
 
 # Applications are deployed outside of container, container only run service with wallets
@@ -331,7 +331,7 @@ function generate_nginx_conf() {
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $NGINX_TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
-    echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/"
+    cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
 
 # Generate service nginx conf
@@ -408,19 +408,31 @@ jinja -d ${CONFIG_DIR}/docker-compose.json $COMPOSE_TEMPLATE_FILE > ${CONFIG_DIR
 
 cd $OUTPUT_DIR
 
-docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'`
-docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'`
+docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
+docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
 docker stop maker-wallet kline maker
 docker rm maker-wallet kline maker
 
-LINERA_IMAGE=linera-official docker compose -f config/docker-compose.yml up --wait
+LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
 
 rm $WALLET_DIR/maker/0 -rf
 mkdir $WALLET_DIR/maker/0 -p
 linera --wallet $WALLET_DIR/maker/0/wallet.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet init --faucet $FAUCET_URL --with-new-chain
 
 cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-LINERA_IMAGE=linera-official docker compose -f docker/docker-compose-wallet.yml up --wait
+LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
+
+DATABASE_NAME=linera_swap_kline
+DATABASE_USER=linera-swap
+DATABASE_PASSWORD=12345679
+
+function run_mysql() {
+    docker stop docker-mysql-1
+    docker rm docker-mysql-1
+
+    MYSQL_ROOT_PASSWORD=12345679 MYSQL_DATABASE=$DATABASE_NAME MYSQL_USER=$DATABASE_USER MYSQL_PASSWORD=$DATABASE_PASSWORD \
+      docker compose -f $ROOT_DIR/docker/docker-compose-mysql.yml up --wait
+}
 
 # Build kline and maker
 function run_kline() {
@@ -430,7 +442,7 @@ function run_kline() {
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
     docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
 
-    LAN_IP=$LAN_IP POSTGRES_HOST= POSTGRES_USERNAME= POSTGRES_PASSWORD= SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=http://$LAN_IP: \
+    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_NAME=$DATABASE_NAME SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=http://$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
@@ -439,5 +451,6 @@ function run_kline() {
 cd $OUTPUT_DIR
 cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
 
+run_mysql
 run_kline
 
