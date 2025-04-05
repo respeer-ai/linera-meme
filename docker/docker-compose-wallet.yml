@@ -1,0 +1,9 @@
+services:
+  maker-wallet:
+    image: "${LINERA_IMAGE:-linera}"
+    container_name: maker-wallet
+    ports:
+      - "40082:40082"
+    command: [ "./wallet-entrypoint.sh" ]
+    volumes:
+      - ../wallet/maker/0:/wallet

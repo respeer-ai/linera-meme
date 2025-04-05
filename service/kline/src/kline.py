@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    _swap = Swap(args.swap_host, args.swap_application_id)
+    _swap = Swap(args.swap_host, args.swap_application_id, None)
     _swap.get_swap_chain()
     _swap.get_swap_application()
 

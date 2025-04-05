@@ -1,0 +1,11 @@
+services:
+{% for service in services %}
+  {{ service.name }}-{{ service.index }}:
+    image: "${LINERA_IMAGE:-linera}"
+    container_name: {{ service.name}}-{{ service.index }}
+    ports:
+      - "{{ service.port }}:8080"
+    command: [ "./wallet-entrypoint.sh" ]
+    volumes:
+      - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
+{% endfor %}

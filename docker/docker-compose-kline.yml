@@ -1,0 +1,14 @@
+services:
+  kline:
+    image: "kline"
+    container_name: kline
+    ports:
+      - "25080:25080"
+    command: [ "./kline-entrypoint.sh" ]
+    extra_hosts:
+      - "api.lineraswap.fun:${LAN_IP}"
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST} 
+      POSTGRES_USERNAME: ${POSTGRES_USERNAME} 
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SWAP_APPLICATION_ID: ${SWAP_APPLICATION_ID} 
