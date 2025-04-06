@@ -307,8 +307,13 @@ process_inboxes swap
 
 function service_servers() {
     port_base=$1
+    count=$2
 
     servers="\"localhost:$port_base\""
+    if [ "x$count" == "x1" ]; then
+	echo $servers
+	return
+    fi
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         servers="$servers, \"localhost:$((port_base + (i + 1) * 2))\""
     done
@@ -319,8 +324,9 @@ function generate_nginx_conf() {
     port_base=$1
     endpoint=$2
     domain=$3
+    count=$4
 
-    servers=$(service_servers $port_base)
+    servers=$(service_servers $port_base $count)
     echo "{
         \"service\": {
             \"endpoint\": \"$endpoint\",
@@ -335,11 +341,11 @@ function generate_nginx_conf() {
 }
 
 # Generate service nginx conf
-generate_nginx_conf 20080 blobs blobgateway.com
-generate_nginx_conf 21080 ams ams.respeer.ai
-generate_nginx_conf 22080 swap lineraswap.fun
-generate_nginx_conf 23080 proxy linerameme.fun
-generate_nginx_conf 25080 kline kline.lineraswap.fun
+generate_nginx_conf 20080 blobs blobgateway.com $CHAIN_OWNER_COUNT
+generate_nginx_conf 21080 ams ams.respeer.ai $CHAIN_OWNER_COUNT
+generate_nginx_conf 22080 swap lineraswap.fun $CHAIN_OWNER_COUNT
+generate_nginx_conf 23080 proxy linerameme.fun $CHAIN_OWNER_COUNT
+generate_nginx_conf 25080 kline kline.lineraswap.fun 1
 
 sudo nginx -s reload
 
