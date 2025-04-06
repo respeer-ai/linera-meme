@@ -177,8 +177,8 @@ module.exports = configure(function (ctx) {
       },
 
       manifest: {
-        name: 'Linera dApps',
-        short_name: 'Linera dApps',
+        name: 'Linera Meme',
+        short_name: 'Linera Meme',
         description: 'Real-time & reactive applications on Linera',
         display: 'standalone',
         orientation: 'portrait',

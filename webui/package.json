@@ -1,8 +1,8 @@
 {
-  "name": "linera-dapps",
+  "name": "linera-meme",
   "version": "0.0.1",
   "description": "Real-time & reactive applications on Linera",
-  "productName": "Linera dApps",
+  "productName": "Linera Meme",
   "author": "Linera Hacker Team <linera-hacker>",
   "private": true,
   "scripts": {
