@@ -14,13 +14,10 @@ COPY docker/kline kline
 
 WORKDIR kline
 
+RUN pip install uvicorn[standard]
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 RUN pip3 install -e .
-
-RUN pip3 uninstall websocket -y
-RUN pip3 uninstall websocket-client -y
-RUN pip3 install websocket-client
 
 COPY --chmod=755 \
   docker/kline-entrypoint.sh \
