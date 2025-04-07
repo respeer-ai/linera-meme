@@ -133,8 +133,8 @@ watch(token0Items, () => {
   if (!token0.value?.logo || !token0.value?.name || !token0.value?.ticker || !token0.value?.token) token0.value = token0Items.value[0]
 }, { immediate: true, deep: true })
 
-watch(token0, () => {
-  if (!token0.value) return
+const refreshTokens = () => {
+  if (!token0.value || token0.value?.token === token1.value?.token) return
   if (!_swap.existPool(token0.value.token, token1.value?.token)) {
     token1.value = token1Items.value[0]
   }
@@ -143,6 +143,14 @@ watch(token0, () => {
     _swap.selectedToken0 = token0.value.token
     _swap.selectedToken1 = token1.value.token
   }
+}
+
+watch(token1, () => {
+  refreshTokens()
+}, { immediate: true, deep: true })
+
+watch(token0, () => {
+  refreshTokens()
 }, { immediate: true, deep: true })
 
 watch(applications, () => {

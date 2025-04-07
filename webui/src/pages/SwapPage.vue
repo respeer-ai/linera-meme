@@ -126,6 +126,8 @@ onMounted(() => {
   getApplications()
   getMemeApplications()
   _swap.selectedPool = _swap.getPool(token0.value, token1.value) as Pool
+  _swap.selectedToken0 = token0.value
+  _swap.selectedToken1 = token1.value
 })
 
 </script>
