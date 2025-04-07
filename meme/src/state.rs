@@ -7,7 +7,7 @@ use abi::{
 };
 use linera_sdk::{
     ensure,
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner},
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use meme::MemeError;
@@ -62,7 +62,7 @@ impl MemeState {
         let swap_application_id = self.swap_application_id.get().unwrap();
         let spender = Account {
             chain_id: swap_creator_chain_id,
-            owner: Some(AccountOwner::Application(swap_application_id)),
+            owner: AccountOwner::from(swap_application_id),
         };
         self.approve(
             self.holder.get().unwrap(),
@@ -243,11 +243,8 @@ impl MemeState {
         self.owner.get().unwrap()
     }
 
-    pub(crate) async fn owner_signer(&mut self) -> Owner {
-        let AccountOwner::User(owner) = self.owner.get().unwrap().owner.unwrap() else {
-            panic!("Invalid owner");
-        };
-        owner
+    pub(crate) async fn owner_signer(&mut self) -> AccountOwner {
+        self.owner.get().unwrap().owner
     }
 
     pub(crate) async fn balance_of(&self, owner: Account) -> Amount {

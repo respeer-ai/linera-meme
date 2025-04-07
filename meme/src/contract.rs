@@ -16,9 +16,7 @@ use abi::{
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
-    linera_base_types::{
-        Account, AccountOwner, Amount, ChainId, CryptoHash, Owner, WithContractAbi,
-    },
+    linera_base_types::{Account, AccountOwner, Amount, ChainId, CryptoHash, WithContractAbi},
     views::{RootView, View},
     Contract, ContractRuntime,
 };
@@ -41,6 +39,7 @@ impl Contract for MemeContract {
     type Message = MemeMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = MemeParameters;
+    type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = MemeState::load(runtime.root_view_storage_context())
@@ -182,11 +181,8 @@ impl MemeContract {
         self.runtime.application_parameters().creator
     }
 
-    fn creator_signer(&mut self) -> Owner {
-        let Some(AccountOwner::User(owner)) = self.creator().owner else {
-            panic!("Invalid owner");
-        };
-        owner
+    fn creator_signer(&mut self) -> AccountOwner {
+        self.creator().owner
     }
 
     fn virtual_initial_liquidity(&mut self) -> bool {
@@ -203,8 +199,8 @@ impl MemeContract {
         Account {
             chain_id: self.runtime.chain_id(),
             owner: match self.runtime.authenticated_signer() {
-                Some(owner) => Some(AccountOwner::User(owner)),
-                _ => None,
+                Some(owner) => owner,
+                _ => AccountOwner::CHAIN,
             },
         }
     }
@@ -212,36 +208,28 @@ impl MemeContract {
     fn application_creation_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.application_creator_chain_id(),
-            owner: Some(AccountOwner::Application(
-                self.runtime.application_id().forget_abi(),
-            )),
+            owner: AccountOwner::from(self.runtime.application_id().forget_abi()),
         }
     }
 
     fn application_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
-            owner: Some(AccountOwner::Application(
-                self.runtime.application_id().forget_abi(),
-            )),
+            owner: AccountOwner::from(self.runtime.application_id().forget_abi()),
         }
     }
 
     fn message_caller_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.message_id().unwrap().chain_id,
-            owner: Some(AccountOwner::Application(
-                self.runtime.authenticated_caller_id().unwrap(),
-            )),
+            owner: AccountOwner::from(self.runtime.authenticated_caller_id().unwrap()),
         }
     }
 
     fn message_owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.message_id().unwrap().chain_id,
-            owner: Some(AccountOwner::User(
-                self.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: self.runtime.authenticated_signer().unwrap(),
         }
     }
 
@@ -305,7 +293,6 @@ impl MemeContract {
         // If we're not chain owner, we cannot transfer chain balance
         let can_from_chain = ownership.all_owners().any(|&owner| owner == signer);
 
-        let signer = AccountOwner::User(signer);
         let owner_balance = self.runtime.owner_balance(signer);
         let chain_balance = self.runtime.chain_balance();
 
@@ -324,10 +311,11 @@ impl MemeContract {
         assert!(from_chain_balance <= chain_balance, "Insufficient balance");
 
         if from_owner_balance > Amount::ZERO {
-            self.runtime.transfer(Some(signer), to, from_owner_balance);
+            self.runtime.transfer(signer, to, from_owner_balance);
         }
         if from_chain_balance > Amount::ZERO {
-            self.runtime.transfer(None, to, from_chain_balance);
+            self.runtime
+                .transfer(AccountOwner::CHAIN, to, from_chain_balance);
         }
     }
 
@@ -348,7 +336,7 @@ impl MemeContract {
         self.fund_account(
             Account {
                 chain_id: swap_creator_chain,
-                owner: None,
+                owner: AccountOwner::CHAIN,
             },
             OPEN_CHAIN_FEE_BUDGET,
         );
@@ -357,7 +345,7 @@ impl MemeContract {
             self.fund_account(
                 Account {
                     chain_id: swap_creator_chain,
-                    owner: Some(AccountOwner::Application(swap_application_id)),
+                    owner: AccountOwner::from(swap_application_id),
                 },
                 liquidity.native_amount,
             );
@@ -423,7 +411,7 @@ impl MemeContract {
 
         let caller = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(caller_id)),
+            owner: AccountOwner::from(caller_id),
         };
 
         self.runtime
@@ -445,7 +433,7 @@ impl MemeContract {
 
         let caller = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(caller_id)),
+            owner: AccountOwner::from(caller_id),
         };
 
         self.runtime
@@ -573,10 +561,7 @@ impl MemeContract {
             "Invalid caller"
         );
         assert!(
-            caller.owner
-                == Some(AccountOwner::Application(
-                    self.state.swap_application_id().unwrap()
-                )),
+            caller.owner == AccountOwner::from(self.state.swap_application_id().unwrap()),
             "Invalid caller"
         );
 

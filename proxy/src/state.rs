@@ -7,7 +7,7 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, ApplicationId, ChainId, MessageId, ModuleId, Owner, Timestamp,
+        Account, AccountOwner, ApplicationId, ChainId, MessageId, ModuleId, Timestamp,
     },
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
@@ -110,17 +110,12 @@ impl ProxyState {
         Ok(miners)
     }
 
-    pub(crate) async fn genesis_miner_owners(&self) -> Result<Vec<Owner>, ProxyError> {
+    pub(crate) async fn genesis_miner_owners(&self) -> Result<Vec<AccountOwner>, ProxyError> {
         Ok(self
             .genesis_miners()
             .await?
             .into_iter()
-            .map(|owner| {
-                let Some(AccountOwner::User(owner)) = owner.owner else {
-                    panic!("Invalid owner");
-                };
-                owner
-            })
+            .map(|owner| owner.owner)
             .collect())
     }
 
@@ -128,17 +123,12 @@ impl ProxyState {
         Ok(self.miners.indices().await?)
     }
 
-    pub(crate) async fn miner_owners(&self) -> Result<Vec<Owner>, ProxyError> {
+    pub(crate) async fn miner_owners(&self) -> Result<Vec<AccountOwner>, ProxyError> {
         Ok(self
             .miners()
             .await?
             .into_iter()
-            .map(|owner| {
-                let Some(AccountOwner::User(owner)) = owner.owner else {
-                    panic!("Invalid owner");
-                };
-                owner
-            })
+            .map(|owner| owner.owner)
             .collect())
     }
 
