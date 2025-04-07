@@ -17,8 +17,8 @@ resolver = "2"
 async-graphql = { version = "=7.0.2", default-features = false }
 # linera-sdk = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "17da79372c" }
 # linera-views = { version = "0.14.0", git = "https://github.com/linera-io/linera-protocol.git", rev = "17da79372c", default-features = false }
-linera-sdk = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "4f1a8dd84b" }
-linera-views = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "4f1a8dd84b", default-features = false }
+linera-sdk = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "f5ecd621bd" }
+linera-views = { version = "0.14.0", git = "https://github.com/respeer-ai/linera-protocol.git", rev = "f5ecd621bd", default-features = false }
 futures = { version = "0.3 "}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
