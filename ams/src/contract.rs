@@ -27,6 +27,7 @@ impl Contract for ApplicationContract {
     type Message = AmsMessage;
     type Parameters = ();
     type InstantiationArgument = InstantiationArgument;
+    type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = AmsState::load(runtime.root_view_storage_context())
@@ -38,9 +39,7 @@ impl Contract for ApplicationContract {
     async fn instantiate(&mut self, _argument: InstantiationArgument) {
         let owner = Account {
             chain_id: self.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                self.runtime.authenticated_signer().expect("Invalid owner"),
-            )),
+            owner: self.runtime.authenticated_signer().expect("Invalid owner"),
         };
         self.state.instantiate(owner).await;
     }
@@ -110,8 +109,8 @@ impl ApplicationContract {
         Account {
             chain_id: self.runtime.chain_id(),
             owner: match self.runtime.authenticated_signer() {
-                Some(owner) => Some(AccountOwner::User(owner)),
-                _ => None,
+                Some(owner) => owner,
+                _ => AccountOwner::CHAIN,
             },
         }
     }

@@ -36,6 +36,7 @@ impl Contract for BlobGatewayContract {
     type Message = BlobGatewayMessage;
     type InstantiationArgument = ();
     type Parameters = ();
+    type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = BlobGatewayState::load(runtime.root_view_storage_context())
@@ -86,8 +87,8 @@ impl BlobGatewayContract {
         Account {
             chain_id: self.runtime.chain_id(),
             owner: match self.runtime.authenticated_signer() {
-                Some(owner) => Some(AccountOwner::User(owner)),
-                _ => None,
+                Some(owner) => owner,
+                _ => AccountOwner::CHAIN,
             },
         }
     }

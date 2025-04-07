@@ -42,6 +42,7 @@ impl Contract for PoolContract {
     type Message = PoolMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = PoolParameters;
+    type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = PoolState::load(runtime.root_view_storage_context())
@@ -246,8 +247,8 @@ impl PoolContract {
         Account {
             chain_id: self.runtime.chain_id(),
             owner: match self.runtime.authenticated_signer() {
-                Some(owner) => Some(AccountOwner::User(owner)),
-                _ => None,
+                Some(owner) => owner,
+                _ => AccountOwner::CHAIN,
             },
         }
     }
@@ -255,9 +256,7 @@ impl PoolContract {
     fn application_creation_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.application_creator_chain_id(),
-            owner: Some(AccountOwner::Application(
-                self.runtime.application_id().forget_abi(),
-            )),
+            owner: AccountOwner::from(self.runtime.application_id().forget_abi()),
         }
     }
 
@@ -310,10 +309,10 @@ impl PoolContract {
     fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
         let chain_id = self.runtime.application_creator_chain_id();
         let application_id = self.runtime.application_id().forget_abi();
-        let owner = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let owner = self.runtime.authenticated_signer().unwrap();
         let application = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id)),
+            owner: AccountOwner::from(application_id),
         };
 
         let owner_balance = self.runtime.owner_balance(owner);
@@ -335,10 +334,11 @@ impl PoolContract {
 
         if from_owner_balance > Amount::ZERO {
             self.runtime
-                .transfer(Some(owner), application, from_owner_balance);
+                .transfer(owner, application, from_owner_balance);
         }
         if from_chain_balance > Amount::ZERO {
-            self.runtime.transfer(None, application, from_chain_balance);
+            self.runtime
+                .transfer(AccountOwner::CHAIN, application, from_chain_balance);
         }
     }
 
@@ -734,7 +734,7 @@ impl PoolContract {
 
         // 3: Transfer token
         let to = to.unwrap_or(origin);
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        let application = AccountOwner::from(self.runtime.application_id().forget_abi());
         let token_0 = self.token_0();
 
         if amount_0_out > Amount::ZERO {
@@ -744,7 +744,7 @@ impl PoolContract {
             if let Some(token_1) = self.token_1() {
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
-                self.runtime.transfer(Some(application), to, amount_1_out);
+                self.runtime.transfer(application, to, amount_1_out);
             }
         }
 
@@ -831,9 +831,9 @@ impl PoolContract {
                 }
                 None => {
                     let application =
-                        AccountOwner::Application(self.runtime.application_id().forget_abi());
+                        AccountOwner::from(self.runtime.application_id().forget_abi());
                     self.runtime
-                        .transfer(Some(application), origin, amount_1_in.try_sub(amount_1)?)
+                        .transfer(application, origin, amount_1_in.try_sub(amount_1)?)
                 }
             };
         }
@@ -877,10 +877,10 @@ impl PoolContract {
         let token_0 = self.token_0();
         self.transfer_meme(token_0, to, amount_0);
 
-        let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+        let application = AccountOwner::from(self.runtime.application_id().forget_abi());
         match self.token_1() {
             Some(token_1) => self.transfer_meme(token_1, to, amount_1),
-            None => self.runtime.transfer(Some(application), to, amount_1),
+            None => self.runtime.transfer(application, to, amount_1),
         };
 
         // 3: Burn liquidity
@@ -952,9 +952,7 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         bcs,
-        linera_base_types::{
-            Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId, Owner,
-        },
+        linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -1031,9 +1029,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         let fund_request = FundRequest {
@@ -1063,9 +1059,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         let fund_request = FundRequest {
@@ -1099,9 +1093,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         let reserve_0 = pool.state.reserve_0();
@@ -1134,9 +1126,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         pool.execute_message(PoolMessage::AddLiquidity {
@@ -1205,13 +1195,11 @@ mod tests {
         )
         .unwrap()
         .with_abi::<PoolAbi>();
-        let owner =
-            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
-                .unwrap();
-        let creator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let owner = AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        )
+        .unwrap();
+        let creator = Account { chain_id, owner };
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
         let runtime = ContractRuntime::new()
             .with_application_parameters(PoolParameters {

@@ -47,6 +47,7 @@ impl Contract for SwapContract {
     type Message = SwapMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = SwapParameters;
+    type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = SwapState::load(runtime.root_view_storage_context())
@@ -291,9 +292,7 @@ impl SwapContract {
     fn message_owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.message_id().unwrap().chain_id,
-            owner: Some(AccountOwner::User(
-                self.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: self.runtime.authenticated_signer().unwrap(),
         }
     }
 
@@ -327,7 +326,7 @@ impl SwapContract {
     fn fund_swap_creation_chain(
         &mut self,
         from_owner: AccountOwner,
-        to_owner: Option<AccountOwner>,
+        to_owner: AccountOwner,
         amount: Amount,
     ) {
         let chain_id = self.runtime.application_creator_chain_id();
@@ -351,7 +350,7 @@ impl SwapContract {
 
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
-                Some(from_owner),
+                from_owner,
                 Account {
                     chain_id,
                     owner: to_owner,
@@ -361,7 +360,7 @@ impl SwapContract {
         }
         if from_chain_balance > Amount::ZERO {
             self.runtime.transfer(
-                None,
+                AccountOwner::CHAIN,
                 Account {
                     chain_id,
                     owner: to_owner,
@@ -432,8 +431,8 @@ impl SwapContract {
         to: Option<Account>,
     ) -> Result<SwapResponse, SwapError> {
         // Fund fee budget firstly. If not created, refund
-        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
-        self.fund_swap_creation_chain(signer, None, OPEN_CHAIN_FEE_BUDGET);
+        let signer = self.runtime.authenticated_signer().unwrap();
+        self.fund_swap_creation_chain(signer, AccountOwner::CHAIN, OPEN_CHAIN_FEE_BUDGET);
 
         self.runtime
             .prepare_message(SwapMessage::CreateUserPool {
@@ -599,7 +598,7 @@ impl SwapContract {
         // there
         let pool_application = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(pool_application_id)),
+            owner: AccountOwner::from(pool_application_id),
         };
         let creator_chain = self.runtime.application_creator_chain_id();
         self.runtime
@@ -631,9 +630,9 @@ impl SwapContract {
         if !virtual_initial_liquidity {
             // This message may be authenticated by other user who is not the owner of swap
             // creation chain
-            let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
+            let application = AccountOwner::from(self.runtime.application_id().forget_abi());
             self.runtime
-                .transfer(Some(application), pool_application, amount_1);
+                .transfer(application, pool_application, amount_1);
         }
 
         // TODO: only call from InitializeLiquidity could transfer from application
@@ -727,9 +726,10 @@ impl SwapContract {
             to,
             block_timestamp: None,
         };
-        let Some(AccountOwner::Application(application_id)) = pool_application.owner else {
-            panic!("Invalid application");
+        let AccountOwner::Address32(application_description_hash) = pool_application.owner else {
+            panic!("Invalid owner");
         };
+        let application_id: ApplicationId = ApplicationId::new(application_description_hash);
         let _ = self
             .runtime
             .call_application(true, application_id.with_abi::<PoolAbi>(), &call);
@@ -811,7 +811,7 @@ mod tests {
         bcs,
         linera_base_types::{
             Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-            ChainOwnership, MessageId, ModuleId, Owner,
+            ChainOwnership, MessageId, ModuleId,
         },
         util::BlockingWait,
         views::View,
@@ -825,16 +825,14 @@ mod tests {
     async fn operation_initialize_liquidity() {
         let mut swap = create_and_instantiate_swap();
 
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
                 .unwrap();
-        let creator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let creator = Account { chain_id, owner };
 
         let meme_1 = ApplicationId::from_str(
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
@@ -909,9 +907,10 @@ mod tests {
     }
 
     fn create_and_instantiate_swap() -> SwapContract {
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+        )
+        .unwrap();
         let application_id = ApplicationId::from_str(
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5baf",
         )
@@ -937,9 +936,9 @@ mod tests {
             .with_chain_id(meme_1_chain_id)
             .with_application_creator_chain_id(chain_id)
             .with_call_application_handler(mock_application_call)
-            .with_owner_balance(AccountOwner::User(owner), Amount::from_tokens(10000))
+            .with_owner_balance(owner, Amount::from_tokens(10000))
             .with_owner_balance(
-                AccountOwner::Application(application_id.forget_abi()),
+                AccountOwner::from(application_id.forget_abi()),
                 Amount::from_tokens(10000),
             )
             .with_chain_balance(Amount::from_tokens(10000))

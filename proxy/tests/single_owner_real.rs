@@ -238,9 +238,10 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
         response["pools"].as_array().unwrap()[0].clone()["poolApplication"].clone(),
     )
     .unwrap();
-    let Some(AccountOwner::Application(pool_application_id)) = pool_application.owner else {
+    let AccountOwner::Address32(application_description_hash) = pool_application.owner else {
         todo!();
     };
+    let pool_application_id = ApplicationId::new(application_description_hash);
     let pool_application_id = pool_application_id.with_abi::<PoolAbi>();
 
     let query = format!(

@@ -16,8 +16,8 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, Owner,
-        TestString, TimeoutConfig,
+        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, TestString,
+        TimeoutConfig,
     },
     test::{ActiveChain, Medium, MessageAction, Recipient, TestValidator},
 };
@@ -101,14 +101,14 @@ impl TestSuite {
     pub fn chain_account(&self, chain: ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: None,
+            owner: AccountOwner::CHAIN,
         }
     }
 
     pub fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
@@ -117,7 +117,7 @@ impl TestSuite {
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
-                    None,
+                    AccountOwner::CHAIN,
                     Recipient::Account(self.chain_account(chain.clone())),
                     amount,
                 );
@@ -255,7 +255,7 @@ impl TestSuite {
             .await;
     }
 
-    pub async fn change_ownership(&self, chain: &ActiveChain, owners: Vec<Owner>) {
+    pub async fn change_ownership(&self, chain: &ActiveChain, owners: Vec<AccountOwner>) {
         chain
             .add_block(move |block| {
                 block.with_owner_change(

@@ -13,7 +13,7 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-        ChainOwnership, MessageId, ModuleId, Owner, TimeoutConfig, WithContractAbi,
+        ChainOwnership, MessageId, ModuleId, TimeoutConfig, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -37,6 +37,7 @@ impl Contract for ProxyContract {
     type Message = ProxyMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = ();
+    type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
         let state = ProxyState::load(runtime.root_view_storage_context())
@@ -198,9 +199,7 @@ impl ProxyContract {
     fn owner_account(&mut self) -> Account {
         Account {
             chain_id: self.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                self.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: self.runtime.authenticated_signer().unwrap(),
         }
     }
 
@@ -209,10 +208,7 @@ impl ProxyContract {
         self.runtime
             .chain_ownership()
             .all_owners()
-            .map(|&owner| Account {
-                chain_id,
-                owner: Some(AccountOwner::User(owner)),
-            })
+            .map(|&owner| Account { chain_id, owner })
             .collect()
     }
 
@@ -280,10 +276,10 @@ impl ProxyContract {
         Ok(ProxyResponse::Ok)
     }
 
-    fn fund_proxy_chain(&mut self, to: Option<AccountOwner>, amount: Amount) {
+    fn fund_proxy_chain(&mut self, to: AccountOwner, amount: Amount) {
         assert!(amount > Amount::ZERO, "Invalid fund amount");
 
-        let creator = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let creator = self.runtime.authenticated_signer().unwrap();
         let chain_id = self.runtime.application_creator_chain_id();
 
         let owner_balance = self.runtime.owner_balance(creator);
@@ -305,7 +301,7 @@ impl ProxyContract {
 
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
-                Some(creator),
+                creator,
                 Account {
                     chain_id,
                     owner: to,
@@ -315,7 +311,7 @@ impl ProxyContract {
         }
         if from_chain_balance > Amount::ZERO {
             self.runtime.transfer(
-                None,
+                AccountOwner::CHAIN,
                 Account {
                     chain_id,
                     owner: to,
@@ -327,10 +323,10 @@ impl ProxyContract {
 
     fn fund_proxy_chain_fee_budget(&mut self) {
         // Open chain budget fee for meme chain
-        self.fund_proxy_chain(None, OPEN_CHAIN_FEE_BUDGET);
+        self.fund_proxy_chain(AccountOwner::CHAIN, OPEN_CHAIN_FEE_BUDGET);
         // Open chain budget fee for pool chain
-        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
-        self.fund_proxy_chain(Some(signer), OPEN_CHAIN_FEE_BUDGET);
+        let signer = self.runtime.authenticated_signer().unwrap();
+        self.fund_proxy_chain(signer, OPEN_CHAIN_FEE_BUDGET);
     }
 
     fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
@@ -343,8 +339,8 @@ impl ProxyContract {
         // We cannot fund to application directly. Due to we're not owner of the chain then we
         // cannot transfer the fund to swap. We should fund ourself on the target chain
         // let application = AccountOwner::Application(self.runtime.application_id().forget_abi());
-        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
-        self.fund_proxy_chain(Some(signer), liquidity.native_amount);
+        let signer = self.runtime.authenticated_signer().unwrap();
+        self.fund_proxy_chain(signer, liquidity.native_amount);
     }
 
     fn on_op_create_meme(
@@ -487,7 +483,7 @@ impl ProxyContract {
         self.state.deregister_miner(owner)
     }
 
-    async fn meme_chain_owner_weights(&self) -> Result<Vec<(Owner, u64)>, ProxyError> {
+    async fn meme_chain_owner_weights(&self) -> Result<Vec<(AccountOwner, u64)>, ProxyError> {
         let mut owner_weights = Vec::new();
 
         for owner in self.state.genesis_miner_owners().await? {
@@ -531,7 +527,7 @@ impl ProxyContract {
         let mut amount = OPEN_CHAIN_FEE_BUDGET;
 
         // Balance is already fund to signer on proxy chain, so we transfer to meme chain
-        let signer = AccountOwner::User(self.runtime.authenticated_signer().unwrap());
+        let signer = self.runtime.authenticated_signer().unwrap();
         let balance = self.runtime.owner_balance(signer);
 
         if let Some(liquidity) = parameters.initial_liquidity {
@@ -548,10 +544,10 @@ impl ProxyContract {
         );
 
         self.runtime.transfer(
-            Some(signer),
+            signer,
             Account {
                 chain_id: meme_chain_id,
-                owner: Some(signer),
+                owner: signer,
             },
             amount,
         );
@@ -716,7 +712,7 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         linera_base_types::{
-            Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, ModuleId, Owner,
+            Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, ModuleId,
         },
         util::BlockingWait,
         views::View,
@@ -732,16 +728,14 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut proxy = create_and_instantiate_proxy();
 
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let owner = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let owner = Account { chain_id, owner };
 
         let response = proxy
             .execute_operation(ProxyOperation::ProposeAddGenesisMiner { owner })
@@ -756,23 +750,19 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut proxy = create_and_instantiate_proxy();
 
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let operator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap();
-        let owner = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let operator = Account { chain_id, owner };
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01",
+        )
+        .unwrap();
+        let owner = Account { chain_id, owner };
 
         proxy
             .execute_message(ProxyMessage::ProposeAddGenesisMiner { operator, owner })
@@ -796,13 +786,11 @@ mod tests {
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
-        let operator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+        )
+        .unwrap();
+        let operator = Account { chain_id, owner };
         let application_id = ApplicationId::from_str(
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
         )

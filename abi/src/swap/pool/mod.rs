@@ -518,9 +518,7 @@ impl Pool {
 
 #[cfg(test)]
 mod tests {
-    use linera_sdk::linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, Owner,
-    };
+    use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId};
     use rust_decimal::prelude::*;
     use std::str::FromStr;
 
@@ -538,16 +536,14 @@ mod tests {
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
         )
         .unwrap();
-        let owner =
-            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let creator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let creator = Account { chain_id, owner };
 
         let mut pool = Pool::create(token_0, Some(token_1), 30, 5, creator, 0.into());
 
@@ -608,16 +604,14 @@ mod tests {
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
         )
         .unwrap();
-        let owner =
-            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let creator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let creator = Account { chain_id, owner };
 
         let mut pool = Pool::create(token_0, Some(token_1), 30, 5, creator, 0.into());
 

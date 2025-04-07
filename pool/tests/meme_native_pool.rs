@@ -26,7 +26,7 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, Owner, TestString,
+        MessageId, ModuleId, TestString,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -90,21 +90,21 @@ impl TestSuite {
     fn chain_account(&self, chain: ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: None,
+            owner: AccountOwner::CHAIN,
         }
     }
 
     fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
     fn application_account(&self, chain_id: ChainId, application_id: ApplicationId) -> Account {
         Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id.forget_abi())),
+            owner: AccountOwner::from(application_id.forget_abi()),
         }
     }
 
@@ -113,7 +113,7 @@ impl TestSuite {
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
-                    None,
+                    AccountOwner::CHAIN,
                     Recipient::Account(self.chain_account(chain.clone())),
                     amount,
                 );
@@ -336,9 +336,10 @@ async fn meme_native_virtual_initial_liquidity_test() {
     let pool: PoolIndex =
         serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
 
-    let Some(AccountOwner::Application(pool_application_id)) = pool.pool_application.owner else {
+    let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner else {
         panic!("Invalid pool application");
     };
+    let pool_application_id = ApplicationId::new(application_description_hash);
     suite.pool_application_id = Some(pool_application_id.with_abi::<PoolAbi>());
 
     let QueryOutcome { response, .. } = pool_chain
@@ -381,7 +382,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
     assert_eq!(
         budget,
         pool_chain
-            .owner_balance(&AccountOwner::Application(pool_application_id))
+            .owner_balance(&AccountOwner::from(pool_application_id))
             .await
             .unwrap()
     );
@@ -429,16 +430,13 @@ async fn meme_native_virtual_initial_liquidity_test() {
     assert_eq!(
         liquidity_fund_amount,
         pool_chain
-            .owner_balance(&AccountOwner::Application(pool_application_id))
+            .owner_balance(&AccountOwner::from(pool_application_id))
             .await
             .unwrap()
     );
     assert_eq!(
         balance.try_sub(liquidity_fund_amount).unwrap(),
-        user_chain
-            .owner_balance(&user_account.owner.unwrap())
-            .await
-            .unwrap()
+        user_chain.owner_balance(&user_account.owner).await.unwrap()
     );
 
     // Here meme balance should already add to pool application
@@ -561,9 +559,10 @@ async fn meme_native_real_initial_liquidity_test() {
     let pool: PoolIndex =
         serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
 
-    let Some(AccountOwner::Application(pool_application_id)) = pool.pool_application.owner else {
+    let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner else {
         panic!("Invalid pool application");
     };
+    let pool_application_id = ApplicationId::new(application_description_hash);
     suite.pool_application_id = Some(pool_application_id.with_abi::<PoolAbi>());
 
     let QueryOutcome { response, .. } = pool_chain
@@ -575,7 +574,7 @@ async fn meme_native_real_initial_liquidity_test() {
     assert_eq!(
         suite.initial_native,
         pool_chain
-            .owner_balance(&AccountOwner::Application(pool_application_id))
+            .owner_balance(&AccountOwner::from(pool_application_id))
             .await
             .unwrap()
     );
