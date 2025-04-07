@@ -156,7 +156,7 @@ function wallet_owner() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep Owner | awk '{print $4}'
+           | grep AccountOwner | awk '{print $4}'
 }
 
 function wallet_unassigned_owner() {
