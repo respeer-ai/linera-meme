@@ -26,7 +26,7 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, Owner, TestString,
+        MessageId, ModuleId, TestString,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -86,14 +86,14 @@ impl TestSuite {
     fn chain_account(&self, chain: ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: None,
+            owner: AccountOwner::CHAIN,
         }
     }
 
     fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
@@ -102,7 +102,7 @@ impl TestSuite {
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
-                    None,
+                    AccountOwner::CHAIN,
                     Recipient::Account(self.chain_account(chain.clone())),
                     amount,
                 );
@@ -228,7 +228,7 @@ impl TestSuite {
 // At that time there is no balance in application
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(
-    expected = "Failed to execute block.: Execution error: The transferred amount must not exceed the current chain balance: 0. during IncomingBundle(0)"
+    expected = "Failed to execute block.: ChainError(ExecutionError(InsufficientFunding"
 )]
 async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
@@ -303,9 +303,10 @@ async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
     let pool: PoolIndex =
         serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
 
-    let Some(AccountOwner::Application(pool_application_id)) = pool.pool_application.owner else {
+    let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner else {
         panic!("Invalid pool application");
     };
+    let pool_application_id = ApplicationId::new(application_description_hash);
     suite.pool_application_id = Some(pool_application_id.with_abi::<PoolAbi>());
 
     suite

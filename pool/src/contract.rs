@@ -952,9 +952,7 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         bcs,
-        linera_base_types::{
-            Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId, Owner,
-        },
+        linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,
@@ -1031,9 +1029,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         let fund_request = FundRequest {
@@ -1063,9 +1059,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         let fund_request = FundRequest {
@@ -1099,9 +1093,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         let reserve_0 = pool.state.reserve_0();
@@ -1134,9 +1126,7 @@ mod tests {
         let mut pool = create_and_instantiate_pool(true).await;
         let owner = Account {
             chain_id: pool.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                pool.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: pool.runtime.authenticated_signer().unwrap(),
         };
 
         pool.execute_message(PoolMessage::AddLiquidity {
@@ -1205,13 +1195,11 @@ mod tests {
         )
         .unwrap()
         .with_abi::<PoolAbi>();
-        let owner =
-            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
-                .unwrap();
-        let creator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let owner = AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        )
+        .unwrap();
+        let creator = Account { chain_id, owner };
         let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
         let runtime = ContractRuntime::new()
             .with_application_parameters(PoolParameters {

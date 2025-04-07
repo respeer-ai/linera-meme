@@ -712,7 +712,7 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         linera_base_types::{
-            Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, ModuleId, Owner,
+            Account, AccountOwner, ApplicationId, ChainId, ChainOwnership, ModuleId,
         },
         util::BlockingWait,
         views::View,
@@ -728,16 +728,14 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut proxy = create_and_instantiate_proxy();
 
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let owner = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let owner = Account { chain_id, owner };
 
         let response = proxy
             .execute_operation(ProxyOperation::ProposeAddGenesisMiner { owner })
@@ -752,23 +750,19 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut proxy = create_and_instantiate_proxy();
 
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let operator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01")
-                .unwrap();
-        let owner = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let operator = Account { chain_id, owner };
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e01",
+        )
+        .unwrap();
+        let owner = Account { chain_id, owner };
 
         proxy
             .execute_message(ProxyMessage::ProposeAddGenesisMiner { operator, owner })
@@ -792,13 +786,11 @@ mod tests {
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
-        let owner =
-            Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                .unwrap();
-        let operator = Account {
-            chain_id,
-            owner: Some(AccountOwner::User(owner)),
-        };
+        let owner = AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+        )
+        .unwrap();
+        let operator = Account { chain_id, owner };
         let application_id = ApplicationId::from_str(
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
         )

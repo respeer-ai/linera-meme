@@ -46,15 +46,15 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
     let proxy_key_3 = AccountSecretKey::Ed25519(Ed25519SecretKey::generate());
     let proxy_user_1 = Account {
         chain_id: proxy_chain.id(),
-        owner: Some(AccountOwner::User(proxy_key_1.public().into())),
+        owner: AccountOwner::from(proxy_key_1.public()),
     };
     let proxy_user_2 = Account {
         chain_id: proxy_chain.id(),
-        owner: Some(AccountOwner::User(proxy_key_2.public().into())),
+        owner: AccountOwner::from(proxy_key_2.public()),
     };
     let proxy_user_3 = Account {
         chain_id: proxy_chain.id(),
-        owner: Some(AccountOwner::User(proxy_key_3.public().into())),
+        owner: AccountOwner::from(proxy_key_3.public()),
     };
 
     suite

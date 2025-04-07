@@ -16,8 +16,7 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, Owner,
-        TestString,
+        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, TestString,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -70,21 +69,21 @@ impl TestSuite {
     fn chain_account(&self, chain: ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: None,
+            owner: AccountOwner::CHAIN,
         }
     }
 
     fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
     fn application_account(&self, chain_id: ChainId, application_id: ApplicationId) -> Account {
         Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id.forget_abi())),
+            owner: AccountOwner::from(application_id.forget_abi()),
         }
     }
 
@@ -93,7 +92,7 @@ impl TestSuite {
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
-                    None,
+                    AccountOwner::CHAIN,
                     Recipient::Account(self.chain_account(chain.clone())),
                     amount,
                 );

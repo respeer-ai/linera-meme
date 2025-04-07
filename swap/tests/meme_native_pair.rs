@@ -19,7 +19,7 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, Owner, TestString,
+        MessageId, ModuleId, TestString,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -81,21 +81,21 @@ impl TestSuite {
     fn chain_account(&self, chain: ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: None,
+            owner: AccountOwner::CHAIN,
         }
     }
 
     fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
     fn application_account(&self, chain_id: ChainId, application_id: ApplicationId) -> Account {
         Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id.forget_abi())),
+            owner: AccountOwner::from(application_id.forget_abi()),
         }
     }
 
@@ -104,7 +104,7 @@ impl TestSuite {
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
-                    None,
+                    AccountOwner::CHAIN,
                     Recipient::Account(self.chain_account(chain.clone())),
                     amount,
                 );
@@ -360,7 +360,6 @@ async fn real_liquidity_native_test() {
                         suite.swap_application_id.unwrap().forget_abi()
                     )
                     .owner
-                    .unwrap()
             )
             .await,
         Some(suite.initial_native)
@@ -424,7 +423,7 @@ async fn real_liquidity_native_test() {
     // Here pool application is still be zero
     assert_eq!(
         pool_chain
-            .owner_balance(&pool.pool_application.owner.unwrap())
+            .owner_balance(&pool.pool_application.owner)
             .await
             .is_none(),
         true
@@ -432,9 +431,7 @@ async fn real_liquidity_native_test() {
 
     pool_chain.handle_received_messages().await;
     assert_eq!(
-        pool_chain
-            .owner_balance(&pool.pool_application.owner.unwrap())
-            .await,
+        pool_chain.owner_balance(&pool.pool_application.owner).await,
         Some(suite.initial_native)
     );
 

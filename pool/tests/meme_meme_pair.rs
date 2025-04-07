@@ -26,7 +26,7 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, Owner, TestString,
+        MessageId, ModuleId, TestString,
     },
     test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
@@ -102,21 +102,21 @@ impl TestSuite {
     fn chain_account(&self, chain: ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: None,
+            owner: AccountOwner::CHAIN,
         }
     }
 
     fn chain_owner_account(&self, chain: &ActiveChain) -> Account {
         Account {
             chain_id: chain.id(),
-            owner: Some(AccountOwner::User(Owner::from(chain.public_key()))),
+            owner: AccountOwner::from(chain.public_key()),
         }
     }
 
     fn application_account(&self, chain_id: ChainId, application_id: ApplicationId) -> Account {
         Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id.forget_abi())),
+            owner: AccountOwner::from(application_id.forget_abi()),
         }
     }
 
@@ -125,7 +125,7 @@ impl TestSuite {
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
-                    None,
+                    AccountOwner::CHAIN,
                     Recipient::Account(self.chain_account(chain.clone())),
                     amount,
                 );
@@ -411,10 +411,11 @@ async fn meme_meme_pair_test() {
 
     let pools: Vec<PoolIndex> = serde_json::from_value(response["pools"].clone()).unwrap();
     for pool in pools {
-        let Some(AccountOwner::Application(pool_application_id)) = pool.pool_application.owner
+        let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner
         else {
             panic!("Invalid pool application");
         };
+        let pool_application_id = ApplicationId::new(application_description_hash);
         if pool.token_0 == suite.meme_application_id_0.unwrap().forget_abi()
             && pool.token_1.is_none()
         {
@@ -513,10 +514,11 @@ async fn meme_meme_pair_test() {
 
     let pools: Vec<PoolIndex> = serde_json::from_value(response["pools"].clone()).unwrap();
     for pool in pools {
-        let Some(AccountOwner::Application(pool_application_id)) = pool.pool_application.owner
+        let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner
         else {
             panic!("Invalid pool application");
         };
+        let pool_application_id = ApplicationId::new(application_description_hash);
         if pool.token_0 == suite.meme_application_id_0.unwrap().forget_abi()
             && pool.token_1 == Some(suite.meme_application_id_1.unwrap().forget_abi())
         {

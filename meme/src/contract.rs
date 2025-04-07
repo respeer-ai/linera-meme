@@ -605,7 +605,7 @@ mod tests {
         bcs,
         linera_base_types::{
             Account, AccountOwner, Amount, ApplicationId, ChainId, ChainOwnership, CryptoHash,
-            Owner, TestString,
+            TestString,
         },
         util::BlockingWait,
         views::View,
@@ -634,10 +634,10 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let to = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03",
+            )
+            .unwrap(),
         };
 
         let response = meme
@@ -656,18 +656,16 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: meme.runtime.authenticated_signer().unwrap(),
         };
         let amount = meme.state.initial_owner_balance().await;
 
         let to = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+            )
+            .unwrap(),
         };
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
@@ -688,19 +686,17 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: meme.runtime.authenticated_signer().unwrap(),
         };
         let amount = meme.state.initial_owner_balance().await;
         let transfer_amount = amount.try_add(Amount::ONE).unwrap();
 
         let to = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+            )
+            .unwrap(),
         };
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
@@ -724,9 +720,7 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: meme.runtime.authenticated_signer().unwrap(),
         };
 
         let amount = meme.state.initial_owner_balance().await;
@@ -734,10 +728,10 @@ mod tests {
 
         let spender = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+            )
+            .unwrap(),
         };
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
@@ -809,10 +803,10 @@ mod tests {
 
         let to = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e08",
+            )
+            .unwrap(),
         };
 
         meme.execute_message(MemeMessage::TransferFrom {
@@ -844,9 +838,7 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: meme.runtime.authenticated_signer().unwrap(),
         };
 
         let amount = meme.state.initial_owner_balance().await;
@@ -854,10 +846,10 @@ mod tests {
 
         let spender = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+            )
+            .unwrap(),
         };
 
         assert_eq!(meme.state.balances.contains_key(&from).await.unwrap(), true);
@@ -887,9 +879,7 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let from = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: meme.runtime.authenticated_signer().unwrap(),
         };
 
         let amount = meme.state.initial_owner_balance().await;
@@ -918,16 +908,14 @@ mod tests {
         let mut meme = create_and_instantiate_meme().await;
         let owner = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                meme.runtime.authenticated_signer().unwrap(),
-            )),
+            owner: meme.runtime.authenticated_signer().unwrap(),
         };
         let new_owner = Account {
             chain_id: meme.runtime.chain_id(),
-            owner: Some(AccountOwner::User(
-                Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+            )
+            .unwrap(),
         };
 
         // It won't panic here, it'll approved from application balance
@@ -953,15 +941,16 @@ mod tests {
     }
 
     async fn create_and_instantiate_meme() -> MemeContract {
-        let operator =
-            Owner::from_str("5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f")
-                .unwrap();
+        let operator = AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        )
+        .unwrap();
         let chain_id =
             ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
                 .unwrap();
         let owner = Account {
             chain_id,
-            owner: Some(AccountOwner::User(operator)),
+            owner: operator,
         };
 
         let application_id = ApplicationId::from_str(
@@ -971,7 +960,7 @@ mod tests {
         .with_abi::<MemeAbi>();
         let application = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id.forget_abi())),
+            owner: AccountOwner::from(application_id.forget_abi()),
         };
 
         let swap_application_id = ApplicationId::from_str(
@@ -980,7 +969,7 @@ mod tests {
         .unwrap();
         let swap_application = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(swap_application_id)),
+            owner: AccountOwner::from(swap_application_id),
         };
 
         let initial_supply = Amount::from_tokens(21000000);
@@ -1000,11 +989,11 @@ mod tests {
             .with_application_id(application_id)
             .with_chain_ownership(ChainOwnership::single(operator))
             .with_owner_balance(
-                AccountOwner::Application(application_id.forget_abi()),
+                AccountOwner::from(application_id.forget_abi()),
                 Amount::from_tokens(10000),
             )
-            .with_owner_balance(AccountOwner::User(operator), Amount::from_tokens(10000))
-            .with_owner_balance(AccountOwner::Application(swap_application_id), Amount::ZERO)
+            .with_owner_balance(operator, Amount::from_tokens(10000))
+            .with_owner_balance(AccountOwner::from(swap_application_id), Amount::ZERO)
             .with_chain_balance(Amount::ONE)
             .with_authenticated_caller_id(swap_application_id)
             .with_call_application_handler(mock_application_call)

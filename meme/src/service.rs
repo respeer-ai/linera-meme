@@ -119,7 +119,7 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         linera_base_types::{
-            Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Owner, TestString,
+            Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, TestString,
         },
         util::BlockingWait,
         views::View,
@@ -173,10 +173,10 @@ mod tests {
                 .unwrap();
         let owner = Account {
             chain_id,
-            owner: Some(AccountOwner::User(
-                Owner::from_str("02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00")
-                    .unwrap(),
-            )),
+            owner: AccountOwner::from_str(
+                "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e00",
+            )
+            .unwrap(),
         };
         let application_id = ApplicationId::from_str(
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
@@ -184,7 +184,7 @@ mod tests {
         .unwrap();
         let application = Account {
             chain_id,
-            owner: Some(AccountOwner::Application(application_id)),
+            owner: AccountOwner::from(application_id),
         };
         state
             .instantiate(owner, application, instantiation_argument.clone())
