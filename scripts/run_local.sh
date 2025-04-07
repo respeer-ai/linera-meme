@@ -2,6 +2,7 @@
 
 ####
 ## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0
+## This script must be run without proxy
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
