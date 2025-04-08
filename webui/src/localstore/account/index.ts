@@ -1,6 +1,8 @@
 import { Account } from './types'
 
 export class _Account {
+  static CHAIN = '0x00'
+
   static applicationUrl = (
     host: string,
     endpoint: string,
@@ -8,7 +10,7 @@ export class _Account {
   ) => {
     if (!application.owner) return
     const chainId = application.chainId
-    const applicationId = application.owner.split(':')[1]
+    const applicationId = _Account.accountApplication(application) as string
     return `http://${host}/api/${endpoint}/chains/${chainId}/applications/${applicationId}`
   }
 
@@ -20,7 +22,18 @@ export class _Account {
 
   static accountOwner = (account: Account) => {
     if (!account.owner) return
-    return account.owner.split(':')[1]
+    return _Account.formalizeOwner(account.owner)
+  }
+
+  static accountApplication = (account: Account) => {
+    if (!account.owner) return
+    return account.owner.startsWith('0x')
+      ? account.owner.substring(2)
+      : account.owner
+  }
+
+  static formalizeOwner(owner: string) {
+    return owner.startsWith('0x') ? owner : `0x${owner}`
   }
 }
 

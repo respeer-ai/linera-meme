@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { dbModel } from '../../model'
-import { Account } from '../account'
+import { Account, _Account } from '../account'
 
 export class User {
   static ownerAccount = async () => {
     const user = useUserStore()
     return {
       chainId: user.chainId,
-      owner: `User:${await dbModel.ownerFromPublicKey(user.publicKey)}`
+      owner: _Account.formalizeOwner(
+        await dbModel.ownerFromPublicKey(user.publicKey)
+      )
     } as Account
   }
 }
@@ -29,7 +31,9 @@ export const useUserStore = defineStore('user', {
           }
         return {
           chainId: this.chainId,
-          owner: `User:${await dbModel.ownerFromPublicKey(this.publicKey)}`
+          owner: _Account.formalizeOwner(
+            await dbModel.ownerFromPublicKey(this.publicKey)
+          )
         }
       }
     }

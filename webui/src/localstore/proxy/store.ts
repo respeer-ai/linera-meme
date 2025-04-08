@@ -63,7 +63,7 @@ export const useProxyStore = defineStore('proxy', {
         const chain = this.chains.find((el) => el.token === token)
         return {
           chainId: chain?.chainId as string,
-          owner: `Application:${chain?.token as string}`
+          owner: chain?.token as string
         }
       }
     }

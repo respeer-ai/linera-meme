@@ -52,7 +52,7 @@ export const useSwapStore = defineStore('swap', {
         const index = this.pools.findIndex((el) => el.poolId === pool.poolId)
         const _pool = {
           ...pool,
-          token1: pool.token1 || constants.LINERA_NATIVE_ID
+          token1: (pool.token1 as string) || constants.LINERA_NATIVE_ID
         } as Pool
         this.pools.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, _pool)
       })

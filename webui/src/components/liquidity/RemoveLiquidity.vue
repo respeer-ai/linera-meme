@@ -138,7 +138,7 @@ const onRemoveClick = async () => {
     window.linera.request({
       method: 'linera_graphqlMutation',
       params: {
-        applicationId: account._Account.accountOwner(poolApplication.value),
+        applicationId: account._Account.accountApplication(poolApplication.value),
         publicKey: publicKey.value,
         query: {
           query: REMOVE_LIQUIDITY.loc?.source?.body,

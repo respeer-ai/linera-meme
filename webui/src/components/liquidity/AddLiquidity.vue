@@ -10,7 +10,7 @@
 
 <script setup lang='ts'>
 import { computed } from 'vue'
-import { swap, pool, account, user } from 'src/localstore'
+import { swap, account, user } from 'src/localstore'
 import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { ADD_LIQUIDITY } from 'src/graphql'
 import { stringify } from 'lossless-json'
@@ -22,7 +22,7 @@ const _user = user.useUserStore()
 
 const publicKey = computed(() => _user.publicKey)
 
-const poolApplication = computed(() => _swap.selectedPool?.poolApplication)
+const poolApplication = computed(() => _swap.selectedPool?.poolApplication as account.Account)
 const token0 = computed(() => _swap.selectedToken0)
 const token1 = computed(() => _swap.selectedToken1)
 
@@ -40,7 +40,7 @@ const onNext = async (amount0: number, amount1: number) => {
     window.linera.request({
       method: 'linera_graphqlMutation',
       params: {
-        applicationId: account._Account.accountOwner(poolApplication.value),
+        applicationId: account._Account.accountApplication(poolApplication.value),
         publicKey: publicKey.value,
         query: {
           query: ADD_LIQUIDITY.loc?.source?.body,

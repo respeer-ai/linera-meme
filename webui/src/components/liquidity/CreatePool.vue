@@ -42,9 +42,9 @@ const router = useRouter()
 
 const onNext = async (amount0: number, amount1: number, _token1?: string) => {
   const variables = {
-    token0CreatorChainId: _proxy.chain(token0.value)?.chainId,
+    token0CreatorChainId: _proxy.chain(token0.value)?.chainId as string,
     token0: token0.value,
-    token1CreatorChainId: _token1 ? _proxy.chain(_token1)?.chainId : undefined,
+    token1CreatorChainId: _token1 ? _proxy.chain(_token1)?.chainId as string : undefined,
     token1: _token1,
     amount0: amount0.toString(),
     amount1: amount1.toString(),
@@ -82,8 +82,8 @@ const memeTokens = ref([] as meme.TokenItem[])
 const buildTokens = () => {
   const tokens = new Map<string, meme.TokenItem>()
   applications.value.filter((el) => el.applicationType === 'Meme').forEach((el) => {
-    tokens.set(el.applicationId as string, {
-      token: el.applicationId as string,
+    tokens.set(el.applicationId, {
+      token: el.applicationId,
       logo: _ams.applicationLogo(el),
       ticker: (JSON.parse(el?.spec || '{}') as meme.Meme).ticker,
       name: (JSON.parse(el?.spec || '{}') as meme.Meme).name

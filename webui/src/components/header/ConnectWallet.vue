@@ -79,10 +79,10 @@
     </div>
   </q-btn>
 </template>
-<script setup lang="ts">
+<script setup lang='ts'>
 import { computed, onMounted, watch } from 'vue'
 import { Cookies } from 'quasar'
-import { user, block } from 'src/localstore'
+import { user, block, account } from 'src/localstore'
 import { shortid } from 'src/utils'
 import { Web3 } from 'web3'
 import { addressIcon, microchainIcon, copyIcon } from 'src/assets'
@@ -167,7 +167,7 @@ const getBalances = async () => {
         variables: {
           chainOwners: [{
             chainId: chainId.value,
-            owners: [`User:${owner}`]
+            owners: [account._Account.formalizeOwner(owner)]
           }],
           chainId: chainId.value,
           publicKey: publicKey.value
@@ -177,7 +177,7 @@ const getBalances = async () => {
   }).then((result) => {
     const balances = result as rpcModel.Balances
     _user.chainBalance = rpcModel.chainBalance(balances, chainId.value)
-    _user.accountBalance = rpcModel.ownerBalance(balances, chainId.value, owner)
+    _user.accountBalance = rpcModel.ownerBalance(balances, chainId.value, account._Account.formalizeOwner(owner))
   }).catch((e) => {
     console.log(e)
   })

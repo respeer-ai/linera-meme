@@ -133,13 +133,13 @@ const token1Chain = computed(() => _proxy.chain(selectedToken1.value) as Chain)
 const token0Application = computed(() => {
   return {
     chainId: token0Chain.value?.chainId as string,
-    owner: `Application:${token0Chain.value?.token as string}`
+    owner: token0Chain.value?.token as string
   }
 })
 const token1Application = computed(() => {
   return {
     chainId: token1Chain.value?.chainId as string,
-    owner: `Application:${token1Chain.value?.token as string}`
+    owner: token1Chain.value?.token as string
   }
 })
 const userChainBalance = computed(() => _user.chainBalance)
@@ -253,7 +253,7 @@ const onSwapClick = async () => {
     window.linera.request({
       method: 'linera_graphqlMutation',
       params: {
-        applicationId: account._Account.accountOwner(selectedPool.value.poolApplication as account.Account),
+        applicationId: account._Account.accountApplication(selectedPool.value.poolApplication as account.Account),
         publicKey: publicKey.value,
         query: {
           query: SWAP.loc?.source?.body,

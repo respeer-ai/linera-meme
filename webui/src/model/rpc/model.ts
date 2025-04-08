@@ -6,16 +6,12 @@ export type Balances = Record<
   }
 >
 
-export const accountOwner = (owner: string) => {
-  return `User:${owner}`
-}
-
 export const ownerBalance = (
   balances: Balances,
   chainId: string,
   owner: string
 ) => {
-  return balances[chainId]?.ownerBalances[accountOwner(owner)] || '0.'
+  return balances[chainId]?.ownerBalances[owner] || '0.'
 }
 
 export const chainBalance = (balances: Balances, chainId: string) => {
