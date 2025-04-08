@@ -6,9 +6,9 @@
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
-FAUCET_URL=https://faucet.testnet-archimedes.linera.io
+FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
 COMPILE=1
-GIT_COMMIT=main
+GIT_COMMIT=e0c18e8c2e
 CREATE_WALLET=1
 CHAIN_OWNER_COUNT=4
 
@@ -46,7 +46,8 @@ if [ "x$COMPILE" = "x1" ]; then
     # Install official linera for genesis cluster
     cd $SOURCE_DIR
     rm linera-protocol -rf
-    git clone https://github.com/linera-io/linera-protocol.git
+    # We should run with respeer fork for blob query
+    git clone https://github.com/respeer-ai/linera-protocol.git
     cd linera-protocol
 
     git checkout $GIT_COMMIT
@@ -57,7 +58,7 @@ if [ "x$COMPILE" = "x1" ]; then
     INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}'`
 
     if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
-        cargo install --path linera-service --features storage-service
+        cargo install --path linera-service --features storage-service,disable-native-rpc
         cargo install --path linera-storage-service --features storage-service
     fi
 fi
