@@ -8,7 +8,7 @@
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
 COMPILE=1
-GIT_COMMIT=e0c18e8c2e
+GIT_COMMIT=7fdc56445a
 CREATE_WALLET=1
 CHAIN_OWNER_COUNT=4
 
@@ -397,9 +397,9 @@ function run_kline() {
     pip3 uninstall websocket-client -y
     pip3 install websocket-client
 
-    python3 src/kline.py --swap-application-id $SWAP_APPLICATION_ID &
+    all_proxy= python3 src/kline.py --swap-application-id $SWAP_APPLICATION_ID &
     sleep 10
-    curl -X POST http://localhost:25080/run/ticker > /dev/null 2>&1 &
+    all_proxy= curl -X POST http://localhost:25080/run/ticker > /dev/null 2>&1 &
 }
 
 run_kline
