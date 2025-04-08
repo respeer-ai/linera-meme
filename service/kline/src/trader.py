@@ -21,9 +21,9 @@ class Trader:
         token_0_balance = self.meme.balance(account, token_0_chain, pool.token_0)
         token_1_balance = self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1)
 
-        if buy_token_0 is True and float(token_0_balance) <= 0:
+        if buy_token_0 is True and float(token_1_balance) <= 0:
             return
-        if buy_token_0 is False and float(token_1_balance) <= 0:
+        if buy_token_0 is False and float(token_0_balance) <= 0:
             return
 
         amount_0 = str(float(token_0_balance) / 10) if buy_token_0 is False else None

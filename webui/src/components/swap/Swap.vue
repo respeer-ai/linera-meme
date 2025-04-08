@@ -222,8 +222,9 @@ watch(publicKey, async () => {
 }, { immediate: true, deep: true })
 
 const onExchangeClick = () => {
+  const token1 = selectedToken0.value
   _swap.selectedToken0 = selectedToken1.value
-  _swap.selectedToken1 = selectedToken0.value
+  _swap.selectedToken1 = token1
   token0Amount.value = 0
   token1Amount.value = 0
 }
