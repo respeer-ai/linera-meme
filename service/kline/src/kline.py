@@ -76,7 +76,7 @@ if __name__ == '__main__':
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--database-host', type=str, default='localhost', help='Kline database host')
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
-    parser.add_argument('--database-password', type=str, default='4waB4C6hbPv7cm5U', help='Kline database password')
+    parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Kline database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
 
     args = parser.parse_args()

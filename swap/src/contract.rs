@@ -585,7 +585,7 @@ impl SwapContract {
         // Run on pool chain
         let application_id = self.runtime.application_id().forget_abi();
         let chain_id = self.runtime.chain_id();
-        let late_add_liquidity = token_1.is_some();
+        let late_add_liquidity = user_pool;
 
         let pool_application_id = self
             .runtime
