@@ -110,8 +110,18 @@ impl Contract for SwapContract {
                 transaction,
                 token_0_price,
                 token_1_price,
+                reserve_0,
+                reserve_1,
             } => self
-                .on_call_update_pool(token_0, token_1, transaction, token_0_price, token_1_price)
+                .on_call_update_pool(
+                    token_0,
+                    token_1,
+                    transaction,
+                    token_0_price,
+                    token_1_price,
+                    reserve_0,
+                    reserve_1,
+                )
                 .expect("Failed OP: update pool"),
         }
     }
@@ -239,8 +249,18 @@ impl Contract for SwapContract {
                 transaction,
                 token_0_price,
                 token_1_price,
+                reserve_0,
+                reserve_1,
             } => self
-                .on_msg_update_pool(token_0, token_1, transaction, token_0_price, token_1_price)
+                .on_msg_update_pool(
+                    token_0,
+                    token_1,
+                    transaction,
+                    token_0_price,
+                    token_1_price,
+                    reserve_0,
+                    reserve_1,
+                )
                 .await
                 .expect("Failed MSG: update pool"),
         }
@@ -456,6 +476,8 @@ impl SwapContract {
         transaction: Transaction,
         token_0_price: Amount,
         token_1_price: Amount,
+        reserve_0: Amount,
+        reserve_1: Amount,
     ) -> Result<SwapResponse, SwapError> {
         self.runtime
             .prepare_message(SwapMessage::UpdatePool {
@@ -464,6 +486,8 @@ impl SwapContract {
                 transaction,
                 token_0_price,
                 token_1_price,
+                reserve_0,
+                reserve_1,
             })
             .with_authentication()
             .send_to(self.runtime.application_creator_chain_id());
@@ -791,9 +815,19 @@ impl SwapContract {
         transaction: Transaction,
         token_0_price: Amount,
         token_1_price: Amount,
+        reserve_0: Amount,
+        reserve_1: Amount,
     ) -> Result<(), SwapError> {
         self.state
-            .update_pool(token_0, token_1, transaction, token_0_price, token_1_price)
+            .update_pool(
+                token_0,
+                token_1,
+                transaction,
+                token_0_price,
+                token_1_price,
+                reserve_0,
+                reserve_1,
+            )
             .await
     }
 }
