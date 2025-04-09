@@ -16,7 +16,7 @@ import { shortid } from 'src/utils'
 const { t } = useI18n({ useScope: 'global' })
 
 const columns = computed(() => [
-{
+  {
     name: 'TransactionId',
     label: t('MSG_TRANSACTION_ID'),
     align: 'left',
@@ -73,7 +73,7 @@ const getTransactions = () => {
     endAt: Math.floor(Date.now() / 1000)
   }, (error: boolean) => {
     if (error) return
-    // DO NOTHING
+    console.log('TODO: get transactions recursively')
   })
 }
 
