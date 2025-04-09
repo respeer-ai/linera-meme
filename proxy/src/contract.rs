@@ -321,9 +321,12 @@ impl ProxyContract {
         }
     }
 
-    fn fund_proxy_chain_fee_budget(&mut self) {
+    fn fund_proxy_chain_fee_budget(&mut self, fund_pool_fee: bool) {
         // Open chain budget fee for meme chain
         self.fund_proxy_chain(AccountOwner::CHAIN, OPEN_CHAIN_FEE_BUDGET);
+        if !fund_pool_fee {
+            return;
+        }
         // Open chain budget fee for pool chain
         let signer = self.runtime.authenticated_signer().unwrap();
         self.fund_proxy_chain(signer, OPEN_CHAIN_FEE_BUDGET);
@@ -357,7 +360,7 @@ impl ProxyContract {
 
         // Fund proxy application on the creation chain, it'll fund meme chain for fee and
         // initial liquidity
-        self.fund_proxy_chain_fee_budget();
+        self.fund_proxy_chain_fee_budget(meme_parameters.initial_liquidity.is_some());
         self.fund_proxy_chain_initial_liquidity(meme_parameters.clone());
 
         meme_parameters.creator = self.owner_account();
