@@ -154,7 +154,7 @@ impl MemeState {
         assert!(amount > Amount::ZERO, "Invalid amount");
         assert!(from != to, "Self transfer");
 
-        let from_balance = self.balances.get(&from).await?.unwrap();
+        let from_balance = self.balances.get(&from).await?.unwrap_or(Amount::ZERO);
 
         assert!(from_balance >= amount, "Insufficient balance");
 
