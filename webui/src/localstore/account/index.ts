@@ -8,7 +8,7 @@ export class _Account {
     endpoint: string,
     application: Account
   ) => {
-    if (!application.owner) return
+    if (!application?.owner) return
     const chainId = application.chainId
     const applicationId = _Account.accountApplication(application) as string
     return `http://${host}/api/${endpoint}/chains/${chainId}/applications/${applicationId}`

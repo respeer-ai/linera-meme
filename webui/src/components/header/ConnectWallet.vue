@@ -5,7 +5,7 @@
         <div class='row flex justify-center items-center' :style='{margin: "36px 0 36px 0", fontSize: "28px"}'>
           <q-space />
           <div :style='{marginLeft: "8px"}'>
-            {{ Number(accountBalance).toFixed(4) }}
+            {{ (Number(accountBalance) + Number(chainBalance)).toFixed(4) }}
           </div>
           <div :style='{margin: "8px 0 0 8px", fontSize: "12px"}'>
             TLINERA

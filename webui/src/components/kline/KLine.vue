@@ -6,7 +6,11 @@
       </div>
       <q-space />
       <q-btn
-        flat label='Create pool' class='text-blue-8' rounded :style='{margin: "4px 0"}'
+        flat
+        label='Create pool'
+        class='text-blue-8'
+        rounded
+        :style='{margin: "4px 0"}'
         @click='onCreatePoolClick'
       />
     </div>
@@ -67,7 +71,7 @@ watch(selectedToken1, () => {
 
 onMounted(() => {
   chart.value = init('chart')
-  chart.value?.setPrecision({ price: 8 })
+  chart.value?.setPrecision({ price: 0 })
   chart.value?.applyNewData(points.value, true)
   getKline()
 })
