@@ -343,28 +343,42 @@ impl Pool {
         if self.reserve_0 <= Amount::ZERO || self.reserve_1 <= Amount::ZERO {
             return Err(PoolError::InvalidAmount);
         }
-        Ok(Amount::from_attos(
-            U256::from(u128::from(amount_0))
-                .checked_mul(U256::from(u128::from(self.reserve_1)))
+
+        let reserve_0 = Decimal::from_str(&format!("{}", self.reserve_0)).unwrap();
+        let reserve_1 = Decimal::from_str(&format!("{}", self.reserve_1)).unwrap();
+        let amount_0 = Decimal::from_str(&format!("{}", amount_0)).unwrap();
+
+        Ok(Amount::from_str(
+            &amount_0
+                .checked_mul(reserve_1)
                 .unwrap()
-                .checked_div(U256::from(u128::from(self.reserve_0)))
+                .checked_div(reserve_0)
                 .unwrap()
-                .as_u128(),
-        ))
+                .round_dp(Amount::DECIMAL_PLACES as u32)
+                .to_string(),
+        )
+        .unwrap())
     }
 
     pub fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, PoolError> {
         if self.reserve_0 <= Amount::ZERO || self.reserve_1 <= Amount::ZERO {
             return Err(PoolError::InvalidAmount);
         }
-        Ok(Amount::from_attos(
-            U256::from(u128::from(amount_1))
-                .checked_mul(U256::from(u128::from(self.reserve_0)))
+
+        let reserve_0 = Decimal::from_str(&format!("{}", self.reserve_0)).unwrap();
+        let reserve_1 = Decimal::from_str(&format!("{}", self.reserve_1)).unwrap();
+        let amount_1 = Decimal::from_str(&format!("{}", amount_1)).unwrap();
+
+        Ok(Amount::from_str(
+            &amount_1
+                .checked_mul(reserve_0)
                 .unwrap()
-                .checked_div(U256::from(u128::from(self.reserve_1)))
+                .checked_div(reserve_1)
                 .unwrap()
-                .as_u128(),
-        ))
+                .round_dp(Amount::DECIMAL_PLACES as u32)
+                .to_string(),
+        )
+        .unwrap())
     }
 
     pub fn calculate_adjusted_amount_pair(
@@ -577,7 +591,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        assert_eq!(amount_0, Amount::from_str("1.412815175518738638").unwrap());
+        assert_eq!(amount_0, Amount::from_str("1.412815175518738639").unwrap());
         assert_eq!(amount_1, Amount::from_str("30").unwrap());
 
         let (amount_0, amount_1) = pool
@@ -631,7 +645,7 @@ mod tests {
                 None,
             )
             .unwrap();
-        assert_eq!(amount_0, Amount::from_str("1.412815175518738638").unwrap());
+        assert_eq!(amount_0, Amount::from_str("1.412815175518738639").unwrap());
         assert_eq!(amount_1, Amount::from_str("30").unwrap());
 
         let (amount_0, amount_1) = pool

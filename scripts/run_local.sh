@@ -402,7 +402,20 @@ function run_kline() {
     all_proxy= curl -X POST http://localhost:25080/run/ticker > /dev/null 2>&1 &
 }
 
+function run_maker() {
+    mkdir -p $WALLET_DIR/maker/0
+
+    create_wallet maker 0 1
+    owner=$(wallet_owner maker 0)
+    chain=$(wallet_chain_id maker 0)
+
+    run_service maker 0 50080
+
+    all_proxy= python3 src/maker.py --swap-application-id $SWAP_APPLICATION_ID --wallet-host "localhost:50080" --wallet-owner "$owner" --wallet-chain "$chain" &
+}
+
 run_kline
+run_maker
 
 read
 

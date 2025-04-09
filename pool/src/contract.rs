@@ -723,10 +723,10 @@ impl PoolContract {
             }
         }
 
-        if amount_0_in > Amount::ZERO && amount_1_out == Amount::ZERO {
+        if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
             return Err(PoolError::InvalidAmount);
         }
-        if amount_1_in > Amount::ZERO && amount_0_out == Amount::ZERO {
+        if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
             return Err(PoolError::InvalidAmount);
         }
         if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
@@ -743,15 +743,16 @@ impl PoolContract {
         let application = AccountOwner::from(self.runtime.application_id().forget_abi());
         let token_0 = self.token_0();
 
-        if amount_0_out > Amount::ZERO {
-            self.transfer_meme(token_0, to, amount_0_out);
-        }
         if amount_1_out > Amount::ZERO {
             if let Some(token_1) = self.token_1() {
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
                 self.runtime.transfer(application, to, amount_1_out);
             }
+        }
+        // Transfer native firstly due to meme transfer is a message
+        if amount_0_out > Amount::ZERO {
+            self.transfer_meme(token_0, to, amount_0_out);
         }
 
         // 4: Liquid

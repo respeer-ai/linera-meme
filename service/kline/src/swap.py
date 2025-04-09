@@ -61,7 +61,7 @@ class Pool:
         self.token_0 = _dict['token0']
         self.token_1 = _dict['token1']
         self.pool_application = Account(_dict['poolApplication'])
-        self.latest_transaction = Transaction(_dict['latestTransaction'])
+        self.latest_transaction = Transaction(_dict['latestTransaction']) if _dict['latestTransaction'] is not None else None
         self.token_0_price = _dict['token0Price']
         self.token_1_price = _dict['token1Price']
         self.reserve_0 = _dict['reserve0']
