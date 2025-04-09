@@ -64,6 +64,8 @@ class Pool:
         self.latest_transaction = Transaction(_dict['latestTransaction'])
         self.token_0_price = _dict['token0Price']
         self.token_1_price = _dict['token1Price']
+        self.reserve_0 = _dict['reserve0']
+        self.reserve_1 = _dict['reserve1']
 
     def wallet_application_url(self):
         return f'{self.wallet._wallet_url()}/chains/{self.wallet._chain()}/applications/{self.pool_application.short_owner}'
