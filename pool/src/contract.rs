@@ -723,6 +723,12 @@ impl PoolContract {
             }
         }
 
+        if amount_0_in > Amount::ZERO && amount_1_out == Amount::ZERO {
+            return Err(PoolError::InvalidAmount);
+        }
+        if amount_1_in > Amount::ZERO && amount_0_out == Amount::ZERO {
+            return Err(PoolError::InvalidAmount);
+        }
         if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
             return Err(PoolError::InvalidAmount);
         }
