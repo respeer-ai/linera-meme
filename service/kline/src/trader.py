@@ -8,6 +8,24 @@ class Trader:
         self.wallet = wallet
         self.meme = meme
 
+    def trade_amounts(self, pool, buy_token_0, token_0_balance, token_1_balance):
+        reserve_0 = float(pool.reserve_0)
+        reserve_1 = float(pool.reserve_1)
+        token_0_balance = float(token_0_balance)
+        token_1_balance = float(token_1_balance)
+        token_0_price = float(pool.token_0_price)
+        token_1_price = float(pool.token_1_price)
+
+        if buy_token_0 is True and token_1_balance <= 0:
+            return (None, None)
+        if buy_token_0 is False and token_0_balance <= 0:
+            return (None, None)
+
+        if buy_token_0 is True:
+            return (None, min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10))
+        if buy_token_0 is False:
+            return (min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10, None))
+
     def trade_in_pool(self, pool):
         # Generate trade direction
         buy_token_0 = True if random.randint(0, 1) == 1 else False
@@ -21,20 +39,19 @@ class Trader:
         token_0_balance = self.meme.balance(account, token_0_chain, pool.token_0)
         token_1_balance = self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1)
 
-        if buy_token_0 is True and float(token_1_balance) <= 0:
+        (amount_0, amount_1) = self.trade_amounts(pool, buy_token_0, token_0_balance, token_1_balance)
+        if amount_0 is None and amount_1 is None:
             return
-        if buy_token_0 is False and float(token_0_balance) <= 0:
-            return
-
-        amount_0 = str(float(token_0_balance) / 10000) if buy_token_0 is False else None
-        amount_1 = str(float(token_1_balance) / 10000) if buy_token_0 is True else None
 
         pool.swap(amount_0, amount_1)
+
         print('    Swap in pool ---------------------------------')
         print(f'      Chain                  {pool.pool_application.chain_id}')
         print(f'      Application            {pool.pool_application.short_owner}')
         print(f'      Token0                 {pool.token_0}')
         print(f'      Token1                 {pool.token_1}')
+        print(f'      Reserve0               {pool.reserve_0}')
+        print(f'      Reserve1               {pool.reserve_1}')
         print(f'      Amount0                {amount_0}')
         print(f'      Amount1                {amount_1}')
 
