@@ -26,6 +26,9 @@ pub enum PoolError {
 
     #[error("Invalid amount")]
     InvalidAmount,
+
+    #[error("Insufficient funds")]
+    InsufficientFunds,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]

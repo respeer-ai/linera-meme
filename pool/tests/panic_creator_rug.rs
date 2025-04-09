@@ -227,9 +227,6 @@ impl TestSuite {
 // Should fail if swap in new pool (without buying swap) with virtual initial liquidity
 // At that time there is no balance in application
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(
-    expected = "Failed to execute block.: ChainError(ExecutionError(InsufficientFunding"
-)]
 async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 

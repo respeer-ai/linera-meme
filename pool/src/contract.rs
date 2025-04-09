@@ -6,6 +6,7 @@
 mod state;
 
 use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{MemeAbi, MemeOperation, MemeResponse},
     swap::{
         pool::{
@@ -716,7 +717,7 @@ impl PoolContract {
     }
 
     // Always be run on creation chain
-    fn on_msg_swap(
+    fn do_swap(
         &mut self,
         origin: Account,
         amount_0_in: Option<Amount>,
@@ -786,6 +787,11 @@ impl PoolContract {
             if let Some(token_1) = self.token_1() {
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
+                let balance = self.runtime.owner_balance(application);
+                if balance < amount_1_out.try_add(OPEN_CHAIN_FEE_BUDGET)? {
+                    self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                    return Err(PoolError::InsufficientFunds);
+                }
                 self.runtime.transfer(application, to, amount_1_out);
             }
         }
@@ -839,6 +845,34 @@ impl PoolContract {
             .send_to(chain_id);
 
         Ok(())
+    }
+
+    fn on_msg_swap(
+        &mut self,
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<(), PoolError> {
+        // We just return OK to refund the failed balance here
+        match self.do_swap(
+            origin,
+            amount_0_in,
+            amount_1_in,
+            amount_0_out_min,
+            amount_1_out_min,
+            to,
+            block_timestamp,
+        ) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                log::warn!("Failed swap: {}", err);
+                Ok(())
+            }
+        }
     }
 
     async fn on_msg_add_liquidity(
