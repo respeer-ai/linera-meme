@@ -9,7 +9,7 @@ class Wallet:
         self.chain = chain
 
     def account(self):
-        return f'{self.chain}:User:{self.owner}'
+        return f'{self.chain}:{self.owner}'
 
     def _chain(self):
         return self.chain
@@ -20,11 +20,11 @@ class Wallet:
     def balance(self):
         chain_owners = f'''[{{
             chainId: "{self.chain}",
-            owners: ["User:{self.owner}"]
+            owners: ["{self.owner}"]
         }}]'''
         json = {
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         resp = requests.post(self.wallet_url, json=json)
         balances = resp.json()['data']['balances']
-        return float(balances[self.chain]['chainBalance']) + float(balances[self.chain]['ownerBalances'][f'User:{self.owner}'])
+        return float(balances[self.chain]['chainBalance']) + float(balances[self.chain]['ownerBalances'][f'{self.owner}'])

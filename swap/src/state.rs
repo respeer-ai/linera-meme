@@ -93,6 +93,8 @@ impl SwapState {
             latest_transaction: None,
             token_0_price: None,
             token_1_price: None,
+            reserve_0: None,
+            reserve_1: None,
         };
 
         if let Some(token_1) = token_1 {
@@ -144,6 +146,8 @@ impl SwapState {
         transaction: Transaction,
         token_0_price: Amount,
         token_1_price: Amount,
+        reserve_0: Amount,
+        reserve_1: Amount,
     ) -> Result<(), SwapError> {
         let Some(mut pool) = self.get_pool_exchangable(token_0, token_1).await? else {
             panic!("Invalid pool");
@@ -151,6 +155,8 @@ impl SwapState {
         pool.latest_transaction = Some(transaction);
         pool.token_0_price = Some(token_0_price);
         pool.token_1_price = Some(token_1_price);
+        pool.reserve_0 = Some(reserve_0);
+        pool.reserve_1 = Some(reserve_1);
 
         if let Some(token_1) = token_1 {
             let mut pools = self
