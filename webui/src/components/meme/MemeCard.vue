@@ -56,27 +56,27 @@
         <div class='row vertical-section-y-margin' v-if='showCaption'>
           <q-img
             v-if='_meme.metadata.github?.length' :src='githubLogo' width='20px' height='20px'
-            class='cursor-pointer horizontal-inner-x-margin-right'
+            class='cursor-pointer horizontal-inner-x-margin-right' @click='onGoto(_meme.metadata.github)'
           />
           <q-img
             v-if='_meme.metadata.discord?.length' :src='discordLogo' width='20px' height='20px'
-            class='cursor-pointer horizontal-inner-x-margin-right'
+            class='cursor-pointer horizontal-inner-x-margin-right' @click='onGoto(_meme.metadata.discord)'
           />
           <q-img
             v-if='_meme.metadata.twitter?.length' :src='twitterLogo' width='20px' height='20px'
-            class='cursor-pointer horizontal-inner-x-margin-right'
+            class='cursor-pointer horizontal-inner-x-margin-right' @click='onGoto(_meme.metadata.twitter)'
           />
           <q-img
             v-if='_meme.metadata.telegram?.length' :src='telegramLogo' width='20px' height='20px'
-            class='cursor-pointer horizontal-inner-x-margin-right'
+            class='cursor-pointer horizontal-inner-x-margin-right' @click='onGoto(_meme.metadata.telegram)'
           />
           <q-img
             v-if='_meme.metadata.website?.length' :src='internetLogo' width='20px' height='20px'
-            class='cursor-pointer'
+            class='cursor-pointer horizontal-inner-x-margin-right' @click='onGoto(_meme.metadata.website)'
           />
           <q-img
-            v-if='_meme.metadata.liveStream?.length' :src='internetLogo' width='20px' height='20px'
-            class='cursor-pointer'
+            v-if='_meme.metadata.liveStream?.length' :src='liveStreamIcon' width='20px' height='20px'
+            class='cursor-pointer' @click='onGoto(_meme.metadata.liveStream)'
           />
         </div>
         <div class='row vertical-section-y-margin' v-else>
@@ -89,7 +89,7 @@
 
 <script setup lang='ts'>
 import { toRef, ref, computed } from 'vue'
-import { discordLogo, githubLogo, internetLogo, telegramLogo, twitterLogo } from 'src/assets'
+import { discordLogo, githubLogo, internetLogo, telegramLogo, twitterLogo, liveStreamIcon } from 'src/assets'
 import { ams, meme, swap } from 'src/localstore'
 import { _copyToClipboard } from 'src/utils/copy_to_clipboard'
 import { timestamp, shortid, formalizeFloat } from 'src/utils'
@@ -148,6 +148,10 @@ const miningDescription = computed(() => {
   }
   return `<strong>${((1 - liquidityPercent.value) * 100).toFixed(0)}%</strong> of total supply is for mining.`
 })
+
+const onGoto = (url: string) => {
+  window.open(url)
+}
 
 </script>
 

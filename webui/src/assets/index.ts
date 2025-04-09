@@ -16,6 +16,7 @@ import trophyNo3 from './TrophyNo3.svg'
 import blobGatewayLogo from './BlobGateway.svg'
 import lineraMemeLogo from './LineraMeme.svg'
 import lineraSwapLogo from './LineraSwap.svg'
+import liveStreamIcon from './LiveStream.svg'
 
 export {
   bellMsg,
@@ -35,5 +36,6 @@ export {
   trophyNo3,
   blobGatewayLogo,
   lineraMemeLogo,
-  lineraSwapLogo
+  lineraSwapLogo,
+  liveStreamIcon
 }
