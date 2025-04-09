@@ -44,13 +44,12 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
-
 # Install official linera for genesis cluster
 cd $SOURCE_DIR
 rm linera-protocol -rf
 git clone https://github.com/respeer-ai/linera-protocol.git
 cd linera-protocol
-git checkout respeer-maas-7b3ae0b6-2025_03_15
+git checkout respeer-maas-main-7fe154eac96-2025_04_06
 
 export PATH=$BIN_DIR:$PATH
 
@@ -418,6 +417,7 @@ docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{p
 docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
 docker stop maker-wallet kline maker
 docker rm maker-wallet kline maker
+docker rmi kline
 
 LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
 
