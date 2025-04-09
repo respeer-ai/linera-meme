@@ -94,7 +94,7 @@ class Swap:
 
     def get_pools(self) -> list[Pool]:
         json = {
-            'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n }\n}'
+            'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
         }
         resp = requests.post(url=self.application_url(), json=json)
         return [Pool(v, self.wallet) for v in resp.json()['data']['pools']]
