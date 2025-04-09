@@ -100,7 +100,7 @@
     <q-btn
       rounded flat :label='$t("MSG_SWAP")' class='full-width border-red-4 vertical-inner-y-margin'
       @click='onSwapClick'
-      :disable='token0Amount === 0 || token1Amount === 0'
+      :disable='token0Amount === 0 || token1Amount === 0 || token1Amount >= token1Reserve'
     />
   </div>
 </template>
@@ -145,6 +145,7 @@ const token1Application = computed(() => {
 const userChainBalance = computed(() => _user.chainBalance)
 const userOwnerBalance = computed(() => _user.accountBalance)
 const userBalance = computed(() => Number((Number(userChainBalance.value) + Number(userOwnerBalance.value)).toFixed(4)))
+const token1Reserve = computed(() => Number(selectedToken1.value === selectedPool.value?.token0 ? selectedPool.value?.reserve0 : selectedPool.value?.reserve1) || 0)
 
 const token0Balance = ref(0)
 const token1Balance = ref(0)

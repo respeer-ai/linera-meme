@@ -21,7 +21,7 @@
 
 <script setup lang='ts'>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
-import { init, dispose, Chart, Nullable, KLineData } from 'klinecharts'
+import { init, dispose, Chart, Nullable, KLineData, Options } from 'klinecharts'
 import { kline, swap } from 'src/localstore'
 import { useRouter } from 'vue-router'
 import { constants } from 'src/constant'
@@ -70,7 +70,17 @@ watch(selectedToken1, () => {
 })
 
 onMounted(() => {
-  chart.value = init('chart')
+  chart.value = init('chart', {
+    layout: [
+      {
+        type: 'candle',
+        content: ['MA', { name: 'EMA', calcParams: [5, 10, 30, 60, 720] }],
+        options: { order: Number.MIN_SAFE_INTEGER }
+      },
+      { type: 'indicator', content: ['VOL'], options: { order: 10 } },
+      { type: 'xAxis', options: { order: 9 } }
+    ]
+  } as unknown as Options)
   chart.value?.setPrecision({ price: 0 })
   chart.value?.applyNewData(points.value, true)
   getKline()
