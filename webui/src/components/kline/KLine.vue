@@ -74,14 +74,14 @@ onMounted(() => {
     layout: [
       {
         type: 'candle',
-        content: ['MA', { name: 'EMA', calcParams: [5, 10, 30, 60, 720] }],
+        content: ['MA', { name: 'EMA', calcParams: [5, 10, 30, 60] }],
         options: { order: Number.MIN_SAFE_INTEGER }
       },
       { type: 'indicator', content: ['VOL'], options: { order: 10 } },
       { type: 'xAxis', options: { order: 9 } }
     ]
   } as unknown as Options)
-  chart.value?.setPrecision({ price: 0 })
+  chart.value?.setPrecision({ price: 2 })
   chart.value?.applyNewData(points.value, true)
   getKline()
 })
