@@ -923,6 +923,8 @@ impl PoolContract {
         // Here we got transaction id
         let transaction = self.state.create_transaction(transaction);
         let (token_0_price, token_1_price) = self.state.calculate_price_pair();
+        let reserve_0 = self.state.reserve_0();
+        let reserve_1 = self.state.reserve_1();
 
         let call = SwapOperation::UpdatePool {
             token_0: self.token_0(),
@@ -930,6 +932,8 @@ impl PoolContract {
             transaction,
             token_0_price,
             token_1_price,
+            reserve_0,
+            reserve_1,
         };
         let _ = self.runtime.call_application(
             true,

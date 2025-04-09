@@ -58,6 +58,8 @@ pub enum SwapOperation {
         transaction: Transaction,
         token_0_price: Amount,
         token_1_price: Amount,
+        reserve_0: Amount,
+        reserve_1: Amount,
     },
 }
 
@@ -136,6 +138,8 @@ pub enum SwapMessage {
         transaction: Transaction,
         token_0_price: Amount,
         token_1_price: Amount,
+        reserve_0: Amount,
+        reserve_1: Amount,
     },
 }
 
@@ -150,6 +154,8 @@ pub struct Pool {
     pub latest_transaction: Option<Transaction>,
     pub token_0_price: Option<Amount>,
     pub token_1_price: Option<Amount>,
+    pub reserve_0: Option<Amount>,
+    pub reserve_1: Option<Amount>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]

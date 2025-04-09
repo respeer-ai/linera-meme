@@ -26,8 +26,8 @@ class Trader:
         if buy_token_0 is False and float(token_0_balance) <= 0:
             return
 
-        amount_0 = str(float(token_0_balance) / 10) if buy_token_0 is False else None
-        amount_1 = str(float(token_1_balance) / 10) if buy_token_0 is True else None
+        amount_0 = str(float(token_0_balance) / 10000) if buy_token_0 is False else None
+        amount_1 = str(float(token_1_balance) / 10000) if buy_token_0 is True else None
 
         pool.swap(amount_0, amount_1)
         print('    Swap in pool ---------------------------------')
