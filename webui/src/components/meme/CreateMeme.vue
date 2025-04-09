@@ -1,8 +1,20 @@
 <template>
   <q-page class='flex items-center justify-center'>
     <div class='text-center'>
-      <div class='text-bold text-grey-9' :style='{fontSize: "28px"}'>
-        Let's Pump
+      <div class='row items-center'>
+        <q-icon
+          name='bi-arrow-left-short'
+          size='32px'
+          color='grey-8'
+          :style='{marginLeft: "-8px"}'
+          @click='onBack'
+          class='cursor-pointer'
+        />
+        <q-space />
+        <div class='text-bold text-grey-9' :style='{fontSize: "28px"}'>
+          Let's Pump
+        </div>
+        <q-space />
       </div>
       <CreateMemeInner @created='onMemeTokenCreated' @creating='onMemeTokenCreating' @error='onCreateMemeTokenError' />
     </div>
@@ -77,6 +89,10 @@ const onCreateMemeTokenError = (error: string) => {
   creating.value = false
   createError.value = true
   createMessage.value = JSON.stringify(error)
+}
+
+const onBack = () => {
+  router.back()
 }
 
 </script>
