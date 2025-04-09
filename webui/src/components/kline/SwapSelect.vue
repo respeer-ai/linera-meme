@@ -1,7 +1,7 @@
 <template>
   <div class='bg-white vertical-card-padding'>
     <q-select
-      dense outlined hide-dropdown-icon
+      dense borderless hide-dropdown-icon
       v-model='token0' :options='token0Items'
       class='swap-token-option'
     >
@@ -32,7 +32,7 @@
       /
     </div>
     <q-select
-      dense outlined hide-dropdown-icon
+      dense borderless hide-dropdown-icon
       v-model='token1' :options='token1Items'
       class='swap-token-option'
     >
