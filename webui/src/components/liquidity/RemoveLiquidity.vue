@@ -51,7 +51,9 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ token0Amount.toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>
+            {{ token0Amount.toFixed(4) }}
+          </div>
         </div>
       </div>
     </q-card>
@@ -67,7 +69,9 @@
         </div>
         <q-space />
         <div class='swap-token text-right'>
-          <div class='text-green-8 text-bold'>{{ token1Amount.toFixed(10) }}</div>
+          <div class='text-green-8 text-bold'>
+            {{ token1Amount.toFixed(4) }}
+          </div>
         </div>
       </div>
     </q-card>

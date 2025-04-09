@@ -147,7 +147,9 @@
           </div>
           <q-space />
           <div class='swap-token text-right'>
-            <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.liquidity || '0').toFixed(10) }}</div>
+            <div class='text-green-8 text-bold'>
+              {{ Number(estimatedLiquidity?.liquidity || '0').toFixed(4) }}
+            </div>
           </div>
         </div>
       </q-card>
@@ -166,7 +168,9 @@
           </div>
           <q-space />
           <div class='swap-token text-right'>
-            <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount0 || '0').toFixed(10) }}</div>
+            <div class='text-green-8 text-bold'>
+              {{ Number(estimatedLiquidity?.amount0 || '0').toFixed(4) }}
+            </div>
           </div>
         </div>
       </q-card>
@@ -182,7 +186,9 @@
           </div>
           <q-space />
           <div class='swap-token text-right'>
-            <div class='text-green-8 text-bold'>{{ Number(estimatedLiquidity?.amount1 || '0').toFixed(10) }}</div>
+            <div class='text-green-8 text-bold'>
+              {{ Number(estimatedLiquidity?.amount1 || '0').toFixed(4) }}
+            </div>
           </div>
         </div>
       </q-card>

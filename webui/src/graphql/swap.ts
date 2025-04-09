@@ -11,6 +11,8 @@ export const POOLS = gql`
       latestTransaction
       token0Price
       token1Price
+      reserve0
+      reserve1
     }
   }
 `

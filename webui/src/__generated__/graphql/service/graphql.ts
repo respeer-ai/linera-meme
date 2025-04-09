@@ -82,6 +82,8 @@ export type Scalars = {
   Round: { input: any; output: any; }
   /** A signed block which will be submitted to blockchain with its signature. */
   SignedBlock: { input: any; output: any; }
+  /** A signed block which will be submitted to blockchain with its signature. */
+  SignedBlockBcs: { input: any; output: any; }
   /** The name of an event stream */
   StreamName: { input: any; output: any; }
   /** The target of a message, relative to a particular application. Used to identify each outbox. */
@@ -736,6 +738,8 @@ export type MutationRoot = {
   simulateExecuteBlock?: Maybe<SimulatedBlockMaterial>;
   /** Submit block proposal with signature */
   submitBlockAndSignature: Scalars['CryptoHash']['output'];
+  /** Submit block proposal with signature */
+  submitBlockAndSignatureBcs: Scalars['CryptoHash']['output'];
   /**
    * Transfers `amount` units of value from the given owner's account to the recipient.
    * If no owner is given, try to take the units out of the chain account.
@@ -872,6 +876,13 @@ export type MutationRootSimulateExecuteBlockArgs = {
 
 export type MutationRootSubmitBlockAndSignatureArgs = {
   block: Scalars['SignedBlock']['input'];
+  chainId: Scalars['ChainId']['input'];
+  height: Scalars['BlockHeight']['input'];
+};
+
+
+export type MutationRootSubmitBlockAndSignatureBcsArgs = {
+  block: Scalars['SignedBlockBcs']['input'];
   chainId: Scalars['ChainId']['input'];
   height: Scalars['BlockHeight']['input'];
 };
