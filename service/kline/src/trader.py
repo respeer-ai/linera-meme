@@ -24,7 +24,7 @@ class Trader:
         if buy_token_0 is True:
             return (None, min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10))
         if buy_token_0 is False:
-            return (min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10, None))
+            return (min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), None)
 
     def trade_in_pool(self, pool):
         # Generate trade direction
@@ -40,10 +40,6 @@ class Trader:
         token_1_balance = self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1)
 
         (amount_0, amount_1) = self.trade_amounts(pool, buy_token_0, token_0_balance, token_1_balance)
-        if amount_0 is None and amount_1 is None:
-            return
-
-        pool.swap(amount_0, amount_1)
 
         print('    Swap in pool ---------------------------------')
         print(f'      Chain                  {pool.pool_application.chain_id}')
@@ -52,8 +48,16 @@ class Trader:
         print(f'      Token1                 {pool.token_1}')
         print(f'      Reserve0               {pool.reserve_0}')
         print(f'      Reserve1               {pool.reserve_1}')
+        print(f'      Token0Balance          {token_0_balance}')
+        print(f'      Token1Balance          {token_1_balance}')
         print(f'      Amount0                {amount_0}')
         print(f'      Amount1                {amount_1}')
+        print(f'      BuyToken0              {buy_token_0}')
+
+        if amount_0 is None and amount_1 is None:
+            return
+
+        pool.swap(amount_0, amount_1)
 
     def trade(self) -> float:
         pools = self.swap.get_pools()
