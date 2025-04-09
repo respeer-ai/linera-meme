@@ -82,7 +82,7 @@ onMounted(() => {
     ]
   } as unknown as Options)
   chart.value?.setPrecision({ price: 2 })
-  chart.value?.applyNewData(points.value, true)
+  chart.value?.applyNewData(points.value)
   getKline()
 })
 
