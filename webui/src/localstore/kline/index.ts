@@ -22,8 +22,8 @@ export const useKlineStore = defineStore('kline', {
   actions: {
     initializeKline() {
       this.websocket = new _WebSocket(constants.KLINE_WS_URL)
-      this.websocket.withOnMessage(this.onMessage)
-      this.websocket.withOnError(this.onError)
+      this.websocket.withOnMessage((notification) => this.onMessage(notification))
+      this.websocket.withOnError((e) => this.onError(e))
     },
     onMessage(notification: Notification) {
       if (notification.notification === 'kline') {
@@ -135,24 +135,24 @@ export const useKlineStore = defineStore('kline', {
     }
   },
   getters: {
-    _points(): (key: string, token_0: string, token_1: string) => Point[] {
-      return (key: string, token_0: string, token_1: string) => {
+    _points(): (key: string, token0: string, token1: string) => Point[] {
+      return (key: string, token0: string, token1: string) => {
         return (
           (this.points.get(key) || new Map<string, Point[]>()).get(
-            `${token_0}:${token_1}`
+            `${token0}:${token1}`
           ) || []
         ).sort((a, b) => a.timestamp - b.timestamp)
       }
     },
     _latestPoints(): (
       key: string,
-      token_0: string,
-      token_1: string
+      token0: string,
+      token1: string
     ) => Point[] {
-      return (key: string, token_0: string, token_1: string) => {
+      return (key: string, token0: string, token1: string) => {
         return (
           (this.latestPoints.get(key) || []).find(
-            (el) => el.token_0 === token_0 && el.token_1 === token_1
+            (el) => el.token_0 === token0 && el.token_1 === token1
           )?.points || []
         ).sort((a, b) => a.timestamp - b.timestamp)
       }

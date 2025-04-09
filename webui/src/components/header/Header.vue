@@ -1,6 +1,6 @@
 <template>
   <div class='row items-center'>
-    <div class='cursor-pointer'>
+    <div class='cursor-pointer' @click='onLogoClick'>
       <q-img
         :src='selectedIcon'
         height='36px'
@@ -66,9 +66,7 @@ const onCreateMemeTokenClick = () => {
   void router.push({ path: '/create/meme' })
 }
 
-onMounted(() => {
-  _kline.initializeKline()
-
+const goHome = () => {
   if (window.location.hostname.endsWith('linerameme.fun')) {
     selectedIcon.value = lineraMemeLogo
     void router.push({ path: window.location.pathname === '/' ? '/meme' : window.location.pathname })
@@ -82,6 +80,15 @@ onMounted(() => {
     selectedIcon.value = lineraMemeLogo
     void router.push({ path: window.location.pathname === '/' ? '/meme' : window.location.pathname })
   }
+}
+
+const onLogoClick = () => {
+  goHome()
+}
+
+onMounted(() => {
+  _kline.initializeKline()
+  goHome()
 })
 
 const subscriptionId = ref(undefined as unknown as string)
