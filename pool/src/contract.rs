@@ -63,6 +63,10 @@ impl Contract for PoolContract {
             .await
             .expect("Failed instantiate");
 
+        if argument.amount_0 <= Amount::ZERO || argument.amount_1 <= Amount::ZERO {
+            return;
+        }
+
         let transaction = self.state.build_transaction(
             creator,
             Some(argument.amount_0),
