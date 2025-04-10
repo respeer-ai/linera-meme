@@ -34,12 +34,15 @@ const _swap = swap.useSwapStore()
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 
-const points = computed(() => (_kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) || []) as KLineData[])
-const latestPoints = computed(() => (_kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) || []) as KLineData[])
+const points = computed(() => _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
+const lastTimestamp = ref(-1)
+const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp >= lastTimestamp.value) as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
+const applied = ref(false)
 
 watch(latestPoints, () => {
+  if (!applied.value) return
   latestPoints.value.forEach((point) => {
     chart.value?.updateData(point)
   })
@@ -58,6 +61,8 @@ const getKline = () => {
   }, (error: boolean) => {
     if (error) return
     chart.value?.applyNewData(points.value, true)
+    applied.value = true
+    lastTimestamp.value = points.value[0]?.timestamp
   })
 }
 
