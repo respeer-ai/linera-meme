@@ -38,16 +38,22 @@ class Transaction:
         if self.transaction_type == 'RemoveLiquidity':
             return float(self.amount_0_out) / float(self.amount_1_out) if token_reversed is False else float(self.amount_1_out) / float(self.amount_0_out)
 
-        if token_reversed:
-            return float(self.amount_1_out) / float(self.amount_0_in) if self.amount_0_in is not None else float(self.amount_0_out) / float(self.amount_1_in)
+        volume = self.volume(token_reverse)
+        turnover = self.turnover(token_reverse)
+
+        return turnover / volume
+
+    def turnover(self, token_reversed: bool):
+        if token_reversed is False:
+            return self.amount_1_in if self.transaction_type == 'BuyToken0' else self.amount_1_out
         else:
-            return float(self.amount_1_in) / float(self.amount_0_out) if self.amount_0_out is not None else float(self.amount_0_in) / float(self.amount_1_out)
+            return self.amount_0_in if self.transaction_type == 'BuyToken0' else self.amount_0_out
 
     def volume(self, token_reversed: bool):
         if token_reversed is False:
-            return self.amount_0_out if self.transaction_type == 'BuyToken0' else self.amount_1_out
+            return self.amount_0_out if self.transaction_type == 'BuyToken0' else self.amount_0_in
         else:
-            return self.amount_0_in if self.transaction_type == 'SellToken0' else self.amount_1_in
+            return self.amount_1_out if self.transaction_type == 'BuyToken0' else self.amount_1_in
 
     def record_reverse(self):
         return self.transaction_type == 'BuyToken0' or self.transaction_type == 'SellToken0'
