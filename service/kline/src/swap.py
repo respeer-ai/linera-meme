@@ -47,13 +47,13 @@ class Transaction:
         if token_reversed is False:
             return self.amount_1_in if self.transaction_type == 'BuyToken0' else self.amount_1_out
         else:
-            return self.amount_0_in if self.transaction_type == 'BuyToken0' else self.amount_0_out
+            return self.amount_0_out if self.transaction_type == 'BuyToken0' else self.amount_0_in
 
     def volume(self, token_reversed: bool):
         if token_reversed is False:
             return self.amount_0_out if self.transaction_type == 'BuyToken0' else self.amount_0_in
         else:
-            return self.amount_1_out if self.transaction_type == 'BuyToken0' else self.amount_1_in
+            return self.amount_1_in if self.transaction_type == 'BuyToken0' else self.amount_1_out
 
     def record_reverse(self):
         return self.transaction_type == 'BuyToken0' or self.transaction_type == 'SellToken0'
