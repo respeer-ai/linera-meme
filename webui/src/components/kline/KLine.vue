@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class='row'>
+    <div class='row kline'>
       <div :style='{marginLeft: "4px"}'>
         <SwapSelect />
       </div>
@@ -104,11 +104,6 @@ const onCreatePoolClick = () => {
 </script>
 
 <style scoped lang="sass">
-#chart-container
-  position: relative
-  height: 50vh
-  min-height: 700px
-  display: block
-  overflow: auto
-  background: red
+.kline
+  border-top: 1px solid $grey-4
 </style>
