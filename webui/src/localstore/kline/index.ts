@@ -37,7 +37,6 @@ export const useKlineStore = defineStore('kline', {
       }
     },
     onKline(points: Map<string, Points[]>) {
-      this.latestPoints = points
       points.forEach((_points, key) => {
         const __points = this.points.get(key) || new Map<string, Point[]>()
         _points.forEach((points) => {
@@ -50,12 +49,14 @@ export const useKlineStore = defineStore('kline', {
             const index = ___points.findIndex(
               (el) => el.timestamp === point.timestamp
             )
-            ___points.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, point)
+            if (index >= 0) return
+            ___points.push(point)
           })
           __points.set(`${points.token_0}:${points.token_1}`, ___points)
         })
         this.points.set(key, __points)
       })
+      this.latestPoints = points
     },
     onError(e: Event) {
       console.log(`Kline error: ${JSON.stringify(e)}`)
