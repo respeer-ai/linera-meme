@@ -78,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
     parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Kline database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
+    parser.add_argument('--clean-kline', action='store_true', help='Clean kline database')
 
     args = parser.parse_args()
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
     _swap.get_swap_chain()
     _swap.get_swap_application()
 
-    _db = Db(args.database_host, args.database_name, args.database_user, args.database_password)
+    _db = Db(args.database_host, args.database_name, args.database_user, args.database_password, args.clean_kline)
     manager = WebSocketManager(_swap, _db)
 
     uvicorn.run(app, host=args.host, port=args.port)

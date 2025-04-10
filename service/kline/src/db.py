@@ -8,7 +8,7 @@ import numpy as np
 
 
 class Db:
-    def __init__(self, host, db_name, username, password):
+    def __init__(self, host, db_name, username, password, clean_kline):
         self.host = host
         self.db_name = db_name
         self.username = username
@@ -28,6 +28,10 @@ class Db:
 
         self.transactions_table = 'transactions'
         self.pools_table = 'pools'
+
+        if clean_kline is True:
+            self.cursor.execute(f'DROP DATABASE {self.db_name}')
+            self.connection.commit()
 
         self.cursor.execute('SHOW DATABASES')
         databases = [row[0] for row in self.cursor.fetchall()]
