@@ -6,6 +6,7 @@
 mod state;
 
 use abi::{
+    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{MemeAbi, MemeOperation, MemeResponse},
     swap::{
         pool::{
@@ -692,8 +693,31 @@ impl PoolContract {
         Ok(())
     }
 
+    fn refund_amount_in(
+        &mut self,
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+    ) {
+        let amount_1_in = amount_1_in.unwrap_or(Amount::ZERO);
+        if amount_1_in > Amount::ZERO {
+            if let Some(token_1) = self.token_1() {
+                self.transfer_meme(token_1, origin, amount_1_in);
+            } else {
+                let application = AccountOwner::from(self.runtime.application_id().forget_abi());
+                self.runtime.transfer(application, origin, amount_1_in);
+            }
+        }
+        let amount_0_in = amount_0_in.unwrap_or(Amount::ZERO);
+        let token_0 = self.token_0();
+        // Transfer native firstly due to meme transfer is a message
+        if amount_0_in > Amount::ZERO {
+            self.transfer_meme(token_0, origin, amount_0_in);
+        }
+    }
+
     // Always be run on creation chain
-    fn on_msg_swap(
+    fn do_swap(
         &mut self,
         origin: Account,
         amount_0_in: Option<Amount>,
@@ -712,6 +736,7 @@ impl PoolContract {
         };
         if let Some(amount_0_out_min) = amount_0_out_min {
             if amount_0_out < amount_0_out_min {
+                self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 return Err(PoolError::InvalidAmount);
             }
         }
@@ -723,24 +748,35 @@ impl PoolContract {
         };
         if let Some(amount_1_out_min) = amount_1_out_min {
             if amount_1_out < amount_1_out_min {
+                self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 return Err(PoolError::InvalidAmount);
             }
         }
 
         if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
+            self.refund_amount_in(origin, amount_0_in, amount_1_in);
             return Err(PoolError::InvalidAmount);
         }
         if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
+            self.refund_amount_in(origin, amount_0_in, amount_1_in);
             return Err(PoolError::InvalidAmount);
         }
         if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
+            self.refund_amount_in(origin, amount_0_in, amount_1_in);
             return Err(PoolError::InvalidAmount);
         }
 
         // 2: Check liquidity
-        let _ = self
+        match self
             .state
-            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)?;
+            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)
+        {
+            Ok(_) => {}
+            Err(err) => {
+                self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                return Err(err);
+            }
+        }
 
         // 3: Transfer token
         let to = to.unwrap_or(origin);
@@ -751,6 +787,11 @@ impl PoolContract {
             if let Some(token_1) = self.token_1() {
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
+                let balance = self.runtime.owner_balance(application);
+                if balance < amount_1_out.try_add(OPEN_CHAIN_FEE_BUDGET)? {
+                    self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                    return Err(PoolError::InsufficientFunds);
+                }
                 self.runtime.transfer(application, to, amount_1_out);
             }
         }
@@ -804,6 +845,34 @@ impl PoolContract {
             .send_to(chain_id);
 
         Ok(())
+    }
+
+    fn on_msg_swap(
+        &mut self,
+        origin: Account,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> Result<(), PoolError> {
+        // We just return OK to refund the failed balance here
+        match self.do_swap(
+            origin,
+            amount_0_in,
+            amount_1_in,
+            amount_0_out_min,
+            amount_1_out_min,
+            to,
+            block_timestamp,
+        ) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                log::warn!("Failed swap: {}", err);
+                Ok(())
+            }
+        }
     }
 
     async fn on_msg_add_liquidity(
