@@ -527,7 +527,10 @@ impl ProxyContract {
         parameters: MemeParameters,
     ) {
         // We always deduct one for pool chain
-        let mut amount = OPEN_CHAIN_FEE_BUDGET;
+        let mut amount = match parameters.initial_liquidity {
+            Some(_) => OPEN_CHAIN_FEE_BUDGET,
+            None => Amount::ZERO,
+        };
 
         // Balance is already fund to signer on proxy chain, so we transfer to meme chain
         let signer = self.runtime.authenticated_signer().unwrap();
@@ -538,6 +541,10 @@ impl ProxyContract {
                 amount = amount.try_add(liquidity.native_amount).unwrap();
             }
         };
+
+        if amount <= Amount::ZERO {
+            return;
+        }
 
         assert!(
             balance >= amount,
