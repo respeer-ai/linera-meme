@@ -397,7 +397,7 @@ function run_kline() {
     pip3 uninstall websocket-client -y
     pip3 install websocket-client
 
-    all_proxy= python3 src/kline.py --swap-application-id $SWAP_APPLICATION_ID &
+    all_proxy= python3 src/kline.py --swap-application-id $SWAP_APPLICATION_ID --clean-kline &
     sleep 10
     all_proxy= curl -X POST http://localhost:25080/run/ticker > /dev/null 2>&1 &
 }
