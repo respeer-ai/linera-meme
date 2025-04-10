@@ -1,8 +1,8 @@
 const URLS = [
-  'http://api.blobgateway.com/api/blobs/chains/0c63144d9b9dc24ba73a42800bd4b55f4d884440e1efcc7d521c14e2d7e2bfd4/applications/38a07cf2c521619ee7728bc7b8cc4925e1295aa05fa5b9d881d4c18b1cb80c62',
-  'http://api.ams.respeer.ai/api/ams/chains/70aabf89a72a79bf07e2dbae0aa791716c6f4a6461f5e66695c12cee313e0187/applications/a8ab4fe6a0bd7412ffbd7936ecfb0887118259e21caa4f7c44550e0f5d134921',
-  'http://api.linerameme.fun/api/proxy/chains/cb6d25ab3c49a708015124ef92d7db3636c4f459f9e929bd330dcc0de320614e/applications/8a8d4f92a8579ae18b417846de3cffbca7115435ad34603f76438db7176ebaa6',
-  'http://api.lineraswap.fun/api/swap/chains/45c992bfca14a795de7d3d9aecb5c9a91469d113e984e9c270c9841b6404bf59/applications/90c7a2cd705acd52ec0b6013227a80ee312bd621f0d8efc16f9f90894ba17ff0'
+  'http://api.blobgateway.com/api/blobs/chains/7374465172cf86c0204787a8c3c8b48b1b0a65cfb5343274e2360ca775a3db55/applications/e89e5c6062352debd457e330f195fe8e63851637e758712d4df93f25c8ae0351',
+  'http://api.ams.respeer.ai/api/ams/chains/8e417b301d25353c210136780d664227c42a5b15043c333fbe09141e8e6de680/applications/48ffdf3d93b92d23b016a29c69c598fc4d790540d01edf2ad7d79cb4ad253c27',
+  'http://api.linerameme.fun/api/proxy/chains/e10f4d35423336b524372337f306659fd3ae8a38b1750869ec74bb55dbb49255/applications/ad49cfafe5182ced11543634ed676dd46e8cc97811375c9fc9f772084652b25d',
+  'http://api.lineraswap.fun/api/swap/chains/4930b01b125a3d02fdabd3f1b88a24a9f12827fdad311af53152f805059ad03b/applications/d15858e36a025463225a58ffdb72178da11edcf7e6dc84cccd5cd6d683a301f4'
 ]
 
 export const APPLICATION_URLS = {
@@ -18,7 +18,7 @@ export const RPC_WS_URL = 'ws://api.rpc.respeer.ai/ws'
 export const formalizeSchema = (url: string) => {
   return url.replace(
     'http://',
-    process.env.NODE_ENV === 'production' ? 'https://' : 'http://'
+    process.env.NODE_ENV === 'production' ? 'http://' : 'http://'
   )
 }
 
