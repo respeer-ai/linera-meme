@@ -38,10 +38,10 @@ class Transaction:
         if self.transaction_type == 'RemoveLiquidity':
             return float(self.amount_0_out) / float(self.amount_1_out) if token_reversed is False else float(self.amount_1_out) / float(self.amount_0_out)
 
-        volume = self.volume(token_reverse)
-        turnover = self.turnover(token_reverse)
+        volume = self.volume(token_reversed)
+        turnover = self.turnover(token_reversed)
 
-        return turnover / volume
+        return float(turnover) / float(volume)
 
     def turnover(self, token_reversed: bool):
         if token_reversed is False:
