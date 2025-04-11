@@ -60,7 +60,6 @@ const getKline = (startAt: number) => {
     interval: kline.Interval.ONE_MINUTE
   }, (error: boolean) => {
     if (error) return
-    chart.value?.applyNewData(points.value, true)
     if (endAt > Math.floor(Date.now() / 1000)) {
       applied.value = true
       return
