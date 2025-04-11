@@ -5,7 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::constant::OPEN_CHAIN_FEE_BUDGET;
+use abi::policy::open_chain_fee_budget;
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, AccountSecretKey, ApplicationId, ChainDescription, Ed25519SecretKey,
@@ -117,7 +117,7 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_test() {
     suite
         .fund_chain(
             &meme_user_chain,
-            OPEN_CHAIN_FEE_BUDGET
+            open_chain_fee_budget()
                 .try_mul(2)
                 .unwrap()
                 .try_add(suite.initial_native)

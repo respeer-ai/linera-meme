@@ -8,11 +8,11 @@ mod state;
 use abi::{
     ams::{AmsAbi, AmsOperation, Metadata, MEME},
     blob_gateway::{BlobDataType, BlobGatewayAbi, BlobGatewayOperation},
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument, Liquidity, MemeAbi, MemeMessage, MemeOperation, MemeParameters,
         MemeResponse,
     },
+    policy::open_chain_fee_budget,
     swap::router::{SwapAbi, SwapOperation},
 };
 use linera_sdk::{
@@ -338,7 +338,7 @@ impl MemeContract {
                 chain_id: swap_creator_chain,
                 owner: AccountOwner::CHAIN,
             },
-            OPEN_CHAIN_FEE_BUDGET,
+            open_chain_fee_budget(),
         );
         if !self.virtual_initial_liquidity() {
             // At this moment (instantiating) there is no balance on application, so we should transfer from chain

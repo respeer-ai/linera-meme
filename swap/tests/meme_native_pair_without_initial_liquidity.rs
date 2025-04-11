@@ -6,10 +6,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Meme, MemeAbi, MemeParameters, Metadata,
     },
+    policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::router::{
         InstantiationArgument as SwapInstantiationArgument, SwapAbi, SwapOperation, SwapParameters,
@@ -209,12 +209,12 @@ async fn meme_native_pair_without_initial_liquidity_test() {
     let swap_key_pair = swap_chain.key_pair();
 
     suite
-        .fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET.try_mul(2).unwrap())
+        .fund_chain(&meme_chain, open_chain_fee_budget().try_mul(2).unwrap())
         .await;
     suite
         .fund_chain(
             &user_chain,
-            OPEN_CHAIN_FEE_BUDGET
+            open_chain_fee_budget()
                 .try_add(Amount::from_tokens(10))
                 .unwrap(),
         )

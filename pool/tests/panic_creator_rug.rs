@@ -6,11 +6,11 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
         MemeParameters, Metadata,
     },
+    policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::{
         pool::{
@@ -239,7 +239,9 @@ async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
     suite
         .fund_chain(
             &meme_chain,
-            OPEN_CHAIN_FEE_BUDGET.try_add(suite.initial_native).unwrap(),
+            open_chain_fee_budget()
+                .try_add(suite.initial_native)
+                .unwrap(),
         )
         .await;
 

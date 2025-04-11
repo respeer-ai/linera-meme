@@ -6,8 +6,8 @@
 mod state;
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
+    policy::open_chain_fee_budget,
     proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse},
 };
 use linera_sdk::{
@@ -323,13 +323,13 @@ impl ProxyContract {
 
     fn fund_proxy_chain_fee_budget(&mut self, fund_pool_fee: bool) {
         // Open chain budget fee for meme chain
-        self.fund_proxy_chain(AccountOwner::CHAIN, OPEN_CHAIN_FEE_BUDGET);
+        self.fund_proxy_chain(AccountOwner::CHAIN, open_chain_fee_budget());
         if !fund_pool_fee {
             return;
         }
         // Open chain budget fee for pool chain
         let signer = self.runtime.authenticated_signer().unwrap();
-        self.fund_proxy_chain(signer, OPEN_CHAIN_FEE_BUDGET);
+        self.fund_proxy_chain(signer, open_chain_fee_budget());
     }
 
     fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
@@ -518,7 +518,7 @@ impl ProxyContract {
         };
         Ok(self
             .runtime
-            .open_chain(ownership, permissions, OPEN_CHAIN_FEE_BUDGET))
+            .open_chain(ownership, permissions, open_chain_fee_budget()))
     }
 
     fn fund_meme_chain_initial_liquidity(
@@ -528,7 +528,7 @@ impl ProxyContract {
     ) {
         // We always deduct one for pool chain
         let mut amount = match parameters.initial_liquidity {
-            Some(_) => OPEN_CHAIN_FEE_BUDGET,
+            Some(_) => open_chain_fee_budget(),
             None => Amount::ZERO,
         };
 

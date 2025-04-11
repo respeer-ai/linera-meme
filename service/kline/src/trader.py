@@ -28,7 +28,7 @@ class Trader:
 
     def trade_in_pool(self, pool):
         # Generate trade direction
-        buy_token_0 = True if random.randint(0, 1) == 1 else False
+        buy_token_0 = True if random.random() > 0.5 else False
 
         wallet_chain = self.wallet._chain()
         account = self.wallet.account()

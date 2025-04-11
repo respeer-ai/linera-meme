@@ -6,11 +6,11 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
         MemeParameters, Metadata,
     },
+    policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::{
         pool::{
@@ -280,7 +280,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
 
     let swap_key_pair = swap_chain.key_pair();
 
-    suite.fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET).await;
+    suite.fund_chain(&meme_chain, open_chain_fee_budget()).await;
 
     suite.create_swap_application().await;
     suite.create_meme_application(true).await;
@@ -347,7 +347,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(suite.initial_native, pool.reserve_1);
     assert_eq!(suite.initial_liquidity, pool.reserve_0);
 
@@ -378,7 +378,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         balance.try_sub(budget).unwrap(),
         user_chain.chain_balance().await
     );
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(
         budget,
         pool_chain
@@ -392,7 +392,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
     assert_eq!(Amount::from_attos(220000000000000000000000), pool.reserve_0);
 
@@ -453,7 +453,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     // TODO: reserve should equal to balance ?
     assert_eq!(Amount::from_attos(19897714379699202921), pool.reserve_1);
     assert_eq!(Amount::from_attos(221085715329991143570652), pool.reserve_0);
@@ -498,7 +498,9 @@ async fn meme_native_real_initial_liquidity_test() {
     suite
         .fund_chain(
             &meme_chain,
-            OPEN_CHAIN_FEE_BUDGET.try_add(suite.initial_native).unwrap(),
+            open_chain_fee_budget()
+                .try_add(suite.initial_native)
+                .unwrap(),
         )
         .await;
 
@@ -570,7 +572,7 @@ async fn meme_native_real_initial_liquidity_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(
         suite.initial_native,
         pool_chain
