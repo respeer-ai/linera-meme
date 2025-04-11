@@ -263,15 +263,15 @@ class Db:
         return (token_0, token_1, json_data)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
-        end_at = time.time() - 3600
+        end_at = time.time()
         intervals = {
-            '1min': 60,
-            '5min': 300,
-            '10min': 600,
-            '1h': 3600,
-            '1D': 86400,
-            '1W': 86400 * 7,
-            '1ME': 86400 * 30
+            '1min': 60 * 60,
+            '5min': 300 * 24,
+            '10min': 600 * 60,
+            '1h': 3600 * 24,
+            '1D': 86400 * 7,
+            '1W': 86400 * 7 * 4,
+            '1ME': 86400 * 30 * 12
         }
         interval = interval if interval in intervals else '5min'
         start_at = end_at - intervals[interval]
