@@ -36,12 +36,12 @@ const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 
 const points = computed(() => _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
-const lastTimestamp = ref(points.value[points.value.length - 1]?.timestamp || 0)
+const lastTimestamp = computed(() => points.value[points.value.length - 1]?.timestamp || 0)
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
 
-watch(points, () => {
+watch(lastTimestamp, () => {
   if (!applied.value) return
   chart.value?.applyNewData(points.value)
 })
@@ -61,7 +61,6 @@ const getKline = (startAt: number) => {
   }, (error: boolean) => {
     if (error) return
     chart.value?.applyNewData(points.value, true)
-    lastTimestamp.value = points.value[points.value.length - 1]?.timestamp
     if (endAt > Math.floor(Date.now() / 1000)) {
       applied.value = true
       return
@@ -74,8 +73,7 @@ const getKline = (startAt: number) => {
 
 const getPoolKline = () => {
   if (selectedPool.value?.createdAt) {
-    lastTimestamp.value = Math.floor(selectedPool.value?.createdAt / 1000000)
-    getKline(lastTimestamp.value)
+    getKline(Math.floor(selectedPool.value?.createdAt / 1000000))
   }
 }
 
