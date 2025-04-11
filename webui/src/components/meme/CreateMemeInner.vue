@@ -112,16 +112,17 @@ const argument = ref({
     metadata: {
       description: "Creator didn't leave any information about this token. You should know if you interact with malfunction application, you may lose your assets!"
     },
-    virtualInitialLiquidity: true
+    virtualInitialLiquidity: false
   }
 } as meme.InstantiationArgument)
-const hasInitialLiquidity = ref(false)
+// TODO: We put all in liquidity in this version. It should be removed in future
+const hasInitialLiquidity = ref(true)
 const initialLiquidity = ref({
-  fungibleAmount: '0',
-  nativeAmount: '0'
+  fungibleAmount: (Number(argument.value.meme.initialSupply) - 100).toString(),
+  nativeAmount: '3'
 } as meme.Liquidity)
 const parameters = ref({
-  virtualInitialLiquidity: true
+  virtualInitialLiquidity: false
 } as meme.MemeParameters)
 
 const fungibleAmountError = ref(false)
