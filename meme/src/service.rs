@@ -7,7 +7,7 @@ mod state;
 
 use std::{str::FromStr, sync::Arc};
 
-use abi::meme::{MemeAbi, MemeOperation};
+use abi::meme::{Meme, MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, ChainId, WithServiceAbi},
@@ -104,6 +104,10 @@ impl QueryRoot {
 
     async fn creator_chain_id(&self) -> ChainId {
         self.runtime.application_creator_chain_id()
+    }
+
+    async fn meme(&self) -> Meme {
+        self.state.meme.get().as_ref().unwrap().clone()
     }
 }
 
