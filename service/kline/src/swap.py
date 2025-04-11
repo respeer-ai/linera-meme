@@ -77,6 +77,9 @@ class Pool:
         return f'{self.wallet._wallet_url()}/chains/{self.wallet._chain()}/applications/{self.pool_application.short_owner}'
 
     def swap(self, amount_0: str = None, amount_1: str = None):
+        amount_0 = '{:.18f}'.format(amount_0) if amount_0 is not None else None
+        amount_1 = '{:.18f}'.format(amount_1) if amount_1 is not None else None
+
         json = {
             'query': f'mutation {{\n swap(amount0In: "{amount_0}") \n}}'
         } if amount_0 is not None else {
