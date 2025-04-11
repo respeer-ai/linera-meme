@@ -22,7 +22,7 @@ class Trader:
             return (None, None)
 
         if buy_token_0 is True:
-            return (None, min(min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10), 1))
+            return (None, min(min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10), token_0_price * 10))
         if buy_token_0 is False:
             return (min(min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), 10), None)
 
