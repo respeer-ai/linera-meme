@@ -37,17 +37,13 @@ const selectedPool = computed(() => _swap.selectedPool)
 
 const points = computed(() => _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
 const lastTimestamp = ref(points.value[points.value.length - 1]?.timestamp || 0)
-const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > lastTimestamp.value) as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
 
-watch(latestPoints, () => {
+watch(points, () => {
   if (!applied.value) return
-  latestPoints.value.forEach((point) => {
-    chart.value?.updateData(point)
-    lastTimestamp.value = Math.max(point.timestamp, lastTimestamp.value)
-  })
+  chart.value?.applyNewData(points.value)
 })
 
 const getKline = (startAt: number) => {
@@ -107,7 +103,7 @@ onMounted(() => {
       { type: 'xAxis', options: { order: 9 } }
     ]
   } as unknown as Options)
-  chart.value?.setPrecision({ price: 10 })
+  chart.value?.setPrecision({ price: 10, volume: 4 })
   chart.value?.applyNewData(points.value)
   getPoolKline()
 })

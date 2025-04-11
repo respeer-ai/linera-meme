@@ -51,7 +51,10 @@ export const useKlineStore = defineStore('kline', {
             const index = ___points.findIndex(
               (el) => el.timestamp === point.timestamp
             )
-            if (index >= 0) return
+            if (index >= 0) {
+              ___points[index] = point
+              return
+            }
             ___points.push(point)
           })
           __points.set(`${points.token_0}:${points.token_1}`, ___points)
