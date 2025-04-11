@@ -727,8 +727,9 @@ impl SwapContract {
             );
         }
 
+        let timestamp = self.runtime.system_time();
         self.state
-            .create_pool(creator, token_0, token_1, pool_application)
+            .create_pool(creator, token_0, token_1, pool_application, timestamp)
             .await
     }
 

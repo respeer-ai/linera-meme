@@ -263,7 +263,7 @@ class Db:
         return (token_0, token_1, json_data)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
-        end_at = time.time()
+        end_at = time.time() / 60 * 60
         intervals = {
             '1min': 60,
             '5min': 300,

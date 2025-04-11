@@ -5,7 +5,7 @@ use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, Amount, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi,
+        Account, Amount, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi, Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -156,6 +156,7 @@ pub struct Pool {
     pub token_1_price: Option<Amount>,
     pub reserve_0: Option<Amount>,
     pub reserve_1: Option<Amount>,
+    pub created_at: Timestamp,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]

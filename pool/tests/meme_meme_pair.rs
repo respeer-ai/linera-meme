@@ -408,6 +408,7 @@ async fn meme_meme_pair_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;
@@ -511,6 +512,7 @@ async fn meme_meme_pair_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;

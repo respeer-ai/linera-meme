@@ -6,7 +6,7 @@ use abi::swap::{
     transaction::Transaction,
 };
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ApplicationId, ChainId, MessageId, ModuleId},
+    linera_base_types::{Account, Amount, ApplicationId, ChainId, MessageId, ModuleId, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
@@ -77,6 +77,7 @@ impl SwapState {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         pool_application: Account,
+        timestamp: Timestamp,
     ) -> Result<(), SwapError> {
         assert!(
             self.get_pool_exchangable(token_0, token_1).await?.is_none(),
@@ -95,6 +96,7 @@ impl SwapState {
             token_1_price: None,
             reserve_0: None,
             reserve_1: None,
+            created_at: timestamp,
         };
 
         if let Some(token_1) = token_1 {

@@ -329,6 +329,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;
@@ -554,6 +555,7 @@ async fn meme_native_real_initial_liquidity_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;

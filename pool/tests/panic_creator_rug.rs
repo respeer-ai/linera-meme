@@ -295,6 +295,7 @@ async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;
