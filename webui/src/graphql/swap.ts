@@ -13,6 +13,7 @@ export const POOLS = gql`
       token1Price
       reserve0
       reserve1
+      createdAt
     }
   }
 `
