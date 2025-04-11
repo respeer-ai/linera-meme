@@ -7,8 +7,8 @@ mod state;
 
 use std::{str::FromStr, sync::Arc};
 
-use abi::meme::{MemeAbi, MemeOperation};
-use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use abi::meme::{Meme, MemeAbi};
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, ChainId, WithServiceAbi},
     views::View,
@@ -47,26 +47,11 @@ impl Service for MemeService {
                 state: self.state.clone(),
                 runtime: self.runtime.clone(),
             },
-            MutationRoot {
-                runtime: self.runtime.clone(),
-            },
+            EmptyMutation,
             EmptySubscription,
         )
         .finish();
         schema.execute(request).await
-    }
-}
-
-struct MutationRoot {
-    runtime: Arc<ServiceRuntime<MemeService>>,
-}
-
-#[Object]
-impl MutationRoot {
-    async fn transfer(&self, to: Account, amount: Amount) -> [u8; 0] {
-        self.runtime
-            .schedule_operation(&MemeOperation::Transfer { to, amount });
-        []
     }
 }
 
@@ -104,6 +89,10 @@ impl QueryRoot {
 
     async fn creator_chain_id(&self) -> ChainId {
         self.runtime.application_creator_chain_id()
+    }
+
+    async fn meme(&self) -> Meme {
+        self.state.meme.get().as_ref().unwrap().clone()
     }
 }
 

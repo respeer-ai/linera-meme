@@ -52,8 +52,12 @@ impl MemeState {
             liquidity.native_amount >= Amount::ZERO,
             "Invalid initial liquidity"
         );
+
+        let holder_balance = self
+            .balance_of(self.holder.get().as_ref().unwrap().clone())
+            .await;
         assert!(
-            self.meme.get().as_ref().unwrap().initial_supply >= liquidity.fungible_amount,
+            holder_balance >= liquidity.fungible_amount,
             "Invalid initial supply"
         );
 
