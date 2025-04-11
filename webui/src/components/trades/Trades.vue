@@ -62,31 +62,35 @@ const selectedToken1 = computed(() => _swap.selectedToken1)
 
 const transactions = computed(() => _kline._transactions(selectedToken0.value, selectedToken1.value))
 
-const getTransactions = () => {
+const getTransactions = (startAt: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
+
+  const endAt = startAt + 3600
 
   _kline.getTransactions({
     token0: selectedToken0.value,
     token1: selectedToken1.value,
-    startAt: Math.floor(Date.now() / 1000 - 24 * 3600 * 90),
-    endAt: Math.floor(Date.now() / 1000)
-  }, (error: boolean) => {
-    if (error) return
-    console.log('TODO: get transactions recursively')
+    startAt,
+    endAt
+  }, (error: boolean, rows?: transaction.TransactionExt[]) => {
+    if (error || !rows?.length) return
+    setTimeout(() => {
+      getTransactions(endAt)
+    }, 100)
   })
 }
 
 watch(selectedToken0, () => {
-  getTransactions()
+  getTransactions(Math.floor(Date.now() / 1000 - 24 * 3600 * 90))
 })
 
 watch(selectedToken1, () => {
-  getTransactions()
+  getTransactions(Math.floor(Date.now() / 1000 - 24 * 3600 * 90))
 })
 
 onMounted(() => {
-  getTransactions()
+  getTransactions(Math.floor(Date.now() / 1000 - 24 * 3600 * 90))
 })
 
 </script>

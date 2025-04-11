@@ -22,7 +22,9 @@ export const useKlineStore = defineStore('kline', {
   actions: {
     initializeKline() {
       this.websocket = new _WebSocket(constants.KLINE_WS_URL)
-      this.websocket.withOnMessage((notification) => this.onMessage(notification))
+      this.websocket.withOnMessage((notification) =>
+        this.onMessage(notification)
+      )
       this.websocket.withOnError((e) => this.onError(e))
     },
     onMessage(notification: Notification) {
@@ -85,7 +87,7 @@ export const useKlineStore = defineStore('kline', {
     },
     getTransactions(
       req: GetTransactionsRequest,
-      done?: (error: boolean, rows?: Map<string, Points[]>) => void
+      done?: (error: boolean, rows?: TransactionExt[]) => void
     ) {
       const url = constants.formalizeSchema(
         `${constants.KLINE_HTTP_URL}/transactions/token0/${req.token0}/token1/${req.token1}/start_at/${req.startAt}/end_at/${req.endAt}`
@@ -96,7 +98,7 @@ export const useKlineStore = defineStore('kline', {
         req.Message,
         (resp: TransactionExt[]) => {
           this.appendTransactions(req.token0, req.token1, resp)
-          done?.(false)
+          done?.(false, resp)
         },
         () => {
           done?.(true)
@@ -145,11 +147,7 @@ export const useKlineStore = defineStore('kline', {
         ).sort((a, b) => a.timestamp - b.timestamp)
       }
     },
-    _latestPoints(): (
-      key: string,
-      token0: string,
-      token1: string
-    ) => Point[] {
+    _latestPoints(): (key: string, token0: string, token1: string) => Point[] {
       return (key: string, token0: string, token1: string) => {
         return (
           (this.latestPoints.get(key) || []).find(

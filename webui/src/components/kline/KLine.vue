@@ -33,9 +33,10 @@ const _swap = swap.useSwapStore()
 
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
+const selectedPool = computed(() => _swap.selectedPool)
 
 const points = computed(() => _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
-const lastTimestamp = ref(-1)
+const lastTimestamp = ref(points.value[points.value.length - 1]?.timestamp)
 const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > lastTimestamp.value) as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
@@ -49,30 +50,38 @@ watch(latestPoints, () => {
   })
 })
 
-const getKline = () => {
+const getKline = (startAt: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
+
+  const endAt = startAt + 3 * 3600
 
   _kline.getKline({
     token0: selectedToken0.value,
     token1: selectedToken1.value,
-    startAt: Math.floor(Date.now() / 1000 - 24 * 3600 * 90),
-    endAt: Math.floor(Date.now() / 1000),
+    startAt,
+    endAt,
     interval: kline.Interval.ONE_MINUTE
   }, (error: boolean) => {
     if (error) return
     chart.value?.applyNewData(points.value, true)
-    applied.value = true
     lastTimestamp.value = points.value[points.value.length - 1]?.timestamp
+    if (endAt > Math.floor(Date.now() / 1000)) {
+      applied.value = true
+      return
+    }
+    setTimeout(() => {
+      getKline(endAt)
+    }, 100)
   })
 }
 
 watch(selectedToken0, () => {
-  getKline()
+  getKline(Math.max(Math.floor(Date.now() / 1000 - 24 * 3600 * 90), lastTimestamp.value))
 })
 
 watch(selectedToken1, () => {
-  getKline()
+  getKline(Math.max(Math.floor(Date.now() / 1000 - 24 * 3600 * 90), lastTimestamp.value))
 })
 
 onMounted(() => {
@@ -87,9 +96,9 @@ onMounted(() => {
       { type: 'xAxis', options: { order: 9 } }
     ]
   } as unknown as Options)
-  chart.value?.setPrecision({ price: 2 })
+  chart.value?.setPrecision({ price: 6 })
   chart.value?.applyNewData(points.value)
-  getKline()
+  getKline(Math.max(Math.floor(Date.now() / 1000 - 24 * 3600 * 90), lastTimestamp.value))
 })
 
 onBeforeUnmount(() => {

@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { BaseRequest } from '../request'
 import { TransactionExt } from '../transaction'
 
