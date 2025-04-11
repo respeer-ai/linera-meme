@@ -107,7 +107,7 @@ onMounted(() => {
       { type: 'xAxis', options: { order: 9 } }
     ]
   } as unknown as Options)
-  chart.value?.setPrecision({ price: 6 })
+  chart.value?.setPrecision({ price: 10 })
   chart.value?.applyNewData(points.value)
   getPoolKline()
 })
