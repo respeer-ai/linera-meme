@@ -52,8 +52,8 @@ class Trader:
         print(f'      Token1Balance          {token_1_balance}')
         print(f'      Amount0                {amount_0}')
         print(f'      Amount1                {amount_1}')
-        print(f'      Token0Price            {token_0_price}')
-        print(f'      Token1Price            {token_1_price}')
+        print(f'      Token0Price            {pool.token_0_price}')
+        print(f'      Token1Price            {pool.token_1_price}')
         print(f'      BuyToken0              {buy_token_0}')
 
         if amount_0 is None and amount_1 is None:
