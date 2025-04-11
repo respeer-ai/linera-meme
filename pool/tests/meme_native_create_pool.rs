@@ -349,6 +349,7 @@ async fn meme_native_create_pool_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;

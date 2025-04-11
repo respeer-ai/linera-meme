@@ -270,6 +270,7 @@ async fn virtual_liquidity_native_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             }}",
         )
         .await;
@@ -415,6 +416,7 @@ async fn real_liquidity_native_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             }}",
         )
         .await;

@@ -270,6 +270,7 @@ async fn meme_native_pair_without_initial_liquidity_test() {
                 token0
                 token1
                 poolApplication
+                createdAt
             } }",
         )
         .await;
