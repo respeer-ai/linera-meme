@@ -34,9 +34,9 @@ class Transaction:
 
     def price(self, token_reversed: bool):
         if self.transaction_type == 'AddLiquidity':
-            return float(self.amount_0_in) / float(self.amount_1_in) if token_reversed is False else float(self.amount_1_in) / float(self.amount_0_in)
+            return float(self.amount_1_in) / float(self.amount_0_in) if token_reversed is False else float(self.amount_0_in) / float(self.amount_1_in)
         if self.transaction_type == 'RemoveLiquidity':
-            return float(self.amount_0_out) / float(self.amount_1_out) if token_reversed is False else float(self.amount_1_out) / float(self.amount_0_out)
+            return float(self.amount_1_out) / float(self.amount_0_out) if token_reversed is False else float(self.amount_0_out) / float(self.amount_1_out)
 
         volume = self.volume(token_reversed)
         turnover = self.turnover(token_reversed)
