@@ -1,7 +1,19 @@
 <template>
   <div :style='{paddingBottom: "16px"}'>
-    <q-input v-model='argument.meme.name' :label='$t("MSG_NAME")' hide-bottom-space :error='nameError' />
-    <q-input v-model='argument.meme.ticker' :label='$t("MSG_TICKER")' hide-bottom-space :error='tickerError' />
+    <q-input
+      v-model='argument.meme.name'
+      :label='$t("MSG_NAME")'
+      hide-bottom-space
+      :error='nameError'
+      @focus='onNameFocus'
+    />
+    <q-input
+      v-model='argument.meme.ticker'
+      :label='$t("MSG_TICKER")'
+      hide-bottom-space
+      :error='tickerError'
+      @focus='onTickerFocus'
+    />
     <div
       :class='[ "file-upload-area vertical-inner-y-margin", imageError ? "file-upload-area-error shake" : "" ]'
       @dragover.prevent
@@ -191,6 +203,14 @@ const onInputImage = () => {
   fileInput.value?.click()
 }
 
+const onNameFocus = () => {
+  nameError.value = false
+}
+
+const onTickerFocus = () => {
+  tickerError.value = false
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const publishDataBlob = (): Promise<string> => {
   // Uint8Array will be stringify to map so we should transfer it to array
@@ -305,7 +325,7 @@ const onCreateMemeClick = async () => {
       })
     }, 100)
   } catch (e) {
-    console.log(e)
+    emit('error', JSON.stringify(e))
   }
 }
 

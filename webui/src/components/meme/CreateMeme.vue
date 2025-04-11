@@ -69,6 +69,7 @@ const onConfirmed = () => {
 
 const onContinueClick = () => {
   showing.value = false
+  if (createError.value) return
   setTimeout(() => {
     void router.push({ path: '/meme' })
   }, 1000)
