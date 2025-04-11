@@ -59,6 +59,7 @@ const _kline = kline.useKlineStore()
 
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
+const selectedPool = computed(() => _swap.selectedPool)
 
 const transactions = computed(() => _kline._transactions(selectedToken0.value, selectedToken1.value))
 
@@ -81,16 +82,26 @@ const getTransactions = (startAt: number) => {
   })
 }
 
+const getPoolTransactions = () => {
+  if (selectedPool.value?.createdAt) {
+    getTransactions(Math.floor(selectedPool.value?.createdAt / 1000000))
+  }
+}
+
 watch(selectedToken0, () => {
-  getTransactions(Math.floor(Date.now() / 1000 - 24 * 3600 * 90))
+  getPoolTransactions()
 })
 
 watch(selectedToken1, () => {
-  getTransactions(Math.floor(Date.now() / 1000 - 24 * 3600 * 90))
+  getPoolTransactions()
+})
+
+watch(selectedPool, () => {
+  getPoolTransactions()
 })
 
 onMounted(() => {
-  getTransactions(Math.floor(Date.now() / 1000 - 24 * 3600 * 90))
+  getPoolTransactions()
 })
 
 </script>
