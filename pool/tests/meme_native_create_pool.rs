@@ -6,10 +6,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Meme, MemeAbi, MemeParameters, Metadata,
     },
+    policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::{
         pool::{
@@ -282,7 +282,9 @@ async fn meme_native_create_pool_test() {
     suite
         .fund_chain(
             &meme_chain,
-            OPEN_CHAIN_FEE_BUDGET.try_add(suite.initial_native).unwrap(),
+            open_chain_fee_budget()
+                .try_add(suite.initial_native)
+                .unwrap(),
         )
         .await;
 
@@ -365,7 +367,7 @@ async fn meme_native_create_pool_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(suite.initial_liquidity, pool.reserve_0);
     assert_eq!(suite.initial_native, pool.reserve_1);
 
@@ -396,7 +398,7 @@ async fn meme_native_create_pool_test() {
         balance.try_sub(budget).unwrap(),
         user_chain.chain_balance().await
     );
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(
         budget.try_add(suite.initial_native).unwrap(),
         pool_chain
@@ -410,7 +412,7 @@ async fn meme_native_create_pool_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
     assert_eq!(Amount::from_attos(200000000000000000), pool.reserve_0);
 
@@ -459,7 +461,7 @@ async fn meme_native_create_pool_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain.chain_balance().await);
+    assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     // TODO: reserve should equal to balance ?
     assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
     assert_eq!(Amount::from_attos(200000000000000000), pool.reserve_0);

@@ -5,7 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::constant::OPEN_CHAIN_FEE_BUDGET;
+use abi::policy::open_chain_fee_budget;
 use linera_sdk::{
     linera_base_types::{Account, ApplicationId, ChainDescription, MessageId},
     test::{ActiveChain, QueryOutcome},
@@ -86,7 +86,10 @@ async fn proxy_create_meme_virtual_initial_liquidity_single_owner_test() {
 
     // Fee for meme chain and pool chain
     suite
-        .fund_chain(&meme_user_chain, OPEN_CHAIN_FEE_BUDGET.try_mul(2).unwrap())
+        .fund_chain(
+            &meme_user_chain,
+            open_chain_fee_budget().try_mul(2).unwrap(),
+        )
         .await;
     suite.create_meme_application(&meme_user_chain, true).await;
 

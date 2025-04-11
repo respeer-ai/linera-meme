@@ -6,8 +6,8 @@
 mod state;
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
+    policy::open_chain_fee_budget,
     proxy::{InstantiationArgument, ProxyAbi, ProxyMessage, ProxyOperation, ProxyResponse},
 };
 use linera_sdk::{
@@ -323,13 +323,13 @@ impl ProxyContract {
 
     fn fund_proxy_chain_fee_budget(&mut self, fund_pool_fee: bool) {
         // Open chain budget fee for meme chain
-        self.fund_proxy_chain(AccountOwner::CHAIN, OPEN_CHAIN_FEE_BUDGET);
+        self.fund_proxy_chain(AccountOwner::CHAIN, open_chain_fee_budget());
         if !fund_pool_fee {
             return;
         }
         // Open chain budget fee for pool chain
         let signer = self.runtime.authenticated_signer().unwrap();
-        self.fund_proxy_chain(signer, OPEN_CHAIN_FEE_BUDGET);
+        self.fund_proxy_chain(signer, open_chain_fee_budget());
     }
 
     fn fund_proxy_chain_initial_liquidity(&mut self, meme_parameters: MemeParameters) {
@@ -518,7 +518,7 @@ impl ProxyContract {
         };
         Ok(self
             .runtime
-            .open_chain(ownership, permissions, OPEN_CHAIN_FEE_BUDGET))
+            .open_chain(ownership, permissions, open_chain_fee_budget()))
     }
 
     fn fund_meme_chain_initial_liquidity(
@@ -527,7 +527,10 @@ impl ProxyContract {
         parameters: MemeParameters,
     ) {
         // We always deduct one for pool chain
-        let mut amount = OPEN_CHAIN_FEE_BUDGET;
+        let mut amount = match parameters.initial_liquidity {
+            Some(_) => open_chain_fee_budget(),
+            None => Amount::ZERO,
+        };
 
         // Balance is already fund to signer on proxy chain, so we transfer to meme chain
         let signer = self.runtime.authenticated_signer().unwrap();
@@ -538,6 +541,10 @@ impl ProxyContract {
                 amount = amount.try_add(liquidity.native_amount).unwrap();
             }
         };
+
+        if amount <= Amount::ZERO {
+            return;
+        }
 
         assert!(
             balance >= amount,

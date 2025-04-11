@@ -6,11 +6,11 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
         MemeParameters, Metadata,
     },
+    policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::router::{
         InstantiationArgument as SwapInstantiationArgument, Pool, SwapAbi, SwapParameters,
@@ -200,8 +200,8 @@ async fn virtual_liquidity_native_test() {
 
     let swap_key_pair = swap_chain.key_pair();
 
-    suite.fund_chain(&meme_chain, OPEN_CHAIN_FEE_BUDGET).await;
-    assert_eq!(meme_chain.chain_balance().await, OPEN_CHAIN_FEE_BUDGET);
+    suite.fund_chain(&meme_chain, open_chain_fee_budget()).await;
+    assert_eq!(meme_chain.chain_balance().await, open_chain_fee_budget());
 
     suite.create_swap_application().await;
     suite.create_meme_application(true).await;
@@ -259,7 +259,7 @@ async fn virtual_liquidity_native_test() {
     // Now the open chain funds should be transferred to pool
     assert_eq!(meme_chain.chain_balance().await, Amount::ZERO);
     assert_eq!(swap_chain.chain_balance().await, Amount::ZERO);
-    assert_eq!(pool_chain.chain_balance().await, OPEN_CHAIN_FEE_BUDGET);
+    assert_eq!(pool_chain.chain_balance().await, open_chain_fee_budget());
 
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(
@@ -319,7 +319,10 @@ async fn real_liquidity_native_test() {
 
     let swap_key_pair = swap_chain.key_pair();
 
-    let amount = suite.initial_native.try_add(OPEN_CHAIN_FEE_BUDGET).unwrap();
+    let amount = suite
+        .initial_native
+        .try_add(open_chain_fee_budget())
+        .unwrap();
     suite.fund_chain(&meme_chain, amount).await;
     assert_eq!(meme_chain.chain_balance().await, amount);
 
@@ -349,7 +352,7 @@ async fn real_liquidity_native_test() {
     );
 
     // Here liquidity funds should already be transferred to swap application on creation chain.
-    // OPEN_CHAIN_FEE_BUDGET is already transferred to pool chain here so on swap chain we have
+    // open_chain_fee_budget() is already transferred to pool chain here so on swap chain we have
     // initial native amount. Pool chain is not executed here so it should still be zero tokens.
     assert_eq!(
         swap_chain
@@ -392,7 +395,7 @@ async fn real_liquidity_native_test() {
     suite.validator.add_chain(pool_chain.clone());
 
     // Open chain fee is already funded
-    assert_eq!(pool_chain.chain_balance().await, OPEN_CHAIN_FEE_BUDGET);
+    assert_eq!(pool_chain.chain_balance().await, open_chain_fee_budget());
 
     pool_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
@@ -401,7 +404,7 @@ async fn real_liquidity_native_test() {
     // Now the open chain funds should be transferred to pool
     assert_eq!(meme_chain.chain_balance().await, Amount::ZERO);
     assert_eq!(swap_chain.chain_balance().await, Amount::ZERO);
-    assert_eq!(pool_chain.chain_balance().await, OPEN_CHAIN_FEE_BUDGET);
+    assert_eq!(pool_chain.chain_balance().await, open_chain_fee_budget());
 
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(

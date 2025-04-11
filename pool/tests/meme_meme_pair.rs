@@ -6,11 +6,11 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeAbi,
         MemeParameters, Metadata,
     },
+    policy::open_chain_fee_budget,
     store_type::StoreType,
     swap::{
         pool::{
@@ -357,12 +357,16 @@ async fn meme_meme_pair_test() {
 
     let swap_key_pair = swap_chain.key_pair();
 
-    suite.fund_chain(&meme_chain_0, OPEN_CHAIN_FEE_BUDGET).await;
-    suite.fund_chain(&meme_chain_1, OPEN_CHAIN_FEE_BUDGET).await;
+    suite
+        .fund_chain(&meme_chain_0, open_chain_fee_budget())
+        .await;
+    suite
+        .fund_chain(&meme_chain_1, open_chain_fee_budget())
+        .await;
     suite
         .fund_chain(
             &user_chain,
-            OPEN_CHAIN_FEE_BUDGET
+            open_chain_fee_budget()
                 .try_add(Amount::from_tokens(10))
                 .unwrap(),
         )
@@ -577,7 +581,10 @@ async fn meme_meme_pair_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain_user.chain_balance().await);
+    assert_eq!(
+        open_chain_fee_budget(),
+        pool_chain_user.chain_balance().await
+    );
     assert_eq!(Amount::ONE, pool.reserve_0);
     assert_eq!(Amount::ONE, pool.reserve_1);
 
@@ -708,7 +715,10 @@ async fn meme_meme_pair_test() {
         .await;
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
 
-    assert_eq!(OPEN_CHAIN_FEE_BUDGET, pool_chain_user.chain_balance().await);
+    assert_eq!(
+        open_chain_fee_budget(),
+        pool_chain_user.chain_balance().await
+    );
     assert_eq!(Amount::from_tokens(3), pool.reserve_1);
     assert_eq!(Amount::from_tokens(2), pool.reserve_0);
 }

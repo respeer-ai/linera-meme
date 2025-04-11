@@ -22,13 +22,13 @@ class Trader:
             return (None, None)
 
         if buy_token_0 is True:
-            return (None, min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10))
+            return (None, min(min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10), 1))
         if buy_token_0 is False:
-            return (min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), None)
+            return (min(min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), 10), None)
 
     def trade_in_pool(self, pool):
         # Generate trade direction
-        buy_token_0 = True if random.randint(0, 1) == 1 else False
+        buy_token_0 = True if random.random() > 0.5 else False
 
         wallet_chain = self.wallet._chain()
         account = self.wallet.account()
@@ -52,6 +52,8 @@ class Trader:
         print(f'      Token1Balance          {token_1_balance}')
         print(f'      Amount0                {amount_0}')
         print(f'      Amount1                {amount_1}')
+        print(f'      Token0Price            {pool.token_0_price}')
+        print(f'      Token1Price            {pool.token_1_price}')
         print(f'      BuyToken0              {buy_token_0}')
 
         if amount_0 is None and amount_1 is None:

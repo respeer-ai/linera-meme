@@ -6,8 +6,8 @@
 mod state;
 
 use abi::{
-    constant::OPEN_CHAIN_FEE_BUDGET,
     meme::{MemeAbi, MemeOperation},
+    policy::open_chain_fee_budget,
     swap::{
         pool::{
             InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolOperation,
@@ -340,7 +340,7 @@ impl SwapContract {
         };
         Ok(self
             .runtime
-            .open_chain(ownership, permissions, OPEN_CHAIN_FEE_BUDGET))
+            .open_chain(ownership, permissions, open_chain_fee_budget()))
     }
 
     fn fund_swap_creation_chain(
@@ -452,7 +452,7 @@ impl SwapContract {
     ) -> Result<SwapResponse, SwapError> {
         // Fund fee budget firstly. If not created, refund
         let signer = self.runtime.authenticated_signer().unwrap();
-        self.fund_swap_creation_chain(signer, AccountOwner::CHAIN, OPEN_CHAIN_FEE_BUDGET);
+        self.fund_swap_creation_chain(signer, AccountOwner::CHAIN, open_chain_fee_budget());
 
         self.runtime
             .prepare_message(SwapMessage::CreateUserPool {
