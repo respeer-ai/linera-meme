@@ -67,6 +67,12 @@ impl Contract for MemeContract {
             .await
             .expect("Failed instantiate");
 
+        // Let creator hold one hundred tokens for easy test
+        self.state
+            .initialize_balance(creator, self.state.initial_owner_balance().await)
+            .await
+            .expect("Failed initialize balance");
+
         if let Some(liquidity) = self.initial_liquidity() {
             let swap_creator_chain = self.swap_creator_chain_id();
             self.state
@@ -74,12 +80,6 @@ impl Contract for MemeContract {
                 .await
                 .expect("Failed initialize liquidity");
         }
-
-        // Let creator hold one hundred tokens for easy test
-        self.state
-            .initialize_balance(creator, self.state.initial_owner_balance().await)
-            .await
-            .expect("Failed initialize balance");
 
         self.register_application().await;
         self.register_logo().await;
