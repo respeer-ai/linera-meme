@@ -36,14 +36,18 @@ const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 
 const points = computed(() => _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
-const lastTimestamp = computed(() => points.value[points.value.length - 1]?.timestamp || 0)
+const latestTimestamp = ref(selectedPool.value?.createdAt as number || 0)
+const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value) as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
 
-watch(lastTimestamp, () => {
+watch(latestPoints, () => {
   if (!applied.value) return
-  chart.value?.applyNewData(points.value)
+  latestPoints.value.forEach((point) => {
+    chart.value?.updateData(point)
+    latestTimestamp.value = point.timestamp
+  })
 })
 
 const getKline = (startAt: number) => {
@@ -60,6 +64,10 @@ const getKline = (startAt: number) => {
     interval: kline.Interval.ONE_MINUTE
   }, (error: boolean) => {
     if (error) return
+
+    chart.value?.applyNewData(points.value)
+    latestTimestamp.value = points.value[points.value.length - 1]?.timestamp || latestTimestamp.value
+
     if (endAt > Math.floor(Date.now() / 1000)) {
       applied.value = true
       return
@@ -101,7 +109,10 @@ onMounted(() => {
     ]
   } as unknown as Options)
   chart.value?.setPrecision({ price: 10, volume: 4 })
+
   chart.value?.applyNewData(points.value)
+  latestTimestamp.value = points.value[points.value.length - 1]?.timestamp || latestTimestamp.value
+
   getPoolKline()
 })
 
