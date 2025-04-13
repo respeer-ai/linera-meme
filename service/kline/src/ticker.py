@@ -17,6 +17,8 @@ class Ticker:
         return self.swap.get_pool_transactions(pool)
 
     async def run(self):
+        lastTimestamps = {}
+
         while self._running:
             pools = self.get_pools()
             self.db.new_pools(pools)
@@ -26,11 +28,15 @@ class Ticker:
             for pool in pools:
                 transactions = self.get_pool_transactions(pool)
                 __transactions = self.db.new_transactions(pool.pool_id, transactions)
+
+                lastTimestamp = lastTimestamps[pool.pool_id] if pool.pool_id in lastTimestamps else 0
+
                 _transactions.append({
                     'token_0': pool.token_0,
                     'token_1': pool.token_1 if pool.token_1 is not None else 'TLINERA',
-                    'transactions': __transactions,
+                    'transactions': filter(lambda transaction: transaction.crerated_at > lastTimestamp, __transactions),
                 })
+                lastTimestamps[pool.pool_id] = max([transaction.created_at for transaction in __transactions])
 
             await self.manager.notify('kline', None)
             await self.manager.notify('transactions', _transactions)

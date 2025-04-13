@@ -265,11 +265,11 @@ class Db:
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         end_at = time.time()
         intervals = {
-            '1min': 60 * 60,
-            '5min': 300 * 24,
-            '10min': 600 * 60,
-            '1h': 3600 * 24,
-            '1D': 86400 * 7,
+            '1min': 60 * 5,
+            '5min': 300 * 3,
+            '10min': 600 * 3,
+            '1h': 3600 * 3,
+            '1D': 86400 * 3,
             '1W': 86400 * 7 * 4,
             '1ME': 86400 * 30 * 12
         }
