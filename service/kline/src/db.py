@@ -155,7 +155,8 @@ class Db:
             'volume': volume,
             'direction': direction,
             'token_reversed': token_reversed,
-            'created_at': datetime.fromtimestamp(transaction.created_at / 1000000).strftime('%Y-%m-%d %H:%M:%S')
+            'created_at': datetime.fromtimestamp(transaction.created_at / 1000000).strftime('%Y-%m-%d %H:%M:%S'),
+            'created_timestamp': transaction.created_at,
         }
 
     def new_transactions(self, pool_id: int, transactions: list[Transaction]):
