@@ -34,7 +34,7 @@ class Ticker:
                 _transactions.append({
                     'token_0': pool.token_0,
                     'token_1': pool.token_1 if pool.token_1 is not None else 'TLINERA',
-                    'transactions': filter(lambda transaction: transaction['crerated_at'] > lastTimestamp, __transactions),
+                    'transactions': list(filter(lambda transaction: transaction['created_timestamp'] > lastTimestamp, __transactions)),
                 })
                 lastTimestamps[pool.pool_id] = max([transaction['created_timestamp'] for transaction in __transactions])
 
