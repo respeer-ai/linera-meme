@@ -105,12 +105,17 @@ watch(selectedPool, () => {
   getStoreKline()
 })
 
-const MAX_POINTS = 120
+const MAX_POINTS = 300
 
 const updatePoints = (_points: KLineData[]) => {
   // TODO: load according to window
-  points.value = points.value.slice(Math.max(points.value.length - MAX_POINTS, 0), points.value.length)
-  points.value.push(..._points)
+  _points.forEach((point) => {
+    const index = points.value.findIndex((el) => el.timestamp === point.timestamp)
+    index >= 0 ? (points.value[index] = point) : points.value.push(point)
+  })
+  points.value.sort((p1, p2) => p1.timestamp - p2.timestamp)
+
+  points.value = points.value.slice(Math.max(points.value.length - MAX_POINTS, 0))
 }
 
 const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
@@ -139,7 +144,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   chart.value?.applyNewData(points.value)
   latestTimestamp.value = _points[_points.length - 1]?.timestamp || latestTimestamp.value
 
-  if (_points.length && points.value.length < MAX_POINTS) loadKline(payload.offset + payload.limit, payload.limit)
+  if (_points.length) loadKline(payload.offset + payload.limit, payload.limit)
   else getPoolKline()
 }
 

@@ -11,7 +11,7 @@ export const useKlineStore = defineStore('kline', {
     latestTimestamps: new Map<string, Map<string, Map<Interval, number>>>(),
     websocket: undefined as unknown as _WebSocket,
     latestPoints: new Map<Interval, Points[]>(),
-    transactions: new Map<string, TransactionExt[]>()
+    latestTransactions: new Map<string, Map<string, TransactionExt[]>>()
   }),
   actions: {
     initializeKline() {
@@ -77,6 +77,13 @@ export const useKlineStore = defineStore('kline', {
         klineWorker.KlineEventType.NEW_TRANSACTIONS,
         transactions
       )
+      transactions.forEach((_transactions) => {
+        const trans =
+          this.latestTransactions.get(_transactions.token_0) ||
+          new Map<string, TransactionExt[]>()
+        trans.set(_transactions.token_1, _transactions.transactions)
+        this.latestTransactions.set(_transactions.token_0, trans)
+      })
     }
   },
   getters: {
@@ -86,14 +93,7 @@ export const useKlineStore = defineStore('kline', {
       token1: string
     ) => number {
       return (key: Interval, token0: string, token1: string) => {
-        return (
-          (
-            (
-              this.latestTimestamps.get(token0) ||
-              new Map<string, Map<Interval, number>>()
-            ).get(token1) || new Map<Interval, number>()
-          ).get(key) || 0
-        )
+        return this.latestTimestamps.get(token0)?.get(token1)?.get(key) || 0
       }
     },
     _latestPoints(): (
@@ -107,6 +107,19 @@ export const useKlineStore = defineStore('kline', {
             (el) => el.token_0 === token0 && el.token_1 === token1
           )?.points || []
         ).sort((a, b) => a.timestamp - b.timestamp)
+      }
+    },
+    _latestTransactions(): (
+      token0: string,
+      token1: string
+    ) => TransactionExt[] {
+      return (token0: string, token1: string) => {
+        return (
+          this.latestTransactions
+            .get(token0)
+            ?.get(token1)
+            ?.sort((a, b) => a.created_at - b.created_at) || []
+        )
       }
     }
   }

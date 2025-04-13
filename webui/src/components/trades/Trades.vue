@@ -10,7 +10,7 @@
 <script setup lang='ts'>
 import { computed, onMounted, watch, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { swap, transaction } from 'src/localstore'
+import { swap, transaction, kline } from 'src/localstore'
 import { shortid } from 'src/utils'
 import { klineWorker } from 'src/worker'
 
@@ -56,12 +56,14 @@ const columns = computed(() => [
 ])
 
 const _swap = swap.useSwapStore()
+const _kline = kline.useKlineStore()
 
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 
 const transactions = ref([] as transaction.TransactionExt[])
+const latestTransactions = computed(() => _kline._latestTransactions(selectedToken0.value, selectedToken1.value))
 
 const getTransactions = (startAt: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
@@ -114,10 +116,18 @@ watch(selectedPool, () => {
 const MAX_TRANSACTIONS = 600
 
 const updateTransactions = (_transactions: transaction.TransactionExt[]) => {
-  // TODO: load according to page
-  transactions.value = transactions.value.slice(Math.max(transactions.value.length - MAX_TRANSACTIONS, 0), transactions.value.length)
-  transactions.value.push(..._transactions)
+  _transactions.forEach((transaction) => {
+    const index = transactions.value.findIndex((el) => el.created_at === transaction.created_at)
+    index >= 0 ? (transactions.value[index] = transaction) : transactions.value.push(transaction)
+  })
+  transactions.value.sort((p1, p2) => p2.created_at - p1.created_at)
+
+  transactions.value = transactions.value.slice(0, MAX_TRANSACTIONS)
 }
+
+watch(latestTransactions, () => {
+  updateTransactions(latestTransactions.value)
+})
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
   updateTransactions(payload.transactions)
@@ -137,7 +147,7 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
 
   updateTransactions(_transactions)
 
-  if (_transactions.length && transactions.value.length < MAX_TRANSACTIONS) loadTransactions(payload.offset + payload.limit, payload.limit)
+  if (_transactions.length) loadTransactions(payload.offset + payload.limit, payload.limit)
   else getPoolTransactions()
 }
 
