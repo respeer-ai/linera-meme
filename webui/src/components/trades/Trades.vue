@@ -8,10 +8,11 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { swap, transaction, kline } from 'src/localstore'
 import { shortid } from 'src/utils'
+import { klineWorker } from 'src/worker'
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -69,16 +70,11 @@ const getTransactions = (startAt: number) => {
 
   const endAt = startAt + 3600
 
-  _kline.getTransactions({
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_TRANSACTIONS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
     startAt,
     endAt
-  }, (error: boolean, rows?: transaction.TransactionExt[]) => {
-    if (error || !rows?.length) return
-    setTimeout(() => {
-      getTransactions(endAt)
-    }, 100)
   })
 }
 
@@ -100,8 +96,25 @@ watch(selectedPool, () => {
   getPoolTransactions()
 })
 
+const onTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
+  _kline.appendTransactions(payload.token0, payload.token1, payload.transactions)
+
+  if (payload.endAt > Math.floor(Date.now() / 1000)) {
+    return
+  }
+
+  setTimeout(() => {
+    getTransactions(payload.endAt)
+  }, 100)
+}
+
 onMounted(() => {
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onTransactions as klineWorker.ListenerFunc)
   getPoolTransactions()
+})
+
+onBeforeUnmount(() => {
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onTransactions as klineWorker.ListenerFunc)
 })
 
 </script>

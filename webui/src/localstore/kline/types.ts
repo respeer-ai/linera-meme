@@ -11,6 +11,11 @@ export interface Point {
   timestamp: number
 }
 
+export interface TimestampPoints {
+  points: Point[]
+  latestTimestamp: number
+}
+
 export interface Points {
   token_0: string
   token_1: string

@@ -5,7 +5,8 @@ import {
   GetKlineRequest,
   GetTransactionsRequest,
   Notification,
-  Transactions
+  Transactions,
+  TimestampPoints
 } from './types'
 import { _WebSocket } from './websocket'
 import { constants } from 'src/constant'
@@ -14,7 +15,8 @@ import { TransactionExt } from '../transaction'
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
-    points: new Map<string, Map<string, Point[]>>(),
+    points: new Map<string, Map<string, TimestampPoints>>(),
+    latestTimestamps: new Map<string, Map<string, number>>(),
     websocket: undefined as unknown as _WebSocket,
     latestPoints: new Map<string, Points[]>(),
     transactions: new Map<string, TransactionExt[]>()
@@ -40,22 +42,26 @@ export const useKlineStore = defineStore('kline', {
     },
     onKline(points: Map<string, Points[]>) {
       points.forEach((_points, key) => {
-        const __points = this.points.get(key) || new Map<string, Point[]>()
+        const __points = this.points.get(key) || new Map<string, TimestampPoints>()
         _points.forEach((points) => {
           const ___points =
-            __points.get(`${points.token_0}:${points.token_1}`) || []
+            __points.get(`${points.token_0}:${points.token_1}`) || {
+              points: [],
+              latestTimestamp: 0
+            }
           points.points.forEach((point) => {
             point.timestamp = Math.floor(
               Date.parse(point.timestamp as unknown as string)
             )
-            const index = ___points.findIndex(
+            const index = ___points.points.findIndex(
               (el) => el.timestamp === point.timestamp
             )
             if (index >= 0) {
               ___points[index] = point
               return
             }
-            ___points.push(point)
+            ___points.points.push(point)
+            ___points.latestTimestamp = Math.max(point.timestamp, ___points.latestTimestamp)
           })
           __points.set(`${points.token_0}:${points.token_1}`, ___points)
         })
@@ -144,10 +150,25 @@ export const useKlineStore = defineStore('kline', {
     _points(): (key: string, token0: string, token1: string) => Point[] {
       return (key: string, token0: string, token1: string) => {
         return (
-          (this.points.get(key) || new Map<string, Point[]>()).get(
+          (this.points.get(key) || new Map<string, TimestampPoints>()).get(
             `${token0}:${token1}`
-          ) || []
-        ).sort((a, b) => a.timestamp - b.timestamp)
+          ) || {
+            points: [],
+            latestTimestamp: 0
+          }
+        ).points.sort((a, b) => a.timestamp - b.timestamp)
+      }
+    },
+    latestTimestamp(): (key: string, token0: string, token1: string) => number {
+      return (key: string, token0: string, token1: string) => {
+        return (
+          (this.points.get(key) || new Map<string, TimestampPoints>()).get(
+            `${token0}:${token1}`
+          ) || {
+            points: [],
+            latestTimestamp: 0
+          }
+        ).latestTimestamp
       }
     },
     _latestPoints(): (key: string, token0: string, token1: string) => Point[] {
