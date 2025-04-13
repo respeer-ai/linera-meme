@@ -26,7 +26,8 @@ export class _WebSocket {
   }
 
   onMessage(message: MessageEvent) {
-    const notification = message.data as Notification
+    // Here it must be parsed
+    const notification = JSON.parse(message.data as string) as Notification
     this.onMessageCb?.(notification)
   }
 

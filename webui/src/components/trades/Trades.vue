@@ -113,19 +113,10 @@ watch(selectedPool, () => {
   getPoolTransactions()
 })
 
-const updateTransactions = (_transactions: transaction.TransactionExt[], append: boolean) => {
-  append ? transactions.value.push(..._transactions) : transactions.value = _transactions
-}
-
-watch(latestTransactions, () => {
-  updateTransactions(latestTransactions.value, true)
-})
-
-const MAX_TRANSACTIONS = -1
-
 enum SortReason {
   FETCH = 'Fetch',
-  LOAD = 'Load'
+  LOAD = 'Load',
+  LATEST = 'Latest'
 }
 
 type ReasonPayload = { endAt: number } | { offset: number, limit: number }
@@ -134,6 +125,25 @@ interface Reason {
   reason: SortReason
   payload: ReasonPayload
 }
+
+watch(latestTransactions, () => {
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    originTransactions: transactions.value.map((el) => {
+      return { ...el }
+    }),
+    newTransactions: latestTransactions.value.map((el) => {
+      return { ...el }
+    }),
+    keepCount: MAX_TRANSACTIONS,
+    reverse: false,
+    reason: {
+      reason: SortReason.LATEST,
+      payload: undefined
+    }
+  })
+})
+
+const MAX_TRANSACTIONS = -1
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
