@@ -29,7 +29,7 @@ class Ticker:
                 transactions = self.get_pool_transactions(pool)
                 __transactions = self.db.new_transactions(pool.pool_id, transactions)
 
-                lastTimestamp = lastTimestamps[pool.pool_id] if pool.pool_id id lastTimestamps else 0
+                lastTimestamp = lastTimestamps[pool.pool_id] if pool.pool_id in lastTimestamps else 0
 
                 _transactions.append({
                     'token_0': pool.token_0,
