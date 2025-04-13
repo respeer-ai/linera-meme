@@ -105,7 +105,7 @@ watch(selectedPool, () => {
   getStoreKline()
 })
 
-const MAX_POINTS = 300
+const MAX_POINTS = 120
 
 const updatePoints = (_points: KLineData[]) => {
   // TODO: load according to window

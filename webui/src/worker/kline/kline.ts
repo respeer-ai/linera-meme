@@ -8,7 +8,9 @@ import {
   LoadedPointsPayload,
   LoadedTransactionsPayload,
   LoadPointsPayload,
-  LoadTransactionsPayload
+  LoadTransactionsPayload,
+  NewPointsPayload,
+  NewTransactionsPayload
 } from './runner'
 
 type KlineResponseType =
@@ -54,6 +56,8 @@ export class KlineWorker {
       | FetchTransactionsPayload
       | LoadPointsPayload
       | LoadTransactionsPayload
+      | NewPointsPayload
+      | NewTransactionsPayload
   ) => {
     KlineWorker.getKlineWorker()._worker?.postMessage({
       type,

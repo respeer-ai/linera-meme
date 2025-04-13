@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-import { BaseRequest } from '../request'
 import { TransactionExt } from '../transaction'
 
 export interface Point {
@@ -9,11 +8,6 @@ export interface Point {
   close: number
   volume: number
   timestamp: number
-}
-
-export interface TimestampPoints {
-  points: Point[]
-  latestTimestamp: number
 }
 
 export interface Points {
@@ -34,19 +28,4 @@ export interface Transactions {
   token_0: string
   token_1: string
   transactions: Array<TransactionExt>
-}
-
-export interface GetKlineRequest extends BaseRequest {
-  token0: string
-  token1: string
-  startAt: number
-  endAt: number
-  interval: string
-}
-
-export interface GetTransactionsRequest extends BaseRequest {
-  token0: string
-  token1: string
-  startAt: number
-  endAt: number
 }

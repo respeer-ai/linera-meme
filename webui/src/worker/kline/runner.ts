@@ -1,7 +1,7 @@
 import { constants } from 'src/constant'
 import { Interval } from 'src/localstore/kline/const'
 import axios from 'axios'
-import { Point, Points } from 'src/localstore/kline/types'
+import { Point, Points, Transactions } from 'src/localstore/kline/types'
 import { TransactionExt } from 'src/localstore/transaction/types'
 import { dbBridge } from 'src/bridge'
 
@@ -17,6 +17,9 @@ export enum KlineEventType {
 
   LOADED_POINTS = 'LoadedPoints',
   LOADED_TRANSACTIONS = 'LoadedTransactions',
+
+  NEW_POINTS = 'NewPoints',
+  NEW_TRANSACTIONS = 'NewTransactions',
 
   Error = 'Error'
 }
@@ -61,6 +64,8 @@ export interface LoadedTransactionsPayload extends BasePayload {
   limit: number
   transactions: TransactionExt[]
 }
+export type NewPointsPayload = Map<Interval, Points[]>
+export type NewTransactionsPayload = Transactions[]
 
 export interface KlineEvent {
   type: KlineEventType
@@ -73,9 +78,49 @@ export interface KlineEvent {
     | FetchedTransactionsPayload
     | LoadedPointsPayload
     | LoadedTransactionsPayload
+    | NewPointsPayload
+    | NewTransactionsPayload
 }
 
 export class KlineRunner {
+  static storePoints = async (
+    token0: string,
+    token1: string,
+    interval: Interval,
+    points: Points,
+    offset: number,
+    count: number
+  ) => {
+    if (offset >= points.points.length) return
+
+    await dbBridge.Kline.bulkPut(
+      token0,
+      token1,
+      interval,
+      points.points.slice(offset, offset + count)
+    )
+
+    setTimeout(() => {
+      void KlineRunner.storePoints(
+        token0,
+        token1,
+        interval,
+        points,
+        offset + count,
+        count
+      )
+    })
+  }
+
+  static bulkStorePoints = (
+    token0: string,
+    token1: string,
+    interval: Interval,
+    points: Points
+  ) => {
+    void KlineRunner.storePoints(token0, token1, interval, points, 0, 20)
+  }
+
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
     const { token0, token1, startAt, endAt, interval } = payload
 
@@ -88,18 +133,16 @@ export class KlineRunner {
 
       const points = res.data as Points
       points.end_at = endAt
+      points.points = points.points.map((el) => {
+        return {
+          ...el,
+          timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
+        }
+      })
 
-      await dbBridge.Kline.bulkPut(
-        token0,
-        token1,
-        interval,
-        points.points.map((el) => {
-          return {
-            ...el,
-            timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
-          }
-        })
-      )
+      KlineRunner.bulkStorePoints(token0, token1, interval, points)
+
+      await dbBridge.Kline.bulkPut(token0, token1, interval, points.points)
 
       self.postMessage({
         type: KlineEventType.FETCHED_POINTS,
@@ -111,6 +154,40 @@ export class KlineRunner {
         payload: e
       })
     }
+  }
+
+  static storeTransactions = async (
+    token0: string,
+    token1: string,
+    transactions: TransactionExt[],
+    offset: number,
+    count: number
+  ) => {
+    if (offset >= transactions.length) return
+
+    await dbBridge.Transaction.bulkPut(
+      token0,
+      token1,
+      transactions.slice(offset, offset + count)
+    )
+
+    setTimeout(() => {
+      void KlineRunner.storeTransactions(
+        token0,
+        token1,
+        transactions,
+        offset + count,
+        count
+      )
+    })
+  }
+
+  static bulkStoreTransactions = (
+    token0: string,
+    token1: string,
+    transactions: TransactionExt[]
+  ) => {
+    void KlineRunner.storeTransactions(token0, token1, transactions, 0, 20)
   }
 
   static handleFetchTransactions = async (
@@ -126,7 +203,7 @@ export class KlineRunner {
       const res = await axios.get(url)
       const transactions = res.data as TransactionExt[]
 
-      await dbBridge.Transaction.bulkPut(token0, token1, transactions)
+      KlineRunner.bulkStoreTransactions(token0, token1, transactions)
 
       self.postMessage({
         type: KlineEventType.FETCHED_TRANSACTIONS,
@@ -204,5 +281,38 @@ export class KlineRunner {
         payload: e
       })
     }
+  }
+
+  static handleNewPoints = (payload: NewPointsPayload) => {
+    const points = payload
+
+    points.forEach((_points, interval) => {
+      _points.forEach((__points) => {
+        __points.points = __points.points.map((el) => {
+          return {
+            ...el,
+            timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
+          }
+        })
+        KlineRunner.bulkStorePoints(
+          __points.token_0,
+          __points.token_1,
+          interval,
+          __points
+        )
+      })
+    })
+  }
+
+  static handleNewTransactions = (payload: NewTransactionsPayload) => {
+    const transactions = payload
+
+    transactions.forEach((_transactions) => {
+      KlineRunner.bulkStoreTransactions(
+        _transactions.token_0,
+        _transactions.token_1,
+        _transactions.transactions
+      )
+    })
   }
 }

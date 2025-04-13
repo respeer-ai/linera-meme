@@ -3,6 +3,7 @@ import { Notification } from './types'
 export class _WebSocket {
   private onMessageCb: (message: Notification) => void =
     undefined as unknown as (message: Notification) => void
+
   private onErrorCb: (e: Event) => void = undefined as unknown as (
     e: Event
   ) => void
@@ -10,9 +11,9 @@ export class _WebSocket {
   constructor(url: string) {
     const socket = new WebSocket(url)
 
-    socket.onopen = this.onOpen
+    socket.onopen = () => this.onOpen()
     socket.onmessage = (event) => this.onMessage(event)
-    socket.onclose, this.onClose
+    socket.onclose = () => this.onClose()
     socket.onerror = (event) => this.onError(event)
   }
 
@@ -25,7 +26,7 @@ export class _WebSocket {
   }
 
   onMessage(message: MessageEvent) {
-    const notification = JSON.parse(message.data) as Notification
+    const notification = message.data as Notification
     this.onMessageCb?.(notification)
   }
 
