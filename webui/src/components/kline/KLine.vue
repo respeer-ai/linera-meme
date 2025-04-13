@@ -45,6 +45,7 @@ const applied = ref(false)
 
 watch(latestPoints, () => {
   if (!applied.value) return
+  console.log(applied.value, latestPoints.value, 111)
   latestPoints.value.forEach((point) => {
     chart.value?.updateData(point)
     latestTimestamp.value = point.timestamp
@@ -97,7 +98,7 @@ watch(selectedPool, () => {
   getStoreKline()
 })
 
-const MAX_POINTS = -1
+const MAX_POINTS = 1800
 
 enum SortReason {
   FETCH = 'Fetch',

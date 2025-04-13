@@ -53,10 +53,7 @@ export const useKlineStore = defineStore('kline', {
 
           __latestTimestamps.set(
             interval,
-            Math.max(
-              ...__points.points.map((el) => el.timestamp
-              )
-            )
+            Math.max(...__points.points.map((el) => el.timestamp))
           )
           _latestTimestamps.set(__points.token_1, __latestTimestamps)
           this.latestTimestamps.set(__points.token_0, _latestTimestamps)
