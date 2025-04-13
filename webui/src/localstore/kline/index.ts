@@ -42,13 +42,15 @@ export const useKlineStore = defineStore('kline', {
     },
     onKline(points: Map<string, Points[]>) {
       points.forEach((_points, key) => {
-        const __points = this.points.get(key) || new Map<string, TimestampPoints>()
+        const __points =
+          this.points.get(key) || new Map<string, TimestampPoints>()
         _points.forEach((points) => {
-          const ___points =
-            __points.get(`${points.token_0}:${points.token_1}`) || {
-              points: [],
-              latestTimestamp: 0
-            }
+          const ___points = __points.get(
+            `${points.token_0}:${points.token_1}`
+          ) || {
+            points: [],
+            latestTimestamp: 0
+          }
           points.points.forEach((point) => {
             point.timestamp = Math.floor(
               Date.parse(point.timestamp as unknown as string)
@@ -61,7 +63,10 @@ export const useKlineStore = defineStore('kline', {
               return
             }
             ___points.points.push(point)
-            ___points.latestTimestamp = Math.max(point.timestamp, ___points.latestTimestamp)
+            ___points.latestTimestamp = Math.max(
+              point.timestamp,
+              ___points.latestTimestamp
+            )
           })
           __points.set(`${points.token_0}:${points.token_1}`, ___points)
         })

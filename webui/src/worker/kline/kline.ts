@@ -1,12 +1,22 @@
 import {
   FetchedPointsPayload,
+  FetchedTransactionsPayload,
   FetchPointsPayload,
   FetchTransactionsPayload,
   KlineEvent,
-  KlineEventType
+  KlineEventType,
+  LoadedPointsPayload,
+  LoadedTransactionsPayload,
+  LoadPointsPayload,
+  LoadTransactionsPayload
 } from './runner'
 
-export type ListenerFunc = (payload: FetchPointsPayload | FetchTransactionsPayload | FetchedPointsPayload) => void
+type KlineResponseType =
+  | FetchedPointsPayload
+  | FetchedTransactionsPayload
+  | LoadedPointsPayload
+  | LoadedTransactionsPayload
+export type ListenerFunc = (payload: KlineResponseType) => void
 
 export class KlineWorker {
   // eslint-disable-next-line no-use-before-define
@@ -15,7 +25,10 @@ export class KlineWorker {
   private _worker: Worker | undefined = undefined
 
   // eslint-disable-next-line func-call-spacing
-  private _listeners: Map<KlineEventType, (payload: FetchPointsPayload | FetchTransactionsPayload | FetchedPointsPayload) => void> = new Map<KlineEventType, (payload: FetchPointsPayload | FetchTransactionsPayload | FetchedPointsPayload) => void>()
+  private _listeners: Map<KlineEventType, ListenerFunc> = new Map<
+    KlineEventType,
+    ListenerFunc
+  >()
 
   private constructor() {
     this._worker = new Worker(new URL('./worker.ts', import.meta.url), {
@@ -24,7 +37,7 @@ export class KlineWorker {
 
     this._worker.onmessage = (message: MessageEvent) => {
       const event = message.data as KlineEvent
-      this._listeners.get(event.type)?.(event.payload)
+      this._listeners.get(event.type)?.(event.payload as KlineResponseType)
     }
   }
 
@@ -36,7 +49,11 @@ export class KlineWorker {
 
   public static send = (
     type: KlineEventType,
-    payload?: FetchPointsPayload | FetchTransactionsPayload
+    payload?:
+      | FetchPointsPayload
+      | FetchTransactionsPayload
+      | LoadPointsPayload
+      | LoadTransactionsPayload
   ) => {
     KlineWorker.getKlineWorker()._worker?.postMessage({
       type,

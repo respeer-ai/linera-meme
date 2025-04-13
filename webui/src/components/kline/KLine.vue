@@ -25,9 +25,9 @@ import { init, dispose, Chart, Nullable, KLineData, Options } from 'klinecharts'
 import { kline, swap } from 'src/localstore'
 import { useRouter } from 'vue-router'
 import { constants } from 'src/constant'
+import { klineWorker } from 'src/worker'
 
 import SwapSelect from './SwapSelect.vue'
-import { klineWorker } from 'src/worker'
 
 const _kline = kline.useKlineStore()
 const _swap = swap.useSwapStore()
@@ -39,6 +39,7 @@ const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 
 
 const latestTimestamp = ref(poolCreatedAt.value)
 const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value) as KLineData[])
+const points = ref([] as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
@@ -68,32 +69,48 @@ const getKline = (startAt: number) => {
 
 const getPoolKline = () => {
   if (selectedPool.value?.createdAt) {
-    latestTimestamp.value = _kline.latestTimestamp(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) || poolCreatedAt.value
-    latestTimestamp.value = Math.max(latestTimestamp.value, Math.floor(Date.now() / 1000 - 1 * 3600))
+    latestTimestamp.value = Math.max(poolCreatedAt.value, Math.floor(Date.now() / 1000 - 1 * 3600))
     getKline(latestTimestamp.value)
   }
 }
 
+const loadKline = (offset: number, limit: number) => {
+  if (!selectedToken0.value || !selectedToken1.value) return
+  if (selectedToken0.value === selectedToken1.value) return
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_POINTS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    offset,
+    limit,
+    interval: kline.Interval.ONE_MINUTE
+  })
+}
+
+const getStoreKline = () => {
+  if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value) {
+    loadKline(0, 100)
+  }
+}
+
 watch(selectedToken0, () => {
-  getPoolKline()
+  getStoreKline()
 })
 
 watch(selectedToken1, () => {
-  getPoolKline()
+  getStoreKline()
 })
 
 watch(selectedPool, () => {
-  getPoolKline()
+  getStoreKline()
 })
 
-const onPoints = (payload: klineWorker.FetchedPointsPayload) => {
-  const r = new Map<string, kline.Points[]>()
-  r.set(payload.interval, [payload])
-  _kline.onKline(r)
+const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
+  const _points = payload.points as KLineData[]
+  points.value.push(..._points)
 
-  const points = _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[]
-  chart.value?.applyNewData(points)
-  latestTimestamp.value = _kline.latestTimestamp(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) || latestTimestamp.value
+  chart.value?.applyNewData(points.value)
+  latestTimestamp.value = _points[_points.length - 1]?.timestamp || latestTimestamp.value
 
   if (payload.end_at > Math.floor(Date.now() / 1000)) {
     applied.value = true
@@ -103,6 +120,16 @@ const onPoints = (payload: klineWorker.FetchedPointsPayload) => {
   setTimeout(() => {
     getKline(payload.end_at)
   }, 100)
+}
+
+const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
+  const _points = payload.points as KLineData[]
+  points.value.push(..._points)
+  chart.value?.applyNewData(points.value)
+  latestTimestamp.value = _points[_points.length - 1]?.timestamp || latestTimestamp.value
+
+  if (_points.length) loadKline(payload.offset + payload.limit, payload.limit)
+  else getPoolKline()
 }
 
 onMounted(() => {
@@ -119,16 +146,15 @@ onMounted(() => {
   } as unknown as Options)
   chart.value?.setPrecision({ price: 10, volume: 4 })
 
-  const points = _kline._points(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[]
-  chart.value?.applyNewData(points)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
 
-  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onPoints as klineWorker.ListenerFunc)
-
-  getPoolKline()
+  getStoreKline()
 })
 
 onBeforeUnmount(() => {
-  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onPoints as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
   dispose('chart')
 })
 

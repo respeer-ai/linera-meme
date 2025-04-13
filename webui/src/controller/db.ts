@@ -1,18 +1,15 @@
-import Dexie, { type EntityTable } from 'dexie'
-import { dbModel } from '../model'
+import Dexie, { Table } from 'dexie'
+import { Interval } from 'src/localstore/kline/const'
+import { dbModel } from 'src/model'
 
-export const dbBase = new Dexie('KLineDatabase') as Dexie & {
-  oneMMs: EntityTable<dbModel.OneMM, 'id'>
+export const dbKline = new Dexie('KLineDatabase') as Dexie & {
+  klinePoints: Table<dbModel.KlinePoint, [string, string, Interval, number]>
+  transactions: Table<dbModel._Transaction, [string, string, number, boolean]>
 }
 
-dbBase.version(1).stores({
-  oneMMs: '++id, name, msg'
-})
-
-export const dbMeme = new Dexie('MemeDatabase') as Dexie & {
-  memes: EntityTable<dbModel.ChainMeme, 'id'>
-}
-
-dbMeme.version(1).stores({
-  memes: '++id, chain_id, meme_id'
+dbKline.version(1).stores({
+  klinePoints:
+    '++id, &[token0+token1+interval+timestamp], open, close, low, high, volume, timestamp',
+  transactions:
+    '++id, &[token0+token1+transaction_id+token_reversed], transaction_type, from_account, amount_0_in, amount_1_in, amount_0_out, amount_1_out, liquidity, created_at, price, volume, direction'
 })

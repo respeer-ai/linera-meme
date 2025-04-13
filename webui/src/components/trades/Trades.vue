@@ -8,9 +8,9 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { computed, onMounted, watch, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { swap, transaction, kline } from 'src/localstore'
+import { swap, transaction } from 'src/localstore'
 import { shortid } from 'src/utils'
 import { klineWorker } from 'src/worker'
 
@@ -56,13 +56,12 @@ const columns = computed(() => [
 ])
 
 const _swap = swap.useSwapStore()
-const _kline = kline.useKlineStore()
 
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 
-const transactions = computed(() => _kline._transactions(selectedToken0.value, selectedToken1.value))
+const transactions = ref([] as transaction.TransactionExt[])
 
 const getTransactions = (startAt: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
@@ -78,10 +77,26 @@ const getTransactions = (startAt: number) => {
   })
 }
 
+const loadTransactions = (offset: number, limit: number) => {
+  if (!selectedToken0.value || !selectedToken1.value) return
+  if (selectedToken0.value === selectedToken1.value) return
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    offset,
+    limit
+  })
+}
+
 const getPoolTransactions = () => {
   if (selectedPool.value?.createdAt) {
     getTransactions(Math.floor(selectedPool.value?.createdAt / 1000000))
   }
+}
+
+const getStoreTransactions = () => {
+  loadTransactions(0, 100)
 }
 
 watch(selectedToken0, () => {
@@ -96,9 +111,10 @@ watch(selectedPool, () => {
   getPoolTransactions()
 })
 
-const onTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  _kline.appendTransactions(payload.token0, payload.token1, payload.transactions)
+const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
+  transactions.value.push(...payload.transactions)
 
+  // Transactions are already stored to indexDB
   if (payload.endAt > Math.floor(Date.now() / 1000)) {
     return
   }
@@ -108,13 +124,24 @@ const onTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
   }, 100)
 }
 
+const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) => {
+  const _transactions = payload.transactions
+
+  transactions.value.push(..._transactions)
+
+  if (_transactions.length) loadTransactions(payload.offset + payload.limit, payload.limit)
+  else getPoolTransactions()
+}
+
 onMounted(() => {
-  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onTransactions as klineWorker.ListenerFunc)
-  getPoolTransactions()
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
+  getStoreTransactions()
 })
 
 onBeforeUnmount(() => {
-  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
 })
 
 </script>
