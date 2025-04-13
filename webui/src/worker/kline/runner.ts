@@ -21,6 +21,12 @@ export enum KlineEventType {
   NEW_POINTS = 'NewPoints',
   NEW_TRANSACTIONS = 'NewTransactions',
 
+  SORT_POINTS = 'SortPoints',
+  SORT_TRANSACTIONS = 'SortTransactions',
+
+  SORTED_POINTS = 'SortedPoints',
+  SORTED_TRANSACTIONS = 'SortedTransactions',
+
   Error = 'Error'
 }
 
@@ -66,6 +72,28 @@ export interface LoadedTransactionsPayload extends BasePayload {
 }
 export type NewPointsPayload = Map<Interval, Points[]>
 export type NewTransactionsPayload = Transactions[]
+export interface SortPointsPayload {
+  originPoints: Point[]
+  newPoints: Point[]
+  keepCount: number
+  reverse: boolean
+  reason: unknown
+}
+export interface SortedPointsPayload {
+  points: Point[]
+  reason: unknown
+}
+export interface SortTransactionsPayload {
+  originTransactions: TransactionExt[]
+  newTransactions: TransactionExt[]
+  keepCount: number
+  reverse: boolean
+  reason: unknown
+}
+export interface SortedTransactionsPayload {
+  transactions: TransactionExt[]
+  reason: unknown
+}
 
 export interface KlineEvent {
   type: KlineEventType
@@ -80,6 +108,10 @@ export interface KlineEvent {
     | LoadedTransactionsPayload
     | NewPointsPayload
     | NewTransactionsPayload
+    | SortPointsPayload
+    | SortTransactionsPayload
+    | SortedPointsPayload
+    | SortedTransactionsPayload
 }
 
 export class KlineRunner {
@@ -136,7 +168,9 @@ export class KlineRunner {
       points.points = points.points.map((el) => {
         return {
           ...el,
-          timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
+          timestamp: Math.floor(
+            Date.parse(el.timestamp as unknown as string) / 1000
+          )
         }
       })
 
@@ -291,7 +325,9 @@ export class KlineRunner {
         __points.points = __points.points.map((el) => {
           return {
             ...el,
-            timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
+            timestamp: Math.floor(
+              Date.parse(el.timestamp as unknown as string) / 1000
+            )
           }
         })
         KlineRunner.bulkStorePoints(
@@ -313,6 +349,65 @@ export class KlineRunner {
         _transactions.token_1,
         _transactions.transactions
       )
+    })
+  }
+
+  static handleSortPoints = (payload: SortPointsPayload) => {
+    let { originPoints, newPoints, reason, keepCount, reverse } = payload
+
+    newPoints.forEach((point) => {
+      const index = originPoints.findIndex(
+        (el) => el.timestamp === point.timestamp
+      )
+      index >= 0 ? (originPoints[index] = point) : originPoints.push(point)
+    })
+
+    const points = originPoints
+    const _points = points.sort((p1, p2) =>
+      reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
+    )
+    keepCount = keepCount < 0 ? _points.length : keepCount
+
+    self.postMessage({
+      type: KlineEventType.SORTED_POINTS,
+      payload: {
+        points: _points.slice(
+          reverse ? 0 : Math.max(_points.length - keepCount, 0),
+          reverse ? keepCount : _points.length
+        ),
+        reason
+      }
+    })
+  }
+
+  static handleSortTransactions = (payload: SortTransactionsPayload) => {
+    let { originTransactions, newTransactions, keepCount, reverse, reason } =
+      payload
+
+    newTransactions.forEach((point) => {
+      const index = originTransactions.findIndex(
+        (el) => el.created_at === point.created_at
+      )
+      index >= 0
+        ? (originTransactions[index] = point)
+        : originTransactions.push(point)
+    })
+
+    const transactions = originTransactions
+    const _transactions = transactions.sort((p1, p2) =>
+      reverse ? p2.created_at - p1.created_at : p1.created_at - p2.created_at
+    )
+    keepCount = keepCount < 0 ? _transactions.length : keepCount
+
+    self.postMessage({
+      type: KlineEventType.SORTED_TRANSACTIONS,
+      payload: {
+        transactions: _transactions.slice(
+          reverse ? 0 : Math.max(_transactions.length - keepCount, 0),
+          payload.reverse ? keepCount : _transactions.length
+        ),
+        reason
+      }
     })
   }
 }

@@ -113,53 +113,117 @@ watch(selectedPool, () => {
   getPoolTransactions()
 })
 
-const MAX_TRANSACTIONS = 600
-
-const updateTransactions = (_transactions: transaction.TransactionExt[]) => {
-  _transactions.forEach((transaction) => {
-    const index = transactions.value.findIndex((el) => el.created_at === transaction.created_at)
-    index >= 0 ? (transactions.value[index] = transaction) : transactions.value.push(transaction)
-  })
-  transactions.value.sort((p1, p2) => p2.created_at - p1.created_at)
-
-  transactions.value = transactions.value.slice(0, MAX_TRANSACTIONS)
+const updateTransactions = (_transactions: transaction.TransactionExt[], append: boolean) => {
+  append ? transactions.value.push(..._transactions) : transactions.value = _transactions
 }
 
 watch(latestTransactions, () => {
-  updateTransactions(latestTransactions.value)
+  updateTransactions(latestTransactions.value, true)
 })
 
+const MAX_TRANSACTIONS = -1
+
+enum SortReason {
+  FETCH = 'Fetch',
+  LOAD = 'Load'
+}
+
+type ReasonPayload = { endAt: number } | { offset: number, limit: number }
+
+interface Reason {
+  reason: SortReason
+  payload: ReasonPayload
+}
+
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  updateTransactions(payload.transactions)
-
-  // Transactions are already stored to indexDB
-  if (payload.endAt > Math.floor(Date.now() / 1000)) {
-    return
-  }
-
-  setTimeout(() => {
-    getTransactions(payload.endAt)
-  }, 100)
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    originTransactions: transactions.value.map((el) => {
+      return { ...el }
+    }),
+    newTransactions: payload.transactions.map((el) => {
+      return { ...el }
+    }),
+    keepCount: MAX_TRANSACTIONS,
+    reverse: false,
+    reason: {
+      reason: SortReason.FETCH,
+      payload: {
+        endAt: payload.endAt
+      }
+    }
+  })
 }
 
 const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) => {
   const _transactions = payload.transactions
 
-  updateTransactions(_transactions)
+  const reason = {
+    reason: _transactions.length ? SortReason.LOAD : SortReason.FETCH,
+    payload: _transactions.length ? {
+      offset: payload.offset + payload.limit,
+      limit: payload.limit
+    } : {
+      endAt: Math.max(...transactions.value.map((el) => el.created_at)) || Math.floor(selectedPool.value?.createdAt / 1000000)
+    }
+  }
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    originTransactions: transactions.value.map((el) => {
+      return { ...el }
+    }),
+    newTransactions: payload.transactions.map((el) => {
+      return { ...el }
+    }),
+    keepCount: MAX_TRANSACTIONS,
+    reverse: true,
+    reason
+  })
 
   if (_transactions.length) loadTransactions(payload.offset + payload.limit, payload.limit)
   else getPoolTransactions()
 }
 
+const onFetchSorted = (payload: ReasonPayload) => {
+  const { endAt } = payload as { endAt: number }
+
+  if (endAt > Math.floor(Date.now() / 1000)) {
+    return
+  }
+
+  setTimeout(() => {
+    getTransactions(endAt)
+  }, 100)
+}
+
+const onLoadSorted = (payload: ReasonPayload) => {
+  const { offset, limit } = payload as { offset: number, limit: number }
+
+  loadTransactions(offset, limit)
+}
+
+const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) => {
+  const _reason = payload.reason as Reason
+  transactions.value = payload.transactions
+
+  switch (_reason.reason) {
+    case SortReason.FETCH:
+      return onFetchSorted(_reason.payload)
+    case SortReason.LOAD:
+      return onLoadSorted(_reason.payload)
+  }
+}
+
 onMounted(() => {
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
   getStoreTransactions()
 })
 
 onBeforeUnmount(() => {
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
 })
 
 </script>

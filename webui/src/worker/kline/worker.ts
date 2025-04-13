@@ -7,8 +7,14 @@ import {
   LoadPointsPayload,
   LoadTransactionsPayload,
   NewPointsPayload,
-  NewTransactionsPayload
+  NewTransactionsPayload,
+  SortPointsPayload,
+  SortTransactionsPayload
 } from './runner'
+
+console.trace = () => {
+  // DO NOTHING
+}
 
 self.onmessage = async (message: MessageEvent) => {
   const event = message.data as KlineEvent
@@ -34,6 +40,12 @@ self.onmessage = async (message: MessageEvent) => {
     case KlineEventType.NEW_TRANSACTIONS:
       return KlineRunner.handleNewTransactions(
         event.payload as NewTransactionsPayload
+      )
+    case KlineEventType.SORT_POINTS:
+      return KlineRunner.handleSortPoints(event.payload as SortPointsPayload)
+    case KlineEventType.SORT_TRANSACTIONS:
+      return KlineRunner.handleSortTransactions(
+        event.payload as SortTransactionsPayload
       )
   }
 }

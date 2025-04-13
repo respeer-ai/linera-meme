@@ -10,7 +10,11 @@ import {
   LoadPointsPayload,
   LoadTransactionsPayload,
   NewPointsPayload,
-  NewTransactionsPayload
+  NewTransactionsPayload,
+  SortedPointsPayload,
+  SortedTransactionsPayload,
+  SortPointsPayload,
+  SortTransactionsPayload
 } from './runner'
 
 type KlineResponseType =
@@ -18,6 +22,8 @@ type KlineResponseType =
   | FetchedTransactionsPayload
   | LoadedPointsPayload
   | LoadedTransactionsPayload
+  | SortedPointsPayload
+  | SortedTransactionsPayload
 export type ListenerFunc = (payload: KlineResponseType) => void
 
 export class KlineWorker {
@@ -58,6 +64,8 @@ export class KlineWorker {
       | LoadTransactionsPayload
       | NewPointsPayload
       | NewTransactionsPayload
+      | SortPointsPayload
+      | SortTransactionsPayload
   ) => {
     KlineWorker.getKlineWorker()._worker?.postMessage({
       type,

@@ -50,7 +50,7 @@ export const useKlineStore = defineStore('kline', {
             return {
               ...el,
               timestamp: Math.floor(
-                Date.parse(el.timestamp as unknown as string)
+                Date.parse(el.timestamp as unknown as string) / 1000
               )
             }
           })
@@ -59,7 +59,7 @@ export const useKlineStore = defineStore('kline', {
             interval,
             Math.max(
               ...__points.points.map((el) =>
-                Math.floor(Date.parse(el.timestamp as unknown as string))
+                Math.floor(Date.parse(el.timestamp as unknown as string) / 1000)
               )
             )
           )

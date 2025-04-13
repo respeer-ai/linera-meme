@@ -39,7 +39,6 @@ const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 
 
 const latestTimestamp = ref(poolCreatedAt.value)
 const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value) as KLineData[])
-const points = ref([] as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
@@ -65,13 +64,6 @@ const getKline = (startAt: number) => {
     endAt,
     interval: kline.Interval.ONE_MINUTE
   })
-}
-
-const getPoolKline = () => {
-  if (selectedPool.value?.createdAt) {
-    latestTimestamp.value = Math.max(poolCreatedAt.value, Math.floor(Date.now() / 1000 - 1 * 3600))
-    getKline(latestTimestamp.value)
-  }
 }
 
 const loadKline = (offset: number, limit: number) => {
@@ -105,47 +97,93 @@ watch(selectedPool, () => {
   getStoreKline()
 })
 
-const MAX_POINTS = 300
+const MAX_POINTS = -1
 
-const updatePoints = (_points: KLineData[]) => {
-  // TODO: load according to window
-  _points.forEach((point) => {
-    const index = points.value.findIndex((el) => el.timestamp === point.timestamp)
-    index >= 0 ? (points.value[index] = point) : points.value.push(point)
+enum SortReason {
+  FETCH = 'Fetch',
+  LOAD = 'Load'
+}
+
+type ReasonPayload = { endAt: number } | { offset: number, limit: number }
+
+interface Reason {
+  reason: SortReason
+  payload: ReasonPayload
+}
+
+const updatePoints = (_points: kline.Point[], reason: Reason) => {
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
+    originPoints: [...(chart.value?.getDataList() || [])].map((el) => {
+      return { ...el } as kline.Point
+    }),
+    newPoints: _points,
+    keepCount: MAX_POINTS,
+    reverse: false,
+    reason
   })
-  points.value.sort((p1, p2) => p1.timestamp - p2.timestamp)
-
-  points.value = points.value.slice(Math.max(points.value.length - MAX_POINTS, 0))
 }
 
 const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
-  const _points = payload.points as KLineData[]
+  const _points = payload.points
 
-  updatePoints(_points)
+  updatePoints(_points, {
+    reason: SortReason.FETCH,
+    payload: {
+      endAt: payload.end_at
+    }
+  })
+}
 
-  chart.value?.applyNewData(points.value)
-  latestTimestamp.value = _points[_points.length - 1]?.timestamp || latestTimestamp.value
+const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
+  const _points = payload.points
 
-  if (payload.end_at > Math.floor(Date.now() / 1000)) {
+  const reason = {
+    reason: _points.length ? SortReason.LOAD : SortReason.FETCH,
+    payload: _points.length ? {
+      offset: payload.offset + payload.limit,
+      limit: payload.limit
+    } : {
+      endAt: latestTimestamp.value || Math.max(poolCreatedAt.value || 0, Math.floor(Date.now() / 1000 - 1 * 3600))
+    }
+  }
+
+  updatePoints(_points, reason)
+}
+
+const onFetchSorted = (payload: ReasonPayload) => {
+  const { endAt } = payload as { endAt: number }
+
+  console.log('onFetchSorted', endAt, payload, Date.now() / 1000)
+
+  if (endAt > Math.floor(Date.now() / 1000)) {
     applied.value = true
     return
   }
 
   setTimeout(() => {
-    getKline(payload.end_at)
+    getKline(endAt)
   }, 100)
 }
 
-const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
-  const _points = payload.points as KLineData[]
+const onLoadSorted = (payload: ReasonPayload) => {
+  const { offset, limit } = payload as { offset: number, limit: number }
 
-  updatePoints(_points)
+  loadKline(offset, limit)
+}
 
-  chart.value?.applyNewData(points.value)
-  latestTimestamp.value = _points[_points.length - 1]?.timestamp || latestTimestamp.value
+const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
+  const { points, reason } = payload
+  const _reason = reason as Reason
 
-  if (_points.length) loadKline(payload.offset + payload.limit, payload.limit)
-  else getPoolKline()
+  chart.value?.applyNewData(points as KLineData[])
+  latestTimestamp.value = (points[points.length - 1]?.timestamp / 1000) || latestTimestamp.value
+
+  switch (_reason.reason) {
+    case SortReason.FETCH:
+      return onFetchSorted(_reason.payload)
+    case SortReason.LOAD:
+      return onLoadSorted(_reason.payload)
+  }
 }
 
 onMounted(() => {
@@ -164,6 +202,7 @@ onMounted(() => {
 
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
 
   getStoreKline()
 })
@@ -171,6 +210,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
   dispose('chart')
 })
 
