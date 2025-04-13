@@ -127,6 +127,15 @@ interface Reason {
 }
 
 watch(latestTransactions, () => {
+  if (!transactions.value.length) {
+    transactions.value = latestTransactions.value.sort((t1, t2) => Date.parse(t1.created_at) - Date.parse(t2.created_at))
+    return
+  }
+  if (Math.min(...latestTransactions.value.map((el) => Date.parse(el.created_at))) > Date.parse(transactions.value[transactions.value.length - 1]?.created_at)) {
+    transactions.value.push(...latestTransactions.value.sort((t1, t2) => Date.parse(t1.created_at) - Date.parse(t2.created_at)))
+    return
+  }
+
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
     originTransactions: transactions.value.map((el) => {
       return { ...el }

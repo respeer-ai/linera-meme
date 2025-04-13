@@ -386,7 +386,9 @@ export class KlineRunner {
 
     const transactions = originTransactions
     const _transactions = transactions.sort((p1, p2) =>
-      reverse ? Date.parse(p1.created_at) - Date.parse(p2.created_at) : Date.parse(p2.created_at) - Date.parse(p1.created_at)
+      reverse
+        ? Date.parse(p1.created_at) - Date.parse(p2.created_at)
+        : Date.parse(p2.created_at) - Date.parse(p1.created_at)
     )
     keepCount = keepCount < 0 ? _transactions.length : keepCount
 
