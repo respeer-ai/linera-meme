@@ -114,7 +114,7 @@ export const useKlineStore = defineStore('kline', {
           this.latestTransactions
             .get(token0)
             ?.get(token1)
-            ?.sort((a, b) => a.created_at - b.created_at) || []
+            ?.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)) || []
         )
       }
     }
