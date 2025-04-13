@@ -153,8 +153,6 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
 const onFetchSorted = (payload: ReasonPayload) => {
   const { endAt } = payload as { endAt: number }
 
-  console.log('onFetchSorted', endAt, payload, Date.now() / 1000)
-
   if (endAt > Math.floor(Date.now() / 1000)) {
     applied.value = true
     return

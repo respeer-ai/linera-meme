@@ -169,7 +169,7 @@ export class KlineRunner {
         return {
           ...el,
           timestamp: Math.floor(
-            Date.parse(el.timestamp as unknown as string) / 1000
+            Date.parse(el.timestamp as unknown as string)
           )
         }
       })
@@ -322,14 +322,7 @@ export class KlineRunner {
 
     points.forEach((_points, interval) => {
       _points.forEach((__points) => {
-        __points.points = __points.points.map((el) => {
-          return {
-            ...el,
-            timestamp: Math.floor(
-              Date.parse(el.timestamp as unknown as string) / 1000
-            )
-          }
-        })
+        // Timestamp is already converted, not good but work
         KlineRunner.bulkStorePoints(
           __points.token_0,
           __points.token_1,

@@ -33,10 +33,6 @@ export const useKlineStore = defineStore('kline', {
       }
     },
     onKline(points: Map<Interval, Points[]>) {
-      klineWorker.KlineWorker.send(
-        klineWorker.KlineEventType.NEW_POINTS,
-        points
-      )
       points.forEach((_points, interval) => {
         _points.forEach((__points) => {
           const _latestTimestamps =
@@ -50,7 +46,7 @@ export const useKlineStore = defineStore('kline', {
             return {
               ...el,
               timestamp: Math.floor(
-                Date.parse(el.timestamp as unknown as string) / 1000
+                Date.parse(el.timestamp as unknown as string)
               )
             }
           })
@@ -58,8 +54,7 @@ export const useKlineStore = defineStore('kline', {
           __latestTimestamps.set(
             interval,
             Math.max(
-              ...__points.points.map((el) =>
-                Math.floor(Date.parse(el.timestamp as unknown as string) / 1000)
+              ...__points.points.map((el) => el.timestamp
               )
             )
           )
@@ -67,6 +62,10 @@ export const useKlineStore = defineStore('kline', {
           this.latestTimestamps.set(__points.token_0, _latestTimestamps)
         })
       })
+      klineWorker.KlineWorker.send(
+        klineWorker.KlineEventType.NEW_POINTS,
+        points
+      )
       this.latestPoints = points
     },
     onError(e: Event) {
