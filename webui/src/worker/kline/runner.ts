@@ -96,7 +96,7 @@ export class KlineRunner {
         points.points.map((el) => {
           return {
             ...el,
-            timestamp: Date.parse(el.timestamp as unknown as string)
+            timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
           }
         })
       )

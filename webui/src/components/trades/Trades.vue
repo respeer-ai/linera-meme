@@ -111,8 +111,16 @@ watch(selectedPool, () => {
   getPoolTransactions()
 })
 
+const MAX_TRANSACTIONS = 600
+
+const updateTransactions = (_transactions: transaction.TransactionExt[]) => {
+  // TODO: load according to page
+  transactions.value = transactions.value.slice(Math.max(transactions.value.length - MAX_TRANSACTIONS, 0), transactions.value.length)
+  transactions.value.push(..._transactions)
+}
+
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  transactions.value.push(...payload.transactions)
+  updateTransactions(payload.transactions)
 
   // Transactions are already stored to indexDB
   if (payload.endAt > Math.floor(Date.now() / 1000)) {
@@ -127,9 +135,9 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
 const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) => {
   const _transactions = payload.transactions
 
-  transactions.value.push(..._transactions)
+  updateTransactions(_transactions)
 
-  if (_transactions.length) loadTransactions(payload.offset + payload.limit, payload.limit)
+  if (_transactions.length && transactions.value.length < MAX_TRANSACTIONS) loadTransactions(payload.offset + payload.limit, payload.limit)
   else getPoolTransactions()
 }
 
