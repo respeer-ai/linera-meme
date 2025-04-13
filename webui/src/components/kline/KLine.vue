@@ -35,7 +35,7 @@ const _swap = swap.useSwapStore()
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
-const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000000 || 0))
+const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000 || 0))
 
 const latestTimestamp = ref(poolCreatedAt.value)
 const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value) as KLineData[])
@@ -45,7 +45,6 @@ const applied = ref(false)
 
 watch(latestPoints, () => {
   if (!applied.value) return
-  console.log(applied.value, latestPoints.value, 111)
   latestPoints.value.forEach((point) => {
     chart.value?.updateData(point)
     latestTimestamp.value = point.timestamp
@@ -144,7 +143,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
       offset: payload.offset + payload.limit,
       limit: payload.limit
     } : {
-      endAt: latestTimestamp.value || Math.max(poolCreatedAt.value || 0, Math.floor(Date.now() / 1000 - 1 * 3600))
+      endAt: Math.floor(latestTimestamp.value / 1000 || Math.max(poolCreatedAt.value / 1000 || 0, Date.now() / 1000 - 1 * 3600))
     }
   }
 
@@ -175,7 +174,7 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   const _reason = reason as Reason
 
   chart.value?.applyNewData(points as KLineData[])
-  latestTimestamp.value = (points[points.length - 1]?.timestamp / 1000) || latestTimestamp.value
+  latestTimestamp.value = points[points.length - 1]?.timestamp || latestTimestamp.value
 
   switch (_reason.reason) {
     case SortReason.FETCH:

@@ -163,7 +163,7 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
       offset: payload.offset + payload.limit,
       limit: payload.limit
     } : {
-      endAt: Math.max(...transactions.value.map((el) => el.created_at)) || Math.floor(selectedPool.value?.createdAt / 1000000)
+      endAt: Math.floor(Math.max(...transactions.value.map((el) => el.created_at / 1000000)) || selectedPool.value?.createdAt / 1000000)
     }
   }
 
