@@ -48,22 +48,35 @@ watch(latestPoints, () => {
   if (!applied.value) return
 
   const dataList = chart.value?.getDataList()
-  if (!dataList?.length) return
+  if (!dataList?.length || !latestPoints.value.length) return
 
   const maxTimestamp = dataList[dataList.length - 1].timestamp
-  let existsCount = latestPoints.value.filter((el) => el.timestamp <= maxTimestamp).length
+  let existsCount = latestPoints.value.findIndex((el) => el.timestamp === maxTimestamp)
   if (existsCount === latestPoints.value.length) existsCount = latestPoints.value.length - 1
 
-  for (let i = 0; i < existsCount; i++) {
-    if (dataList.length < existsCount) continue
-    if (JSON.stringify(dataList[dataList.length - existsCount - 1]) === JSON.stringify(latestPoints.value[i])) continue
-    dataList[dataList.length - existsCount - 1] = latestPoints.value[i]
+  if (maxTimestamp <= latestPoints.value[0].timestamp) {
+    latestPoints.value.slice(existsCount).forEach((point) => {
+      chart.value?.updateData(point)
+    })
+    latestTimestamp.value = latestPoints.value[latestPoints.value.length - 1].timestamp
+    return
   }
-  // Must update to redraw
-  latestPoints.value.slice(existsCount).forEach((point) => {
-    chart.value?.updateData(point)
-  })
-  latestTimestamp.value = Math.max(...latestPoints.value.map((el) => el.timestamp), latestTimestamp.value)
+
+  const length = dataList.length
+  let startIndex = dataList.length - 1
+
+  for (let i = dataList.length - 1; i > 0; i--) {
+    if (dataList[i].timestamp === latestPoints.value[0].timestamp) {
+      startIndex = i
+      break
+    }
+  }
+  for (let i = startIndex, j = 0; j < latestPoints.value.length; i++, j++) {
+    if (i < length) dataList[i] = latestPoints.value[j]
+    else dataList.push(latestPoints.value[j])
+  }
+  chart.value?.updateData(latestPoints.value[latestPoints.value.length - 1])
+  latestTimestamp.value = latestPoints.value[latestPoints.value.length - 1].timestamp
 })
 
 const getKline = (startAt: number) => {
