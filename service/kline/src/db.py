@@ -222,9 +222,6 @@ class Db:
         return self.cursor_dict.fetchall()
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
-        # TODO: align to needed interval
-        end_at = end_at // 60 * 60
-
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
 
         start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')
