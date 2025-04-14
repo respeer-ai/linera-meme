@@ -56,6 +56,7 @@ watch(latestPoints, () => {
 
   for (let i = 0; i < existsCount; i++) {
     if (dataList.length < existsCount) continue
+    if (JSON.stringify(dataList[dataList.length - existsCount]) === JSON.stringify(latestPoints.value[i])) continue
     dataList[dataList.length - existsCount] = latestPoints.value[i]
   }
   // Must update to redraw
