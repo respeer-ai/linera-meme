@@ -81,6 +81,7 @@ const loadKline = (offset: number, limit: number) => {
 
 const getStoreKline = () => {
   if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value) {
+    chart.value?.clearData()
     loadKline(0, 100)
   }
 }

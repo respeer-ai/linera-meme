@@ -95,26 +95,21 @@ const loadTransactions = (offset: number, limit: number) => {
   })
 }
 
-const getPoolTransactions = () => {
-  if (selectedPool.value?.createdAt) {
-    getTransactions(Math.floor(selectedPool.value?.createdAt / 1000000))
-  }
-}
-
 const getStoreTransactions = () => {
+  transactions.value = []
   loadTransactions(0, 100)
 }
 
 watch(selectedToken0, () => {
-  getPoolTransactions()
+  getStoreTransactions()
 })
 
 watch(selectedToken1, () => {
-  getPoolTransactions()
+  getStoreTransactions()
 })
 
 watch(selectedPool, () => {
-  getPoolTransactions()
+  getStoreTransactions()
 })
 
 enum SortReason {
@@ -140,6 +135,7 @@ watch(latestTransactions, () => {
     newTransactions: latestTransactions.value.map((el) => {
       return { ...el }
     }),
+    tokenReversed: tokenReversed.value,
     keepCount: MAX_TRANSACTIONS,
     reverse: true,
     reason: {
@@ -157,6 +153,7 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
     newTransactions: payload.transactions.map((el) => {
       return { ...el }
     }),
+    tokenReversed: tokenReversed.value,
     keepCount: MAX_TRANSACTIONS,
     reverse: true,
     reason: {
@@ -177,7 +174,7 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
       offset: payload.offset + payload.limit,
       limit: payload.limit
     } : {
-      endAt: Math.floor(Math.max(...transactions.value.map((el) => Date.parse(el.created_at) / 1000), selectedPool.value?.createdAt / 1000000))
+      endAt: Math.floor(Math.max(...transactions.value.map((el) => Date.parse(el.created_at) / 1000)) || selectedPool.value?.createdAt / 1000000)
     }
   }
 
@@ -188,6 +185,7 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
     newTransactions: _transactions.map((el) => {
       return { ...el }
     }),
+    tokenReversed: tokenReversed.value,
     keepCount: MAX_TRANSACTIONS,
     reverse: true,
     reason

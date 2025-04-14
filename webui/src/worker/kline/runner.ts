@@ -85,6 +85,7 @@ export interface SortedPointsPayload {
   reason: unknown
 }
 export interface SortTransactionsPayload {
+  tokenReversed: boolean
   originTransactions: TransactionExt[]
   newTransactions: TransactionExt[]
   keepCount: number
@@ -374,8 +375,14 @@ export class KlineRunner {
   }
 
   static handleSortTransactions = (payload: SortTransactionsPayload) => {
-    let { originTransactions, newTransactions, keepCount, reverse, reason } =
-      payload
+    let {
+      originTransactions,
+      newTransactions,
+      keepCount,
+      reverse,
+      reason,
+      tokenReversed
+    } = payload
 
     newTransactions.forEach((point) => {
       const index = originTransactions.findIndex(
@@ -386,7 +393,11 @@ export class KlineRunner {
         : originTransactions.push(point)
     })
 
-    const transactions = originTransactions
+    const transactions = originTransactions.filter((el) =>
+      tokenReversed
+        ? el.token_reversed && el.token_reversed.toString() !== 'false'
+        : !el.token_reversed && el.token_reversed.toString() === 'false'
+    )
     const _transactions = transactions.sort((p1, p2) =>
       reverse
         ? Date.parse(p2.created_at) - Date.parse(p1.created_at)
