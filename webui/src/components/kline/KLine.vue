@@ -51,15 +51,17 @@ watch(latestPoints, () => {
   if (!dataList?.length) return
 
   const maxTimestamp = dataList[dataList.length - 1].timestamp
-  const existsCount = latestPoints.value.filter((el) => el.timestamp <= maxTimestamp).length
+  let existsCount = latestPoints.value.filter((el) => el.timestamp <= maxTimestamp).length
+  if (existsCount === latestPoints.value.length) existsCount = latestPoints.value.length - 1
 
   for (let i = 0; i < existsCount; i++) {
     if (dataList.length < existsCount) continue
     dataList[dataList.length - existsCount] = latestPoints.value[i]
   }
-  if (latestPoints.value.length > existsCount) {
-    dataList.push(...latestPoints.value.slice(existsCount))
-  }
+  // Must update to redraw
+  latestPoints.value.slice(existsCount).forEach((point) => {
+    chart.value?.updateData(point)
+  })
   latestTimestamp.value = Math.max(...latestPoints.value.map((el) => el.timestamp), latestTimestamp.value)
 })
 
