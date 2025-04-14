@@ -152,13 +152,16 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
 
+  let fetchStartAt = Math.floor(Math.max(latestTimestamp.value / 1000, poolCreatedAt.value / 1000 || 0, Date.now() / 1000 - 1 * 3600))
+  fetchStartAt = Math.floor(fetchStartAt / 60) * 60
+
   const reason = {
     reason: _points.length ? SortReason.LOAD : SortReason.FETCH,
     payload: _points.length ? {
       offset: payload.offset + payload.limit,
       limit: payload.limit
     } : {
-      endAt: Math.floor(Math.max(latestTimestamp.value / 1000, poolCreatedAt.value / 1000 || 0, Date.now() / 1000 - 1 * 3600))
+      endAt: fetchStartAt
     }
   }
 
