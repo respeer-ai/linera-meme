@@ -143,7 +143,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
       offset: payload.offset + payload.limit,
       limit: payload.limit
     } : {
-      endAt: Math.floor(latestTimestamp.value / 1000 || Math.max(poolCreatedAt.value / 1000 || 0, Date.now() / 1000 - 1 * 3600))
+      endAt: Math.floor(Math.max(latestTimestamp.value / 1000, poolCreatedAt.value / 1000 || 0, Date.now() / 1000 - 1 * 3600))
     }
   }
 
