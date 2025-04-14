@@ -268,7 +268,8 @@ class Db:
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         # Only use full minutes data. Only for minute currently
-        end_at = time.time()
+        end_at = end_at // 60 * 60
+
         intervals = {
             '1min': 60 * 5,
             '5min': 300 * 3,
