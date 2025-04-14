@@ -6,15 +6,16 @@
     <q-separator />
     <q-card flat class='bg-red-1 border-radius-8px popup-padding vertical-inner-y-margin'>
       <div class='row'>
-        <div>
-          <div class='row'>
-            <q-img :src='token0Logo' width='24px' height='24px' fit='contain' />
-            <div class='horizontal-mini-x-margin-left text-bold'>
-              {{ token0Ticker }}
-            </div>
+        <div class='row'>
+          <q-img :src='token0Logo' width='24px' height='24px' fit='contain' />
+          <div class='horizontal-mini-x-margin-left text-bold'>
+            {{ token0Ticker }}
           </div>
-          <div class='text-grey-8'>
-            {{ shortId(token0 || '', 8, 6) }}
+          <div class='text-grey-8 horizontal-mini-x-margin-left'>
+            |
+          </div>
+          <div class='text-grey-8 horizontal-mini-x-margin-left'>
+            {{ token0Name }}
           </div>
         </div>
         <q-space />
@@ -251,9 +252,10 @@ const selectedToken1 = ref(token1Items.value?.find((el) => el.token === constant
 const token0Application = computed(() => _proxy.application(token0.value) as account.Account)
 const token1Application = computed(() => _proxy.application(_token1.value) as account.Account)
 const token0Ticker = computed(() => token0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(token0.value)?.spec || '{}') as meme.Meme).ticker)
+const token0Name = computed(() => token0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(token0.value)?.spec || '{}') as meme.Meme).name)
 const token0Logo = computed(() => token0.value === constants.LINERA_NATIVE_ID ? constants.LINERA_LOGO : _ams.applicationLogo(_ams.application(token0.value) as ams.Application))
 const token1Ticker = computed(() => _token1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_TICKER : (JSON.parse(_ams.application(_token1.value)?.spec || '{}') as meme.Meme).ticker)
-const token1Logo = computed(() => token1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_LOGO : _ams.applicationLogo(_ams.application(token1.value) as ams.Application))
+const token1Logo = computed(() => _token1.value === constants.LINERA_NATIVE_ID ? constants.LINERA_LOGO : _ams.applicationLogo(_ams.application(_token1.value) as ams.Application))
 
 const token0Amount = ref(0)
 const token1Amount = ref(0)
