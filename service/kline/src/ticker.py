@@ -36,7 +36,7 @@ class Ticker:
                     'token_1': pool.token_1 if pool.token_1 is not None else 'TLINERA',
                     'transactions': list(filter(lambda transaction: transaction['created_timestamp'] > lastTimestamp, __transactions)),
                 })
-                lastTimestamps[pool.pool_id] = max([transaction['created_timestamp'] for transaction in __transactions])
+                lastTimestamps[pool.pool_id] = max([transaction['created_timestamp'] for transaction in __transactions] + [lastTimestamp])
 
             await self.manager.notify('kline', None)
             await self.manager.notify('transactions', _transactions)
