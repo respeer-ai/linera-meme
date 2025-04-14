@@ -109,10 +109,10 @@ const buildTokens = () => {
 }
 
 const token0Items = computed(() => {
-  return Array.from(poolTokens.value.values().filter((el) => _swap.existTokenPool(el.token)))
+  return Array.from(poolTokens.value.filter((el) => _swap.existTokenPool(el.token)))
 })
 const token1Items = computed(() => {
-  return Array.from(poolTokens.value.values().filter((el) => {
+  return Array.from(poolTokens.value.filter((el) => {
     if (!token0.value) return true
     return el.token !== token0.value?.token && _swap.existPool(el.token, token0.value?.token)
   }))
