@@ -222,6 +222,9 @@ class Db:
         return self.cursor_dict.fetchall()
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
+        # TODO: align to needed interval
+        end_at = end_at // 60 * 60
+
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
 
         start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')
@@ -247,8 +250,8 @@ class Db:
             'volume': 'sum'
         })
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
-        df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
-        df_interval = df_interval.loc[~(df_interval[['open', 'high', 'low', 'close', 'volume']] == 0).all(axis=1)]
+        # df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
+        # df_interval = df_interval.loc[~(df_interval[['open', 'high', 'low', 'close', 'volume']] == 0).all(axis=1)]
 
         json_data = []
         for index, row in df_interval.iterrows():
@@ -264,7 +267,9 @@ class Db:
         return (token_0, token_1, json_data)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
-        end_at = time.time()
+        # Only use full minutes data. Only for minute currently
+        end_at = time.time() // 60 * 60
+
         intervals = {
             '1min': 60 * 5,
             '5min': 300 * 3,
