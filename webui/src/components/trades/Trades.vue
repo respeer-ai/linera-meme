@@ -138,7 +138,7 @@ watch(latestTransactions, () => {
       return { ...el }
     }),
     keepCount: MAX_TRANSACTIONS,
-    reverse: false,
+    reverse: true,
     reason: {
       reason: SortReason.LATEST,
       payload: undefined
@@ -155,7 +155,7 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
       return { ...el }
     }),
     keepCount: MAX_TRANSACTIONS,
-    reverse: false,
+    reverse: true,
     reason: {
       reason: SortReason.FETCH,
       payload: {
