@@ -103,7 +103,7 @@ watch(applications, () => {
 }, { immediate: true, deep: true })
 
 const token1Items = computed(() => {
-  return Array.from(memeTokens.value.values().filter((el) => {
+  return Array.from(memeTokens.value.filter((el) => {
     if (!token0.value) return true
     return el.token !== token0.value && !_swap.existPool(el.token, token0.value)
   }))
