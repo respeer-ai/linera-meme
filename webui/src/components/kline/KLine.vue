@@ -196,6 +196,7 @@ onMounted(() => {
       { type: 'xAxis', options: { order: 9 } }
     ]
   } as unknown as Options)
+
   chart.value?.setPrecision({ price: 10, volume: 4 })
 
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)

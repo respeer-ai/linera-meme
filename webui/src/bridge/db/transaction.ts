@@ -32,11 +32,13 @@ export class Transaction {
     return await dbKline.transactions
       .orderBy('created_at')
       .reverse()
-      .filter(
-        (obj) =>
-          obj.token0 === token0 &&
-          obj.token1 === token1 &&
-          obj.token_reversed === tokenReversed
+      .filter((obj) =>
+        obj.token0 === token0 &&
+        obj.token1 === token1 &&
+        // For true and 1 in database
+        tokenReversed
+          ? obj.token_reversed && obj.token_reversed.toString() !== 'false'
+          : !obj.token_reversed || obj.token_reversed.toString() === 'false'
       )
       .offset(offset)
       .limit(limit)

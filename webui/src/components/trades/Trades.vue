@@ -61,9 +61,10 @@ const _kline = kline.useKlineStore()
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
+const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1)
 
 const transactions = ref([] as transaction.TransactionExt[])
-const latestTransactions = computed(() => _kline._latestTransactions(selectedToken0.value, selectedToken1.value))
+const latestTransactions = computed(() => _kline._latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
 
 const getTransactions = (startAt: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
@@ -83,10 +84,12 @@ const loadTransactions = (offset: number, limit: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
 
+  console.log(selectedToken1.value, selectedPool.value?.token1)
+
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
-    tokenReversed: selectedToken0.value === selectedPool.value?.token0,
+    tokenReversed: tokenReversed.value,
     offset,
     limit
   })

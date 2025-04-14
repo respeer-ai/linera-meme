@@ -107,16 +107,18 @@ export const useKlineStore = defineStore('kline', {
     },
     _latestTransactions(): (
       token0: string,
-      token1: string
+      token1: string,
+      tokenReversed: boolean
     ) => TransactionExt[] {
-      return (token0: string, token1: string) => {
+      return (token0: string, token1: string, tokenReversed: boolean) => {
         return (
           this.latestTransactions
             .get(token0)
             ?.get(token1)
             ?.sort(
               (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)
-            ) || []
+            )
+            ?.filter((el) => el.token_reversed === tokenReversed) || []
         )
       }
     }
