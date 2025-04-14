@@ -399,7 +399,7 @@ export class KlineRunner {
       payload: {
         transactions: _transactions.slice(
           reverse ? 0 : Math.max(_transactions.length - keepCount, 0),
-          payload.reverse ? keepCount : _transactions.length
+          reverse ? keepCount : _transactions.length
         ),
         reason
       }

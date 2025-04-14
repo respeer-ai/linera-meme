@@ -127,6 +127,8 @@ interface Reason {
   payload: ReasonPayload
 }
 
+const MAX_TRANSACTIONS = -1
+
 watch(latestTransactions, () => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
     originTransactions: transactions.value.map((el) => {
@@ -143,8 +145,6 @@ watch(latestTransactions, () => {
     }
   })
 })
-
-const MAX_TRANSACTIONS = -1
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
