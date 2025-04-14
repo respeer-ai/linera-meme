@@ -1,8 +1,8 @@
 const URLS = [
-  'http://api.blobgateway.com/api/blobs/chains/45811ab196f3515d49e38d8e258003c11da7058c3c78a513fd324c2275350f22/applications/14e4d594c21add305d6aaeedf20a55a90842137a2cc0227e4a7099aeafe99d8c',
-  'http://api.ams.respeer.ai/api/ams/chains/8d74eaf1077afa6b567a6e63efa08002fd143811f30dda54ef8ea288aac9e646/applications/1729be59dfb5520cdbcb7dc49fa9fc5174ab7168afb34da9e35b74b6fd3b309c',
-  'http://api.linerameme.fun/api/proxy/chains/d22bb92bc27c92a4aa85c7e8874aa9164f1e328e4118fd66132081fd27f8f29f/applications/159da5af6696c7f460a0684eb2c78cca28b6d2dc7c3322a2440ec452859996f0',
-  'http://api.lineraswap.fun/api/swap/chains/da9482a95a40b0c48494e37b56032e4403c2f4c1f02b1f69fb95fe4fb939f103/applications/67bc77796692f0e8284d441f54446f191ec7687cf09f06eba970440ae1bafcac'
+  'http://api.blobgateway.com/api/blobs/chains/2121221068c16d21ec9baa00393463ff50e296500a69b0fec4b53484cd14070a/applications/e2a334b553320a3dc408f127dbe3e43d944e25cfee182aa17561b2b012b026d3',
+  'http://api.ams.respeer.ai/api/ams/chains/67f064a51c7993f44b8d5425bceae16bec1d52190e0ff44e026e31eb72e8dc2d/applications/a6c4946b1b98bee361345be0506087867bf7f5e4f672c942828752f97b35e0a1',
+  'http://api.linerameme.fun/api/proxy/chains/5cad844e0ea085c620b2d7742bc7fde7d47d64ef3791b836d1d79f111870c2d0/applications/e64e71bf688cfd86b0883de32cac88aa216bd1b2344c0537b5aa440b36e80971',
+  'http://api.lineraswap.fun/api/swap/chains/4026fd1bf21dcaa7d8b98a51100d60b2b3e9565269180716885a713965479afd/applications/b2eab58979ee404f5528eb27f7d848de5201f2d5492115f01b3e3b961355bca6'
 ]
 
 export const APPLICATION_URLS = {

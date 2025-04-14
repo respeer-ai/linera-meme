@@ -1,5 +1,7 @@
 import { Indicator, IndicatorFigure, KLineData } from 'klinecharts'
 
+// TODO: reuse result in the indicator
+
 interface Vol {
   open: number
   close: number
