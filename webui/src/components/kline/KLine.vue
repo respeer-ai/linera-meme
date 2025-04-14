@@ -39,17 +39,28 @@ const selectedPool = computed(() => _swap.selectedPool)
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000 || 0))
 
 const latestTimestamp = ref(poolCreatedAt.value)
-const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value) as KLineData[])
+const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value - 300000) as KLineData[])
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
 
 watch(latestPoints, () => {
   if (!applied.value) return
-  latestPoints.value.forEach((point) => {
-    chart.value?.updateData(point)
-    latestTimestamp.value = point.timestamp
-  })
+
+  const dataList = chart.value?.getDataList()
+  if (!dataList?.length) return
+
+  const maxTimestamp = dataList[dataList.length - 1].timestamp
+  const existsCount = latestPoints.value.filter((el) => el.timestamp <= maxTimestamp).length
+
+  for (let i = 0; i < existsCount; i++) {
+    if (dataList.length < existsCount) continue
+    dataList[dataList.length - existsCount] = latestPoints.value[i]
+  }
+  if (latestPoints.value.length > existsCount) {
+    dataList.push(...latestPoints.value.slice(existsCount))
+  }
+  latestTimestamp.value = Math.max(...latestPoints.value.map((el) => el.timestamp), latestTimestamp.value)
 })
 
 const getKline = (startAt: number) => {
