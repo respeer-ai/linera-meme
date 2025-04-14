@@ -8,7 +8,7 @@
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
 COMPILE=1
-GIT_COMMIT=7fdc56445a
+GIT_COMMIT=7fe154eac96
 CREATE_WALLET=1
 CHAIN_OWNER_COUNT=4
 
@@ -42,6 +42,11 @@ mkdir -p $WALLET_DIR
 SOURCE_DIR="${OUTPUT_DIR}/source"
 mkdir -p $SOURCE_DIR
 
+BIN_DIR="${OUTPUT_DIR}/bin"
+mkdir -p $BIN_DIR
+
+export PATH=$BIN_DIR:$PATH
+
 if [ "x$COMPILE" = "x1" ]; then
     # Install official linera for genesis cluster
     cd $SOURCE_DIR
@@ -58,8 +63,8 @@ if [ "x$COMPILE" = "x1" ]; then
     INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}'`
 
     if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
-        cargo install --path linera-service --features storage-service,disable-native-rpc
-        cargo install --path linera-storage-service --features storage-service
+        cargo build --release --features storage-service,disable-native-rpc
+	mv target/release/linera $BIN_DIR
     fi
 fi
 
