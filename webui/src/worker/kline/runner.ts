@@ -56,6 +56,7 @@ export interface LoadPointsPayload extends BasePayload {
   interval: Interval
 }
 export interface LoadTransactionsPayload extends BasePayload {
+  tokenReversed: boolean
   offset: number
   limit: number
 }
@@ -287,12 +288,13 @@ export class KlineRunner {
   }
 
   static handleLoadTransactions = async (payload: LoadTransactionsPayload) => {
-    const { token0, token1, offset, limit } = payload
+    const { token0, token1, offset, limit, tokenReversed } = payload
 
     try {
       const transactions = await dbBridge.Transaction.transactions(
         token0,
         token1,
+        tokenReversed,
         offset,
         limit
       )
@@ -387,8 +389,8 @@ export class KlineRunner {
     const transactions = originTransactions
     const _transactions = transactions.sort((p1, p2) =>
       reverse
-        ? Date.parse(p1.created_at) - Date.parse(p2.created_at)
-        : Date.parse(p2.created_at) - Date.parse(p1.created_at)
+        ? Date.parse(p2.created_at) - Date.parse(p1.created_at)
+        : Date.parse(p1.created_at) - Date.parse(p2.created_at)
     )
     keepCount = keepCount < 0 ? _transactions.length : keepCount
 

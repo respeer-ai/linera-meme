@@ -25,13 +25,19 @@ export class Transaction {
   static transactions = async (
     token0: string,
     token1: string,
+    tokenReversed: boolean,
     offset: number,
     limit: number
   ) => {
     return await dbKline.transactions
       .orderBy('created_at')
       .reverse()
-      .filter((obj) => obj.token0 === token0 && obj.token1 === token1)
+      .filter(
+        (obj) =>
+          obj.token0 === token0 &&
+          obj.token1 === token1 &&
+          obj.token_reversed === tokenReversed
+      )
       .offset(offset)
       .limit(limit)
       .toArray()

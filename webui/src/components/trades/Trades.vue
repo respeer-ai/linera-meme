@@ -86,6 +86,7 @@ const loadTransactions = (offset: number, limit: number) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
+    tokenReversed: selectedToken0.value === selectedPool.value?.token0,
     offset,
     limit
   })
@@ -127,15 +128,6 @@ interface Reason {
 }
 
 watch(latestTransactions, () => {
-  if (!transactions.value.length) {
-    transactions.value = latestTransactions.value.sort((t1, t2) => Date.parse(t2.created_at) - Date.parse(t1.created_at))
-    return
-  }
-  if (Math.min(...latestTransactions.value.map((el) => Date.parse(el.created_at))) > Date.parse(transactions.value[transactions.value.length - 1]?.created_at)) {
-    transactions.value.push(...latestTransactions.value.sort((t1, t2) => Date.parse(t2.created_at) - Date.parse(t1.created_at)))
-    return
-  }
-
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
     originTransactions: transactions.value.map((el) => {
       return { ...el }
@@ -190,16 +182,13 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
     originTransactions: transactions.value.map((el) => {
       return { ...el }
     }),
-    newTransactions: payload.transactions.map((el) => {
+    newTransactions: _transactions.map((el) => {
       return { ...el }
     }),
     keepCount: MAX_TRANSACTIONS,
     reverse: true,
     reason
   })
-
-  if (_transactions.length) loadTransactions(payload.offset + payload.limit, payload.limit)
-  else getPoolTransactions()
 }
 
 const onFetchSorted = (payload: ReasonPayload) => {
