@@ -84,8 +84,6 @@ const loadTransactions = (offset: number, limit: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
 
-  console.log(selectedToken1.value, selectedPool.value?.token1)
-
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,

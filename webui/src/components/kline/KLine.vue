@@ -28,6 +28,7 @@ import { constants } from 'src/constant'
 import { klineWorker } from 'src/worker'
 
 import SwapSelect from './SwapSelect.vue'
+import { _Indicator } from './Indicator'
 
 const _kline = kline.useKlineStore()
 const _swap = swap.useSwapStore()
@@ -190,10 +191,19 @@ onMounted(() => {
     layout: [
       {
         type: 'candle',
-        content: ['MA', { name: 'EMA', calcParams: [5, 10, 30, 60] }],
+        content: [
+          _Indicator.movingAverage,
+          _Indicator.exponentialMovingAverate
+        ],
         options: { order: Number.MIN_SAFE_INTEGER }
       },
-      { type: 'indicator', content: ['VOL'], options: { order: 10 } },
+      {
+        type: 'indicator',
+        content: [
+          _Indicator.volume
+        ],
+        options: { order: 10 }
+      },
       { type: 'xAxis', options: { order: 9 } }
     ]
   } as unknown as Options)
