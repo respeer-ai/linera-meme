@@ -106,7 +106,7 @@ class Swap:
             'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
         }
         resp = requests.post(url=self.application_url(), json=json)
-        return [Pool(v, self.wallet) for v in resp.json()['data']['pools']]
+        return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] != None or v['reserve1'] != None ]
 
     def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
         json = {
