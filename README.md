@@ -8,6 +8,7 @@
 - [Microchain Introduction](#)
 - [DeFi on Linera](#)
 - [PoW Microchain](#)
+- [Architecture](#)
 - [Functionalities and Plans](#)
   - [SingleLeader Round Robin](#)
   - [MultiLeader Round Robin](#)
@@ -71,6 +72,10 @@ The unique set of Linera validators ensures the security of the meme token, whil
 The PoW microchain will be implemented as a pluggable subnet. This enables tailored DeFi application and microchain functionalities within Linera.
 Applications that need to provide service to public users will no longer depend on chain owners' liveness; instead, they will be driven by a publicly
 decentralized set of owners.
+
+## Architecture
+
+![image](https://github.com/user-attachments/assets/701a2551-108f-4afc-9163-d58dcef6ca12)
 
 ## Functionalities and Plans
 
