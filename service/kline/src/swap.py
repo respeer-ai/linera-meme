@@ -85,7 +85,10 @@ class Pool:
         } if amount_0 is not None else {
             'query': f'mutation {{\n swap(amount1In: "{amount_1}") \n}}'
         }
-        requests.post(url=self.wallet_application_url(), json=json)
+        try:
+            requests.post(url=self.wallet_application_url(), json=json)
+        except:
+            return
 
 
 class Swap:
@@ -105,8 +108,11 @@ class Swap:
         json = {
             'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
         }
-        resp = requests.post(url=self.application_url(), json=json)
-        return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] != None or v['reserve1'] != None ]
+        try:
+            resp = requests.post(url=self.application_url(), json=json)
+        except:
+            return []
+        return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]
 
     def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
         json = {
