@@ -43,11 +43,11 @@ SOURCE_DIR="${OUTPUT_DIR}/source"
 mkdir -p $SOURCE_DIR
 
 # Run blob query without native RPC
-COMMON_BIN_DIR="${OUTPUT_DIR}/bin"
+COMMON_BIN_DIR="${OUTPUT_DIR}/bin/common"
 mkdir -p $COMMON_BIN_DIR
 
 # Run maker wallet with native RPC
-MAKER_BIN_DIR="${OUTPUT_DIR}/bin"
+MAKER_BIN_DIR="${OUTPUT_DIR}/bin/maker"
 mkdir -p $MAKER_BIN_DIR
 
 export PATH=$COMMON_BIN_DIR:$PATH
