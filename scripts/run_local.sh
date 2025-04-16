@@ -8,7 +8,7 @@
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
 COMPILE=1
-GIT_COMMIT=7fe154eac96
+GIT_BRANCH=respeer-maas-testnet_babbage-3dc32c18-2025-04-15
 CREATE_WALLET=1
 CHAIN_OWNER_COUNT=4
 
@@ -17,7 +17,7 @@ options="f:c:C:W:"
 while getopts $options opt; do
   case ${opt} in
     f) FAUCET_URL=${OPTARG} ;;
-    c) GIT_COMMIT=${OPTARG} ;;
+    b) GIT_BRANCH=${OPTARG} ;;
     C) COMPILE=${OPTARG} ;;
     W) CREATE_WALLET=${OPTARG} ;;
   esac
@@ -55,7 +55,8 @@ if [ "x$COMPILE" = "x1" ]; then
     git clone https://github.com/respeer-ai/linera-protocol.git
     cd linera-protocol
 
-    git checkout $GIT_COMMIT
+    git checkout $GIT_BRANCH
+    git pull origin $GIT_BRANCH
 
     # Get latest commit to avoid compilation for the same version
     LATEST_COMMIT=`git rev-parse HEAD`
@@ -64,7 +65,7 @@ if [ "x$COMPILE" = "x1" ]; then
 
     if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
         cargo build --release --features storage-service,disable-native-rpc
-	mv target/release/linera $BIN_DIR
+        mv target/release/linera $BIN_DIR
     fi
 fi
 

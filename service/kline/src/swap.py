@@ -86,7 +86,9 @@ class Pool:
             'query': f'mutation {{\n swap(amount1In: "{amount_1}") \n}}'
         }
         try:
-            requests.post(url=self.wallet_application_url(), json=json)
+            resp = requests.post(url=self.wallet_application_url(), json=json)
+            if 'errors' in resp.json():
+                print(f'Failed swap: {resp.text}')
         except:
             return
 
@@ -110,6 +112,8 @@ class Swap:
         }
         try:
             resp = requests.post(url=self.application_url(), json=json)
+            if 'errors' in resp.json():
+                print(f'Failed swap: {resp.text}')
         except:
             return []
         return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]

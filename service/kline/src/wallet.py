@@ -25,6 +25,24 @@ class Wallet:
         json = {
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
-        resp = requests.post(self.wallet_url, json=json)
+        try:
+            resp = requests.post(self.wallet_url, json=json)
+        except:
+            return 0
+
+        if 'data' not in resp.json():
+            return 0
+
         balances = resp.json()['data']['balances']
-        return float(balances[self.chain]['chainBalance']) + float(balances[self.chain]['ownerBalances'][f'{self.owner}'])
+        if self.chain not in balances:
+            print(f'{self.chain} not in wallet {self.wallet_url}: {resp.text}')
+            return 0
+
+        balances = balances[self.chain]
+        chain_balance = float(balances['chainBalance']) if 'chainBalance' in balances else 0
+
+        balances = balances['ownerBalances']
+        owner_balance = float(balances[self.owner]) if self.owner in balances else 0
+
+        return chain_balance + owner_balance
+
