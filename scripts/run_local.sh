@@ -42,10 +42,15 @@ mkdir -p $WALLET_DIR
 SOURCE_DIR="${OUTPUT_DIR}/source"
 mkdir -p $SOURCE_DIR
 
-BIN_DIR="${OUTPUT_DIR}/bin"
-mkdir -p $BIN_DIR
+# Run blob query without native RPC
+COMMON_BIN_DIR="${OUTPUT_DIR}/bin"
+mkdir -p $COMMON_BIN_DIR
 
-export PATH=$BIN_DIR:$PATH
+# Run maker wallet with native RPC
+MAKER_BIN_DIR="${OUTPUT_DIR}/bin"
+mkdir -p $MAKER_BIN_DIR
+
+export PATH=$COMMON_BIN_DIR:$PATH
 
 if [ "x$COMPILE" = "x1" ]; then
     # Install official linera for genesis cluster
@@ -65,7 +70,10 @@ if [ "x$COMPILE" = "x1" ]; then
 
     if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
         cargo build --release --features storage-service,disable-native-rpc
-        mv target/release/linera $BIN_DIR
+        mv target/release/linera $COMMON_BIN_DIR
+
+        cargo build --release --features storage-service,enable-wallet-rpc
+        mv target/release/linera $MAKER_BIN_DIR
     fi
 fi
 
@@ -421,6 +429,8 @@ function run_maker() {
 }
 
 run_kline
+
+export PATH=$MAKER_BIN_DIR:$PATH
 run_maker
 
 read
