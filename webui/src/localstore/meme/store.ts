@@ -6,6 +6,7 @@ import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { BALANCE_OF } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
 import { _Account, Account } from '../account'
+import { constants } from '../../constant'
 
 export const useMemeStore = defineStore('meme', {
   state: () => ({}),
@@ -16,7 +17,7 @@ export const useMemeStore = defineStore('meme', {
       done?: (error: boolean, balance?: string) => void
     ) {
       const url = _Account.applicationUrl(
-        'api.linerameme.fun',
+	constants.PROXY_SERVERNAME,
         'proxy',
         memeApplication
       )

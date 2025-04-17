@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { constants } from '../../constant'
 import {
   LiquidityAmount,
   CalculateLiquidityAmountPairRequest,
@@ -29,7 +30,7 @@ export const usePoolStore = defineStore('pool', {
       done?: (error: boolean, rows?: Transaction[]) => void
     ) {
       const url = _Account.applicationUrl(
-        'api.lineraswap.fun',
+	constants.SWAP_SERVERNAME,
         'swap',
         poolApplication
       )
@@ -80,7 +81,7 @@ export const usePoolStore = defineStore('pool', {
       done?: (error: boolean, liquidity?: LiquidityAmount) => void
     ) {
       const url = _Account.applicationUrl(
-        'api.lineraswap.fun',
+	constants.SWAP_SERVERNAME,
         'swap',
         poolApplication
       )
@@ -119,7 +120,7 @@ export const usePoolStore = defineStore('pool', {
       done?: (error: boolean, liquidity?: LiquidityAmount) => void
     ) {
       const url = _Account.applicationUrl(
-        'api.lineraswap.fun',
+	constants.SWAP_SERVERNAME,
         'swap',
         poolApplication
       )
