@@ -35,8 +35,8 @@ export const RPC_WS_URL = formalizeSchema(`${URLS[5]}`)
 export const KLINE_HTTP_URL = formalizeSchema(`${URLS[6]}`)
 export const KLINE_WS_URL = formalizeSchema(`${URLS[7]}`)
 
-export const SWAP_SERVERNAME = URLS[8]
-export const PROXY_SERVERNAME = URLS[9]
+export const SWAP_HOST = URLS[8]
+export const PROXY_HOST = URLS[9]
 
 console.log(APPLICATION_URLS.BLOB_GATEWAY)
 export const applicationId = (url: string) => {
