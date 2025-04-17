@@ -30,7 +30,7 @@ export const usePoolStore = defineStore('pool', {
       done?: (error: boolean, rows?: Transaction[]) => void
     ) {
       const url = _Account.applicationUrl(
-	constants.SWAP_SERVERNAME,
+        constants.SWAP_SERVERNAME,
         'swap',
         poolApplication
       )
@@ -81,7 +81,7 @@ export const usePoolStore = defineStore('pool', {
       done?: (error: boolean, liquidity?: LiquidityAmount) => void
     ) {
       const url = _Account.applicationUrl(
-	constants.SWAP_SERVERNAME,
+        constants.SWAP_SERVERNAME,
         'swap',
         poolApplication
       )
@@ -120,7 +120,7 @@ export const usePoolStore = defineStore('pool', {
       done?: (error: boolean, liquidity?: LiquidityAmount) => void
     ) {
       const url = _Account.applicationUrl(
-	constants.SWAP_SERVERNAME,
+        constants.SWAP_SERVERNAME,
         'swap',
         poolApplication
       )
