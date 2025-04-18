@@ -1,0 +1,7 @@
+services:
+  meme-webui:
+    image: "meme-webui"
+    container_name: meme-webui
+    ports:
+      - "18080:80"
+

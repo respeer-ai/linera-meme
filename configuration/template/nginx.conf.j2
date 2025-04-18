@@ -11,7 +11,7 @@ map $http_upgrade $connection_upgrade {
 
 server {
     listen 80;
-    server_name *.{{ service.domain }};
+    server_name {{service.domain_prefix}}.{{ service.domain }} graphiql.{{ service.domain }};
 
     add_header Access-Control-Allow-Origin  '*';
     add_header Access-Control-Allow-Methods 'GET, POST, OPTIONS';

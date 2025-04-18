@@ -31,3 +31,9 @@ spec:
         - name: {{service.name}}
           port: 80
           passHostHeader: true
+    - match: Host(`api.{{service.host}}`)
+      kind: Rule
+      services:
+        - name: {{service.name}}
+          port: 80
+          passHostHeader: true
