@@ -24,16 +24,16 @@ const URLS = [
 ]
 
 export const APPLICATION_URLS = {
-  BLOB_GATEWAY: formalizeSchema(`${URLS[0]}`),
-  AMS: formalizeSchema(`${URLS[1]}`),
-  PROXY: formalizeSchema(`${URLS[2]}`),
-  SWAP: formalizeSchema(`${URLS[3]}`)
+  BLOB_GATEWAY: formalizeSchema(URLS[0]),
+  AMS: formalizeSchema(URLS[1]),
+  PROXY: formalizeSchema(URLS[2]),
+  SWAP: formalizeSchema(URLS[3])
 }
 
-export const RPC_URL = formalizeSchema(`${URLS[4]}`)
-export const RPC_WS_URL = formalizeSchema(`${URLS[5]}`)
-export const KLINE_HTTP_URL = formalizeSchema(`${URLS[6]}`)
-export const KLINE_WS_URL = formalizeSchema(`${URLS[7]}`)
+export const RPC_URL = formalizeSchema(URLS[4])
+export const RPC_WS_URL = formalizeSchema(URLS[5])
+export const KLINE_HTTP_URL = formalizeSchema(URLS[6])
+export const KLINE_WS_URL = formalizeSchema(URLS[7])
 
 export const SWAP_HOST = URLS[8]
 export const PROXY_HOST = URLS[9]
