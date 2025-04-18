@@ -18,7 +18,6 @@ export const useMemeStore = defineStore('meme', {
     ) {
       const url = _Account.applicationUrl(
         constants.PROXY_HOST,
-        'proxy',
         memeApplication
       )
       const options = /* await */ getClientOptions(url)

@@ -31,7 +31,6 @@ export const usePoolStore = defineStore('pool', {
     ) {
       const url = _Account.applicationUrl(
         constants.SWAP_HOST,
-        'swap',
         poolApplication
       )
       const options = /* await */ getClientOptions(url)
@@ -82,7 +81,6 @@ export const usePoolStore = defineStore('pool', {
     ) {
       const url = _Account.applicationUrl(
         constants.SWAP_HOST,
-        'swap',
         poolApplication
       )
       const options = /* await */ getClientOptions(url)
@@ -121,7 +119,6 @@ export const usePoolStore = defineStore('pool', {
     ) {
       const url = _Account.applicationUrl(
         constants.SWAP_HOST,
-        'swap',
         poolApplication
       )
       const options = /* await */ getClientOptions(url)
