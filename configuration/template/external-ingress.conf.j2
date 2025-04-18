@@ -1,0 +1,33 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{service.name}}
+  namespace: kube-system
+spec:
+  type: ExternalName
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  externalName: {{service.external_name}}
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{service.name}}-traefik-app-ingress-route
+  namespace: kube-system
+
+spec:
+  tls:
+    secretName: {{service.domain}}-tls
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`{{service.host}}`)
+      kind: Rule
+      services:
+        - name: {{service.name}}
+          port: 80
+          passHostHeader: true

@@ -372,7 +372,7 @@ echo -e "   http://graphiql.lineraswap.fun"
 echo -e "   'http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
 echo -e "   'http://api.ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
 echo -e "   'http://api.linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
-echo -e "   'http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID'\n\n"
+echo -e "   'http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID',\n\n"
 
 function run_service() {
     wallet_name=$1
