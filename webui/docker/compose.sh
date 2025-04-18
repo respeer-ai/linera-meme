@@ -40,7 +40,7 @@ if [ "x$COMPILE" = "x1" ]; then
 fi
 
 yarn build
-docker build -f $SCRIPT_DIR/Dockerfile -t meme-webui .
+docker build -f Dockerfile -t meme-webui .
 
 function generate_nginx_conf() {
     endpoint=meme-webui
