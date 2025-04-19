@@ -1,7 +1,7 @@
 #!/bin/bash
-  
+
 ####
-## E.g. ./compose.sh -p front.linera-respeer-devnet -C 1
+## E.g. ./compose.sh -C 0 -z testnet-babbage
 ## This script must be run without proxy
 ####
 
@@ -9,14 +9,14 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 TEMPLATE_FILE=${SCRIPT_DIR}/../../configuration/template/nginx.conf.j2
 ROOT_DIR=$SCRIPT_DIR/..
 CONF_DIR=$ROOT_DIR/configuration/compose
+CLUSTER=
 
-DOMAIN_PREFIX=front.linera-respeer-devnet
-
-options="p:C:"
+options="C:z:"
 
 while getopts $options opt; do
   case ${opt} in
-    p) DOMAIN_PREFIX=${OPTARG} ;;
+    C) COMPILE=${OPTARG} ;;
+    z) CLUSTER=${OPTARG} ;;
   esac
 done
 
@@ -51,7 +51,7 @@ function generate_nginx_conf() {
             \"endpoint\": \"$endpoint\",
             \"servers\": [\"localhost:18080\"],
             \"domain\": \"$domain\",
-            \"domain_prefix\": \"$DOMAIN_PREFIX\",
+            \"sub_domain\": \"$SUB_DOMAIN\",
             \"api_endpoint\": \"$endpoint\"
         }
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
@@ -60,10 +60,10 @@ function generate_nginx_conf() {
     echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/"
 }
 
+SUB_DOMAIN=$(echo "webui.${CLUSTER}." | sed 's/\.\./\./g')
 # Generate service nginx conf
 generate_nginx_conf
 
 # run compose
 cd $SCRIPT_DIR
 docker compose -f docker-compose.yml up --wait
-
