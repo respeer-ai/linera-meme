@@ -36,9 +36,9 @@ export class Transaction {
         obj.token0 === token0 &&
         obj.token1 === token1 &&
         // For true and 1 in database
-        tokenReversed
+        (tokenReversed
           ? obj.token_reversed && obj.token_reversed.toString() !== 'false'
-          : !obj.token_reversed || obj.token_reversed.toString() === 'false'
+          : !obj.token_reversed || obj.token_reversed.toString() === 'false')
       )
       .offset(offset)
       .limit(limit)

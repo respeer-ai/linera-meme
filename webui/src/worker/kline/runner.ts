@@ -44,7 +44,9 @@ export interface FetchTransactionsPayload extends BasePayload {
   startAt: number
   endAt: number
 }
-export type FetchedPointsPayload = Points
+export interface FetchedPointsPayload extends BasePayload {
+  points: Points
+}
 export interface FetchedTransactionsPayload extends BasePayload {
   startAt: number
   endAt: number
@@ -73,18 +75,18 @@ export interface LoadedTransactionsPayload extends BasePayload {
 }
 export type NewPointsPayload = Map<Interval, Points[]>
 export type NewTransactionsPayload = Transactions[]
-export interface SortPointsPayload {
+export interface SortPointsPayload extends BasePayload {
   originPoints: Point[]
   newPoints: Point[]
   keepCount: number
   reverse: boolean
   reason: unknown
 }
-export interface SortedPointsPayload {
+export interface SortedPointsPayload extends BasePayload {
   points: Point[]
   reason: unknown
 }
-export interface SortTransactionsPayload {
+export interface SortTransactionsPayload extends BasePayload {
   tokenReversed: boolean
   originTransactions: TransactionExt[]
   newTransactions: TransactionExt[]
@@ -92,7 +94,7 @@ export interface SortTransactionsPayload {
   reverse: boolean
   reason: unknown
 }
-export interface SortedTransactionsPayload {
+export interface SortedTransactionsPayload extends BasePayload {
   transactions: TransactionExt[]
   reason: unknown
 }
@@ -180,7 +182,11 @@ export class KlineRunner {
 
       self.postMessage({
         type: KlineEventType.FETCHED_POINTS,
-        payload: points
+        payload: {
+          token0,
+          token1,
+          points
+        }
       })
     } catch (e) {
       self.postMessage({
@@ -347,7 +353,7 @@ export class KlineRunner {
   }
 
   static handleSortPoints = (payload: SortPointsPayload) => {
-    let { originPoints, newPoints, reason, keepCount, reverse } = payload
+    let { token0, token1, originPoints, newPoints, reason, keepCount, reverse } = payload
 
     newPoints.forEach((point) => {
       const index = originPoints.findIndex(
@@ -365,6 +371,8 @@ export class KlineRunner {
     self.postMessage({
       type: KlineEventType.SORTED_POINTS,
       payload: {
+        token0,
+        token1,
         points: _points.slice(
           reverse ? 0 : Math.max(_points.length - keepCount, 0),
           reverse ? keepCount : _points.length
@@ -376,6 +384,8 @@ export class KlineRunner {
 
   static handleSortTransactions = (payload: SortTransactionsPayload) => {
     let {
+      token0,
+      token1,
       originTransactions,
       newTransactions,
       keepCount,
@@ -384,19 +394,19 @@ export class KlineRunner {
       tokenReversed
     } = payload
 
-    newTransactions.forEach((point) => {
+    newTransactions.forEach((transaction) => {
       const index = originTransactions.findIndex(
-        (el) => el.created_at === point.created_at
+        (el) => el.transaction_id === transaction.transaction_id
       )
       index >= 0
-        ? (originTransactions[index] = point)
-        : originTransactions.push(point)
+        ? (originTransactions[index] = transaction)
+        : originTransactions.push(transaction)
     })
 
     const transactions = originTransactions.filter((el) =>
       tokenReversed
         ? el.token_reversed && el.token_reversed.toString() !== 'false'
-        : !el.token_reversed && el.token_reversed.toString() === 'false'
+        : !el.token_reversed || el.token_reversed.toString() === 'false'
     )
     const _transactions = transactions.sort((p1, p2) =>
       reverse
@@ -408,6 +418,8 @@ export class KlineRunner {
     self.postMessage({
       type: KlineEventType.SORTED_TRANSACTIONS,
       payload: {
+        token0,
+        token1,
         transactions: _transactions.slice(
           reverse ? 0 : Math.max(_transactions.length - keepCount, 0),
           reverse ? keepCount : _transactions.length
