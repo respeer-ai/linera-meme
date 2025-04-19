@@ -34,9 +34,8 @@ export const RPC_URL = formalizeSchema(URLS[4])
 export const RPC_WS_URL = formalizeSchema(URLS[5])
 export const KLINE_HTTP_URL = formalizeSchema(URLS[6])
 export const KLINE_WS_URL = formalizeSchema(URLS[7])
-
-export const SWAP_HOST = URLS[8]
-export const PROXY_HOST = URLS[9]
+export const SWAP_HOST = formalizeSchema(URLS[8])
+export const PROXY_HOST = formalizeSchema(URLS[9])
 
 export const applicationId = (url: string) => {
   return url.split('/').at(-1)

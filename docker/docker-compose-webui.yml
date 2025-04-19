@@ -1,6 +1,6 @@
 services:
   meme-webui:
-    image: "linera-meme-webui"
+    image: linera-meme-webui
     container_name: linera-meme-webui
     ports:
       - "18080:80"
