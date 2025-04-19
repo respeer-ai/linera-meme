@@ -15,7 +15,7 @@ done
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-OUTPUT_DIR="$SCRIPT_DIR"/../output
+OUTPUT_DIR="${SCRIPT_DIR}/../output/compose"
 mkdir -p $OUTPUT_DIR
 
 CONFIG_DIR=$OUTPUT_DIR/config
@@ -32,6 +32,7 @@ NGINX_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 
 cd "$WEBUI_DIR"
 if [ "x$COMPILE" = "x1" ]; then
+  yarn
   yarn build:wasm
 fi
 
