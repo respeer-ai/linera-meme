@@ -381,15 +381,15 @@ echo -e "   'http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID
 echo -e "   'http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID',\n\n"
 
 cat <<EOF > $DOMAIN_FILE
-export const SUB_DOMAIN='$CLUSTER.'
-export const BLOB_GATEWAY_CHAIN_ID='$BLOB_GATEWAY_CHAIN_ID'
-export const BLOB_GATEWAY_APPLICATION_ID='$BLOB_GATEWAY_APPLICATION_ID'
-export const AMS_CHAIN_ID='$AMS_CHAIN_ID'
-export const AMS_APPLICATION_ID='$AMS_APPLICATION_ID'
-export const PROXY_CHAIN_ID='$PROXY_CHAIN_ID'
-export const PROXY_APPLICATION_ID='$PROXY_APPLICATION_ID'
-export const SWAP_CHAIN_ID='$SWAP_CHAIN_ID'
-export const SWAP_APPLICATION_ID='$SWAP_APPLICATION_ID'
+export const SUB_DOMAIN = '$CLUSTER.'
+export const BLOB_GATEWAY_CHAIN_ID = '$BLOB_GATEWAY_CHAIN_ID'
+export const BLOB_GATEWAY_APPLICATION_ID = '$BLOB_GATEWAY_APPLICATION_ID'
+export const AMS_CHAIN_ID = '$AMS_CHAIN_ID'
+export const AMS_APPLICATION_ID = '$AMS_APPLICATION_ID'
+export const PROXY_CHAIN_ID = '$PROXY_CHAIN_ID'
+export const PROXY_APPLICATION_ID = '$PROXY_APPLICATION_ID'
+export const SWAP_CHAIN_ID = '$SWAP_CHAIN_ID'
+export const SWAP_APPLICATION_ID = '$SWAP_APPLICATION_ID'
 EOF
 
 function run_service() {

@@ -63,7 +63,7 @@ function generate_nginx_conf() {
   cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
 
-SUB_DOMAIN=$(echo "webui.${CLUSTER}." | sed 's/\.\./\./g')
+SUB_DOMAIN=$(echo "${CLUSTER}." | sed 's/\.\./\./g')
 generate_nginx_conf 18080 linera-meme-webui linerameme.fun
 
 sudo nginx -s reload
