@@ -27,6 +27,7 @@ done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
+DOMAIN_FILE="${SCRIPT_DIR}/../webui/src/constant/domain.ts"
 
 # All generated files will be put here
 OUTPUT_DIR="${SCRIPT_DIR}/../output/local"
@@ -378,6 +379,18 @@ echo -e "   'http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_
 echo -e "   'http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
 echo -e "   'http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
 echo -e "   'http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID',\n\n"
+
+cat <<EOF > $DOMAIN_FILE
+export const SUB_DOMAIN='$CLUSTER.'
+export const BLOB_GATEWAY_CHAIN_ID='$BLOB_GATEWAY_CHAIN_ID'
+export const BLOB_GATEWAY_APPLICATION_ID='$BLOB_GATEWAY_APPLICATION_ID'
+export const AMS_CHAIN_ID='$AMS_CHAIN_ID'
+export const AMS_APPLICATION_ID='$AMS_APPLICATION_ID'
+export const PROXY_CHAIN_ID='$PROXY_CHAIN_ID'
+export const PROXY_APPLICATION_ID='$PROXY_APPLICATION_ID'
+export const SWAP_CHAIN_ID='$SWAP_CHAIN_ID'
+export const SWAP_APPLICATION_ID='$SWAP_APPLICATION_ID'
+EOF
 
 function run_service() {
     wallet_name=$1

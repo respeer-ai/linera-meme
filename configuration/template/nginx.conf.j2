@@ -21,6 +21,8 @@ server {
         return 204;
     }
 
+    client_max_body_size 20m;
+
     location /api/{{ service.api_endpoint }} {
         proxy_pass http://{{ service.endpoint }}/;
 
