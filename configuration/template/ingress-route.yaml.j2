@@ -1,0 +1,33 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ ingress.name }}-linera
+  namespace: kube-system
+spec:
+  type: ExternalName
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  externalName: {{ ingress.target_host }}
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ ingress.name }}-linera-ingress-route
+  namespace: kube-system
+
+spec:
+  tls:
+    secretName: {{ ingress.name }}-tls
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: HostRegexp(`{{ ingress.domain }}`, `{subdomain:[a-z]+}.{{ ingress.domain }}`)
+      kind: Rule
+      services:
+        - name: {{ ingress.name }}-linera
+          port: 80
+          passHostHeader: true
