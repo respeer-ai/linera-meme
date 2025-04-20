@@ -16,10 +16,7 @@ export const useMemeStore = defineStore('meme', {
       memeApplication: Account,
       done?: (error: boolean, balance?: string) => void
     ) {
-      const url = _Account.applicationUrl(
-        constants.PROXY_HOST,
-        memeApplication
-      )
+      const url = _Account.applicationUrl(constants.PROXY_HOST, memeApplication)
       const options = /* await */ getClientOptions(url)
       const apolloClient = new ApolloClient(options)
 

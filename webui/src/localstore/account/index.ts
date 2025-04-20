@@ -4,14 +4,13 @@ import { constants } from '../../constant'
 export class _Account {
   static CHAIN = '0x00'
 
-  static applicationUrl = (
-    httpBaseUrl: string,
-    application: Account
-  ) => {
+  static applicationUrl = (httpBaseUrl: string, application: Account) => {
     if (!application?.owner) return
     const chainId = application.chainId
     const applicationId = _Account.accountApplication(application) as string
-    return constants.formalizeSchema(`${httpBaseUrl}/chains/${chainId}/applications/${applicationId}`)
+    return constants.formalizeSchema(
+      `${httpBaseUrl}/chains/${chainId}/applications/${applicationId}`
+    )
   }
 
   static accountDescription = (account: Account) => {
