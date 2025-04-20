@@ -25,7 +25,7 @@ spec:
     - web
     - websecure
   routes:
-    - match: Host(`{{ ingress.domain }}`)
+    - match: HostRegexp(`{{ ingress.domain }}`, `{subdomain:[a-z]+}.{{ ingress.domain }}`)
       kind: Rule
       services:
         - name: {{ ingress.name }}-linera

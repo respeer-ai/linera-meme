@@ -27,7 +27,7 @@ mkdir -p $CONFIG_DIR
 
 function generate_ingress_route() {
     endpoint=$1
-    domain=$(echo "api.${CLUSTER}.$2" | sed 's/\.\./\./g')
+    domain=$(echo "${CLUSTER}.$2" | sed 's/\.\./\./g')
     target_host=$(echo "${CLUSTER}.target.$2" | sed 's/\.\./\./g')
     name=$(echo "${CLUSTER}.$2" | sed 's/\.\./\./g' | sed 's/\./-/g')
     echo "{
