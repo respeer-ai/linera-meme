@@ -8,15 +8,17 @@ import numpy as np
 
 
 class Db:
-    def __init__(self, host, db_name, username, password, clean_kline):
+    def __init__(self, host, port, db_name, username, password, clean_kline):
         self.host = host
         self.db_name = db_name
         self.username = username
         self.password = password
+        self.port = port
         self.config = {
             'user': self.username,
             'password': self.password,
             'host': self.host,
+            'port': self.port,
             'raise_on_warnings': False, # TODO: Test with alchemy
         }
 

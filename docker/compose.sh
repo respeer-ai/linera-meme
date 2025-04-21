@@ -1,23 +1,26 @@
 #!/bin/bash
 
 ####
-## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0
+## E.g. ./run_local.sh -f https://faucet.testnet-babbage.linera.net -C 0
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
-FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
+FAUCET_URL=https://faucet.testnet-babbage.linera.net
 CHAIN_OWNER_COUNT=4
+CLUSTER=
 
-options="f:c:C:W:"
+options="f:c:C:W:z:"
 
 while getopts $options opt; do
   case ${opt} in
     f) FAUCET_URL=${OPTARG} ;;
+    z) CLUSTER=${OPTARG} ;;
   esac
 done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$SCRIPT_DIR/..
+DOMAIN_FILE="${ROOT_DIR}/webui/src/constant/domain.ts"
 
 NGINX_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 COMPOSE_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/docker-compose.yml.j2
@@ -49,7 +52,8 @@ cd $SOURCE_DIR
 rm linera-protocol -rf
 git clone https://github.com/respeer-ai/linera-protocol.git
 cd linera-protocol
-git checkout respeer-maas-main-7fe154eac96-2025_04_06
+git checkout respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
 
 export PATH=$BIN_DIR:$PATH
 
@@ -207,7 +211,7 @@ function open_multi_owner_chain() {
            --from $chain_id \
            --owners ${owners[@]} \
            --multi-leader-rounds 100 \
-           --initial-balance "5."))
+           --initial-balance "20."))
 
     message_id=${chain_message[0]}
     chain_id=${chain_message[1]}
@@ -331,6 +335,7 @@ function generate_nginx_conf() {
             \"endpoint\": \"$endpoint\",
             \"servers\": [$servers],
             \"domain\": \"$domain\",
+            \"sub_domain\": \"$SUB_DOMAIN\",
             \"api_endpoint\": \"$endpoint\"
         }
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
@@ -338,6 +343,8 @@ function generate_nginx_conf() {
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $NGINX_TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
     cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
+
+SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 
 # Generate service nginx conf
 generate_nginx_conf 20080 blobs blobgateway.com $CHAIN_OWNER_COUNT
@@ -349,11 +356,11 @@ generate_nginx_conf 25080 kline kline.lineraswap.fun 1
 sudo nginx -s reload
 
 echo -e "\n\nService domain"
-echo -e "   $LAN_IP api.blobgateway.com"
-echo -e "   $LAN_IP api.ams.respeer.ai"
-echo -e "   $LAN_IP api.linerameme.fun"
-echo -e "   $LAN_IP api.lineraswap.fun"
-echo -e "   $LAN_IP api.kline.lineraswap.fun"
+echo -e "   $LAN_IP ${SUB_DOMAIN}blobgateway.com"
+echo -e "   $LAN_IP ${SUB_DOMAIN}ams.respeer.ai"
+echo -e "   $LAN_IP ${SUB_DOMAIN}linerameme.fun"
+echo -e "   $LAN_IP ${SUB_DOMAIN}lineraswap.fun"
+echo -e "   $LAN_IP ${SUB_DOMAIN}kline.lineraswap.fun"
 echo -e "   $LAN_IP graphiql.blobgateway.com"
 echo -e "   $LAN_IP graphiql.ams.respeer.ai"
 echo -e "   $LAN_IP graphiql.linerameme.fun"
@@ -362,17 +369,29 @@ echo -e "   http://graphiql.blobgateway.com"
 echo -e "   http://graphiql.ams.respeer.ai"
 echo -e "   http://graphiql.linerameme.fun"
 echo -e "   http://graphiql.lineraswap.fun"
-echo -e "   'http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
-echo -e "   'http://api.ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
-echo -e "   'http://api.linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
-echo -e "   'http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID'\n\n"
+echo -e "   'http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
+echo -e "   'http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
+echo -e "   'http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
+echo -e "   'http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID'\n\n"
+
+cat <<EOF > $DOMAIN_FILE
+export const SUB_DOMAIN = '$CLUSTER.'
+export const BLOB_GATEWAY_CHAIN_ID = '$BLOB_GATEWAY_CHAIN_ID'
+export const BLOB_GATEWAY_APPLICATION_ID = '$BLOB_GATEWAY_APPLICATION_ID'
+export const AMS_CHAIN_ID = '$AMS_CHAIN_ID'
+export const AMS_APPLICATION_ID = '$AMS_APPLICATION_ID'
+export const PROXY_CHAIN_ID = '$PROXY_CHAIN_ID'
+export const PROXY_APPLICATION_ID = '$PROXY_APPLICATION_ID'
+export const SWAP_CHAIN_ID = '$SWAP_CHAIN_ID'
+export const SWAP_APPLICATION_ID = '$SWAP_APPLICATION_ID'
+EOF
 
 function run_service() {
     wallet_name=$1
     wallet_index=$2
     port=$3
     comma=$4
-    
+
     echo "$comma{
       \"name\": \"${wallet_name}\",
       \"index\": \"${wallet_index}\",
@@ -431,6 +450,9 @@ LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml u
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
 DATABASE_PASSWORD=12345679
+DATABASE_PORT=3306
+SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
+MEME_HOST=${SUB_DOMAIN}linerameme.fun
 
 function run_mysql() {
     docker stop docker-mysql-1
@@ -448,9 +470,11 @@ function run_kline() {
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
     docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
 
-    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_NAME=$DATABASE_NAME SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID \
+    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
+      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=http://$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST MEME_HOST=$MEME_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
 

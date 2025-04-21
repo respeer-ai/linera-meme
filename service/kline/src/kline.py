@@ -79,6 +79,7 @@ if __name__ == '__main__':
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--database-host', type=str, default='localhost', help='Kline database host')
+    parser.add_argument('--database-port', type=str, default='3306', help='Kline database port')
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
     parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Kline database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
@@ -90,7 +91,7 @@ if __name__ == '__main__':
     _swap.get_swap_chain()
     _swap.get_swap_application()
 
-    _db = Db(args.database_host, args.database_name, args.database_user, args.database_password, args.clean_kline)
+    _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     manager = WebSocketManager(_swap, _db)
 
     uvicorn.run(app, host=args.host, port=args.port)
