@@ -142,6 +142,8 @@ interface Reason {
 
 const updatePoints = (_points: kline.Point[], reason: Reason) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
     originPoints: [...(chart.value?.getDataList() || [])].map((el) => {
       return { ...el } as kline.Point
     }),
@@ -154,17 +156,23 @@ const updatePoints = (_points: kline.Point[], reason: Reason) => {
 
 const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   const _points = payload.points
+  const { token0, token1 } = payload
 
-  updatePoints(_points, {
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+
+  updatePoints(_points.points, {
     reason: SortReason.FETCH,
     payload: {
-      endAt: payload.end_at
+      endAt: _points.end_at
     }
   })
 }
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
+  const { token0, token1 } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   let fetchStartAt = Math.floor(Math.max(latestTimestamp.value / 1000, poolCreatedAt.value / 1000 || 0))
   fetchStartAt = Math.floor(fetchStartAt / 60) * 60
@@ -202,8 +210,10 @@ const onLoadSorted = (payload: ReasonPayload) => {
 }
 
 const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
-  const { points, reason } = payload
+  const { points, reason, token0, token1 } = payload
   const _reason = reason as Reason
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   chart.value?.applyNewData(points as KLineData[])
   latestTimestamp.value = points[points.length - 1]?.timestamp || latestTimestamp.value

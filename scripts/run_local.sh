@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ####
-## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0
+## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0 -z testnet-babbage
 ## This script must be run without proxy
 ####
 
@@ -11,8 +11,9 @@ COMPILE=1
 GIT_BRANCH=respeer-maas-testnet_babbage-3dc32c18-2025-04-15
 CREATE_WALLET=1
 CHAIN_OWNER_COUNT=4
+CLUSTER=
 
-options="f:c:C:W:"
+options="f:c:C:W:z:"
 
 while getopts $options opt; do
   case ${opt} in
@@ -20,11 +21,13 @@ while getopts $options opt; do
     b) GIT_BRANCH=${OPTARG} ;;
     C) COMPILE=${OPTARG} ;;
     W) CREATE_WALLET=${OPTARG} ;;
+    z) CLUSTER=${OPTARG} ;;
   esac
 done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
+DOMAIN_FILE="${SCRIPT_DIR}/../webui/src/constant/domain.ts"
 
 # All generated files will be put here
 OUTPUT_DIR="${SCRIPT_DIR}/../output/local"
@@ -340,6 +343,7 @@ function generate_nginx_conf() {
             \"endpoint\": \"$endpoint\",
             \"servers\": [$servers],
             \"domain\": \"$domain\",
+            \"sub_domain\": \"$SUB_DOMAIN\",
             \"api_endpoint\": \"$endpoint\"
         }
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
@@ -347,6 +351,8 @@ function generate_nginx_conf() {
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
     echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/"
 }
+
+SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 
 # Generate service nginx conf
 generate_nginx_conf 20080 blobs blobgateway.com
@@ -356,11 +362,11 @@ generate_nginx_conf 23080 proxy linerameme.fun
 generate_nginx_conf 25080 kline kline.lineraswap.fun
 
 echo -e "\n\nService domain"
-echo -e "   $LAN_IP api.blobgateway.com"
-echo -e "   $LAN_IP api.ams.respeer.ai"
-echo -e "   $LAN_IP api.linerameme.fun"
-echo -e "   $LAN_IP api.lineraswap.fun"
-echo -e "   $LAN_IP api.kline.lineraswap.fun"
+echo -e "   $LAN_IP ${SUB_DOMAIN}blobgateway.com"
+echo -e "   $LAN_IP ${SUB_DOMAIN}ams.respeer.ai"
+echo -e "   $LAN_IP ${SUB_DOMAIN}linerameme.fun"
+echo -e "   $LAN_IP ${SUB_DOMAIN}lineraswap.fun"
+echo -e "   $LAN_IP ${SUB_DOMAIN}kline.lineraswap.fun"
 echo -e "   $LAN_IP graphiql.blobgateway.com"
 echo -e "   $LAN_IP graphiql.ams.respeer.ai"
 echo -e "   $LAN_IP graphiql.linerameme.fun"
@@ -369,10 +375,22 @@ echo -e "   http://graphiql.blobgateway.com"
 echo -e "   http://graphiql.ams.respeer.ai"
 echo -e "   http://graphiql.linerameme.fun"
 echo -e "   http://graphiql.lineraswap.fun"
-echo -e "   'http://api.blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
-echo -e "   'http://api.ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
-echo -e "   'http://api.linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
-echo -e "   'http://api.lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID'\n\n"
+echo -e "   'http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
+echo -e "   'http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
+echo -e "   'http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
+echo -e "   'http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID',\n\n"
+
+cat <<EOF > $DOMAIN_FILE
+export const SUB_DOMAIN = '$CLUSTER.'
+export const BLOB_GATEWAY_CHAIN_ID = '$BLOB_GATEWAY_CHAIN_ID'
+export const BLOB_GATEWAY_APPLICATION_ID = '$BLOB_GATEWAY_APPLICATION_ID'
+export const AMS_CHAIN_ID = '$AMS_CHAIN_ID'
+export const AMS_APPLICATION_ID = '$AMS_APPLICATION_ID'
+export const PROXY_CHAIN_ID = '$PROXY_CHAIN_ID'
+export const PROXY_APPLICATION_ID = '$PROXY_APPLICATION_ID'
+export const SWAP_CHAIN_ID = '$SWAP_CHAIN_ID'
+export const SWAP_APPLICATION_ID = '$SWAP_APPLICATION_ID'
+EOF
 
 function run_service() {
     wallet_name=$1

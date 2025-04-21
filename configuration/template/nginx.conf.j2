@@ -11,7 +11,7 @@ map $http_upgrade $connection_upgrade {
 
 server {
     listen 80;
-    server_name api.{{ service.domain }} graphiql.{{ service.domain }};
+    server_name {{ service.sub_domain }}{{ service.domain }} graphiql.{{ service.domain }};
 
     add_header Access-Control-Allow-Origin  '*';
     add_header Access-Control-Allow-Methods 'GET, POST, OPTIONS';
@@ -20,6 +20,8 @@ server {
     if ($request_method = OPTIONS) {
         return 204;
     }
+
+    client_max_body_size 20m;
 
     location /api/{{ service.api_endpoint }} {
         proxy_pass http://{{ service.endpoint }}/;

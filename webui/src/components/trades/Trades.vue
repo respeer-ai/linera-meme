@@ -126,7 +126,11 @@ interface Reason {
 const MAX_TRANSACTIONS = -1
 
 watch(latestTransactions, () => {
+  if (!latestTransactions.value.length) return
+
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
     originTransactions: transactions.value.map((el) => {
       return { ...el }
     }),
@@ -144,7 +148,13 @@ watch(latestTransactions, () => {
 })
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
+  const { token0, token1 } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
     originTransactions: transactions.value.map((el) => {
       return { ...el }
     }),
@@ -165,6 +175,9 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
 
 const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) => {
   const _transactions = payload.transactions
+  const { token0, token1 } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   const reason = {
     reason: _transactions.length ? SortReason.LOAD : SortReason.FETCH,
@@ -177,6 +190,8 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
   }
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
     originTransactions: transactions.value.map((el) => {
       return { ...el }
     }),
@@ -210,6 +225,31 @@ const onLoadSorted = (payload: ReasonPayload) => {
 
 const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) => {
   const _reason = payload.reason as Reason
+  const { token0, token1 } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+
+  let retry = false
+  transactions.value.forEach((el) => {
+    retry ||= !payload.transactions.map((el) => el.transaction_id).includes(el.transaction_id)
+  })
+  // If we're not in sorted result, retry sort
+  if (retry) {
+    klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+      token0: selectedToken0.value,
+      token1: selectedToken1.value,
+      originTransactions: transactions.value.map((el) => {
+        return { ...el }
+      }),
+      newTransactions: payload.transactions,
+      tokenReversed: tokenReversed.value,
+      keepCount: MAX_TRANSACTIONS,
+      reverse: true,
+      reason: payload.reason
+    })
+    return
+  }
+
   transactions.value = payload.transactions
 
   switch (_reason.reason) {

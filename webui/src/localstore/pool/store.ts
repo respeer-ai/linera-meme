@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { constants } from '../../constant'
 import {
   LiquidityAmount,
   CalculateLiquidityAmountPairRequest,
@@ -28,11 +29,7 @@ export const usePoolStore = defineStore('pool', {
       poolApplication: Account,
       done?: (error: boolean, rows?: Transaction[]) => void
     ) {
-      const url = _Account.applicationUrl(
-        'api.lineraswap.fun',
-        'swap',
-        poolApplication
-      )
+      const url = _Account.applicationUrl(constants.SWAP_HOST, poolApplication)
       const options = /* await */ getClientOptions(url)
       const apolloClient = new ApolloClient(options)
 
@@ -79,11 +76,7 @@ export const usePoolStore = defineStore('pool', {
       poolApplication: Account,
       done?: (error: boolean, liquidity?: LiquidityAmount) => void
     ) {
-      const url = _Account.applicationUrl(
-        'api.lineraswap.fun',
-        'swap',
-        poolApplication
-      )
+      const url = _Account.applicationUrl(constants.SWAP_HOST, poolApplication)
       const options = /* await */ getClientOptions(url)
       const apolloClient = new ApolloClient(options)
 
@@ -118,11 +111,7 @@ export const usePoolStore = defineStore('pool', {
       poolApplication: Account,
       done?: (error: boolean, liquidity?: LiquidityAmount) => void
     ) {
-      const url = _Account.applicationUrl(
-        'api.lineraswap.fun',
-        'swap',
-        poolApplication
-      )
+      const url = _Account.applicationUrl(constants.SWAP_HOST, poolApplication)
       const options = /* await */ getClientOptions(url)
       const apolloClient = new ApolloClient(options)
 
