@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ####
-## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0
+## E.g. ./run_local.sh -f https://faucet.testnet-babbage.linera.net -C 0
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
-FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
+FAUCET_URL=https://faucet.testnet-babbage.linera.net
 CHAIN_OWNER_COUNT=4
 
 options="f:c:C:W:"
@@ -49,7 +49,8 @@ cd $SOURCE_DIR
 rm linera-protocol -rf
 git clone https://github.com/respeer-ai/linera-protocol.git
 cd linera-protocol
-git checkout respeer-maas-main-7fe154eac96-2025_04_06
+git checkout respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
 
 export PATH=$BIN_DIR:$PATH
 

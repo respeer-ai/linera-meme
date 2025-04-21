@@ -11,3 +11,5 @@ python3 tests/websocket_test.py
 curl -X POST http://localhost:25080/run/ticker
 
 Must run maker.py with respeer linera without --disable-native-rpc.
+
+mysql_native_password
