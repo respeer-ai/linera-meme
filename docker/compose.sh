@@ -47,13 +47,18 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
-# Install official linera for genesis cluster
 cd $SOURCE_DIR
-rm linera-protocol -rf
-git clone https://github.com/respeer-ai/linera-protocol.git
-cd linera-protocol
+rm linera-protocol-respeer -rf
+git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
+cd linera-protocol-respeer
 git checkout respeer-maas-testnet_babbage-3dc32c18-2025-04-15
 git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+
+GIT_COMMIT=$(git rev-parse --short HEAD)
+image_exists=`docker images | grep linera-respeer | wc -l`
+if [ "x$image_exists" != "x1" ]; then
+    docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
+fi
 
 export PATH=$BIN_DIR:$PATH
 
@@ -62,18 +67,12 @@ LATEST_COMMIT=${LATEST_COMMIT:0:10}
 INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}'`
 
 if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
-    cargo build --release
+    cargo build --release --features disable-native-rpc,enable-wallet-rpc,storage-service
     mv $PWD/target/release/linera $BIN_DIR
 fi
 
 # Build linera docker image. If we have, just use it
 # Official linera listen on localhost, so we use respeer here
-
-GIT_COMMIT=$(git rev-parse --short HEAD)
-image_exists=`docker images | grep linera-respeer | wc -l`
-if [ "x$image_exists" != "x1" ]; then
-    docker build --build-arg git_commit="$GIT_COMMIT" -f docker/Dockerfile . -t linera-respeer || exit 1
-fi
 
 # Applications are deployed outside of container, container only run service with wallets
 
@@ -161,7 +160,18 @@ function wallet_owner() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | awk '{print $4}'
+           | grep AccountOwner | awk '{print $4}' | grep '0x'
+}
+
+function wallet_chain_owner() {
+    wallet_name=$1
+    wallet_index=$2
+    chain_id=$3
+
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           wallet show \
+           | grep $chain_id -A 2 | grep AccountOwner | awk '{print $4}' | grep '0x'
 }
 
 function wallet_unassigned_owner() {
@@ -170,12 +180,26 @@ function wallet_unassigned_owner() {
     cat $WALLET_DIR/$wallet_name/$wallet_index/wallet.json | jq -r '.unassigned_key_pairs | keys[]'
 }
 
-function wallet_owners() {
+function wallet_unassigned_owners() {
     wallet_name=$1
-    owners=$(wallet_owner $wallet_name creator)
+
+    owners=($(wallet_unassigned_owner $wallet_name creator))
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         owners+=($(wallet_unassigned_owner $wallet_name $i))
     done
+
+    echo ${owners[@]}
+}
+
+function wallet_chain_owners() {
+    wallet_name=$1
+    chain_id=$2
+
+    owners=($(wallet_chain_owner $wallet_name creator $chain_id))
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        owners+=($(wallet_chain_owner $wallet_name $i $chain_id))
+    done
+
     echo ${owners[@]}
 }
 
@@ -202,13 +226,14 @@ function assign_chain_to_owner() {
 function open_multi_owner_chain() {
     wallet_name=$1
 
-    owners=$(wallet_owners $wallet_name)
+    owners=$(wallet_unassigned_owners $wallet_name)
     chain_id=$(wallet_chain_id $wallet_name creator)
 
     chain_message=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
+           --super-owners ${owners[@]} \
            --owners ${owners[@]} \
            --multi-leader-rounds 100 \
            --initial-balance "20."))
@@ -224,13 +249,14 @@ function open_multi_owner_chain() {
 
     linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-	   wallet set-default \
-	   $chain_id > /dev/null 2>&1
+           wallet set-default \
+           $chain_id > /dev/null 2>&1
 
     echo $chain_id
 }
 
 # Create multi owner chains
+
 # Create blob gateway multi owner chains
 BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway)
 # Create ams multi owner chains
@@ -271,8 +297,6 @@ function create_application() {
     parameters=$4
     chain_id=$5
 
-    # Creator chain is not owner of multi-owner chain so we just create application on the first owner
-
     if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
         linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
@@ -308,14 +332,33 @@ process_inboxes ams
 process_inboxes proxy
 process_inboxes swap
 
+function change_multi_owner_chain_single_leader() {
+    wallet_name=$1
+    chain_id=$2
+
+    owners=$(wallet_chain_owners $wallet_name $chain_id)
+    linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
+        --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        change-ownership \
+        --chain-id $chain_id \
+        --super-owners ${owners[@]} \
+        --owners ${owners[@]} \
+        --multi-leader-rounds 0
+}
+
+change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID
+change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID
+change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID
+change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID
+
 function service_servers() {
     port_base=$1
     count=$2
 
     servers="\"localhost:$port_base\""
     if [ "x$count" == "x1" ]; then
-	echo $servers
-	return
+        echo $servers
+        return
     fi
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         servers="$servers, \"localhost:$((port_base + (i + 1) * 2))\""
@@ -391,8 +434,10 @@ function run_service() {
     wallet_index=$2
     port=$3
     comma=$4
+    image=$5
 
     echo "$comma{
+      \"image\": \"${image}\",
       \"name\": \"${wallet_name}\",
       \"index\": \"${wallet_index}\",
       \"port\": $port
@@ -403,16 +448,17 @@ function run_services() {
     wallet_name=$1
     port_base=$2
     need_comma=$3
+    image=$4
 
     [ "$need_comma" == "1" ] && comma=', '
 
-    run_service $wallet_name creator $port_base $comma
+    run_service $wallet_name creator $port_base "$comma" $image
 
     comma=', '
 
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         port=$((port_base + (i + 1) * 2))
-        run_service $wallet_name $i $port $comma
+        run_service $wallet_name $i $port "$comma" $image
     done
 }
 
@@ -420,10 +466,10 @@ echo '{' > $CONFIG_DIR/docker-compose.json
 echo '  "services": [' >> $CONFIG_DIR/docker-compose.json
 
 # Run services
-run_services blob-gateway 20080 0
-run_services ams 21080 1
-run_services swap 22080 1
-run_services proxy 23080 1
+run_services blob-gateway 20080 0 linera-respeer
+run_services ams 21080 1 linera-respeer
+run_services swap 22080 1 linera-respeer
+run_services proxy 23080 1 linera-respeer
 
 echo '  ]' >> $CONFIG_DIR/docker-compose.json
 echo '}' >> $CONFIG_DIR/docker-compose.json
