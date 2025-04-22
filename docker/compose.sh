@@ -233,7 +233,6 @@ function open_multi_owner_chain() {
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
-           --super-owners ${owners[@]} \
            --owners ${owners[@]} \
            --multi-leader-rounds 100 \
            --initial-balance "20."))
@@ -341,7 +340,6 @@ function change_multi_owner_chain_single_leader() {
         --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
         change-ownership \
         --chain-id $chain_id \
-        --super-owners ${owners[@]} \
         --owners ${owners[@]} \
         --multi-leader-rounds 0
 }
