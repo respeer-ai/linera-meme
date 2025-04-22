@@ -1,7 +1,7 @@
 services:
 {% for service in services %}
   {{ service.name }}-{{ service.index }}:
-    image: "${LINERA_IMAGE:-linera}"
+    image: "{{ service.image }}"
     container_name: {{ service.name}}-{{ service.index }}
     ports:
       - "{{ service.port }}:8080"
