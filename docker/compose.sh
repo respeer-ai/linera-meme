@@ -255,7 +255,6 @@ function open_multi_owner_chain() {
 }
 
 # Create multi owner chains
-
 # Create blob gateway multi owner chains
 BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway)
 # Create ams multi owner chains
@@ -410,10 +409,10 @@ echo -e "   http://graphiql.blobgateway.com"
 echo -e "   http://graphiql.ams.respeer.ai"
 echo -e "   http://graphiql.linerameme.fun"
 echo -e "   http://graphiql.lineraswap.fun"
-echo -e "   'http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
-echo -e "   'http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
-echo -e "   'http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
-echo -e "   'http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID'\n\n"
+echo -e "   http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID\n\n"
 
 cat <<EOF > $DOMAIN_FILE
 export const SUB_DOMAIN = '$CLUSTER.'
