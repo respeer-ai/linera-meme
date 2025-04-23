@@ -6,7 +6,7 @@
           v-for='(application, index) in applications'
           :key='application.applicationId'
           class='col-xs-12 col-sm-6 col-md-4'
-          :style='{marginLeft: index % 3 != 0 ? "12px" : "0", width: "472px"}'
+          :style='{marginLeft: index % 3 != 0 ? "12px" : "0", width: "472px", marginTop: "16px"}'
           @click='onTokenClick(application)'
         >
           <MemeCard :application='application' />
