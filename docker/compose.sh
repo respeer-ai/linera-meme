@@ -209,7 +209,7 @@ function wallet_chain_id() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep "Public Key" | awk '{print $2}'
+           | grep "Public Key" | grep -v " - " | awk '{print $2}'
 }
 
 function assign_chain_to_owner() {
@@ -517,8 +517,8 @@ function run_kline() {
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
       SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=http://$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
-      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST MEME_HOST=$MEME_HOST \
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+      SWAP_HOST=$SWAP_HOST MEME_HOST=$MEME_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
 
