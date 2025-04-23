@@ -175,7 +175,7 @@ function wallet_owner() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-	   | grep AccountOwner | awk '{print $4}' | grep '0x'
+           | grep AccountOwner | awk '{print $4}' | grep '0x'
 }
 
 function wallet_chain_owner() {
