@@ -224,7 +224,7 @@ function wallet_chain_id() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-	   | grep "Public Key" | grep -v " - " | awk '{print $2}'
+           | grep "Public Key" | grep -v " - " | awk '{print $2}'
 }
 
 function assign_chain_to_owner() {
