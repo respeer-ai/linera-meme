@@ -175,7 +175,18 @@ function wallet_owner() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | awk '{print $4}'
+           | grep AccountOwner | awk '{print $4}' | grep '0x'
+}
+
+function wallet_chain_owner() {
+    wallet_name=$1
+    wallet_index=$2
+    chain_id=$3
+
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+        --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+        wallet show \
+        | grep $chain_id -A 2 | grep AccountOwner | awk '{print $4}' | grep '0x'
 }
 
 function wallet_unassigned_owner() {
@@ -184,12 +195,26 @@ function wallet_unassigned_owner() {
     cat $WALLET_DIR/$wallet_name/$wallet_index/wallet.json | jq -r '.unassigned_key_pairs | keys[]'
 }
 
-function wallet_owners() {
+function wallet_unassigned_owners() {
     wallet_name=$1
-    owners=$(wallet_owner $wallet_name creator)
+
+    owners=($(wallet_unassigned_owner $wallet_name creator))
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         owners+=($(wallet_unassigned_owner $wallet_name $i))
     done
+
+    echo ${owners[@]}
+}
+
+function wallet_chain_owners() {
+    wallet_name=$1
+    chain_id=$2
+
+    owners=($(wallet_chain_owner $wallet_name creator $chain_id))
+    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
+        owners+=($(wallet_chain_owner $wallet_name $i $chain_id))
+    done
+
     echo ${owners[@]}
 }
 
@@ -199,7 +224,7 @@ function wallet_chain_id() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep "Public Key" | awk '{print $2}'
+           | grep "Public Key" | grep -v " - " | awk '{print $2}'
 }
 
 function assign_chain_to_owner() {
@@ -216,7 +241,7 @@ function assign_chain_to_owner() {
 function open_multi_owner_chain() {
     wallet_name=$1
 
-    owners=$(wallet_owners $wallet_name)
+    owners=$(wallet_unassigned_owners $wallet_name)
     chain_id=$(wallet_chain_id $wallet_name creator)
 
     chain_message=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
@@ -285,8 +310,6 @@ function create_application() {
     parameters=$4
     chain_id=$5
 
-    # Creator chain is not owner of multi-owner chain so we just create application on the first owner
-
     if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
         linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
@@ -322,10 +345,33 @@ process_inboxes ams
 process_inboxes proxy
 process_inboxes swap
 
+function change_multi_owner_chain_single_leader() {
+    wallet_name=$1
+    chain_id=$2
+
+    owners=$(wallet_chain_owners $wallet_name $chain_id)
+    linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
+	--storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+	change-ownership \
+	--chain-id $chain_id \
+	--owners ${owners[@]} \
+	--multi-leader-rounds 0
+}
+
+change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID
+change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID
+change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID
+change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID
+
 function service_servers() {
     port_base=$1
+    count=$2
 
     servers="\"localhost:$port_base\""
+    if [ "x$count" == "x1" ]; then
+        echo $servers
+        return
+    fi
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         servers="$servers, \"localhost:$((port_base + (i + 1) * 2))\""
     done
@@ -336,8 +382,9 @@ function generate_nginx_conf() {
     port_base=$1
     endpoint=$2
     domain=$3
+    count=$4
 
-    servers=$(service_servers $port_base)
+    servers=$(service_servers $port_base $count)
     echo "{
         \"service\": {
             \"endpoint\": \"$endpoint\",
@@ -349,17 +396,17 @@ function generate_nginx_conf() {
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
-    echo "cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/"
+    echo cp ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
 
 SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 
 # Generate service nginx conf
-generate_nginx_conf 20080 blobs blobgateway.com
-generate_nginx_conf 21080 ams ams.respeer.ai
-generate_nginx_conf 22080 swap lineraswap.fun
-generate_nginx_conf 23080 proxy linerameme.fun
-generate_nginx_conf 25080 kline kline.lineraswap.fun
+generate_nginx_conf 20080 blobs blobgateway.com $CHAIN_OWNER_COUNT
+generate_nginx_conf 21080 ams ams.respeer.ai $CHAIN_OWNER_COUNT
+generate_nginx_conf 22080 swap lineraswap.fun $CHAIN_OWNER_COUNT
+generate_nginx_conf 23080 proxy linerameme.fun $CHAIN_OWNER_COUNT
+generate_nginx_conf 25080 kline kline.lineraswap.fun 1
 
 echo -e "\n\nService domain"
 echo -e "   $LAN_IP ${SUB_DOMAIN}blobgateway.com"
@@ -375,10 +422,10 @@ echo -e "   http://graphiql.blobgateway.com"
 echo -e "   http://graphiql.ams.respeer.ai"
 echo -e "   http://graphiql.linerameme.fun"
 echo -e "   http://graphiql.lineraswap.fun"
-echo -e "   'http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID',"
-echo -e "   'http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID',"
-echo -e "   'http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID',"
-echo -e "   'http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID',\n\n"
+echo -e "   http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID\n\n"
 
 cat <<EOF > $DOMAIN_FILE
 export const SUB_DOMAIN = '$CLUSTER.'
