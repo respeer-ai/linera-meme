@@ -39,23 +39,27 @@ const selectedPool = computed(() => _swap.selectedPool)
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000 || 0))
 
 const latestTimestamp = ref(poolCreatedAt.value)
-const latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).filter((el) => el.timestamp > latestTimestamp.value - 300000) as KLineData[])
+const _latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
+const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timestamp > latestTimestamp.value - 300000))
 
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
 
 watch(latestPoints, () => {
-  if (!applied.value) return
+  if (!applied.value || !_latestPoints.value.length) return
 
   const dataList = chart.value?.getDataList()
-  if (!dataList?.length || !latestPoints.value.length) return
+  if (!dataList?.length) {
+    chart.value?.applyNewData(_latestPoints.value)
+    latestTimestamp.value = _latestPoints.value[_latestPoints.value.length - 1]?.timestamp
+    return
+  }
 
+  if (!latestPoints.value.length) return
   const maxTimestamp = dataList[dataList.length - 1].timestamp
-  let existsCount = latestPoints.value.findIndex((el) => el.timestamp === maxTimestamp)
-  if (existsCount === latestPoints.value.length) existsCount = latestPoints.value.length - 1
 
-  if (maxTimestamp <= latestPoints.value[0].timestamp) {
-    latestPoints.value.slice(existsCount).forEach((point) => {
+  if (maxTimestamp < latestPoints.value[0].timestamp) {
+    latestPoints.value.forEach((point) => {
       chart.value?.updateData(point)
     })
     latestTimestamp.value = latestPoints.value[latestPoints.value.length - 1].timestamp
@@ -65,13 +69,13 @@ watch(latestPoints, () => {
   const length = dataList.length
   let startIndex = dataList.length - 1
 
-  for (let i = dataList.length - 1; i > 0; i--) {
+  for (let i = startIndex; i >= 0; i--) {
     if (dataList[i].timestamp === latestPoints.value[0].timestamp) {
       startIndex = i
       break
     }
   }
-  for (let i = startIndex, j = 0; j < latestPoints.value.length; i++, j++) {
+  for (let i = startIndex, j = 0; j < latestPoints.value.length - 1; i++, j++) {
     if (i < length) dataList[i] = latestPoints.value[j]
     else dataList.push(latestPoints.value[j])
   }

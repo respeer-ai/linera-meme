@@ -156,6 +156,7 @@ onMounted(() => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getBalances = async () => {
+  if (!publicKey.value) return
   const owner = await dbModel.ownerFromPublicKey(publicKey.value)
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
   window.linera.request({
@@ -184,6 +185,10 @@ const getBalances = async () => {
 }
 
 watch(blockHeight, async () => {
+  await getBalances()
+})
+
+watch(publicKey, async () => {
   await getBalances()
 })
 

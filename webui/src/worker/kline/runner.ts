@@ -353,7 +353,15 @@ export class KlineRunner {
   }
 
   static handleSortPoints = (payload: SortPointsPayload) => {
-    let { token0, token1, originPoints, newPoints, reason, keepCount, reverse } = payload
+    let {
+      token0,
+      token1,
+      originPoints,
+      newPoints,
+      reason,
+      keepCount,
+      reverse
+    } = payload
 
     newPoints.forEach((point) => {
       const index = originPoints.findIndex(
