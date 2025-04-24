@@ -40,6 +40,7 @@ const _swap = swap.useSwapStore()
 const applications = computed(() => _ams.applications.filter((el) => _proxy.chains.map((_el: Chain) => _el.token as string).includes(el.applicationId)))
 const proxyBlockHash = computed(() => _proxy.blockHash)
 const amsBlockHash = computed(() => _ams.blockHash)
+const swapBlockHash = computed(() => _swap.blockHash)
 
 const getMemeApplications = () => {
   proxy.getMemeApplications((error: boolean, rows?: Chain[]) => {
@@ -87,6 +88,10 @@ watch(proxyBlockHash, () => {
 })
 
 watch(amsBlockHash, () => {
+  loadApplications()
+})
+
+watch(swapBlockHash, () => {
   loadApplications()
 })
 

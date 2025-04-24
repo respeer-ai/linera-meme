@@ -20,7 +20,7 @@ export const useAmsStore = defineStore('ams', {
     blockHash: undefined as unknown as string
   }),
   actions: {
-    initializeProxy() {
+    initializeAms() {
       this.subscription = new Subscription(
         constants.AMS_URL,
         constants.AMS_WS_URL,
