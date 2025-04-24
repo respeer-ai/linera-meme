@@ -28,7 +28,7 @@
                 </div>
                 <q-space />
                 <div :style='{marginLeft: "8px"}' class='cursor-pointer'>
-                  <q-img :src='copyIcon' width='16px' height='16px' @click='copyToClipboard(publicKey)' />
+                  <q-img :src='copyIcon' width='16px' height='16px' @click.stop='(evt) => _copyToClipboard(publicKey, evt)' />
                 </div>
               </div>
               <div class='text-grey-6'>
@@ -50,7 +50,7 @@
                 </div>
                 <q-space />
                 <div :style='{marginLeft: "8px"}' class='cursor-pointer'>
-                  <q-img :src='copyIcon' width='16px' height='16px' @click='copyToClipboard(chainId)' />
+                  <q-img :src='copyIcon' width='16px' height='16px' @click='(evt) => _copyToClipboard(chainId, evt)' />
                 </div>
               </div>
               <div class='text-grey-6'>
@@ -88,6 +88,7 @@ import { Web3 } from 'web3'
 import { addressIcon, microchainIcon, copyIcon } from 'src/assets'
 import { BALANCES } from 'src/graphql'
 import { dbModel, rpcModel } from 'src/model'
+import { _copyToClipboard } from 'src/utils/copy_to_clipboard'
 
 const _user = user.useUserStore()
 const _block = block.useBlockStore()
@@ -142,10 +143,6 @@ const walletReadyCall = (f: () => void) => {
     return setTimeout(() => walletReadyCall(f), 1000)
   }
   f()
-}
-
-const copyToClipboard = async (content: string) => {
-  await navigator.clipboard.writeText(content)
 }
 
 onMounted(() => {

@@ -82,7 +82,7 @@ const applicationRefresher = ref(-1)
 
 onMounted(() => {
   loadApplications()
-  applicationRefresher.value = window.setInterval(loadApplications, 30 * 1000)
+  applicationRefresher.value = window.setInterval(loadApplications, 10 * 1000)
 })
 
 onBeforeUnmount(() => {

@@ -178,8 +178,6 @@ export class KlineRunner {
 
       KlineRunner.bulkStorePoints(token0, token1, interval, points)
 
-      await dbBridge.Kline.bulkPut(token0, token1, interval, points.points)
-
       self.postMessage({
         type: KlineEventType.FETCHED_POINTS,
         payload: {

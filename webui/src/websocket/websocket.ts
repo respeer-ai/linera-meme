@@ -1,4 +1,7 @@
-import { Notification } from './types'
+export interface Notification {
+  notification: string
+  value: unknown
+}
 
 export class _WebSocket {
   private onMessageCb: (message: Notification) => void =
@@ -18,7 +21,7 @@ export class _WebSocket {
   }
 
   onOpen() {
-    console.log('Kline websocket opened')
+    console.log('Websocket opened')
   }
 
   withOnMessage(cb: (message: Notification) => void) {
@@ -32,7 +35,7 @@ export class _WebSocket {
   }
 
   onClose() {
-    console.log('Kline websocket closed')
+    console.log('Websocket closed')
   }
 
   withOnError(cb: (e: Event) => void) {

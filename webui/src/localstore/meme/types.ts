@@ -54,3 +54,8 @@ export interface TokenItem {
   ticker: string
   name: string
 }
+
+export interface Notification {
+  notification: string
+  value: unknown
+}

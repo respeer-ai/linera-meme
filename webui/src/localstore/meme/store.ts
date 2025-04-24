@@ -6,7 +6,7 @@ import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { BALANCE_OF } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
 import { _Account, Account } from '../account'
-import { constants } from '../../constant'
+import { constants } from 'src/constant'
 
 export const useMemeStore = defineStore('meme', {
   state: () => ({}),

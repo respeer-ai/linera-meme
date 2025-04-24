@@ -19,11 +19,6 @@ export interface Points {
   points: Point[]
 }
 
-export interface Notification {
-  notification: string
-  value: unknown
-}
-
 export interface Transactions {
   token_0: string
   token_1: string
