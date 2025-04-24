@@ -7,8 +7,8 @@ import { MEME_APPLICATIONS } from 'src/graphql'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 import { graphqlResult } from 'src/utils'
 import { Account } from '../account'
-import { _WebSocket, Notification } from 'src/websocket'
 import { constants } from 'src/constant'
+import { Subscription } from 'src/subscription'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
@@ -16,20 +16,21 @@ const apolloClient = new ApolloClient(options)
 export const useProxyStore = defineStore('proxy', {
   state: () => ({
     chains: [] as Array<Chain>,
-    websocket: undefined as unknown as _WebSocket
+    subscription: undefined as unknown as Subscription
   }),
   actions: {
     initializeProxy() {
-      this.websocket = new _WebSocket(constants.PROXY_HOST)
-      this.websocket.withOnMessage((notification) =>
-        this.onMessage(notification)
+      this.subscription = new Subscription(
+        constants.PROXY_URL,
+        constants.PROXY_WS_URL,
+        constants.chainId(constants.APPLICATION_URLS.PROXY) as string,
+        () => {
+          this.getApplications({})
+        }
       )
-      this.websocket.withOnError((e) => this.onError(e))
     },
-    onMessage(notification: Notification) {
-      if (notification.notification === 'NewBlock') {
-        this.getApplications({})
-      }
+    finalizeProxy() {
+      this.subscription?.unsubscribe()
     },
     onError(e: Event) {
       console.log(`Proxy error: ${JSON.stringify(e)}`)

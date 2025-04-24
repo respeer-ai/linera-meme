@@ -15,9 +15,11 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  */
 type Documents = {
     "\n  query balances($chainOwners: [ChainOwners!]!) {\n    balances(chainOwners: $chainOwners)\n  }\n": typeof types.BalancesDocument,
+    "\n  subscription notifications($chainId: ChainId!) {\n    notifications(chainId: $chainId)\n  }\n": typeof types.NotificationsDocument,
 };
 const documents: Documents = {
     "\n  query balances($chainOwners: [ChainOwners!]!) {\n    balances(chainOwners: $chainOwners)\n  }\n": types.BalancesDocument,
+    "\n  subscription notifications($chainId: ChainId!) {\n    notifications(chainId: $chainId)\n  }\n": types.NotificationsDocument,
 };
 
 /**
@@ -38,6 +40,10 @@ export function graphql(source: string): unknown;
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n  query balances($chainOwners: [ChainOwners!]!) {\n    balances(chainOwners: $chainOwners)\n  }\n"): (typeof documents)["\n  query balances($chainOwners: [ChainOwners!]!) {\n    balances(chainOwners: $chainOwners)\n  }\n"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  subscription notifications($chainId: ChainId!) {\n    notifications(chainId: $chainId)\n  }\n"): (typeof documents)["\n  subscription notifications($chainId: ChainId!) {\n    notifications(chainId: $chainId)\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};
