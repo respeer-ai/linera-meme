@@ -57,7 +57,7 @@ git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
 GIT_COMMIT=$(git rev-parse --short HEAD)
 image_exists=`docker images | grep linera-respeer | wc -l`
 if [ "x$image_exists" != "x1" ]; then
-    echo docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
+    docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
 fi
 
 export PATH=$BIN_DIR:$PATH
