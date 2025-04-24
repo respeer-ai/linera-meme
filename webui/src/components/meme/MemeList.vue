@@ -97,7 +97,7 @@ watch(swapBlockHash, () => {
 
 onMounted(() => {
   loadApplications()
-  applicationRefresher.value = window.setInterval(loadApplications, 10 * 1000)
+  applicationRefresher.value = window.setInterval(loadApplications, 120 * 1000)
 })
 
 onBeforeUnmount(() => {
