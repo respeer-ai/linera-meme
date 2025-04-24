@@ -16,7 +16,8 @@ const apolloClient = new ApolloClient(options)
 export const useProxyStore = defineStore('proxy', {
   state: () => ({
     chains: [] as Array<Chain>,
-    subscription: undefined as unknown as Subscription
+    subscription: undefined as unknown as Subscription,
+    blockHash: undefined as unknown as string
   }),
   actions: {
     initializeProxy() {
@@ -24,8 +25,8 @@ export const useProxyStore = defineStore('proxy', {
         constants.PROXY_URL,
         constants.PROXY_WS_URL,
         constants.chainId(constants.APPLICATION_URLS.PROXY) as string,
-        () => {
-          this.getApplications({})
+        (hash: string) => {
+          this.blockHash = hash
         }
       )
     },
