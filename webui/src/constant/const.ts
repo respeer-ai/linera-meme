@@ -23,7 +23,9 @@ const URLS = [
   `ws://api.${domain.SUB_DOMAIN}kline.lineraswap.fun/api/kline/ws`,
   `http://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap`,
   `http://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy`,
-  `ws://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/ws`
+  `ws://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/ws`,
+  `http://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams`,
+  `ws://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/ws`
 ]
 
 export const APPLICATION_URLS = {
@@ -40,6 +42,8 @@ export const KLINE_WS_URL = formalizeSchema(URLS[7])
 export const SWAP_URL = formalizeSchema(URLS[8])
 export const PROXY_URL = formalizeSchema(URLS[9])
 export const PROXY_WS_URL = formalizeSchema(URLS[10])
+export const AMS_URL = formalizeSchema(URLS[11])
+export const AMS_WS_URL = formalizeSchema(URLS[12])
 
 export const applicationId = (url: string) => {
   return url.split('/').at(-1)

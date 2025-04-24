@@ -7,15 +7,32 @@ import { APPLICATIONS } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
 import { BlobGateway } from '../blob'
 import { Meme } from '../meme'
+import { Subscription } from 'src/subscription'
+import { constants } from 'src/constant'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
 
 export const useAmsStore = defineStore('ams', {
   state: () => ({
-    applications: [] as Array<Application>
+    applications: [] as Array<Application>,
+    subscription: undefined as unknown as Subscription,
+    blockHash: undefined as unknown as string
   }),
   actions: {
+    initializeProxy() {
+      this.subscription = new Subscription(
+        constants.AMS_URL,
+        constants.AMS_WS_URL,
+        constants.chainId(constants.APPLICATION_URLS.AMS) as string,
+        (hash: string) => {
+          this.blockHash = hash
+        }
+      )
+    },
+    finalizeProxy() {
+      this.subscription?.unsubscribe()
+    },
     getApplications(
       req: GetApplicationsRequest,
       done?: (error: boolean, rows?: Application[]) => void
