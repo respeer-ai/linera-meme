@@ -20,3 +20,7 @@ export const data = (result: unknown, key: string) => {
     key
   ]
 }
+
+export const rootData = (result: unknown) => {
+  return (result as Record<string, unknown>).data
+}

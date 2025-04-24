@@ -8,6 +8,7 @@ import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { formalizeFloat, graphqlResult } from 'src/utils'
 import { constants } from 'src/constant'
 import { Transaction } from '../transaction'
+import { Subscription } from 'src/subscription'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
@@ -17,9 +18,24 @@ export const useSwapStore = defineStore('swap', {
     pools: [] as Array<Pool>,
     selectedPool: undefined as unknown as Pool,
     selectedToken0: undefined as unknown as string,
-    selectedToken1: undefined as unknown as string
+    selectedToken1: undefined as unknown as string,
+    subscription: undefined as unknown as Subscription,
+    blockHash: undefined as unknown as string
   }),
   actions: {
+    initializeSwap() {
+      this.subscription = new Subscription(
+        constants.SWAP_URL,
+        constants.SWAP_WS_URL,
+        constants.chainId(constants.APPLICATION_URLS.SWAP) as string,
+        (hash: string) => {
+          this.blockHash = hash
+        }
+      )
+    },
+    finalizeProxy() {
+      this.subscription?.unsubscribe()
+    },
     getPools(
       req: LatestTransactionsRequest,
       done?: (error: boolean, rows?: Pool[]) => void

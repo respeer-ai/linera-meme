@@ -29,7 +29,7 @@
     "test:unit:ci"
   ],
   "dependencies": {
-    "@apollo/client": "^3.11.8",
+    "@apollo/client": "^3.9.11",
     "@metamask/providers": "^17.0.0",
     "@primevue/themes": "^4.1.1",
     "@quasar/extras": "^1.16.11",

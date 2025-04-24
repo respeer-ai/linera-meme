@@ -5,3 +5,9 @@ export const BALANCES = gql`
     balances(chainOwners: $chainOwners)
   }
 `
+
+export const NOTIFICATIONS = gql`
+  subscription notifications($chainId: ChainId!) {
+    notifications(chainId: $chainId)
+  }
+`

@@ -6,10 +6,10 @@ import { createClient } from 'graphql-ws'
 import { getMainDefinition } from '@apollo/client/utilities'
 import { constants } from 'src/constant'
 
-export /* async */ function getClientOptions(httpUrl?: string) {
+export /* async */ function getClientOptions(httpUrl?: string, wsUrl?: string) {
   const wsLink = new GraphQLWsLink(
     createClient({
-      url: constants.RPC_WS_URL
+      url: wsUrl || constants.RPC_WS_URL
     })
   )
 

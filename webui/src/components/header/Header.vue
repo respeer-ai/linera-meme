@@ -33,7 +33,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { graphqlResult } from 'src/utils'
-import { block, user, kline } from 'src/localstore'
+import { block, user, kline, proxy, ams, swap } from 'src/localstore'
 
 import { blobGatewayLogo, lineraMemeLogo, lineraSwapLogo } from 'src/assets'
 
@@ -46,6 +46,9 @@ const path = computed(() => route.path)
 const _block = block.useBlockStore()
 const _user = user.useUserStore()
 const _kline = kline.useKlineStore()
+const _proxy = proxy.useProxyStore()
+const _ams = ams.useAmsStore()
+const _swap = swap.useSwapStore()
 
 const path2tab = () => {
   if (path.value.includes('meme')) return 'meme'
@@ -88,6 +91,9 @@ const onLogoClick = () => {
 
 onMounted(() => {
   _kline.initializeKline()
+  _proxy.initializeProxy()
+  _ams.initializeAms()
+  _swap.initializeSwap()
   goHome()
 })
 
