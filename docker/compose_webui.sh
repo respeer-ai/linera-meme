@@ -65,5 +65,7 @@ function generate_nginx_conf() {
 
 SUB_DOMAIN=$(echo "${CLUSTER}." | sed 's/\.\./\./g')
 generate_nginx_conf 18080 linera-meme-webui linerameme.fun
+generate_nginx_conf 18080 linera-swap-webui lineraswap.fun
+generate_nginx_conf 18080 linera-blobgateway-webui blobgateway.com
 
 sudo nginx -s reload

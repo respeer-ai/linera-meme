@@ -66,7 +66,7 @@ class Trader:
         for pool in pools:
             self.trade_in_pool(pool)
 
-        return random.uniform(1.1, 4.9)
+        return random.uniform(49, 290)
 
     def run(self):
         while True:
