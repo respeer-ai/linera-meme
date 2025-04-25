@@ -64,7 +64,9 @@ class Trader:
     def trade(self) -> float:
         pools = self.swap.get_pools()
         for pool in pools:
-            self.trade_in_pool(pool)
+            for i in range(3):
+                self.trade_in_pool(pool)
+                time.sleep(random.uniform(1,2))
 
         return random.uniform(49, 290)
 
