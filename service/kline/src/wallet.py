@@ -2,11 +2,12 @@ import requests
 
 
 class Wallet:
-    def __init__(self, wallet_host, owner, chain):
+    def __init__(self, wallet_host, owner, chain, faucet):
         self.wallet_host = wallet_host
         self.wallet_url = f'http://{wallet_host}'
         self.owner = owner
         self.chain = chain
+        self.faucet = faucet
 
     def account(self):
         return f'{self.chain}:{self.owner}'
@@ -45,4 +46,11 @@ class Wallet:
         owner_balance = float(balances[self.owner]) if self.owner in balances else 0
 
         return chain_balance + owner_balance
+
+    def open_chain(self):
+        payload = {
+            'query': f'mutation {{ claim(owner: {self.owner}) }}'
+        }
+        resp = requests.post(url=self.faucet, json=payload)
+        print(resp.json())
 

@@ -23,7 +23,10 @@ class Balance:
             return {}
 
         balances = resp.json()['data']['balances']
+        _balances = {}
 
-        return [{
-            chain_id: float(balances[chain_id]['chainBalance']) if chain_id in balances and 'chainBalance' in balances[chain_id] else 0
-        } for chain_id in chain_ids]
+        for chain_id in chain_ids:
+            _balances[chain_id] = float(balances[chain_id]['chainBalance']) if chain_id in balances and 'chainBalance' in balances[chain_id] else 0
+
+        return _balances
+
