@@ -1,0 +1,13 @@
+services:
+  kline:
+    image: "funder"
+    container_name: funder
+    command: [ "./funder-entrypoint.sh" ]
+    extra_hosts:
+      - "api.lineraswap.fun:${LAN_IP}"
+      - "api.linerameme.fun:${LAN_IP}"
+    environment:
+      SWAP_APPLICATION_ID: ${SWAP_APPLICATION_ID}
+      SWAP_HOST: ${SWAP_HOST}
+      PROXY_APPLICATION_ID: ${PROXY_APPLICATION_ID}
+      PROXY_HOST: ${PROXY_HOST}

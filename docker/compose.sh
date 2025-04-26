@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ####
-## E.g. ./run_local.sh -f https://faucet.testnet-babbage.linera.net -C 0
+## E.g. ./compose.sh -f https://faucet.testnet-babbage.linera.net -C 0
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
@@ -495,7 +495,7 @@ DATABASE_USER=linera-swap
 DATABASE_PASSWORD=12345679
 DATABASE_PORT=3306
 SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
-MEME_HOST=${SUB_DOMAIN}linerameme.fun
+PROXY_HOST=${SUB_DOMAIN}linerameme.fun
 
 function run_mysql() {
     docker stop docker-mysql-1
@@ -517,13 +517,29 @@ function run_kline() {
       SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
-      SWAP_HOST=$SWAP_HOST MEME_HOST=$MEME_HOST \
+      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
+
+function run_funder() {
+    docker stop funder
+    docker rm funder
+
+    image_exists=`docker images | grep funder | wc -l`
+    if [ "x$image_exists" != "x1" ]; then
+        cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
+        docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+    fi
+
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+      docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
+}
+
 
 cd $OUTPUT_DIR
 cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
 
 run_mysql
 run_kline
-
+run_funder
