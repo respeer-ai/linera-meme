@@ -4,7 +4,7 @@ class Meme:
     def __init__(self, host, wallet):
         self.host = host
         self.wallet = wallet
-        self.base_url = f'http://{host}/api/proxy'
+        self.base_url = f'https://{host}/api/proxy'
 
     # chain_id: token creator chain id
     # token: token application id
