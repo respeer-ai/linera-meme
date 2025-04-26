@@ -15,12 +15,12 @@ if __name__ == '__main__':
     parser.add_argument('--wallet-host', type=str, default='localhost:30081', help='Host of wallet service')
     parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
     parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
-    parser.add_argument('--meme-host', type=str, default='api.linerameme.fun', help='Host of meme service')
+    parser.add_argument('--proxy-host', type=str, default='api.linerameme.fun', help='Host of meme service')
 
     args = parser.parse_args()
 
     _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain)
-    _meme = Meme(args.meme_host, _wallet)
+    _meme = Meme(args.proxy_host, _wallet)
 
     _swap = Swap(args.swap_host, args.swap_application_id, _wallet)
     _swap.get_swap_chain()
