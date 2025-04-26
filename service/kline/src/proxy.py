@@ -59,6 +59,7 @@ class Proxy:
         json = {
             'query': f'query {{\n memeApplications {{ chainId token }} \n}}'
         }
+        url = f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
         try:
             resp = requests.post(url=url, json=json)
             if 'errors' in resp.json():
