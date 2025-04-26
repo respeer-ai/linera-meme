@@ -7,6 +7,7 @@ members = [
     "blob-gateway",
     "ams",
     "abi",
+    "deposit",
 ]
 exclude = [
     "webui/wasm",
@@ -41,6 +42,7 @@ swap = { path = "./swap" }
 pool = { path = "./pool" }
 blob-gateway = { path = "./blob-gateway" }
 ams = { path = "./ams" }
+deposit = { path = "./deposit" }
 
 [profile.release]
 debug = true
