@@ -4,8 +4,10 @@ ARG swap_application_id
 ARG wallet_host
 ARG wallet_owner
 ARG wallet_chain
+ARG swap_host
 
 ENV SWAP_APPLICATION_ID=${swap_application_id}
+ENV SWAP_HOST=${swap_host}
 ENV WALLET_HOST=${wallet_host}
 ENV WALLET_OWNER=${wallet_owner}
 ENV WALLET_CHAIN=${wallet_chain}

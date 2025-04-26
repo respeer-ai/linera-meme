@@ -2,9 +2,13 @@ FROM linera-respeer
 
 ARG swap_application_id
 ARG proxy_application_id
+ARG swap_host
+ARG proxy_host
 
 ENV SWAP_APPLICATION_ID=${swap_application_id}
 ENV PROXY_APPLICATION_ID=${proxy_application_id}
+ENV SWAP_HOST=${swap_host}
+ENV PROXY_HOST=${proxy_host}
 
 COPY docker/kline kline
 
