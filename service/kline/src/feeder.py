@@ -11,7 +11,7 @@ class Feeder:
     def feed_chain(self, funder_chain_id, chain_id):
         try:
             # Transfer to chain
-            self.wallet.transfer(funder_chain_id, chain_id, 19)
+            self.wallet.transfer_with_cli(funder_chain_id, chain_id, "19")
             print(f'Feeded chain {chain_id}')
         except Exception as e:
             print(f'Failed feed {chain_id}')
@@ -36,7 +36,7 @@ class Feeder:
                 if funded_chains % 5 == 0:
                     # Claim new chain
                     try:
-                        funder_chain_id = self.wallet.open_chain()
+                        funder_chain_id = self.wallet.open_chain_with_cli()
                     except Exception as e:
                         print(f'Failed open chain: {e}')
                         time.sleep(30)
@@ -56,7 +56,7 @@ class Feeder:
                 if funded_chains % 5 == 0:
                     # Claim new chain
                     try:
-                        funder_chain_id = self.wallet.open_chain()
+                        funder_chain_id = self.wallet.open_chain_with_cli()
                     except Exception as e:
                         print(f'Failed open chain: {e}')
                         time.sleep(30)

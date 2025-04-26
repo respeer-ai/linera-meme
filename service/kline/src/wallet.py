@@ -1,4 +1,7 @@
 import requests
+import subprocess
+import os
+import shutil
 
 
 class Wallet:
@@ -8,6 +11,8 @@ class Wallet:
         self.owner = owner
         self.chain = chain
         self.faucet = faucet
+        self.wallet_path = '/tmp/linera-wallet'
+        self.wallet_index = 0
 
     def account(self):
         return f'{self.chain}:{self.owner}'
@@ -60,14 +65,33 @@ class Wallet:
 
         return resp.json()['data']['claim']['chainId']
 
-    def transfer(self, from_chain_id, to_chain_id, amount):
-        payload = {
-            'query': f'''mutation {{ transfer(chainId: "{from_chain_id}", owner: "0x00", recipient: {{
-                Account: {{
-                    chainId: "{to_chain_id}",
-                }}
-            }}, amount: "{amount}") }}'''
-        }
-        resp = requests.post(url=self.wallet_url, json=payload)
-        if 'data' not in resp.json():
-            raise Exception(f'Failed transfer to {to_chain_id}')
+    def open_chain_with_cli(self):
+        self.wallet_index += 1
+
+        wallet_path = f'{self.wallet_path}/{self.wallet_index}'
+        shutil.rmtree(wallet_path, ignore_errors=True)
+
+        os.environ['LINERA_WALLET'] = f'{wallet_path}/wallet.json'
+        os.environ['LINERA_STORAGE'] = f'rocksdb://{wallet_path}/client.db'
+
+        os.makedirs(wallet_path)
+
+        # Remove exists wallet
+        command = ['linera', 'wallet', 'init', '--faucet', self.faucet, '--with-new-chain']
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output, errors = proc.communicate()
+        if proc.returncode != 0 and errors != '':
+            raise Exception(errors)
+        return(output.splitlines()[0])
+
+
+    def transfer_with_cli(self, from_chain_id, to_chain_id, amount):
+        os.environ['LINERA_WALLET'] = f'{self.wallet_path}/{self.wallet_index}/wallet.json'
+        os.environ['LINERA_STORAGE'] = f'rocksdb://{self.wallet_path}/{self.wallet_index}/client.db'
+
+        command = ['linera', 'transfer', '--from', from_chain_id, '--to', to_chain_id, amount]
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        output, errors = proc.communicate()
+        if proc.returncode != 0 and errors != '':
+            raise Exception(errors)
