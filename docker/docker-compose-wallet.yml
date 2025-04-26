@@ -1,6 +1,6 @@
 services:
   maker-wallet:
-    image: "respeer/linera-respeer"
+    image: "${LINERA_IMAGE:-linera}"
     container_name: maker-wallet
     ports:
       - "40082:8080"
