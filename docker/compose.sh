@@ -525,8 +525,11 @@ function run_funder() {
     docker stop funder
     docker rm funder
 
-    cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
-    docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+    image_exists=`docker images | grep funder | wc -l`
+    if [ "x$image_exists" != "x1" ]; then
+        cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
+        docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+    fi
 
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
