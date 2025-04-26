@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url))
+    _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url)
     _meme = Meme(args.proxy_host, _wallet)
 
     _swap = Swap(args.swap_host, args.swap_application_id, _wallet)
