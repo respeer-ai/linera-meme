@@ -9,7 +9,7 @@ class MemeApplication:
 class Proxy:
     def __init__(self, host, application_id, wallet):
         self.host = host
-        self.base_url = f'https://{host}/api/proxy'
+        self.base_url = f'http://{host}/api/proxy'
         self.application = application_id if len(application_id) > 0 else None
         self.wallet = wallet
         self.chain = None

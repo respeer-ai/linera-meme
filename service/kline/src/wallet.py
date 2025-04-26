@@ -49,8 +49,25 @@ class Wallet:
 
     def open_chain(self):
         payload = {
-            'query': f'mutation {{ claim(owner: {self.owner}) }}'
+            'query': f'''mutation {{ claim(owner: "{self.owner}") {{
+                chainId
+            }} }}'''
         }
-        resp = requests.post(url=self.faucet, json=payload)
-        print(resp.json())
 
+        resp = requests.post(url=self.faucet, json=payload)
+        if 'data' not in resp.json():
+            raise Exception('Failed open chain')
+
+        return resp.json()['data']['claim']['chainId']
+
+    def transfer(self, from_chain_id, to_chain_id, amount):
+        payload = {
+            'query': f'''mutation {{ transfer(chainId: "{from_chain_id}", owner: "0x00", recipient: {{
+                Account: {{
+                    chainId: "{to_chain_id}",
+                }}
+            }}, amount: "{amount}") }}'''
+        }
+        resp = requests.post(url=self.wallet_url, json=payload)
+        if 'data' not in resp.json():
+            raise Exception(f'Failed transfer to {to_chain_id}')
