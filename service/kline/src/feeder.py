@@ -6,6 +6,7 @@ class Feeder:
         self.swap = swap
         self.proxy = proxy
         self.wallet = wallet
+        self.threshold = 10
 
     def feed_chain(self, chain_id):
         # Claim new chain
@@ -24,7 +25,7 @@ class Feeder:
         balances = Balance(self.swap.base_url).chain_balances(swap_chain_ids)
 
         for chain_id, balance in balances.items():
-            if balance < 5:
+            if balance < self.threshold:
                 self.feed_chain(chain_id)
 
         # Get proxy balance
@@ -32,7 +33,7 @@ class Feeder:
         balances = Balance(self.proxy.base_url).chain_balances(proxy_chain_ids)
 
         for chain_id, balance in balances.items():
-            if balance < 5:
+            if balance < self.threshold:
                 self.feed_chain(chain_id)
 
 
