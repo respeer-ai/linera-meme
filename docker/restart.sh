@@ -7,16 +7,12 @@
 LAN_IP=$( hostname -I | awk '{print $1}' )
 CLUSTER=
 
-options="C:z:B:A:S:P:"
+options="C:z:"
 
 while getopts $options opt; do
   case ${opt} in
     C) COMPILE=${OPTARG} ;;
     z) CLUSTER=${OPTARG} ;;
-    B) BLOB_GATEWAY_APPLICATION_ID=${OPTARG} ;;
-    A) AMS_APPLICATION_ID=${OPTARG} ;;
-    S) SWAP_APPLICATION_ID=${OPTARG} ;;
-    P) PROXY_APPLICATION_ID=${OPTARG} ;;
   esac
 done
 
@@ -45,10 +41,11 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
-LOB_GATEWAY_APPLICATION_ID=${BLOB_GATEWAY_APPLICATION_ID}
-MS_APPLICATION_ID=${AMS_APPLICATION_ID}
-WAP_APPLICATION_ID=${SWAP_APPLICATION_ID}
-ROXY_APPLICATION_ID=${PROXY_APPLICATION_ID}
+sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts
+BLOB_GATEWAY_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep BLOB_GATEWAY_APPLICATION_ID | awk '{ print $NF }'`
+AMS_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep AMS_APPLICATION_ID | awk '{ print $NF }'`
+SWAP_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep SWAP_APPLICATION_ID | awk '{ print $NF }'`
+PROXY_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep PROXY_APPLICATION_ID | awk '{ print $NF }'`
 SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
