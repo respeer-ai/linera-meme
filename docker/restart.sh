@@ -1,0 +1,141 @@
+#!/bin/bash
+
+####
+## E.g. ./restart.sh -C 1 -z testnet-babbage
+####
+
+LAN_IP=$( hostname -I | awk '{print $1}' )
+CLUSTER=
+
+options="C:z:B:A:S:P:"
+
+while getopts $options opt; do
+  case ${opt} in
+    C) COMPILE=${OPTARG} ;;
+    z) CLUSTER=${OPTARG} ;;
+    B) BLOB_GATEWAY_APPLICATION_ID=${OPTARG} ;;
+    A) AMS_APPLICATION_ID=${OPTARG} ;;
+    S) SWAP_APPLICATION_ID=${OPTARG} ;;
+    P) PROXY_APPLICATION_ID=${OPTARG} ;;
+  esac
+done
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR=$SCRIPT_DIR/..
+
+# All generated files will be put here
+OUTPUT_DIR="${SCRIPT_DIR}/../output/compose"
+mkdir -p $OUTPUT_DIR
+
+# Generate config
+CONFIG_DIR="${OUTPUT_DIR}/config"
+mkdir -p $CONFIG_DIR
+
+# Wallet directory
+WALLET_DIR="${OUTPUT_DIR}/wallet"
+mkdir -p $WALLET_DIR
+
+# Source code directory
+SOURCE_DIR="${OUTPUT_DIR}/source"
+mkdir -p $SOURCE_DIR
+
+BIN_DIR="${OUTPUT_DIR}/bin"
+mkdir -p $BIN_DIR
+
+DOCKER_DIR="${OUTPUT_DIR}/docker"
+mkdir -p $DOCKER_DIR
+
+LOB_GATEWAY_APPLICATION_ID=${BLOB_GATEWAY_APPLICATION_ID}
+MS_APPLICATION_ID=${AMS_APPLICATION_ID}
+WAP_APPLICATION_ID=${SWAP_APPLICATION_ID}
+ROXY_APPLICATION_ID=${PROXY_APPLICATION_ID}
+SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
+DATABASE_NAME=linera_swap_kline
+DATABASE_USER=linera-swap
+DATABASE_PASSWORD=12345679
+DATABASE_PORT=3306
+SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
+PROXY_HOST=${SUB_DOMAIN}linerameme.fun
+
+export PATH=$BIN_DIR:$PATH
+
+function wallet_owner() {
+    wallet_name=$1
+    wallet_index=$2
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           wallet show \
+           | grep AccountOwner | awk '{print $4}' | grep '0x'
+}
+
+function wallet_chain_id() {
+    wallet_name=$1
+    wallet_index=$2
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           wallet show \
+           | grep "Public Key" | grep -v " - " | awk '{print $2}'
+}
+
+function restart_chains() {
+    if [ "x$COMPILE" = "x1" ]; then
+        cd $SOURCE_DIR
+        rm linera-protocol-respeer -rf
+        git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
+        cd linera-protocol-respeer
+        git checkout respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+        git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+        GIT_COMMIT=$(git rev-parse --short HEAD)
+        docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
+    fi
+
+    cd $OUTPUT_DIR
+    LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml down
+    LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
+}
+
+function restart_kline() {
+    if [ "x$COMPILE" == "x1" ]; then
+        docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
+    fi
+
+    LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml down
+    LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
+
+    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
+      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml down
+    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
+      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
+
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
+      docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml down
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
+      docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
+}
+
+function restart_funder() {
+    if [ "x$COMPILE" == "x1" ]; then
+        docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+    fi
+
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+    PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml down
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+    PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
+}
+
+
+cd $OUTPUT_DIR
+cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
+cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
+cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
+
+restart_chains
+restart_kline
+restart_funder
