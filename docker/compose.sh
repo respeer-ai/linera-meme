@@ -487,7 +487,7 @@ rm $WALLET_DIR/maker/0 -rf
 mkdir $WALLET_DIR/maker/0 -p
 linera --wallet $WALLET_DIR/maker/0/wallet.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet init --faucet $FAUCET_URL --with-new-chain
 
-cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
+cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
 LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
 
 DATABASE_NAME=linera_swap_kline
@@ -538,7 +538,7 @@ function run_funder() {
 
 
 cd $OUTPUT_DIR
-cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
+cp -v $ROOT_DIR/service/kline $DOCKER_DIR -rf
 
 run_mysql
 run_kline
