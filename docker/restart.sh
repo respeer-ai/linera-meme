@@ -41,11 +41,16 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
-sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts
-BLOB_GATEWAY_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep BLOB_GATEWAY_APPLICATION_ID | awk '{ print $NF }'`
-AMS_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep AMS_APPLICATION_ID | awk '{ print $NF }'`
-SWAP_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep SWAP_APPLICATION_ID | awk '{ print $NF }'`
-PROXY_APPLICATION_ID=`sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep PROXY_APPLICATION_ID | awk '{ print $NF }'`
+function get_application_id() {
+    application=$1
+    sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep $application | awk '{ print $NF }'
+}
+
+BLOB_GATEWAY_APPLICATION_ID=$(get_application_id BLOB_GATEWAY_APPLICATION_ID)
+AMS_APPLICATION_ID=$(get_application_id AMS_APPLICATION_ID)
+SWAP_APPLICATION_ID=$(get_application_id SWAP_APPLICATION_ID)
+PROXY_APPLICATION_ID=$(get_application_id PROXY_APPLICATION_ID)
+
 SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
@@ -74,28 +79,44 @@ function wallet_chain_id() {
            | grep "Public Key" | grep -v " - " | awk '{print $2}'
 }
 
-function restart_chains() {
-    if [ "x$COMPILE" = "x1" ]; then
-        cd $SOURCE_DIR
-        rm linera-protocol-respeer -rf
-        git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
-        cd linera-protocol-respeer
-        git checkout respeer-maas-testnet_babbage-3dc32c18-2025-04-15
-        git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
-        GIT_COMMIT=$(git rev-parse --short HEAD)
-        docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
-    fi
+function rebuild_linera_respeer() {
+    rm linera-protocol-respeer -rf
+    git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
+    cd linera-protocol-respeer
+    git checkout respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+    git pull origin respeer-maas-testnet_babbage-3dc32c18-2025-04-15
+    GIT_COMMIT=$(git rev-parse --short HEAD)
+    docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
+}
+
+function rebuild_kline() {
+    docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
+}
+
+function rebuild_funder() {
+    cd $OUTPUT_DIR
+    docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+}
+
+if [ "x$COMPILE" = "x1" ]; then
+    cd $SOURCE_DIR
+    rebuild_linera_respeer
 
     cd $OUTPUT_DIR
+    cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
+    cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
+    cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
+
+    rebuild_kline
+    rebuild_funder
+fi
+
+function restart_chains() {
     LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml down
     LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
 }
 
 function restart_kline() {
-    if [ "x$COMPILE" == "x1" ]; then
-        docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
-    fi
-
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml down
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
 
@@ -115,10 +136,6 @@ function restart_kline() {
 }
 
 function restart_funder() {
-    if [ "x$COMPILE" == "x1" ]; then
-        docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
-    fi
-
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
     PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
     docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml down
@@ -127,12 +144,7 @@ function restart_funder() {
     docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
 
-
 cd $OUTPUT_DIR
-cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
-cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
-
 restart_chains
 restart_kline
 restart_funder
