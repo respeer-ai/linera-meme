@@ -79,7 +79,7 @@ function wallet_chain_id() {
            | grep "Public Key" | grep -v " - " | awk '{print $2}'
 }
 
-function rebuild_linera_respeer() {
+function build_linera_respeer() {
     rm linera-protocol-respeer -rf
     git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
     cd linera-protocol-respeer
@@ -89,26 +89,25 @@ function rebuild_linera_respeer() {
     docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
 }
 
-function rebuild_kline() {
+function build_kline() {
     docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
 }
 
-function rebuild_funder() {
-    cd $OUTPUT_DIR
+function build_funder() {
     docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
 }
 
 if [ "x$COMPILE" = "x1" ]; then
     cd $SOURCE_DIR
-    rebuild_linera_respeer
+    build_linera_respeer
 
     cd $OUTPUT_DIR
     cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
     cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
 
-    rebuild_kline
-    rebuild_funder
+    build_kline
+    build_funder
 fi
 
 function restart_chains() {
