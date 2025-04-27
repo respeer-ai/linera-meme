@@ -101,11 +101,11 @@ if [ "x$COMPILE" = "x1" ]; then
     cd $SOURCE_DIR
     build_linera_respeer
 
-    cd $OUTPUT_DIR
-    cp $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-    cp $ROOT_DIR/service/kline $DOCKER_DIR -rf
+    cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
+    cp -v $ROOT_DIR/service/kline $DOCKER_DIR -rf
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
 
+    cd $OUTPUT_DIR
     build_kline
     build_funder
 fi
