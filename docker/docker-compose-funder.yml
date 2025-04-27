@@ -1,5 +1,5 @@
 services:
-  kline:
+  funder:
     image: "funder"
     container_name: funder
     command: [ "./funder-entrypoint.sh" ]
