@@ -51,11 +51,7 @@ const getMemeApplications = () => {
 }
 
 const getApplications = () => {
-  ams.getApplications((error: boolean, rows?: ams.Application[]) => {
-    // eslint-disable-next-line no-useless-return
-    if (error || !rows?.length) return
-    // Continue to fetch
-  })
+  ams.getApplications(0)
 }
 
 const getPools = () => {

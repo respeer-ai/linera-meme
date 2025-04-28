@@ -44,8 +44,9 @@ const initialPagination = ref({
 const _blob = blob.useBlobStore()
 const blobs = computed(() => _blob.blobs)
 
-onMounted(() => {
+const listBlobs = (createdAfter: number) => {
   _blob.listBlobs({
+    createdAfter,
     limit: 40,
     Message: {
       Error: {
@@ -55,7 +56,14 @@ onMounted(() => {
         Type: notify.NotifyType.Error
       }
     }
+  }, (error: boolean, rows?: BlobData[]) => {
+    if (error || !rows?.length) return
+    listBlobs(Math.max(...rows.map((el) => el.createdAt as number)))
   })
+}
+
+onMounted(() => {
+  listBlobs(0)
 })
 
 const columns = computed(() => [

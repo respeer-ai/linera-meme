@@ -99,6 +99,7 @@ import * as lineraWasm from '../../../dist/wasm/linera_wasm'
 import { stringify } from 'lossless-json'
 import { constants } from 'src/constant'
 import { creatorChainId } from 'src/utils'
+import { BlobData } from 'src/__generated__/graphql/blob/graphql'
 
 const _user = user.useUserStore()
 const publicKey = computed(() => _user.publicKey)
@@ -330,8 +331,9 @@ const onCreateMemeClick = async () => {
   }
 }
 
-const getApplications = () => {
+const getApplications = (createdAfter: number) => {
   _ams.getApplications({
+    createdAfter,
     limit: 40,
     Message: {
       Error: {
@@ -344,12 +346,13 @@ const getApplications = () => {
   }, (error: boolean, rows?: ams.Application[]) => {
     // eslint-disable-next-line no-useless-return
     if (error || !rows?.length) return
-    // Continue to fetch
+    getApplications(Math.max(...rows.map((el) => el.createdAt)))
   })
 }
 
-const listBlobs = () => {
+const listBlobs = (createdAfter: number) => {
   _blob.listBlobs({
+    createdAfter,
     limit: 40,
     Message: {
       Error: {
@@ -359,12 +362,15 @@ const listBlobs = () => {
         Type: notify.NotifyType.Error
       }
     }
+  }, (error: boolean, rows?: BlobData[]) => {
+    if (error || !rows?.length) return
+    listBlobs(Math.max(...rows.map((el) => el.createdAt as number)))
   })
 }
 
 onMounted(() => {
-  getApplications()
-  listBlobs()
+  getApplications(0)
+  listBlobs(0)
 })
 
 </script>
