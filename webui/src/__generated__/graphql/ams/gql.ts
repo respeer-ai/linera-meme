@@ -14,10 +14,10 @@ import { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-node/
  * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 type Documents = {
-    "\n  query applications($limit: Int!) {\n    applications(limit: $limit)\n  }\n": typeof types.ApplicationsDocument,
+    "\n  query applications($createdAfter: Timestamp, $limit: Int!) {\n    applications(createdAfter: $createdAfter, limit: $limit)\n  }\n": typeof types.ApplicationsDocument,
 };
 const documents: Documents = {
-    "\n  query applications($limit: Int!) {\n    applications(limit: $limit)\n  }\n": types.ApplicationsDocument,
+    "\n  query applications($createdAfter: Timestamp, $limit: Int!) {\n    applications(createdAfter: $createdAfter, limit: $limit)\n  }\n": types.ApplicationsDocument,
 };
 
 /**
@@ -37,7 +37,7 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query applications($limit: Int!) {\n    applications(limit: $limit)\n  }\n"): (typeof documents)["\n  query applications($limit: Int!) {\n    applications(limit: $limit)\n  }\n"];
+export function graphql(source: "\n  query applications($createdAfter: Timestamp, $limit: Int!) {\n    applications(createdAfter: $createdAfter, limit: $limit)\n  }\n"): (typeof documents)["\n  query applications($createdAfter: Timestamp, $limit: Int!) {\n    applications(createdAfter: $createdAfter, limit: $limit)\n  }\n"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};
