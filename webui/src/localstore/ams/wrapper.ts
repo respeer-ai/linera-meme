@@ -11,7 +11,7 @@ export const getApplications = (
   ams.getApplications(
     {
       createdAfter,
-      limit: 40,
+      limit: 800,
       Message: {
         Error: {
           Title: 'Get applications',

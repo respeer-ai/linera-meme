@@ -77,6 +77,7 @@ export const useAmsStore = defineStore('ams', {
           application
         )
       })
+      this.applications.sort((a, b) => b.createdAt - a.createdAt)
     }
   },
   getters: {
