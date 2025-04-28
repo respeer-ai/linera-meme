@@ -8,10 +8,9 @@ export const getApplications = (
   createdAfter: number,
   done?: (error: boolean, rows?: Application[]) => void
 ) => {
-  console.log(111, createdAfter)
   ams.getApplications(
     {
-      createdBefore: createdAfter,
+      createdAfter,
       limit: 40,
       Message: {
         Error: {

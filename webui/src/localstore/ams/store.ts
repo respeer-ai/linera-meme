@@ -42,6 +42,7 @@ export const useAmsStore = defineStore('ams', {
           useQuery(
             APPLICATIONS,
             {
+              createdBefore: req.createdBefore,
               createdAfter: req.createdAfter,
               limit: req.limit,
               endpoint: 'ams'
