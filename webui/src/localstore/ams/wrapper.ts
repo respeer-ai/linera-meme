@@ -8,6 +8,7 @@ export const getApplications = (
   createdAfter: number,
   done?: (error: boolean, rows?: Application[]) => void
 ) => {
+  console.log(111, createdAfter)
   ams.getApplications(
     {
       createdAfter,
@@ -23,7 +24,7 @@ export const getApplications = (
     },
     (error: boolean, rows?: Application[]) => {
       if (error || !rows?.length) return done?.(error, rows)
-      getApplications(Math.max(...rows.map((el) => el.createdAt)))
+      getApplications(Math.max(...rows.map((el) => el.createdAt)), done)
     }
   )
 }

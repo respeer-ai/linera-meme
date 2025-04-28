@@ -1,7 +1,7 @@
 import { gql } from '@apollo/client/core'
 
 export const APPLICATIONS = gql`
-  query applications($limit: Int!) {
-    applications(limit: $limit)
+  query applications(createdAfter: Int, $limit: Int!) {
+    applications(createdAfter: $createdAfter, limit: $limit)
   }
 `
