@@ -11,7 +11,7 @@ export const getApplications = (
   console.log(111, createdAfter)
   ams.getApplications(
     {
-      createdAfter,
+      createdBefore: createdAfter,
       limit: 40,
       Message: {
         Error: {
