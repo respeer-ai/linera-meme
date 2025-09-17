@@ -1,7 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use linera_views::views::ViewError;
+use linera_sdk::views::ViewError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

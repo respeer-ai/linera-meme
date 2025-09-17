@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 
 use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Timestamp, WithServiceAbi},
+    linera_base_types::{DataBlobHash, Timestamp, WithServiceAbi},
     views::View,
-    DataBlobHash, Service, ServiceRuntime,
+    Service, ServiceRuntime,
 };
 
 use abi::blob_gateway::{BlobData, BlobDataType, BlobGatewayAbi};

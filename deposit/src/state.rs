@@ -7,7 +7,7 @@ use linera_sdk::{
 use deposit::Deposit;
 
 #[derive(RootView, SimpleObject)]
-#[view(context = "ViewStorageContext")]
+#[view(context = ViewStorageContext)]
 pub struct DepositState {
     pub deposits: QueueView<Deposit>,
 }

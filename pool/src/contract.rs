@@ -671,7 +671,7 @@ impl PoolContract {
     ) -> Result<(), PoolError> {
         let call = MemeOperation::TransferToCaller { amount };
 
-        let message_chain_id = self.runtime.message_id().unwrap().chain_id;
+        let message_chain_id = self.runtime.message_origin_chain_id().unwrap();
         match self
             .runtime
             .call_application(true, token.with_abi::<MemeAbi>(), &call)
@@ -1036,7 +1036,7 @@ mod tests {
     use futures::FutureExt as _;
     use linera_sdk::{
         bcs,
-        linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, MessageId},
+        linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId},
         util::BlockingWait,
         views::View,
         Contract, ContractRuntime,

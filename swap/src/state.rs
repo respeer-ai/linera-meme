@@ -6,7 +6,7 @@ use abi::swap::{
     transaction::Transaction,
 };
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ApplicationId, ChainId, MessageId, ModuleId, Timestamp},
+    linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use swap::SwapError;
 
 /// The application state.
 #[derive(RootView)]
-#[view(context = "ViewStorageContext")]
+#[view(context = ViewStorageContext)]
 pub struct SwapState {
     pub meme_meme_pools: MapView<ApplicationId, HashMap<ApplicationId, Pool>>,
     pub meme_native_pools: MapView<ApplicationId, Pool>,
@@ -26,7 +26,7 @@ pub struct SwapState {
 
     pub pool_bytecode_id: RegisterView<Option<ModuleId>>,
 
-    pub pool_chains: MapView<ChainId, MessageId>,
+    pub pool_chains: MapView<ChainId, bool>,
     pub token_creator_chain_ids: MapView<ApplicationId, ChainId>,
 }
 
@@ -118,12 +118,8 @@ impl SwapState {
         Ok(())
     }
 
-    pub(crate) fn create_pool_chain(
-        &mut self,
-        chain_id: ChainId,
-        message_id: MessageId,
-    ) -> Result<(), SwapError> {
-        Ok(self.pool_chains.insert(&chain_id, message_id)?)
+    pub(crate) fn create_pool_chain(&mut self, chain_id: ChainId) -> Result<(), SwapError> {
+        Ok(self.pool_chains.insert(&chain_id, true)?)
     }
 
     pub(crate) fn create_token_creator_chain_id(

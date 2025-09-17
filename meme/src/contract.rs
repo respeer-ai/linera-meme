@@ -221,14 +221,14 @@ impl MemeContract {
 
     fn message_caller_account(&mut self) -> Account {
         Account {
-            chain_id: self.runtime.message_id().unwrap().chain_id,
+            chain_id: self.runtime.message_origin_chain_id().unwrap(),
             owner: AccountOwner::from(self.runtime.authenticated_caller_id().unwrap()),
         }
     }
 
     fn message_owner_account(&mut self) -> Account {
         Account {
-            chain_id: self.runtime.message_id().unwrap().chain_id,
+            chain_id: self.runtime.message_origin_chain_id().unwrap(),
             owner: self.runtime.authenticated_signer().unwrap(),
         }
     }

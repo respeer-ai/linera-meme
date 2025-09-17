@@ -13,7 +13,7 @@ use pool::{FundRequest, PoolError};
 
 /// The application state.
 #[derive(RootView)]
-#[view(context = "ViewStorageContext")]
+#[view(context = ViewStorageContext)]
 pub struct PoolState {
     pub pool: RegisterView<Option<Pool>>,
     pub router_application_id: RegisterView<Option<ApplicationId>>,

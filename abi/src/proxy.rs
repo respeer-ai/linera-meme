@@ -9,7 +9,7 @@ use async_graphql::{Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, ApplicationId, ChainId, ContractAbi, MessageId, ModuleId, ServiceAbi, Timestamp,
+        Account, ApplicationId, ChainId, ContractAbi, ModuleId, ServiceAbi, Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,6 @@ pub struct GenesisMiner {
 #[serde(rename_all = "camelCase")]
 pub struct Chain {
     pub chain_id: ChainId,
-    pub message_id: MessageId,
     pub created_at: Timestamp,
     pub token: Option<ApplicationId>,
 }

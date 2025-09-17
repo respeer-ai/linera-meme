@@ -6,16 +6,14 @@ use abi::{
     proxy::{Chain, GenesisMiner, InstantiationArgument, Miner},
 };
 use linera_sdk::{
-    linera_base_types::{
-        Account, AccountOwner, ApplicationId, ChainId, MessageId, ModuleId, Timestamp,
-    },
+    linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, Timestamp},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use proxy::ProxyError;
 
 /// The application state.
 #[derive(RootView)]
-#[view(context = "ViewStorageContext")]
+#[view(context = ViewStorageContext)]
 pub struct ProxyState {
     pub meme_bytecode_id: RegisterView<Option<ModuleId>>,
     /// Active operators
@@ -229,14 +227,12 @@ impl ProxyState {
     pub(crate) async fn create_chain(
         &mut self,
         chain_id: ChainId,
-        message_id: MessageId,
         timestamp: Timestamp,
     ) -> Result<(), ProxyError> {
         Ok(self.chains.insert(
             &chain_id,
             Chain {
                 chain_id,
-                message_id,
                 created_at: timestamp,
                 token: None,
             },

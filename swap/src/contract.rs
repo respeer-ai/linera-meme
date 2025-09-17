@@ -22,8 +22,8 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId, MessageId,
-        ModuleId, Timestamp, WithContractAbi,
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId, ModuleId,
+        Timestamp, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -311,7 +311,7 @@ impl SwapContract {
 
     fn message_owner_account(&mut self) -> Account {
         Account {
-            chain_id: self.runtime.message_id().unwrap().chain_id,
+            chain_id: self.runtime.message_origin_chain_id().unwrap(),
             owner: self.runtime.authenticated_signer().unwrap(),
         }
     }
@@ -320,7 +320,7 @@ impl SwapContract {
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-    ) -> Result<(MessageId, ChainId), SwapError> {
+    ) -> Result<ChainId, SwapError> {
         // It should allow router and meme applications
         let ownership = self.runtime.chain_ownership();
 
@@ -512,9 +512,9 @@ impl SwapContract {
         // For initial pool, all assets should be already authenticated when we're here
         // For user pool, we just create a pool, then notify user to add liquidity
         // 1: Create pool chain
-        let (message_id, chain_id) = self.create_child_chain(token_0, token_1)?;
+        let chain_id = self.create_child_chain(token_0, token_1)?;
 
-        self.state.create_pool_chain(chain_id, message_id)?;
+        self.state.create_pool_chain(chain_id)?;
         self.state
             .create_token_creator_chain_id(token_0, token_0_creator_chain_id)?;
 

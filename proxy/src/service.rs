@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::proxy::{Chain, ProxyAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, ChainId, MessageId, ModuleId, WithServiceAbi},
+    linera_base_types::{Account, ApplicationId, ChainId, ModuleId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -82,17 +82,6 @@ impl QueryRoot {
             .unwrap()
             .into_iter()
             .map(|(_, chain)| chain)
-            .collect()
-    }
-
-    async fn meme_chain_creation_messages(&self) -> Vec<MessageId> {
-        self.state
-            .chains
-            .index_values()
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|(_, chain)| chain.message_id)
             .collect()
     }
 

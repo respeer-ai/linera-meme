@@ -14,9 +14,9 @@ use abi::{
 };
 use blob_gateway::BlobGatewayError;
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, CryptoHash, WithContractAbi},
+    linera_base_types::{Account, AccountOwner, CryptoHash, DataBlobHash, WithContractAbi},
     views::{RootView, View},
-    Contract, ContractRuntime, DataBlobHash,
+    Contract, ContractRuntime,
 };
 
 use self::state::BlobGatewayState;

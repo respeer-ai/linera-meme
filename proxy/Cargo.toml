@@ -8,7 +8,6 @@ edition = "2021"
 async-graphql.workspace = true
 futures.workspace = true
 linera-sdk.workspace = true
-linera-views.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 abi.workspace = true

@@ -15,7 +15,7 @@ use std::collections::HashMap;
 
 /// The application state.
 #[derive(RootView)]
-#[view(context = "ViewStorageContext")]
+#[view(context = ViewStorageContext)]
 pub struct MemeState {
     pub initial_owner_balance: RegisterView<Amount>,
     pub owner: RegisterView<Option<Account>>,

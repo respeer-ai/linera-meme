@@ -7,7 +7,7 @@ use linera_sdk::{
 };
 
 #[derive(RootView, SimpleObject)]
-#[view(context = "ViewStorageContext")]
+#[view(context = ViewStorageContext)]
 pub struct AmsState {
     pub application_types: QueueView<String>,
     pub applications: MapView<ApplicationId, Metadata>,

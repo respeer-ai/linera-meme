@@ -10,7 +10,7 @@ use std::sync::Arc;
 use abi::swap::router::{Pool, SwapAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{ChainId, MessageId, WithServiceAbi},
+    linera_base_types::{ChainId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -80,17 +80,6 @@ impl QueryRoot {
             pools.extend_from_slice(&_pools.into_values().collect::<Vec<Pool>>());
         }
         pools
-    }
-
-    async fn pool_chain_creation_messages(&self) -> Vec<MessageId> {
-        self.state
-            .pool_chains
-            .index_values()
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|(_, message_id)| message_id)
-            .collect()
     }
 
     async fn creator_chain_id(&self) -> ChainId {

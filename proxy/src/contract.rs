@@ -13,7 +13,7 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-        ChainOwnership, MessageId, ModuleId, TimeoutConfig, WithContractAbi,
+        ChainOwnership, ModuleId, TimeoutConfig, WithContractAbi,
     },
     views::{RootView, View},
     Contract, ContractRuntime,
@@ -499,7 +499,7 @@ impl ProxyContract {
         Ok(owner_weights)
     }
 
-    async fn create_meme_chain(&mut self) -> Result<(MessageId, ChainId), ProxyError> {
+    async fn create_meme_chain(&mut self) -> Result<ChainId, ProxyError> {
         let ownership = ChainOwnership::multiple(
             self.meme_chain_owner_weights().await?,
             0, // TODO: run in single leader mode firstly, will be updated when multi leader mode done
@@ -569,7 +569,7 @@ impl ProxyContract {
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
         // 1: create a new chain which allow and mandary proxy
-        let (message_id, chain_id) = self.create_meme_chain().await?;
+        let chain_id = self.create_meme_chain().await?;
 
         // Fund created meme chain with initial liquidity
         self.fund_meme_chain_initial_liquidity(chain_id, parameters.clone());
@@ -587,7 +587,7 @@ impl ProxyContract {
             .send_to(chain_id);
 
         self.state
-            .create_chain(chain_id, message_id, self.runtime.system_time())
+            .create_chain(chain_id, self.runtime.system_time())
             .await
     }
 
