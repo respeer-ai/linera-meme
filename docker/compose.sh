@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ####
-## E.g. ./compose.sh -f https://faucet.testnet-babbage.linera.net -C 0
+## E.g. ./compose.sh -f https://faucet.testnet-conway.linera.net -C 0
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
-FAUCET_URL=https://faucet.testnet-babbage.linera.net
+FAUCET_URL=https://faucet.testnet-conway.linera.net
 CHAIN_OWNER_COUNT=4
 CLUSTER=
 
@@ -51,8 +51,8 @@ cd $SOURCE_DIR
 rm linera-protocol-respeer -rf
 git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
 cd linera-protocol-respeer
-git checkout respeer-maas-testnet_babbage-a428ea10-20250428
-git pull origin respeer-maas-testnet_babbage-a428ea10-20250428
+git checkout respeer-maas-testnet_conway-c75455ed-2025-09-26
+git pull origin respeer-maas-testnet_conway-c75455ed-2025-09-26
 
 GIT_COMMIT=$(git rev-parse --short HEAD)
 image_exists=`docker images | grep linera-respeer | wc -l`
