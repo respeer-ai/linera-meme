@@ -6,6 +6,8 @@ services:
     extra_hosts:
       - "api.lineraswap.fun:${LAN_IP}"
       - "api.linerameme.fun:${LAN_IP}"
+      - "api.testnet-conway.lineraswap.fun:${LAN_IP}"
+      - "api.testnet-conway.linerameme.fun:${LAN_IP}"
     environment:
       SWAP_APPLICATION_ID: ${SWAP_APPLICATION_ID}
       WALLET_HOST: ${WALLET_HOST}

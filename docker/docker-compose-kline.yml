@@ -7,6 +7,7 @@ services:
     command: [ "./kline-entrypoint.sh" ]
     extra_hosts:
       - "api.lineraswap.fun:${LAN_IP}"
+      - "api.testnet-conway.lineraswap.fun:${LAN_IP}"
     environment:
       DATABASE_HOST: ${DATABASE_HOST}
       DATABASE_PORT: ${DATABASE_PORT}

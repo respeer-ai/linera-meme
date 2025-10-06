@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ####
-## E.g. ./restart.sh -C 1 -z testnet-babbage
+## E.g. ./restart.sh -C 1 -z testnet-conway
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
-CLUSTER=
+CLUSTER=testnet-conway
 
 options="C:z:"
 
@@ -74,6 +74,7 @@ function wallet_chain_id() {
     wallet_name=$1
     wallet_index=$2
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
            | grep "Public Key" | grep -v " - " | awk '{print $2}'
@@ -83,8 +84,8 @@ function build_linera_respeer() {
     rm linera-protocol-respeer -rf
     git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
     cd linera-protocol-respeer
-    git checkout respeer-maas-testnet_babbage-a428ea10-20250428
-    git pull origin respeer-maas-testnet_babbage-a428ea10-20250428
+    git checkout respeer-maas-testnet_conway-c75455ed-2025-09-26
+    git pull origin respeer-maas-testnet_conway-c75455ed-2025-09-26
     GIT_COMMIT=$(git rev-parse --short HEAD)
     docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
 }

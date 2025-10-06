@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--wallet-host', type=str, default='localhost:30081', help='Host of wallet service')
     parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
     parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
-    parser.add_argument('--faucet-url', type=str, default='https://faucet.testnet-babbage.linera.net', help='Faucet url')
+    parser.add_argument('--faucet-url', type=str, default='https://faucet.testnet-conway.linera.net', help='Faucet url')
 
     args = parser.parse_args()
 
