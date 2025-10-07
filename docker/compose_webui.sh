@@ -1,10 +1,11 @@
 #!/bin/bash
 
 ####
-## E.g. ./compose_webui.sh -C 0 -z testnet-babbage
+## E.g. ./compose_webui.sh -C 0 -z testnet-conway
 ####
 
 options="C:z:"
+CLUSTER=testnet-conway
 
 while getopts $options opt; do
   case ${opt} in
@@ -60,7 +61,7 @@ function generate_nginx_conf() {
   }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
   jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $NGINX_TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
-  cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
+  sudo cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
 
 SUB_DOMAIN=$(echo "${CLUSTER}." | sed 's/\.\./\./g')
