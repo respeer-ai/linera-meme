@@ -22,8 +22,6 @@ export type Scalars = {
   ApplicationId: { input: any; output: any; }
   /** The unique identifier (UID) of a chain. This is currently computed as the hash value of a ChainDescription. */
   ChainId: { input: any; output: any; }
-  /** The index of a message in a chain */
-  MessageId: { input: any; output: any; }
   /** A timestamp, in microseconds since the Unix epoch */
   Timestamp: { input: any; output: any; }
   Transaction: { input: any; output: any; }
@@ -47,7 +45,6 @@ export type Pool = {
 export type QueryRoot = {
   __typename?: 'QueryRoot';
   creatorChainId: Scalars['ChainId']['output'];
-  poolChainCreationMessages: Array<Scalars['MessageId']['output']>;
   poolId: Scalars['Int']['output'];
   pools: Array<Pool>;
 };

@@ -20,8 +20,6 @@ export type Scalars = {
   ApplicationId: { input: any; output: any; }
   /** The unique identifier (UID) of a chain. This is currently computed as the hash value of a ChainDescription. */
   ChainId: { input: any; output: any; }
-  /** The index of a message in a chain */
-  MessageId: { input: any; output: any; }
   /** A unique identifier for an application module */
   ModuleId: { input: any; output: any; }
   /** A timestamp, in microseconds since the Unix epoch */
@@ -32,7 +30,6 @@ export type Chain = {
   __typename?: 'Chain';
   chainId: Scalars['ChainId']['output'];
   createdAt: Scalars['Timestamp']['output'];
-  messageId: Scalars['MessageId']['output'];
   token?: Maybe<Scalars['ApplicationId']['output']>;
 };
 
@@ -43,7 +40,6 @@ export type QueryRoot = {
   memeApplicationIds: Array<Maybe<Scalars['ApplicationId']['output']>>;
   memeApplications: Array<Chain>;
   memeBytecodeId: Scalars['ModuleId']['output'];
-  memeChainCreationMessages: Array<Scalars['MessageId']['output']>;
   memeChains: Array<Chain>;
   miners: Array<Scalars['Account']['output']>;
 };
@@ -51,7 +47,7 @@ export type QueryRoot = {
 export type MemeApplicationsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MemeApplicationsQuery = { __typename?: 'QueryRoot', memeApplications: Array<{ __typename?: 'Chain', chainId: any, messageId: any, createdAt: any, token?: any | null }> };
+export type MemeApplicationsQuery = { __typename?: 'QueryRoot', memeApplications: Array<{ __typename?: 'Chain', chainId: any, createdAt: any, token?: any | null }> };
 
 export type GenesisMinersQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -59,5 +55,5 @@ export type GenesisMinersQueryVariables = Exact<{ [key: string]: never; }>;
 export type GenesisMinersQuery = { __typename?: 'QueryRoot', genesisMiners: Array<any> };
 
 
-export const MemeApplicationsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"memeApplications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"memeApplications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"chainId"}},{"kind":"Field","name":{"kind":"Name","value":"messageId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"token"}}]}}]}}]} as unknown as DocumentNode<MemeApplicationsQuery, MemeApplicationsQueryVariables>;
+export const MemeApplicationsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"memeApplications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"memeApplications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"chainId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"token"}}]}}]}}]} as unknown as DocumentNode<MemeApplicationsQuery, MemeApplicationsQueryVariables>;
 export const GenesisMinersDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"genesisMiners"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"genesisMiners"}}]}}]} as unknown as DocumentNode<GenesisMinersQuery, GenesisMinersQueryVariables>;

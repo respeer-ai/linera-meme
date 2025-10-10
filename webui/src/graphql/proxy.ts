@@ -4,7 +4,6 @@ export const MEME_APPLICATIONS = gql`
   query memeApplications {
     memeApplications {
       chainId
-      messageId
       createdAt
       token
     }

@@ -18,8 +18,6 @@ export type Scalars = {
   Account: { input: any; output: any; }
   /** A unique identifier for a user or an application. */
   AccountOwner: { input: any; output: any; }
-  /** A crypto public key. */
-  AccountPublicKey: { input: any; output: any; }
   /** A crypto signature. */
   AccountSignature: { input: any; output: any; }
   /** A non-negative amount of tokens. */
@@ -38,18 +36,14 @@ export type Scalars = {
   BlockMaterial: { input: any; output: any; }
   /** A WebAssembly module's bytecode */
   Bytecode: { input: any; output: any; }
-  /** How to create a chain */
+  /** Initial chain configuration and chain origin. */
   ChainDescription: { input: any; output: any; }
   /** The unique identifier (UID) of a chain. This is currently computed as the hash value of a ChainDescription. */
   ChainId: { input: any; output: any; }
   /** Represents the owner(s) of a chain */
   ChainOwnership: { input: any; output: any; }
-  /** A channel name together with its application ID. */
-  ChannelFullName: { input: any; output: any; }
   /** A Keccak256 value */
   CryptoHash: { input: any; output: any; }
-  /** The destination of a message, relative to a particular application. */
-  Destination: { input: any; output: any; }
   /** A number identifying the configuration of the chain (aka the committee) */
   Epoch: { input: any; output: any; }
   /** A unique identifier for a user application or for the system application */
@@ -60,42 +54,32 @@ export type Scalars = {
   Message: { input: any; output: any; }
   /** Whether an incoming message is accepted or rejected. */
   MessageAction: { input: any; output: any; }
-  /** The index of a message in a chain */
-  MessageId: { input: any; output: any; }
   /** The kind of outgoing message being sent */
   MessageKind: { input: any; output: any; }
   /** A unique identifier for an application module */
   ModuleId: { input: any; output: any; }
   /** Notify that a chain has a new certified block or a new message */
   Notification: { input: any; output: any; }
-  /** An operation to be executed in a block */
-  Operation: { input: any; output: any; }
   /** The execution result of a single operation. */
   OperationResult: { input: any; output: any; }
   /** A record of a single oracle response. */
   OracleResponse: { input: any; output: any; }
-  /** The origin of a message, relative to a particular application. Used to identify each inbox. */
-  Origin: { input: any; output: any; }
-  /** The recipient of a transfer */
-  Recipient: { input: any; output: any; }
+  /** Exists proposal of new block. */
+  OriginalProposal: { input: any; output: any; }
+  /** A collection of prices and limits associated with block execution */
+  ResourceControlPolicyScalar: { input: any; output: any; }
   /** A number to identify successive attempts to decide a value in a consensus protocol. */
   Round: { input: any; output: any; }
-  /** A signed block which will be submitted to blockchain with its signature. */
-  SignedBlock: { input: any; output: any; }
   /** A signed block which will be submitted to blockchain with its signature. */
   SignedBlockBcs: { input: any; output: any; }
   /** The name of an event stream */
   StreamName: { input: any; output: any; }
-  /** The target of a message, relative to a particular application. Used to identify each outbox. */
-  Target: { input: any; output: any; }
   /** A timestamp, in microseconds since the Unix epoch */
   Timestamp: { input: any; output: any; }
-  /** A validated block certificate. */
-  ValidatedBlockCertificate: { input: any; output: any; }
+  /** A transaction in a block. */
+  Transaction: { input: any; output: any; }
   VersionInfo: { input: any; output: any; }
   VmRuntime: { input: any; output: any; }
-  /** Input parameters of wallet initialization. */
-  WalletInitializer: { input: any; output: any; }
 };
 
 export type ApplicationOverview = {
@@ -151,21 +135,18 @@ export type BlockBody = {
   blobs: Array<Array<Scalars['Blob']['output']>>;
   /** The list of events produced by each transaction. */
   events: Array<Array<Event>>;
-  /**
-   * A selection of incoming messages to be executed first. Successive messages of the same
-   * sender and height are grouped together for conciseness.
-   */
-  incomingBundles: Array<IncomingBundle>;
   /** The list of outgoing messages for each transaction. */
   messages: Array<Array<OutgoingMessage>>;
   /** The execution result for each operation. */
   operationResults: Array<Scalars['OperationResult']['output']>;
-  /** The operations to execute. */
-  operations: Array<Scalars['Operation']['output']>;
   /** The record of oracle responses for each transaction. */
   oracleResponses: Array<Array<Scalars['OracleResponse']['output']>>;
-  /** The hashes of previous blocks that sent messages to the same recipients. */
+  /** The hashes and heights of previous blocks that published events to the same channels. */
+  previousEventBlocks: Scalars['JSONObject']['output'];
+  /** The hashes and heights of previous blocks that sent messages to the same recipients. */
   previousMessageBlocks: Scalars['JSONObject']['output'];
+  /** Metadata about the transactions in this block. */
+  transactionMetadata: Array<TransactionMetadata>;
 };
 
 /** The messages and the state hash resulting from a [`ProposedBlock`]'s execution. */
@@ -181,7 +162,9 @@ export type BlockExecutionOutcome = {
   operationResults: Array<Scalars['OperationResult']['output']>;
   /** The record of oracle responses for each transaction. */
   oracleResponses: Array<Array<Scalars['OracleResponse']['output']>>;
-  /** The hashes of previous blocks that sent messages to the same recipients. */
+  /** The hashes and heights of previous blocks that published events to the same channels. */
+  previousEventBlocks: Scalars['JSONObject']['output'];
+  /** The hashes and heights of previous blocks that sent messages to the same recipients. */
   previousMessageBlocks: Scalars['JSONObject']['output'];
   /** The hash of the chain's execution state after this block. */
   stateHash: Scalars['CryptoHash']['output'];
@@ -203,8 +186,6 @@ export type BlockHeader = {
   authenticatedSigner?: Maybe<Scalars['AccountOwner']['output']>;
   /** Cryptographic hash of all the created blobs in the block. */
   blobsHash: Scalars['CryptoHash']['output'];
-  /** Cryptographic hash of all the incoming bundles in the block. */
-  bundlesHash: Scalars['CryptoHash']['output'];
   /** The chain to which this block belongs. */
   chainId: Scalars['ChainId']['output'];
   /** The number identifying the current configuration. */
@@ -217,18 +198,42 @@ export type BlockHeader = {
   messagesHash: Scalars['CryptoHash']['output'];
   /** A cryptographic hash of the execution results of all operations in a block. */
   operationResultsHash: Scalars['CryptoHash']['output'];
-  /** Cryptographic hash of all the operations in the block. */
-  operationsHash: Scalars['CryptoHash']['output'];
   /** Cryptographic hash of all the oracle responses in the block. */
   oracleResponsesHash: Scalars['CryptoHash']['output'];
   /** Certified hash of the previous block in the chain, if any. */
   previousBlockHash?: Maybe<Scalars['CryptoHash']['output']>;
+  /** Cryptographic hash of the lookup table for previous blocks publishing events. */
+  previousEventBlocksHash: Scalars['CryptoHash']['output'];
   /** Cryptographic hash of the lookup table for previous sending blocks. */
   previousMessageBlocksHash: Scalars['CryptoHash']['output'];
   /** The hash of the chain's execution state after this block. */
   stateHash: Scalars['CryptoHash']['output'];
   /** The timestamp when this block was created. */
   timestamp: Scalars['Timestamp']['output'];
+  /** Cryptographic hash of all the transactions in the block. */
+  transactionsHash: Scalars['CryptoHash']['output'];
+};
+
+export type BucketQueueView_BlockHeight_E824a938 = {
+  __typename?: 'BucketQueueView_BlockHeight_e824a938';
+  count: Scalars['Int']['output'];
+  entries: Array<Scalars['BlockHeight']['output']>;
+};
+
+
+export type BucketQueueView_BlockHeight_E824a938EntriesArgs = {
+  count?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type BucketQueueView_TimestampedBundleInInbox_5a630c55 = {
+  __typename?: 'BucketQueueView_TimestampedBundleInInbox_5a630c55';
+  count: Scalars['Int']['output'];
+  entries: Array<TimestampedBundleInInbox>;
+};
+
+
+export type BucketQueueView_TimestampedBundleInInbox_5a630c55EntriesArgs = {
+  count?: InputMaybe<Scalars['Int']['input']>;
 };
 
 /** An origin and cursor of a unskippable bundle that is no longer in our inbox. */
@@ -237,7 +242,7 @@ export type BundleInInbox = {
   /** The cursor of the bundle in the inbox. */
   cursor: Cursor;
   /** The origin from which we received the bundle. */
-  origin: Scalars['Origin']['output'];
+  origin: Scalars['ChainId']['output'];
 };
 
 export type CandidateBlockMaterial = {
@@ -288,8 +293,6 @@ export type ChainOwners = {
 export type ChainStateExtendedView = {
   __typename?: 'ChainStateExtendedView';
   chainId: Scalars['ChainId']['output'];
-  /** Channels able to multicast messages to subscribers. */
-  channels: ReentrantCollectionView_ChannelFullName_ChannelStateView_1007095758;
   /**
    * Hashes of all certified blocks for this sender.
    * This ends with `block_hash` and has length `usize::from(next_block_height)`.
@@ -300,23 +303,29 @@ export type ChainStateExtendedView = {
   /** Hash of the execution state. */
   executionStateHash?: Maybe<Scalars['CryptoHash']['output']>;
   /** Mailboxes used to receive messages indexed by their origin. */
-  inboxes: ReentrantCollectionView_Origin_InboxStateView_3932346065;
+  inboxes: ReentrantCollectionView_ChainId_InboxStateView_1a7dccb2;
   /** Consensus state. */
   manager: ChainManager;
+  /** Outboxes with at least one pending message. This allows us to avoid loading all outboxes. */
+  nonemptyOutboxes: Array<Scalars['ChainId']['output']>;
   /**
    * Number of outgoing messages in flight for each block height.
    * We use a `RegisterView` to prioritize speed for small maps.
    */
   outboxCounters: Scalars['JSONObject']['output'];
   /** Mailboxes used to send messages, indexed by their target. */
-  outboxes: ReentrantCollectionView_Target_OutboxStateView_3966872819;
+  outboxes: ReentrantCollectionView_ChainId_OutboxStateView_1aed8f3a;
   /** The incomplete sets of blobs for upcoming proposals. */
-  pendingProposedBlobs: ReentrantCollectionView_AccountOwner_PendingBlobsView_3683749805;
+  pendingProposedBlobs: ReentrantCollectionView_AccountOwner_PendingBlobsView_C7f51b33;
   /**
    * Pending validated block that is still missing blobs.
    * The incomplete set of blobs for the pending validated block.
    */
   pendingValidatedBlobs: PendingBlobsView;
+  /** Blocks that have been verified but not executed yet, and that may not be contiguous. */
+  preprocessedBlocks: MapView_BlockHeight_CryptoHash_1bae6d76;
+  /** The heights of previous blocks that published events to the same streams. */
+  previousEventBlocks: MapView_StreamId_BlockHeight_E6657ad9;
   /** The heights of previous blocks that sent messages to the same recipients. */
   previousMessageBlocks: MapView_ChainId_BlockHeight_F2e56e12;
   /** The number of `received_log` entries we have synchronized, for each validator. */
@@ -324,11 +333,11 @@ export type ChainStateExtendedView = {
   /** Sender chain and height of all certified blocks known as a receiver (local ordering). */
   receivedLog: LogView_ChainAndHeight_7af83576;
   /** Unskippable bundles that have been removed but are still in the queue. */
-  removedUnskippableBundles: Array<BundleInInbox>;
+  removedUnskippableBundles: SetView_BundleInInbox_092a4377;
   /** Block-chaining state. */
   tipState: ChainTipState;
   /** A queue of unskippable bundles, with the timestamp when we added them to the inbox. */
-  unskippableBundles: QueueView_TimestampedBundleInInbox_5a630c55;
+  unskippableBundles: BucketQueueView_TimestampedBundleInInbox_5a630c55;
 };
 
 /** Block-chaining state. */
@@ -352,19 +361,10 @@ export type Chains = {
   list: Array<Scalars['ChainId']['output']>;
 };
 
-/** The state of a channel followed by subscribers. */
-export type ChannelStateView = {
-  __typename?: 'ChannelStateView';
-  /** The block heights so far, to be sent to future subscribers. */
-  blockHeights: LogView_BlockHeight_E824a938;
-  /** The current subscribers. */
-  subscribers: Array<Scalars['ChainId']['output']>;
-};
-
 /** A set of validators (identified by their public keys) and their voting rights. */
 export type Committee = {
   /** The policy agreed on for this epoch. */
-  policy: ResourceControlPolicy;
+  policy: Scalars['ResourceControlPolicyScalar']['input'];
   /** The threshold to form a quorum. */
   quorumThreshold: Scalars['Int']['input'];
   /** The sum of all voting rights. */
@@ -396,8 +396,8 @@ export type Entry_AccountOwner_Amount_Aaf96548 = {
 };
 
 /** A GraphQL-visible map item, complete with key. */
-export type Entry_AccountOwner_PendingBlobsView_A1918fe0 = {
-  __typename?: 'Entry_AccountOwner_PendingBlobsView_a1918fe0';
+export type Entry_AccountOwner_PendingBlobsView_27889bdf = {
+  __typename?: 'Entry_AccountOwner_PendingBlobsView_27889bdf';
   key: Scalars['AccountOwner']['output'];
   value: PendingBlobsView;
 };
@@ -417,6 +417,13 @@ export type Entry_BlobId_Blob_50b95aa1 = {
 };
 
 /** A GraphQL-visible map item, complete with key. */
+export type Entry_BlockHeight_CryptoHash_74e16b71 = {
+  __typename?: 'Entry_BlockHeight_CryptoHash_74e16b71';
+  key: Scalars['BlockHeight']['output'];
+  value?: Maybe<Scalars['CryptoHash']['output']>;
+};
+
+/** A GraphQL-visible map item, complete with key. */
 export type Entry_ChainId_BlockHeight_2fe78645 = {
   __typename?: 'Entry_ChainId_BlockHeight_2fe78645';
   key: Scalars['ChainId']['output'];
@@ -424,24 +431,24 @@ export type Entry_ChainId_BlockHeight_2fe78645 = {
 };
 
 /** A GraphQL-visible map item, complete with key. */
-export type Entry_ChannelFullName_ChannelStateView_8677ec10 = {
-  __typename?: 'Entry_ChannelFullName_ChannelStateView_8677ec10';
-  key: Scalars['ChannelFullName']['output'];
-  value: ChannelStateView;
-};
-
-/** A GraphQL-visible map item, complete with key. */
-export type Entry_Origin_InboxStateView_9e8611cf = {
-  __typename?: 'Entry_Origin_InboxStateView_9e8611cf';
-  key: Scalars['Origin']['output'];
+export type Entry_ChainId_InboxStateView_1352ee45 = {
+  __typename?: 'Entry_ChainId_InboxStateView_1352ee45';
+  key: Scalars['ChainId']['output'];
   value: InboxStateView;
 };
 
 /** A GraphQL-visible map item, complete with key. */
-export type Entry_Target_OutboxStateView_087933dd = {
-  __typename?: 'Entry_Target_OutboxStateView_087933dd';
-  key: Scalars['Target']['output'];
+export type Entry_ChainId_OutboxStateView_D43a9885 = {
+  __typename?: 'Entry_ChainId_OutboxStateView_d43a9885';
+  key: Scalars['ChainId']['output'];
   value: OutboxStateView;
+};
+
+/** A GraphQL-visible map item, complete with key. */
+export type Entry_StreamId_BlockHeight_50cd702e = {
+  __typename?: 'Entry_StreamId_BlockHeight_50cd702e';
+  key: StreamId;
+  value?: Maybe<Scalars['BlockHeight']['output']>;
 };
 
 /** An event recorded in a block. */
@@ -496,23 +503,114 @@ export type IncomingBundle = {
   action: Scalars['MessageAction']['output'];
   /** The messages to be delivered to the inbox identified by `origin`. */
   bundle: MessageBundle;
-  /** The origin of the messages (chain and channel if any). */
-  origin: Scalars['Origin']['output'];
+  /** The origin of the messages. */
+  origin: Scalars['ChainId']['output'];
 };
 
-export type LogView_BlockHeight_E824a938 = {
-  __typename?: 'LogView_BlockHeight_e824a938';
-  entries: Array<Scalars['BlockHeight']['output']>;
+/** The result of an `events_from_index`. */
+export type IndexAndEvent = {
+  __typename?: 'IndexAndEvent';
+  /** The event being returned. */
+  event: Array<Scalars['Int']['output']>;
+  /** The index of the found event. */
+  index: Scalars['Int']['output'];
 };
 
+/** The messages and the state hash resulting from a [`ProposedBlock`]'s execution. */
+export type InputBlockExecutionOutcome = {
+  /** The list of blobs created by each transaction. */
+  blobs: Array<Array<Scalars['Blob']['input']>>;
+  /** The list of events produced by each transaction. */
+  events: Array<Array<InputEvent>>;
+  /** The list of outgoing messages for each transaction. */
+  messages: Array<Array<InputOutgoingMessage>>;
+  /** The execution result for each operation. */
+  operationResults: Array<Scalars['OperationResult']['input']>;
+  /** The record of oracle responses for each transaction. */
+  oracleResponses: Array<Array<Scalars['OracleResponse']['input']>>;
+  /** The hashes and heights of previous blocks that published events to the same channels. */
+  previousEventBlocks: Scalars['JSONObject']['input'];
+  /** The hashes and heights of previous blocks that sent messages to the same recipients. */
+  previousMessageBlocks: Scalars['JSONObject']['input'];
+  /** The hash of the chain's execution state after this block. */
+  stateHash: Scalars['CryptoHash']['input'];
+};
 
-export type LogView_BlockHeight_E824a938EntriesArgs = {
-  end?: InputMaybe<Scalars['Int']['input']>;
-  start?: InputMaybe<Scalars['Int']['input']>;
+/** An event recorded in a block. */
+export type InputEvent = {
+  /** The event index, i.e. the number of events in the stream before this one. */
+  index: Scalars['Int']['input'];
+  /** The ID of the stream this event belongs to. */
+  streamId: StreamIdInput;
+  /** The payload data. */
+  value: Array<Scalars['Int']['input']>;
+};
+
+/** A posted message together with routing information. */
+export type InputOutgoingMessage = {
+  /** The user authentication carried by the message, if any. */
+  authenticatedSigner?: InputMaybe<Scalars['AccountOwner']['input']>;
+  /** The destination of the message. */
+  destination: Scalars['ChainId']['input'];
+  /** A grant to pay for the message execution. */
+  grant: Scalars['Amount']['input'];
+  /** The kind of message being sent. */
+  kind: Scalars['MessageKind']['input'];
+  /** The message itself. */
+  message: Scalars['Message']['input'];
+  /** Where to send a refund for the unused part of the grant after execution, if any. */
+  refundGrantTo?: InputMaybe<Scalars['Account']['input']>;
+};
+
+export type InputUnsignedBlockProposal = {
+  content: InputWrapperProposalContent;
+  originalProposal?: InputMaybe<Scalars['OriginalProposal']['input']>;
+  outcome: InputBlockExecutionOutcome;
+};
+
+export type InputWrapperProposalContent = {
+  /** The proposed block. */
+  block: InputWrapperProposedBlock;
+  /** If this is a retry from an earlier round, the execution outcome. */
+  outcome?: InputMaybe<InputBlockExecutionOutcome>;
+  /** The consensus round in which this proposal is made. */
+  round: Scalars['Round']['input'];
+};
+
+export type InputWrapperProposedBlock = {
+  /**
+   * The user signing for the operations in the block and paying for their execution
+   * fees. If set, this must be the `owner` in the block proposal. `None` means that
+   * the default account of the chain is used. This value is also used as recipient of
+   * potential refunds for the message grants created by the operations.
+   */
+  authenticatedSigner?: InputMaybe<Scalars['AccountOwner']['input']>;
+  /** The chain to which this block belongs. */
+  chainId: Scalars['ChainId']['input'];
+  /** The number identifying the current configuration. */
+  epoch: Scalars['Epoch']['input'];
+  /** The block height. */
+  height: Scalars['BlockHeight']['input'];
+  /**
+   * Certified hash (see `Certificate` below) of the previous block in the
+   * chain, if any.
+   */
+  previousBlockHash?: InputMaybe<Scalars['CryptoHash']['input']>;
+  /**
+   * The timestamp when this block was created. This must be later than all messages received
+   * in this block, but no later than the current time.
+   */
+  timestamp: Scalars['Timestamp']['input'];
+  /**
+   * The transactions to execute in this block. Each transaction can be either
+   * incoming messages or an operation.
+   */
+  transactions: Array<Scalars['Transaction']['input']>;
 };
 
 export type LogView_ChainAndHeight_7af83576 = {
   __typename?: 'LogView_ChainAndHeight_7af83576';
+  count: Scalars['Int']['output'];
   entries: Array<ChainAndHeight>;
 };
 
@@ -524,6 +622,7 @@ export type LogView_ChainAndHeight_7af83576EntriesArgs = {
 
 export type LogView_CryptoHash_87fbb60c = {
   __typename?: 'LogView_CryptoHash_87fbb60c';
+  count: Scalars['Int']['output'];
   entries: Array<Scalars['CryptoHash']['output']>;
 };
 
@@ -541,20 +640,16 @@ export type MapFilters_BlobId_4d2a0555 = {
   keys?: InputMaybe<Array<Scalars['BlobId']['input']>>;
 };
 
+export type MapFilters_BlockHeight_E824a938 = {
+  keys?: InputMaybe<Array<Scalars['BlockHeight']['input']>>;
+};
+
 export type MapFilters_ChainId_37f83aa9 = {
   keys?: InputMaybe<Array<Scalars['ChainId']['input']>>;
 };
 
-export type MapFilters_ChannelFullName_7b67e184 = {
-  keys?: InputMaybe<Array<Scalars['ChannelFullName']['input']>>;
-};
-
-export type MapFilters_Origin_742d451b = {
-  keys?: InputMaybe<Array<Scalars['Origin']['input']>>;
-};
-
-export type MapFilters_Target_7aac1e1c = {
-  keys?: InputMaybe<Array<Scalars['Target']['input']>>;
+export type MapFilters_StreamIdInput_B7c3909d = {
+  keys?: InputMaybe<Array<StreamIdInput>>;
 };
 
 export type MapInput_AccountOwner_D6668c53 = {
@@ -565,24 +660,21 @@ export type MapInput_BlobId_4d2a0555 = {
   filters?: InputMaybe<MapFilters_BlobId_4d2a0555>;
 };
 
+export type MapInput_BlockHeight_E824a938 = {
+  filters?: InputMaybe<MapFilters_BlockHeight_E824a938>;
+};
+
 export type MapInput_ChainId_37f83aa9 = {
   filters?: InputMaybe<MapFilters_ChainId_37f83aa9>;
 };
 
-export type MapInput_ChannelFullName_7b67e184 = {
-  filters?: InputMaybe<MapFilters_ChannelFullName_7b67e184>;
-};
-
-export type MapInput_Origin_742d451b = {
-  filters?: InputMaybe<MapFilters_Origin_742d451b>;
-};
-
-export type MapInput_Target_7aac1e1c = {
-  filters?: InputMaybe<MapFilters_Target_7aac1e1c>;
+export type MapInput_StreamIdInput_B7c3909d = {
+  filters?: InputMaybe<MapFilters_StreamIdInput_B7c3909d>;
 };
 
 export type MapView_AccountOwner_Amount_11ef1379 = {
   __typename?: 'MapView_AccountOwner_Amount_11ef1379';
+  count: Scalars['Int']['output'];
   entries: Array<Entry_AccountOwner_Amount_Aaf96548>;
   entry: Entry_AccountOwner_Amount_Aaf96548;
   keys: Array<Scalars['AccountOwner']['output']>;
@@ -605,6 +697,7 @@ export type MapView_AccountOwner_Amount_11ef1379KeysArgs = {
 
 export type MapView_BlobId_Blob_9f0b41f3 = {
   __typename?: 'MapView_BlobId_Blob_9f0b41f3';
+  count: Scalars['Int']['output'];
   entries: Array<Entry_BlobId_Blob_50b95aa1>;
   entry: Entry_BlobId_Blob_50b95aa1;
   keys: Array<Scalars['BlobId']['output']>;
@@ -627,6 +720,7 @@ export type MapView_BlobId_Blob_9f0b41f3KeysArgs = {
 
 export type MapView_BlobId_Blob_3711e760 = {
   __typename?: 'MapView_BlobId_Blob_3711e760';
+  count: Scalars['Int']['output'];
   entries: Array<Entry_BlobId_Blob_9f0b41f3>;
   entry: Entry_BlobId_Blob_9f0b41f3;
   keys: Array<Scalars['BlobId']['output']>;
@@ -647,8 +741,32 @@ export type MapView_BlobId_Blob_3711e760KeysArgs = {
   count?: InputMaybe<Scalars['Int']['input']>;
 };
 
+export type MapView_BlockHeight_CryptoHash_1bae6d76 = {
+  __typename?: 'MapView_BlockHeight_CryptoHash_1bae6d76';
+  count: Scalars['Int']['output'];
+  entries: Array<Entry_BlockHeight_CryptoHash_74e16b71>;
+  entry: Entry_BlockHeight_CryptoHash_74e16b71;
+  keys: Array<Scalars['BlockHeight']['output']>;
+};
+
+
+export type MapView_BlockHeight_CryptoHash_1bae6d76EntriesArgs = {
+  input?: InputMaybe<MapInput_BlockHeight_E824a938>;
+};
+
+
+export type MapView_BlockHeight_CryptoHash_1bae6d76EntryArgs = {
+  key: Scalars['BlockHeight']['input'];
+};
+
+
+export type MapView_BlockHeight_CryptoHash_1bae6d76KeysArgs = {
+  count?: InputMaybe<Scalars['Int']['input']>;
+};
+
 export type MapView_ChainId_BlockHeight_F2e56e12 = {
   __typename?: 'MapView_ChainId_BlockHeight_f2e56e12';
+  count: Scalars['Int']['output'];
   entries: Array<Entry_ChainId_BlockHeight_2fe78645>;
   entry: Entry_ChainId_BlockHeight_2fe78645;
   keys: Array<Scalars['ChainId']['output']>;
@@ -666,6 +784,29 @@ export type MapView_ChainId_BlockHeight_F2e56e12EntryArgs = {
 
 
 export type MapView_ChainId_BlockHeight_F2e56e12KeysArgs = {
+  count?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type MapView_StreamId_BlockHeight_E6657ad9 = {
+  __typename?: 'MapView_StreamId_BlockHeight_e6657ad9';
+  count: Scalars['Int']['output'];
+  entries: Array<Entry_StreamId_BlockHeight_50cd702e>;
+  entry: Entry_StreamId_BlockHeight_50cd702e;
+  keys: Array<StreamId>;
+};
+
+
+export type MapView_StreamId_BlockHeight_E6657ad9EntriesArgs = {
+  input?: InputMaybe<MapInput_StreamIdInput_B7c3909d>;
+};
+
+
+export type MapView_StreamId_BlockHeight_E6657ad9EntryArgs = {
+  key: StreamIdInput;
+};
+
+
+export type MapView_StreamId_BlockHeight_E6657ad9KeysArgs = {
   count?: InputMaybe<Scalars['Int']['input']>;
 };
 
@@ -708,6 +849,8 @@ export type MutationRoot = {
    * notification as an "incoming message" in a next block).
    */
   createCommittee: Scalars['CryptoHash']['output'];
+  /** ResPeer::CheCko::Initialize offline wallet */
+  importChain: Scalars['ChainId']['output'];
   /**
    * Creates (or activates) a new chain with the given owner.
    * This will automatically subscribe to the future committees created by `admin_id`.
@@ -737,18 +880,14 @@ export type MutationRoot = {
   /** Calculate block execution state hash */
   simulateExecuteBlock?: Maybe<SimulatedBlockMaterial>;
   /** Submit block proposal with signature */
-  submitBlockAndSignature: Scalars['CryptoHash']['output'];
+  submitSignedBlock: Scalars['CryptoHash']['output'];
   /** Submit block proposal with signature */
-  submitBlockAndSignatureBcs: Scalars['CryptoHash']['output'];
+  submitSignedBlockBcs: Scalars['CryptoHash']['output'];
   /**
    * Transfers `amount` units of value from the given owner's account to the recipient.
    * If no owner is given, try to take the units out of the chain account.
    */
   transfer: Scalars['CryptoHash']['output'];
-  /** Add key pair info which only has public key */
-  walletInitPublicKey: Scalars['AccountOwner']['output'];
-  /** ResPeer::CheCko::Initialize offline wallet */
-  walletInitWithoutSecretKey: Scalars['ChainId']['output'];
 };
 
 
@@ -786,7 +925,7 @@ export type MutationRootClaimArgs = {
   amount: Scalars['Amount']['input'];
   chainId: Scalars['ChainId']['input'];
   owner: Scalars['AccountOwner']['input'];
-  recipient: Scalars['Recipient']['input'];
+  recipient: Scalars['Account']['input'];
   targetId: Scalars['ChainId']['input'];
 };
 
@@ -808,6 +947,14 @@ export type MutationRootCreateApplicationArgs = {
 export type MutationRootCreateCommitteeArgs = {
   chainId: Scalars['ChainId']['input'];
   committee: Committee;
+};
+
+
+export type MutationRootImportChainArgs = {
+  chainId: Scalars['ChainId']['input'];
+  creatorChainId: Scalars['ChainId']['input'];
+  owner: Scalars['AccountOwner']['input'];
+  signature: Scalars['AccountSignature']['input'];
 };
 
 
@@ -874,17 +1021,15 @@ export type MutationRootSimulateExecuteBlockArgs = {
 };
 
 
-export type MutationRootSubmitBlockAndSignatureArgs = {
-  block: Scalars['SignedBlock']['input'];
+export type MutationRootSubmitSignedBlockArgs = {
+  block: SignedBlock;
   chainId: Scalars['ChainId']['input'];
-  height: Scalars['BlockHeight']['input'];
 };
 
 
-export type MutationRootSubmitBlockAndSignatureBcsArgs = {
+export type MutationRootSubmitSignedBlockBcsArgs = {
   block: Scalars['SignedBlockBcs']['input'];
   chainId: Scalars['ChainId']['input'];
-  height: Scalars['BlockHeight']['input'];
 };
 
 
@@ -892,20 +1037,19 @@ export type MutationRootTransferArgs = {
   amount: Scalars['Amount']['input'];
   chainId: Scalars['ChainId']['input'];
   owner: Scalars['AccountOwner']['input'];
-  recipient: Scalars['Recipient']['input'];
+  recipient: Scalars['Account']['input'];
 };
 
-
-export type MutationRootWalletInitPublicKeyArgs = {
-  publicKey: Scalars['AccountPublicKey']['input'];
-  signature: Scalars['AccountSignature']['input'];
-};
-
-
-export type MutationRootWalletInitWithoutSecretKeyArgs = {
-  chainId: Scalars['ChainId']['input'];
-  initializer: Scalars['WalletInitializer']['input'];
-  messageId: Scalars['MessageId']['input'];
+export type Operation = {
+  __typename?: 'Operation';
+  /** For user operations, the application ID */
+  applicationId?: Maybe<Scalars['ApplicationId']['output']>;
+  /** The type of operation: "System" or "User" */
+  operationType: Scalars['String']['output'];
+  /** For system operations, the serialized bytes (as a hex string for GraphQL) */
+  systemBytesHex?: Maybe<Scalars['String']['output']>;
+  /** For user operations, the serialized bytes (as a hex string for GraphQL) */
+  userBytesHex?: Maybe<Scalars['String']['output']>;
 };
 
 /**
@@ -925,7 +1069,7 @@ export type OutboxStateView = {
    * Keep sending these certified blocks of ours until they are acknowledged by
    * receivers.
    */
-  queue: QueueView_BlockHeight_E824a938;
+  queue: BucketQueueView_BlockHeight_E824a938;
 };
 
 /** A posted message together with routing information. */
@@ -934,7 +1078,7 @@ export type OutgoingMessage = {
   /** The user authentication carried by the message, if any. */
   authenticatedSigner?: Maybe<Scalars['AccountOwner']['output']>;
   /** The destination of the message. */
-  destination: Scalars['Destination']['output'];
+  destination: Scalars['ChainId']['output'];
   /** A grant to pay for the message execution. */
   grant: Scalars['Amount']['output'];
   /** The kind of message being sent. */
@@ -981,7 +1125,6 @@ export type PostedMessage = {
 
 export type QueryRoot = {
   __typename?: 'QueryRoot';
-  accountOwnerPattern: Scalars['AccountOwner']['output'];
   applications: Array<ApplicationOverview>;
   /** Returns the balance of given owner */
   balance: Scalars['Amount']['output'];
@@ -992,16 +1135,12 @@ export type QueryRoot = {
   blockMaterial: CandidateBlockMaterial;
   blocks: Array<ConfirmedBlock>;
   chain: ChainStateExtendedView;
-  chainAccountPattern: Scalars['Account']['output'];
   chains: Chains;
-  ownerAccountPattern: Scalars['Account']['output'];
+  eventsFromIndex: Array<IndexAndEvent>;
   /** Returns the maintained chains of given owner */
   ownerChains: Chains;
   /** Returns the pending message of the chain */
   pendingMessages: Array<IncomingBundle>;
-  publicKeyPattern: Scalars['AccountPublicKey']['output'];
-  signaturePattern: Scalars['AccountSignature']['output'];
-  transferPattern: Scalars['Operation']['output'];
   /** Returns the version information on this node service. */
   version: Scalars['VersionInfo']['output'];
 };
@@ -1047,6 +1186,13 @@ export type QueryRootChainArgs = {
 };
 
 
+export type QueryRootEventsFromIndexArgs = {
+  chainId: Scalars['ChainId']['input'];
+  startIndex: Scalars['Int']['input'];
+  streamId: StreamIdInput;
+};
+
+
 export type QueryRootOwnerChainsArgs = {
   owner: Scalars['AccountOwner']['input'];
 };
@@ -1056,18 +1202,9 @@ export type QueryRootPendingMessagesArgs = {
   chainId: Scalars['ChainId']['input'];
 };
 
-export type QueueView_BlockHeight_E824a938 = {
-  __typename?: 'QueueView_BlockHeight_e824a938';
-  entries: Array<Scalars['BlockHeight']['output']>;
-};
-
-
-export type QueueView_BlockHeight_E824a938EntriesArgs = {
-  count?: InputMaybe<Scalars['Int']['input']>;
-};
-
 export type QueueView_MessageBundle_F4399f0b = {
   __typename?: 'QueueView_MessageBundle_f4399f0b';
+  count: Scalars['Int']['output'];
   entries: Array<MessageBundle>;
 };
 
@@ -1076,157 +1213,81 @@ export type QueueView_MessageBundle_F4399f0bEntriesArgs = {
   count?: InputMaybe<Scalars['Int']['input']>;
 };
 
-export type QueueView_TimestampedBundleInInbox_5a630c55 = {
-  __typename?: 'QueueView_TimestampedBundleInInbox_5a630c55';
-  entries: Array<TimestampedBundleInInbox>;
-};
-
-
-export type QueueView_TimestampedBundleInInbox_5a630c55EntriesArgs = {
-  count?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type ReentrantCollectionView_AccountOwner_PendingBlobsView_3683749805 = {
-  __typename?: 'ReentrantCollectionView_AccountOwner_PendingBlobsView_3683749805';
-  entries: Array<Entry_AccountOwner_PendingBlobsView_A1918fe0>;
-  entry: Entry_AccountOwner_PendingBlobsView_A1918fe0;
+export type ReentrantCollectionView_AccountOwner_PendingBlobsView_C7f51b33 = {
+  __typename?: 'ReentrantCollectionView_AccountOwner_PendingBlobsView_c7f51b33';
+  count: Scalars['Int']['output'];
+  entries: Array<Entry_AccountOwner_PendingBlobsView_27889bdf>;
+  entry: Entry_AccountOwner_PendingBlobsView_27889bdf;
   keys: Array<Scalars['AccountOwner']['output']>;
 };
 
 
-export type ReentrantCollectionView_AccountOwner_PendingBlobsView_3683749805EntriesArgs = {
+export type ReentrantCollectionView_AccountOwner_PendingBlobsView_C7f51b33EntriesArgs = {
   input?: InputMaybe<MapInput_AccountOwner_D6668c53>;
 };
 
 
-export type ReentrantCollectionView_AccountOwner_PendingBlobsView_3683749805EntryArgs = {
+export type ReentrantCollectionView_AccountOwner_PendingBlobsView_C7f51b33EntryArgs = {
   key: Scalars['AccountOwner']['input'];
 };
 
-export type ReentrantCollectionView_ChannelFullName_ChannelStateView_1007095758 = {
-  __typename?: 'ReentrantCollectionView_ChannelFullName_ChannelStateView_1007095758';
-  entries: Array<Entry_ChannelFullName_ChannelStateView_8677ec10>;
-  entry: Entry_ChannelFullName_ChannelStateView_8677ec10;
-  keys: Array<Scalars['ChannelFullName']['output']>;
+export type ReentrantCollectionView_ChainId_InboxStateView_1a7dccb2 = {
+  __typename?: 'ReentrantCollectionView_ChainId_InboxStateView_1a7dccb2';
+  count: Scalars['Int']['output'];
+  entries: Array<Entry_ChainId_InboxStateView_1352ee45>;
+  entry: Entry_ChainId_InboxStateView_1352ee45;
+  keys: Array<Scalars['ChainId']['output']>;
 };
 
 
-export type ReentrantCollectionView_ChannelFullName_ChannelStateView_1007095758EntriesArgs = {
-  input?: InputMaybe<MapInput_ChannelFullName_7b67e184>;
+export type ReentrantCollectionView_ChainId_InboxStateView_1a7dccb2EntriesArgs = {
+  input?: InputMaybe<MapInput_ChainId_37f83aa9>;
 };
 
 
-export type ReentrantCollectionView_ChannelFullName_ChannelStateView_1007095758EntryArgs = {
-  key: Scalars['ChannelFullName']['input'];
+export type ReentrantCollectionView_ChainId_InboxStateView_1a7dccb2EntryArgs = {
+  key: Scalars['ChainId']['input'];
 };
 
-export type ReentrantCollectionView_Origin_InboxStateView_3932346065 = {
-  __typename?: 'ReentrantCollectionView_Origin_InboxStateView_3932346065';
-  entries: Array<Entry_Origin_InboxStateView_9e8611cf>;
-  entry: Entry_Origin_InboxStateView_9e8611cf;
-  keys: Array<Scalars['Origin']['output']>;
-};
-
-
-export type ReentrantCollectionView_Origin_InboxStateView_3932346065EntriesArgs = {
-  input?: InputMaybe<MapInput_Origin_742d451b>;
+export type ReentrantCollectionView_ChainId_OutboxStateView_1aed8f3a = {
+  __typename?: 'ReentrantCollectionView_ChainId_OutboxStateView_1aed8f3a';
+  count: Scalars['Int']['output'];
+  entries: Array<Entry_ChainId_OutboxStateView_D43a9885>;
+  entry: Entry_ChainId_OutboxStateView_D43a9885;
+  keys: Array<Scalars['ChainId']['output']>;
 };
 
 
-export type ReentrantCollectionView_Origin_InboxStateView_3932346065EntryArgs = {
-  key: Scalars['Origin']['input'];
-};
-
-export type ReentrantCollectionView_Target_OutboxStateView_3966872819 = {
-  __typename?: 'ReentrantCollectionView_Target_OutboxStateView_3966872819';
-  entries: Array<Entry_Target_OutboxStateView_087933dd>;
-  entry: Entry_Target_OutboxStateView_087933dd;
-  keys: Array<Scalars['Target']['output']>;
+export type ReentrantCollectionView_ChainId_OutboxStateView_1aed8f3aEntriesArgs = {
+  input?: InputMaybe<MapInput_ChainId_37f83aa9>;
 };
 
 
-export type ReentrantCollectionView_Target_OutboxStateView_3966872819EntriesArgs = {
-  input?: InputMaybe<MapInput_Target_7aac1e1c>;
+export type ReentrantCollectionView_ChainId_OutboxStateView_1aed8f3aEntryArgs = {
+  key: Scalars['ChainId']['input'];
+};
+
+export type SetView_BundleInInbox_092a4377 = {
+  __typename?: 'SetView_BundleInInbox_092a4377';
+  count: Scalars['Int']['output'];
+  elements: Array<BundleInInbox>;
 };
 
 
-export type ReentrantCollectionView_Target_OutboxStateView_3966872819EntryArgs = {
-  key: Scalars['Target']['input'];
+export type SetView_BundleInInbox_092a4377ElementsArgs = {
+  count?: InputMaybe<Scalars['Int']['input']>;
 };
 
-/** A collection of prices and limits associated with block execution. */
-export type ResourceControlPolicy = {
-  /** The price to publish a blob, per byte. */
-  blobBytePublished: Scalars['Amount']['input'];
-  /** The price to read a blob, per byte. */
-  blobByteRead: Scalars['Amount']['input'];
-  /** The base price to publish a blob. */
-  blobPublished: Scalars['Amount']['input'];
-  /** The base price to read a blob. */
-  blobRead: Scalars['Amount']['input'];
-  /** The base price for creating a new block. */
-  block: Scalars['Amount']['input'];
-  /** The price of reading a byte. */
-  byteRead: Scalars['Amount']['input'];
-  /** The price of increasing storage by a byte. */
-  byteStored: Scalars['Amount']['input'];
-  /** The price of writing a byte */
-  byteWritten: Scalars['Amount']['input'];
-  /** The price per unit of fuel (aka gas) for VM execution. */
-  fuelUnit: Scalars['Amount']['input'];
-  /** The price for a performing an HTTP request. */
-  httpRequest: Scalars['Amount']['input'];
-  /** The list of hosts that contracts and services can send HTTP requests to. */
-  httpRequestAllowList: Array<Scalars['String']['input']>;
-  /** The maximum amount of time allowed to wait for an HTTP response. */
-  httpRequestTimeoutMs: Scalars['Int']['input'];
-  /** The maximum size of a blob. */
-  maximumBlobSize: Scalars['Int']['input'];
-  /** The maximum size of a block proposal. */
-  maximumBlockProposalSize: Scalars['Int']['input'];
-  /**
-   * The maximum size of a block. This includes the block proposal itself as well as
-   * the execution outcome.
-   */
-  maximumBlockSize: Scalars['Int']['input'];
-  /** The maximum size of decompressed contract or service bytecode, in bytes. */
-  maximumBytecodeSize: Scalars['Int']['input'];
-  /** The maximum data to read per block */
-  maximumBytesReadPerBlock: Scalars['Int']['input'];
-  /** The maximum data to write per block */
-  maximumBytesWrittenPerBlock: Scalars['Int']['input'];
-  /** The maximum amount of fuel a block can consume. */
-  maximumFuelPerBlock: Scalars['Int']['input'];
-  /** The maximum size in bytes of a received HTTP response. */
-  maximumHttpResponseBytes: Scalars['Int']['input'];
-  /** The maximum size in bytes of an oracle response. */
-  maximumOracleResponseBytes: Scalars['Int']['input'];
-  /** The maximum number of published blobs per block. */
-  maximumPublishedBlobs: Scalars['Int']['input'];
-  /** The maximum time in milliseconds that a block can spend executing services as oracles. */
-  maximumServiceOracleExecutionMs: Scalars['Int']['input'];
-  /** The base price of sending a message from a block. */
-  message: Scalars['Amount']['input'];
-  /** The additional price for each byte in the argument of a user message. */
-  messageByte: Scalars['Amount']['input'];
-  /** The base price of adding an operation to a block. */
-  operation: Scalars['Amount']['input'];
-  /** The additional price for each byte in the argument of a user operation. */
-  operationByte: Scalars['Amount']['input'];
-  /** The price of one read operation. */
-  readOperation: Scalars['Amount']['input'];
-  /** The price per query to a service as an oracle. */
-  serviceAsOracleQuery: Scalars['Amount']['input'];
-  /** The price of one write operation. */
-  writeOperation: Scalars['Amount']['input'];
+export type SignedBlock = {
+  blobBytes: Array<Array<Scalars['Int']['input']>>;
+  signature: Scalars['AccountSignature']['input'];
+  unsignedBlockProposal: InputUnsignedBlockProposal;
 };
 
 export type SimulatedBlockMaterial = {
   __typename?: 'SimulatedBlockMaterial';
   blobBytes: Array<Array<Scalars['Int']['output']>>;
-  block: Block;
-  outcome?: Maybe<BlockExecutionOutcome>;
-  validatedBlockCertificate?: Maybe<Scalars['ValidatedBlockCertificate']['output']>;
+  blockProposal: UnsignedBlockProposal;
 };
 
 /** An event stream ID. */
@@ -1236,6 +1297,14 @@ export type StreamId = {
   applicationId: Scalars['GenericApplicationId']['output'];
   /** The name of this stream: an application can have multiple streams with different names. */
   streamName: Scalars['StreamName']['output'];
+};
+
+/** An event stream ID. */
+export type StreamIdInput = {
+  /** The application that can add events to this stream. */
+  applicationId: Scalars['GenericApplicationId']['input'];
+  /** The name of this stream: an application can have multiple streams with different names. */
+  streamName: Scalars['StreamName']['input'];
 };
 
 export type SubscriptionRoot = {
@@ -1256,7 +1325,7 @@ export type SystemExecutionStateView = {
   balances: MapView_AccountOwner_Amount_11ef1379;
   committees: Scalars['JSONObject']['output'];
   description?: Maybe<Scalars['ChainDescription']['output']>;
-  epoch?: Maybe<Scalars['Epoch']['output']>;
+  epoch: Scalars['Epoch']['output'];
   ownership: Scalars['ChainOwnership']['output'];
   timestamp: Scalars['Timestamp']['output'];
 };
@@ -1268,6 +1337,66 @@ export type TimestampedBundleInInbox = {
   entry: BundleInInbox;
   /** The timestamp when the bundle was added to the inbox. */
   seen: Scalars['Timestamp']['output'];
+};
+
+/** GraphQL-compatible metadata about a transaction. */
+export type TransactionMetadata = {
+  __typename?: 'TransactionMetadata';
+  /** The incoming bundle, if this is a ReceiveMessages transaction */
+  incomingBundle?: Maybe<IncomingBundle>;
+  /** The operation, if this is an ExecuteOperation transaction */
+  operation?: Maybe<Operation>;
+  /** The type of transaction: "ReceiveMessages" or "ExecuteOperation" */
+  transactionType: Scalars['String']['output'];
+};
+
+export type UnsignedBlockProposal = {
+  __typename?: 'UnsignedBlockProposal';
+  content: WrapperProposalContent;
+  originalProposal?: Maybe<Scalars['OriginalProposal']['output']>;
+  outcome: BlockExecutionOutcome;
+};
+
+export type WrapperProposalContent = {
+  __typename?: 'WrapperProposalContent';
+  /** The proposed block. */
+  block: WrapperProposedBlock;
+  /** If this is a retry from an earlier round, the execution outcome. */
+  outcome?: Maybe<BlockExecutionOutcome>;
+  /** The consensus round in which this proposal is made. */
+  round: Scalars['Round']['output'];
+};
+
+export type WrapperProposedBlock = {
+  __typename?: 'WrapperProposedBlock';
+  /**
+   * The user signing for the operations in the block and paying for their execution
+   * fees. If set, this must be the `owner` in the block proposal. `None` means that
+   * the default account of the chain is used. This value is also used as recipient of
+   * potential refunds for the message grants created by the operations.
+   */
+  authenticatedSigner?: Maybe<Scalars['AccountOwner']['output']>;
+  /** The chain to which this block belongs. */
+  chainId: Scalars['ChainId']['output'];
+  /** The number identifying the current configuration. */
+  epoch: Scalars['Epoch']['output'];
+  /** The block height. */
+  height: Scalars['BlockHeight']['output'];
+  /**
+   * Certified hash (see `Certificate` below) of the previous block in the
+   * chain, if any.
+   */
+  previousBlockHash?: Maybe<Scalars['CryptoHash']['output']>;
+  /**
+   * The timestamp when this block was created. This must be later than all messages received
+   * in this block, but no later than the current time.
+   */
+  timestamp: Scalars['Timestamp']['output'];
+  /**
+   * The transactions to execute in this block. Each transaction can be either
+   * incoming messages or an operation.
+   */
+  transactions: Array<Scalars['Transaction']['output']>;
 };
 
 export type BalancesQueryVariables = Exact<{
