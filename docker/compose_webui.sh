@@ -6,6 +6,7 @@
 
 options="C:z:"
 CLUSTER=testnet-conway
+COMPILE=1
 
 while getopts $options opt; do
   case ${opt} in
