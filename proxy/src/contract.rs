@@ -296,8 +296,8 @@ impl ProxyContract {
             amount.try_sub(owner_balance).expect("Invalid amount")
         };
 
-        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
-        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+        assert!(from_owner_balance <= owner_balance, "{}", format!("Insufficient balance {amount}/{owner_balance}/{from_owner_balance}/{chain_balance}/{from_chain_balance}"));
+        assert!(from_chain_balance <= chain_balance, "{}", format!("Insufficient balance {amount}/{owner_balance}/{from_owner_balance}/{chain_balance}/{from_chain_balance}"));
 
         if from_owner_balance > Amount::ZERO {
             self.runtime.transfer(
