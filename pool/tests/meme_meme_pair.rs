@@ -25,10 +25,10 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, TestString,
+        Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, ChainId,
+        CryptoHash, ModuleId, TestString,
     },
-    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
+    test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
 use std::{collections::HashMap, str::FromStr};
 
@@ -67,7 +67,7 @@ impl TestSuite {
         >()
         .await;
 
-        let admin_chain = validator.get_chain(&ChainId::root(0));
+        let admin_chain = validator.get_chain(&validator.admin_chain_id());
         let meme_chain_0 = validator.new_chain().await;
         let meme_chain_1 = validator.new_chain().await;
         let user_chain = validator.new_chain().await;
@@ -126,18 +126,14 @@ impl TestSuite {
             .add_block(|block| {
                 block.with_native_token_transfer(
                     AccountOwner::CHAIN,
-                    Recipient::Account(self.chain_account(chain.clone())),
+                    self.chain_account(chain.clone()),
                     amount,
                 );
             })
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
-                    &certificate,
-                    &Medium::Direct,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
         chain.handle_received_messages().await;
@@ -315,7 +311,12 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
-    async fn create_pool(&self, chain: &ActiveChain, amount_0: Amount, amount_1: Amount) {
+    async fn create_pool(
+        &self,
+        chain: &ActiveChain,
+        amount_0: Amount,
+        amount_1: Amount,
+    ) -> Vec<ChainDescription> {
         chain
             .add_block(|block| {
                 block.with_operation(
@@ -332,12 +333,25 @@ impl TestSuite {
                 );
             })
             .await;
-        self.swap_chain.handle_received_messages().await;
+        let certificate = self.swap_chain.handle_received_messages_ext().await;
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         self.meme_chain_0.handle_received_messages().await;
         self.meme_chain_1.handle_received_messages().await;
+
+        assert!(certificate.is_some());
+
+        let certificate = certificate.unwrap();
+        let block = certificate.inner().block();
+        block
+            .created_blobs()
+            .into_iter()
+            .filter_map(|(blob_id, blob)| {
+                (blob_id.blob_type == BlobType::ChainDescription)
+                    .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+            })
+            .collect()
     }
 }
 
@@ -378,18 +392,23 @@ async fn meme_meme_pair_test() {
     // Check initial swap pool
     meme_chain_0.handle_received_messages().await;
     meme_chain_1.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
+    let certificate = swap_chain.handle_received_messages_ext().await;
+
+    assert!(certificate.is_some());
+
+    let certificate = certificate.unwrap();
+    let block = certificate.inner().block();
+    let descriptions: Vec<ChainDescription> = block
+        .created_blobs()
+        .into_iter()
+        .filter_map(|(blob_id, blob)| {
+            (blob_id.blob_type == BlobType::ChainDescription)
+                .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+        })
+        .collect();
 
     let mut maintained_chains = HashMap::new();
-    let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(
-            suite.swap_application_id.unwrap(),
-            "query { poolChainCreationMessages }",
-        )
-        .await;
-    for message in response["poolChainCreationMessages"].as_array().unwrap() {
-        let message_id = MessageId::from_str(message.as_str().unwrap()).unwrap();
-        let description = ChainDescription::Child(message_id);
+    for description in descriptions {
         let pool_chain =
             ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
         pool_chain.handle_received_messages().await;
@@ -476,19 +495,11 @@ async fn meme_meme_pair_test() {
         Amount::from_attos(1353000000000000000000000),
     );
 
-    suite
+    let descriptions = suite
         .create_pool(&user_chain, Amount::ONE, Amount::ONE)
         .await;
 
-    let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(
-            suite.swap_application_id.unwrap(),
-            "query { poolChainCreationMessages }",
-        )
-        .await;
-    for message in response["poolChainCreationMessages"].as_array().unwrap() {
-        let message_id = MessageId::from_str(message.as_str().unwrap()).unwrap();
-        let description = ChainDescription::Child(message_id);
+    for description in descriptions {
         let pool_chain =
             ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
         pool_chain.handle_received_messages().await;

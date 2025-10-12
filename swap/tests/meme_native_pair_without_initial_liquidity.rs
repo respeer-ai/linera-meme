@@ -18,9 +18,9 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, TestString,
+        ModuleId, TestString,
     },
-    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
+    test::{ActiveChain, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;
 
@@ -97,9 +97,8 @@ impl TestSuite {
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
+                block.with_messages_from_by_action(
                     &certificate,
-                    &Medium::Direct,
                     MessageAction::Accept,
                 );
             })
@@ -168,8 +167,13 @@ impl TestSuite {
         );
     }
 
-    async fn create_pool(&self, chain: &ActiveChain, amount_0: Amount, amount_1: Amount) {
-        chain
+    async fn create_pool(
+        &self,
+        chain: &ActiveChain,
+        amount_0: Amount,
+        amount_1: Amount,
+    ) -> ChainDescription {
+        let certificate = chain
             .add_block(|block| {
                 block.with_operation(
                     self.swap_application_id.unwrap(),
@@ -190,6 +194,17 @@ impl TestSuite {
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         self.meme_chain.handle_received_messages().await;
+
+        let block = certificate.inner().block();
+        block
+            .created_blobs()
+            .into_iter()
+            .filter_map(|(blob_id, blob)| {
+                (blob_id.blob_type == BlobType::ChainDescription)
+                    .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+            })
+            .next()
+            .unwrap();
     }
 }
 
@@ -229,31 +244,10 @@ async fn meme_native_pair_without_initial_liquidity_test() {
     swap_chain.handle_received_messages().await;
 
     // Only meme chain has meme balance right now
-    suite
+    let description = suite
         .create_pool(&meme_chain, Amount::ONE, Amount::ONE)
         .await;
 
-    let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(
-            suite.swap_application_id.unwrap(),
-            "query { poolChainCreationMessages }",
-        )
-        .await;
-    assert_eq!(
-        response["poolChainCreationMessages"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-
-    let message_id = MessageId::from_str(
-        response["poolChainCreationMessages"].as_array().unwrap()[0]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    let description = ChainDescription::Child(message_id);
     let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
     pool_chain.handle_received_messages().await;
 

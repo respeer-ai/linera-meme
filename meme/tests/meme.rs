@@ -18,7 +18,7 @@ use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, TestString,
     },
-    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
+    test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
 use std::str::FromStr;
 
@@ -46,7 +46,7 @@ impl TestSuite {
         >()
         .await;
 
-        let admin_chain = validator.get_chain(&ChainId::root(0));
+        let admin_chain = validator.get_chain(&validator.admin_chain_id());
         let meme_chain = validator.new_chain().await;
         let user_chain = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
@@ -93,16 +93,15 @@ impl TestSuite {
             .add_block(|block| {
                 block.with_native_token_transfer(
                     AccountOwner::CHAIN,
-                    Recipient::Account(self.chain_account(chain.clone())),
+                    self.chain_account(chain.clone()),
                     amount,
                 );
             })
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
+                block.with_messages_from_by_action(
                     &certificate,
-                    &Medium::Direct,
                     MessageAction::Accept,
                 );
             })

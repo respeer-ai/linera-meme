@@ -453,9 +453,9 @@ cd $OUTPUT_DIR
 
 docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
 docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
-docker stop maker-wallet kline maker
-docker rm maker-wallet kline maker
-docker rmi kline
+docker stop maker-wallet kline maker funder
+docker rm maker-wallet kline maker funder
+docker rmi kline funder
 
 LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
 

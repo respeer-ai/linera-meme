@@ -19,9 +19,9 @@ use abi::{
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, TestString,
+        ModuleId, TestString,
     },
-    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
+    test::{ActiveChain, MessageAction, QueryOutcome, Recipient, TestValidator},
 };
 use std::str::FromStr;
 
@@ -112,9 +112,8 @@ impl TestSuite {
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
+                block.with_messages_from_by_action(
                     &certificate,
-                    &Medium::Direct,
                     MessageAction::Accept,
                 );
             })

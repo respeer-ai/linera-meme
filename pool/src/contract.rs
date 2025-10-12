@@ -1284,8 +1284,7 @@ mod tests {
         )
         .unwrap();
         let creator = Account { chain_id, owner };
-        let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
-        let runtime = ContractRuntime::new()
+        let mut runtime = ContractRuntime::new()
             .with_application_parameters(PoolParameters {
                 creator,
                 token_0,
@@ -1300,8 +1299,10 @@ mod tests {
             .with_call_application_handler(mock_application_call)
             .with_application_creator_chain_id(chain_id)
             .with_system_time(0.into())
-            .with_message_id(message_id)
             .with_authenticated_signer(owner);
+
+        runtime.set_message_origin_chain_id(chain_id);
+
         let mut contract = PoolContract {
             state: PoolState::load(runtime.root_view_storage_context())
                 .blocking_wait()

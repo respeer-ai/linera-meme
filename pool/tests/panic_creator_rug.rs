@@ -25,12 +25,11 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainDescription, ChainId, CryptoHash,
-        MessageId, ModuleId, TestString,
+        Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, CryptoHash,
+        ModuleId, TestString,
     },
-    test::{ActiveChain, Medium, MessageAction, QueryOutcome, Recipient, TestValidator},
+    test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
-use std::str::FromStr;
 
 #[derive(Clone)]
 struct TestSuite {
@@ -60,7 +59,7 @@ impl TestSuite {
         >()
         .await;
 
-        let admin_chain = validator.get_chain(&ChainId::root(0));
+        let admin_chain = validator.get_chain(&validator.admin_chain_id());
         let meme_chain = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
 
@@ -103,18 +102,14 @@ impl TestSuite {
             .add_block(|block| {
                 block.with_native_token_transfer(
                     AccountOwner::CHAIN,
-                    Recipient::Account(self.chain_account(chain.clone())),
+                    self.chain_account(chain.clone()),
                     amount,
                 );
             })
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
-                    &certificate,
-                    &Medium::Direct,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
         chain.handle_received_messages().await;
@@ -250,30 +245,22 @@ async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
 
     // Check initial swap pool
     meme_chain.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
+    let certificate = swap_chain.handle_received_messages_ext().await;
 
-    let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(
-            suite.swap_application_id.unwrap(),
-            "query { poolChainCreationMessages }",
-        )
-        .await;
-    assert_eq!(
-        response["poolChainCreationMessages"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1,
-    );
+    assert!(certificate.is_some());
 
-    let message_id = MessageId::from_str(
-        response["poolChainCreationMessages"].as_array().unwrap()[0]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
+    let certificate = certificate.unwrap();
+    let block = certificate.inner().block();
+    let description = block
+        .created_blobs()
+        .into_iter()
+        .filter_map(|(blob_id, blob)| {
+            (blob_id.blob_type == BlobType::ChainDescription)
+                .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+        })
+        .next()
+        .unwrap();
 
-    let description = ChainDescription::Child(message_id);
     let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
 
     suite.validator.add_chain(pool_chain.clone());
