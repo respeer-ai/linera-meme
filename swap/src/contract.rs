@@ -846,7 +846,7 @@ mod tests {
         bcs,
         linera_base_types::{
             Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-            ChainOwnership, MessageId, ModuleId,
+            ChainOwnership, ModuleId,
         },
         util::BlockingWait,
         views::View,
@@ -951,7 +951,6 @@ mod tests {
         )
         .unwrap()
         .with_abi::<SwapAbi>();
-        let message_id = MessageId::from_str("dad01517c7a3c428ea903253a9e59964e8db06d323a9bd3f4c74d6366832bdbf801200000000000000000000").unwrap();
         let meme_1 = ApplicationId::from_str(
             "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
         )
@@ -992,7 +991,7 @@ mod tests {
             ChainOwnership::single(owner),
             permissions,
             Amount::from_tokens(1),
-            message_id,
+            chain_id,
         );
 
         let mut contract = SwapContract {
