@@ -4,4 +4,5 @@ services:
     container_name: linera-meme-webui
     ports:
       - "18080:80"
+    restart: always
 

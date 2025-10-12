@@ -13,3 +13,4 @@ services:
       SWAP_HOST: ${SWAP_HOST}
       PROXY_APPLICATION_ID: ${PROXY_APPLICATION_ID}
       PROXY_HOST: ${PROXY_HOST}
+    restart: always

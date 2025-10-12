@@ -7,3 +7,4 @@ services:
     command: [ "./wallet-entrypoint.sh" ]
     volumes:
       - ../wallet/maker/0:/wallet
+    restart: always
