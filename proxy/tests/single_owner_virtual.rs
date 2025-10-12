@@ -7,11 +7,11 @@
 
 use abi::policy::open_chain_fee_budget;
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, ChainDescription, MessageId},
+    linera_base_types::{Account, ApplicationId},
     test::{ActiveChain, QueryOutcome},
 };
 use serde_json::json;
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
 
 mod suite;
 use crate::suite::TestSuite;
@@ -91,27 +91,7 @@ async fn proxy_create_meme_virtual_initial_liquidity_single_owner_test() {
             open_chain_fee_budget().try_mul(2).unwrap(),
         )
         .await;
-    suite.create_meme_application(&meme_user_chain, true).await;
-
-    let QueryOutcome { response, .. } = proxy_chain
-        .graphql_query(
-            suite.proxy_application_id.unwrap(),
-            "query { memeChainCreationMessages }",
-        )
-        .await;
-    assert_eq!(
-        response["memeChainCreationMessages"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    let message_id = MessageId::from_str(
-        response["memeChainCreationMessages"].as_array().unwrap()[0]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
+    let description = suite.create_meme_application(&meme_user_chain, true).await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -124,7 +104,6 @@ async fn proxy_create_meme_virtual_initial_liquidity_single_owner_test() {
             .unwrap();
     assert_eq!(meme_application.is_none(), true);
 
-    let description = ChainDescription::Child(message_id);
     let meme_chain = ActiveChain::new(
         meme_user_key_pair.copy(),
         description,

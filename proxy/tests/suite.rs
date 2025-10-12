@@ -16,10 +16,10 @@ use abi::{
 };
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, ModuleId, TestString,
-        TimeoutConfig,
+        Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, CryptoHash,
+        ModuleId, TestString, TimeoutConfig,
     },
-    test::{ActiveChain, Medium, MessageAction, Recipient, TestValidator},
+    test::{ActiveChain, MessageAction, TestValidator},
 };
 
 #[derive(Clone)]
@@ -50,7 +50,7 @@ impl TestSuite {
         let (validator, proxy_bytecode_id) =
             TestValidator::with_current_module::<ProxyAbi, (), InstantiationArgument>().await;
 
-        let admin_chain = validator.get_chain(&ChainId::root(0));
+        let admin_chain = validator.get_chain(&validator.admin_chain_id());
         let proxy_chain = validator.new_chain().await;
         let meme_user_chain = validator.new_chain().await;
         let meme_miner_chain = validator.new_chain().await;
@@ -118,18 +118,14 @@ impl TestSuite {
             .add_block(|block| {
                 block.with_native_token_transfer(
                     AccountOwner::CHAIN,
-                    Recipient::Account(self.chain_account(chain.clone())),
+                    self.chain_account(chain.clone()),
                     amount,
                 );
             })
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
-                    &certificate,
-                    &Medium::Direct,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
         chain.handle_received_messages().await;
@@ -162,11 +158,7 @@ impl TestSuite {
             .await;
         self.proxy_chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
-                    &certificate,
-                    &Medium::Direct,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
     }
@@ -182,11 +174,7 @@ impl TestSuite {
             .await;
         self.proxy_chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
-                    &certificate,
-                    &Medium::Direct,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
     }
@@ -195,7 +183,7 @@ impl TestSuite {
         &self,
         chain: &ActiveChain,
         virtual_initial_liquidity: bool,
-    ) {
+    ) -> ChainDescription {
         let certificate = chain
             .add_block(|block| {
                 block.with_operation(
@@ -244,15 +232,23 @@ impl TestSuite {
                 );
             })
             .await;
-        self.proxy_chain
+        let certificate = self
+            .proxy_chain
             .add_block(move |block| {
-                block.with_messages_from_by_medium(
-                    &certificate,
-                    &Medium::Direct,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
+
+        let block = certificate.inner().block();
+        block
+            .created_blobs()
+            .into_iter()
+            .filter_map(|(blob_id, blob)| {
+                (blob_id.blob_type == BlobType::ChainDescription)
+                    .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+            })
+            .next()
+            .unwrap()
     }
 
     pub async fn change_ownership(&self, chain: &ActiveChain, owners: Vec<AccountOwner>) {

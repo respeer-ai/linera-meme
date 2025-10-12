@@ -100,10 +100,7 @@ impl TestSuite {
             .await;
         chain
             .add_block(move |block| {
-                block.with_messages_from_by_action(
-                    &certificate,
-                    MessageAction::Accept,
-                );
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
             })
             .await;
         chain.handle_received_messages().await;

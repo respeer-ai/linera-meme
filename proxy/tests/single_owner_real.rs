@@ -7,9 +7,7 @@
 
 use abi::{meme::MemeAbi, policy::open_chain_fee_budget, swap::pool::PoolAbi};
 use linera_sdk::{
-    linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainDescription, MessageId,
-    },
+    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription},
     test::{ActiveChain, QueryOutcome},
 };
 use pool::LiquidityAmount;
@@ -99,27 +97,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
                 .unwrap(),
         )
         .await;
-    suite.create_meme_application(&meme_user_chain, false).await;
-
-    let QueryOutcome { response, .. } = proxy_chain
-        .graphql_query(
-            suite.proxy_application_id.unwrap(),
-            "query { memeChainCreationMessages }",
-        )
-        .await;
-    assert_eq!(
-        response["memeChainCreationMessages"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    let message_id = MessageId::from_str(
-        response["memeChainCreationMessages"].as_array().unwrap()[0]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
+    let description = suite.create_meme_application(&meme_user_chain, false).await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -132,7 +110,6 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
             .unwrap();
     assert_eq!(meme_application.is_none(), true);
 
-    let description = ChainDescription::Child(message_id);
     let meme_chain = ActiveChain::new(
         meme_user_key_pair.copy(),
         description,
@@ -179,7 +156,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     );
 
     proxy_chain.handle_received_messages().await;
-    swap_chain.handle_received_messages().await;
+    let certificate = swap_chain.handle_received_messages_ext().await;
     meme_chain.handle_received_messages().await;
     proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
@@ -188,27 +165,21 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
 
+    assert!(certificate.is_some());
+
+    let certificate = certificate.unwrap();
+    let block = certificate.inner().block();
+    let description = block
+        .created_blobs()
+        .into_iter()
+        .filter_map(|(blob_id, blob)| {
+            (blob_id.blob_type == BlobType::ChainDescription)
+                .then(|| bcs::from_bytes::<ChainDescription>(blob.content().bytes()).unwrap())
+        })
+        .next()
+        .unwrap();
+
     // Check create liquidity
-    let QueryOutcome { response, .. } = swap_chain
-        .graphql_query(
-            suite.swap_application_id.unwrap(),
-            "query { poolChainCreationMessages }",
-        )
-        .await;
-    assert_eq!(
-        response["poolChainCreationMessages"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    let message_id = MessageId::from_str(
-        response["poolChainCreationMessages"].as_array().unwrap()[0]
-            .as_str()
-            .unwrap(),
-    )
-    .unwrap();
-    let description = ChainDescription::Child(message_id);
     let pool_chain = ActiveChain::new(swap_key_pair.copy(), description, suite.clone().validator);
 
     suite.validator.add_chain(pool_chain.clone());
