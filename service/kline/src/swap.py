@@ -3,7 +3,6 @@ import requests
 
 class Account:
     def __init__(self, _dict):
-        # self.chain_id = _dict['chain_id']
         self.chain_id = _dict['chainId']
         self.owner = _dict['owner']
         self.short_owner = self.owner[2:]
