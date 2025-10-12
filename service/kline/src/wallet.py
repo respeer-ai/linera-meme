@@ -77,11 +77,18 @@ class Wallet:
         os.makedirs(wallet_path)
 
         # Remove exists wallet
-        command = ['linera', 'wallet', 'init', '--faucet', self.faucet, '--with-new-chain']
+        command = ['linera', 'wallet', 'init', '--faucet', self.faucet]
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         output, errors = proc.communicate()
         if proc.returncode != 0 and errors != '':
             raise Exception(errors)
+
+        command = ['linera', 'wallet', 'request-chain', '--faucet', self.faucet]
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output, errors = proc.communicate()
+        if proc.returncode != 0 and errors != '':
+            raise Exception(errors)
+
         return(output.splitlines()[0])
 
 

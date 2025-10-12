@@ -116,7 +116,6 @@ class Swap:
                 print(f'Failed swap: {resp.text}')
         except:
             return []
-        print(f'Pool -> {resp.json()}')
         return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]
 
     def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
@@ -127,7 +126,6 @@ class Swap:
         }
         url = f'{self.base_url}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}'
         resp = requests.post(url=url, json=json)
-        print(f'TX -> {resp.json()}')
         return [Transaction(v) for v in resp.json()['data']['latestTransactions']]
 
     def get_swap_chain(self):

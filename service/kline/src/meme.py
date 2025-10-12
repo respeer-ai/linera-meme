@@ -15,7 +15,6 @@ class Meme:
 
         url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
         resp = requests.post(url=url, json=json)
-        print(f'Balance -> {resp.json()}')
         return resp.json()['data']['balanceOf']
 
     # chain_id: wallet chain id
