@@ -167,7 +167,7 @@ function wallet_owner() {
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | awk '{print $4}'
+           | grep AccountOwner | grep -v ' - ' | awk '{print $5}'
 }
 
 function wallet_chain_id() {
