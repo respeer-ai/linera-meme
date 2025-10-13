@@ -7,7 +7,6 @@ mod state;
 
 use abi::{
     meme::{MemeAbi, MemeOperation, MemeResponse},
-    policy::open_chain_fee_budget,
     swap::{
         pool::{
             InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters,
@@ -788,7 +787,7 @@ impl PoolContract {
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
                 let balance = self.runtime.owner_balance(application);
-                if balance < amount_1_out.try_add(open_chain_fee_budget())? {
+                if balance < amount_1_out {
                     self.refund_amount_in(origin, amount_0_in, amount_1_in);
                     return Err(PoolError::InsufficientFunds);
                 }
