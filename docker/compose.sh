@@ -464,9 +464,6 @@ mkdir $WALLET_DIR/maker/0 -p
 linera --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet init --faucet $FAUCET_URL
 linera --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet request-chain --faucet $FAUCET_URL
 
-cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
-
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
 DATABASE_PASSWORD=12345679
@@ -520,3 +517,8 @@ cp -v $ROOT_DIR/service/kline $DOCKER_DIR -rf
 run_mysql
 run_kline
 run_funder
+
+# Let maker to get wallet owner and chain firstly
+cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
+LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
+
