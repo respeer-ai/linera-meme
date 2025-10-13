@@ -55,6 +55,7 @@ class Trader:
         print(f'      Token0Price            {pool.token_0_price}')
         print(f'      Token1Price            {pool.token_1_price}')
         print(f'      BuyToken0              {buy_token_0}')
+        print(f'      DateTime               {time.time()}')
 
         if amount_0 is None and amount_1 is None:
             return
@@ -66,7 +67,7 @@ class Trader:
         for pool in pools:
             for i in range(3):
                 self.trade_in_pool(pool)
-                time.sleep(random.uniform(1,2))
+                time.sleep(random.uniform(1, 2))
 
         return random.uniform(49, 290)
 

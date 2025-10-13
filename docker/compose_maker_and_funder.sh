@@ -44,13 +44,11 @@ SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 function wallet_owner() {
     wallet_name=$1
     wallet_index=$2
-    set -x
     sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
            | grep AccountOwner | grep -v ' - ' | awk '{print $5}'
-    set +x
 }
 
 function wallet_chain_id() {

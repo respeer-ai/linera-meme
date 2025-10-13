@@ -64,20 +64,21 @@ export PATH=$BIN_DIR:$PATH
 function wallet_owner() {
     wallet_name=$1
     wallet_index=$2
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | awk '{print $4}' | grep '0x'
+           | grep AccountOwner | grep -v ' - ' | awk '{print $5}'
 }
 
 function wallet_chain_id() {
     wallet_name=$1
     wallet_index=$2
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep "Public Key" | grep -v " - " | awk '{print $2}'
+           | grep AccountOwner | grep -v " - " | awk '{print $2}'
 }
 
 function build_linera_respeer() {
