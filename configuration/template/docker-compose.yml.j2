@@ -8,4 +8,6 @@ services:
     command: [ "./wallet-entrypoint.sh" ]
     volumes:
       - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
+    environment:
+      RUST_LOG: warn
 {% endfor %}
