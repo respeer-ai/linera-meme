@@ -10,4 +10,5 @@ services:
       - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
     environment:
       RUST_LOG: warn
+    restart: always
 {% endfor %}
