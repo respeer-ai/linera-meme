@@ -47,17 +47,25 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
+# IMAGE_NAME=linera-respeer
+# REPO_NAME=linera-protocol-respeer
+# REPO_BRANCH=respeer-maas-testnet_conway-8125c640-2025-10-14
+
+IMAGE_NAME=linera
+REPO_NAME=linera-protocol
+REPO_BRANCH=testnet_conway
+
 cd $SOURCE_DIR
-rm linera-protocol-respeer -rf
-git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
-cd linera-protocol-respeer
-git checkout respeer-maas-testnet_conway-8125c640-2025-10-14
-git pull origin respeer-maas-testnet_conway-8125c640-2025-10-14
+rm $REPO_NAME -rf
+git clone https://github.com/respeer-ai/linera-protocol.git $REPO_NAME
+cd $REPO_NAME
+git checkout $REPO_BRANCH
+git pull origin $REPO_BRANCH
 
 GIT_COMMIT=$(git rev-parse --short HEAD)
-image_exists=`docker images | grep linera-respeer | wc -l`
+image_exists=`docker images | grep $IMAGE_NAME | wc -l`
 if [ "x$image_exists" != "x1" ]; then
-    docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t linera-respeer || exit 1
+    docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t $IMAGE_NAME || exit 1
 fi
 
 export PATH=$BIN_DIR:$PATH
@@ -439,10 +447,10 @@ echo '{' > $CONFIG_DIR/docker-compose.json
 echo '  "services": [' >> $CONFIG_DIR/docker-compose.json
 
 # Run services
-run_services blob-gateway 20080 0 linera-respeer
-run_services ams 21080 1 linera-respeer
-run_services swap 22080 1 linera-respeer
-run_services proxy 23080 1 linera-respeer
+run_services blob-gateway 20080 0 $IMAGE_NAME
+run_services ams 21080 1 $IMAGE_NAME
+run_services swap 22080 1 $IMAGE_NAME
+run_services proxy 23080 1 $IMAGE_NAME
 
 echo '  ]' >> $CONFIG_DIR/docker-compose.json
 echo '}' >> $CONFIG_DIR/docker-compose.json
@@ -457,7 +465,7 @@ docker stop maker-wallet kline maker funder
 docker rm maker-wallet kline maker funder
 docker rmi kline funder
 
-LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
+LINERA_IMAGE=$IMAGE_NAME docker compose -f config/docker-compose.yml up --wait
 
 rm $WALLET_DIR/maker/0 -rf
 mkdir $WALLET_DIR/maker/0 -p
@@ -520,5 +528,5 @@ run_funder
 
 # Let maker to get wallet owner and chain firstly
 cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
+LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
 
