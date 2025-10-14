@@ -51,8 +51,8 @@ cd $SOURCE_DIR
 rm linera-protocol-respeer -rf
 git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
 cd linera-protocol-respeer
-git checkout respeer-maas-testnet_conway-5b3242c9-2025-10-02
-git pull origin respeer-maas-testnet_conway-5b3242c9-2025-10-02
+git checkout respeer-maas-testnet_conway-8125c640-2025-10-14
+git pull origin respeer-maas-testnet_conway-8125c640-2025-10-14
 
 GIT_COMMIT=$(git rev-parse --short HEAD)
 image_exists=`docker images | grep linera-respeer | wc -l`
