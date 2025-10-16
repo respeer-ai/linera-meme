@@ -9,7 +9,7 @@ FAUCET_URL=https://faucet.testnet-conway.linera.net
 CHAIN_OWNER_COUNT=4
 CLUSTER=testnet-conway
 
-options="f:z:"
+options="f:z:C:"
 
 while getopts $options opt; do
   case ${opt} in
@@ -47,23 +47,46 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
-# IMAGE_NAME=linera-respeer
-# REPO_NAME=linera-protocol-respeer
-# REPO_BRANCH=respeer-maas-testnet_conway-8125c640-2025-10-14
+WALLET_IMAGE_NAME=linera-respeer
 
-IMAGE_NAME=linera
-REPO_NAME=linera-protocol
-REPO_BRANCH=testnet_conway
+IMAGE_NAME=linera-respeer
+REPO_NAME=linera-protocol-respeer
+REPO_BRANCH=respeer-maas-testnet_conway-f0fad6aa-2025-10-16
+REPO_URL=https://github.com/respeer-ai/linera-protocol.git
+
+# IMAGE_NAME=linera
+# REPO_NAME=linera-protocol
+# REPO_BRANCH=testnet_conway
+# REPO_URL=https://github.com/linera-io/linera-protocol.git
+# COPY_TARGET=1
 
 cd $SOURCE_DIR
 rm $REPO_NAME -rf
-git clone https://github.com/respeer-ai/linera-protocol.git $REPO_NAME
+git clone $REPO_URL $REPO_NAME
 cd $REPO_NAME
 git checkout $REPO_BRANCH
 git pull origin $REPO_BRANCH
 
+if [ "x$COPY_TARGET" = "x1" ]; then
+    cd ..
+    rm linera-protocol-respeer -rf
+    git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
+    cd linera-protocol-respeer
+    git checkout respeer-maas-testnet_conway-f0fad6aa-2025-10-16
+    git pull origin respeer-maas-testnet_conway-f0fad6aa-2025-10-16
+    cp -v docker/* $SOURCE_DIR/$REPO_NAME/docker -rf
+    cp -v configuration/* $SOURCE_DIR/$REPO_NAME/configuration -rf
+    cd $SOURCE_DIR/$REPO_NAME
+fi
+
+docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
+docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
+docker stop maker-wallet kline maker funder
+docker rm maker-wallet kline maker funder
+docker rmi kline funder
+
 GIT_COMMIT=$(git rev-parse --short HEAD)
-image_exists=`docker images | grep $IMAGE_NAME | wc -l`
+image_exists=`docker images | grep "$IMAGE_NAME  " | wc -l`
 if [ "x$image_exists" != "x1" ]; then
     docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t $IMAGE_NAME || exit 1
 fi
@@ -459,12 +482,6 @@ jinja -d ${CONFIG_DIR}/docker-compose.json $COMPOSE_TEMPLATE_FILE > ${CONFIG_DIR
 
 cd $OUTPUT_DIR
 
-docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
-docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
-docker stop maker-wallet kline maker funder
-docker rm maker-wallet kline maker funder
-docker rmi kline funder
-
 LINERA_IMAGE=$IMAGE_NAME docker compose -f config/docker-compose.yml up --wait
 
 rm $WALLET_DIR/maker/0 -rf
@@ -507,7 +524,7 @@ function run_funder() {
     docker stop funder
     docker rm funder
 
-    image_exists=`docker images | grep funder | wc -l`
+    image_exists=`docker images | grep "funder " | wc -l`
     if [ "x$image_exists" != "x1" ]; then
         cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
         docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
@@ -528,5 +545,5 @@ run_funder
 
 # Let maker to get wallet owner and chain firstly
 cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
+LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
 
