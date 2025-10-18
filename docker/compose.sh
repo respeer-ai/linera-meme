@@ -83,7 +83,7 @@ docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{p
 docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
 docker stop maker-wallet kline maker funder
 docker rm maker-wallet kline maker funder
-docker rmi kline # funder
+docker rmi kline funder
 
 GIT_COMMIT=$(git rev-parse --short HEAD)
 image_exists=`docker images | grep "$IMAGE_NAME  " | wc -l`
