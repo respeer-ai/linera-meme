@@ -16,7 +16,7 @@ COPY docker/kline kline
 
 WORKDIR kline
 
-RUN pip install uvicorn[standard]
+RUN pip3 install uvicorn[standard]
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 RUN pip3 install -e .
