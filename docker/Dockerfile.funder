@@ -10,8 +10,6 @@ ENV PROXY_APPLICATION_ID=${proxy_application_id}
 ENV SWAP_HOST=${swap_host}
 ENV PROXY_HOST=${proxy_host}
 
-COPY docker/kline kline
-
 RUN apt update -y
 RUN apt install -y \
         build-essential \
@@ -29,6 +27,8 @@ RUN apt install -y \
 RUN wget https://www.python.org/ftp/python/3.10.16/Python-3.10.16.tgz
 RUN tar xzf Python-3.10.16.tgz
 RUN cd Python-3.10.16 && ./configure --enable-optimizations && make altinstall
+
+COPY docker/kline kline
 
 WORKDIR kline
 

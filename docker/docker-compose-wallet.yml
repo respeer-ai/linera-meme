@@ -7,4 +7,6 @@ services:
     command: [ "./wallet-entrypoint.sh" ]
     volumes:
       - ../wallet/maker/0:/wallet
+    environment:
+      RUST_LOG: warn
     restart: always

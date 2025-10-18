@@ -72,6 +72,7 @@ class Wallet:
         shutil.rmtree(wallet_path, ignore_errors=True)
 
         os.environ['LINERA_WALLET'] = f'{wallet_path}/wallet.json'
+        os.environ['LINERA_KEYSTORE'] = f'{wallet_path}/keystore.json'
         os.environ['LINERA_STORAGE'] = f'rocksdb://{wallet_path}/client.db'
 
         os.makedirs(wallet_path)
@@ -94,6 +95,7 @@ class Wallet:
 
     def transfer_with_cli(self, from_chain_id, to_chain_id, amount):
         os.environ['LINERA_WALLET'] = f'{self.wallet_path}/{self.wallet_index}/wallet.json'
+        os.environ['LINERA_KEYSTORE'] = f'{self.wallet_path}/{self.wallet_index}/keystore.json'
         os.environ['LINERA_STORAGE'] = f'rocksdb://{self.wallet_path}/{self.wallet_index}/client.db'
 
         command = ['linera', 'transfer', '--from', from_chain_id, '--to', to_chain_id, amount]

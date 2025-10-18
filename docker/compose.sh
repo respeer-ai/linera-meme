@@ -6,7 +6,7 @@
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
-CHAIN_OWNER_COUNT=4
+CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 
 options="f:z:C:"
@@ -83,7 +83,7 @@ docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{p
 docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
 docker stop maker-wallet kline maker funder
 docker rm maker-wallet kline maker funder
-docker rmi kline funder
+docker rmi kline # funder
 
 GIT_COMMIT=$(git rev-parse --short HEAD)
 image_exists=`docker images | grep "$IMAGE_NAME  " | wc -l`
@@ -297,28 +297,28 @@ function create_application() {
     chain_id=$5
 
     if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --keystore $WALLET_DIR/$wallet_name/1/keystore.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-argument "$argument" \
                --json-parameters "$parameters"
     elif [ "x$argument" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --keystore $WALLET_DIR/$wallet_name/1/keystore.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-argument "$argument"
     elif [ "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --keystore $WALLET_DIR/$wallet_name/1/keystore.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-parameters "$parameters"
     else
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --keystore $WALLET_DIR/$wallet_name/1/keystore.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id
     fi
 }
@@ -341,9 +341,9 @@ function change_multi_owner_chain_single_leader() {
     shift 2
 
     owners=("$@")
-    linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-        --keystore $WALLET_DIR/$wallet_name/1/keystore.json \
-        --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+    linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+        --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+        --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
         change-ownership \
         --chain-id $chain_id \
         --owners ${owners[@]} \
