@@ -6,7 +6,7 @@
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
-CHAIN_OWNER_COUNT=1
+CHAIN_OWNER_COUNT=4
 CLUSTER=testnet-conway
 
 options="f:z:C:"

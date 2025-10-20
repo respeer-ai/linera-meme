@@ -36,6 +36,10 @@ class Wallet:
         except:
             return 0
 
+        if resp.ok is not True:
+            print(f'{self.wallet_url}, {json} -> {resp.reason}')
+            return 0
+
         if 'data' not in resp.json():
             return 0
 

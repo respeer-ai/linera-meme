@@ -19,6 +19,10 @@ class Balance:
         except Exception as e:
             return {}
 
+        if resp.ok is not True:
+            print(f'{self.rpc_endpoint}, {payload} -> {resp.reason}')
+            return {}
+
         if 'data' not in resp.json():
             return {}
 
