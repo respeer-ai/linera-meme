@@ -251,6 +251,19 @@ class Db:
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
         df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
 
+        # 处理 OHLC 与 volume
+        last_close = None
+        for idx, row in df_interval.iterrows():
+            if row['volume'] == 0 and last_close is not None:
+                # 没有成交量时，保持上一条收盘价
+                if last_close is not None:
+                    df_interval.at[idx, 'open'] = last_close
+                    df_interval.at[idx, 'high'] = last_close
+                    df_interval.at[idx, 'low'] = last_close
+                    df_interval.at[idx, 'close'] = last_close
+            else:
+                last_close = row['close']
+
         json_data = []
         for index, row in df_interval.iterrows():
             json_data.append({
