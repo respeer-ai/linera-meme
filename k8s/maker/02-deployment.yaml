@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maker-wallet-service
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: maker-wallet-service
+  template:
+    metadata:
+      labels:
+        app: maker-wallet-service
+    spec:
+      initContainers:
+      - name: init-wallet
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          if [ ! -f /wallet/wallet.json ]; then
+            echo "No wallet found, creating..."
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net > /shared-app-data/MAKER_WALLET_CHAIN_OWNER
+          else
+            echo "Wallet already exists, skipping init."
+          fi
+        volumeMounts:
+        - name: maker-wallet
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      containers:
+      - name: maker-wallet-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c", "./wallet-entrypoint.sh"]
+        env:
+        - name: RUST_LOG
+          value: warn
+        volumeMounts:
+        - name: maker-wallet
+          mountPath: /wallet
+      volumes:
+      - name: maker-wallet
+        persistentVolumeClaim:
+          claimName: maker-wallet-pvc
+      - name: shared-app-data
+        persistentVolumeClaim:
+          claimName: shared-app-data
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maker-service
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: maker-service
+  template:
+    metadata:
+      labels:
+        app: maker-service
+    spec:
+      initContainers:
+      - name: wait-wallet
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            curl http://maker-wallet:8080
+            if [ $? -eq 0 -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER ]; then
+              exit 0
+            fi
+            sleep 10
+          done
+        volumeMounts:
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      containers:
+      - name: maker-service
+        image: npool/kline:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | head -n 1)
+          OWNER=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | tail -n 1)
+          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 WALLET_HOST=maker-wallet:8080 WALLET_CHAIN=$CHAIN_ID WALLET_OWNER=$OWNER ./maker-entrypoint.sh
+        env:
+        - name: RUST_LOG
+          value: warn
+        volumeMounts:
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      volumes:
+      - name: shared-app-data
+        persistentVolumeClaim:
+          claimName: shared-app-data
+

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: kube-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # storageClassName: ebs-storageclass // when multi storageclass exist,you can sepcify
+  resources:
+    requests:
+      storage: 4Gi
+

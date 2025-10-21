@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funder-service
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: funder-service
+  template:
+    metadata:
+      labels:
+        app: funder-service
+    spec:
+      containers:
+      - name: funder-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          PROXY_APPLICATION_ID=$(cat /shared-app-data/PROXY_APPLICATION_ID)
+          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 ./funder-entrypoint.sh
+        env:
+        - name: RUST_LOG
+          value: warn
+        volumeMounts:
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      volumes:
+      - name: shared-app-data
+        persistentVolumeClaim:
+          claimName: shared-app-data
+

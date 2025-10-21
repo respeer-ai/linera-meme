@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kline-service
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kline-service
+  template:
+    metadata:
+      labels:
+        app: kline-service
+    spec:
+      containers:
+      - name: kline-service
+        image: npool/kline:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 ./kline-entrypoint.sh
+        env:
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: DATABASE_PASSWORD
+        - name: DATABASE_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mysql-config
+              key: DATABASE_DATABASE
+        - name: DATABASE_USER
+          valueFrom:
+            configMapKeyRef:
+              name: mysql-config
+              key: DATABASE_USER
+        - name: DATABASE_PORT
+          value: 3306
+        - name: DATABASE_HOST
+          value: mysql-service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kline-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: kline-service
+      port: 25080
+      targetPort: 25080
+  selector:
+    app: kline-service
