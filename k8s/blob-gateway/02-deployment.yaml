@@ -141,7 +141,7 @@ spec:
           mountPath: /wallet
         - name: shared-app-data
           mountPath: /shared-app-data
-      - name: process-inbox-2
+      - name: process-inbox-1
         image: npool/linera-respeer:latest
         imagePullPolicy: Always
         command:
@@ -173,7 +173,7 @@ spec:
           mountPath: /wallet
         - name: shared-app-data
           mountPath: /shared-app-data
-      - name: process-inbox-1
+      - name: process-inbox-2
         image: npool/linera-respeer:latest
         imagePullPolicy: Always
         command:
