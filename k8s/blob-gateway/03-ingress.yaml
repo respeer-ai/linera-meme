@@ -1,11 +1,11 @@
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
-  name: faucet-ingress
+  name: blob-gateway-ingress
   namespace: kube-system
   annotations:
-    k8s.kuboard.cn/displayName: faucet-service
-    k8s.kuboard.cn/workload: faucet-service
+    k8s.kuboard.cn/displayName: blob-gateway-service
+    k8s.kuboard.cn/workload: blob-gateway-service
     kubernetes.io/ingress.class: "traefik-internet"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure, web
     traefik.ingress.kubernetes.io/router.middlewares:
@@ -16,14 +16,14 @@ metadata:
 spec:
   tls:
     - hosts:
-        - '*.testnet-conway.faucet.respeer.ai'
-        - testnet-conway.faucet.respeer.ai
-      secretName: testnet-conway-faucet-respeer-ai-tls
+        - '*.testnet-conway.blobgateway.com'
+        - testnet-conway.blobgateway.com
+      secretName: testnet-conway-blobgateway-com-tls
   rules:
-    - host: api.testnet-conway.faucet.respeer.ai
+    - host: api.testnet-conway.blobgateway.com
       http:
         paths:
-          - path: /api/faucet
+          - path: /api/blobs
             backend:
-              serviceName: faucet-service
-              servicePort: 31080
+              serviceName: blob-gateway-service
+              servicePort: 8080
