@@ -1,0 +1,7 @@
+FROM npool/linera-respeer:latest
+
+ARG git_commit
+ENV GIT_COMMIT=${git_commit}
+
+RUN mkdir -p /bytecodes
+COPY target/wasm32-unknown-unknown/release/*.wasm /bytescodes
