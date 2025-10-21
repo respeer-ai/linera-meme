@@ -1,0 +1,249 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: proxy-service
+  namespace: kube-system
+spec:
+  serviceName: proxy-service
+  replicas: 5
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: proxy-service
+  template:
+    metadata:
+      labels:
+        app: proxy-service
+    spec:
+      initContainers:
+      - name: init-wallet
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/PROXY_WALLET_OWNER.$POD_INDEX ]; then
+            echo "No wallet found, creating..."
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
+            OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
+            echo $OWNER > /shared-app-data/PROXY_WALLET_OWNER.$POD_INDEX
+          else
+            echo "Wallet already exists, skipping init."
+          fi
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: request-chain
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ $POD_INDEX -eq 0 ]; then
+            CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | wc -l)
+            rm -rf /shared-app-data/PROXY_CREATOR_WALLET_CHAIN_ID
+            if [ $CHAINS -eq 0 -o ! -f /shared-app-data/PROXY_CREATOR_WALLET_CHAIN_ID ]; then
+              echo "No chain found in creator wallet, requesting ..."
+              CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net | head -n 1)
+              echo $CHAIN_ID > /shared-app-data/PROXY_CREATOR_WALLET_CHAIN_ID
+            else
+              echo "Chain already exists, skipping init."
+            fi
+          fi
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: publish-bytecode
+        image: npool/linera-meme:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/PROXY_MODULE_ID ]; then
+            echo "Publishing bytecode ..."
+            MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/proxy_{contract,service}.wasm)
+            MEME_MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/meme_{contract,service}.wasm)
+            echo $MODULE_ID > /shared-app-data/PROXY_MODULE_ID
+            echo $MEME_MODULE_ID > /shared-app-data/MEME_MODULE_ID
+          fi
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: open-multi-owners-chain
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          while [ ! -f /shared-app-data/PROXY_CREATOR_WALLET_CHAIN_ID ]; do
+            sleep 10
+          done
+          CHAIN_ID=$(cat /shared-app-data/PROXY_CREATOR_WALLET_CHAIN_ID)
+          OWNERS=''
+          for f in /shared-app-data/PROXY_WALLET_OWNER.*; do
+            OWNER=$(cat "$f" | tr -d '\n')
+            OWNERS="$OWNERS --owners $OWNER"
+          done
+          if [ $POD_INDEX -eq 0 -o ! -f /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID ]; then
+            echo "Open multi owners chain..."
+            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "20.0")
+            echo $CHAIN_ID > /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID
+          fi
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: assign-multi-owners-chain
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          while [ ! -f /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID ]; do
+            sleep 10
+          done
+          CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
+          OWNER=$(cat /shared-app-data/PROXY_WALLET_OWNER.$POD_INDEX)
+          echo "Assign multi owners chain..."
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db assign --owner $OWNER --chain-id $CHAIN_ID
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: set-multi-owners-chain-default
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
+          echo "Set multi owners chain default..."
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet set-default $CHAIN_ID
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: process-inbox-1
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Processing inbox..."
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+      - name: create-application
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
+          while [ ! -f /shared-app-data/PROXY_MODULE_ID -o ! -f /shared-app-data/SWAP_APPLICATION_ID ]; do
+            sleep 10
+          done
+          MODULE_ID=$(cat /shared-app-data/PROXY_MODULE_ID)
+          MEME_MODULE_ID=$(cat /shared-app-data/MEME_MODULE_ID)
+          SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          echo "Creating application..."
+          APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application $MODULE_ID $CHAIN_ID --json-argument "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}")
+          echo $APPLICATION_ID > /shared-app-data/PROXY_APPLICATION_ID
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: process-inbox-2
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Processing inbox..."
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+      - name: change-multi-owners-chain-single-leader
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
+          OWNERS=''
+          for f in /shared-app-data/PROXY_WALLET_OWNER.*; do
+            OWNER=$(cat "$f" | tr -d '\n')
+            OWNERS="$OWNERS --owners $OWNER"
+          done
+          echo "Change multi owners chain to single leader..."
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID $OWNERS --multi-leader-rounds 0
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      containers:
+      - name: proxy-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c", "./wallet-entrypoint.sh"]
+        env:
+        - name: RUST_LOG
+          value: warn
+        volumeMounts:
+        - name: proxy-pvc
+          mountPath: /wallet
+      volumes:
+      - name: shared-app-data
+        persistentVolumeClaim:
+          claimName: shared-app-data
+  volumeClaimTemplates:
+    - metadata:
+        name: proxy-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 4Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: proxy-service
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: proxy-service

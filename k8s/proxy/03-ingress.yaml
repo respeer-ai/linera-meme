@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: proxy-ingress
+  namespace: kube-system
+  annotations:
+    k8s.kuboard.cn/displayName: proxy-service
+    k8s.kuboard.cn/workload: proxy-service
+    kubernetes.io/ingress.class: "traefik-internet"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure, web
+    traefik.ingress.kubernetes.io/router.middlewares:
+      kube-system-http-redirect-https@kubernetescrd,
+      kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-common-headers@kubernetescrd
+
+spec:
+  tls:
+    - hosts:
+        - '*.testnet-conway.linerameme.fun'
+        - testnet-conway.linerameme.fun
+      secretName: testnet-conway-linerameme-fun-tls
+  rules:
+    - host: api.testnet-conway.linerameme.fun
+      http:
+        paths:
+          - path: /api/proxy
+            backend:
+              serviceName: proxy-service
+              servicePort: 8080

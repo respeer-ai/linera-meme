@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: swap-ingress
+  namespace: kube-system
+  annotations:
+    k8s.kuboard.cn/displayName: swap-service
+    k8s.kuboard.cn/workload: swap-service
+    kubernetes.io/ingress.class: "traefik-internet"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure, web
+    traefik.ingress.kubernetes.io/router.middlewares:
+      kube-system-http-redirect-https@kubernetescrd,
+      kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-common-headers@kubernetescrd
+
+spec:
+  tls:
+    - hosts:
+        - '*.testnet-conway.lineraswap.fun'
+        - testnet-conway.lineraswap-fun
+      secretName: testnet-conway-lineraswap-fun-tls
+  rules:
+    - host: api.testnet-conway.lineraswap.fun
+      http:
+        paths:
+          - path: /api/swap
+            backend:
+              serviceName: swap-service
+              servicePort: 8080

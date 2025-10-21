@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: ams-ingress
+  namespace: kube-system
+  annotations:
+    k8s.kuboard.cn/displayName: ams-service
+    k8s.kuboard.cn/workload: ams-service
+    kubernetes.io/ingress.class: "traefik-internet"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure, web
+    traefik.ingress.kubernetes.io/router.middlewares:
+      kube-system-http-redirect-https@kubernetescrd,
+      kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-common-headers@kubernetescrd
+
+spec:
+  tls:
+    - hosts:
+        - '*.testnet-conway.ams.respeer.ai'
+        - testnet-conway.ams.respeer.ai
+      secretName: testnet-conway-ams-respeer-ai-tls
+  rules:
+    - host: api.testnet-conway.ams.respeer.ai
+      http:
+        paths:
+          - path: /api/ams
+            backend:
+              serviceName: ams-service
+              servicePort: 8080
