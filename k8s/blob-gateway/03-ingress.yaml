@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: faucet-ingress
+  namespace: kube-system
+  annotations:
+    k8s.kuboard.cn/displayName: faucet-service
+    k8s.kuboard.cn/workload: faucet-service
+    kubernetes.io/ingress.class: "traefik-internet"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure, web
+    traefik.ingress.kubernetes.io/router.middlewares:
+      kube-system-http-redirect-https@kubernetescrd,
+      kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-common-headers@kubernetescrd
+
+spec:
+  tls:
+    - hosts:
+        - '*.testnet-conway.faucet.respeer.ai'
+        - testnet-conway.faucet.respeer.ai
+      secretName: testnet-conway-faucet-respeer-ai-tls
+  rules:
+    - host: api.testnet-conway.faucet.respeer.ai
+      http:
+        paths:
+          - path: /api/faucet
+            backend:
+              serviceName: faucet-service
+              servicePort: 31080
