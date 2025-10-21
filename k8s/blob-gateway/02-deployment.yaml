@@ -5,7 +5,8 @@ metadata:
   namespace: kube-system
 spec:
   serviceName: blob-gateway-service
-  replicas: 1
+  replicas: 5
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: blob-gateway-service
@@ -86,6 +87,9 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          while [ ! -f /shared-app-data/BLOB_GATEWAY_CREATOR_WALLET_CHAIN_ID ]; do
+            sleep 10
+          done
           CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_CREATOR_WALLET_CHAIN_ID)
           OWNERS=''
           for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
@@ -110,6 +114,9 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          while [ ! -f /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID ]; do
+            sleep 10
+          done
           CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID)
           OWNER=$(cat /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX)
           echo "Assign multi owners chain..."
@@ -154,6 +161,9 @@ spec:
         - -c
         - |
           CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID)
+          while [ ! -f /shared-app-data/BLOB_GATEWAY_MODULE_ID ]; do
+            sleep 10
+          done
           MODULE_ID=$(cat /shared-app-data/BLOB_GATEWAY_MODULE_ID)
           echo "Creating application..."
           APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application $MODULE_ID $CHAIN_ID)
