@@ -8,7 +8,4 @@ helm install aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver --namespac
 
 # Create mysql secret
 
-kubectl create secret generic mysql-secret \
-  --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" \
-  --from-literal=MYSQL_PASSWORD="$MYSQL_PASSWORD" \
-  --namespace kube-system
+kubectl create secret generic mysql-secret --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" --from-literal=MYSQL_PASSWORD="$MYSQL_PASSWORD" --namespace kube-system
