@@ -11,6 +11,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares:
       kube-system-http-redirect-https@kubernetescrd,
       kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-strip-ams-prefix@kubernetescrd,
       kube-system-common-headers@kubernetescrd
 
 spec:
@@ -23,7 +24,7 @@ spec:
     - host: api.testnet-conway.ams.respeer.ai
       http:
         paths:
-          - path: /api/ams
+          - path: /
             backend:
               serviceName: ams-service
               servicePort: 8080

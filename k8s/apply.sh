@@ -18,6 +18,7 @@ for service in $SERVICES; do
     sleep 10
   done
 
+  kubectl apply -f $service/01-strip-prefix.yaml
   kubectl apply -f $service/02-deployment.yaml
   kubectl apply -f $service/03-ingress.yaml
 

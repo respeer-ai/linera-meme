@@ -1,0 +1,9 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-blob-gateway-prefix
+  namespace: kube-system
+spec:
+  stripPrefix:
+    prefixes:
+      - /api/blobs

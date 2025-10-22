@@ -11,6 +11,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares:
       kube-system-http-redirect-https@kubernetescrd,
       kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-strip-swap-prefix@kubernetescrd,
       kube-system-common-headers@kubernetescrd
 
 spec:
@@ -23,7 +24,7 @@ spec:
     - host: api.testnet-conway.lineraswap.fun
       http:
         paths:
-          - path: /api/swap
+          - path: /
             backend:
               serviceName: swap-service
               servicePort: 8080

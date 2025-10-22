@@ -11,6 +11,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares:
       kube-system-http-redirect-https@kubernetescrd,
       kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-strip-blob-gateway-prefix@kubernetescrd,
       kube-system-common-headers@kubernetescrd
 
 spec:
@@ -21,9 +22,9 @@ spec:
       secretName: testnet-conway-blobgateway-com-tls
   rules:
     - host: api.testnet-conway.blobgateway.com
-      http:
+      http: &http_rules
         paths:
-          - path: /api/blobs
+          - path: /
             backend:
               serviceName: blob-gateway-service
               servicePort: 8080
