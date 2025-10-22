@@ -80,7 +80,7 @@ spec:
             fi
             if [ ! -f /shared-app-data/BLOB_GATEWAY_MODULE_ID -o -z $MODULE_ID ]; then
               echo "Publishing bytecode ..."
-              MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/blob_gateway_{contract,service}.wasm)
+              MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/blob_gateway_contract.wasm /bytecodes/blob_gateway_service.wasm)
               echo $MODULE_ID > /shared-app-data/BLOB_GATEWAY_MODULE_ID
             fi
           fi
@@ -115,7 +115,7 @@ spec:
           done
           if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID ]; then
             echo "Open multi owners chain..."
-            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "20.0")
+            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
             echo $CHAIN_ID > /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID
           fi
         volumeMounts:
@@ -165,6 +165,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
@@ -179,6 +180,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID)
           while [ ! -f /shared-app-data/BLOB_GATEWAY_MODULE_ID -o -z $MODULE_ID ]; do
             MODULE_ID=$(cat /shared-app-data/BLOB_GATEWAY_MODULE_ID)
@@ -206,6 +208,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox

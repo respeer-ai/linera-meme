@@ -31,6 +31,7 @@ spec:
             mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
             rm -rf /wallet/client.db
             rm -rf /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
+            rm -rf /shared-app-data/AMS_APPLICATION_ID
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
             OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
             echo $OWNER > /shared-app-data/AMS_WALLET_OWNER.$POD_INDEX
@@ -73,10 +74,15 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/AMS_MODULE_ID ]; then
-            echo "Publishing bytecode ..."
-            MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/ams_{contract,service}.wasm)
-            echo $MODULE_ID > /shared-app-data/AMS_MODULE_ID
+          if [ $POD_INDEX -eq 0 ]; then
+            if [ -f /shared-app-data/AMS_MODULE_ID ]; then
+              MODULE_ID=$(cat /shared-app-data/AMS_MODULE_ID)
+            fi
+            if [ ! -f /shared-app-data/AMS_MODULE_ID -o -z $MODULE_ID ]; then
+              echo "Publishing bytecode ..."
+              MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/ams_contract.wasm /bytecodes/ams_service.wasm)
+              echo $MODULE_ID > /shared-app-data/AMS_MODULE_ID
+            fi
           fi
         volumeMounts:
         - name: ams-pvc
@@ -109,7 +115,7 @@ spec:
           done
           if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; then
             echo "Open multi owners chain..."
-            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "20.0")
+            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
             echo $CHAIN_ID > /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
           fi
         volumeMounts:
@@ -174,14 +180,22 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
-          while [ ! -f /shared-app-data/AMS_MODULE_ID ]; do
+          while [ ! -f /shared-app-data/AMS_MODULE_ID -o -z $MODULE_ID ]; do
+            MODULE_ID=$(cat /shared-app-data/AMS_MODULE_ID)
             sleep 10
           done
-          MODULE_ID=$(cat /shared-app-data/AMS_MODULE_ID)
-          echo "Creating application..."
-          APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application $MODULE_ID $CHAIN_ID)
-          echo $APPLICATION_ID > /shared-app-data/AMS_APPLICATION_ID
+          if [ $POD_INDEX -eq 0 ]; then
+            if [ -f /shared-app-data/AMS_APPLICATION_ID ]; then
+              APPLICATION_ID=$(cat /shared-app-data/AMS_APPLICATION_ID)
+            fi
+            if [ ! -f /shared-app-data/AMS_APPLICATION_ID -o -z $APPLICATION_ID ]; then
+              echo "Creating application..."
+              APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application --json-argument '{}' $MODULE_ID $CHAIN_ID)
+              echo $APPLICATION_ID > /shared-app-data/AMS_APPLICATION_ID
+            fi
+          fi
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
@@ -194,6 +208,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox

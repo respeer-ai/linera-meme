@@ -31,6 +31,7 @@ spec:
             mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
             rm -rf /wallet/client.db
             rm -rf /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID
+            rm -rf /shared-app-data/SWAP_APPLICATION_ID
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
             OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
             echo $OWNER > /shared-app-data/SWAP_WALLET_OWNER.$POD_INDEX
@@ -73,12 +74,18 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/SWAP_MODULE_ID ]; then
-            echo "Publishing bytecode ..."
-            MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/swap_{contract,service}.wasm)
-            POOL_MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/pool_{contract,service}.wasm)
-            echo $MODULE_ID > /shared-app-data/SWAP_MODULE_ID
-            echo $POOL_MODULE_ID > /shared-app-data/POOL_MODULE_ID
+          if [ $POD_INDEX -eq 0 ]; then
+            if [ -f /shared-app-data/SWAP_MODULE_ID -a -f /shared-app-data/POOL_MODULE_ID ]; then
+              MODULE_ID=$(cat /shared-app-data/SWAP_MODULE_ID)
+              POOL_MODULE_ID=$(cat /shared-app-data/POOL_MODULE_ID)
+            fi
+            if [ ! -f /shared-app-data/SWAP_MODULE_ID -o -z "$MODULE_ID" -o ! -f /shared-app-data/POOL_MODULE_ID -o -z "$POOL_MODULE_ID" ]; then
+              echo "Publishing bytecode ..."
+              MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/swap_contract.wasm /bytecodes/swap_service.wasm)
+              POOL_MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/pool_contract.wasm /bytecodes/pool_service.wasm)
+              echo $MODULE_ID > /shared-app-data/SWAP_MODULE_ID
+              echo $POOL_MODULE_ID > /shared-app-data/POOL_MODULE_ID
+            fi
           fi
         volumeMounts:
         - name: swap-pvc
@@ -111,7 +118,7 @@ spec:
           done
           if [ $POD_INDEX -eq 0 -o ! -f /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID ]; then
             echo "Open multi owners chain..."
-            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "20.0")
+            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
             echo $CHAIN_ID > /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID
           fi
         volumeMounts:
@@ -146,7 +153,10 @@ spec:
         - /bin/sh
         - -c
         - |
-          CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
+          while [ ! -f /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID -o -z $CHAIN_ID ]; do
+            CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
+            sleep 10
+          done
           echo "Set multi owners chain default..."
           ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet set-default $CHAIN_ID
         volumeMounts:
@@ -161,6 +171,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
@@ -176,14 +187,20 @@ spec:
         - -c
         - |
           CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
-          while [ ! -f /shared-app-data/SWAP_MODULE_ID -o ! -f /shared-app-data/POOL_MODULE_ID ]; do
+          while [ ! -f /shared-app-data/SWAP_MODULE_ID -o ! -f /shared-app-data/POOL_MODULE_ID -o -z "$MODULE_ID" -o -z "$POOL_MODULE_ID" ]; do
+            MODULE_ID=$(cat /shared-app-data/SWAP_MODULE_ID)
+            POOL_MODULE_ID=$(cat /shared-app-data/POOL_MODULE_ID)
             sleep 10
           done
-          MODULE_ID=$(cat /shared-app-data/SWAP_MODULE_ID)
-          POOL_MODULE_ID=$(cat /shared-app-data/POOL_MODULE_ID)
-          echo "Creating application..."
-          APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application $MODULE_ID $CHAIN_ID --json-argument "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}")
-          echo $APPLICATION_ID > /shared-app-data/SWAP_APPLICATION_ID
+          SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          if [ -f /shared-app-data/SWAP_APPLICATION_ID ]; then
+            APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          fi
+          if [ ! -f /shared-app-data/SWAP_APPLICATION_ID -o -z $APPLICATION_ID ]; then
+            echo "Creating application..."
+            APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application $MODULE_ID $CHAIN_ID --json-argument "{\"pool_bytecode_id\": \"$POOL_MODULE_ID\"}" --json-parameters '{}')
+            echo $APPLICATION_ID > /shared-app-data/SWAP_APPLICATION_ID
+          fi
         volumeMounts:
         - name: swap-pvc
           mountPath: /wallet
@@ -196,6 +213,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox

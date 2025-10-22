@@ -3,6 +3,7 @@
 kubectl apply -f 00-shared-app-data-pvc.yaml
 
 SERVICES="blob-gateway ams swap proxy"
+SERVICES="proxy"
 
 for service in $SERVICES; do
   kubectl delete -f $service/02-deployment.yaml
