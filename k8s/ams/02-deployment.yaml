@@ -25,7 +25,12 @@ spec:
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/AMS_WALLET_OWNER.$POD_INDEX ]; then
-            echo "No wallet found, creating..."
+            echo "No wallet found in pod $POD_INDEX, creating..."
+            now=$(date -u | sed 's/ //g')
+            mkdir -p /wallet/backup/$now
+            mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
+            rm -rf /wallet/client.db
+            rm -rf /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
             OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
             echo $OWNER > /shared-app-data/AMS_WALLET_OWNER.$POD_INDEX
@@ -47,7 +52,6 @@ spec:
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | wc -l)
-            rm -rf /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID
             if [ $CHAINS -eq 0 -o ! -f /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID ]; then
               echo "No chain found in creator wallet, requesting ..."
               CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net | head -n 1)
@@ -87,16 +91,23 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          while [ ! -f /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID ]; do
+          while [ ! -f /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID -o -z $CHAIN_ID ]; do
+            CHAIN_ID=$(cat /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID)
             sleep 10
           done
-          CHAIN_ID=$(cat /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID)
+          while true; do
+            count=$(ls /shared-app-data/AMS_WALLET_OWNER.* -l | wc -l)
+            if [ $count -eq 5 ]; then
+              break
+            fi
+            sleep 10
+          done
           OWNERS=''
           for f in /shared-app-data/AMS_WALLET_OWNER.*; do
             OWNER=$(cat "$f" | tr -d '\n')
             OWNERS="$OWNERS --owners $OWNER"
           done
-          if [ $POD_INDEX -eq 0 -o ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; then
+          if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; then
             echo "Open multi owners chain..."
             CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "20.0")
             echo $CHAIN_ID > /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
@@ -114,7 +125,8 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          while [ ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; do
+          while [ ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID -o -z $CHAIN_ID ]; do
+            CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
             sleep 10
           done
           CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
@@ -148,8 +160,10 @@ spec:
         - /bin/sh
         - -c
         - |
-          echo "Processing inbox..."
-          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
+          if [ $POD_INDEX -eq 0 ]; then
+            echo "Processing inbox..."
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
+          fi
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
@@ -180,8 +194,10 @@ spec:
         - /bin/sh
         - -c
         - |
-          echo "Processing inbox..."
-          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
+          if [ $POD_INDEX -eq 0 ]; then
+            echo "Processing inbox..."
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
+           fi
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
@@ -199,8 +215,10 @@ spec:
             OWNER=$(cat "$f" | tr -d '\n')
             OWNERS="$OWNERS --owners $OWNER"
           done
-          echo "Change multi owners chain to single leader..."
-          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID $OWNERS --multi-leader-rounds 0
+          if [ $POD_INDEX -eq 0 ]; then
+            echo "Change multi owners chain to single leader..."
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID $OWNERS --multi-leader-rounds 0
+          fi
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
@@ -217,6 +235,8 @@ spec:
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:
