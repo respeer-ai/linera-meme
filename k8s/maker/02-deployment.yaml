@@ -111,7 +111,7 @@ spec:
           SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
           CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | head -n 1)
           OWNER=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | tail -n 1)
-          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 WALLET_HOST=maker-wallet:8080 WALLET_CHAIN=$CHAIN_ID WALLET_OWNER=$OWNER ./maker-entrypoint.sh
+          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 WALLET_HOST=maker-wallet-service:8080 WALLET_CHAIN=$CHAIN_ID WALLET_OWNER=$OWNER ./maker-entrypoint.sh
         env:
         - name: RUST_LOG
           value: warn
