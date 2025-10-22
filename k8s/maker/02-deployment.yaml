@@ -21,7 +21,7 @@ spec:
         - /bin/sh
         - -c
         - |
-          if [ ! -f /wallet/wallet.json ]; then
+          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER ]; then
             echo "No wallet found, creating..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net > /shared-app-data/MAKER_WALLET_CHAIN_OWNER
@@ -52,6 +52,19 @@ spec:
         persistentVolumeClaim:
           claimName: shared-app-data
 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maker-wallet-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: maker-wallet-service
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: maker-wallet-service
 
 ---
 apiVersion: apps/v1
@@ -78,8 +91,8 @@ spec:
         - -c
         - |
           while true; do
-            curl http://maker-wallet:8080
-            if [ $? -eq 0 -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER ]; then
+            curl http://maker-wallet-service:8080
+            if [ $? -eq 0 -a -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER ]; then
               exit 0
             fi
             sleep 10

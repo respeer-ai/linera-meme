@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: funder-service
-        image: npool/linera-respeer:latest
+        image: npool/funder:latest
         imagePullPolicy: Always
         command:
         - /bin/sh
