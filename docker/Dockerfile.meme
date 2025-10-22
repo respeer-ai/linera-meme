@@ -4,4 +4,18 @@ ARG git_commit
 ENV GIT_COMMIT=${git_commit}
 
 RUN mkdir -p /bytecodes
-COPY target/wasm32-unknown-unknown/release/*.wasm /bytescodes
+
+COPY ./target/wasm32-unknown-unknown/release/ams_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/ams_service.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/blob_gateway_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/blob_gateway_service.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/deposit_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/deposit_service.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/meme_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/meme_service.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/pool_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/pool_service.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/proxy_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/proxy_service.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/swap_contract.wasm /bytecodes/
+COPY ./target/wasm32-unknown-unknown/release/swap_service.wasm /bytecodes/

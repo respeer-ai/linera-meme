@@ -65,7 +65,7 @@ cd $OUTPUT_DIR
 
 docker stop kline maker funder
 docker rm kline maker funder
-docker rmi kline funder
+docker rmi kline funder npool/kline npool/funder
 
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
@@ -97,7 +97,7 @@ function run_funder() {
     docker stop funder
     docker rm funder
 
-    image_exists=`docker images | grep funder | wc -l`
+    image_exists=`docker images | grep "^funder " | wc -l`
     if [ "x$image_exists" != "x1" ]; then
         cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
         docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
