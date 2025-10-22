@@ -1,4 +1,5 @@
 import requests
+from environment import running_in_k8s
 
 
 class Account:
@@ -98,7 +99,7 @@ class Swap:
         self.host = host
         self.chain_id = None
         self.application_id = None
-        self.base_url = f'http://{host}/api/swap'
+        self.base_url = f'http://{host}' + '/api/swap' if !running_in_k8s() else ''
         self.chain = None
         self.application = application_id if len(application_id) > 0 else None
         self.wallet = wallet

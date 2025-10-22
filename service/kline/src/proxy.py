@@ -1,4 +1,5 @@
 import requests
+from environment import running_in_k8s
 
 class MemeApplication:
     def __init__(self, dict):
@@ -9,7 +10,7 @@ class MemeApplication:
 class Proxy:
     def __init__(self, host, application_id, wallet):
         self.host = host
-        self.base_url = f'http://{host}/api/proxy'
+        self.base_url = f'http://{host}' + '/api/proxy' if !running_in_k8s() else ''
         self.application = application_id if len(application_id) > 0 else None
         self.wallet = wallet
         self.chain = None

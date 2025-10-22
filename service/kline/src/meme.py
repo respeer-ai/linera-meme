@@ -1,10 +1,11 @@
 import requests
+from environment import running_in_k8s
 
 class Meme:
     def __init__(self, host, wallet):
         self.host = host
         self.wallet = wallet
-        self.base_url = f'http://{host}/api/proxy'
+        self.base_url = f'http://{host}' + '/api/proxy' if !running_in_k8s() else ''
 
     # chain_id: token creator chain id
     # token: token application id

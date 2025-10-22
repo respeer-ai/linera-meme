@@ -28,21 +28,28 @@ spec:
           valueFrom:
             secretKeyRef:
               name: mysql-secret
-              key: DATABASE_PASSWORD
-        - name: DATABASE_DATABASE
+              key: MYSQL_PASSWORD
+        - name: DATABASE_NAME
           valueFrom:
             configMapKeyRef:
               name: mysql-config
-              key: DATABASE_DATABASE
+              key: MYSQL_DATABASE
         - name: DATABASE_USER
           valueFrom:
             configMapKeyRef:
               name: mysql-config
-              key: DATABASE_USER
+              key: MYSQL_USER
         - name: DATABASE_PORT
-          value: 3306
+          value: "3306"
         - name: DATABASE_HOST
           value: mysql-service
+        volumeMounts:
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      volumes:
+      - name: shared-app-data
+        persistentVolumeClaim:
+          claimName: shared-app-data
 
 ---
 apiVersion: v1

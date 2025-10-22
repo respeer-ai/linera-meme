@@ -11,6 +11,7 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares:
       kube-system-http-redirect-https@kubernetescrd,
       kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-strip-kline-prefix@kubernetescrd,
       kube-system-common-headers@kubernetescrd
 
 spec:
