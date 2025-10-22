@@ -29,6 +29,7 @@ wait_pods() {
     if [ $count -eq $replicas ]; then
       break
     fi
+    echo "Waiting for $pod_name be $status"
     sleep 10
   done
 }
