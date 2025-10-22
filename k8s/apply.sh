@@ -3,11 +3,15 @@
 kubectl apply -f 00-shared-app-data-pvc.yaml
 
 SERVICES="blob-gateway ams swap proxy"
-SERVICES="proxy"
 
-if [ -z "$MYSQL_ROOT_PASSWORD" -o -z "$MYSQL_PASSWORD" ]; then
-  echo "Error: SET MYSQL_ROOT_PASSWORD AND MYSQL_PASSWORD"
-  exit 1
+count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
+if [ $count -eq 0 ]; then
+  if [ -z "$MYSQL_ROOT_PASSWORD" -o -z "$MYSQL_PASSWORD" ]; then
+    echo "Error: SET MYSQL_ROOT_PASSWORD AND MYSQL_PASSWORD"
+    exit 1
+  fi
+
+  kubectl create secret generic mysql-secret --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" --from-literal=MYSQL_PASSWORD="$MYSQL_PASSWORD" --namespace kube-system
 fi
 
 for service in $SERVICES; do
@@ -38,11 +42,6 @@ for service in $SERVICES; do
 
   wait_pods ${service}-service 5 Running
 done
-
-count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
-if [ $count -eq 0 ]; then
-  kubectl create secret generic mysql-secret --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" --from-literal=MYSQL_PASSWORD="$MYSQL_PASSWORD" --namespace kube-system
-fi
 
 kubectl delete -f mysql/02-deployment.yaml
 

@@ -52,7 +52,7 @@ spec:
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
-            CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | wc -l)
+            CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | grep -v ' - ' | wc -l)
             if [ $CHAINS -eq 0 -o ! -f /shared-app-data/BLOB_GATEWAY_CREATOR_WALLET_CHAIN_ID ]; then
               echo "No chain found in creator wallet, requesting ..."
               CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net | head -n 1)
@@ -113,10 +113,15 @@ spec:
             OWNER=$(cat "$f" | tr -d '\n')
             OWNERS="$OWNERS --owners $OWNER"
           done
-          if [ $POD_INDEX -eq 0 -a ! -f /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID ]; then
-            echo "Open multi owners chain..."
-            CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
-            echo $CHAIN_ID > /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID
+          if [ -f /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID ]; then
+            MULTI_OWNER_CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID)
+          fi
+          if [ $POD_INDEX -eq 0 ]; then
+            if [ ! -f /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID -o -z $MULTI_OWNER_CHAIN_ID ]; then
+              echo "Open multi owners chain..."
+              CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
+              echo $CHAIN_ID > /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID
+            fi
           fi
         volumeMounts:
         - name: blob-gateway-pvc
