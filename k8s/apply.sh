@@ -88,3 +88,31 @@ wait_pods maker-wallet-service 1 Running
 ## Replace CHAIN_ID and APPLICATION_ID in webui
 ####
 echo "Please submit webui, generate docker images then apply webui separately"
+
+BLOB_GATEWAY_CHAIN_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID | tr -d '\r\n')
+BLOB_GATEWAY_APPLICATION_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/BLOB_GATEWAY_APPLICATION_ID | tr -d '\r\n')
+
+AMS_CHAIN_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID | tr -d '\r\n')
+AMS_APPLICATION_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/AMS_APPLICATION_ID | tr -d '\r\n')
+
+PROXY_CHAIN_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID | tr -d '\r\n')
+PROXY_APPLICATION_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/PROXY_APPLICATION_ID | tr -d '\r\n')
+
+SWAP_CHAIN_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID | tr -d '\r\n')
+SWAP_APPLICATION_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- cat /shared-app-data/SWAP_APPLICATION_ID | tr -d '\r\n')
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR=$SCRIPT_DIR/..
+DOMAIN_FILE="${ROOT_DIR}/webui/src/constant/domain.ts"
+
+cat <<EOF > $DOMAIN_FILE
+export const SUB_DOMAIN = 'testnet-conway.'
+export const BLOB_GATEWAY_CHAIN_ID = '$BLOB_GATEWAY_CHAIN_ID'
+export const BLOB_GATEWAY_APPLICATION_ID = '$BLOB_GATEWAY_APPLICATION_ID'
+export const AMS_CHAIN_ID = '$AMS_CHAIN_ID'
+export const AMS_APPLICATION_ID = '$AMS_APPLICATION_ID'
+export const PROXY_CHAIN_ID = '$PROXY_CHAIN_ID'
+export const PROXY_APPLICATION_ID = '$PROXY_APPLICATION_ID'
+export const SWAP_CHAIN_ID = '$SWAP_CHAIN_ID'
+export const SWAP_APPLICATION_ID = '$SWAP_APPLICATION_ID'
+EOF
