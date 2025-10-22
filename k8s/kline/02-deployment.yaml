@@ -21,6 +21,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          sleep 10000
           SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
           SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 ./kline-entrypoint.sh
         env:
