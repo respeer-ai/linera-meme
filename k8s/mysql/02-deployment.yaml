@@ -17,7 +17,11 @@ spec:
       - name: mysql-service
         image: mysql:8
         imagePullPolicy: IfNotPresent
-        command: ["mysqld", "--mysql-native-password=ON"]
+        command:
+        - /bin/sh
+        - -c
+        - |
+          /usr/local/bin/docker-entrypoint.sh mysqld --mysql-native-password=ON
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:

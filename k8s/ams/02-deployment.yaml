@@ -197,7 +197,7 @@ spec:
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
-           fi
+          fi
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet

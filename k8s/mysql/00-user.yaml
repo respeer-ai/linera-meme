@@ -4,6 +4,6 @@ metadata:
   name: mysql-config
   namespace: kube-system
 data:
-  MYSQL_DATABASE: "linera-kline"
-  MYSQL_USER: "root"
+  MYSQL_DATABASE: "linera_kline"
+  MYSQL_USER: "linera-swap"
 
