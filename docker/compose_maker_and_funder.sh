@@ -108,9 +108,14 @@ function run_funder() {
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
 
-
 cd $OUTPUT_DIR
 cp -v $ROOT_DIR/service/kline $DOCKER_DIR -rf
 
 run_kline
 run_funder
+
+docker tag kline:latest docker.io/npool/kline:latest
+docker tag funder:latest docker.io/npool/funder:latest
+docker push docker.io/npool/kline:latest
+docker push docker.io/npool/funder:latest
+
