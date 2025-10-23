@@ -52,7 +52,7 @@ kubectl apply -f mysql/00-user.yaml
 kubectl apply -f mysql/01-pvc.yaml
 kubectl apply -f mysql/02-deployment.yaml
 
-wait_pods msyql-service 1 Running
+wait_pods mysql-service 1 Running
 
 kubectl delete -f kline/02-deployment.yaml
 kubectl delete -f kline/03-ingress.yaml

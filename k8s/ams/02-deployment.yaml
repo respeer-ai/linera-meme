@@ -116,7 +116,7 @@ spec:
           if [ -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; then
             MULTI_OWNER_CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
           fi
-          if [ $POD_INDEX -eq 0]; then
+          if [ $POD_INDEX -eq 0 ]; then
             if [ ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID -o -z $MULTI_OWNER_CHAIN_ID ]; then
               echo "Open multi owners chain..."
               CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
