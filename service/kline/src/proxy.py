@@ -22,7 +22,7 @@ class Proxy:
         json = {
             'query': 'query {\n chains {\n default\n }\n}'
         }
-        resp = requests.post(url=self.base_url, json=json)
+        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
         self.chain = resp.json()['data']['chains']['default']
         print('---------------------------------------------------------------------------------------------------------')
         print(f'       Proxy chain: {self.chain}')
@@ -34,7 +34,7 @@ class Proxy:
         }
         url = f'{self.base_url}/chains/{self.chain}/applications/{application_id}'
         try:
-            resp = requests.post(url=url, json=json)
+            resp = requests.post(url=url, json=json, timeout=(3, 10))
             return 'errors' not in resp.json()
         except Exception as e:
             return False
@@ -43,7 +43,7 @@ class Proxy:
         json = {
             'query': f'query {{\n applications(chainId:"{self.chain}") {{\n id\n }}\n}}'
         }
-        resp = requests.post(url=self.base_url, json=json)
+        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
 
         application_ids = [v['id'] for v in resp.json()['data']['applications']]
         for application_id in application_ids:
@@ -62,7 +62,7 @@ class Proxy:
         }
         url = f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
         try:
-            resp = requests.post(url=url, json=json)
+            resp = requests.post(url=url, json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed proxy: {resp.text}')
         except Exception as e:

@@ -32,7 +32,7 @@ class Wallet:
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         try:
-            resp = requests.post(self.wallet_url, json=json)
+            resp = requests.post(self.wallet_url, json=json, timeout=(3, 10))
         except:
             return 0
 
@@ -63,7 +63,7 @@ class Wallet:
             }} }}'''
         }
 
-        resp = requests.post(url=self.faucet, json=payload)
+        resp = requests.post(url=self.faucet, json=payload, timeout=(3, 10))
         if 'data' not in resp.json():
             raise Exception('Failed open chain')
 

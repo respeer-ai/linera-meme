@@ -15,7 +15,7 @@ class Meme:
         }
 
         url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
-        resp = requests.post(url=url, json=json)
+        resp = requests.post(url=url, json=json, timeout=(3, 10))
         if resp.ok is not True:
             print(f'{url}, {json} -> {resp.reason}')
             return None
@@ -29,7 +29,7 @@ class Meme:
         }
 
         url = f'{self.wallet._wallet_url()}/chains/{chain_id}/applications/{token}'
-        resp = requests.post(url=url, json=json)
+        resp = requests.post(url=url, json=json, timeout=(3, 10))
         if resp.ok is not True:
             print(f'{url}, {json} -> {resp.reason}')
             return None

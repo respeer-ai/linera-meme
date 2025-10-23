@@ -15,7 +15,7 @@ class Balance:
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         try:
-            resp = requests.post(self.rpc_endpoint, json=payload)
+            resp = requests.post(self.rpc_endpoint, json=payload, timeout=(3, 10))
         except Exception as e:
             return {}
 

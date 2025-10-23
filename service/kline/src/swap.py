@@ -87,7 +87,7 @@ class Pool:
             'query': f'mutation {{\n swap(amount1In: "{amount_1}") \n}}'
         }
         try:
-            resp = requests.post(url=self.wallet_application_url(), json=json)
+            resp = requests.post(url=self.wallet_application_url(), json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed swap: {resp.text}')
         except:
@@ -112,7 +112,7 @@ class Swap:
             'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
         }
         try:
-            resp = requests.post(url=self.application_url(), json=json)
+            resp = requests.post(url=self.application_url(), json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed swap: {resp.text}')
         except:
@@ -126,14 +126,14 @@ class Swap:
             'query': f'query {{\n latestTransactions \n}}'
         }
         url = f'{self.base_url}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}'
-        resp = requests.post(url=url, json=json)
+        resp = requests.post(url=url, json=json, timeout=(3, 10))
         return [Transaction(v) for v in resp.json()['data']['latestTransactions']]
 
     def get_swap_chain(self):
         json = {
             'query': 'query {\n chains {\n default\n }\n}'
         }
-        resp = requests.post(url=self.base_url, json=json)
+        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
         self.chain = resp.json()['data']['chains']['default']
         print('---------------------------------------------------------------------------------------------------------')
         print(f'       Swap chain: {self.chain}')
@@ -145,7 +145,7 @@ class Swap:
         }
         url = f'{self.base_url}/chains/{self.chain}/applications/{application_id}'
         try:
-            resp = requests.post(url=url, json=json)
+            resp = requests.post(url=url, json=json, timeout=(3, 10))
             return 'errors' not in resp.json()
         except Exception as e:
             return False
@@ -154,7 +154,7 @@ class Swap:
         json = {
             'query': f'query {{\n applications(chainId:"{self.chain}") {{\n id\n }}\n}}'
         }
-        resp = requests.post(url=self.base_url, json=json)
+        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
 
         application_ids = [v['id'] for v in resp.json()['data']['applications']]
         for application_id in application_ids:
