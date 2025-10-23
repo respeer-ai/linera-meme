@@ -28,7 +28,7 @@ WEBUI_DIR=$SCRIPT_DIR/../webui
 # Cleanup before building
 docker stop linera-meme-webui
 docker rm linera-meme-webui
-docker rmi linera-meme-webui
+docker rmi linera-meme-webui npool/linera-meme-webui
 
 NGINX_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 
@@ -41,10 +41,12 @@ fi
 yarn build
 docker build --no-cache -f Dockerfile -t linera-meme-webui . || exit 1
 
+docker tag linera-meme-webui:latest docker.io/npool/linera-meme-webui:latest
+docker push npool/linera-meme-webui:latest
+
 cd $SCRIPT_DIR
 # Compose up webui
 docker compose -f docker-compose-webui.yml up --wait
-
 
 function generate_nginx_conf() {
   port_base=$1
