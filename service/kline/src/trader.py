@@ -39,6 +39,9 @@ class Trader:
         token_0_balance = self.meme.balance(account, token_0_chain, pool.token_0)
         token_1_balance = self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1)
 
+        if pool.token_1 is None and token_1_balance < 0.1:
+            buy_token_0 = False
+
         (amount_0, amount_1) = self.trade_amounts(pool, buy_token_0, token_0_balance, token_1_balance)
 
         print('    Swap in pool ---------------------------------')
