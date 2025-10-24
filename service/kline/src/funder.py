@@ -5,7 +5,7 @@ from swap import Swap
 from wallet import Wallet
 from trader import Trader
 from proxy import Proxy
-from feeder import Feeder
+from feeder import Feeder, MakerWallet
 
 
 if __name__ == '__main__':
@@ -15,6 +15,8 @@ if __name__ == '__main__':
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--proxy-host', type=str, default='api.linerameme.fun', help='Host of proxy service')
     parser.add_argument('--proxy-application-id', type=str, default='', help='Proxy application id')
+    parser.add_argument('--maker-wallet-host', type=str, default='maker-wallet-service:8080', help='Host of maker wallet service')
+    parser.add_argument('--maker-wallet-chain-id', type=str, default='', help='Maker wallet chain ID')
     parser.add_argument('--wallet-host', type=str, default='localhost:30081', help='Host of wallet service')
     parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
     parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
@@ -32,5 +34,7 @@ if __name__ == '__main__':
     _proxy.get_proxy_chain()
     _proxy.get_proxy_application()
 
-    _feeder = Feeder(_swap, _proxy, _wallet)
+    maker_wallet = MakerWallet(args.maker_wallet_host, args.maker_wallet_chain_id)
+
+    _feeder = Feeder(_swap, _proxy, maker_wallet, _wallet)
     _feeder.run()

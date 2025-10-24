@@ -23,7 +23,8 @@ spec:
         - |
           SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
           PROXY_APPLICATION_ID=$(cat /shared-app-data/PROXY_APPLICATION_ID)
-          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 ./funder-entrypoint.sh
+          MAKER_WALLET_CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | head -n 1)
+        SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 MAKER_WALLET_HOST=maker-wallet-service:8080 MAKER_WALLET_CHAIN_ID=$MAKER_WALLET_CHAIN_ID ./funder-entrypoint.sh
         env:
         - name: RUST_LOG
           value: warn

@@ -8,5 +8,5 @@ services:
     volumes:
       - ../wallet/maker/0:/wallet
     environment:
-      RUST_LOG: warn
+      RUST_LOG: info
     restart: always

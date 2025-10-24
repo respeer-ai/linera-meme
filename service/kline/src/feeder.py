@@ -1,10 +1,16 @@
 from balance import Balance
 import time
 
+class MakerWallet:
+    def __init__(self, host, chain_id):
+        self.host = f'http://{host}'
+        self.chain_id = chain_id
+
 class Feeder:
-    def __init__(self, swap, proxy, wallet):
+    def __init__(self, swap, proxy, maker_wallet, wallet):
         self.swap = swap
         self.proxy = proxy
+        self.maker_wallet = maker_wallet
         self.wallet = wallet
         self.threshold = 10
 
@@ -67,6 +73,22 @@ class Feeder:
                 except:
                     continue
 
+        balances = Balance(self.maker_wallet.host).chain_balances([self.maker_wallet.chain_id])
+        for chain_id, balance in balances.items():
+            if balance < self.threshold:
+                if funded_chains % 5 == 0:
+                    # Claim new chain
+                    try:
+                        funder_chain_id = self.wallet.open_chain_with_cli()
+                    except Exception as e:
+                        print(f'Failed open chain: {e}')
+                        time.sleep(30)
+                        continue
+                try:
+                    self.feed_chain(funder_chain_id, chain_id)
+                    funded_chains += 1
+                except:
+                    continue
 
     def run(self):
         while True:

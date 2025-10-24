@@ -36,11 +36,20 @@ class Trader:
         token_0_chain = self.meme.creator_chain_id(wallet_chain, pool.token_0)
         token_1_chain = self.meme.creator_chain_id(wallet_chain, pool.token_1) if pool.token_1 is not None else None
 
-        token_0_balance = self.meme.balance(account, token_0_chain, pool.token_0)
-        token_1_balance = self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1)
+        token_0_balance = float(self.meme.balance(account, token_0_chain, pool.token_0))
+        token_1_balance = float(self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1))
 
-        if pool.token_1 is None and token_1_balance < 0.1:
+        if self.wallet.balance() < 0.001:
+            print('Maker wallet balance is not enough for gas, please fund it')
+            return
+
+        if pool.token_1 is None and token_1_balance < 0.01:
+            if token_0_balance < 10:
+                print('Cannot exchange any more, please fund maker wallet')
+                return
             buy_token_0 = False
+        if token_0_balance < 10:
+            buy_token_0 = True
 
         (amount_0, amount_1) = self.trade_amounts(pool, buy_token_0, token_0_balance, token_1_balance)
 

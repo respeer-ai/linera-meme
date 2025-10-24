@@ -105,6 +105,7 @@ function run_funder() {
 
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+      MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$(wallet_chain_id maker 0) \
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
 
