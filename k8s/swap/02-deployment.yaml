@@ -256,7 +256,7 @@ spec:
         command: ["/bin/sh", "-c", "./wallet-entrypoint.sh"]
         env:
         - name: RUST_LOG
-          value: warn
+          value: info
         volumeMounts:
         - name: swap-pvc
           mountPath: /wallet

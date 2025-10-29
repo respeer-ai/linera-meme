@@ -40,7 +40,7 @@ spec:
         command: ["/bin/sh", "-c", "./wallet-entrypoint.sh"]
         env:
         - name: RUST_LOG
-          value: warn
+          value: info
         volumeMounts:
         - name: maker-wallet
           mountPath: /wallet
