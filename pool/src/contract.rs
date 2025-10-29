@@ -736,7 +736,11 @@ impl PoolContract {
         if let Some(amount_0_out_min) = amount_0_out_min {
             if amount_0_out < amount_0_out_min {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
-                log::warn!("Amount 0 out {} less than minimum {}", amount_0_out, amount_0_out_min);
+                log::warn!(
+                    "Amount 0 out {} less than minimum {}",
+                    amount_0_out,
+                    amount_0_out_min
+                );
                 return Err(PoolError::InvalidAmount);
             }
         }
@@ -749,19 +753,31 @@ impl PoolContract {
         if let Some(amount_1_out_min) = amount_1_out_min {
             if amount_1_out < amount_1_out_min {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
-                log::warn!("Amount 1 out {} less than minimum {}", amount_1_out, amount_1_out_min);
+                log::warn!(
+                    "Amount 1 out {} less than minimum {}",
+                    amount_1_out,
+                    amount_1_out_min
+                );
                 return Err(PoolError::InvalidAmount);
             }
         }
 
         if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
             self.refund_amount_in(origin, amount_0_in, amount_1_in);
-            log::warn!("Amount 0 in {:?} > 0 but amount 1 out {} is ZERO", amount_0_in, amount_1_out);
+            log::warn!(
+                "Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
+                amount_0_in,
+                amount_1_out
+            );
             return Err(PoolError::InvalidAmount);
         }
         if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
             self.refund_amount_in(origin, amount_0_in, amount_1_in);
-            log::warn!("Amount 1 in {:?} > 0 but amount 0 out {} is ZERO", amount_1_in, amount_0_out);
+            log::warn!(
+                "Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
+                amount_1_in,
+                amount_0_out
+            );
             return Err(PoolError::InvalidAmount);
         }
         if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
@@ -778,7 +794,11 @@ impl PoolContract {
             Ok(_) => {}
             Err(err) => {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
-                log::warn!("Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}", amount_0_out, amount_1_out);
+                log::warn!(
+                    "Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
+                    amount_0_out,
+                    amount_1_out
+                );
                 return Err(err);
             }
         }
@@ -795,7 +815,11 @@ impl PoolContract {
                 let balance = self.runtime.owner_balance(application);
                 if balance < amount_1_out {
                     self.refund_amount_in(origin, amount_0_in, amount_1_in);
-                    log::warn!("Application balance {} less than amount 1 out {}", balance, amount_1_out);
+                    log::warn!(
+                        "Application balance {} less than amount 1 out {}",
+                        balance,
+                        amount_1_out
+                    );
                     return Err(PoolError::InsufficientFunds);
                 }
                 self.runtime.transfer(application, to, amount_1_out);
