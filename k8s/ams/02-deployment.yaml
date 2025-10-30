@@ -171,6 +171,7 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
             echo "Processing inbox..."
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox
