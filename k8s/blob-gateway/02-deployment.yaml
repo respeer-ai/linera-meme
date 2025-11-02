@@ -22,6 +22,7 @@ spec:
         labelSelector:
           matchLabels:
             app: blob-gateway-service
+      restartPolicy: Always
       initContainers:
       - name: init-wallet
         image: npool/linera-respeer:latest

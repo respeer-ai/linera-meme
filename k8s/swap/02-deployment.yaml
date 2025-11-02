@@ -59,7 +59,7 @@ spec:
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ $POD_INDEX -eq 0 ]; then
-            CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | wc -l)
+            CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | grep -v ' - ' | wc -l)
             if [ $CHAINS -eq 0 -o ! -f /shared-app-data/SWAP_CREATOR_WALLET_CHAIN_ID ]; then
               echo "No chain found in creator wallet, requesting ..."
               CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net | head -n 1)
