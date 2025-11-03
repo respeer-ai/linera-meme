@@ -672,6 +672,8 @@ impl PoolContract {
         let call = MemeOperation::TransferToCaller { amount };
 
         let message_chain_id = self.runtime.message_origin_chain_id().unwrap();
+        log::info!("Msg requestting {} fund {}", token, amount);
+
         match self
             .runtime
             .call_application(true, token.with_abi::<MemeAbi>(), &call)

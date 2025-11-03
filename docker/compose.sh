@@ -51,7 +51,7 @@ WALLET_IMAGE_NAME=linera-respeer
 
 IMAGE_NAME=linera-respeer
 REPO_NAME=linera-protocol-respeer
-REPO_BRANCH=respeer-maas-testnet_conway-01c21191-2025-10-25
+REPO_BRANCH=respeer-maas-testnet_conway-d866468c-2025-11-03
 REPO_URL=https://github.com/respeer-ai/linera-protocol.git
 
 # IMAGE_NAME=linera
@@ -72,8 +72,8 @@ if [ "x$COPY_TARGET" = "x1" ]; then
     rm linera-protocol-respeer -rf
     git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
     cd linera-protocol-respeer
-    git checkout respeer-maas-testnet_conway-01c21191-2025-10-25
-    git pull origin respeer-maas-testnet_conway-01c21191-2025-10-25
+    git checkout respeer-maas-testnet_conway-d866468c-2025-11-03
+    git pull origin respeer-maas-testnet_conway-d866468c-2025-11-03
     cp -v docker/* $SOURCE_DIR/$REPO_NAME/docker -rf
     cp -v configuration/* $SOURCE_DIR/$REPO_NAME/configuration -rf
     cd $SOURCE_DIR/$REPO_NAME
@@ -84,12 +84,6 @@ docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{pri
 docker stop maker-wallet kline maker funder
 docker rm maker-wallet kline maker funder
 docker rmi kline funder
-
-GIT_COMMIT=$(git rev-parse --short HEAD)
-image_exists=`docker images | grep "$IMAGE_NAME  " | wc -l`
-if [ "x$image_exists" != "x1" ]; then
-    docker build --build-arg git_commit="$GIT_COMMIT" --build-arg features="scylladb,metrics,disable-native-rpc,enable-wallet-rpc" -f docker/Dockerfile . -t $IMAGE_NAME || exit 1
-fi
 
 export PATH=$BIN_DIR:$PATH
 
