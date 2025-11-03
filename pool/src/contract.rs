@@ -294,7 +294,12 @@ impl PoolContract {
         amount: Amount,
         transfer_id: u64,
     ) {
-        log::info!("Requesting token {} fund {}", token, amount);
+        log::info!(
+            "Requesting token {} fund {} to chain {}",
+            token,
+            amount,
+            token_creator_chain_id
+        );
         self.runtime
             .prepare_message(PoolMessage::RequestFund {
                 token,
@@ -672,21 +677,39 @@ impl PoolContract {
         let call = MemeOperation::TransferToCaller { amount };
 
         let message_chain_id = self.runtime.message_origin_chain_id().unwrap();
-        log::info!("Msg requestting {} fund {}", token, amount);
+        let chain_id = self.runtime.chain_id();
+
+        log::info!(
+            "Msg requestting {} fund {} on chain {}",
+            token,
+            amount,
+            chain_id
+        );
 
         match self
             .runtime
             .call_application(true, token.with_abi::<MemeAbi>(), &call)
         {
             MemeResponse::Ok => {
-                log::info!("Requested token {} fund {}", token, amount);
+                log::info!(
+                    "Requested token {} fund {} on chain {}",
+                    token,
+                    amount,
+                    chain_id
+                );
                 self.runtime
                     .prepare_message(PoolMessage::FundSuccess { transfer_id })
                     .with_authentication()
                     .send_to(message_chain_id);
             }
             MemeResponse::Fail(error) => {
-                log::info!("Failed Request token {} fund {}: {}", token, amount, error);
+                log::info!(
+                    "Failed Request token {} fund {} on chain {}: {}",
+                    token,
+                    amount,
+                    chain_id,
+                    error
+                );
                 self.runtime
                     .prepare_message(PoolMessage::FundFail { transfer_id, error })
                     .with_authentication()
