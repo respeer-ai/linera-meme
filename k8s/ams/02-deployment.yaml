@@ -63,6 +63,11 @@ spec:
             if [ $CHAINS -eq 0 -o ! -f /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID ]; then
               echo "No chain found in creator wallet, requesting ..."
               CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net | head -n 1)
+              CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | grep -v ' - ' | wc -l)
+              if [ $CHAINS -eq 0 ]; then
+                echo "Failed request chain"
+                exit 1
+              fi
               echo $CHAIN_ID > /shared-app-data/AMS_CREATOR_WALLET_CHAIN_ID
             else
               echo "Chain already exists, skipping init."
