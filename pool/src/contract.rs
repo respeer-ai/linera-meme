@@ -294,6 +294,7 @@ impl PoolContract {
         amount: Amount,
         transfer_id: u64,
     ) {
+        log::info!("Requesting token {} fund {}", token, amount);
         self.runtime
             .prepare_message(PoolMessage::RequestFund {
                 token,
@@ -676,12 +677,14 @@ impl PoolContract {
             .call_application(true, token.with_abi::<MemeAbi>(), &call)
         {
             MemeResponse::Ok => {
+                log::info!("Requested token {} fund {}", token, amount);
                 self.runtime
                     .prepare_message(PoolMessage::FundSuccess { transfer_id })
                     .with_authentication()
                     .send_to(message_chain_id);
             }
             MemeResponse::Fail(error) => {
+                log::info!("Failed Request token {} fund {}: {}", token, amount, error);
                 self.runtime
                     .prepare_message(PoolMessage::FundFail { transfer_id, error })
                     .with_authentication()
@@ -726,6 +729,14 @@ impl PoolContract {
         to: Option<Account>,
         _block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
+        log::info!(
+            "Swaping amunt_0 {:?}/{:?} amount_1 {:?}/{:?}",
+            amount_0_in,
+            amount_0_out_min,
+            amount_1_in,
+            amount_1_out_min
+        );
+
         // Here we already funded
         // 1: Calculate pair token amount
         let amount_0_out = if let Some(amount_1_in) = amount_1_in {
