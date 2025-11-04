@@ -33,14 +33,15 @@ spec:
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX ]; then
-            echo "No wallet found in pod $POD_INDEX, creating..."
+            echo "No wallet found in pod $POD_INDEX, creating from $FAUCET_URL..."
             now=$(date -u | sed 's/ //g')
             mkdir -p /wallet/backup/$now
-            mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
+            cp -rf /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
+            rm -rf /wallet/wallet.json /wallet/keystore.json
             rm -rf /wallet/client.db
             rm -rf /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID
             rm -rf /shared-app-data/BLOB_GATEWAY_APPLICATION_ID
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
             OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
             echo $OWNER > /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX
           else
@@ -63,7 +64,7 @@ spec:
             CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | grep -v ' - ' | wc -l)
             if [ $CHAINS -eq 0 -o ! -f /shared-app-data/BLOB_GATEWAY_CREATOR_WALLET_CHAIN_ID ]; then
               echo "No chain found in creator wallet, requesting ..."
-              CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net | head -n 1)
+              CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} | head -n 1)
               CHAINS=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show | grep AccountOwner | grep -v ' - ' | wc -l)
               if [ $CHAINS -eq 0 ]; then
                 echo "Failed request chain"

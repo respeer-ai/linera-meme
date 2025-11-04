@@ -27,8 +27,8 @@ spec:
             mkdir -p /wallet/backup/$now
             mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
             rm -rf /wallet/client.db
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet https://faucet.testnet-conway.linera.net
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet https://faucet.testnet-conway.linera.net > /shared-app-data/MAKER_WALLET_CHAIN_OWNER
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} > /shared-app-data/MAKER_WALLET_CHAIN_OWNER
           else
             echo "Wallet already exists, skipping init."
           fi

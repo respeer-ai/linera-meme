@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: local-genesis-service
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: local-genesis-service
+  template:
+    metadata:
+      labels:
+        app: local-genesis-service
+    spec:
+      containers:
+      - name: local-genesis-service
+        image: npool/linera-local-genesis:latest
+        imagePullPolicy: Always
+        command: ["./linera", "net", "up", "--with-faucet", "--faucet-port", "8080"]
+        env:
+        - name: RUST_LOG
+          value: debug
+        - name: LOCALHOST_HOST
+          value: local-genesis-service
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2048Mi"
+          limits:
+            cpu: "1000m"
+            memory: "2560Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: local-genesis-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: local-genesis-service-faucet
+      port: 8080
+      targetPort: 8080
+    - name: local-genesis-server
+      port: 9001
+      targetPort: 9001
+    - name: local-genesis-proxy
+      port: 10001
+      targetPort: 10001
+    - name: local-genesis-validator
+      port: 13001
+      targetPort: 13001
+  selector:
+    app: local-genesis-service

@@ -4,6 +4,9 @@ kubectl apply -f 00-shared-app-data-pvc.yaml
 
 SERVICES="blob-gateway ams swap proxy"
 
+export FAUCET_URL=https://faucet.testnet-conway.linera.net
+export FAUCET_URL=http://local-genesis-service:8080
+
 count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
 if [ $count -eq 0 ]; then
   if [ -z "$MYSQL_ROOT_PASSWORD" -o -z "$MYSQL_PASSWORD" ]; then
@@ -30,24 +33,24 @@ wait_pods() {
 }
 
 for service in $SERVICES; do
-  kubectl delete -f $service/02-deployment.yaml
-  kubectl delete -f $service/03-ingress.yaml
+  envsubst '$FAUCET_URL' < $service/02-deployment.yaml | kubectl delete -f -
+  envsubst '$FAUCET_URL' < $service/03-ingress.yaml | kubectl delete -f -
 done
 
-kubectl delete -f mysql/02-deployment.yaml
+envsubst '$FAUCET_URL' < mysql/02-deployment.yaml | kubectl delete -f -
 
 wait_pods mysql-service 0 ""
 
-kubectl delete -f kline/02-deployment.yaml
-kubectl delete -f kline/03-ingress.yaml
+envsubst '$FAUCET_URL' < kline/02-deployment.yaml | kubectl delete -f -
+envsubst '$FAUCET_URL' < kline/03-ingress.yaml | kubectl delete -f -
 
 wait_pods kline-service 0 ""
 
-kubectl delete -f funder/02-deployment.yaml
+envsubst '$FAUCET_URL' < funder/02-deployment.yaml | kubectl delete -f -
 
 wait_pods funder-service 0 ""
 
-kubectl delete -f maker/02-deployment.yaml
+envsubst '$FAUCET_URL' < maker/02-deployment.yaml | kubectl delete -f -
 
 wait_pods maker-service 0 ""
 wait_pods maker-wallet-service 0 ""
@@ -55,31 +58,31 @@ wait_pods maker-wallet-service 0 ""
 for service in $SERVICES; do
   wait_pods ${service}-service 0 ""
 
-  kubectl apply -f $service/01-strip-prefix.yaml
-  kubectl apply -f $service/02-deployment.yaml
-  kubectl apply -f $service/03-ingress.yaml
+  envsubst '$FAUCET_URL' < $service/01-strip-prefix.yaml | kubectl apply -f -
+  envsubst '$FAUCET_URL' < $service/02-deployment.yaml | kubectl apply -f -
+  envsubst '$FAUCET_URL' < $service/03-ingress.yaml | kubectl apply -f -
 
   wait_pods ${service}-service 5 Running
 done
 
-kubectl apply -f mysql/00-user.yaml
-kubectl apply -f mysql/01-pvc.yaml
-kubectl apply -f mysql/02-deployment.yaml
+envsubst '$FAUCET_URL' < mysql/00-user.yaml | kubectl apply -f -
+envsubst '$FAUCET_URL' < mysql/01-pvc.yaml | kubectl apply -f -
+envsubst '$FAUCET_URL' < mysql/02-deployment.yaml | kubectl apply -f -
 
 wait_pods mysql-service 1 Running
 
-kubectl apply -f kline/01-strip-prefix.yaml
-kubectl apply -f kline/02-deployment.yaml
-kubectl apply -f kline/03-ingress.yaml
+envsubst '$FAUCET_URL' < kline/01-strip-prefix.yaml | kubectl apply -f -
+envsubst '$FAUCET_URL' < kline/02-deployment.yaml | kubectl apply -f -
+envsubst '$FAUCET_URL' < kline/03-ingress.yaml | kubectl apply -f -
 
 wait_pods kline-service 1 Running
 
-kubectl apply -f funder/02-deployment.yaml
+envsubst '$FAUCET_URL' < funder/02-deployment.yaml | kubectl apply -f -
 
 wait_pods funder-service 1 Running
 
-kubectl apply -f maker/01-pvc.yaml
-kubectl apply -f maker/02-deployment.yaml
+envsubst '$FAUCET_URL' < maker/01-pvc.yaml | kubectl apply -f -
+envsubst '$FAUCET_URL' < maker/02-deployment.yaml | kubectl apply -f -
 
 wait_pods maker-service 1 Running
 wait_pods maker-wallet-service 1 Running
