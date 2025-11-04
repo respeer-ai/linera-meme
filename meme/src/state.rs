@@ -176,6 +176,13 @@ impl MemeState {
 
         let from_balance = self.balances.get(&from).await?.unwrap();
 
+        log::info!(
+            "Transfer {} tokens from {} balance {} to {}",
+            amount,
+            from,
+            from_balance,
+            to
+        );
         ensure!(from_balance >= amount, MemeError::InsufficientFunds);
 
         self.transfer_(from, to, amount).await
