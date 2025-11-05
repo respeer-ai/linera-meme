@@ -5,7 +5,9 @@ kubectl apply -f 00-shared-app-data-pvc.yaml
 SERVICES="blob-gateway ams swap proxy"
 
 export FAUCET_URL=https://faucet.testnet-conway.linera.net
-export FAUCET_URL=http://local-genesis-service:8080
+# export FAUCET_URL=http://local-genesis-service:8080
+
+RE_GENERATE=0
 
 count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
 if [ $count -eq 0 ]; then
@@ -31,6 +33,11 @@ wait_pods() {
     sleep 10
   done
 }
+
+kline_pod_name=$(kubectl get pods -A | grep kline | awk '{print $2}')
+if [ $RE_GENERATE -eq 1 ]; then
+  kubectl exec -it $kline_pod_name -n kube-system -- sh -c "rm -vrf /shared-app-data/*"
+fi
 
 for service in $SERVICES; do
   envsubst '$FAUCET_URL' < $service/02-deployment.yaml | kubectl delete -f -

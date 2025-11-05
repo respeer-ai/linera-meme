@@ -32,7 +32,10 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX ]; then
+          if [ -f /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX ]; then
+            OWNER=$(cat /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX)
+          fi
+          if [ ! -f /wallet/wallet.json -o ! -f /wallet/keystore.json -o ! -f /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX -o -z "$OWNER" ]; then
             echo "No wallet found in pod $POD_INDEX, creating from $FAUCET_URL..."
             now=$(date -u | sed 's/ //g')
             mkdir -p /wallet/backup/$now
@@ -42,6 +45,10 @@ spec:
             rm -rf /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID
             rm -rf /shared-app-data/BLOB_GATEWAY_APPLICATION_ID
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet show
+            if [ $? -ne 0 ]; then
+              exit 1
+            fi
             OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
             echo $OWNER > /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.$POD_INDEX
           else
