@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: maker-ingress
+  namespace: kube-system
+  annotations:
+    k8s.kuboard.cn/displayName: maker-service
+    k8s.kuboard.cn/workload: maker-service
+    kubernetes.io/ingress.class: "traefik-internet"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure, web
+    traefik.ingress.kubernetes.io/router.middlewares:
+      kube-system-http-redirect-https@kubernetescrd,
+      kube-system-http-redirect-https-testing@kubernetescrd,
+      kube-system-strip-maker-prefix@kubernetescrd,
+      kube-system-common-headers@kubernetescrd
+
+spec:
+  tls:
+    - hosts:
+        - '*.testnet-conway.kline.lineraswap.fun'
+        - testnet-conway.kline.lineraswap.fun
+      secretName: testnet-conway-kline-lineraswap-fun-tls
+  rules:
+    - host: api.testnet-conway.kline.lineraswap.fun
+      http:
+        paths:
+          - path: /api/maker
+            backend:
+              serviceName: maker-wallet-service
+              servicePort: 8080

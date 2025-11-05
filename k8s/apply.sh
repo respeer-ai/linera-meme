@@ -81,8 +81,10 @@ envsubst '$FAUCET_URL' < funder/02-deployment.yaml | kubectl apply -f -
 
 wait_pods funder-service 1 Running
 
+envsubst '$FAUCET_URL' < maker/00-strip-prefix.yaml | kubectl apply -f -
 envsubst '$FAUCET_URL' < maker/01-pvc.yaml | kubectl apply -f -
 envsubst '$FAUCET_URL' < maker/02-deployment.yaml | kubectl apply -f -
+envsubst '$FAUCET_URL' < maker/03-ingress.yaml | kubectl apply -f -
 
 wait_pods maker-service 1 Running
 wait_pods maker-wallet-service 1 Running
