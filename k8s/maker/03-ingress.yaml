@@ -24,7 +24,7 @@ spec:
     - host: api.testnet-conway.kline.lineraswap.fun
       http:
         paths:
-          - path: /api/maker
+          - path: /
             backend:
               serviceName: maker-wallet-service
               servicePort: 8080
