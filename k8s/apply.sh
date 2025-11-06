@@ -7,7 +7,7 @@ SERVICES="blob-gateway ams swap proxy"
 export FAUCET_URL=https://faucet.testnet-conway.linera.net
 # export FAUCET_URL=http://local-genesis-service:8080
 
-RE_GENERATE=1
+RE_GENERATE=0
 
 count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
 if [ $count -eq 0 ]; then
