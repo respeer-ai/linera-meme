@@ -16,6 +16,7 @@ spec:
       initContainers:
       - name: init-wallet
         image: npool/linera-respeer:latest
+        # image: npool/linera:latest
         imagePullPolicy: Always
         command:
         - /bin/sh
@@ -42,6 +43,7 @@ spec:
         image: npool/linera-respeer:latest
         imagePullPolicy: Always
         command: ["/bin/sh", "-c", "./wallet-entrypoint.sh"]
+        # command: ["/bin/sh", "-c", "sleep 100000"]
         env:
         - name: RUST_LOG
           value: info
