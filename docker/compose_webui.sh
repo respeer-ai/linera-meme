@@ -46,6 +46,7 @@ docker push npool/linera-meme-webui:latest
 
 cd $SCRIPT_DIR
 # Compose up webui
+docker compose -f docker-compose-webui.yml down
 docker compose -f docker-compose-webui.yml up --wait
 
 function generate_nginx_conf() {
