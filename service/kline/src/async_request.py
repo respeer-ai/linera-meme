@@ -42,15 +42,20 @@ async def post(url, data=None, json=None, headers=None, timeout=None, **kwargs):
     client_timeout = _convert_timeout(timeout)
     start_at = time.time()
 
-    async with aiohttp.ClientSession(timeout=client_timeout) as session:
-        async with session.post(url, data=data, json=json, headers=headers) as resp:
-            elapsed = time.time() - start_at
-            print(f'Request {url}, {json} took {elapsed:.3f} seconds')
+    try:
+        async with aiohttp.ClientSession(timeout=client_timeout) as session:
+            async with session.post(url, data=data, json=json, headers=headers) as resp:
+                elapsed = time.time() - start_at
+                print(f'SUCCESS Request {url}, {json} took {elapsed:.3f} seconds')
 
-            text = await resp.text()
-            return AsyncResponse(
-                status=resp.status,
-                headers=dict(resp.headers),
-                text=text,
-                url=str(resp.url)
-            )
+                text = await resp.text()
+                return AsyncResponse(
+                    status=resp.status,
+                    headers=dict(resp.headers),
+                    text=text,
+                    url=str(resp.url)
+                )
+    except Exception as e:
+        elapsed = time.time() - start_at
+        print(f'FAIL Request {url}, {json} took {elapsed:.3f} seconds')
+        raise e

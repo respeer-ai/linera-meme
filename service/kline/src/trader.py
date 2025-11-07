@@ -88,6 +88,7 @@ class Trader:
             try:
                 timeout = await self.trade()
             except Exception as e:
+                timeout = 30
                 print(f'Failed trade: ERROR {e}')
             time.sleep(timeout)
 

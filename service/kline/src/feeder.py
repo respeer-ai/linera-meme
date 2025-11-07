@@ -95,6 +95,9 @@ class Feeder:
 
     async def run(self):
         while True:
-            await self.feed()
+            try:
+                await self.feed()
+            except Exception as e:
+                print(f'Failed feed: ERROR {e}')
             time.sleep(30)
 
