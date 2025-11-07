@@ -1,11 +1,10 @@
-import json
-import requests
+import async_request
 
 class Balance:
     def __init__(self, rpc_endpoint):
         self.rpc_endpoint = rpc_endpoint
 
-    def chain_balances(self, chain_ids):
+    async def chain_balances(self, chain_ids):
         chain_owners = '['
         for i, chain_id in enumerate(chain_ids):
             chain_owners += f'{"," if i > 0 else ""}{{ chainId: "{chain_id}", owners: [] }}'
@@ -15,8 +14,9 @@ class Balance:
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         try:
-            resp = requests.post(self.rpc_endpoint, json=payload, timeout=(3, 10))
+            resp = await async_request.post(self.rpc_endpoint, json=payload, timeout=(3, 10))
         except Exception as e:
+            print(f'{self.rpc_endpoint}, {payload} -> ERROR {e}')
             return {}
 
         if resp.ok is not True:

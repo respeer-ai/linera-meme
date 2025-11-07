@@ -1,4 +1,4 @@
-import requests
+import async_request
 from environment import running_in_k8s
 
 
@@ -77,7 +77,7 @@ class Pool:
     def wallet_application_url(self):
         return f'{self.wallet._wallet_url()}/chains/{self.wallet._chain()}/applications/{self.pool_application.short_owner}'
 
-    def swap(self, amount_0: str = None, amount_1: str = None):
+    async def swap(self, amount_0: str = None, amount_1: str = None):
         amount_0 = '{:.18f}'.format(amount_0) if amount_0 is not None else None
         amount_1 = '{:.18f}'.format(amount_1) if amount_1 is not None else None
 
@@ -87,10 +87,11 @@ class Pool:
             'query': f'mutation {{\n swap(amount1In: "{amount_1}") \n}}'
         }
         try:
-            resp = requests.post(url=self.wallet_application_url(), json=json, timeout=(3, 10))
+            resp = await async_request.post(url=self.wallet_application_url(), json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed swap: {resp.text}')
-        except:
+        except Exception as e:
+            print(f'{self.wallet_application_url()}, {json} -> ERROR: {e}')
             return
 
 
@@ -107,54 +108,56 @@ class Swap:
     def application_url(self) -> str:
         return f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
 
-    def get_pools(self) -> list[Pool]:
+    async def get_pools(self) -> list[Pool]:
         json = {
             'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
         }
         try:
-            resp = requests.post(url=self.application_url(), json=json, timeout=(3, 10))
+            resp = await async_request.post(url=self.application_url(), json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed swap: {resp.text}')
-        except:
+        except Exception as e:
+            print(f'{self.application_url()}, {json} -> ERROR: {e}')
             return []
         return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]
 
-    def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
+    async def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
         json = {
             'query': f'query {{\n latestTransactions(startId:{start_id}) \n}}'
         } if start_id is not None else {
-            'query': f'query {{\n latestTransactions \n}}'
+            'query': 'query {{\n latestTransactions \n}}'
         }
         url = f'{self.base_url}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}'
-        resp = requests.post(url=url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
         return [Transaction(v) for v in resp.json()['data']['latestTransactions']]
 
-    def get_swap_chain(self):
+    async def get_swap_chain(self):
         json = {
             'query': 'query {\n chains {\n default\n }\n}'
         }
-        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=self.base_url, json=json, timeout=(3, 10))
         self.chain = resp.json()['data']['chains']['default']
         print('---------------------------------------------------------------------------------------------------------')
         print(f'       Swap chain: {self.chain}')
         print('---------------------------------------------------------------------------------------------------------')
 
-    def check_swap_application(self, application_id: str) -> bool:
+    async def check_swap_application(self, application_id: str) -> bool:
         json = {
             'query': 'query {\n poolId\n}'
         }
         url = f'{self.base_url}/chains/{self.chain}/applications/{application_id}'
         try:
-            resp = requests.post(url=url, json=json, timeout=(3, 10))
+            resp = await async_request.post(url=url, json=json, timeout=(3, 10))
             return 'errors' not in resp.json()
         except Exception as e:
+            print(f'{url}, {json} -> ERROR: {e}')
             return False
 
-    def get_swap_application(self):
+    async def get_swap_application(self):
         json = {
             'query': f'query {{\n applications(chainId:"{self.chain}") {{\n id\n }}\n}}'
         }
-        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=self.base_url, json=json, timeout=(3, 10))
 
         application_ids = [v['id'] for v in resp.json()['data']['applications']]
         for application_id in application_ids:

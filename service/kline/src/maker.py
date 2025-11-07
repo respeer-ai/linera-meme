@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 
 
 from swap import Swap
@@ -7,7 +8,7 @@ from wallet import Wallet
 from trader import Trader
 
 
-if __name__ == '__main__':
+async def main():
     parser = argparse.ArgumentParser(description='Linera Market Maker')
 
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
@@ -24,8 +25,11 @@ if __name__ == '__main__':
     _meme = Meme(args.proxy_host, _wallet)
 
     _swap = Swap(args.swap_host, args.swap_application_id, _wallet)
-    _swap.get_swap_chain()
-    _swap.get_swap_application()
+    await _swap.get_swap_chain()
+    await _swap.get_swap_application()
 
     _trader = Trader(_swap, _wallet, _meme)
-    _trader.run()
+    await _trader.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())

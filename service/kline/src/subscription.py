@@ -1,5 +1,4 @@
 from fastapi import WebSocket
-import json
 
 
 class WebSocketManager:
@@ -19,7 +18,7 @@ class WebSocketManager:
     async def handle(self, websocket: WebSocket):
         try:
             while True:
-                data = await websocket.receive_json()
+                _data = await websocket.receive_json()
                 # TODO: process incoming data
         except Exception as e:
             print(f'{websocket.scope["client"]}: {e}')

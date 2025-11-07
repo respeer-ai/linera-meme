@@ -26,20 +26,20 @@ class Trader:
         if buy_token_0 is False:
             return (min(min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), 10), None)
 
-    def trade_in_pool(self, pool):
+    async def trade_in_pool(self, pool):
         # Generate trade direction
         buy_token_0 = True if random.random() > 0.5 else False
 
         wallet_chain = self.wallet._chain()
         account = self.wallet.account()
 
-        token_0_chain = self.meme.creator_chain_id(wallet_chain, pool.token_0)
-        token_1_chain = self.meme.creator_chain_id(wallet_chain, pool.token_1) if pool.token_1 is not None else None
+        token_0_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_0)
+        token_1_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_1) if pool.token_1 is not None else None
 
-        token_0_balance = float(self.meme.balance(account, token_0_chain, pool.token_0))
-        token_1_balance = float(self.wallet.balance() if pool.token_1 is None else self.meme.balance(account, token_1_chain, pool.token_1))
+        token_0_balance = float(await self.meme.balance(account, token_0_chain, pool.token_0))
+        token_1_balance = float(await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1))
 
-        if self.wallet.balance() < 0.001:
+        if await self.wallet.balance() < 0.001:
             print('Maker wallet balance is not enough for gas, please fund it')
             return
 
@@ -72,19 +72,19 @@ class Trader:
         if amount_0 is None and amount_1 is None:
             return
 
-        pool.swap(amount_0, amount_1)
+        await pool.swap(amount_0, amount_1)
 
-    def trade(self) -> float:
-        pools = self.swap.get_pools()
+    async def trade(self) -> float:
+        pools = await self.swap.get_pools()
         for pool in pools:
             for i in range(3):
-                self.trade_in_pool(pool)
+                await self.trade_in_pool(pool)
                 time.sleep(1)
 
         return random.uniform(5, 10)
 
-    def run(self):
+    async def run(self):
         while True:
-            timeout = self.trade()
+            timeout = await self.trade()
             time.sleep(timeout)
 

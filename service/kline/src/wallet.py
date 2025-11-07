@@ -1,4 +1,4 @@
-import requests
+import async_request
 import subprocess
 import os
 import shutil
@@ -23,7 +23,7 @@ class Wallet:
     def _wallet_url(self):
         return self.wallet_url
 
-    def balance(self):
+    async def balance(self):
         chain_owners = f'''[{{
             chainId: "{self.chain}",
             owners: ["{self.owner}"]
@@ -32,8 +32,9 @@ class Wallet:
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         try:
-            resp = requests.post(self.wallet_url, json=json, timeout=(3, 10))
-        except:
+            resp = await async_request.post(self.wallet_url, json=json, timeout=(3, 10))
+        except Exception as e:
+            print(f'{self.wallet_url}, {json} -> ERROR: {e}')
             return 0
 
         if resp.ok is not True:
@@ -56,14 +57,14 @@ class Wallet:
 
         return chain_balance + owner_balance
 
-    def open_chain(self):
+    async def open_chain(self):
         payload = {
             'query': f'''mutation {{ claim(owner: "{self.owner}") {{
                 chainId
             }} }}'''
         }
 
-        resp = requests.post(url=self.faucet, json=payload, timeout=(3, 10))
+        resp = await async_request.post(url=self.faucet, json=payload, timeout=(3, 10))
         if 'data' not in resp.json():
             raise Exception('Failed open chain')
 

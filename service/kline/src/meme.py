@@ -1,4 +1,4 @@
-import requests
+import async_request
 from environment import running_in_k8s
 
 class Meme:
@@ -9,13 +9,13 @@ class Meme:
 
     # chain_id: token creator chain id
     # token: token application id
-    def balance(self, owner, chain_id, token):
+    async def balance(self, owner, chain_id, token):
         json = {
             'query': f'query {{\n balanceOf(\n owner: "{owner}") \n}}'
         }
 
         url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
-        resp = requests.post(url=url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
         if resp.ok is not True:
             print(f'{url}, {json} -> {resp.reason}')
             return None
@@ -23,13 +23,13 @@ class Meme:
 
     # chain_id: wallet chain id
     # token: token application id
-    def creator_chain_id(self, chain_id, token):
+    async def creator_chain_id(self, chain_id, token):
         json = {
-            'query': f'query {{\n creatorChainId \n}}'
+            'query': 'query {\n creatorChainId \n}'
         }
 
         url = f'{self.wallet._wallet_url()}/chains/{chain_id}/applications/{token}'
-        resp = requests.post(url=url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
         if resp.ok is not True:
             print(f'{url}, {json} -> {resp.reason}')
             return None

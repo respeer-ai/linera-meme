@@ -1,14 +1,14 @@
 import argparse
+import asyncio
 
 
 from swap import Swap
 from wallet import Wallet
-from trader import Trader
 from proxy import Proxy
 from feeder import Feeder, MakerWallet
 
 
-if __name__ == '__main__':
+async def main():
     parser = argparse.ArgumentParser(description='Linera Market Maker')
 
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
@@ -27,14 +27,17 @@ if __name__ == '__main__':
     _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url)
 
     _swap = Swap(args.swap_host, args.swap_application_id, _wallet)
-    _swap.get_swap_chain()
-    _swap.get_swap_application()
+    await _swap.get_swap_chain()
+    await _swap.get_swap_application()
 
     _proxy = Proxy(args.proxy_host, args.proxy_application_id, _wallet)
-    _proxy.get_proxy_chain()
-    _proxy.get_proxy_application()
+    await _proxy.get_proxy_chain()
+    await _proxy.get_proxy_application()
 
     maker_wallet = MakerWallet(args.maker_wallet_host, args.maker_wallet_chain_id)
 
     _feeder = Feeder(_swap, _proxy, maker_wallet, _wallet)
-    _feeder.run()
+    await _feeder.run()
+
+if __name__ == '__main__':
+    asyncio.run(main())

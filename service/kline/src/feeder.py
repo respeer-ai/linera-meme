@@ -23,16 +23,16 @@ class Feeder:
             print(f'Failed feed {chain_id}')
             raise e
 
-    def feed(self):
+    async def feed(self):
         # Get pools
-        pools = self.swap.get_pools()
+        pools = await self.swap.get_pools()
 
         # Get memes
-        memes = self.proxy.get_memes()
+        memes = await self.proxy.get_memes()
 
         # Get swap balance
         swap_chain_ids = [self.swap.chain, *[pool.pool_application.chain_id for pool in pools]]
-        balances = Balance(self.swap.base_url).chain_balances(swap_chain_ids)
+        balances = await Balance(self.swap.base_url).chain_balances(swap_chain_ids)
 
         funded_chains = 0
         funder_chain_id = None
@@ -50,12 +50,13 @@ class Feeder:
                 try:
                     self.feed_chain(funder_chain_id, chain_id)
                     funded_chains += 1
-                except:
+                except Exception as e:
+                    print(f'Failed feed chain {chain_id}: ERROR {e}')
                     continue
 
         # Get proxy balance
         proxy_chain_ids = [self.proxy.chain, *[meme.chain_id for meme in memes]]
-        balances = Balance(self.proxy.base_url).chain_balances(proxy_chain_ids)
+        balances = await Balance(self.proxy.base_url).chain_balances(proxy_chain_ids)
 
         for chain_id, balance in balances.items():
             if balance < self.threshold:
@@ -70,10 +71,11 @@ class Feeder:
                 try:
                     self.feed_chain(funder_chain_id, chain_id)
                     funded_chains += 1
-                except:
+                except Exception as e:
+                    print(f'Failed feed chain {chain_id}: ERROR {e}')
                     continue
 
-        balances = Balance(self.maker_wallet.host).chain_balances([self.maker_wallet.chain_id])
+        balances = await Balance(self.maker_wallet.host).chain_balances([self.maker_wallet.chain_id])
         for chain_id, balance in balances.items():
             if balance < self.threshold:
                 if funded_chains % 5 == 0:
@@ -87,11 +89,12 @@ class Feeder:
                 try:
                     self.feed_chain(funder_chain_id, chain_id)
                     funded_chains += 1
-                except:
+                except Exception as e:
+                    print(f'Failed feed chain {chain_id}: ERROR {e}')
                     continue
 
-    def run(self):
+    async def run(self):
         while True:
-            self.feed()
+            await self.feed()
             time.sleep(30)
 

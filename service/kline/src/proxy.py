@@ -1,4 +1,4 @@
-import requests
+import async_request
 from environment import running_in_k8s
 
 class MemeApplication:
@@ -18,32 +18,33 @@ class Proxy:
     def application_url(self) -> str:
         return f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
 
-    def get_proxy_chain(self):
+    async def get_proxy_chain(self):
         json = {
             'query': 'query {\n chains {\n default\n }\n}'
         }
-        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=self.base_url, json=json, timeout=(3, 10))
         self.chain = resp.json()['data']['chains']['default']
         print('---------------------------------------------------------------------------------------------------------')
         print(f'       Proxy chain: {self.chain}')
         print('---------------------------------------------------------------------------------------------------------')
 
-    def check_proxy_application(self, application_id: str) -> bool:
+    async def check_proxy_application(self, application_id: str) -> bool:
         json = {
             'query': 'query {\n memeBytecodeId\n}'
         }
         url = f'{self.base_url}/chains/{self.chain}/applications/{application_id}'
         try:
-            resp = requests.post(url=url, json=json, timeout=(3, 10))
+            resp = await async_request.post(url=url, json=json, timeout=(3, 10))
             return 'errors' not in resp.json()
         except Exception as e:
+            print(f'{url}, {json} -> ERROR {e}')
             return False
 
-    def get_proxy_application(self):
+    async def get_proxy_application(self):
         json = {
             'query': f'query {{\n applications(chainId:"{self.chain}") {{\n id\n }}\n}}'
         }
-        resp = requests.post(url=self.base_url, json=json, timeout=(3, 10))
+        resp = await async_request.post(url=self.base_url, json=json, timeout=(3, 10))
 
         application_ids = [v['id'] for v in resp.json()['data']['applications']]
         for application_id in application_ids:
@@ -56,16 +57,17 @@ class Proxy:
         if self.application is None:
             raise Exception('Invalid proxy application')
 
-    def get_memes(self) -> list[MemeApplication]:
+    async def get_memes(self) -> list[MemeApplication]:
         json = {
-            'query': f'query {{\n memeApplications {{ chainId token }} \n}}'
+            'query': 'query {\n memeApplications { chainId token } \n}'
         }
         url = f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
         try:
-            resp = requests.post(url=url, json=json, timeout=(3, 10))
+            resp = await async_request.post(url=url, json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed proxy: {resp.text}')
         except Exception as e:
+            print(f'{url}, {json} -> ERROR {e}')
             return []
 
         return [MemeApplication(v) for v in resp.json()['data']['memeApplications']]

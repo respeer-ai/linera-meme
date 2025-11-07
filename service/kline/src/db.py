@@ -209,6 +209,7 @@ class Db:
         try:
             (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
         except Exception as e:
+            print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
             return []
 
         start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')

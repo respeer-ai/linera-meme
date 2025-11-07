@@ -9,3 +9,5 @@ dataclasses-json
 rel
 websocket-client
 numpy
+aiohttp
+asyncio
