@@ -41,9 +41,6 @@ fi
 yarn build
 docker build --no-cache -f Dockerfile -t linera-meme-webui . || exit 1
 
-docker tag linera-meme-webui:latest docker.io/npool/linera-meme-webui:latest
-docker push npool/linera-meme-webui:latest
-
 cd $SCRIPT_DIR
 # Compose up webui
 docker compose -f docker-compose-webui.yml down
