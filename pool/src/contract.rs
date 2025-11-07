@@ -755,9 +755,11 @@ impl PoolContract {
         _block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
         log::info!(
-            "Swaping amunt_0 {:?}/{:?} amount_1 {:?}/{:?}",
+            "Swapping token_0 {} amunt_0 {:?}/{:?} token_1 {:?} amount_1 {:?}/{:?}",
+            self.token_0(),
             amount_0_in,
             amount_0_out_min,
+            self.token_1(),
             amount_1_in,
             amount_1_out_min
         );
