@@ -1,4 +1,5 @@
 import aiohttp
+import time
 
 class AsyncResponse:
     def __init__(self, status, headers, text, url):
@@ -39,8 +40,13 @@ async def post(url, data=None, json=None, headers=None, timeout=None, **kwargs):
     返回值、参数和行为与 requests.post 尽可能一致
     """
     client_timeout = _convert_timeout(timeout)
+    start_at = time.time()
+
     async with aiohttp.ClientSession(timeout=client_timeout) as session:
         async with session.post(url, data=data, json=json, headers=headers) as resp:
+            elapsed = time.time() - start_at
+            print(f'Request {url}, {json} took {elapsed:.3f} seconds')
+
             text = await resp.text()
             return AsyncResponse(
                 status=resp.status,

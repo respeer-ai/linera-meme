@@ -85,6 +85,9 @@ class Trader:
 
     async def run(self):
         while True:
-            timeout = await self.trade()
+            try:
+                timeout = await self.trade()
+            except Exception as e:
+                print(f'Failed trade: ERROR {e}')
             time.sleep(timeout)
 

@@ -161,7 +161,7 @@ class Swap:
 
         application_ids = [v['id'] for v in resp.json()['data']['applications']]
         for application_id in application_ids:
-            if self.check_swap_application(application_id) is True:
+            if await self.check_swap_application(application_id) is True:
                 self.application = application_id
                 break
         print('---------------------------------------------------------------------------------------------------------')
