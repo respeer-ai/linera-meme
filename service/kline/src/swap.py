@@ -125,10 +125,11 @@ class Swap:
         json = {
             'query': f'query {{\n latestTransactions(startId:{start_id}) \n}}'
         } if start_id is not None else {
-            'query': 'query {{\n latestTransactions \n}}'
+            'query': 'query {\n latestTransactions \n}'
         }
         url = f'{self.base_url}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}'
         resp = await async_request.post(url=url, json=json, timeout=(3, 10))
+
         return [Transaction(v) for v in resp.json()['data']['latestTransactions']]
 
     async def get_swap_chain(self):

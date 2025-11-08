@@ -10,23 +10,23 @@ class Ticker:
         self.db = db
         self._running = True
 
-    def get_pools(self) -> list[Pool]:
-        return self.swap.get_pools()
+    async def get_pools(self) -> list[Pool]:
+        return await self.swap.get_pools()
 
-    def get_pool_transactions(self, pool: Pool) -> list[Transaction]:
-        return self.swap.get_pool_transactions(pool)
+    async def get_pool_transactions(self, pool: Pool) -> list[Transaction]:
+        return await self.swap.get_pool_transactions(pool)
 
     async def run(self):
         lastTimestamps = {}
 
         while self._running:
-            pools = self.get_pools()
+            pools = await self.get_pools()
             self.db.new_pools(pools)
 
             _transactions = []
 
             for pool in pools:
-                transactions = self.get_pool_transactions(pool)
+                transactions = await self.get_pool_transactions(pool)
                 __transactions = self.db.new_transactions(pool.pool_id, transactions)
 
                 lastTimestamp = lastTimestamps[pool.pool_id] if pool.pool_id in lastTimestamps else 0

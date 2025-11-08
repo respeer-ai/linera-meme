@@ -36,7 +36,7 @@ class WebSocketManager:
         points = {}
         intervals = ['1min', '5min', '10min', '1h', '1D', '1W', '1ME']
 
-        pools = self.swap.get_pools()
+        pools = await self.swap.get_pools()
         for interval in intervals:
             interval_points = []
             for pool in pools:

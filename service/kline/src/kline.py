@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket
 import asyncio
 import uvicorn
 import argparse
+import traceback
 
 
 from swap import Swap
@@ -65,6 +66,7 @@ async def on_run_ticker():
             await _ticker.run()
         except Exception as e:
             print(f'Ticker quiting ... {e}')
+            traceback.print_exc()
             await asyncio.sleep(10)
 
 # Http and websocket must be deployed to different pod
@@ -87,8 +89,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     _swap = Swap(args.swap_host, args.swap_application_id, None)
-    _swap.get_swap_chain()
-    _swap.get_swap_application()
+    async def _init_swap():
+        await _swap.get_swap_chain()
+        await _swap.get_swap_application()
+
+    asyncio.run(_init_swap())
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     manager = WebSocketManager(_swap, _db)
