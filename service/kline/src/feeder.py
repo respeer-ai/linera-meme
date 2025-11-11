@@ -1,5 +1,7 @@
 from balance import Balance
 import time
+import traceback
+
 
 class MakerWallet:
     def __init__(self, host, chain_id):
@@ -99,5 +101,6 @@ class Feeder:
                 await self.feed()
             except Exception as e:
                 print(f'Failed feed: ERROR {e}')
+                traceback.print_exc()
             time.sleep(30)
 
