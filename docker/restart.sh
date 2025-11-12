@@ -68,7 +68,7 @@ function wallet_owner() {
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | grep -v ' - ' | awk '{print $5}'
+           | awk '/^Default owner:/ { if ($3 != "No") print $3 }'
 }
 
 function wallet_chain_id() {
@@ -78,7 +78,7 @@ function wallet_chain_id() {
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | grep -v " - " | awk '{print $2}'
+           | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
 }
 
 function build_linera_respeer() {
