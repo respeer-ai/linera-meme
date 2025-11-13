@@ -278,6 +278,13 @@ spec:
           mountPath: /wallet
         - name: shared-app-data
           mountPath: /shared-app-data
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "1024Mi"
+          limits:
+            cpu: "300m"
+            memory: "2048Mi"
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:

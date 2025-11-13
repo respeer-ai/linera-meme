@@ -52,11 +52,11 @@ spec:
           mountPath: /wallet
         resources:
           requests:
-            cpu: "500m"
-            memory: "2048Mi"
+            cpu: "200m"
+            memory: "1024Mi"
           limits:
-            cpu: "1000m"
-            memory: "2560Mi"
+            cpu: "300m"
+            memory: "2048Mi"
       volumes:
       - name: maker-wallet
         persistentVolumeClaim:
