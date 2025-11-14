@@ -4,7 +4,7 @@ from environment import running_in_k8s
 
 class Account:
     def __init__(self, _dict):
-        self.chain_id = _dict['chainId']
+        self.chain_id = _dict['chain_id']
         self.owner = _dict['owner']
         self.short_owner = self.owner[2:]
 
