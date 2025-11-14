@@ -19,8 +19,8 @@ async-graphql = { version = "=7.0.17", default-features = false }
 # We have to use respeer fork for application creator chain id in service
 # linera-sdk = { version = "0.15.5" }
 # linera-views = { version = "0.15.5", default-features = false }
-linera-sdk = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "8e9abd7e79" }
-linera-views = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "8e9abd7e79" }
+linera-sdk = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "8725e653" }
+linera-views = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "8725e653" }
 futures = { version = "0.3.24" }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = { version = "1.0.93" }
