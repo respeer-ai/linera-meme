@@ -1,5 +1,6 @@
 import random
 import time
+import traceback
 
 
 class Trader:
@@ -90,5 +91,6 @@ class Trader:
             except Exception as e:
                 timeout = 30
                 print(f'Failed trade: ERROR {e}')
+                traceback.print_exc()
             time.sleep(timeout)
 
