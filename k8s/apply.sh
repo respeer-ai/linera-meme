@@ -7,7 +7,7 @@ SERVICES="blob-gateway ams swap proxy"
 export FAUCET_URL=https://faucet.testnet-conway.linera.net
 # export FAUCET_URL=http://local-genesis-service:8080
 
-RE_GENERATE=0
+RE_GENERATE=1
 
 count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
 if [ $count -eq 0 ]; then
@@ -35,7 +35,7 @@ wait_pods() {
 }
 
 kline_pod_name=$(kubectl get pods -A | grep kline | awk '{print $2}')
-if [ $RE_GENERATE -eq 1 ]; then
+if [ $RE_GENERATE -eq 1 -a ! -z "$kline_pod_name" ]; then
   kubectl exec -it $kline_pod_name -n kube-system -- sh -c "rm -vrf /shared-app-data/*"
 fi
 
