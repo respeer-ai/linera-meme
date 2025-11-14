@@ -51,7 +51,7 @@ WALLET_IMAGE_NAME=linera-respeer
 
 IMAGE_NAME=linera-respeer
 REPO_NAME=linera-protocol-respeer
-REPO_BRANCH=respeer-maas-testnet_conway-f27a9e50-2025-11-11-remove-camelCase
+REPO_BRANCH=respeer-maas-testnet_conway-f27a9e50-2025-11-11
 REPO_URL=https://github.com/respeer-ai/linera-protocol.git
 
 # IMAGE_NAME=linera
@@ -72,8 +72,8 @@ if [ "x$COPY_TARGET" = "x1" ]; then
     rm linera-protocol-respeer -rf
     git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
     cd linera-protocol-respeer
-    git checkout respeer-maas-testnet_conway-f27a9e50-2025-11-11-remove-camelCase
-    git pull origin respeer-maas-testnet_conway-f27a9e50-2025-11-11-remove-camelCase
+    git checkout respeer-maas-testnet_conway-f27a9e50-2025-11-11
+    git pull origin respeer-maas-testnet_conway-f27a9e50-2025-11-11
     cp -v docker/* $SOURCE_DIR/$REPO_NAME/docker -rf
     cp -v configuration/* $SOURCE_DIR/$REPO_NAME/configuration -rf
     cd $SOURCE_DIR/$REPO_NAME
