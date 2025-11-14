@@ -117,6 +117,6 @@ run_funder
 
 docker tag kline:latest docker.io/npool/kline:latest
 docker tag funder:latest docker.io/npool/funder:latest
-docker push docker.io/npool/kline:latest
-docker push docker.io/npool/funder:latest
+# docker push docker.io/npool/kline:latest
+# docker push docker.io/npool/funder:latest
 
