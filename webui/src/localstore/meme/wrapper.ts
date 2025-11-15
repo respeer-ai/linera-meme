@@ -11,7 +11,7 @@ export const balanceOfMeme = async (
   done: (balance: string) => void
 ) => {
   const owner = await _user.account()
-  if (!owner.owner || !tokenApplication.owner || !tokenApplication.chainId)
+  if (!owner.owner || !tokenApplication.owner || !tokenApplication.chain_id)
     return
   const owenrDescription = _Account.accountDescription(owner)
 

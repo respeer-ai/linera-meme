@@ -6,7 +6,7 @@ export class User {
   static ownerAccount = async () => {
     const user = useUserStore()
     return {
-      chainId: user.chainId,
+      chain_id: user.chainId,
       owner: _Account.formalizeOwner(
         await dbModel.ownerFromPublicKey(user.publicKey)
       )
@@ -27,10 +27,10 @@ export const useUserStore = defineStore('user', {
       return async () => {
         if (!this.publicKey)
           return {
-            chainId: this.chainId
+            chain_id: this.chainId
           }
         return {
-          chainId: this.chainId,
+          chain_id: this.chainId,
           owner: _Account.formalizeOwner(
             await dbModel.ownerFromPublicKey(this.publicKey)
           )

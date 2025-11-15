@@ -5,7 +5,7 @@ import { Application } from './types'
 const ams = useAmsStore()
 
 export const getApplications = (
-  createdAfter: number,
+  createdAfter?: number,
   done?: (error: boolean, rows?: Application[]) => void
 ) => {
   ams.getApplications(
