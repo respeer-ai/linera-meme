@@ -132,13 +132,13 @@ const token0Chain = computed(() => _proxy.chain(selectedToken0.value) as Chain)
 const token1Chain = computed(() => _proxy.chain(selectedToken1.value) as Chain)
 const token0Application = computed(() => {
   return {
-    chainId: token0Chain.value?.chainId as string,
+    chain_id: token0Chain.value?.chainId as string,
     owner: token0Chain.value?.token as string
   }
 })
 const token1Application = computed(() => {
   return {
-    chainId: token1Chain.value?.chainId as string,
+    chain_id: token1Chain.value?.chainId as string,
     owner: token1Chain.value?.token as string
   }
 })

@@ -6,7 +6,7 @@ export class _Account {
 
   static applicationUrl = (httpBaseUrl: string, application: Account) => {
     if (!application?.owner) return
-    const chainId = application.chainId
+    const chainId = application.chain_id
     const applicationId = _Account.accountApplication(application) as string
     return constants.formalizeSchema(
       `${httpBaseUrl}/chains/${chainId}/applications/${applicationId}`
@@ -14,7 +14,7 @@ export class _Account {
   }
 
   static accountDescription = (account: Account) => {
-    let description = account.chainId
+    let description = account.chain_id
     if (account.owner) description += ':' + account.owner
     return description
   }

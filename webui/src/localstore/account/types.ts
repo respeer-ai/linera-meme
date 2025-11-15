@@ -1,5 +1,6 @@
 // TODO: generate from graphql
 export interface Account {
-  chainId: string
+  // eslint-disable-next-line camelcase
+  chain_id: string
   owner?: string
 }

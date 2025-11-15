@@ -82,7 +82,7 @@ export const useProxyStore = defineStore('proxy', {
       return (token: string) => {
         const chain = this.chains.find((el) => el.token === token)
         return {
-          chainId: chain?.chainId as string,
+          chain_id: chain?.chainId as string,
           owner: chain?.token as string
         }
       }
