@@ -82,6 +82,14 @@ export type Scalars = {
   VmRuntime: { input: any; output: any; }
 };
 
+/** Admin operation metadata. */
+export type AdminOperationMetadata = {
+  __typename?: 'AdminOperationMetadata';
+  adminOperationType: Scalars['String']['output'];
+  blobHash?: Maybe<Scalars['CryptoHash']['output']>;
+  epoch?: Maybe<Scalars['Int']['output']>;
+};
+
 export type ApplicationOverview = {
   __typename?: 'ApplicationOverview';
   description: Scalars['ApplicationDescription']['output'];
@@ -110,6 +118,13 @@ export type ApplicationPermissions = {
    * every block.
    */
   mandatoryApplications?: Array<Scalars['ApplicationId']['input']>;
+};
+
+/** Application permissions metadata for GraphQL. */
+export type ApplicationPermissionsMetadata = {
+  __typename?: 'ApplicationPermissionsMetadata';
+  /** JSON serialized `ApplicationPermissions`. */
+  permissionsJson: Scalars['String']['output'];
 };
 
 /**
@@ -290,6 +305,13 @@ export type ChainOwners = {
   owners: Array<Scalars['AccountOwner']['input']>;
 };
 
+/** Chain ownership metadata for GraphQL. */
+export type ChainOwnershipMetadata = {
+  __typename?: 'ChainOwnershipMetadata';
+  /** JSON serialized `ChainOwnership` for full representation. */
+  ownershipJson: Scalars['String']['output'];
+};
+
 export type ChainStateExtendedView = {
   __typename?: 'ChainStateExtendedView';
   chainId: Scalars['ChainId']['output'];
@@ -361,6 +383,31 @@ export type Chains = {
   list: Array<Scalars['ChainId']['output']>;
 };
 
+/** Change application permissions operation metadata. */
+export type ChangeApplicationPermissionsMetadata = {
+  __typename?: 'ChangeApplicationPermissionsMetadata';
+  permissions: ApplicationPermissionsMetadata;
+};
+
+/** Change ownership operation metadata. */
+export type ChangeOwnershipOperationMetadata = {
+  __typename?: 'ChangeOwnershipOperationMetadata';
+  multiLeaderRounds: Scalars['Int']['output'];
+  openMultiLeaderRounds: Scalars['Boolean']['output'];
+  owners: Array<OwnerWithWeight>;
+  superOwners: Array<Scalars['AccountOwner']['output']>;
+  timeoutConfig: TimeoutConfigMetadata;
+};
+
+/** Claim operation metadata. */
+export type ClaimOperationMetadata = {
+  __typename?: 'ClaimOperationMetadata';
+  amount: Scalars['Amount']['output'];
+  owner: Scalars['AccountOwner']['output'];
+  recipient: Scalars['Account']['output'];
+  targetId: Scalars['ChainId']['output'];
+};
+
 /** A set of validators (identified by their public keys) and their voting rights. */
 export type Committee = {
   /** The policy agreed on for this epoch. */
@@ -380,6 +427,23 @@ export type ConfirmedBlock = {
   block: Block;
   hash: Scalars['CryptoHash']['output'];
   status: Scalars['String']['output'];
+};
+
+/** Create application operation metadata. */
+export type CreateApplicationOperationMetadata = {
+  __typename?: 'CreateApplicationOperationMetadata';
+  instantiationArgumentHex: Scalars['String']['output'];
+  moduleId: Scalars['String']['output'];
+  parametersHex: Scalars['String']['output'];
+  requiredApplicationIds: Array<Scalars['ApplicationId']['output']>;
+};
+
+/** Credit message metadata. */
+export type CreditMessageMetadata = {
+  __typename?: 'CreditMessageMetadata';
+  amount: Scalars['Amount']['output'];
+  source: Scalars['AccountOwner']['output'];
+  target: Scalars['AccountOwner']['output'];
 };
 
 export type Cursor = {
@@ -825,6 +889,19 @@ export type MessageBundle = {
   transactionIndex: Scalars['Int']['output'];
 };
 
+/** Structured representation of a message for GraphQL. */
+export type MessageMetadata = {
+  __typename?: 'MessageMetadata';
+  /** For user messages, the application ID */
+  applicationId?: Maybe<Scalars['ApplicationId']['output']>;
+  /** The type of message: "System" or "User" */
+  messageType: Scalars['String']['output'];
+  /** For system messages, structured representation */
+  systemMessage?: Maybe<SystemMessageMetadata>;
+  /** For user messages, the serialized bytes (as a hex string for GraphQL) */
+  userBytesHex?: Maybe<Scalars['String']['output']>;
+};
+
 export type MutationRoot = {
   __typename?: 'MutationRoot';
   /** Changes the application permissions configuration on this chain. */
@@ -883,6 +960,12 @@ export type MutationRoot = {
   submitSignedBlock: Scalars['CryptoHash']['output'];
   /** Submit block proposal with signature */
   submitSignedBlockBcs: Scalars['CryptoHash']['output'];
+  /**
+   * Synchronizes the chain with the validators. Returns the chain's length.
+   *
+   * This is only used for testing, to make sure that a client is up to date.
+   */
+  sync: Scalars['Int']['output'];
   /**
    * Transfers `amount` units of value from the given owner's account to the recipient.
    * If no owner is given, try to take the units out of the chain account.
@@ -1033,11 +1116,24 @@ export type MutationRootSubmitSignedBlockBcsArgs = {
 };
 
 
+export type MutationRootSyncArgs = {
+  chainId: Scalars['ChainId']['input'];
+};
+
+
 export type MutationRootTransferArgs = {
   amount: Scalars['Amount']['input'];
   chainId: Scalars['ChainId']['input'];
   owner: Scalars['AccountOwner']['input'];
   recipient: Scalars['Account']['input'];
+};
+
+/** Open chain operation metadata. */
+export type OpenChainOperationMetadata = {
+  __typename?: 'OpenChainOperationMetadata';
+  applicationPermissions: ApplicationPermissionsMetadata;
+  balance: Scalars['Amount']['output'];
+  ownership: ChainOwnershipMetadata;
 };
 
 export type Operation = {
@@ -1046,8 +1142,8 @@ export type Operation = {
   applicationId?: Maybe<Scalars['ApplicationId']['output']>;
   /** The type of operation: "System" or "User" */
   operationType: Scalars['String']['output'];
-  /** For system operations, the serialized bytes (as a hex string for GraphQL) */
-  systemBytesHex?: Maybe<Scalars['String']['output']>;
+  /** For system operations, structured representation */
+  systemOperation?: Maybe<SystemOperationMetadata>;
   /** For user operations, the serialized bytes (as a hex string for GraphQL) */
   userBytesHex?: Maybe<Scalars['String']['output']>;
 };
@@ -1089,6 +1185,13 @@ export type OutgoingMessage = {
   refundGrantTo?: Maybe<Scalars['Account']['output']>;
 };
 
+/** Owner with weight metadata. */
+export type OwnerWithWeight = {
+  __typename?: 'OwnerWithWeight';
+  owner: Scalars['AccountOwner']['output'];
+  weight: Scalars['String']['output'];
+};
+
 /** The pending blobs belonging to a block that can't be processed without them. */
 export type PendingBlobsView = {
   __typename?: 'PendingBlobsView';
@@ -1119,8 +1222,22 @@ export type PostedMessage = {
   kind: Scalars['MessageKind']['output'];
   /** The message itself. */
   message: Scalars['Message']['output'];
+  /** Structured message metadata for GraphQL. */
+  messageMetadata: MessageMetadata;
   /** Where to send a refund for the unused part of the grant after execution, if any. */
   refundGrantTo?: Maybe<Scalars['Account']['output']>;
+};
+
+/** Publish data blob operation metadata. */
+export type PublishDataBlobMetadata = {
+  __typename?: 'PublishDataBlobMetadata';
+  blobHash: Scalars['CryptoHash']['output'];
+};
+
+/** Publish module operation metadata. */
+export type PublishModuleMetadata = {
+  __typename?: 'PublishModuleMetadata';
+  moduleId: Scalars['String']['output'];
 };
 
 export type QueryRoot = {
@@ -1330,6 +1447,64 @@ export type SystemExecutionStateView = {
   timestamp: Scalars['Timestamp']['output'];
 };
 
+/** Structured representation of a system message for GraphQL. */
+export type SystemMessageMetadata = {
+  __typename?: 'SystemMessageMetadata';
+  /** Credit message details */
+  credit?: Maybe<CreditMessageMetadata>;
+  /** The type of system message */
+  systemMessageType: Scalars['String']['output'];
+  /** Withdraw message details */
+  withdraw?: Maybe<WithdrawMessageMetadata>;
+};
+
+/** Structured representation of a system operation for GraphQL. */
+export type SystemOperationMetadata = {
+  __typename?: 'SystemOperationMetadata';
+  /** Admin operation details */
+  admin?: Maybe<AdminOperationMetadata>;
+  /** Change application permissions operation details */
+  changeApplicationPermissions?: Maybe<ChangeApplicationPermissionsMetadata>;
+  /** Change ownership operation details */
+  changeOwnership?: Maybe<ChangeOwnershipOperationMetadata>;
+  /** Claim operation details */
+  claim?: Maybe<ClaimOperationMetadata>;
+  /** Create application operation details */
+  createApplication?: Maybe<CreateApplicationOperationMetadata>;
+  /** Epoch operation details (`ProcessNewEpoch`, `ProcessRemovedEpoch`) */
+  epoch?: Maybe<Scalars['Int']['output']>;
+  /** Open chain operation details */
+  openChain?: Maybe<OpenChainOperationMetadata>;
+  /** Publish data blob operation details */
+  publishDataBlob?: Maybe<PublishDataBlobMetadata>;
+  /** Publish module operation details */
+  publishModule?: Maybe<PublishModuleMetadata>;
+  /** The type of system operation */
+  systemOperationType: Scalars['String']['output'];
+  /** Transfer operation details */
+  transfer?: Maybe<TransferOperationMetadata>;
+  /** `UpdateStreams` operation details */
+  updateStreams?: Maybe<Array<UpdateStreamMetadata>>;
+  /** Verify blob operation details */
+  verifyBlob?: Maybe<VerifyBlobMetadata>;
+};
+
+/** Timeout configuration metadata for GraphQL. */
+export type TimeoutConfigMetadata = {
+  __typename?: 'TimeoutConfigMetadata';
+  /** The duration of the first single-leader and all multi-leader rounds in milliseconds. */
+  baseTimeoutMs: Scalars['String']['output'];
+  /**
+   * The age of an incoming tracked or protected message after which validators start
+   * transitioning to fallback mode, in milliseconds.
+   */
+  fallbackDurationMs: Scalars['String']['output'];
+  /** The duration of the fast round in milliseconds. */
+  fastRoundMs?: Maybe<Scalars['String']['output']>;
+  /** The duration by which the timeout increases after each single-leader round in milliseconds. */
+  timeoutIncrementMs: Scalars['String']['output'];
+};
+
 /** An origin, cursor and timestamp of a unskippable bundle in our inbox. */
 export type TimestampedBundleInInbox = {
   __typename?: 'TimestampedBundleInInbox';
@@ -1350,11 +1525,41 @@ export type TransactionMetadata = {
   transactionType: Scalars['String']['output'];
 };
 
+/** Transfer operation metadata. */
+export type TransferOperationMetadata = {
+  __typename?: 'TransferOperationMetadata';
+  amount: Scalars['Amount']['output'];
+  owner: Scalars['AccountOwner']['output'];
+  recipient: Scalars['Account']['output'];
+};
+
 export type UnsignedBlockProposal = {
   __typename?: 'UnsignedBlockProposal';
   content: WrapperProposalContent;
   originalProposal?: Maybe<Scalars['OriginalProposal']['output']>;
   outcome: BlockExecutionOutcome;
+};
+
+/** Update stream metadata. */
+export type UpdateStreamMetadata = {
+  __typename?: 'UpdateStreamMetadata';
+  chainId: Scalars['ChainId']['output'];
+  nextIndex: Scalars['Int']['output'];
+  streamId: Scalars['String']['output'];
+};
+
+/** Verify blob operation metadata. */
+export type VerifyBlobMetadata = {
+  __typename?: 'VerifyBlobMetadata';
+  blobId: Scalars['String']['output'];
+};
+
+/** Withdraw message metadata. */
+export type WithdrawMessageMetadata = {
+  __typename?: 'WithdrawMessageMetadata';
+  amount: Scalars['Amount']['output'];
+  owner: Scalars['AccountOwner']['output'];
+  recipient: Scalars['Account']['output'];
 };
 
 export type WrapperProposalContent = {
