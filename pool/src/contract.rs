@@ -644,6 +644,14 @@ impl PoolContract {
             .update_fund_request(transfer_id, fund_request.clone())
             .await?;
 
+        let chain_id = self.runtime.chain_id();
+        log::info!(
+            "Fund success transfer_id {} fund type {:?} on chain {}",
+            transfer_id,
+            fund_request.fund_type,
+            chain_id,
+        );
+
         match fund_request.fund_type {
             FundType::Swap => self.swap_fund_success(&fund_request),
             FundType::AddLiquidity => self.add_liquidity_fund_success(&fund_request).await?,
@@ -654,6 +662,13 @@ impl PoolContract {
 
     async fn on_msg_fund_fail(&mut self, transfer_id: u64, error: String) -> Result<(), PoolError> {
         let mut fund_request = self.state.fund_request(transfer_id).await?;
+
+        log::info!(
+            "Fund fail transfer_id {} fund type {:?} error {}",
+            transfer_id,
+            fund_request.fund_type,
+            error
+        );
 
         fund_request.status = FundStatus::Fail;
         fund_request.error = Some(error);
@@ -692,10 +707,12 @@ impl PoolContract {
         {
             MemeResponse::Ok => {
                 log::info!(
-                    "Requested token {} fund {} on chain {}",
+                    "Requested token {} fund {} on chain {} transfer_id {} notify chain {}",
                     token,
                     amount,
-                    chain_id
+                    chain_id,
+                    transfer_id,
+                    message_chain_id,
                 );
                 self.runtime
                     .prepare_message(PoolMessage::FundSuccess { transfer_id })

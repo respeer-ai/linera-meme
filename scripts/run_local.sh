@@ -1,17 +1,16 @@
 #!/bin/bash
 
 ####
-## E.g. ./run_local.sh -f http://api.faucet.respeer.ai/api/faucet -C 0 -z testnet-babbage
+## E.g. ./run_local.sh -f http://api.testnet-conway.faucet.respeer.ai/api/faucet -C 0 -z testnet-conway
 ## This script must be run without proxy
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
-FAUCET_URL=http://api.faucet.respeer.ai/api/faucet
+FAUCET_URL=https://faucet.testnet-conway.linera.net
 COMPILE=1
-GIT_BRANCH=respeer-maas-testnet_babbage-3dc32c18-2025-04-15
-CREATE_WALLET=1
-CHAIN_OWNER_COUNT=4
-CLUSTER=
+GIT_BRANCH=respeer-maas-testnet_conway-e3d16f6c-2025-11-15
+CHAIN_OWNER_COUNT=1
+CLUSTER=testnet-conway
 
 options="f:c:C:W:z:"
 
@@ -72,10 +71,10 @@ if [ "x$COMPILE" = "x1" ]; then
     INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}'`
 
     if [ "x$LATEST_COMMIT" != "x$INSTALLED_COMMIT" ]; then
-        cargo build --release --features storage-service,disable-native-rpc
+        cargo build --release --features storage-service,disable-native-rpc -j 1
         mv target/release/linera $COMMON_BIN_DIR
 
-        cargo build --release --features storage-service,enable-wallet-rpc
+        cargo build --release --features storage-service,enable-wallet-rpc -j 1
         mv target/release/linera $MAKER_BIN_DIR
     fi
 fi
@@ -83,15 +82,10 @@ fi
 cd $SCRIPT_DIR/..
 
 # Compile applications
-cargo build --release --target wasm32-unknown-unknown
+cargo build --release --target wasm32-unknown-unknown -j 1
 
 # Make sure to clean up child processes on exit.
 trap 'kill $(jobs -p)' EXIT
-
-BLOB_GATEWAY_WALLET=$WALLET_DIR/blob-gateway
-if [ ! -d ${BLOB_GATEWAY_WALLET}/creator ]; then
-    CREATE_WALLET=1
-fi
 
 function create_wallet() {
     wallet_name=$1
@@ -102,21 +96,22 @@ function create_wallet() {
     mkdir -p $WALLET_DIR/$wallet_name/$wallet_index
 
     # Init wallet from faucet
+    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+           wallet init \
+           --faucet $FAUCET_URL > /dev/null 2>&1
     if [ "x$new_chain" = "x1" ]; then
         linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-               wallet init \
-               --faucet $FAUCET_URL \
-               --with-new-chain
-    else
-        linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-               wallet init \
-               --faucet $FAUCET_URL
+               wallet request-chain \
+               --faucet $FAUCET_URL > /dev/null 2>&1
     fi
 
     # Create unassigned owner for later multi-owner chain creation
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            keygen
 }
@@ -125,33 +120,33 @@ function create_wallets() {
     wallet_name=$1
 
     # Create creator chain which will be used to create multi-owner chain
-    create_wallet $wallet_name creator 1
+    owners=($(create_wallet $wallet_name creator 1))
 
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         # Creator new wallet which only have owner
-        create_wallet $wallet_name $i 0
+        owners+=($(create_wallet $wallet_name $i 0))
     done
+
+    echo ${owners[@]}
 }
 
-# Create creator chain
-if [ "x$CREATE_WALLET" = "x1" ]; then
-    # Create wallet for blob gateway
-    create_wallets blob-gateway
+# Create wallet for blob gateway
+BLOB_GATEWAY_OWNERS=$(create_wallets blob-gateway)
 
-    # Create wallet for ams
-    create_wallets ams
+# Create wallet for ams
+AMS_OWNERS=$(create_wallets ams)
 
-    # Create wallet for swap
-    create_wallets swap
+# Create wallet for swap
+SWAP_OWNERS=$(create_wallets swap)
 
-    # Create wallet for proxy
-    create_wallets proxy
-fi
+# Create wallet for proxy
+PROXY_OWNERS=$(create_wallets proxy)
 
 function publish_bytecode_on_chain() {
     application_name=$1
     wasm_name=$(echo $2 | sed 's/-/_/g')
     linera --wallet $WALLET_DIR/$application_name/creator/wallet.json \
+           --keystore $WALLET_DIR/$application_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$application_name/creator/client.db \
            publish-module $SCRIPT_DIR/../target/wasm32-unknown-unknown/release/${wasm_name}_{contract,service}.wasm
 }
@@ -173,9 +168,10 @@ function wallet_owner() {
     wallet_name=$1
     wallet_index=$2
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep AccountOwner | awk '{print $4}' | grep '0x'
+           | awk '/^Default owner:/ { if ($3 != "No") print $3 }'
 }
 
 function wallet_chain_owner() {
@@ -184,26 +180,16 @@ function wallet_chain_owner() {
     chain_id=$3
 
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+        --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
         --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
         wallet show \
-        | grep $chain_id -A 2 | grep AccountOwner | awk '{print $4}' | grep '0x'
+        | awk -F: -v id="$chain_id" '$1 == "Chain ID" {gsub(/^[ \t]+/, "", $2); if ($2 == id) found=1; else found=0} $1 == "Default owner" {if (found) {gsub(/^[ \t]+/, "", $2); print $2; found=0}}'
 }
 
 function wallet_unassigned_owner() {
     wallet_name=$1
     wallet_index=$2
     cat $WALLET_DIR/$wallet_name/$wallet_index/wallet.json | jq -r '.unassigned_key_pairs | keys[]'
-}
-
-function wallet_unassigned_owners() {
-    wallet_name=$1
-
-    owners=($(wallet_unassigned_owner $wallet_name creator))
-    for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
-        owners+=($(wallet_unassigned_owner $wallet_name $i))
-    done
-
-    echo ${owners[@]}
 }
 
 function wallet_chain_owners() {
@@ -222,68 +208,71 @@ function wallet_chain_id() {
     wallet_name=$1
     wallet_index=$2
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | grep "Public Key" | grep -v " - " | awk '{print $2}'
+           | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
 }
 
 function assign_chain_to_owner() {
     wallet_name=$1
     wallet_index=$2
-    message_id=$3
+    chain_id=$3
+    owner=$4
 
-    owner=$(wallet_unassigned_owner $wallet_name $wallet_index)
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-           assign --owner $owner --message-id $message_id
+           assign --owner $owner --chain-id $chain_id
 }
 
 function open_multi_owner_chain() {
     wallet_name=$1
+    shift 1
 
-    owners=$(wallet_unassigned_owners $wallet_name)
+    owners=("$@")
     chain_id=$(wallet_chain_id $wallet_name creator)
 
-    chain_message=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+    chain_id=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
            --owners ${owners[@]} \
            --multi-leader-rounds 100 \
-           --initial-balance "5."))
-
-    message_id=${chain_message[0]}
-    chain_id=${chain_message[1]}
+           --initial-balance "20."))
 
     # Assign newly created chain to unassigned key.
-    assign_chain_to_owner $wallet_name creator $message_id > /dev/null 2>&1
+    assign_chain_to_owner $wallet_name creator $chain_id ${owners[0]} # > /dev/null 2>&1
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
-        assign_chain_to_owner $wallet_name $i $message_id > /dev/null 2>&1
+        assign_chain_to_owner $wallet_name $i $chain_id ${owners[$((i+1))]} # > /dev/null 2>&1
     done
 
     linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
-	   wallet set-default \
-	   $chain_id > /dev/null 2>&1
+           wallet set-default \
+           $chain_id > /dev/null 2>&1
 
     echo $chain_id
 }
 
 # Create multi owner chains
 # Create blob gateway multi owner chains
-BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway)
+BLOB_GATEWAY_CHAIN_ID=$(open_multi_owner_chain blob-gateway $BLOB_GATEWAY_OWNERS)
 # Create ams multi owner chains
-AMS_CHAIN_ID=$(open_multi_owner_chain ams)
+AMS_CHAIN_ID=$(open_multi_owner_chain ams $AMS_OWNERS)
 # Create proxy multi owner chains
-PROXY_CHAIN_ID=$(open_multi_owner_chain proxy)
+PROXY_CHAIN_ID=$(open_multi_owner_chain proxy $PROXY_OWNERS)
 # Create swap multi owner chains
-SWAP_CHAIN_ID=$(open_multi_owner_chain swap)
+SWAP_CHAIN_ID=$(open_multi_owner_chain swap $SWAP_OWNERS)
 
 function process_inbox() {
     wallet_name=$1
     wallet_index=$2
 
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            process-inbox
 }
@@ -311,24 +300,28 @@ function create_application() {
     chain_id=$5
 
     if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-argument "$argument" \
                --json-parameters "$parameters"
     elif [ "x$argument" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-argument "$argument"
     elif [ "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-parameters "$parameters"
     else
-        linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-               --storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
+        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id
     fi
 }
@@ -348,20 +341,23 @@ process_inboxes swap
 function change_multi_owner_chain_single_leader() {
     wallet_name=$1
     chain_id=$2
+    shift 2
 
-    owners=$(wallet_chain_owners $wallet_name $chain_id)
-    linera --wallet $WALLET_DIR/$wallet_name/1/wallet.json \
-	--storage rocksdb://$WALLET_DIR/$wallet_name/1/client.db \
-	change-ownership \
-	--chain-id $chain_id \
-	--owners ${owners[@]} \
-	--multi-leader-rounds 0
+    owners=("$@")
+
+    linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
+           --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
+           change-ownership \
+           --chain-id $chain_id \
+           --owners ${owners[@]} \
+           --multi-leader-rounds 0
 }
 
-change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID
-change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID
-change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID
-change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID
+change_multi_owner_chain_single_leader blob-gateway $BLOB_GATEWAY_CHAIN_ID $BLOB_GATEWAY_OWNERS
+change_multi_owner_chain_single_leader ams $AMS_CHAIN_ID $AMS_OWNERS
+change_multi_owner_chain_single_leader proxy $PROXY_CHAIN_ID $PROXY_OWNERS
+change_multi_owner_chain_single_leader swap $SWAP_CHAIN_ID $SWAP_OWNERS
 
 function service_servers() {
     port_base=$1
@@ -445,6 +441,7 @@ function run_service() {
     port=$3
 
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            service --port $port &
 }
@@ -466,6 +463,13 @@ run_services ams 21080
 run_services swap 22080
 run_services proxy 23080
 
+DATABASE_NAME=linera_swap_kline
+DATABASE_USER=linera-swap
+DATABASE_PASSWORD=12345679
+DATABASE_PORT=3306
+SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
+PROXY_HOST=${SUB_DOMAIN}linerameme.fun
+
 function run_kline() {
     cd service/kline
     pip3 install --upgrade pip
@@ -476,9 +480,16 @@ function run_kline() {
     pip3 uninstall websocket-client -y
     pip3 install websocket-client
 
-    all_proxy= python3 src/kline.py --swap-application-id $SWAP_APPLICATION_ID --clean-kline &
+    all_proxy= python3 -u src/kline.py \
+        --swap-application-id "$SWAP_APPLICATION_ID" \
+        --database-host "$DATABASE_HOST" \
+        --database-port "$DATABASE_PORT" \
+        --database-user "$DATABASE_USER" \
+        --database-password "$DATABASE_PASSWORD" \
+        --database-name "$DATABASE_NAME" \
+        --swap-host "$SWAP_HOST" &
     sleep 10
-    all_proxy= curl -X POST http://localhost:25080/run/ticker > /dev/null 2>&1 &
+    all_proxy= curl -X POST http://localhost:25080/run/ticker &
 }
 
 function run_maker() {
@@ -490,7 +501,13 @@ function run_maker() {
 
     run_service maker 0 50080
 
-    all_proxy= python3 src/maker.py --swap-application-id $SWAP_APPLICATION_ID --wallet-host "localhost:50080" --wallet-owner "$owner" --wallet-chain "$chain" &
+    all_proxy= python3 -u src/maker.py \
+        --swap-application-id "$SWAP_APPLICATION_ID" \
+        --wallet-host "localhost:50080" \
+        --wallet-owner "$owner" \
+        --wallet-chain "$chain" \
+        --swap-host "$SWAP_HOST" \
+        --proxy-host "$PROXY_HOST"
 }
 
 run_kline

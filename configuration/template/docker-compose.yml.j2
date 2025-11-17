@@ -9,6 +9,6 @@ services:
     volumes:
       - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
     environment:
-      RUST_LOG: warn
+      RUST_LOG: info
     restart: always
 {% endfor %}
