@@ -25,6 +25,8 @@ while getopts $options opt; do
 done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+ROOT_DIR=$SCRIPT_DIR/..
+
 TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 DOMAIN_FILE="${SCRIPT_DIR}/../webui/src/constant/domain.ts"
 
@@ -469,6 +471,16 @@ DATABASE_PASSWORD=12345679
 DATABASE_PORT=3306
 SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
 PROXY_HOST=${SUB_DOMAIN}linerameme.fun
+
+function run_mysql() {
+    docker stop docker-mysql-1
+    docker rm docker-mysql-1
+
+    MYSQL_ROOT_PASSWORD=12345679 MYSQL_DATABASE=$DATABASE_NAME MYSQL_USER=$DATABASE_USER MYSQL_PASSWORD=$DATABASE_PASSWORD \
+      docker compose -f $ROOT_DIR/docker/docker-compose-mysql.yml up --wait
+}
+
+run_mysql
 
 function run_kline() {
     cd service/kline
