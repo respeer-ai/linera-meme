@@ -513,6 +513,8 @@ function run_maker() {
 
     run_service maker 0 50080
 
+    sleep 20
+
     all_proxy= python3 -u src/maker.py \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --wallet-host "localhost:50080" \
