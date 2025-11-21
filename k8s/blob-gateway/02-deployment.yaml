@@ -284,7 +284,7 @@ spec:
             memory: "1024Mi"
           limits:
             cpu: "300m"
-            memory: "2048Mi"
+            memory: "1536Mi"
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:
