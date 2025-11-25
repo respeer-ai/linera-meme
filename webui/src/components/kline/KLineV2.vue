@@ -251,14 +251,13 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   LoadReason.value = _reason.payload
 
   if (_reason.payload.priv?.callbackId) {
-    /*
     const _callback = callbacks.value.get(_reason.payload.priv?.callbackId)
     if (_callback) {
-      _callback(points as KLineData[], points.length > 0)
+      const dataList = chart.value?.getDataList() || []
+      const _points = points.filter((el) => dataList.findIndex((_el) => _el.timestamp === el.timestamp) < 0)
+      _callback(_points as KLineData[], _points.length > 0)
       callbacks.value.delete(_reason.payload.priv?.callbackId)
     }
-    */
-    chart.value?.applyNewData(points as KLineData[])
   } else {
     chart.value?.applyNewData(points as KLineData[])
   }
