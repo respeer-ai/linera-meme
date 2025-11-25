@@ -53,18 +53,32 @@ export class Kline {
     token1: string,
     interval: Interval,
     offset: number,
-    limit: number
+    limit: number,
+    reverse?: boolean
   ) => {
-    return await dbKline.klinePoints
-      .orderBy('timestamp')
-      .filter(
-        (obj) =>
-          obj.token0 === token0 &&
-          obj.token1 === token1 &&
-          obj.interval === interval
-      )
-      .offset(offset)
-      .limit(limit)
-      .toArray()
+    return reverse
+      ? await dbKline.klinePoints
+        .orderBy('timestamp')
+        .reverse()
+        .filter(
+          (obj) =>
+            obj.token0 === token0 &&
+            obj.token1 === token1 &&
+            obj.interval === interval
+        )
+        .offset(offset)
+        .limit(limit)
+        .toArray()
+      : await dbKline.klinePoints
+        .orderBy('timestamp')
+        .filter(
+          (obj) =>
+            obj.token0 === token0 &&
+            obj.token1 === token1 &&
+            obj.interval === interval
+        )
+        .offset(offset)
+        .limit(limit)
+        .toArray()
   }
 }
