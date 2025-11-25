@@ -71,7 +71,7 @@ export class _Indicator {
     }
   }
 
-  static exponentialMovingAverate = {
+  static exponentialMovingAverage = {
     name: 'EMA',
     shortName: 'EMA',
     series: 'price',
@@ -149,21 +149,21 @@ export class _Indicator {
       title: 'VOLUME: ',
       type: 'bar',
       baseValue: 0,
-      styles: ({ data, indicator, defaultStyles }) => {
+      styles: (data, indicator, defaultStyles) => {
         const current = data.current
         let color = _Indicator.formatValue(
           indicator.styles,
           'bars[0].noChangeColor',
           defaultStyles?.bars?.[0].noChangeColor
         )
-        if (_Indicator.isValid(current)) {
-          if (current.close > current.open) {
+        if (_Indicator.isValid(current) && _Indicator.isValid(current.indicatorData)) {
+          if (current.indicatorData.close > current.indicatorData.open) {
             color = _Indicator.formatValue(
               indicator.styles,
               'bars[0].upColor',
               defaultStyles?.bars?.[0].upColor
             )
-          } else if (current.close < current.open) {
+          } else if (current.indicatorData.close < current.indicatorData.open) {
             color = _Indicator.formatValue(
               indicator.styles,
               'bars[0].downColor',

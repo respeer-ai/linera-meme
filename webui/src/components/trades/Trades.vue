@@ -80,10 +80,13 @@ const getTransactions = (startAt: number) => {
   })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const loadTransactions = (offset: number, limit: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
+  // eslint-disable-next-line no-useless-return
   if (selectedToken0.value === selectedToken1.value) return
 
+  /*
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
@@ -91,6 +94,7 @@ const loadTransactions = (offset: number, limit: number) => {
     offset,
     limit
   })
+    */
 }
 
 const getStoreTransactions = () => {
