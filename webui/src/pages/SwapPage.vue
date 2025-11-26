@@ -137,6 +137,8 @@ onMounted(() => {
   width: 380px
   margin-left: 4px
   margin-right: 4px
+  .q-tabs
+    height: 45px
 
 .swap-padding
   padding: 0 16px

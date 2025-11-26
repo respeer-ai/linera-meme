@@ -81,8 +81,6 @@ export class Kline {
     const from = [token0, token1, interval, timestampBegin ?? 0]
     const to = [token0, token1, interval, timestampEnd ?? 9999999999999]
 
-    console.log('----------', from, to, offset, limit)
-
     const collection = reverse
       ? dbKline.klinePoints
         .where('[token0+token1+interval+timestamp]')
@@ -92,9 +90,10 @@ export class Kline {
         .where('[token0+token1+interval+timestamp]')
         .between(from, to)
 
-    return await collection
+    return (await collection
       .offset(offset ?? 0)
       .limit(limit ?? 999999)
-      .toArray()
+      .toArray()).sort((a, b) => b.timestamp - a.timestamp)
+      
   }
 }
