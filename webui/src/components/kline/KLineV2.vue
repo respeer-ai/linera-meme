@@ -6,31 +6,32 @@
       </div>
       <q-space />
       <q-btn
+        dense
         flat
         label='Create pool'
         class='text-blue-8'
         rounded
-        :style='{margin: "4px 0"}'
+        :style='{margin: "0 0"}'
         @click='onCreatePoolClick'
       />
     </div>
     <q-separator />
-    <div id='chart' style='width:100%; height:600px' />
+    <Chart id='chart' style='width:100%; height:600px' :data='klinePoints' />
   </div>
 </template>
 
 <script setup lang='ts'>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
-import { init, dispose, Chart, Nullable, KLineData, Options, LoadDataParams, LoadDataType } from 'klinecharts'
 import { kline, swap } from 'src/localstore'
 import { useRouter } from 'vue-router'
 import { constants } from 'src/constant'
 import { klineWorker } from 'src/worker'
-import { uid } from 'quasar'
+import { dbBridge } from 'src/bridge'
+import { KLineData } from './chart/KlineData'
 
 import SwapSelect from './SwapSelect.vue'
 import { _Indicator } from './Indicator'
-import { dbBridge } from 'src/bridge'
+import Chart from './chart/Chart.vue'
 
 const _kline = kline.useKlineStore()
 const _swap = swap.useSwapStore()
@@ -40,15 +41,17 @@ const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000 || 0))
 
-type CallbackFunc = (dataList: KLineData[], more?: boolean) => void
-const callbacks = ref(new Map<string, CallbackFunc>())
-
 const latestTimestamp = ref(poolCreatedAt.value)
-const _latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value) as KLineData[])
+const _latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).map((el) => {
+  return {
+    ...el,
+    time: Math.floor(el.timestamp / 1000)
+  }
+}))
 const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timestamp > latestTimestamp.value - 300000))
 
-const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
+const klinePoints = ref([] as KLineData[])
 
 const minLocalTimestamp = ref(0)
 const maxLocalTimestamp = ref(Math.floor(Date.now() / 1000) + 3600)
@@ -133,8 +136,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 
 const getStoreKline = async () => {
   if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value) {
-    chart.value?.clearData()
-
+    klinePoints.value = []
     const timestampRange = await dbBridge.Kline.timestampRange(selectedToken0.value, selectedToken1.value, kline.Interval.ONE_MINUTE)
     minLocalTimestamp.value = timestampRange.minTimestamp
     curLocalTimestamp.value = minLocalTimestamp.value
@@ -184,8 +186,11 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
-    originPoints: [...(chart.value?.getDataList() || [])].map((el) => {
-      return { ...el } as kline.Point
+    originPoints: [...klinePoints.value].map((el) => {
+      return {
+        ...el,
+        timestamp: el.time * 1000
+      } as kline.Point
     }),
     newPoints: _points,
     keepCount: MAX_POINTS,
@@ -270,73 +275,17 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
-  LoadReason.value = _reason.payload
-
-  if (_reason.payload.priv?.callbackId) {
-    const _callback = callbacks.value.get(_reason.payload.priv?.callbackId)
-    if (_callback) {
-      const dataList = chart.value?.getDataList() || []
-      const _points = points.filter((el) => dataList.findIndex((_el) => _el.timestamp === el.timestamp) < 0)
-      if (_points.length === 0) {
-        if (!LoadRemote.value) {
-          const { startAt, endAt, priv } = _reason.payload
-          return loadKline(undefined, undefined, startAt, endAt, reverse, priv.callbackId)
-        } else {
-          // TODO: Fetch remote
-        }
-      }
-      console.log('callback', _points.length)
-      _callback(_points as KLineData[], true)
-      callbacks.value.delete(_reason.payload.priv?.callbackId)
+  klinePoints.value = points.map((el) => {
+    return {
+      ...el,
+      time: Math.floor(el.timestamp / 1000)
     }
-  } else {
-    chart.value?.applyNewData(points as KLineData[], true)
-  }
+  })
+
   latestTimestamp.value = points[reverse ? 0 : points.length - 1]?.timestamp || latestTimestamp.value
 }
 
-const loadMore = (params: LoadDataParams) => {
-  const callbackId = uid()
-  callbacks.value.set(callbackId, params.callback)
-  LoadReason.value.priv = { callbackId }
-
-  const timestamp = params.data?.timestamp ?? 0
-  const reverse = params.type === LoadDataType.Forward
-
-  // Always fetch from local IndexeDB, fetch remove unless we cannot get locally
-  console.log('loadMore', chart.value?.getDataList().length, LoadReason.value, params, chart.value?.getDataList()[0], chart.value?.getDataList()[chart.value?.getDataList().length - 1], reverse, LoadRemote.value)
-  if (LoadRemote.value) {
-    onFetchSorted(LoadReason.value, reverse)
-  } else {
-    onLoadSorted(LoadReason.value, reverse, timestamp)
-  }
-}
-
 onMounted(async () => {
-  chart.value = init('chart', {
-    layout: [
-      {
-        type: 'candle',
-        content: [
-          _Indicator.movingAverage,
-          _Indicator.exponentialMovingAverage
-        ],
-        options: { order: Number.MIN_SAFE_INTEGER }
-      },
-      {
-        type: 'indicator',
-        content: [
-          _Indicator.volume
-        ],
-        options: { order: 10 }
-      },
-      { type: 'xAxis', options: { order: 9 } }
-    ]
-  } as unknown as Options)
-
-  chart.value?.setPriceVolumePrecision(10, 6)
-  chart.value?.setLoadDataCallback(loadMore)
-
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
@@ -348,7 +297,6 @@ onBeforeUnmount(() => {
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
-  dispose('chart')
 })
 
 const router = useRouter()

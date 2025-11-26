@@ -286,19 +286,6 @@ export class KlineRunner {
         timestampEnd
       )
 
-      let _points = await dbBridge.Kline.points(
-        token0,
-        token1,
-        interval,
-        undefined,
-        undefined,
-        reverse,
-        undefined,
-        undefined
-      )
-      _points = _points.sort((a, b) => a.timestamp - b.timestamp)
-      console.log('======================', _points[0].timestamp, _points[_points.length - 1].timestamp, timestampBegin, timestampEnd)
-
       self.postMessage({
         type: KlineEventType.LOADED_POINTS,
         payload: {
@@ -400,7 +387,8 @@ export class KlineRunner {
 
     const points = originPoints
     const _points = points.sort((p1, p2) =>
-      reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
+      // reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
+      p1.timestamp - p2.timestamp
     )
     keepCount = keepCount < 0 ? _points.length : keepCount
 
