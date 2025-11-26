@@ -44,6 +44,7 @@
     "hash-wasm": "^4.11.0",
     "highlight.js": "^11.10.0",
     "klinecharts": "^9.8.12",
+    "lightweight-charts": "^5.0.9",
     "lossless-json": "^4.0.2",
     "mitt": "^3.0.1",
     "node-polyfill": "^1.0.0",
