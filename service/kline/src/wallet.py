@@ -43,6 +43,8 @@ class Wallet:
 
         if 'data' not in resp.json():
             return 0
+        if 'errors' in resp.json():
+            return 0
 
         balances = resp.json()['data']['balances']
         if self.chain not in balances:
