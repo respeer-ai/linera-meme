@@ -46,7 +46,6 @@ export interface FetchTransactionsPayload extends BasePayload {
 }
 export interface FetchedPointsPayload extends BasePayload {
   points: Points
-  priv: unknown
 }
 export interface FetchedTransactionsPayload extends BasePayload {
   startAt: number
@@ -60,7 +59,6 @@ export interface LoadPointsPayload extends BasePayload {
   reverse: boolean
   timestampBegin?: number
   timestampEnd?: number
-  priv: unknown
 }
 export interface LoadTransactionsPayload extends BasePayload {
   tokenReversed: boolean
@@ -75,7 +73,6 @@ export interface LoadedPointsPayload extends BasePayload {
   reverse: boolean
   timestampBegin?: number
   timestampEnd?: number
-  priv: unknown
 }
 export interface LoadedTransactionsPayload extends BasePayload {
   offset: number
@@ -94,7 +91,6 @@ export interface SortPointsPayload extends BasePayload {
 export interface SortedPointsPayload extends BasePayload {
   points: Point[]
   reverse: boolean
-  reason: unknown
 }
 export interface SortTransactionsPayload extends BasePayload {
   tokenReversed: boolean
@@ -272,7 +268,7 @@ export class KlineRunner {
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd, priv } = payload
+    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd } = payload
 
     try {
       const points = await dbBridge.Kline.points(
@@ -297,8 +293,7 @@ export class KlineRunner {
           points,
           reverse,
           timestampBegin,
-          timestampEnd,
-          priv
+          timestampEnd
         }
       })
     } catch (e) {
@@ -401,7 +396,6 @@ export class KlineRunner {
           reverse ? 0 : Math.max(_points.length - keepCount, 0),
           reverse ? keepCount : _points.length
         ),
-        reason,
         reverse
       }
     })
