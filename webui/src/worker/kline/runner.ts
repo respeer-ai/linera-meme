@@ -54,10 +54,12 @@ export interface FetchedTransactionsPayload extends BasePayload {
   transactions: TransactionExt[]
 }
 export interface LoadPointsPayload extends BasePayload {
-  offset: number
-  limit: number
+  offset?: number
+  limit?: number
   interval: Interval
   reverse: boolean
+  timestampBegin?: number
+  timestampEnd?: number
   priv: unknown
 }
 export interface LoadTransactionsPayload extends BasePayload {
@@ -70,6 +72,9 @@ export interface LoadedPointsPayload extends BasePayload {
   limit: number
   interval: string
   points: Point[]
+  reverse: boolean
+  timestampBegin?: number
+  timestampEnd?: number
   priv: unknown
 }
 export interface LoadedTransactionsPayload extends BasePayload {
@@ -267,7 +272,7 @@ export class KlineRunner {
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, offset, limit, interval, reverse, priv } = payload
+    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd, priv } = payload
 
     try {
       const points = await dbBridge.Kline.points(
@@ -276,8 +281,23 @@ export class KlineRunner {
         interval,
         offset,
         limit,
-        reverse
+        reverse,
+        timestampBegin,
+        timestampEnd
       )
+
+      let _points = await dbBridge.Kline.points(
+        token0,
+        token1,
+        interval,
+        undefined,
+        undefined,
+        reverse,
+        undefined,
+        undefined
+      )
+      _points = _points.sort((a, b) => a.timestamp - b.timestamp)
+      console.log('======================', _points[0].timestamp, _points[_points.length - 1].timestamp, timestampBegin, timestampEnd)
 
       self.postMessage({
         type: KlineEventType.LOADED_POINTS,
@@ -288,6 +308,9 @@ export class KlineRunner {
           limit,
           interval,
           points,
+          reverse,
+          timestampBegin,
+          timestampEnd,
           priv
         }
       })
@@ -390,7 +413,8 @@ export class KlineRunner {
           reverse ? 0 : Math.max(_points.length - keepCount, 0),
           reverse ? keepCount : _points.length
         ),
-        reason
+        reason,
+        reverse
       }
     })
   }

@@ -30,6 +30,7 @@ import { uid } from 'quasar'
 
 import SwapSelect from './SwapSelect.vue'
 import { _Indicator } from './Indicator'
+import { dbBridge } from 'src/bridge'
 
 const _kline = kline.useKlineStore()
 const _swap = swap.useSwapStore()
@@ -49,7 +50,12 @@ const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timest
 const chart = ref<Nullable<Chart>>()
 const applied = ref(false)
 
+const minLocalTimestamp = ref(0)
+const maxLocalTimestamp = ref(Math.floor(Date.now() / 1000) + 3600)
+const curLocalTimestamp = ref(1)
+
 watch(latestPoints, () => {
+  /*
   if (!applied.value || !_latestPoints.value.length) return
 
   const dataList = chart.value?.getDataList()
@@ -85,6 +91,7 @@ watch(latestPoints, () => {
   }
   chart.value?.updateData(latestPoints.value[latestPoints.value.length - 1])
   latestTimestamp.value = latestPoints.value[latestPoints.value.length - 1].timestamp
+  */
 })
 
 const getKline = (startAt: number, reverse: boolean) => {
@@ -103,9 +110,11 @@ const getKline = (startAt: number, reverse: boolean) => {
   })
 }
 
-const loadKline = (offset: number, limit: number, reverse: boolean, callbackId?: string) => {
+const loadKline = (offset: number | undefined, limit: number | undefined, timestampBegin: number | undefined, timestampEnd: number | undefined, reverse: boolean, callbackId?: string) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
+
+  console.log('LoadKline', reverse, timestampBegin, timestampEnd)
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_POINTS, {
     token0: selectedToken0.value,
@@ -114,29 +123,37 @@ const loadKline = (offset: number, limit: number, reverse: boolean, callbackId?:
     limit,
     interval: kline.Interval.ONE_MINUTE,
     reverse,
+    timestampBegin,
+    timestampEnd,
     priv: callbackId ? {
       callbackId
     } : {}
   })
 }
 
-const getStoreKline = () => {
+const getStoreKline = async () => {
   if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value) {
     chart.value?.clearData()
-    loadKline(0, 100, true)
+
+    const timestampRange = await dbBridge.Kline.timestampRange(selectedToken0.value, selectedToken1.value, kline.Interval.ONE_MINUTE)
+    minLocalTimestamp.value = timestampRange.minTimestamp
+    curLocalTimestamp.value = minLocalTimestamp.value
+    maxLocalTimestamp.value = timestampRange.maxTimestamp
+
+    loadKline(0, 100, undefined, undefined, true)
   }
 }
 
-watch(selectedToken0, () => {
-  getStoreKline()
+watch(selectedToken0, async () => {
+  await getStoreKline()
 })
 
 watch(selectedToken1, () => {
-  getStoreKline()
+  // getStoreKline()
 })
 
 watch(selectedPool, () => {
-  getStoreKline()
+  // getStoreKline()
 })
 
 const MAX_POINTS = 1800
@@ -151,11 +168,8 @@ type CallPriv = {
   }
 
 type ReasonPayload = {
+  startAt: number,
   endAt: number,
-  priv: CallPriv
-} | {
-  offset: number,
-  limit: number,
   priv: CallPriv
 }
 
@@ -166,7 +180,7 @@ interface Reason {
 
 const LoadRemote = ref(false)
 
-const updatePoints = (_points: kline.Point[], reason: Reason) => {
+const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
@@ -175,7 +189,7 @@ const updatePoints = (_points: kline.Point[], reason: Reason) => {
     }),
     newPoints: _points,
     keepCount: MAX_POINTS,
-    reverse: false,
+    reverse,
     reason
   })
 }
@@ -189,36 +203,40 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   updatePoints(_points.points, {
     reason: SortReason.FETCH,
     payload: {
-      endAt: _points.end_at,
+      startAt: _points.end_at,
+      endAt: _points.end_at + 1 * 3600,
       priv: priv as CallPriv
     }
-  })
+  // TODO: reverse
+  }, true)
 }
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1, priv } = payload
+  const { token0, token1, reverse, priv, timestampBegin, timestampEnd } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
-  let fetchStartAt = Math.floor(Math.max(latestTimestamp.value / 1000, poolCreatedAt.value / 1000 || 0))
-  fetchStartAt = Math.floor(fetchStartAt / 60) * 60
+  const _latestTimestamp = Math.max(latestTimestamp.value, poolCreatedAt.value || 0)
 
-  LoadRemote.value = _points.length === 0
+  const startAt = reverse ? (timestampBegin ?? _latestTimestamp) - 1 * 3600 * 1000 : (timestampEnd ?? _latestTimestamp) + 1
+  const endAt = reverse ? (timestampBegin ?? _latestTimestamp) - 1 : (timestampEnd ?? _latestTimestamp) + 1 * 3600 * 1000
+  curLocalTimestamp.value = reverse ? startAt : endAt
+
+  LoadRemote.value = curLocalTimestamp.value < minLocalTimestamp.value || curLocalTimestamp.value > maxLocalTimestamp.value
+
+  console.log('LoadedPoints', startAt, endAt, LoadRemote.value, reverse, _points.length, curLocalTimestamp.value, minLocalTimestamp.value, maxLocalTimestamp.value, startAt, endAt)
 
   const reason = {
     reason: _points.length ? SortReason.LOAD : SortReason.FETCH,
-    payload: _points.length ? {
-      offset: payload.offset + payload.limit,
-      limit: payload.limit,
-      priv: priv as CallPriv
-    } : {
-      endAt: fetchStartAt,
+    payload: {
+      startAt,
+      endAt,
       priv: priv as CallPriv
     }
   }
 
-  updatePoints(_points, reason)
+  updatePoints(_points, reason, reverse)
 }
 
 const onFetchSorted = (payload: ReasonPayload, reverse: boolean) => {
@@ -230,20 +248,24 @@ const onFetchSorted = (payload: ReasonPayload, reverse: boolean) => {
   }
 
   setTimeout(() => {
+    return
     getKline(endAt, reverse)
   }, 100)
 }
 
-const onLoadSorted = (payload: ReasonPayload, reverse: boolean) => {
-  const { offset, limit, priv } = payload as { offset: number, limit: number, priv: CallPriv }
+const onLoadSorted = (payload: ReasonPayload, reverse: boolean, timestamp: number) => {
+  const { priv } = payload as { priv: CallPriv }
 
-  loadKline(offset, limit, reverse, priv.callbackId)
+  const timestampBegin = reverse ? (timestamp - 1 * 3600 * 1000) : timestamp + 1
+  const timestampEnd = reverse ? timestamp - 1 : (timestamp + 1 * 3600 * 1000)
+
+  loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse, priv.callbackId)
 }
 
 const LoadReason = ref(undefined as unknown as ReasonPayload)
 
 const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
-  const { points, reason, token0, token1 } = payload
+  const { points, reason, token0, token1, reverse } = payload
   const _reason = reason as Reason
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
@@ -255,13 +277,22 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     if (_callback) {
       const dataList = chart.value?.getDataList() || []
       const _points = points.filter((el) => dataList.findIndex((_el) => _el.timestamp === el.timestamp) < 0)
-      _callback(_points as KLineData[], _points.length > 0)
+      if (_points.length === 0) {
+        if (!LoadRemote.value) {
+          const { startAt, endAt, priv } = _reason.payload
+          return loadKline(undefined, undefined, startAt, endAt, reverse, priv.callbackId)
+        } else {
+          // TODO: Fetch remote
+        }
+      }
+      console.log('callback', _points.length)
+      _callback(_points as KLineData[], true)
       callbacks.value.delete(_reason.payload.priv?.callbackId)
     }
   } else {
-    chart.value?.applyNewData(points as KLineData[])
+    chart.value?.applyNewData(points as KLineData[], true)
   }
-  latestTimestamp.value = points[points.length - 1]?.timestamp || latestTimestamp.value
+  latestTimestamp.value = points[reverse ? 0 : points.length - 1]?.timestamp || latestTimestamp.value
 }
 
 const loadMore = (params: LoadDataParams) => {
@@ -269,14 +300,19 @@ const loadMore = (params: LoadDataParams) => {
   callbacks.value.set(callbackId, params.callback)
   LoadReason.value.priv = { callbackId }
 
+  const timestamp = params.data?.timestamp ?? 0
+  const reverse = params.type === LoadDataType.Forward
+
+  // Always fetch from local IndexeDB, fetch remove unless we cannot get locally
+  console.log('loadMore', chart.value?.getDataList().length, LoadReason.value, params, chart.value?.getDataList()[0], chart.value?.getDataList()[chart.value?.getDataList().length - 1], reverse, LoadRemote.value)
   if (LoadRemote.value) {
-    onFetchSorted(LoadReason.value, params.type === LoadDataType.Backward)
+    onFetchSorted(LoadReason.value, reverse)
   } else {
-    onLoadSorted(LoadReason.value, params.type === LoadDataType.Backward)
+    onLoadSorted(LoadReason.value, reverse, timestamp)
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   chart.value = init('chart', {
     layout: [
       {
@@ -305,7 +341,7 @@ onMounted(() => {
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
 
-  getStoreKline()
+  await getStoreKline()
 })
 
 onBeforeUnmount(() => {
