@@ -44,6 +44,7 @@ class Wallet:
         if 'data' not in resp.json():
             return 0
         if 'errors' in resp.json():
+            print(f'{self.wallet_url}, {json} -> {resp.json()["errors"]}')
             return 0
 
         balances = resp.json()['data']['balances']
