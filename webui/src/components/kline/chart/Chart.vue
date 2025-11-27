@@ -69,18 +69,18 @@ const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLengt
 
   for (let i = 0; i < candleData.length; i++) {
     if (i < maLength) {
-      maData.push({ time: candleData[i].time } as LineData);
+      maData.push({ time: candleData[i].time } as LineData)
     } else {
-      let sum = 0;
+      let sum = 0
       for (let j = 0; j < maLength; j++) {
-        sum += candleData[i - j].close;
+        sum += candleData[i - j].close
       }
-      const maValue = sum / maLength;
-      maData.push({ time: candleData[i].time, value: maValue });
+      const maValue = sum / maLength
+      maData.push({ time: candleData[i].time, value: maValue })
     }
   }
 
-  return maData;
+  return maData
 }
 
 const initChart = () => {
@@ -104,78 +104,78 @@ const initChart = () => {
     priceFormat: {
       type: 'price',
       precision: 10,
-      minMove: 0.0000000001,
+      minMove: 0.0000000001
     },
     priceScaleId: 'price'
   })
   candleSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 },
+    scaleMargins: { top: 0, bottom: 0.2 }
   })
 
   volumeSeries = chart.addSeries(HistogramSeries, {
     priceFormat: {
       type: 'volume',
       precision: 4,
-      minMove: 0.0001,
+      minMove: 0.0001
     },
     priceScaleId: 'volume'
   })
   volumeSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0.7, bottom: 0 },
+    scaleMargins: { top: 0.7, bottom: 0 }
   })
 
-  ma5MinSeries = chart.addSeries(LineSeries,{
+  ma5MinSeries = chart.addSeries(LineSeries, {
     color: '#FFA500',
     lineWidth: 2,
     lineType: LineType.Curved,
     priceFormat: {
       type: 'price',
       precision: 10,
-      minMove: 0.0000000001,
+      minMove: 0.0000000001
     }
   })
   ma5MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 },
+    scaleMargins: { top: 0, bottom: 0.2 }
   })
 
-  ma10MinSeries = chart.addSeries(LineSeries,{
+  ma10MinSeries = chart.addSeries(LineSeries, {
     color: '#00BFFF',
     lineWidth: 2,
     lineType: LineType.Curved,
     priceFormat: {
       type: 'price',
       precision: 10,
-      minMove: 0.0000000001,
+      minMove: 0.0000000001
     }
   })
   ma10MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 },
+    scaleMargins: { top: 0, bottom: 0.2 }
   })
 
-  ma30MinSeries = chart.addSeries(LineSeries,{
+  ma30MinSeries = chart.addSeries(LineSeries, {
     color: '#32CD32',
     lineWidth: 2,
     lineType: LineType.Curved,
     priceFormat: {
       type: 'price',
       precision: 10,
-      minMove: 0.0000000001,
+      minMove: 0.0000000001
     }
   })
   ma30MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 },
+    scaleMargins: { top: 0, bottom: 0.2 }
   })
 
   chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
 
   chart.priceScale('price').applyOptions({
     visible: true,
-    borderColor: '#555',
+    borderColor: '#555'
   })
 
   chart.priceScale('volume').applyOptions({
     visible: true,
-    borderColor: '#555',
+    borderColor: '#555'
   })
 
   chart.subscribeCrosshairMove(param => {

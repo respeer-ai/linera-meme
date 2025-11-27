@@ -31,11 +31,9 @@ import { kline, swap } from 'src/localstore'
 import { useRouter } from 'vue-router'
 import { constants } from 'src/constant'
 import { klineWorker } from 'src/worker'
-import { dbBridge } from 'src/bridge'
 import { KLineData } from './chart/KlineData'
 
 import SwapSelect from './SwapSelect.vue'
-import { _Indicator } from './Indicator'
 import Chart from './chart/Chart.vue'
 
 const _kline = kline.useKlineStore()
@@ -69,15 +67,14 @@ watch(latestPoints, () => {
     latestPoints.value.forEach((point) => {
       const index = klinePoints.value.findIndex((el) => el.time === point.timestamp / 1000)
       if (index >= 0) klinePoints.value[index] = {
-          ...point,
-          time: Math.floor(point.timestamp / 1000)
-        }
+        ...point,
+        time: Math.floor(point.timestamp / 1000)
+      }
       else klinePoints.value.push({
-          ...point,
-          time: Math.floor(point.timestamp / 1000)
-        })
+        ...point,
+        time: Math.floor(point.timestamp / 1000)
+      })
     })
-    return
   }
 })
 
@@ -114,7 +111,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
   })
 }
 
-const getStoreKline = async () => {
+const getStoreKline = () => {
   if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value) {
     klinePoints.value = []
 
@@ -122,8 +119,8 @@ const getStoreKline = async () => {
   }
 }
 
-watch(selectedToken0, async () => {
-  await getStoreKline()
+watch(selectedToken0, () => {
+  getStoreKline()
 })
 
 watch(selectedToken1, () => {
@@ -245,12 +242,12 @@ const onLoadOldData = (timestamp: number) => {
   onLoadSorted(true, timestamp * 1000)
 }
 
-onMounted(async () => {
+onMounted(() => {
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
 
-  await getStoreKline()
+  getStoreKline()
 })
 
 onBeforeUnmount(() => {
