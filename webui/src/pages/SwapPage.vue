@@ -2,7 +2,7 @@
   <q-page class='flex justify-center' :style='{marginTop: "4px"}'>
     <div class='row vertical-card-align bg-grey-2' :style='{width: "1440px"}'>
       <div class='kline'>
-        <div class='bg-white' style='height: 700px'>
+        <div class='bg-white' style='height: 600px'>
           <KLineV2 />
         </div>
         <div class='bg-grey-1 history'>

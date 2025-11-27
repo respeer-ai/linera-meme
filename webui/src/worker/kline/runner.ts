@@ -93,6 +93,7 @@ export interface SortPointsPayload extends BasePayload {
 export interface SortedPointsPayload extends BasePayload {
   points: Point[]
   reverse: boolean
+  reason: unknown
 }
 export interface SortTransactionsPayload extends BasePayload {
   tokenReversed: boolean
@@ -168,8 +169,11 @@ export class KlineRunner {
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
     const { token0, token1, startAt, endAt, interval, reverse } = payload
 
+    const _startAt = Math.floor(startAt / 1000)
+    const _endAt = Math.floor(endAt / 1000)
+
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`
+      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${_startAt}/end_at/${_endAt}/interval/${interval}`
     )
 
     try {
@@ -177,6 +181,7 @@ export class KlineRunner {
 
       const points = res.data as Points
       points.end_at = endAt
+      points.start_at *= 1000
       points.points = points.points.map((el) => {
         return {
           ...el,
@@ -409,7 +414,8 @@ export class KlineRunner {
           reverse ? 0 : Math.max(_points.length - keepCount, 0),
           reverse ? keepCount : _points.length
         ),
-        reverse
+        reverse,
+        reason
       }
     })
   }
