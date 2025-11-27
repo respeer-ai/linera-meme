@@ -4,7 +4,7 @@
     <div class='row text-grey-7' style='padding: 8px 0 0 8px'>
       {{ hoveringTime }}
       OPEN <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.open?.toFixed(10) || 0 }}</span>
-      HIGH <span :style='{ color: digitsColor }' class='digits'>>{{ hoveringCandleStick.high?.toFixed(10) || 0 }}</span>
+      HIGH <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.high?.toFixed(10) || 0 }}</span>
       LOW <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.low?.toFixed(10) || 0 }}</span>
       CLOSE <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.close?.toFixed(10) || 0 }}</span>
       VOL <span :style='{ color: digitsColor }' class='digits'>{{ hoveringVolume.value?.toFixed(4) || 0 }}</span>

@@ -26,23 +26,24 @@ export class Transaction {
     token0: string,
     token1: string,
     tokenReversed: boolean,
-    offset: number,
-    limit: number
+    timestampBegin?: number,
+    timestampEnd?: number,
+    limit?: number
   ) => {
-    return await dbKline.transactions
-      .orderBy('created_at')
-      .reverse()
-      .filter(
-        (obj) =>
-          obj.token0 === token0 &&
-          obj.token1 === token1 &&
-          // For true and 1 in database
-          (tokenReversed
-            ? obj.token_reversed && obj.token_reversed.toString() !== 'false'
-            : !obj.token_reversed || obj.token_reversed.toString() === 'false')
-      )
-      .offset(offset)
-      .limit(limit)
-      .toArray()
+    const from = [timestampBegin ?? 0, token0, token1, !!tokenReversed]
+    const to = [timestampEnd ?? Number.MAX_SAFE_INTEGER, token0, token1, !!tokenReversed]
+
+    console.log(from, to)
+
+    try {
+      return await dbKline.transactions
+        .where('[created_timestamp+token0+token1+token_reversed]')
+        .between(from, to)
+        .reverse()
+        .limit(limit ?? 9999999)
+        .toArray()
+    } catch (e) {
+      console.log('Failed query', e)
+    }
   }
 }
