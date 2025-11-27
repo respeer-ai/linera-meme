@@ -8,7 +8,7 @@ export class Transaction {
     transactions: TransactionExt[]
   ) => {
     const _transactions = transactions.map((transaction) => {
-      return { ...transaction, token0, token1 }
+      return { ...transaction, token0, token1, token_reversed: transaction.token_reversed ? 1 : 0 }
     })
     const traceFunc = console.trace
     console.trace = () => {
@@ -25,22 +25,20 @@ export class Transaction {
   static transactions = async (
     token0: string,
     token1: string,
-    tokenReversed: boolean,
+    tokenReversed: number,
     timestampBegin?: number,
     timestampEnd?: number,
     limit?: number
   ) => {
-    const from = [timestampBegin ?? 0, token0, token1, !!tokenReversed]
-    const to = [timestampEnd ?? Number.MAX_SAFE_INTEGER, token0, token1, !!tokenReversed]
-
-    console.log(from, to)
+    const from = [timestampBegin ?? 0, token0, token1, tokenReversed]
+    const to = [timestampEnd ?? Number.MAX_SAFE_INTEGER, token0, token1, tokenReversed]
 
     try {
       return await dbKline.transactions
         .where('[created_timestamp+token0+token1+token_reversed]')
         .between(from, to)
         .reverse()
-        .limit(limit ?? 9999999)
+        .limit(limit ?? 999999)
         .toArray()
     } catch (e) {
       console.log('Failed query', e)

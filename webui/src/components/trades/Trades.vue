@@ -70,7 +70,7 @@ const _kline = kline.useKlineStore()
 const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
-const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1)
+const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1 ? 1 : 0)
 
 const transactions = ref([] as transaction.TransactionExt[])
 const latestTransactions = computed(() => _kline._latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
