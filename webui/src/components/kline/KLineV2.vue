@@ -11,7 +11,7 @@
         label='Create pool'
         class='text-blue-8'
         rounded
-        :style='{margin: "0 0"}'
+        :style='{margin: "4px 0"}'
         @click='onCreatePoolClick'
       />
     </div>
@@ -46,63 +46,39 @@ const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000 || 0))
 
-const latestTimestamp = ref(poolCreatedAt.value)
 const _latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).map((el) => {
   return {
     ...el,
     time: Math.floor(el.timestamp / 1000)
   }
 }))
-const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timestamp > latestTimestamp.value - 300000))
-
-const applied = ref(false)
 const klinePoints = ref([] as KLineData[])
 
-const maxPointTimestamp = computed(() => klinePoints.value.reduce((max, item) =>
+const maxPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
   item.time > max.time ? item : max
-).time)
-const minPointTimestamp = computed(() => klinePoints.value.reduce((max, item) =>
+).time : poolCreatedAt.value)
+const minPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
   item.time < max.time ? item : max
-).time)
+).time : poolCreatedAt.value)
+const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timestamp > maxPointTimestamp.value - 300000))
 
 watch(latestPoints, () => {
-  /*
-  if (!applied.value || !_latestPoints.value.length) return
+  if (!_latestPoints.value.length || !latestPoints.value.length) return
 
-  const dataList = chart.value?.getDataList()
-  if (!dataList?.length) {
-    chart.value?.applyNewData(_latestPoints.value)
-    latestTimestamp.value = _latestPoints.value[_latestPoints.value.length - 1]?.timestamp
-    return
-  }
-
-  if (!latestPoints.value.length) return
-  const maxTimestamp = dataList[dataList.length - 1].timestamp
-
-  if (maxTimestamp < latestPoints.value[0].timestamp) {
+  if (maxPointTimestamp.value < latestPoints.value[0].timestamp) {
     latestPoints.value.forEach((point) => {
-      chart.value?.updateData(point)
+      const index = klinePoints.value.findIndex((el) => el.time === point.timestamp / 1000)
+      if (index >= 0) klinePoints.value[index] = {
+          ...point,
+          time: Math.floor(point.timestamp / 1000)
+        }
+      else klinePoints.value.push({
+          ...point,
+          time: Math.floor(point.timestamp / 1000)
+        })
     })
-    latestTimestamp.value = latestPoints.value[latestPoints.value.length - 1].timestamp
     return
   }
-
-  const length = dataList.length
-  let startIndex = dataList.length - 1
-
-  for (let i = startIndex; i >= 0; i--) {
-    if (dataList[i].timestamp === latestPoints.value[0].timestamp) {
-      startIndex = i
-      break
-    }
-  }
-  for (let i = startIndex, j = 0; j < latestPoints.value.length - 1; i++, j++) {
-    if (i < length) dataList[i] = latestPoints.value[j]
-    else dataList.push(latestPoints.value[j])
-  }
-  chart.value?.updateData(latestPoints.value[latestPoints.value.length - 1])
-  latestTimestamp.value = latestPoints.value[latestPoints.value.length - 1].timestamp
-  */
 })
 
 const getKline = (timestamp: number, reverse: boolean) => {
@@ -213,10 +189,8 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
-  const _latestTimestamp = Math.max(latestTimestamp.value, poolCreatedAt.value || 0)
-
-  const startAt = reverse ? (timestampBegin ?? _latestTimestamp) - 1 * 3600 * 1000 : (timestampEnd ?? _latestTimestamp) + 1
-  const endAt = reverse ? (timestampBegin ?? _latestTimestamp) - 1 : (timestampEnd ?? _latestTimestamp) + 1 * 3600 * 1000
+  const startAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - 1 * 3600 * 1000 : (timestampEnd ?? maxPointTimestamp.value) + 1
+  const endAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - 1 : (timestampEnd ?? maxPointTimestamp.value) + 1 * 3600 * 1000
 
   const reason = {
     reason: _points.length ? SortReason.LOAD : SortReason.FETCH,
