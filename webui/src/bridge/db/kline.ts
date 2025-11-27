@@ -63,7 +63,7 @@ export class Kline {
     const minItem = await collection.first()
 
     return {
-      minTimestamp: (minItem?.timestamp ?? 0),
+      minTimestamp: minItem?.timestamp ?? 0,
       maxTimestamp: Math.floor(Date.now()) + 1 * 3600 * 1000
     }
   }
@@ -83,17 +83,18 @@ export class Kline {
 
     const collection = reverse
       ? dbKline.klinePoints
-        .where('[token0+token1+interval+timestamp]')
-        .between(from, to)
-        .reverse()
+          .where('[token0+token1+interval+timestamp]')
+          .between(from, to)
+          .reverse()
       : dbKline.klinePoints
-        .where('[token0+token1+interval+timestamp]')
-        .between(from, to)
+          .where('[token0+token1+interval+timestamp]')
+          .between(from, to)
 
-    return (await collection
-      .offset(offset ?? 0)
-      .limit(limit ?? 999999)
-      .toArray()).sort((a, b) => b.timestamp - a.timestamp)
-      
+    return (
+      await collection
+        .offset(offset ?? 0)
+        .limit(limit ?? 999999)
+        .toArray()
+    ).sort((a, b) => b.timestamp - a.timestamp)
   }
 }

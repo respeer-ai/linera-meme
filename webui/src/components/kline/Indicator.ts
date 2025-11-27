@@ -156,7 +156,10 @@ export class _Indicator {
           'bars[0].noChangeColor',
           defaultStyles?.bars?.[0].noChangeColor
         )
-        if (_Indicator.isValid(current) && _Indicator.isValid(current.indicatorData)) {
+        if (
+          _Indicator.isValid(current) &&
+          _Indicator.isValid(current.indicatorData)
+        ) {
           if (current.indicatorData.close > current.indicatorData.open) {
             color = _Indicator.formatValue(
               indicator.styles,
