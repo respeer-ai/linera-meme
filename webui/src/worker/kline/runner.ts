@@ -39,6 +39,7 @@ export interface FetchPointsPayload extends BasePayload {
   startAt: number
   endAt: number
   interval: Interval
+  reverse: boolean
 }
 export interface FetchTransactionsPayload extends BasePayload {
   startAt: number
@@ -46,6 +47,7 @@ export interface FetchTransactionsPayload extends BasePayload {
 }
 export interface FetchedPointsPayload extends BasePayload {
   points: Points
+  reverse: boolean
 }
 export interface FetchedTransactionsPayload extends BasePayload {
   startAt: number
@@ -164,7 +166,7 @@ export class KlineRunner {
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
-    const { token0, token1, startAt, endAt, interval } = payload
+    const { token0, token1, startAt, endAt, interval, reverse } = payload
 
     const url = constants.formalizeSchema(
       `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`
@@ -189,7 +191,8 @@ export class KlineRunner {
         payload: {
           token0,
           token1,
-          points
+          points,
+          reverse
         }
       })
     } catch (e) {
