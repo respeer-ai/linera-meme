@@ -1,9 +1,24 @@
 <template>
-  <div ref='chartContainer' class='kline-chart' />
+  <div ref='chartContainer' class='kline-chart' style='height: 650px' />
+  <div style='margin-top: -650px; z-index: 10; position: relative;'>
+    <div class='row text-grey-7' style='padding: 8px 0 0 8px'>
+      {{ hoveringTime }}
+      OPEN <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.open?.toFixed(10) || 0 }}</span>
+      HIGH <span :style='{ color: digitsColor }' class='digits'>>{{ hoveringCandleStick.high?.toFixed(10) || 0 }}</span>
+      LOW <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.low?.toFixed(10) || 0 }}</span>
+      CLOSE <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.close?.toFixed(10) || 0 }}</span>
+      VOL <span :style='{ color: digitsColor }' class='digits'>{{ hoveringVolume.value?.toFixed(4) || 0 }}</span>
+    </div>
+    <div class='row text-grey-7' style='padding: 0 0 0 8px'>
+      MA5 <span style='color: #FFA500' class='digits'>{{ hoveringMA5Min.value?.toFixed(10) || 0 }}</span>
+      MA10 <span style='color: #00BFFF' class='digits'>{{ hoveringMA10Min.value?.toFixed(10) || 0 }}</span>
+      MA30 <span style='color: #32CD32' class='digits'>{{ hoveringMA30Min.value?.toFixed(10) || 0 }}</span>
+    </div>
+  </div>
 </template>
 
 <script setup lang='ts'>
-import { ref, watch, onMounted, onBeforeUnmount, defineProps, defineEmits } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, defineProps, defineEmits, computed } from 'vue'
 import {
   createChart,
   CrosshairMode,
@@ -15,7 +30,8 @@ import {
   HistogramSeries,
   Time,
   LineSeries,
-  LineData
+  LineData,
+  LineType
 } from 'lightweight-charts'
 import { KLineData } from './KlineData'
 
@@ -24,6 +40,17 @@ const props = defineProps({
   pricePrecision: { type: Number, default: 10 },
   volumePrecision: { type: Number, default: 4 }
 })
+
+const hoveringTime = ref((() => {
+  const now = new Date()
+  return (now.toLocaleDateString() + ' ' + now.toLocaleTimeString()) as Time
+})())
+const hoveringCandleStick = ref({} as CandlestickData)
+const hoveringVolume = ref({} as HistogramData)
+const digitsColor = computed(() => hoveringCandleStick.value.open > hoveringCandleStick.value.close ? 'red' : hoveringCandleStick.value.open === hoveringCandleStick.value.close ? 'gray' : 'green')
+const hoveringMA5Min = ref({} as LineData)
+const hoveringMA10Min = ref({} as LineData)
+const hoveringMA30Min = ref({} as LineData)
 
 const emit = defineEmits<{(e: 'load-old-data', time: number): void
   (e: 'load-new-data', time: number): void
@@ -42,10 +69,8 @@ const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLengt
 
   for (let i = 0; i < candleData.length; i++) {
     if (i < maLength) {
-      // Provide whitespace data points until the MA can be calculated
       maData.push({ time: candleData[i].time } as LineData);
     } else {
-      // Calculate the moving average, slow but simple way
       let sum = 0;
       for (let j = 0; j < maLength; j++) {
         sum += candleData[i - j].close;
@@ -102,6 +127,7 @@ const initChart = () => {
   ma5MinSeries = chart.addSeries(LineSeries,{
     color: '#FFA500',
     lineWidth: 2,
+    lineType: LineType.Curved,
     priceFormat: {
       type: 'price',
       precision: 10,
@@ -115,6 +141,7 @@ const initChart = () => {
   ma10MinSeries = chart.addSeries(LineSeries,{
     color: '#00BFFF',
     lineWidth: 2,
+    lineType: LineType.Curved,
     priceFormat: {
       type: 'price',
       precision: 10,
@@ -128,6 +155,7 @@ const initChart = () => {
   ma30MinSeries = chart.addSeries(LineSeries,{
     color: '#32CD32',
     lineWidth: 2,
+    lineType: LineType.Curved,
     priceFormat: {
       type: 'price',
       precision: 10,
@@ -139,6 +167,48 @@ const initChart = () => {
   })
 
   chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
+
+  chart.priceScale('price').applyOptions({
+    visible: true,
+    borderColor: '#555',
+  })
+
+  chart.priceScale('volume').applyOptions({
+    visible: true,
+    borderColor: '#555',
+  })
+
+  chart.subscribeCrosshairMove(param => {
+    if (!param.time) return
+
+    const date = new Date(param.time as number * 1000)
+    hoveringTime.value = (date.toLocaleDateString() + ' ' + date.toLocaleTimeString()) as Time
+
+    const vol = param.seriesData.get(volumeSeries) as HistogramData
+    if (vol !== undefined) {
+      hoveringVolume.value = vol
+    }
+
+    const stick = param.seriesData.get(candleSeries) as CandlestickData
+    if (stick !== undefined) {
+      hoveringCandleStick.value = stick
+    }
+
+    const point1 = param.seriesData.get(ma5MinSeries) as LineData
+    if (point1 !== undefined) {
+      hoveringMA5Min.value = point1
+    }
+
+    const point2 = param.seriesData.get(ma10MinSeries) as LineData
+    if (point2 !== undefined) {
+      hoveringMA10Min.value = point2
+    }
+
+    const point3 = param.seriesData.get(ma30MinSeries) as LineData
+    if (point3 !== undefined) {
+      hoveringMA30Min.value = point3
+    }
+  })
 }
 
 const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | null) => {
@@ -203,10 +273,11 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
-.kline-chart {
-  width: 100%;
-  height: 500px;
-  background-color: #131722;
-}
+<style scoped lang='sass'>
+.kline-chart
+  width: 100%
+  background-color: #131722
+
+.digits
+  margin: 0 4px
 </style>

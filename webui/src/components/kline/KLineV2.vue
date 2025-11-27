@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div style='height: 650px'>
     <div class='row kline'>
       <div :style='{marginLeft: "4px"}'>
         <SwapSelect />
@@ -17,7 +17,7 @@
     </div>
     <q-separator />
     <Chart
-      style='width:100%'
+      style='width:100%; height: 650px;'
       :data='klinePoints'
       @load-new-data='onLoadNewData'
       @load-old-data='onLoadOldData'
