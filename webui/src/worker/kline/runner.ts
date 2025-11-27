@@ -268,7 +268,16 @@ export class KlineRunner {
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd } = payload
+    const {
+      token0,
+      token1,
+      offset,
+      limit,
+      interval,
+      reverse,
+      timestampBegin,
+      timestampEnd
+    } = payload
 
     try {
       const points = await dbBridge.Kline.points(
@@ -381,9 +390,10 @@ export class KlineRunner {
     })
 
     const points = originPoints
-    const _points = points.sort((p1, p2) =>
-      // reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
-      p1.timestamp - p2.timestamp
+    const _points = points.sort(
+      (p1, p2) =>
+        // reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
+        p1.timestamp - p2.timestamp
     )
     keepCount = keepCount < 0 ? _points.length : keepCount
 
