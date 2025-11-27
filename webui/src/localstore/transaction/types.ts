@@ -37,9 +37,11 @@ export interface TransactionExt {
   liquidity?: string
   // eslint-disable-next-line camelcase
   created_at: string
+  // eslint-disable-next-line camelcase
+  created_timestamp: number
   price: string
   volume: string
   direction: string
   // eslint-disable-next-line camelcase
-  token_reversed: boolean
+  token_reversed: number
 }

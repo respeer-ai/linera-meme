@@ -108,9 +108,9 @@ export const useKlineStore = defineStore('kline', {
     _latestTransactions(): (
       token0: string,
       token1: string,
-      tokenReversed: boolean
+      tokenReversed: number
     ) => TransactionExt[] {
-      return (token0: string, token1: string, tokenReversed: boolean) => {
+      return (token0: string, token1: string, tokenReversed: number) => {
         return (
           this.latestTransactions
             .get(token0)

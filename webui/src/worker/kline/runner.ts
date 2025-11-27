@@ -63,7 +63,7 @@ export interface LoadPointsPayload extends BasePayload {
   timestampEnd?: number
 }
 export interface LoadTransactionsPayload extends BasePayload {
-  tokenReversed: boolean
+  tokenReversed: number
   timestampBegin?: number
   timestampEnd?: number
   limit: number
@@ -97,7 +97,7 @@ export interface SortedPointsPayload extends BasePayload {
   reason: unknown
 }
 export interface SortTransactionsPayload extends BasePayload {
-  tokenReversed: boolean
+  tokenReversed: number
   originTransactions: TransactionExt[]
   newTransactions: TransactionExt[]
   keepCount: number
