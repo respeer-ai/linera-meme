@@ -93,7 +93,8 @@ const getKline = (timestamp: number, reverse: boolean) => {
     token1: selectedToken1.value,
     startAt,
     endAt,
-    interval: kline.Interval.ONE_MINUTE
+    interval: kline.Interval.ONE_MINUTE,
+    reverse
   })
 }
 
@@ -169,17 +170,19 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
 
 const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1 } = payload
+  const { token0, token1, reverse } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+
+  const startAt = reverse ? _points.start_at - 1 * 3600 : _points.end_at + 1
+  const endAt = reverse ? _points.start_at - 1 : _points.end_at + 1 * 3600
 
   updatePoints(_points.points, {
     reason: SortReason.FETCH,
     payload: {
-      startAt: _points.end_at,
-      endAt: _points.end_at + 1 * 3600
+      startAt,
+      endAt
     }
-  // TODO: reverse
   }, true)
 }
 
