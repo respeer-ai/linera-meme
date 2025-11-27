@@ -64,7 +64,8 @@ export interface LoadPointsPayload extends BasePayload {
 }
 export interface LoadTransactionsPayload extends BasePayload {
   tokenReversed: boolean
-  offset: number
+  timestampBegin?: number
+  timestampEnd?: number
   limit: number
 }
 export interface LoadedPointsPayload extends BasePayload {
@@ -77,8 +78,8 @@ export interface LoadedPointsPayload extends BasePayload {
   timestampEnd?: number
 }
 export interface LoadedTransactionsPayload extends BasePayload {
-  offset: number
-  limit: number
+  timestampBegin?: number
+  timestampEnd?: number
   transactions: TransactionExt[]
 }
 export type NewPointsPayload = Map<Interval, Points[]>
@@ -322,14 +323,15 @@ export class KlineRunner {
   }
 
   static handleLoadTransactions = async (payload: LoadTransactionsPayload) => {
-    const { token0, token1, offset, limit, tokenReversed } = payload
+    const { token0, token1, timestampBegin, timestampEnd, tokenReversed, limit } = payload
 
     try {
       const transactions = await dbBridge.Transaction.transactions(
         token0,
         token1,
         tokenReversed,
-        offset,
+        timestampBegin,
+        timestampEnd,
         limit
       )
 
@@ -338,8 +340,8 @@ export class KlineRunner {
         payload: {
           token0,
           token1,
-          offset,
-          limit,
+          timestampBegin,
+          timestampEnd,
           transactions
         }
       })
