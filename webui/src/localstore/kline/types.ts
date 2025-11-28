@@ -24,3 +24,15 @@ export interface Transactions {
   token_1: string
   transactions: Array<TransactionExt>
 }
+
+export interface KlineInformation {
+  count: number
+  timestamp_begin: number
+  timestamp_end: number
+}
+
+export interface TransactionsInformation {
+  count: number
+  timestamp_begin: number
+  timestamp_end: number
+}

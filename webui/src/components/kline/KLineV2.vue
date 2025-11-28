@@ -98,8 +98,8 @@ const getKline = (timestamp: number, reverse: boolean) => {
 }
 
 const loadKline = (offset: number | undefined, limit: number | undefined, timestampBegin: number | undefined, timestampEnd: number | undefined, reverse: boolean) => {
-  if (!selectedToken0.value || !selectedToken1.value) return
-  if (selectedToken0.value === selectedToken1.value) return
+  if (!selectedToken0.value || !selectedToken1.value) return false
+  if (selectedToken0.value === selectedToken1.value) return false
 
   loading.value = true
 
@@ -113,6 +113,8 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
     timestampBegin,
     timestampEnd
   })
+
+  return true
 }
 
 const getStoreKline = () => {

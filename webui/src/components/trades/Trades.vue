@@ -6,6 +6,7 @@
     row-key='transaction_id'
     v-model:pagination='pagination'
     @request='onPageRequest'
+    :loading='loading'
   />
 </template>
 
@@ -15,7 +16,6 @@ import { useI18n } from 'vue-i18n'
 import { swap, transaction, kline } from 'src/localstore'
 import { shortid } from 'src/utils'
 import { klineWorker } from 'src/worker'
-import { dbBridge } from 'src/bridge'
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -89,14 +89,11 @@ const getTransactions = (startAt: number, endAt: number) => {
   })
 }
 
-const loadTransactions = async (timestampBegin: number | undefined, timestampEnd: number | undefined, limit: number) => {
-  if (!selectedToken0.value || !selectedToken1.value) return
-  if (selectedToken0.value === selectedToken1.value) return
+const loadTransactions = (timestampBegin: number | undefined, timestampEnd: number | undefined, limit: number) => {
+  if (!selectedToken0.value || !selectedToken1.value) return false
+  if (selectedToken0.value === selectedToken1.value) return false
 
   loading.value = true
-
-  const _transactionsCount = await dbBridge.Transaction.transactionsCount(selectedToken0.value, selectedToken1.value, tokenReversed.value)
-  pagination.value.rowsNumber = _transactionsCount ? _transactionsCount + 10 : pagination.value.rowsNumber
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
     token0: selectedToken0.value,
@@ -106,25 +103,32 @@ const loadTransactions = async (timestampBegin: number | undefined, timestampEnd
     timestampEnd,
     limit
   })
+
+  return true
 }
 
-const getStoreTransactions = () => {
+const getStoreTransactions = async () => {
   transactions.value = []
   if (loading.value) return
 
-  loadTransactions(undefined, undefined, 10)
+  if (loadTransactions(undefined, undefined, 10)) {
+    const info = await _kline.getTransactionsInformation(selectedToken0.value, selectedToken1.value)
+    if (!info) return
+    // TODO: record timestamp begin and end then we can control data loading
+    pagination.value.rowsNumber = info.count
+  }
 }
 
-watch(selectedToken0, () => {
-  getStoreTransactions()
+watch(selectedToken0, async () => {
+  await getStoreTransactions()
 })
 
-watch(selectedToken1, () => {
-  getStoreTransactions()
+watch(selectedToken1, async () => {
+  await getStoreTransactions()
 })
 
-watch(selectedPool, () => {
-  getStoreTransactions()
+watch(selectedPool, async () => {
+  await getStoreTransactions()
 })
 
 enum SortReason {
@@ -167,7 +171,7 @@ watch(latestTransactions, () => {
 })
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  const { token0, token1, startAt, endAt } = payload
+  const { token0, token1, startAt } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
@@ -256,11 +260,12 @@ onBeforeMount(() => {
   loading.value = false
 })
 
-onMounted(() => {
+onMounted(async () => {
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
-  getStoreTransactions()
+
+  await getStoreTransactions()
 })
 
 onBeforeUnmount(() => {
