@@ -4,7 +4,9 @@ metadata:
   name: maker-wallet-service
   namespace: kube-system
 spec:
+  serviceName: maker-wallet-service
   replicas: 3
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: maker-wallet-service
@@ -53,11 +55,11 @@ spec:
           mountPath: /wallet
         resources:
           requests:
-            cpu: "400m"
-            memory: "1536Mi"
+            cpu: "300m"
+            memory: "1024Mi"
           limits:
-            cpu: "600m"
-            memory: "2048Mi"
+            cpu: "400m"
+            memory: "1024Mi"
       volumes:
       - name: maker-wallet
         persistentVolumeClaim:
@@ -81,13 +83,29 @@ spec:
     app: maker-wallet-service
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maker-wallet-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: maker-wallet-service
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: maker-wallet-service
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: maker-service
   namespace: kube-system
 spec:
+  serviceName: maker-service
   replicas: 3
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: maker-service
@@ -127,7 +145,7 @@ spec:
           SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
           CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX | head -n 1)
           OWNER=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX | tail -n 1)
-          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 WALLET_HOST=maker-wallet-service:8080 WALLET_CHAIN=$CHAIN_ID WALLET_OWNER=$OWNER ./maker-entrypoint.sh
+          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 WALLET_HOST=maker-wallet-service-$POD_INDEX.maker-wallet-service:8080 WALLET_CHAIN=$CHAIN_ID WALLET_OWNER=$OWNER ./maker-entrypoint.sh
         env:
         - name: RUST_LOG
           value: warn
@@ -139,3 +157,16 @@ spec:
         persistentVolumeClaim:
           claimName: shared-app-data
 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maker-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: maker-service
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: maker-service
