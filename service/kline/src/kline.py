@@ -44,10 +44,11 @@ async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, int
 
 
 @app.get('/points/token0/{token0}/token1/{token1}/interval/{interval}/information')
+async def on_get_kline_information(token0: str, token1: str, interval: str):
     try:
         return _db.get_kline_information(token_0=token0, token_1=token1, interval=interval)
     except Exception as e:
-        print(f'Failed get kline: {e}')
+        print(f'Failed get kline information: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -60,10 +61,11 @@ async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: i
 
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/information')
+async def on_get_transactions_information(token0: str, token1: str):
     try:
-        return _db.get_transactions_information(token_0=token0, token_1=token1, interval=interval)
+        return _db.get_transactions_information(token_0=token0, token_1=token1)
     except Exception as e:
-        print(f'Failed get kline: {e}')
+        print(f'Failed get transactions information: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
