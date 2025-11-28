@@ -248,8 +248,11 @@ export class KlineRunner {
   ) => {
     const { token0, token1, startAt, endAt } = payload
 
+    const _startAt = Math.floor(startAt / 1000)
+    const _endAt = Math.floor(endAt / 1000)
+
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}`
+      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${_startAt}/end_at/${_endAt}`
     )
 
     try {
@@ -271,7 +274,7 @@ export class KlineRunner {
     } catch (e) {
       self.postMessage({
         type: KlineEventType.Error,
-        payload: e
+        payload: JSON.stringify(e)
       })
     }
   }

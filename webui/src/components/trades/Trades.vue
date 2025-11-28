@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import { swap, transaction, kline } from 'src/localstore'
 import { shortid } from 'src/utils'
 import { klineWorker } from 'src/worker'
+import { dbBridge } from 'src/bridge'
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -71,16 +72,14 @@ const selectedToken0 = computed(() => _swap.selectedToken0)
 const selectedToken1 = computed(() => _swap.selectedToken1)
 const selectedPool = computed(() => _swap.selectedPool)
 const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1 ? 1 : 0)
+const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000))
 
 const transactions = ref([] as transaction.TransactionExt[])
 const latestTransactions = computed(() => _kline._latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
 
-/*
-const getTransactions = (startAt: number) => {
+const getTransactions = (startAt: number, endAt: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
-
-  const endAt = startAt + 3600
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_TRANSACTIONS, {
     token0: selectedToken0.value,
@@ -89,13 +88,15 @@ const getTransactions = (startAt: number) => {
     endAt
   })
 }
-  */
 
-const loadTransactions = (timestampBegin: number | undefined, timestampEnd: number | undefined, limit: number) => {
+const loadTransactions = async (timestampBegin: number | undefined, timestampEnd: number | undefined, limit: number) => {
   if (!selectedToken0.value || !selectedToken1.value) return
   if (selectedToken0.value === selectedToken1.value) return
 
   loading.value = true
+
+  const _transactionsCount = await dbBridge.Transaction.transactionsCount(selectedToken0.value, selectedToken1.value, tokenReversed.value)
+  pagination.value.rowsNumber = _transactionsCount ? _transactionsCount + 10 : pagination.value.rowsNumber
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
     token0: selectedToken0.value,
@@ -132,14 +133,12 @@ enum SortReason {
   LATEST = 'Latest'
 }
 
-// type ReasonPayload = { startAt: number, endAt: number }
+type ReasonPayload = { startAt: number, endAt: number }
 
-/*
 interface Reason {
   reason: SortReason
   payload: ReasonPayload
 }
-  */
 
 const MAX_TRANSACTIONS = -1
 
@@ -197,8 +196,8 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
-  const startAt = (payload.timestampBegin ?? Math.floor(Date.parse(_transactions[0]?.created_at) / 1000)) - 1 * 3600 * 1000
-  const endAt = (payload.timestampBegin ?? Math.floor(Date.parse(_transactions[0]?.created_at) / 1000)) - 1
+  const startAt = payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime()) - 1 * 3600 * 1000
+  const endAt = payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime()) - 1
 
   const reason = {
     reason: SortReason.LOAD,
@@ -222,65 +221,24 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
   })
 }
 
-/*
-const onFetchSorted = (payload: ReasonPayload) => {
-  const { endAt } = payload as { endAt: number }
-
-  if (endAt > Math.floor(Date.now() / 1000)) {
-    return
-  }
-
-  setTimeout(() => {
-    getTransactions(endAt)
-  }, 100)
-}
-
-const onLoadSorted = (payload: ReasonPayload) => {
-  const { offset, limit } = payload as { offset: number, limit: number }
-
-  loadTransactions(offset, limit)
-}
-  */
-
 const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) => {
-  // const _reason = payload.reason as Reason
+  const _reason = payload.reason as Reason
   const { token0, token1 } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
-  let retry = false
-  transactions.value.forEach((el) => {
-    retry ||= !payload.transactions.map((el) => el.transaction_id).includes(el.transaction_id)
-  })
-  // If we're not in sorted result, retry sort
-  if (retry) {
-    klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
-      token0: selectedToken0.value,
-      token1: selectedToken1.value,
-      originTransactions: transactions.value.map((el) => {
-        return { ...el }
-      }),
-      newTransactions: payload.transactions,
-      tokenReversed: tokenReversed.value,
-      keepCount: MAX_TRANSACTIONS,
-      reverse: true,
-      reason: payload.reason
-    })
-    return
+  if (payload.transactions.length === 0) {
+    const startAt = _reason.payload.startAt
+    const endAt = _reason.payload.endAt
+
+    if (startAt < poolCreatedAt.value) return
+    if (endAt > new Date().getTime()) return
+
+    return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
   }
 
-  transactions.value = payload.transactions
+  transactions.value = payload.transactions.slice(0, 10)
   loading.value = false
-  console.log('Loadedededed')
-
-  /*
-  switch (_reason.reason) {
-    case SortReason.FETCH:
-      return onFetchSorted(_reason.payload)
-    case SortReason.LOAD:
-      return onLoadSorted(_reason.payload)
-  }
-      */
 }
 
 const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: number }}) => {
