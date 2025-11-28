@@ -37,7 +37,7 @@ spec:
             echo "Wallet already exists, skipping init."
           fi
         volumeMounts:
-        - name: maker-wallet
+        - name: maker-wallet-pvc
           mountPath: /wallet
         - name: shared-app-data
           mountPath: /shared-app-data
@@ -51,36 +51,27 @@ spec:
         - name: RUST_LOG
           value: info
         volumeMounts:
-        - name: maker-wallet
+        - name: maker-wallet-pvc
           mountPath: /wallet
         resources:
           requests:
+            cpu: "200m"
+            memory: "768Mi"
+          limits:
             cpu: "300m"
             memory: "1024Mi"
-          limits:
-            cpu: "400m"
-            memory: "1024Mi"
       volumes:
-      - name: maker-wallet
-        persistentVolumeClaim:
-          claimName: maker-wallet-pvc
       - name: shared-app-data
         persistentVolumeClaim:
           claimName: shared-app-data
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: maker-wallet-service
-  namespace: kube-system
-spec:
-  ports:
-    - name: maker-wallet-service
-      port: 8080
-      targetPort: 8080
-  selector:
-    app: maker-wallet-service
+  volumeClaimTemplates:
+    - metadata:
+        name: maker-wallet-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 4Gi
 
 ---
 apiVersion: v1
