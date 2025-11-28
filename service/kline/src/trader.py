@@ -83,7 +83,7 @@ class Trader:
                 try:
                     await self.trade_in_pool(pool)
                 except Exception as e:
-                    print(f'Failed trade token {pool.token_0}: ERROR {e}')
+                    print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
                     traceback.print_exc()
                 await asyncio.sleep(1)
 

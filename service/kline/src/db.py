@@ -205,6 +205,25 @@ class Db:
 
         return (pool_ids[0], token_0, token_1, token_reversed)
 
+    def get_transactions_information(self, token_0: str, token_1: str):
+        try:
+            (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        except Exception as e:
+            print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
+            return []
+
+        query = f'''
+            SELECT
+                COUNT(*) AS count,
+                MAX(created_at) AS timestamp_begin,
+                MIN(created_at) AS timestamp_end
+            FROM {self.transactions_table}
+            WHERE pool_id = {pool_id}
+            AND token_reversed = {token_reversed}
+        '''
+        self.cursor_dict.execute(query)
+        return self.cursor_dict.fetchone()
+
     def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
         try:
             (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
@@ -223,6 +242,23 @@ class Db:
         '''
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
+
+    def get_kline_information(self, token_0: str, token_1: str, interval: str):
+        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+
+        query = f'''
+            SELECT
+                COUNT(*) AS count,
+                MAX(created_at) AS timestamp_begin,
+                MIN(created_at) AS timestamp_end
+            FROM {self.transactions_table}
+            WHERE pool_id = {pool_id}
+            AND token_reversed = {token_reversed}
+            AND transaction_type != 'AddLiquidity'
+            AND transaction_type != 'RemoveLiquidity';
+        '''
+        self.cursor_dict.execute(query)
+        return self.cursor_dict.fetchone()
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
