@@ -1,6 +1,7 @@
 import random
 import time
 import traceback
+import asyncio
 
 
 class Trader:
@@ -8,6 +9,7 @@ class Trader:
         self.swap = swap
         self.wallet = wallet
         self.meme = meme
+        self.semaphore = asyncio.Semaphore(5)
 
     def trade_amounts(self, pool, buy_token_0, token_0_balance, token_1_balance):
         reserve_0 = float(pool.reserve_0)
@@ -23,9 +25,9 @@ class Trader:
             return (None, None)
 
         if buy_token_0 is True:
-            return (None, min(min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10), token_0_price * 10))
+            return (None, min(min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10), token_0_price * random.uniform(10, 30)))
         if buy_token_0 is False:
-            return (min(min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), 10), None)
+            return (min(min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), random.uniform(10, 30)), None)
 
     async def trade_in_pool(self, pool):
         # Generate trade direction
@@ -75,22 +77,29 @@ class Trader:
 
         await pool.swap(amount_0, amount_1)
 
+    async def _trade_in_pool(self, pool):
+        async with self.semaphore:
+            for _ in range(3):
+                try:
+                    await self.trade_in_pool(pool)
+                except Exception as e:
+                    print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
+                    traceback.print_exc()
+                await asyncio.sleep(1)
+
     async def trade(self) -> float:
         pools = await self.swap.get_pools()
-        for pool in pools:
-            for i in range(3):
-                await self.trade_in_pool(pool)
-                time.sleep(1)
+
+        tasks = [self._trade_in_pool(pool) for pool in pools]
+        await asyncio.gather(*tasks)
 
         return random.uniform(5, 10)
 
     async def run(self):
         while True:
-            try:
-                timeout = await self.trade()
-            except Exception as e:
-                timeout = 30
-                print(f'Failed trade: ERROR {e}')
-                traceback.print_exc()
+            start_at = time.time()
+            timeout = await self.trade()
+            elapsed = time.time() - start_at
+            print(f'Trade pools took {elapsed} seconds')
             time.sleep(timeout)
 
