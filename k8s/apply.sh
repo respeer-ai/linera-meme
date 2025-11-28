@@ -92,8 +92,8 @@ envsubst '$FAUCET_URL' < maker/00-strip-prefix.yaml | kubectl apply -f -
 envsubst '$FAUCET_URL' < maker/02-deployment.yaml | kubectl apply -f -
 envsubst '$FAUCET_URL' < maker/03-ingress.yaml | kubectl apply -f -
 
-wait_pods maker-service 1 Running
-wait_pods maker-wallet-service 1 Running
+wait_pods maker-service 3 Running
+wait_pods maker-wallet-service 3 Running
 
 ####
 ## Replace CHAIN_ID and APPLICATION_ID in webui

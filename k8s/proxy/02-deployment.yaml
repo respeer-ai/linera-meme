@@ -280,7 +280,7 @@ spec:
             cpu: "480m"
             memory: "2048Mi"
           limits:
-            cpu: "600m"
+            cpu: "560m"
             memory: "2360Mi"
       volumes:
       - name: shared-app-data
