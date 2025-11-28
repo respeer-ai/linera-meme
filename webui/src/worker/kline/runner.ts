@@ -326,7 +326,14 @@ export class KlineRunner {
   }
 
   static handleLoadTransactions = async (payload: LoadTransactionsPayload) => {
-    const { token0, token1, timestampBegin, timestampEnd, tokenReversed, limit } = payload
+    const {
+      token0,
+      token1,
+      timestampBegin,
+      timestampEnd,
+      tokenReversed,
+      limit
+    } = payload
 
     try {
       const transactions = await dbBridge.Transaction.transactions(

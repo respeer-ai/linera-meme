@@ -1,5 +1,11 @@
 import { defineStore } from 'pinia'
-import { Points, Point, Transactions, KlineInformation, TransactionsInformation } from './types'
+import {
+  Points,
+  Point,
+  Transactions,
+  KlineInformation,
+  TransactionsInformation
+} from './types'
 import { _WebSocket, Notification } from 'src/websocket'
 import { constants } from 'src/constant'
 import { TransactionExt } from '../transaction'
@@ -82,7 +88,11 @@ export const useKlineStore = defineStore('kline', {
         this.latestTransactions.set(_transactions.token_0, trans)
       })
     },
-    async getKlineInformation(token0: string, token1: string, interval: Interval) {
+    async getKlineInformation(
+      token0: string,
+      token1: string,
+      interval: Interval
+    ) {
       const url = constants.formalizeSchema(
         `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/interval/${interval}/information`
       )

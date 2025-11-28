@@ -83,12 +83,12 @@ export class Kline {
 
     const collection = reverse
       ? dbKline.klinePoints
-        .where('[token0+token1+interval+timestamp]')
-        .between(from, to)
-        .reverse()
+          .where('[token0+token1+interval+timestamp]')
+          .between(from, to)
+          .reverse()
       : dbKline.klinePoints
-        .where('[token0+token1+interval+timestamp]')
-        .between(from, to)
+          .where('[token0+token1+interval+timestamp]')
+          .between(from, to)
 
     return (
       await collection

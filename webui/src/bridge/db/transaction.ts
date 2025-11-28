@@ -8,7 +8,12 @@ export class Transaction {
     transactions: TransactionExt[]
   ) => {
     const _transactions = transactions.map((transaction) => {
-      return { ...transaction, token0, token1, token_reversed: transaction.token_reversed ? 1 : 0 }
+      return {
+        ...transaction,
+        token0,
+        token1,
+        token_reversed: transaction.token_reversed ? 1 : 0
+      }
     })
     const traceFunc = console.trace
     console.trace = () => {
