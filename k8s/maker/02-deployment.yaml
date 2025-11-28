@@ -52,10 +52,10 @@ spec:
           mountPath: /wallet
         resources:
           requests:
-            cpu: "500m"
+            cpu: "400m"
             memory: "1536Mi"
           limits:
-            cpu: "800m"
+            cpu: "600m"
             memory: "2048Mi"
       volumes:
       - name: maker-wallet
