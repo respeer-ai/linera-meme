@@ -1,9 +1,17 @@
 export const SUB_DOMAIN = 'testnet-conway.'
-export const BLOB_GATEWAY_CHAIN_ID = 'ae4127cbdcffe4aabfd2f98ff3a5ce806d3adbe87c70c65fe13a03795f65e9cd'
-export const BLOB_GATEWAY_APPLICATION_ID = 'a8ce099824e19b59f9badfaafc54e878741ef27f95298970a310e13f464428f6'
-export const AMS_CHAIN_ID = 'ffe48c1d3e5daf682945ed0a589207e37f4846be22e18ddbe81aeeb7a5da8548'
-export const AMS_APPLICATION_ID = '83fc1d7deda5bf795fd46b2c19fcbe0cbfeca7b7ad88e7484931ae0f783f181b'
-export const PROXY_CHAIN_ID = 'ce6ce9ab954f14becd8f98e249f0e197fa4af7eb63478338905c2c3bec7e8965'
-export const PROXY_APPLICATION_ID = '2ac227f2995a69199860f1e2d4fcccb5fd656b445d846a82dcdd8d64a78076b2'
-export const SWAP_CHAIN_ID = 'e0ee84e75160fba2f46ac82cededb6d0693209bbd628ab96ebc5a0b706218507'
-export const SWAP_APPLICATION_ID = 'bd95349fe0e4f64aaa7c9b415b79324fb21c3eab26f80f846090ffa17f05a878'
+export const BLOB_GATEWAY_CHAIN_ID =
+  'ae4127cbdcffe4aabfd2f98ff3a5ce806d3adbe87c70c65fe13a03795f65e9cd'
+export const BLOB_GATEWAY_APPLICATION_ID =
+  'a8ce099824e19b59f9badfaafc54e878741ef27f95298970a310e13f464428f6'
+export const AMS_CHAIN_ID =
+  'ffe48c1d3e5daf682945ed0a589207e37f4846be22e18ddbe81aeeb7a5da8548'
+export const AMS_APPLICATION_ID =
+  '83fc1d7deda5bf795fd46b2c19fcbe0cbfeca7b7ad88e7484931ae0f783f181b'
+export const PROXY_CHAIN_ID =
+  'ce6ce9ab954f14becd8f98e249f0e197fa4af7eb63478338905c2c3bec7e8965'
+export const PROXY_APPLICATION_ID =
+  '2ac227f2995a69199860f1e2d4fcccb5fd656b445d846a82dcdd8d64a78076b2'
+export const SWAP_CHAIN_ID =
+  'e0ee84e75160fba2f46ac82cededb6d0693209bbd628ab96ebc5a0b706218507'
+export const SWAP_APPLICATION_ID =
+  'bd95349fe0e4f64aaa7c9b415b79324fb21c3eab26f80f846090ffa17f05a878'

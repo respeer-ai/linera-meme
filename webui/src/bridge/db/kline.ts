@@ -1,4 +1,4 @@
-import { BulkError } from 'dexie'
+import Dexie, { BulkError } from 'dexie'
 import { dbKline } from 'src/controller'
 import { Interval } from 'src/localstore/kline/const'
 import { Point } from 'src/localstore/kline/types'
@@ -48,23 +48,53 @@ export class Kline {
     console.trace = traceFunc
   }
 
+  static timestampRange = async (
+    token0: string,
+    token1: string,
+    interval: Interval
+  ) => {
+    const from = [token0, token1, interval, Dexie.minKey]
+    const to = [token0, token1, interval, Dexie.maxKey]
+
+    const collection = dbKline.klinePoints
+      .where('[token0+token1+interval+timestamp]')
+      .between(from, to)
+
+    const minItem = await collection.first()
+
+    return {
+      minTimestamp: minItem?.timestamp ?? 0,
+      maxTimestamp: Math.floor(Date.now()) + 1 * 3600 * 1000
+    }
+  }
+
   static points = async (
     token0: string,
     token1: string,
     interval: Interval,
-    offset: number,
-    limit: number
+    offset?: number,
+    limit?: number,
+    reverse?: boolean,
+    timestampBegin?: number,
+    timestampEnd?: number
   ) => {
-    return await dbKline.klinePoints
-      .orderBy('timestamp')
-      .filter(
-        (obj) =>
-          obj.token0 === token0 &&
-          obj.token1 === token1 &&
-          obj.interval === interval
-      )
-      .offset(offset)
-      .limit(limit)
-      .toArray()
+    const from = [token0, token1, interval, timestampBegin ?? 0]
+    const to = [token0, token1, interval, timestampEnd ?? 9999999999999]
+
+    const collection = reverse
+      ? dbKline.klinePoints
+          .where('[token0+token1+interval+timestamp]')
+          .between(from, to)
+          .reverse()
+      : dbKline.klinePoints
+          .where('[token0+token1+interval+timestamp]')
+          .between(from, to)
+
+    return (
+      await collection
+        .offset(offset ?? 0)
+        .limit(limit ?? 999999)
+        .toArray()
+    ).sort((a, b) => b.timestamp - a.timestamp)
   }
 }

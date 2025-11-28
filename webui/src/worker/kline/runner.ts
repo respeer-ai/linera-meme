@@ -39,6 +39,7 @@ export interface FetchPointsPayload extends BasePayload {
   startAt: number
   endAt: number
   interval: Interval
+  reverse: boolean
 }
 export interface FetchTransactionsPayload extends BasePayload {
   startAt: number
@@ -46,6 +47,7 @@ export interface FetchTransactionsPayload extends BasePayload {
 }
 export interface FetchedPointsPayload extends BasePayload {
   points: Points
+  reverse: boolean
 }
 export interface FetchedTransactionsPayload extends BasePayload {
   startAt: number
@@ -53,13 +55,17 @@ export interface FetchedTransactionsPayload extends BasePayload {
   transactions: TransactionExt[]
 }
 export interface LoadPointsPayload extends BasePayload {
-  offset: number
-  limit: number
+  offset?: number
+  limit?: number
   interval: Interval
+  reverse: boolean
+  timestampBegin?: number
+  timestampEnd?: number
 }
 export interface LoadTransactionsPayload extends BasePayload {
-  tokenReversed: boolean
-  offset: number
+  tokenReversed: number
+  timestampBegin?: number
+  timestampEnd?: number
   limit: number
 }
 export interface LoadedPointsPayload extends BasePayload {
@@ -67,10 +73,13 @@ export interface LoadedPointsPayload extends BasePayload {
   limit: number
   interval: string
   points: Point[]
+  reverse: boolean
+  timestampBegin?: number
+  timestampEnd?: number
 }
 export interface LoadedTransactionsPayload extends BasePayload {
-  offset: number
-  limit: number
+  timestampBegin?: number
+  timestampEnd?: number
   transactions: TransactionExt[]
 }
 export type NewPointsPayload = Map<Interval, Points[]>
@@ -84,10 +93,11 @@ export interface SortPointsPayload extends BasePayload {
 }
 export interface SortedPointsPayload extends BasePayload {
   points: Point[]
+  reverse: boolean
   reason: unknown
 }
 export interface SortTransactionsPayload extends BasePayload {
-  tokenReversed: boolean
+  tokenReversed: number
   originTransactions: TransactionExt[]
   newTransactions: TransactionExt[]
   keepCount: number
@@ -158,10 +168,13 @@ export class KlineRunner {
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
-    const { token0, token1, startAt, endAt, interval } = payload
+    const { token0, token1, startAt, endAt, interval, reverse } = payload
+
+    const _startAt = Math.floor(startAt / 1000)
+    const _endAt = Math.floor(endAt / 1000)
 
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`
+      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${_startAt}/end_at/${_endAt}/interval/${interval}`
     )
 
     try {
@@ -169,6 +182,7 @@ export class KlineRunner {
 
       const points = res.data as Points
       points.end_at = endAt
+      points.start_at *= 1000
       points.points = points.points.map((el) => {
         return {
           ...el,
@@ -183,7 +197,8 @@ export class KlineRunner {
         payload: {
           token0,
           token1,
-          points
+          points,
+          reverse
         }
       })
     } catch (e) {
@@ -233,8 +248,11 @@ export class KlineRunner {
   ) => {
     const { token0, token1, startAt, endAt } = payload
 
+    const _startAt = Math.floor(startAt / 1000)
+    const _endAt = Math.floor(endAt / 1000)
+
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}`
+      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${_startAt}/end_at/${_endAt}`
     )
 
     try {
@@ -256,13 +274,22 @@ export class KlineRunner {
     } catch (e) {
       self.postMessage({
         type: KlineEventType.Error,
-        payload: e
+        payload: JSON.stringify(e)
       })
     }
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, offset, limit, interval } = payload
+    const {
+      token0,
+      token1,
+      offset,
+      limit,
+      interval,
+      reverse,
+      timestampBegin,
+      timestampEnd
+    } = payload
 
     try {
       const points = await dbBridge.Kline.points(
@@ -270,7 +297,10 @@ export class KlineRunner {
         token1,
         interval,
         offset,
-        limit
+        limit,
+        reverse,
+        timestampBegin,
+        timestampEnd
       )
 
       self.postMessage({
@@ -281,7 +311,10 @@ export class KlineRunner {
           offset,
           limit,
           interval,
-          points
+          points,
+          reverse,
+          timestampBegin,
+          timestampEnd
         }
       })
     } catch (e) {
@@ -293,14 +326,22 @@ export class KlineRunner {
   }
 
   static handleLoadTransactions = async (payload: LoadTransactionsPayload) => {
-    const { token0, token1, offset, limit, tokenReversed } = payload
+    const {
+      token0,
+      token1,
+      timestampBegin,
+      timestampEnd,
+      tokenReversed,
+      limit
+    } = payload
 
     try {
       const transactions = await dbBridge.Transaction.transactions(
         token0,
         token1,
         tokenReversed,
-        offset,
+        timestampBegin,
+        timestampEnd,
         limit
       )
 
@@ -309,8 +350,8 @@ export class KlineRunner {
         payload: {
           token0,
           token1,
-          offset,
-          limit,
+          timestampBegin,
+          timestampEnd,
           transactions
         }
       })
@@ -369,8 +410,10 @@ export class KlineRunner {
     })
 
     const points = originPoints
-    const _points = points.sort((p1, p2) =>
-      reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
+    const _points = points.sort(
+      (p1, p2) =>
+        // reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
+        p1.timestamp - p2.timestamp
     )
     keepCount = keepCount < 0 ? _points.length : keepCount
 
@@ -383,6 +426,7 @@ export class KlineRunner {
           reverse ? 0 : Math.max(_points.length - keepCount, 0),
           reverse ? keepCount : _points.length
         ),
+        reverse,
         reason
       }
     })

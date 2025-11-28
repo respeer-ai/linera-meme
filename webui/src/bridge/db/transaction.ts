@@ -8,7 +8,12 @@ export class Transaction {
     transactions: TransactionExt[]
   ) => {
     const _transactions = transactions.map((transaction) => {
-      return { ...transaction, token0, token1 }
+      return {
+        ...transaction,
+        token0,
+        token1,
+        token_reversed: transaction.token_reversed ? 1 : 0
+      }
     })
     const traceFunc = console.trace
     console.trace = () => {
@@ -22,27 +27,50 @@ export class Transaction {
     console.trace = traceFunc
   }
 
+  static transactionsCount = async (
+    token0: string,
+    token1: string,
+    tokenReversed: number
+  ) => {
+    const from = [0, token0, token1, tokenReversed]
+    const to = [Number.MAX_SAFE_INTEGER, token0, token1, tokenReversed]
+
+    try {
+      return await dbKline.transactions
+        .where('[created_timestamp+token0+token1+token_reversed]')
+        .between(from, to)
+        .count()
+    } catch (e) {
+      console.log('Failed query', e)
+    }
+  }
+
   static transactions = async (
     token0: string,
     token1: string,
-    tokenReversed: boolean,
-    offset: number,
-    limit: number
+    tokenReversed: number,
+    timestampBegin?: number,
+    timestampEnd?: number,
+    limit?: number
   ) => {
-    return await dbKline.transactions
-      .orderBy('created_at')
-      .reverse()
-      .filter(
-        (obj) =>
-          obj.token0 === token0 &&
-          obj.token1 === token1 &&
-          // For true and 1 in database
-          (tokenReversed
-            ? obj.token_reversed && obj.token_reversed.toString() !== 'false'
-            : !obj.token_reversed || obj.token_reversed.toString() === 'false')
-      )
-      .offset(offset)
-      .limit(limit)
-      .toArray()
+    const startAt = timestampBegin ? timestampBegin * 1000 : 0
+    const endAt = timestampEnd ? timestampEnd * 1000 : Number.MAX_SAFE_INTEGER
+
+    const _startAt = startAt > endAt ? endAt : startAt
+    const _endAt = startAt > endAt ? startAt : endAt
+
+    const from = [_startAt, token0, token1, tokenReversed]
+    const to = [_endAt, token0, token1, tokenReversed]
+
+    try {
+      return await dbKline.transactions
+        .where('[created_timestamp+token0+token1+token_reversed]')
+        .between(from, to)
+        .reverse()
+        .limit(limit ? limit * 2 : 999999)
+        .toArray()
+    } catch (e) {
+      console.log('Failed query', e)
+    }
   }
 }
