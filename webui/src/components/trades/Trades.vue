@@ -167,7 +167,7 @@ watch(latestTransactions, () => {
 })
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  const { token0, token1 } = payload
+  const { token0, token1, startAt, endAt } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
@@ -184,7 +184,8 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
     reason: {
       reason: SortReason.FETCH,
       payload: {
-        endAt: payload.endAt
+        startAt: startAt - 1 * 3600 * 1000,
+        endAt: startAt - 1
       }
     }
   })
@@ -196,8 +197,8 @@ const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) =>
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
-  const startAt = payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime()) - 1 * 3600 * 1000
-  const endAt = payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime()) - 1
+  const startAt = (payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime())) - 1 * 3600 * 1000
+  const endAt = (payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime())) - 1
 
   const reason = {
     reason: SortReason.LOAD,
