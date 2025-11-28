@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
-import { Points, Point, Transactions } from './types'
+import { Points, Point, Transactions, KlineInformation, TransactionsInformation } from './types'
 import { _WebSocket, Notification } from 'src/websocket'
 import { constants } from 'src/constant'
 import { TransactionExt } from '../transaction'
 import { klineWorker } from 'src/worker'
 import { Interval } from './const'
+import axios from 'axios'
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
@@ -80,6 +81,28 @@ export const useKlineStore = defineStore('kline', {
         trans.set(_transactions.token_1, _transactions.transactions)
         this.latestTransactions.set(_transactions.token_0, trans)
       })
+    },
+    async getKlineInformation(token0: string, token1: string, interval: Interval) {
+      const url = constants.formalizeSchema(
+        `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/interval/${interval}/information`
+      )
+      try {
+        const res = await axios.get(url)
+        return res.data as KlineInformation
+      } catch (e) {
+        console.log('Failed get kline information', e)
+      }
+    },
+    async getTransactionsInformation(token0: string, token1: string) {
+      const url = constants.formalizeSchema(
+        `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/information`
+      )
+      try {
+        const res = await axios.get(url)
+        return res.data as TransactionsInformation
+      } catch (e) {
+        console.log('Failed get transactions information', e)
+      }
     }
   },
   getters: {
