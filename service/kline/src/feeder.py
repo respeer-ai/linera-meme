@@ -9,10 +9,10 @@ class MakerWallet:
         self.chain_id = chain_id
 
 class Feeder:
-    def __init__(self, swap, proxy, maker_wallet, wallet):
+    def __init__(self, swap, proxy, maker_wallets, wallet):
         self.swap = swap
         self.proxy = proxy
-        self.maker_wallet = maker_wallet
+        self.maker_wallets = maker_wallets
         self.wallet = wallet
         self.threshold = 10
 
@@ -77,23 +77,24 @@ class Feeder:
                     print(f'Failed feed chain {chain_id}: ERROR {e}')
                     continue
 
-        balances = await Balance(self.maker_wallet.host).chain_balances([self.maker_wallet.chain_id])
-        for chain_id, balance in balances.items():
-            if balance < self.threshold:
-                if funded_chains % 5 == 0:
-                    # Claim new chain
+        for maker_wallet in self.maker_wallets:
+            balances = await Balance(maker_wallet.host).chain_balances([maker_wallet.chain_id])
+            for chain_id, balance in balances.items():
+                if balance < self.threshold:
+                    if funded_chains % 5 == 0:
+                        # Claim new chain
+                        try:
+                            funder_chain_id = self.wallet.open_chain_with_cli()
+                        except Exception as e:
+                            print(f'Failed open chain: {e}')
+                            time.sleep(30)
+                            continue
                     try:
-                        funder_chain_id = self.wallet.open_chain_with_cli()
+                        self.feed_chain(funder_chain_id, chain_id)
+                        funded_chains += 1
                     except Exception as e:
-                        print(f'Failed open chain: {e}')
-                        time.sleep(30)
+                        print(f'Failed feed chain {chain_id}: ERROR {e}')
                         continue
-                try:
-                    self.feed_chain(funder_chain_id, chain_id)
-                    funded_chains += 1
-                except Exception as e:
-                    print(f'Failed feed chain {chain_id}: ERROR {e}')
-                    continue
 
     async def run(self):
         while True:
