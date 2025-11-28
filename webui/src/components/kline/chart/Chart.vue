@@ -1,5 +1,5 @@
 <template>
-  <div ref='chartContainer' class='kline-chart' style='height: 550px' />
+  <div ref='chartContainer' class='kline-chart' style='height: 550px; padding-top: 8px;' />
   <div style='margin-top: -550px; z-index: 10; position: relative;'>
     <div class='row text-grey-7' style='padding: 8px 0 0 8px'>
       {{ hoveringTime }}
