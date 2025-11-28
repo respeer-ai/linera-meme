@@ -1,10 +1,10 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: maker-wallet-service
   namespace: kube-system
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: maker-wallet-service
@@ -22,14 +22,15 @@ spec:
         - /bin/sh
         - -c
         - |
-          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER ]; then
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX ]; then
             echo "No wallet found, creating..."
             now=$(date -u | sed 's/ //g')
             mkdir -p /wallet/backup/$now
             mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
             rm -rf /wallet/client.db
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} > /shared-app-data/MAKER_WALLET_CHAIN_OWNER
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} > /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX
           else
             echo "Wallet already exists, skipping init."
           fi
@@ -81,12 +82,12 @@ spec:
 
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: maker-service
   namespace: kube-system
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: maker-service
@@ -103,9 +104,10 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           while true; do
             curl http://maker-wallet-service:8080
-            if [ $? -eq 0 -a -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER ]; then
+            if [ $? -eq 0 -a -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX ]; then
               exit 0
             fi
             sleep 10
@@ -121,9 +123,10 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
-          CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | head -n 1)
-          OWNER=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | tail -n 1)
+          CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX | head -n 1)
+          OWNER=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX | tail -n 1)
           SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 WALLET_HOST=maker-wallet-service:8080 WALLET_CHAIN=$CHAIN_ID WALLET_OWNER=$OWNER ./maker-entrypoint.sh
         env:
         - name: RUST_LOG

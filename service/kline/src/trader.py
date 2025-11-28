@@ -79,13 +79,11 @@ class Trader:
 
     async def _trade_in_pool(self, pool):
         async with self.semaphore:
-            for _ in range(3):
-                try:
-                    await self.trade_in_pool(pool)
-                except Exception as e:
-                    print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
-                    traceback.print_exc()
-                await asyncio.sleep(1)
+            try:
+                await self.trade_in_pool(pool)
+            except Exception as e:
+                print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
+                traceback.print_exc()
 
     async def trade(self) -> float:
         pools = await self.swap.get_pools()
