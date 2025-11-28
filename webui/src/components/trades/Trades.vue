@@ -107,15 +107,19 @@ const loadTransactions = (timestampBegin: number | undefined, timestampEnd: numb
   return true
 }
 
+const getTransactionsInformation = async () => {
+  const info = await _kline.getTransactionsInformation(selectedToken0.value, selectedToken1.value)
+  if (!info) return
+  // TODO: record timestamp begin and end then we can control data loading
+  pagination.value.rowsNumber = info.count
+}
+
 const getStoreTransactions = async () => {
   transactions.value = []
   if (loading.value) return
 
   if (loadTransactions(undefined, undefined, 10)) {
-    const info = await _kline.getTransactionsInformation(selectedToken0.value, selectedToken1.value)
-    if (!info) return
-    // TODO: record timestamp begin and end then we can control data loading
-    pagination.value.rowsNumber = info.count
+    await getTransactionsInformation()
   }
 }
 
@@ -195,11 +199,16 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
   })
 }
 
-const onLoadedTransactions = (payload: klineWorker.LoadedTransactionsPayload) => {
+const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPayload) => {
   const _transactions = payload.transactions || []
-  const { token0, token1 } = payload
+  const { token0, token1, timestampBegin, timestampEnd } = payload
 
-  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) {
+    if (loadTransactions(timestampBegin, timestampEnd, 10)) {
+      await getTransactionsInformation()
+    }
+    return
+  }
 
   const startAt = (payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime())) - 1 * 3600 * 1000
   const endAt = (payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime())) - 1
