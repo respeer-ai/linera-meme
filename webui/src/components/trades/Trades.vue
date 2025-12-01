@@ -151,8 +151,9 @@ interface Reason {
 const MAX_TRANSACTIONS = -1
 
 watch(latestTransactions, () => {
-  /*
   if (!latestTransactions.value.length) return
+
+  console.log(latestTransactions.value.length, 'latestTransactions changed')
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
     token0: selectedToken0.value,
@@ -171,7 +172,6 @@ watch(latestTransactions, () => {
       payload: undefined
     }
   })
-    */
 })
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
@@ -245,8 +245,14 @@ const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) =>
     const startAt = _reason.payload.startAt
     const endAt = _reason.payload.endAt
 
-    if (startAt < poolCreatedAt.value) return
-    if (endAt > new Date().getTime()) return
+    if (endAt < poolCreatedAt.value) {
+      loading.value = false
+      return
+    }
+    if (startAt > new Date().getTime()) {
+      loading.value = false
+      return
+    }
 
     return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
   }
