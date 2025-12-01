@@ -36,7 +36,7 @@ export interface TransactionExt {
   amount_1_out?: string
   liquidity?: string
   // eslint-disable-next-line camelcase
-  created_at: string
+  created_at: number
   // eslint-disable-next-line camelcase
   created_timestamp: number
   price: string

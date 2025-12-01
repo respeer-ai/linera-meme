@@ -49,15 +49,6 @@ export const useKlineStore = defineStore('kline', {
             _latestTimestamps.get(__points.token_1) ||
             new Map<Interval, number>()
 
-          __points.points = __points.points.map((el) => {
-            return {
-              ...el,
-              timestamp: Math.floor(
-                Date.parse(el.timestamp as unknown as string)
-              )
-            }
-          })
-
           __latestTimestamps.set(
             interval,
             Math.max(...__points.points.map((el) => el.timestamp))
@@ -148,9 +139,7 @@ export const useKlineStore = defineStore('kline', {
           this.latestTransactions
             .get(token0)
             ?.get(token1)
-            ?.sort(
-              (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)
-            )
+            ?.sort((a, b) => a.created_at - b.created_at)
             ?.filter((el) => el.token_reversed === tokenReversed) || []
         )
       }
