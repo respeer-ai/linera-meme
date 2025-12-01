@@ -153,8 +153,6 @@ const MAX_TRANSACTIONS = -1
 watch(latestTransactions, () => {
   if (!latestTransactions.value.length) return
 
-  console.log(latestTransactions.value.length, 'latestTransactions changed')
-
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
