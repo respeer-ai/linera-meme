@@ -396,9 +396,7 @@ async fn meme_work_flow_test() {
     // TODO: purchase meme with user chain
     // TODO: add liquidity with user chain
 
-    suite
-        .mint(&meme_chain, user_owner_account, amount)
-        .await;
+    suite.mint(&meme_chain, user_owner_account, amount).await;
 
     let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
     let QueryOutcome { response, .. } = meme_chain
@@ -451,7 +449,5 @@ async fn mint_from_user() {
     let user_owner_account = suite.chain_owner_account(&user_chain);
 
     let amount = Amount::from_tokens(10);
-    suite
-        .mint(&user_chain, user_owner_account, amount)
-        .await;
+    suite.mint(&user_chain, user_owner_account, amount).await;
 }

@@ -107,8 +107,7 @@ impl MemeState {
     }
 
     pub(crate) async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), MemeError> {
-        self.transfer(self.holder.get().unwrap(), to, amount)
-            .await
+        self.transfer(self.holder.get().unwrap(), to, amount).await
     }
 
     pub(crate) fn proxy_application_id(&self) -> Option<ApplicationId> {

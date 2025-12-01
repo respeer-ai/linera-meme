@@ -3,11 +3,11 @@ import * as domain from './domain'
 export const formalizeSchema = (url: string) => {
   url = url.replace(
     'http://',
-    process.env.NODE_ENV === 'production' ? 'https://' : 'https://'
+    process.env.NODE_ENV === 'production' ? 'http://' : 'http://'
   )
   url = url.replace(
     'ws://',
-    process.env.NODE_ENV === 'production' ? 'wss://' : 'wss://'
+    process.env.NODE_ENV === 'production' ? 'ws://' : 'ws//'
   )
   return url
 }
