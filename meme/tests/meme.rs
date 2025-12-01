@@ -184,6 +184,18 @@ impl TestSuite {
         self.meme_chain.handle_received_messages().await;
     }
 
+    async fn mint(&self, chain: &ActiveChain, to: Account, amount: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.meme_application_id.unwrap(),
+                    MemeOperation::Mint { to, amount },
+                );
+            })
+            .await;
+        self.meme_chain.handle_received_messages().await;
+    }
+
     async fn approve(&self, chain: &ActiveChain, spender: Account, amount: Amount) {
         chain
             .add_block(|block| {
@@ -303,7 +315,7 @@ async fn meme_work_flow_test() {
         .transfer(&meme_chain, user_owner_account, amount)
         .await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account,);
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -314,7 +326,7 @@ async fn meme_work_flow_test() {
 
     suite.approve(&meme_chain, user_owner_account, amount).await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account,);
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account);
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -356,7 +368,7 @@ async fn meme_work_flow_test() {
             .unwrap(),
     );
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account,);
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -383,6 +395,19 @@ async fn meme_work_flow_test() {
     // TODO: create pool in swap application
     // TODO: purchase meme with user chain
     // TODO: add liquidity with user chain
+
+    suite
+        .mint(&meme_chain, user_owner_account, amount)
+        .await;
+
+    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        amount.try_mul(3).unwrap(),
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -405,5 +430,28 @@ async fn transfer_insufficient_funds_test() {
     let amount = Amount::from_tokens(101);
     suite
         .transfer(&meme_chain, user_owner_account, amount)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic]
+async fn mint_from_user() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let mut suite = TestSuite::new().await;
+    let meme_chain = suite.meme_chain.clone();
+    let user_chain = suite.user_chain.clone();
+
+    suite.fund_chain(&meme_chain, open_chain_fee_budget()).await;
+
+    suite.create_swap_application().await;
+
+    suite.create_meme_application().await;
+
+    let user_owner_account = suite.chain_owner_account(&user_chain);
+
+    let amount = Amount::from_tokens(10);
+    suite
+        .mint(&user_chain, user_owner_account, amount)
         .await;
 }

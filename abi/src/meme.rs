@@ -115,6 +115,10 @@ pub enum MemeOperation {
     TransferToCaller {
         amount: Amount,
     },
+    Mint {
+        to: Account,
+        amount: Amount,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -152,6 +156,10 @@ pub enum MemeMessage {
         new_owner: Account,
     },
     // Mine is only run on creation chain so we don't need a message
+    Mint {
+        to: Account,
+        amount: Amount,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

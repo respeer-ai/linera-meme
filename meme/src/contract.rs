@@ -69,7 +69,7 @@ impl Contract for MemeContract {
 
         // Let creator hold one hundred tokens for easy test
         self.state
-            .initialize_balance(creator, self.state.initial_owner_balance().await)
+            .mint(creator, self.state.initial_owner_balance().await)
             .await
             .expect("Failed initialize balance");
 
@@ -121,6 +121,9 @@ impl Contract for MemeContract {
                 .await
                 .expect("Failed OP: transfer to caller"),
             MemeOperation::Mine { nonce } => self.on_op_mine(nonce).expect("Failed OP: mine"),
+            MemeOperation::Mint { to, amount } => {
+                self.on_op_mint(to, amount).expect("Failed OP: mint")
+            }
         }
     }
 
@@ -168,6 +171,10 @@ impl Contract for MemeContract {
                 .on_msg_transfer_ownership(owner, new_owner)
                 .await
                 .expect("Failed MSG: transfer ownership"),
+            MemeMessage::Mint { to, amount } => self
+                .on_msg_mint(to, amount)
+                .await
+                .expect("Failed MSG: mint"),
         }
     }
 
@@ -497,6 +504,14 @@ impl MemeContract {
         Ok(MemeResponse::Ok)
     }
 
+    fn on_op_mint(&mut self, to: Account, amount: Amount) -> Result<MemeResponse, MemeError> {
+        self.runtime
+            .prepare_message(MemeMessage::Mint { to, amount })
+            .with_authentication()
+            .send_to(self.runtime.application_creator_chain_id());
+        Ok(MemeResponse::Ok)
+    }
+
     async fn on_msg_liquidity_funded(&mut self) -> Result<(), MemeError> {
         let virtual_liquidity = self.virtual_initial_liquidity();
         let Some(liquidity) = self.initial_liquidity() else {
@@ -587,6 +602,15 @@ impl MemeContract {
         new_owner: Account,
     ) -> Result<(), MemeError> {
         self.state.transfer_ownership(owner, new_owner).await
+    }
+
+    async fn on_msg_mint(&mut self, to: Account, amount: Amount) -> Result<(), MemeError> {
+        let signer = self.runtime.authenticated_signer().unwrap();
+        let owner = self.state.owner_signer().await;
+
+        assert!(signer == owner, "Invalid caller");
+
+        self.state.mint(to, amount).await
     }
 }
 

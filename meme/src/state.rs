@@ -106,12 +106,8 @@ impl MemeState {
         Ok(())
     }
 
-    pub(crate) async fn initialize_balance(
-        &mut self,
-        owner: Account,
-        amount: Amount,
-    ) -> Result<(), MemeError> {
-        self.transfer(self.holder.get().unwrap(), owner, amount)
+    pub(crate) async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), MemeError> {
+        self.transfer(self.holder.get().unwrap(), to, amount)
             .await
     }
 
