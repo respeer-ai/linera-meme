@@ -71,6 +71,17 @@ export const useKlineStore = defineStore('kline', {
         klineWorker.KlineEventType.NEW_TRANSACTIONS,
         transactions
       )
+      transactions = transactions.map((el) => {
+        return {
+          ...el,
+          transactions: el.transactions.map((transaction) => {
+            return {
+              ...transaction,
+              token_reversed: transaction.token_reversed ? 1 : 0
+            }
+          })
+        }
+      })
       transactions.forEach((_transactions) => {
         const trans =
           this.latestTransactions.get(_transactions.token_0) ||

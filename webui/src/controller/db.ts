@@ -27,4 +27,3 @@ Object.defineProperty(dbKline, 'klinePoints', {
     return dbKline.table('klinePointsV2')
   }
 })
-

@@ -52,7 +52,8 @@ const _latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MIN
 }))
 
 const klinePoints = ref([] as KLineData[])
-const loading = ref(false)
+const loadingNew = ref(false)
+const loadingOld = ref(false)
 
 const maxPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
   item.time > max.time ? item : max
@@ -101,7 +102,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
   if (!selectedToken0.value || !selectedToken1.value) return false
   if (selectedToken0.value === selectedToken1.value) return false
 
-  loading.value = true
+  reverse ? loadingOld.value = true : loadingNew.value = true
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_POINTS, {
     token0: selectedToken0.value,
@@ -118,7 +119,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 }
 
 const getStoreKline = () => {
-  if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value && !loading.value) {
+  if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value && !loadingOld.value) {
     klinePoints.value = []
 
     loadKline(0, 100, undefined, undefined, true)
@@ -186,7 +187,7 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
       startAt,
       endAt
     }
-  }, true)
+  }, reverse)
 }
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
@@ -230,12 +231,18 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {
-    let timestamp = reverse ? maxPointTimestamp.value : minPointTimestamp.value
+    let timestamp = reverse ? minPointTimestamp.value : maxPointTimestamp.value
     if (_reason.reason === SortReason.FETCH) {
       timestamp = reverse ? _reason.payload.startAt : _reason.payload.endAt
     }
-    if (timestamp < poolCreatedAt.value) return
-    if (timestamp > new Date().getTime()) return
+    if (timestamp < poolCreatedAt.value) {
+      reverse ? loadingOld.value = false : loadingNew.value = false
+      return
+    }
+    if (timestamp > new Date().getTime()) {
+      reverse ? loadingOld.value = false : loadingNew.value = false
+      return
+    }
     return onFetchSorted(reverse, timestamp)
   }
 
@@ -246,25 +253,26 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     }
   })
 
-  loading.value = false
+  reverse ? loadingOld.value = false : loadingNew.value = false
 }
 
 const onLoadNewData = (timestamp: number) => {
-  if (loading.value) return
-  loading.value = true
+  if (loadingNew.value) return
   if (timestamp * 1000 < maxPointTimestamp.value) return
+  loadingNew.value = true
   onLoadSorted(false, timestamp * 1000)
 }
 
 const onLoadOldData = (timestamp: number) => {
-  if (loading.value) return
-  loading.value = true
+  if (loadingOld.value) return
   if (timestamp * 1000 > minPointTimestamp.value) return
+  loadingOld.value = true
   onLoadSorted(true, timestamp * 1000)
 }
 
 onBeforeMount(() => {
-  loading.value = false
+  loadingOld.value = false
+  loadingNew.value = false
 })
 
 onMounted(() => {
