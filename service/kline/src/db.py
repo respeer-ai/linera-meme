@@ -322,6 +322,9 @@ class Db:
         interval = interval if interval in intervals else '5min'
         start_at = end_at - intervals[interval]
 
+        start_at *= 1000
+        end_at *= 1000
+
         (token_0, token_1, points) = self.get_kline(token_0, token_1, start_at, end_at, interval)
 
         return  (token_0, token_1, start_at, end_at, interval, points)
