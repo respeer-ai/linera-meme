@@ -54,7 +54,7 @@ const columns = computed(() => [
     name: 'Date',
     label: t('MSG_DATE'),
     align: 'center',
-    field: (row: transaction.TransactionExt) => row.created_at
+    field: (row: transaction.TransactionExt) => new Date(row.created_at).toLocaleString()
   }
 ])
 
@@ -208,8 +208,8 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
     return
   }
 
-  const startAt = (payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime())) - 1 * 3600 * 1000
-  const endAt = (payload.timestampBegin ?? (Date.parse(_transactions[0]?.created_at) || new Date().getTime())) - 1
+  const startAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1 * 3600 * 1000
+  const endAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1
 
   const reason = {
     reason: SortReason.LOAD,
@@ -262,8 +262,8 @@ const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) =>
 const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: number }}) => {
   if (loading.value) return
 
-  const startAt = (Date.parse(transactions.value[0]?.created_at) || new Date().getTime()) - 1
-  const endAt = (Date.parse(transactions.value[0]?.created_at) || new Date().getTime()) - 1 * 3600 * 1000
+  const startAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1
+  const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1 * 3600 * 1000
 
   loadTransactions(startAt, endAt, 10)
   pagination.value.page = requestProp.pagination.page

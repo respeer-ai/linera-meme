@@ -83,7 +83,7 @@ function run_kline() {
     docker rm kline maker
 
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
-    docker build -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
+    docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
 
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
       SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
@@ -100,7 +100,7 @@ function run_funder() {
     image_exists=`docker images | grep "^funder " | wc -l`
     if [ "x$image_exists" != "x1" ]; then
         cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
-        docker build -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+        docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
     fi
 
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \

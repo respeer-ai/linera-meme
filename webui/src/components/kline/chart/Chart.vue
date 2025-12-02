@@ -100,6 +100,23 @@ const initChart = () => {
     autoSize: true
   })
 
+  chart.applyOptions({
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: true,
+      tickMarkFormatter: (time: Time) => {
+        const date = new Date(time as number * 1000)
+        return date.toLocaleTimeString()
+      }
+    },
+    localization: {
+      timeFormatter: (time: number) => {
+        const date = new Date(time * 1000)
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+      }
+    }
+  })
+
   candleSeries = chart.addSeries(CandlestickSeries, {
     priceFormat: {
       type: 'price',

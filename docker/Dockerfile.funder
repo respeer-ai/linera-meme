@@ -4,6 +4,7 @@ ARG swap_application_id
 ARG proxy_application_id
 ARG swap_host
 ARG proxy_host
+ARG all_proxy
 
 ENV SWAP_APPLICATION_ID=${swap_application_id}
 ENV PROXY_APPLICATION_ID=${proxy_application_id}
@@ -11,18 +12,19 @@ ENV SWAP_HOST=${swap_host}
 ENV PROXY_HOST=${proxy_host}
 
 RUN apt update -y
-RUN apt install -y \
-        build-essential \
-        zlib1g-dev \
-        libncurses5-dev \
-        libgdbm-dev \
-        libnss3-dev \
-        libssl-dev \
-        libreadline-dev \
-        libffi-dev \
-        libsqlite3-dev \
-        wget \
-        libbz2-dev
+RUN all_proxy=${all_proxy} \
+    apt install -y \
+    build-essential \
+    zlib1g-dev \
+    libncurses5-dev \
+    libgdbm-dev \
+    libnss3-dev \
+    libssl-dev \
+    libreadline-dev \
+    libffi-dev \
+    libsqlite3-dev \
+    wget \
+    libbz2-dev
 
 RUN wget https://www.python.org/ftp/python/3.10.16/Python-3.10.16.tgz
 RUN tar xzf Python-3.10.16.tgz
@@ -32,8 +34,9 @@ COPY docker/kline kline
 
 WORKDIR kline
 
-RUN pip3.10 install -r requirements.txt
-RUN pip3.10 install -e .
+RUN all_proxy= pip3.10 install pysocks
+RUN all_proxy=${all_proxy} pip3.10 install -r requirements.txt
+RUN all_proxy=${all_proxy} pip3.10 install -e .
 
 COPY --chmod=755 \
   docker/funder-entrypoint.sh \

@@ -118,8 +118,8 @@ branch = "post-message"
 
 [patch.crates-io.linera-sdk]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "e6d7cf03"
+rev = "255f22a8"
 
 [patch.crates-io.linera-views]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "e6d7cf03"
+rev = "255f22a8"

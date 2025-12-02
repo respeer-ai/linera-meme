@@ -79,7 +79,7 @@ class Db:
                     volume DECIMAL(30, 18),
                     direction VARCHAR(8),
                     token_reversed TINYINT,
-                    created_at DATETIME,
+                    created_at BIGINT UNSIGNED,
                     PRIMARY KEY (pool_id, transaction_id, token_reversed)
                 )
             ''')
@@ -140,7 +140,7 @@ class Db:
              volume,
              direction,
              token_reversed,
-             datetime.fromtimestamp(transaction.created_at / 1000000).strftime('%Y-%m-%d %H:%M:%S'))
+             transaction.created_at // 1000)
         )
 
         return {
@@ -157,8 +157,7 @@ class Db:
             'volume': volume,
             'direction': direction,
             'token_reversed': token_reversed,
-            'created_at': datetime.fromtimestamp(transaction.created_at / 1000000).strftime('%Y-%m-%d %H:%M:%S'),
-            'created_timestamp': transaction.created_at,
+            'created_at': transaction.created_at // 1000,
         }
 
     def new_transactions(self, pool_id: int, transactions: list[Transaction]):
@@ -231,13 +230,10 @@ class Db:
             print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
             return []
 
-        start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')
-        end_at = datetime.fromtimestamp(end_at).strftime('%Y-%m-%d %H:%M:%S')
-
         query = f'''
             SELECT * FROM {self.transactions_table}
             WHERE pool_id = {pool_id}
-            AND created_at BETWEEN '{start_at}' AND '{end_at}'
+            AND created_at BETWEEN {start_at} AND {end_at}
             AND token_reversed = {token_reversed}
         '''
         self.cursor_dict.execute(query)
@@ -263,19 +259,16 @@ class Db:
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
 
-        start_at = datetime.fromtimestamp(start_at).strftime('%Y-%m-%d %H:%M:%S')
-        end_at = datetime.fromtimestamp(end_at).strftime('%Y-%m-%d %H:%M:%S')
-
         query = f'''
             SELECT created_at, price, volume FROM {self.transactions_table}
             WHERE pool_id = {pool_id}
-            AND created_at BETWEEN '{start_at}' AND '{end_at}'
+            AND created_at BETWEEN {start_at} AND {end_at}
             AND token_reversed = {token_reversed}
             AND transaction_type != 'AddLiquidity'
             AND transaction_type != 'RemoveLiquidity'
         '''
         df = pd.read_sql(query, self.connection)
-        df['created_at'] = pd.to_datetime(df['created_at'])
+        df['created_at'] = pd.to_datetime(df['created_at'], unit='ms')
         df.set_index('created_at', inplace=True)
         df.sort_index(inplace=True)
 
@@ -292,7 +285,6 @@ class Db:
         last_close = None
         for idx, row in df_interval.iterrows():
             if row['volume'] == 0 and last_close is not None:
-                # 没有成交量时，保持上一条收盘价
                 if last_close is not None:
                     df_interval.at[idx, 'open'] = last_close
                     df_interval.at[idx, 'high'] = last_close
@@ -304,7 +296,7 @@ class Db:
         json_data = []
         for index, row in df_interval.iterrows():
             json_data.append({
-                'timestamp': index.strftime('%Y-%m-%dT%H:%M:%S'),
+                'timestamp': int(index.timestamp() * 1000),
                 'open': row['open'],
                 'high': row['high'],
                 'low': row['low'],

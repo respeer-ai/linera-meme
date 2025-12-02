@@ -170,11 +170,8 @@ export class KlineRunner {
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
     const { token0, token1, startAt, endAt, interval, reverse } = payload
 
-    const _startAt = Math.floor(startAt / 1000)
-    const _endAt = Math.floor(endAt / 1000)
-
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${_startAt}/end_at/${_endAt}/interval/${interval}`
+      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`
     )
 
     try {
@@ -182,13 +179,6 @@ export class KlineRunner {
 
       const points = res.data as Points
       points.end_at = endAt
-      points.start_at *= 1000
-      points.points = points.points.map((el) => {
-        return {
-          ...el,
-          timestamp: Math.floor(Date.parse(el.timestamp as unknown as string))
-        }
-      })
 
       KlineRunner.bulkStorePoints(token0, token1, interval, points)
 
@@ -248,11 +238,8 @@ export class KlineRunner {
   ) => {
     const { token0, token1, startAt, endAt } = payload
 
-    const _startAt = Math.floor(startAt / 1000)
-    const _endAt = Math.floor(endAt / 1000)
-
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${_startAt}/end_at/${_endAt}`
+      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}`
     )
 
     try {
@@ -459,9 +446,7 @@ export class KlineRunner {
         : !el.token_reversed || el.token_reversed.toString() === 'false'
     )
     const _transactions = transactions.sort((p1, p2) =>
-      reverse
-        ? Date.parse(p2.created_at) - Date.parse(p1.created_at)
-        : Date.parse(p1.created_at) - Date.parse(p2.created_at)
+      reverse ? p2.created_at - p1.created_at : p1.created_at - p2.created_at
     )
     keepCount = keepCount < 0 ? _transactions.length : keepCount
 
