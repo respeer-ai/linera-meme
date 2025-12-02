@@ -34,7 +34,7 @@ COPY docker/kline kline
 
 WORKDIR kline
 
-RUN all_proxy= pip3 install pysocks
+RUN all_proxy= pip3.10 install pysocks
 RUN all_proxy=${all_proxy} pip3.10 install -r requirements.txt
 RUN all_proxy=${all_proxy} pip3.10 install -e .
 
