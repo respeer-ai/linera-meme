@@ -66,19 +66,19 @@ const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timest
 watch(latestPoints, () => {
   if (!_latestPoints.value.length || !latestPoints.value.length) return
 
-  if (maxPointTimestamp.value < latestPoints.value[0].timestamp) {
-    latestPoints.value.forEach((point) => {
-      const index = klinePoints.value.findIndex((el) => el.time === point.timestamp / 1000)
-      if (index >= 0) klinePoints.value[index] = {
-        ...point,
-        time: Math.floor(point.timestamp / 1000)
-      }
-      else klinePoints.value.push({
-        ...point,
-        time: Math.floor(point.timestamp / 1000)
-      })
+  latestPoints.value.forEach((point) => {
+    if (point.timestamp < maxPointTimestamp.value) return
+
+    const index = klinePoints.value.findIndex((el) => el.time === point.timestamp / 1000)
+    if (index >= 0) klinePoints.value[index] = {
+      ...point,
+      time: Math.floor(point.timestamp / 1000)
+    }
+    else klinePoints.value.push({
+      ...point,
+      time: Math.floor(point.timestamp / 1000)
     })
-  }
+  })
 })
 
 const getKline = (timestamp: number, reverse: boolean) => {
