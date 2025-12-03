@@ -1,29 +1,29 @@
 use std::{cell::RefCell, rc::Rc};
 
 use super::errors::RuntimeError;
-use crate::{
-    abi::Message,
-    interfaces::{
-        access_control::AccessControl,
-        runtime::{base::BaseRuntimeContext, contract::ContractRuntimeContext},
-    },
+use crate::interfaces::{
+    access_control::AccessControl, base::BaseRuntimeContext, contract::ContractRuntimeContext,
 };
 use linera_sdk::{
-    linera_base_types::{AccountOwner, ChainId, Timestamp},
+    linera_base_types::{Account, AccountOwner, ChainId, Timestamp},
     Contract, ContractRuntime,
 };
 
-pub struct ContractRuntimeAdapter<T: Contract> {
+pub struct ContractRuntimeAdapter<T: Contract, M> {
     runtime: Rc<RefCell<ContractRuntime<T>>>,
+    _message_marker: std::marker::PhantomData<M>,
 }
 
-impl<T: Contract> ContractRuntimeAdapter<T> {
+impl<T: Contract, M> ContractRuntimeAdapter<T, M> {
     pub fn new(runtime: Rc<RefCell<ContractRuntime<T>>>) -> Self {
-        Self { runtime }
+        Self {
+            runtime,
+            _message_marker: std::marker::PhantomData,
+        }
     }
 }
 
-impl<T: Contract<Message = Message>> BaseRuntimeContext for ContractRuntimeAdapter<T> {
+impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<T, M> {
     fn chain_id(&mut self) -> ChainId {
         self.runtime.borrow_mut().chain_id()
     }
@@ -37,8 +37,20 @@ impl<T: Contract<Message = Message>> BaseRuntimeContext for ContractRuntimeAdapt
     }
 }
 
-impl<T: Contract<Message = Message>> ContractRuntimeContext for ContractRuntimeAdapter<T> {
+impl<T: Contract<Message = M>, M> ContractRuntimeContext for ContractRuntimeAdapter<T, M> {
     type Error = RuntimeError;
+    type Message = M;
+
+    fn authenticated_account(&mut self) -> Account {
+        Account {
+            chain_id: self.runtime.borrow_mut().chain_id(),
+            owner: self
+                .runtime
+                .borrow_mut()
+                .authenticated_signer()
+                .unwrap_or(AccountOwner::CHAIN),
+        }
+    }
 
     fn authenticated_signer(&mut self) -> Option<AccountOwner> {
         self.runtime.borrow_mut().authenticated_signer()
@@ -51,7 +63,7 @@ impl<T: Contract<Message = Message>> ContractRuntimeContext for ContractRuntimeA
             .ok_or(RuntimeError::InvalidAuthenticatedSigner)
     }
 
-    fn send_message(&mut self, destination: ChainId, message: Message) {
+    fn send_message(&mut self, destination: ChainId, message: M) {
         self.runtime.borrow_mut().send_message(destination, message)
     }
 
@@ -67,7 +79,7 @@ impl<T: Contract<Message = Message>> ContractRuntimeContext for ContractRuntimeA
     }
 }
 
-impl<T: Contract<Message = Message>> AccessControl for ContractRuntimeAdapter<T> {
+impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M> {
     type Error = RuntimeError;
 
     fn only_application_creator(&mut self) -> Result<(), RuntimeError> {

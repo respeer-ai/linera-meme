@@ -1,20 +1,18 @@
-use crate::instantiation_argument::InstantiationArgument;
+use abi::ams::{InstantiationArgument, Metadata};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{AccountOwner, Amount, Timestamp};
+use linera_sdk::linera_base_types::Account;
 
 #[async_trait(?Send)]
 pub trait StateInterface {
     type Error: std::fmt::Debug + std::error::Error + 'static;
-    type ValueType;
 
-    fn instantiate(&mut self, argument: InstantiationArgument);
-    fn instantiation_argument(&self) -> InstantiationArgument;
-    fn top_k(&self) -> u8;
-    async fn value(&self, owner: AccountOwner) -> Self::ValueType;
-    fn update_value(
+    fn instantiate(&mut self, owner: Account, argument: InstantiationArgument);
+
+    async fn add_application_type(
         &mut self,
-        owner: AccountOwner,
-        value: Amount,
-        timestamp: Timestamp,
+        owner: Account,
+        application_type: String,
     ) -> Result<(), Self::Error>;
+
+    fn register_application(&mut self, application: Metadata) -> Result<(), Self::Error>;
 }

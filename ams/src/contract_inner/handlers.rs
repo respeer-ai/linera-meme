@@ -3,13 +3,12 @@ pub mod interfaces;
 pub mod operation;
 pub mod types;
 
-use abi::{AmsMessage, AmsOperation};
-use crate::interfaces::{
-    access_control::AccessControl, runtime::contract::ContractRuntimeContext, state::StateInterface,
-};
+use crate::interfaces::state::StateInterface;
+use abi::ams::{AmsMessage, AmsOperation};
 use errors::HandlerError;
 use interfaces::Handler;
-use operation::update_value::UpdateValueHandler;
+use operation::register::RegisterHandler;
+use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 
 pub struct HandlerFactory;
 
@@ -20,24 +19,15 @@ impl HandlerFactory {
         op: &AmsOperation,
     ) -> Box<dyn Handler> {
         match op {
-            AmsOperation::UpdateValue { owner, value } => {
-                Box::new(UpdateValueHandler::new(runtime, state, owner, value))
+            AmsOperation::Register { metadata } => {
+                Box::new(RegisterHandler::new(runtime, state, metadata))
             }
-            AmsOperation::ProposeOperator { operator } => {
-                unimplemented!()
-            }
-            AmsOperation::ApproveOperator => {
-                unimplemented!()
-            }
-            AmsOperation::RejectOperator => {
-                unimplemented!()
-            }
-            AmsOperation::ConfirmOperator => {
-                unimplemented!()
-            }
-            AmsOperation::UpdateCaller { caller } => {
-                unimplemented!()
-            }
+            AmsOperation::Claim { application_id } => unimplemented!(),
+            AmsOperation::AddApplicationType { application_type } => unimplemented!(),
+            AmsOperation::Update {
+                application_id,
+                metadata,
+            } => unimplemented!(),
         }
     }
 
@@ -47,21 +37,17 @@ impl HandlerFactory {
         msg: &AmsMessage,
     ) -> Box<dyn Handler> {
         match msg {
-            AmsMessage::ProposeOperator { operator } => {
-                unimplemented!()
-            }
-            AmsMessage::ApproveOperator => {
-                unimplemented!()
-            }
-            AmsMessage::RejectOperator => {
-                unimplemented!()
-            }
-            AmsMessage::ConfirmOperator => {
-                unimplemented!()
-            }
-            AmsMessage::UpdateCaller { caller } => {
-                unimplemented!()
-            }
+            AmsMessage::Register { metadata } => unimplemented!(),
+            AmsMessage::Claim { application_id } => unimplemented!(),
+            AmsMessage::AddApplicationType {
+                owner,
+                application_type,
+            } => unimplemented!(),
+            AmsMessage::Update {
+                owner,
+                application_id,
+                metadata,
+            } => unimplemented!(),
         }
     }
 

@@ -1,4 +1,4 @@
-use abi::AmsMessage;
+use abi::ams::AmsMessage;
 
 #[derive(Debug, Default)]
 pub struct HandlerOutcome {

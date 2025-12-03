@@ -1,12 +1,9 @@
 use super::AmsContract;
 
-use abi::{AmsMessage, AmsOperation, AmsResponse},
+use abi::ams::{AmsMessage, AmsOperation, AmsResponse};
 
-use ams::{
-    contract_inner::handlers::HandlerFactory,
-    runtime::contract::ContractRuntimeAdapter,
-    state::adapter::StateAdapter,
-};
+use ams::{contract_inner::handlers::HandlerFactory, state::adapter::StateAdapter};
+use runtime::contract::ContractRuntimeAdapter;
 
 impl AmsContract {
     pub async fn on_op(&mut self, op: &AmsOperation) -> AmsResponse {
@@ -23,7 +20,7 @@ impl AmsContract {
         };
 
         // There won't be any message or event here
-        ()
+        AmsResponse::Ok
     }
 
     pub fn on_message(&mut self, msg: &AmsMessage) {

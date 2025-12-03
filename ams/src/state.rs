@@ -1,8 +1,8 @@
+use abi::ams::Metadata;
 use async_graphql::SimpleObject;
-use base::types::Candidate;
 use linera_sdk::{
-    linera_base_types::{AccountOwner, Amount, ChainId},
-    views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext, QueueView},
+    linera_base_types::{Account, ApplicationId},
+    views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
 };
 
 #[derive(RootView, SimpleObject)]

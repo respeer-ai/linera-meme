@@ -2,17 +2,15 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use abi::{AmsAbi, AmsMessage, AmsOperation, InstantiationArgument},
+use abi::ams::{AmsAbi, AmsMessage, AmsOperation, InstantiationArgument};
 
-use ams::{
-    interfaces::state::StateInterface,
-    state::AmsState,
-};
+use ams::{interfaces::state::StateInterface, state::AmsState};
 use linera_sdk::{
     linera_base_types::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
+use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
 
 pub struct AmsContract {
     state: Rc<RefCell<AmsState>>,
@@ -26,7 +24,7 @@ impl WithContractAbi for AmsContract {
 }
 
 impl Contract for AmsContract {
-    type Message = Message;
+    type Message = AmsMessage;
     type InstantiationArgument = InstantiationArgument;
     type Parameters = ();
     type EventValue = ();
@@ -43,14 +41,15 @@ impl Contract for AmsContract {
 
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         self.runtime.borrow_mut().application_parameters();
-        self.state.borrow_mut().instantiate(argument);
+        let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
+        self.state.borrow_mut().instantiate(account, argument);
     }
 
-    async fn execute_operation(&mut self, operation: Operation) -> Self::Response {
+    async fn execute_operation(&mut self, operation: AmsOperation) -> Self::Response {
         self.on_op(&operation).await
     }
 
-    async fn execute_message(&mut self, message: Message) {
+    async fn execute_message(&mut self, message: AmsMessage) {
         self.on_message(&message)
     }
 

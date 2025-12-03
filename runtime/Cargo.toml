@@ -1,5 +1,5 @@
 [package]
-name = "ams"
+name = "runtime"
 version = "0.1.0"
 authors = ["ResPeer <contact@respeer.ai>"]
 edition = "2021"
@@ -15,7 +15,6 @@ serde_json.workspace = true
 log.workspace = true
 getrandom.workspace = true
 base.workspace = true
-runtime.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 linera-sdk = { workspace = true, features = ["test", "wasmer"] }
@@ -24,12 +23,4 @@ tokio = { workspace = true, features = ["rt", "sync"] }
 [dev-dependencies]
 assert_matches.workspace = true
 linera-sdk = { workspace = true, features = ["test"] }
-
-[[bin]]
-name = "ams_contract"
-path = "src/contract.rs"
-
-[[bin]]
-name = "ams_service"
-path = "src/service.rs"
 

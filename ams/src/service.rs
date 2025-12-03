@@ -1,8 +1,8 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use async_graphql::{EmptySubscription, Request, Response, Schema};
-use abi::{AmsOperation, AmsAbi};
+use abi::ams::{AmsAbi, AmsOperation};
 use ams::state::AmsState;
+use async_graphql::{EmptySubscription, Request, Response, Schema};
 use linera_sdk::{
     graphql::GraphQLMutationRoot, linera_base_types::WithServiceAbi, views::View, Service,
     ServiceRuntime,

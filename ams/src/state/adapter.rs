@@ -1,12 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
-use crate::{
-    instantiation_argument::InstantiationArgument, interfaces::state::StateInterface,
-    state::AmsState,
-};
+use crate::{interfaces::state::StateInterface, state::AmsState};
+use abi::ams::{InstantiationArgument, Metadata};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{AccountOwner, Amount, Timestamp};
+
+use linera_sdk::linera_base_types::Account;
 
 pub struct StateAdapter {
     state: Rc<RefCell<AmsState>>,
@@ -22,30 +21,22 @@ impl StateAdapter {
 impl StateInterface for StateAdapter {
     type Error = StateError;
 
-    fn instantiate(&mut self, argument: InstantiationArgument) {
-        self.state.borrow_mut().instantiate(argument)
+    fn instantiate(&mut self, owner: Account, argument: InstantiationArgument) {
+        self.state.borrow_mut().instantiate(owner, argument)
     }
 
-    fn instantiation_argument(&self) -> InstantiationArgument {
-        self.state.borrow().instantiation_argument()
-    }
-
-    fn top_k(&self) -> u8 {
-        self.state.borrow().top_k()
-    }
-
-    async fn value(&self, owner: AccountOwner) -> AmsItemValue {
-        self.state.borrow().value(owner).await
-    }
-
-    fn update_value(
+    async fn add_application_type(
         &mut self,
-        owner: AccountOwner,
-        value: Amount,
-        timestamp: Timestamp,
-    ) -> Result<(), StateError> {
+        owner: Account,
+        application_type: String,
+    ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
-            .update_value(owner, value, timestamp)
+            .add_application_type(owner, application_type)
+            .await
+    }
+
+    fn register_application(&mut self, application: Metadata) -> Result<(), Self::Error> {
+        self.state.borrow_mut().register_application(application)
     }
 }
