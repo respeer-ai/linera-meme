@@ -50,7 +50,7 @@ impl Contract for AmsContract {
     }
 
     async fn execute_message(&mut self, message: AmsMessage) {
-        self.on_message(&message)
+        self.on_message(&message).await
     }
 
     async fn store(self) {

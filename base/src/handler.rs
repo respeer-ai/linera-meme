@@ -53,9 +53,12 @@ pub enum HandlerError {
 
     #[error(transparent)]
     RuntimeError(Box<dyn std::error::Error>),
+
+    #[error(transparent)]
+    ProcessError(Box<dyn std::error::Error>),
 }
 
 #[async_trait(?Send)]
 pub trait Handler<M: Serialize> {
-    async fn handle(&mut self) -> Result<HandlerOutcome<M>, HandlerError>;
+    async fn handle(&mut self) -> Result<Option<HandlerOutcome<M>>, HandlerError>;
 }

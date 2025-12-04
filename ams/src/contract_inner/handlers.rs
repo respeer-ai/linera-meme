@@ -1,10 +1,12 @@
+pub mod message;
 pub mod operation;
 
 use crate::interfaces::state::StateInterface;
 use abi::ams::{AmsMessage, AmsOperation};
 use base::handler::Handler;
 use base::handler::HandlerError;
-use operation::register::RegisterHandler;
+use message::register::RegisterHandler as MessageRegisterHandler;
+use operation::register::RegisterHandler as OperationRegisterHandler;
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -18,7 +20,7 @@ impl HandlerFactory {
     ) -> Box<dyn Handler<AmsMessage>> {
         match op {
             AmsOperation::Register { metadata } => {
-                Box::new(RegisterHandler::new(runtime, state, metadata))
+                Box::new(OperationRegisterHandler::new(runtime, state, metadata))
             }
             AmsOperation::Claim { application_id } => unimplemented!(),
             AmsOperation::AddApplicationType { application_type } => unimplemented!(),
@@ -30,12 +32,14 @@ impl HandlerFactory {
     }
 
     fn new_message_handler(
-        _runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl>>,
-        _state: impl StateInterface,
+        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
+        state: impl StateInterface + 'static,
         msg: &AmsMessage,
     ) -> Box<dyn Handler<AmsMessage>> {
         match msg {
-            AmsMessage::Register { metadata } => unimplemented!(),
+            AmsMessage::Register { metadata } => {
+                Box::new(MessageRegisterHandler::new(runtime, state, metadata))
+            }
             AmsMessage::Claim { application_id } => unimplemented!(),
             AmsMessage::AddApplicationType {
                 owner,

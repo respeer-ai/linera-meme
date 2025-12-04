@@ -19,7 +19,8 @@ impl AmsContract {
                 .handle()
                 .await
             {
-                Ok(outcome) => outcome,
+                Ok(Some(outcome)) => outcome,
+                Ok(None) => return AmsResponse::Ok,
                 Err(err) => panic!("Failed OP: {:?}: {err}", op),
             };
 
@@ -34,15 +35,29 @@ impl AmsContract {
         AmsResponse::Ok
     }
 
-    pub fn on_message(&mut self, msg: &AmsMessage) {
+    pub async fn on_message(&mut self, msg: &AmsMessage) {
         let runtime_context = Rc::new(RefCell::new(ContractRuntimeAdapter::new(
             self.runtime.clone(),
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        let _outcome = match HandlerFactory::new(runtime_context, state_adapter, None, Some(msg)) {
-            Ok(outcome) => outcome,
-            Err(err) => panic!("Failed MSG {:?}: {err}", msg),
-        };
+        let mut outcome =
+            match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
+                .unwrap()
+                .handle()
+                .await
+            {
+                Ok(Some(outcome)) => outcome,
+                Ok(None) => return,
+                Err(err) => panic!("Failed MSG {:?}: {err}", msg),
+            };
+
+        while let Some(message) = outcome.messages.pop() {
+            runtime_context
+                .borrow_mut()
+                .send_message(*message.destination(), message.message().clone());
+        }
+
+        // TODO: process event / stream
     }
 }
