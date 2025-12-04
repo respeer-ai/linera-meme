@@ -89,7 +89,7 @@ pub enum AmsOperation {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum AmsMessage {
     Register {
         metadata: Metadata,
