@@ -45,14 +45,14 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
     type Message = M;
 
     fn authenticated_account(&mut self) -> Account {
-        Account {
-            chain_id: self.runtime.borrow_mut().chain_id(),
-            owner: self
-                .runtime
-                .borrow_mut()
-                .authenticated_signer()
-                .unwrap_or(AccountOwner::CHAIN),
-        }
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let owner = self
+            .runtime
+            .borrow_mut()
+            .authenticated_signer()
+            .unwrap_or(AccountOwner::CHAIN);
+
+        Account { chain_id, owner }
     }
 
     fn authenticated_signer(&mut self) -> Option<AccountOwner> {
