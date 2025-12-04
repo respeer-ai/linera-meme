@@ -6,11 +6,16 @@ use abi::ams::{AmsMessage, AmsOperation};
 use base::handler::Handler;
 use base::handler::HandlerError;
 use message::{
-    claim::ClaimHandler as MessageClaimHandler, register::RegisterHandler as MessageRegisterHandler,
+    add_application_type::AddApplicationTypeHandler as MessageAddApplicationTypeHandler,
+    claim::ClaimHandler as MessageClaimHandler,
+    register::RegisterHandler as MessageRegisterHandler,
+    update::UpdateHandler as MessageUpdateHandler,
 };
 use operation::{
+    add_application_type::AddApplicationTypeHandler as OperationAddApplicationTypeHandler,
     claim::ClaimHandler as OperationClaimHandler,
     register::RegisterHandler as OperationRegisterHandler,
+    update::UpdateHandler as OperationUpdateHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
@@ -30,11 +35,18 @@ impl HandlerFactory {
             AmsOperation::Claim { application_id } => {
                 Box::new(OperationClaimHandler::new(runtime, state, *application_id))
             }
-            AmsOperation::AddApplicationType { application_type } => unimplemented!(),
+            AmsOperation::AddApplicationType { application_type } => Box::new(
+                OperationAddApplicationTypeHandler::new(runtime, state, application_type.clone()),
+            ),
             AmsOperation::Update {
                 application_id,
                 metadata,
-            } => unimplemented!(),
+            } => Box::new(OperationUpdateHandler::new(
+                runtime,
+                state,
+                *application_id,
+                metadata,
+            )),
         }
     }
 
@@ -53,12 +65,23 @@ impl HandlerFactory {
             AmsMessage::AddApplicationType {
                 owner,
                 application_type,
-            } => unimplemented!(),
+            } => Box::new(MessageAddApplicationTypeHandler::new(
+                runtime,
+                state,
+                *owner,
+                application_type.clone(),
+            )),
             AmsMessage::Update {
                 owner,
                 application_id,
                 metadata,
-            } => unimplemented!(),
+            } => Box::new(MessageUpdateHandler::new(
+                runtime,
+                state,
+                *owner,
+                *application_id,
+                metadata,
+            )),
         }
     }
 
