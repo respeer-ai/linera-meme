@@ -8,6 +8,7 @@ use linera_sdk::{
     linera_base_types::{Account, AccountOwner, ChainId, Timestamp},
     Contract, ContractRuntime,
 };
+use serde::Serialize;
 
 pub struct ContractRuntimeAdapter<T: Contract, M> {
     runtime: Rc<RefCell<ContractRuntime<T>>>,
@@ -37,7 +38,9 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
     }
 }
 
-impl<T: Contract<Message = M>, M> ContractRuntimeContext for ContractRuntimeAdapter<T, M> {
+impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
+    for ContractRuntimeAdapter<T, M>
+{
     type Error = RuntimeError;
     type Message = M;
 
@@ -64,7 +67,11 @@ impl<T: Contract<Message = M>, M> ContractRuntimeContext for ContractRuntimeAdap
     }
 
     fn send_message(&mut self, destination: ChainId, message: M) {
-        self.runtime.borrow_mut().send_message(destination, message)
+        self.runtime
+            .borrow_mut()
+            .prepare_message(message)
+            .with_authentication()
+            .send_to(destination);
     }
 
     fn message_origin_chain_id(&mut self) -> Option<ChainId> {

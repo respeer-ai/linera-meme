@@ -1,23 +1,21 @@
-pub mod errors;
-pub mod interfaces;
 pub mod operation;
-pub mod types;
 
 use crate::interfaces::state::StateInterface;
 use abi::ams::{AmsMessage, AmsOperation};
-use errors::HandlerError;
-use interfaces::Handler;
+use base::handler::Handler;
+use base::handler::HandlerError;
 use operation::register::RegisterHandler;
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct HandlerFactory;
 
 impl HandlerFactory {
     fn new_operation_handler(
-        runtime: impl ContractRuntimeContext + AccessControl + 'static,
+        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
         state: impl StateInterface + 'static,
         op: &AmsOperation,
-    ) -> Box<dyn Handler> {
+    ) -> Box<dyn Handler<AmsMessage>> {
         match op {
             AmsOperation::Register { metadata } => {
                 Box::new(RegisterHandler::new(runtime, state, metadata))
@@ -32,10 +30,10 @@ impl HandlerFactory {
     }
 
     fn new_message_handler(
-        _runtime: impl ContractRuntimeContext + AccessControl,
+        _runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl>>,
         _state: impl StateInterface,
         msg: &AmsMessage,
-    ) -> Box<dyn Handler> {
+    ) -> Box<dyn Handler<AmsMessage>> {
         match msg {
             AmsMessage::Register { metadata } => unimplemented!(),
             AmsMessage::Claim { application_id } => unimplemented!(),
@@ -52,11 +50,11 @@ impl HandlerFactory {
     }
 
     pub fn new(
-        runtime: impl ContractRuntimeContext + AccessControl + 'static,
+        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
         state: impl StateInterface + 'static,
         op: Option<&AmsOperation>,
         msg: Option<&AmsMessage>,
-    ) -> Result<Box<dyn Handler>, HandlerError> {
+    ) -> Result<Box<dyn Handler<AmsMessage>>, HandlerError> {
         if let Some(op) = op {
             return Ok(HandlerFactory::new_operation_handler(runtime, state, op));
         }

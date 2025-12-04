@@ -1,4 +1,4 @@
-use super::handlers::errors::HandlerError;
+use base::handler::HandlerError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
