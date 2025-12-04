@@ -5,8 +5,13 @@ use crate::interfaces::state::StateInterface;
 use abi::ams::{AmsMessage, AmsOperation};
 use base::handler::Handler;
 use base::handler::HandlerError;
-use message::register::RegisterHandler as MessageRegisterHandler;
-use operation::register::RegisterHandler as OperationRegisterHandler;
+use message::{
+    claim::ClaimHandler as MessageClaimHandler, register::RegisterHandler as MessageRegisterHandler,
+};
+use operation::{
+    claim::ClaimHandler as OperationClaimHandler,
+    register::RegisterHandler as OperationRegisterHandler,
+};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -22,7 +27,9 @@ impl HandlerFactory {
             AmsOperation::Register { metadata } => {
                 Box::new(OperationRegisterHandler::new(runtime, state, metadata))
             }
-            AmsOperation::Claim { application_id } => unimplemented!(),
+            AmsOperation::Claim { application_id } => {
+                Box::new(OperationClaimHandler::new(runtime, state, *application_id))
+            }
             AmsOperation::AddApplicationType { application_type } => unimplemented!(),
             AmsOperation::Update {
                 application_id,
@@ -40,7 +47,9 @@ impl HandlerFactory {
             AmsMessage::Register { metadata } => {
                 Box::new(MessageRegisterHandler::new(runtime, state, metadata))
             }
-            AmsMessage::Claim { application_id } => unimplemented!(),
+            AmsMessage::Claim { application_id } => {
+                Box::new(MessageClaimHandler::new(runtime, state, *application_id))
+            }
             AmsMessage::AddApplicationType {
                 owner,
                 application_type,

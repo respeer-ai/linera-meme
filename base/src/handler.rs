@@ -51,6 +51,9 @@ pub enum HandlerError {
     #[error("Invalid operation and message")]
     InvalidOperationAndMessage,
 
+    #[error("Not implemented")]
+    NotImplemented,
+
     #[error(transparent)]
     RuntimeError(Box<dyn std::error::Error>),
 

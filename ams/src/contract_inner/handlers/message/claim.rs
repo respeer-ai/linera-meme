@@ -7,19 +7,19 @@ use runtime::interfaces::{access_control::AccessControl, contract::ContractRunti
 use std::{cell::RefCell, rc::Rc};
 
 pub struct ClaimHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    runtime: Rc<RefCell<R>>,
+    _runtime: Rc<RefCell<R>>,
     _state: S,
 
-    application_id: ApplicationId,
+    _application_id: ApplicationId,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, application_id: ApplicationId) -> Self {
         Self {
             _state: state,
-            runtime,
+            _runtime: runtime,
 
-            application_id,
+            _application_id: application_id,
         }
     }
 }
@@ -29,16 +29,6 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     for ClaimHandler<R, S>
 {
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<AmsMessage>>, HandlerError> {
-        let destination = self.runtime.borrow_mut().application_creator_chain_id();
-        let mut outcome = HandlerOutcome::new();
-
-        outcome.with_message(
-            destination,
-            AmsMessage::Claim {
-                application_id: self.application_id,
-            },
-        );
-
-        Ok(Some(outcome))
+        Err(HandlerError::NotImplemented)
     }
 }
