@@ -112,9 +112,13 @@ body.body--dark
     opacity: 1
     animation: shiny-move 3s linear infinite
 
+.q-btn
+  min-height: 48px
+  line-height: 48px
+  padding: 0 16px
+
 .q-btn--fab
   padding: 8px
-  min-height: 48px
   min-width: 48px
 
 $radius-list: 4, 6, 8, 12, 16, 20, 24
@@ -133,7 +137,8 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
   &.q-tab--active
     color: var(--q-primary)
 
-.q-select
+.q-select,
+.q-input
   line-height: 32px
   .q-field__marginal
     height: 48px
@@ -142,6 +147,7 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
   .q-field__control
     box-shadow: none !important
     min-height: 48px
+    height: 48px
     border-radius: 24px
   .q-field__control-container,
   .q-field--focused,
