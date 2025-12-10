@@ -1,0 +1,11 @@
+# 所有文本文件使用 LF
+* text=auto eol=lf
+
+# 特定文件类型明确设置 LF（可选）
+*.ts text eol=lf
+*.js text eol=lf
+*.vue text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+
