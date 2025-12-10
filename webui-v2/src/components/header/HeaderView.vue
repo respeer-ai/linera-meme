@@ -1,9 +1,9 @@
 <template> 
   <div class='row q-header-line'>
     <div class='cursor-pointer row'>
-      <q-avatar class='hover-primary' size='48px'>
+      <div class='bg-primary-25 hover-primary radius-8 flex justify-center items-center' style='width: 48px; height: 48px;'>
         <q-img :src='laughPng' width='36px' height='36px' />
-      </q-avatar>
+      </div>
       <q-toolbar-title class='text-light text-h4 text-bold text-gradient-primary-secondary q-header-line'> {{ productName }} </q-toolbar-title>
     </div>
     <q-space />
