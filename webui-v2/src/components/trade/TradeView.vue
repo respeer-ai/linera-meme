@@ -8,12 +8,23 @@
         </div>
         <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' />
       </div>
-      <q-card flat class='q-pa-md q-mt-md border-dark-secondary radius-8 bg-dark-secondary'>
-        <div>
-          <div class='row'>
-            <span class='font-size-18 text-bold text-neutral'>Price Chart</span>
-          </div>
+      <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
+        <div>1 {{ sellToken?.meme?.ticker }} = 0.00000123455 {{ buyToken?.meme?.ticker }}</div>
+        <q-space />
+        <q-icon name='local_gas_station' size='18px' />
+        <div class='q-ml-xs'>0.00000001234</div>
+        <div class='q-ml-xs'>
+          <q-icon name='keyboard_arrow_down' size='18px' />
         </div>
+      </div>
+      <q-btn rounded class='fill-parent-width bg-primary q-mt-sm' :loading='checkingPrice'>
+        <template #loading>
+          <q-spinner-hourglass class="on-left" />
+          {{ BtnAction.CheckingPrice }}
+        </template>
+      </q-btn>
+      <q-card flat class='q-mt-md radius-8' style='overflow: hidden;'>
+        <price-chart-view height='440px' />
       </q-card>
     </div>
 
@@ -30,9 +41,19 @@ import { ref } from 'vue'
 
 import TokenInputView from './TokenInputView.vue'
 import TokenInfoView from './TokenInfoView.vue'
+import PriceChartView from '../kline/PriceChartView.vue'
 
 const buyToken = ref(undefined as unknown as Token)
 const sellToken = ref(undefined as unknown as Token)
+
+const checkingPrice = ref(true)
+
+enum BtnAction {
+  StartUse = 'Start use',
+  CheckingPrice = 'Checking price',
+  Review = 'Review',
+  Swap = 'Swap'
+}
 
 </script>
 
