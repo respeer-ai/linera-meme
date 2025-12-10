@@ -14,7 +14,7 @@
     "build": "quasar build",
     "postinstall": "quasar prepare",
     "graphql:generate": "graphql-codegen --config graphql-codegen.ts",
-    "build:wasm": "wasm-pack build --out-dir ../dist/wasm --target web wasm",
+    "build:wasm": "echo 'With bun, you have to run \"wasm-pack build --out-dir ../dist/wasm --target web wasm\" manually'",
     "prettier:check": "prettier --check \"**/*.{js,json,md,ts,yml}\"",
     "prettier:write": "prettier --write \"**/*.{js,json,md,ts,yml}\""
   },

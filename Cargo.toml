@@ -11,6 +11,7 @@ members = [
 ]
 exclude = [
     "webui/wasm",
+    "webui-v2/wasm",
 ]
 resolver = "2"
 
