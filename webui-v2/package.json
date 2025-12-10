@@ -2,7 +2,7 @@
   "name": "linera-meme-webui",
   "version": "0.0.1",
   "description": "Trading/Creating creative minable Meme tokens with Linera",
-  "productName": "Minable Meme",
+  "productName": "MicroMeme",
   "author": "Zhao KK <kikakkz@hotmail.com>",
   "type": "module",
   "private": true,

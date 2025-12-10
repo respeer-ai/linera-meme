@@ -1,7 +1,11 @@
 // app global css in SCSS form
 
+:root
+  --q-dark-dark:        #{$dark-dark}
+
 body.body--light
   --q-primary:          #{$primary-light}
+  --q-primary-fifty:    #{$primary-50-light}
   --q-secondary:        #{$secondary-light}
   --q-accent:           #{$accent-light}
   --q-dark:             #{$dark-light}
@@ -19,6 +23,7 @@ body.body--light
 
 body.body--dark
   --q-primary:          #{$primary-dark}
+  --q-primary-fifty:    #{$primary-50-dark}
   --q-secondary:        #{$secondary-dark}
   --q-accent:           #{$accent-dark}
   --q-dark:             #{$dark-dark}
@@ -37,3 +42,43 @@ body.body--dark
 .bg-glass
   background: rgba(10, 14, 23, 0.85)
   backdrop-filter: blur(12px)
+
+.material-icons
+  color: var(--q-neutral)
+
+.q-btn-line
+  line-height: 34px
+
+.q-header-line
+  line-height: 48px
+
+.fill-parent-width
+  width: 100%
+
+.text-gradient-primary-secondary
+  background: linear-gradient(90deg, var(--q-primary), var(--q-secondary), var(--q-primary))
+  background-size: 200% auto
+  -webkit-background-clip: text
+  -webkit-text-fill-color: transparent
+  background-clip: text
+  color: transparent
+  transition: all 0.3s ease
+
+  &:hover
+    animation: shine 3s linear infinite
+
+// 光流动 keyframes
+@keyframes shine
+  0%
+    background-position: 200% center
+  100%
+    background-position: -200% center
+
+.hover-primary:hover
+  background-color: var(--q-primary-fifty)
+  transition: 1s
+
+.q-btn--fab
+  padding: 8px
+  min-height: 48px
+  min-width: 48px
