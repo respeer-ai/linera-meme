@@ -10,7 +10,7 @@
       >
         <template #prepend>
           <q-avatar>
-            <q-icon :name='token?.icon' size='24px' />
+            <q-img :src='token?.image' size='24px' />
           </q-avatar>
         </template>
       </q-select>
@@ -24,8 +24,9 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, toRef } from 'vue'
+import { onMounted, ref, toRef } from 'vue'
 import { TokenAction } from './TokenAction'
+import { Token } from './Token'
 
 interface Props {
   action?: TokenAction
@@ -40,31 +41,39 @@ const autoFocus = toRef(props, 'autoFocus')
 
 const amount = ref('')
 
-interface Token {
+interface TokenItem extends Token {
   label: string
   value: string
-  icon: string
-  ticker: string
 }
 
 const tokens = ref([{
+    label: 'TLINERA',
+    value: 'TLINERA',
+    image: 'https://avatars.githubusercontent.com/u/107513858?s=48&v=4',
+    ticker: 'TLINERA'
+  }, {
     label: 'LTTM',
     value: 'LTTM',
-    icon: 'info',
+    image: 'info',
     ticker: 'LTTM'
   }, {
     label: 'LTFT',
     value: 'LTFT',
-    icon: 'info',
+    image: 'info',
     ticker: 'LTFT'
   }, {
     label: 'GMIC',
     value: 'GMIC',
-    icon: 'info',
+    image: 'info',
     ticker: 'GMIC'
   }
-] as Token[])
-const token = ref(tokens.value[0])
+] as TokenItem[])
+
+const token = defineModel<Token>()
+
+onMounted(() => {
+  token.value = tokens.value[0]
+})
 
 </script>
 

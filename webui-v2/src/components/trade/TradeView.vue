@@ -2,11 +2,11 @@
   <div class='row content-start wrap'>
     <div class='trade-action'>
       <div class='row items-center'>
-        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' />
+        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' />
         <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;'>
           <q-icon name='arrow_forward' size='32px' />
         </div>
-        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' />
+        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' />
       </div>
       <q-card flat class='q-pa-md q-mt-md border-dark-secondary radius-8 bg-dark-secondary'>
         <div>
@@ -18,15 +18,21 @@
     </div>
 
     <q-card flat class='q-pa-md flex-grow selected-token-info border-dark-secondary radius-8 bg-dark-secondary'>
-      HHHHHH
+      <TokenInfoView :token='buyToken' />
     </q-card>
   </div>
 </template>
 
 <script setup lang='ts'>
 import { TokenAction } from './TokenAction'
+import { Token } from './Token'
+import { ref } from 'vue'
 
 import TokenInputView from './TokenInputView.vue'
+import TokenInfoView from './TokenInfoView.vue'
+
+const buyToken = ref(undefined as unknown as Token)
+const sellToken = ref(undefined as unknown as Token)
 
 </script>
 
