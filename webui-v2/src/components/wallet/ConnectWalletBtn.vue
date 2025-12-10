@@ -1,6 +1,6 @@
 <template>
   <div>
-    <q-btn rounded class='bg-primary flex justify-center items-center'>
+    <q-btn rounded class='bg-primary flex justify-center items-center hover-primary'>
       <div class='row flex justify-center items-center'>
         <q-icon v-if='showIcon' name='wallet' />
         <span :class='[ showIcon ? "q-ml-sm" : "", "q-header-line" ]'>{{ label }}</span>

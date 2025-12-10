@@ -15,10 +15,11 @@
         </template>
       </q-select>
     </div>
-    <div class='q-mt-lg row items-end'>
-      <q-input v-model='amount' type='number' class='font-size-36 text-neutral text-bold' placeholder='0' :autofocus='autoFocus' style='max-width: 120px;' />
+    <q-input v-model='amount' type='number' class='font-size-36 text-neutral text-bold' placeholder='0' :autofocus='autoFocus' />
+    <div class='q-mt-sm row'>
+      <div class='font-size-16 text-neutral'>$ 0</div>
       <q-space />
-      <div class='font-size-20 text-neutral'>$ 0</div>
+      <div class='font-size-16 text-neutral'>0.1234 {{ token?.meme?.ticker }}</div>
     </div>
   </div>
 </template>
