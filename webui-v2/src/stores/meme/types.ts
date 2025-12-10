@@ -1,6 +1,6 @@
-import { Account } from '../account'
-import { BaseRequest } from '../request'
-import { StoreType } from '../store'
+import { type Account } from '../account'
+import { type BaseRequest } from '../request'
+import { type StoreType } from '../store'
 
 // TODO: export those from meme application
 export interface Metadata {

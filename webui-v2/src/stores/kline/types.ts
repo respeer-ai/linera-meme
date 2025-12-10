@@ -1,7 +1,7 @@
-/* eslint-disable camelcase */
-import { TransactionExt } from '../transaction'
+import { type TransactionExt } from '../transaction'
 
 export interface Point {
+  id?: number
   open: number
   high: number
   low: number

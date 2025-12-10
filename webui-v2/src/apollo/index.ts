@@ -3,6 +3,7 @@ import { createHttpLink, InMemoryCache, split } from '@apollo/client/core'
 // import type { BootFileParams } from '@quasar/app'
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient } from 'graphql-ws'
+import { Kind, OperationTypeNode } from 'graphql'
 import { getMainDefinition } from '@apollo/client/utilities'
 import { constants } from 'src/constant'
 
@@ -37,8 +38,8 @@ export /* async */ function getClientOptions(httpUrl?: string, wsUrl?: string) {
     ({ query }) => {
       const definition = getMainDefinition(query)
       return (
-        definition.kind === 'OperationDefinition' &&
-        definition.operation === 'subscription'
+        definition.kind === Kind.OPERATION_DEFINITION &&
+        definition.operation === OperationTypeNode.SUBSCRIPTION
       )
     },
     wsLink,

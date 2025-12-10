@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { dbModel } from '../../model'
-import { Account, _Account } from '../account'
+import { type Account, _Account } from '../account'
 
 export class User {
   static ownerAccount = async () => {

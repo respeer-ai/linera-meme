@@ -1,4 +1,4 @@
-import { _Account, Account } from '../account'
+import { _Account, type Account } from '../account'
 import { NotifyType } from '../notify'
 import { useUserStore } from '../user'
 import { useMemeStore } from './store'

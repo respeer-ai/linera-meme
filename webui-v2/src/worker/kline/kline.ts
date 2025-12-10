@@ -1,20 +1,20 @@
 import {
-  FetchedPointsPayload,
-  FetchedTransactionsPayload,
-  FetchPointsPayload,
-  FetchTransactionsPayload,
-  KlineEvent,
-  KlineEventType,
-  LoadedPointsPayload,
-  LoadedTransactionsPayload,
-  LoadPointsPayload,
-  LoadTransactionsPayload,
-  NewPointsPayload,
-  NewTransactionsPayload,
-  SortedPointsPayload,
-  SortedTransactionsPayload,
-  SortPointsPayload,
-  SortTransactionsPayload
+  type FetchedPointsPayload,
+  type FetchedTransactionsPayload,
+  type FetchPointsPayload,
+  type FetchTransactionsPayload,
+  type KlineEvent,
+  type KlineEventType,
+  type LoadedPointsPayload,
+  type LoadedTransactionsPayload,
+  type LoadPointsPayload,
+  type LoadTransactionsPayload,
+  type NewPointsPayload,
+  type NewTransactionsPayload,
+  type SortedPointsPayload,
+  type SortedTransactionsPayload,
+  type SortPointsPayload,
+  type SortTransactionsPayload
 } from './runner'
 
 type KlineResponseType =
@@ -27,12 +27,10 @@ type KlineResponseType =
 export type ListenerFunc = (payload: KlineResponseType) => void
 
 export class KlineWorker {
-  // eslint-disable-next-line no-use-before-define
   private static _instance: KlineWorker | undefined = undefined
 
   private _worker: Worker | undefined = undefined
 
-  // eslint-disable-next-line func-call-spacing
   private _listeners: Map<KlineEventType, ListenerFunc> = new Map<
     KlineEventType,
     ListenerFunc

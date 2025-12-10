@@ -1,11 +1,11 @@
-import { AxiosError, AxiosInstance, AxiosResponse } from 'axios'
-import { useNotificationStore, Notification } from '../notify'
-import { ReqMessage } from './types'
+import { type AxiosError, type AxiosInstance, type AxiosResponse } from 'axios'
+import { useNotificationStore, type Notification } from '../notify'
+import { type ReqMessage } from './types'
 import { createAPI } from './axiosapi'
 
 function processError(err: AxiosError, message?: Notification) {
   if (message) {
-    message.Description = err.response?.statusText
+    message.Description = err.response?.statusText as string
   }
   const notification = useNotificationStore()
   if (message) {

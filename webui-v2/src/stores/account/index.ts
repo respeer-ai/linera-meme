@@ -1,4 +1,4 @@
-import { Account } from './types'
+import { type Account } from './types'
 import { constants } from '../../constant'
 
 export class _Account {

@@ -6,8 +6,8 @@ import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { LIST } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
-import { BlobData } from 'src/__generated__/graphql/blob/graphql'
-import { ListBlobsRequest } from './types'
+import { type BlobData } from 'src/__generated__/graphql/blob/graphql'
+import { type ListBlobsRequest } from './types'
 
 export class BlobGateway {
   static imagePath(storeType: StoreType, imageHash: string): string {

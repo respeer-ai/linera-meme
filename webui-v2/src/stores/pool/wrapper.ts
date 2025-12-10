@@ -1,7 +1,7 @@
-import { _Account, Account } from '../account'
+import { _Account, type Account } from '../account'
 import { NotifyType } from '../notify'
 import { usePoolStore } from './store'
-import { LiquidityAmount } from './types'
+import { type LiquidityAmount } from './types'
 
 const pool = usePoolStore()
 

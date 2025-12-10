@@ -1,7 +1,7 @@
-import { Pool } from 'src/__generated__/graphql/swap/graphql'
+import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { NotifyType } from '../notify'
 import { useSwapStore } from './store'
-import { Account } from '../account'
+import { type Account } from '../account'
 
 const swap = useSwapStore()
 
@@ -32,10 +32,10 @@ export const createPool = (
   swap.createPool(
     {
       token0,
-      token1,
+      token1: token1 as string,
       amount0,
       amount1,
-      to,
+      to: to as Account,
       Message: {
         Error: {
           Title: 'Create pool',

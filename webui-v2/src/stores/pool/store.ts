@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { constants } from '../../constant'
 import {
-  LiquidityAmount,
-  CalculateLiquidityAmountPairRequest,
-  LatestTransactionsRequest,
-  LiquidityRequest
+  type LiquidityAmount,
+  type CalculateLiquidityAmountPairRequest,
+  type LatestTransactionsRequest,
+  type LiquidityRequest
 } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
@@ -15,8 +15,8 @@ import {
   LIQUIDITY
 } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
-import { Transaction } from '../transaction'
-import { _Account, Account } from '../account'
+import { type Transaction } from '../transaction'
+import { _Account, type Account } from '../account'
 
 export const usePoolStore = defineStore('pool', {
   state: () => ({

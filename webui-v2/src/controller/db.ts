@@ -1,6 +1,6 @@
-import Dexie, { Table } from 'dexie'
-import { Interval } from 'src/stores/kline/const'
-import { dbModel } from 'src/model'
+import Dexie, { type Table } from 'dexie'
+import { type Interval } from 'src/stores/kline/const'
+import { type dbModel } from 'src/model'
 
 export const dbKline = new Dexie('KLineDatabase') as Dexie & {
   klinePoints: Table<dbModel.KlinePoint, [string, string, Interval, number]>

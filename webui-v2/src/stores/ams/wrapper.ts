@@ -1,6 +1,6 @@
 import { NotifyType } from '../notify'
 import { useAmsStore } from './store'
-import { Application } from './types'
+import { type Application } from './types'
 
 const ams = useAmsStore()
 
@@ -10,7 +10,7 @@ export const getApplications = (
 ) => {
   ams.getApplications(
     {
-      createdAfter,
+      createdAfter: createdAfter as number,
       limit: 800,
       Message: {
         Error: {

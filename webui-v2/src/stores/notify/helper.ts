@@ -1,5 +1,5 @@
 import { NotifyType } from './const'
-import { Notification } from './types'
+import { type Notification } from './types'
 import { Notify } from 'quasar'
 
 const mergeMessage = (notification: Notification) => {
@@ -15,32 +15,32 @@ const mergeMessage = (notification: Notification) => {
 const success = (notification: Notification): void => {
   Notify.create({
     type: 'positive',
-    message: notification.Title,
-    caption: mergeMessage(notification)
+    message: notification.Title as string,
+    caption: mergeMessage(notification) as string
   })
 }
 
 const fail = (notification: Notification): void => {
   Notify.create({
     type: 'negative',
-    message: notification.Title,
-    caption: mergeMessage(notification)
+    message: notification.Title as string,
+    caption: mergeMessage(notification) as string
   })
 }
 
 const warning = (notification: Notification): void => {
   Notify.create({
     type: 'warning',
-    message: notification.Title,
-    caption: mergeMessage(notification)
+    message: notification.Title as string,
+    caption: mergeMessage(notification) as string
   })
 }
 
 const info = (notification: Notification): void => {
   Notify.create({
     type: 'positive',
-    message: notification.Title,
-    caption: mergeMessage(notification)
+    message: notification.Title as string,
+    caption: mergeMessage(notification) as string
   })
 }
 
@@ -64,7 +64,7 @@ const notify = (notification: Notification) => {
     case NotifyType.Waiting:
       return Notify.create({
         type: 'ongoing',
-        message: notification.Message
+        message: notification.Message as string
       })
   }
 }

@@ -1,4 +1,4 @@
-import { Account } from '../account'
+import { type  Account } from '../account'
 
 export enum TransactionType {
   ADD_LIQUIDITY = 'AddLiquidity',
@@ -20,28 +20,18 @@ export interface Transaction {
 }
 
 export interface TransactionExt {
-  // eslint-disable-next-line camelcase
   transaction_id: number
-  // eslint-disable-next-line camelcase
   transaction_type: TransactionType
-  // eslint-disable-next-line camelcase
   from_account: string
-  // eslint-disable-next-line camelcase
   amount_0_in?: string
-  // eslint-disable-next-line camelcase
   amount_1_in?: string
-  // eslint-disable-next-line camelcase
   amount_0_out?: string
-  // eslint-disable-next-line camelcase
   amount_1_out?: string
   liquidity?: string
-  // eslint-disable-next-line camelcase
   created_at: number
-  // eslint-disable-next-line camelcase
   created_timestamp: number
   price: string
   volume: string
   direction: string
-  // eslint-disable-next-line camelcase
   token_reversed: number
 }

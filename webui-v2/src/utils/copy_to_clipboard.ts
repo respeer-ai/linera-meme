@@ -1,4 +1,4 @@
-import { notify } from 'src/stores'
+import { notify } from 'src/stores/export'
 import { copyToClipboard } from 'quasar'
 
 const _notify = notify.useNotificationStore()
@@ -23,7 +23,6 @@ export const _copyToClipboard = (
     .catch((e) => {
       _notify.pushNotification({
         Title: 'Copy meme token',
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         Message: `Failed copy ${content.substring(0, 20)}...: ${e}`,
         Popup: true,
         Type: notify.NotifyType.Error
