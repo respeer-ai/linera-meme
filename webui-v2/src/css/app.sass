@@ -84,6 +84,9 @@ body.body--dark
 .bg-primary-25
   background-color: var(--q-primary-twenty-five)
 
+.text-neutral
+  color: var(--q-neutral)
+
 .hover-primary
   position: relative
   overflow: hidden
@@ -119,3 +122,37 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
 @each $r in $radius-list
   .radius-#{$r}
     border-radius: #{$r}px
+
+.q-tab
+  transition: color 0.3s ease, background-color 0.3s ease
+  color: var(--q-neutral)
+  &:hover
+    color: var(--q-primary)
+    background-color: var(--q-primary-twenty-five)
+    border-radius: 8px 
+  &.q-tab--active
+    color: var(--q-primary)
+
+.q-select
+  line-height: 32px
+  .q-field__marginal
+    height: 48px
+  .q-field--auto-height
+    min-height: 48px
+  .q-field__control
+    box-shadow: none !important
+    min-height: 48px
+    border-radius: 24px
+  .q-field__control-container,
+  .q-field--focused,
+  .q-field--highlighted,
+  .q-field__control:before,
+  .q-field__control:after
+    border-color: transparent !important
+    background: none !important
+  .q-field__control:hover
+    background-color: var(--q-primary-twenty-five)
+    transition: all 1s ease
+  .q-field__native
+    border-radius: 24px
+    min-height: 48px
