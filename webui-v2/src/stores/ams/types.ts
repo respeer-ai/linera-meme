@@ -1,6 +1,10 @@
 import { type BaseRequest } from '../request'
 import { type StoreType } from '../store'
 
+export interface Metadata {
+  ticker: string
+}
+
 export interface Application {
   // TODO: use Account after fix https://github.com/linera-io/linera-protocol/issues/3462
   creator: string

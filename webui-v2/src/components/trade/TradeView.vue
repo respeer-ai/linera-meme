@@ -17,7 +17,7 @@
       </q-card>
     </div>
 
-    <q-card flat class='q-pa-md flex-grow selected-token-info border-dark-secondary radius-8 bg-dark-secondary'>
+    <q-card flat class='flex-grow selected-token-info border-dark-secondary radius-8 bg-dark-secondary'>
       <TokenInfoView :token='buyToken' />
     </q-card>
   </div>
@@ -38,10 +38,10 @@ const sellToken = ref(undefined as unknown as Token)
 
 <style scoped lang='sass'>
 .trade-action
-  width: 768px
+  width: 840px
 
 .selected-token-info
-  width: calc(100% - 768px - 16px)
+  width: calc(100% - 840px - 16px)
   margin-left: 16px
 
 @media (max-width: 960px)

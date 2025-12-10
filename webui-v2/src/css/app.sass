@@ -59,6 +59,9 @@ body.body--dark
 .fill-parent-width
   width: 100%
 
+.fill-parent-height
+  height: 100%
+
 .text-gradient-primary-secondary
   background: linear-gradient(90deg, var(--q-primary), var(--q-secondary), var(--q-primary))
   background-size: 200% auto
@@ -107,6 +110,15 @@ body.body--dark
 .bg-primary-twenty-five
   background-color: var(--q-primary-twenty-five)
 
+.bg-mining
+  background-color: var(--q-mining)
+
+.text-mining
+  color: var(--q-mining)
+
+.bg-virtual
+  background-color: var(--q-virtual)
+
 .hover-primary
   position: relative
   overflow: hidden
@@ -146,6 +158,14 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
 @each $r in $radius-list
   .radius-#{$r}
     border-radius: #{$r}px
+
+@each $r in $radius-list
+  .radius-top-#{$r}
+    border-radius: #{$r}px #{$r}px 0 0
+
+@each $r in $radius-list
+  .radius-bottom-#{$r}
+    border-radius: 0 0 #{$r}px #{$r}px
 
 $font-size-list: 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64
 
