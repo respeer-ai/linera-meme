@@ -6,6 +6,7 @@
 body.body--light
   --q-primary:          #{$primary-light}
   --q-primary-fifty:    #{$primary-50-light}
+  --q-primary-twenty-five:   #{$primary-25-light}
   --q-secondary:        #{$secondary-light}
   --q-accent:           #{$accent-light}
   --q-dark:             #{$dark-light}
@@ -24,6 +25,7 @@ body.body--light
 body.body--dark
   --q-primary:          #{$primary-dark}
   --q-primary-fifty:    #{$primary-50-dark}
+  --q-primary-twenty-five:   #{$primary-25-dark}
   --q-secondary:        #{$secondary-dark}
   --q-accent:           #{$accent-dark}
   --q-dark:             #{$dark-dark}
@@ -62,23 +64,58 @@ body.body--dark
   -webkit-text-fill-color: transparent
   background-clip: text
   color: transparent
-  transition: all 0.3s ease
+  transition: background 2s ease, color 3s ease
 
   &:hover
     animation: shine 3s linear infinite
 
-// 光流动 keyframes
 @keyframes shine
   0%
     background-position: 200% center
   100%
     background-position: -200% center
 
-.hover-primary:hover
-  background-color: var(--q-primary-fifty)
-  transition: 1s
+@keyframes shiny-move
+  0%
+    transform: translateX(100%) translateY(-100%)
+  100%
+    transform: translateX(-100%) translateY(100%)
+
+.bg-primary-25
+  background-color: var(--q-primary-twenty-five)
+
+.hover-primary
+  position: relative
+  overflow: hidden
+  background-color: var(--q-primary-twenty-five)
+  color: white
+
+  &::before
+    content: ''
+    position: absolute
+    inset: 0
+    background: linear-gradient(
+      45deg,
+      var(--q-primary) 0%,
+      var(--q-primary-twenty-five) 50%,
+      var(--q-primary) 100%
+    )
+    filter: blur(20px)
+    opacity: 0
+    transition: opacity 0.5s ease
+    pointer-events: none
+
+  &:hover::before
+    opacity: 1
+    animation: shiny-move 3s linear infinite
 
 .q-btn--fab
   padding: 8px
   min-height: 48px
   min-width: 48px
+
+$radius-list: 4, 6, 8, 12, 16, 20, 24
+
+@each $r in $radius-list
+  .radius-#{$r}
+    border-radius: #{$r}px
