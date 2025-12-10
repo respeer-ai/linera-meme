@@ -1,7 +1,7 @@
 <template>
-  <q-item clickable tag="a" target="_blank" :href="link">
-    <q-item-section v-if="icon" avatar>
-      <q-icon :name="icon" />
+  <q-item clickable tag='a' target='_blank' :href='link'>
+    <q-item-section v-if='icon' avatar>
+      <q-icon :name='icon' />
     </q-item-section>
 
     <q-item-section>
@@ -11,7 +11,7 @@
   </q-item>
 </template>
 
-<script setup lang="ts">
+<script setup lang='ts'>
 export interface EssentialLinkProps {
   title: string;
   caption?: string;

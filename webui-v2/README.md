@@ -1,6 +1,6 @@
-# Trading/Creating minable Meme tokens with Linera (linera-meme-webui)
+# Minable Meme (linera-meme-webui)
 
-The Creative Meme Token creation method of real-time Web3 world.
+Trading/Creating creative minable Meme tokens with Linera
 
 ## Install the dependencies
 
