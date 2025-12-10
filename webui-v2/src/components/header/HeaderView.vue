@@ -20,7 +20,7 @@
       <network-view />
     </div>
     <div class='q-ml-md'>
-      <connect-wallet-view />
+      <connect-wallet-btn />
     </div>
     <div class='header-actions q-ml-md'>
       <q-btn fab flat round icon='invert_colors' size='24px' class='bg-dark-dark' @click='onModeSwitchClick' />
@@ -35,7 +35,7 @@ import { laughPng } from 'src/assets'
 
 import TabsView from './TabsView.vue'
 import NetworkView from './NetworkView.vue'
-import ConnectWalletView from './ConnectWalletView.vue'
+import ConnectWalletBtn from '../wallet/ConnectWalletBtn.vue'
 import SearchView from './SearchView.vue'
 
 const productName = import.meta.env.VITE_PRODUCT_NAME || import.meta.env.PRODUCT_NAME

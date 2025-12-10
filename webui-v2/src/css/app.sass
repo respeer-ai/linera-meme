@@ -7,6 +7,7 @@ body.body--light
   --q-primary:          #{$primary-light}
   --q-primary-fifty:    #{$primary-50-light}
   --q-primary-twenty-five:   #{$primary-25-light}
+  --q-primary-twelve:   #{$primary-12-light}
   --q-secondary:        #{$secondary-light}
   --q-accent:           #{$accent-light}
   --q-dark:             #{$dark-light}
@@ -26,6 +27,7 @@ body.body--dark
   --q-primary:          #{$primary-dark}
   --q-primary-fifty:    #{$primary-50-dark}
   --q-primary-twenty-five:   #{$primary-25-dark}
+  --q-primary-twelve:   #{$primary-12-dark}
   --q-secondary:        #{$secondary-dark}
   --q-accent:           #{$accent-dark}
   --q-dark:             #{$dark-dark}
@@ -83,6 +85,12 @@ body.body--dark
 
 .bg-primary-25
   background-color: var(--q-primary-twenty-five)
+
+.bg-primary-12
+  background-color: var(--q-primary-twelve)
+
+.border-primary-50
+  border: 1px solid var(--q-primary-fifty)
 
 .text-neutral
   color: var(--q-neutral)
@@ -162,3 +170,6 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
   .q-field__native
     border-radius: 24px
     min-height: 48px
+
+.page-width
+  width: 1280px
