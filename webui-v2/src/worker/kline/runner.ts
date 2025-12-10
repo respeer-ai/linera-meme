@@ -1,8 +1,8 @@
 import { constants } from 'src/constant'
-import { Interval } from 'src/stores/kline/const'
+import { type Interval } from 'src/stores/kline/const'
 import axios from 'axios'
-import { Point, Points, Transactions } from 'src/stores/kline/types'
-import { TransactionExt } from 'src/stores/transaction/types'
+import { type Point, type Points, type Transactions } from 'src/stores/kline/types'
+import { type TransactionExt } from 'src/stores/transaction/types'
 import { dbBridge } from 'src/bridge'
 
 export enum KlineEventType {
@@ -379,7 +379,7 @@ export class KlineRunner {
   }
 
   static handleSortPoints = (payload: SortPointsPayload) => {
-    let {
+    const {
       token0,
       token1,
       originPoints,
@@ -393,7 +393,7 @@ export class KlineRunner {
       const index = originPoints.findIndex(
         (el) => el.timestamp === point.timestamp
       )
-      index >= 0 ? (originPoints[index] = point) : originPoints.push(point)
+      return index >= 0 ? (originPoints[index] = point) : originPoints.push(point)
     })
 
     const points = originPoints
@@ -402,7 +402,7 @@ export class KlineRunner {
         // reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
         p1.timestamp - p2.timestamp
     )
-    keepCount = keepCount < 0 ? _points.length : keepCount
+    const _keepCount = keepCount < 0 ? _points.length : keepCount
 
     self.postMessage({
       type: KlineEventType.SORTED_POINTS,
@@ -410,8 +410,8 @@ export class KlineRunner {
         token0,
         token1,
         points: _points.slice(
-          reverse ? 0 : Math.max(_points.length - keepCount, 0),
-          reverse ? keepCount : _points.length
+          reverse ? 0 : Math.max(_points.length - _keepCount, 0),
+          reverse ? _keepCount : _points.length
         ),
         reverse,
         reason
@@ -420,7 +420,7 @@ export class KlineRunner {
   }
 
   static handleSortTransactions = (payload: SortTransactionsPayload) => {
-    let {
+    const {
       token0,
       token1,
       originTransactions,
@@ -435,7 +435,7 @@ export class KlineRunner {
       const index = originTransactions.findIndex(
         (el) => el.transaction_id === transaction.transaction_id
       )
-      index >= 0
+      return index >= 0
         ? (originTransactions[index] = transaction)
         : originTransactions.push(transaction)
     })
@@ -448,7 +448,7 @@ export class KlineRunner {
     const _transactions = transactions.sort((p1, p2) =>
       reverse ? p2.created_at - p1.created_at : p1.created_at - p2.created_at
     )
-    keepCount = keepCount < 0 ? _transactions.length : keepCount
+    const _keepCount = keepCount < 0 ? _transactions.length : keepCount
 
     self.postMessage({
       type: KlineEventType.SORTED_TRANSACTIONS,
@@ -456,8 +456,8 @@ export class KlineRunner {
         token0,
         token1,
         transactions: _transactions.slice(
-          reverse ? 0 : Math.max(_transactions.length - keepCount, 0),
-          reverse ? keepCount : _transactions.length
+          reverse ? 0 : Math.max(_transactions.length - _keepCount, 0),
+          reverse ? _keepCount : _transactions.length
         ),
         reason
       }

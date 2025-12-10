@@ -1,4 +1,4 @@
-import { NotifyType } from './const'
+import { type NotifyType } from './const'
 
 export interface Notification {
   Title?: string

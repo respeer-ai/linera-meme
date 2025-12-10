@@ -1,5 +1,5 @@
-import { BaseRequest } from '../request'
-import { StoreType } from '../store'
+import { type BaseRequest } from '../request'
+import { type StoreType } from '../store'
 
 export interface Application {
   // TODO: use Account after fix https://github.com/linera-io/linera-protocol/issues/3462

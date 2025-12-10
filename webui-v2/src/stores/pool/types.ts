@@ -1,5 +1,4 @@
-import { Account } from '../account'
-import { BaseRequest } from '../request'
+import { type BaseRequest } from '../request'
 
 export interface LatestTransactionsRequest extends BaseRequest {
   startId?: number

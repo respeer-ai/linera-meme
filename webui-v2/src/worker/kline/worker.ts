@@ -1,15 +1,15 @@
 import {
-  FetchPointsPayload,
-  FetchTransactionsPayload,
-  KlineEvent,
+  type FetchPointsPayload,
+  type FetchTransactionsPayload,
+  type KlineEvent,
   KlineEventType,
   KlineRunner,
-  LoadPointsPayload,
-  LoadTransactionsPayload,
-  NewPointsPayload,
-  NewTransactionsPayload,
-  SortPointsPayload,
-  SortTransactionsPayload
+  type LoadPointsPayload,
+  type LoadTransactionsPayload,
+  type NewPointsPayload,
+  type NewTransactionsPayload,
+  type SortPointsPayload,
+  type SortTransactionsPayload
 } from './runner'
 
 console.trace = () => {

@@ -1,4 +1,4 @@
-import { Notification } from '../notify'
+import { type Notification } from '../notify'
 
 export interface ReqMessage {
   Info?: Notification

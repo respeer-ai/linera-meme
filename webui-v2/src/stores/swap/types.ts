@@ -1,5 +1,5 @@
-import { Account } from '../account'
-import { BaseRequest } from '../request'
+import { type Account } from '../account'
+import { type BaseRequest } from '../request'
 
 export type LatestTransactionsRequest = BaseRequest
 

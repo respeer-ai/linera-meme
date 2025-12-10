@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
-import { BalanceOfRequest } from './types'
+import { type BalanceOfRequest } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { BALANCE_OF } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
-import { _Account, Account } from '../account'
+import { _Account, type Account } from '../account'
 import { constants } from 'src/constant'
 
 export const useMemeStore = defineStore('meme', {

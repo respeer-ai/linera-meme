@@ -1,8 +1,9 @@
-import Dexie, { BulkError } from 'dexie'
+import Dexie, { type BulkError } from 'dexie'
 import { dbKline } from 'src/controller'
-import { Interval } from 'src/stores/kline/const'
-import { Point } from 'src/stores/kline/types'
-import { dbModel } from 'src/model'
+import { type Interval } from 'src/stores/kline/const'
+import { type Point } from 'src/stores/kline/types'
+import { type dbModel } from 'src/model'
+import { type KlinePoint } from 'src/model/db/model'
 
 export class Kline {
   static bulkPut = async (
@@ -27,7 +28,7 @@ export class Kline {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for (const [pos, error] of Object.entries(err.failuresByPos)) {
         try {
-          const _point = _points[parseInt(pos.toString())]
+          const _point = _points[parseInt(pos.toString())] as Point
           const { timestamp } = _point
           const point = await dbKline.klinePoints.get([
             token0,
@@ -36,9 +37,9 @@ export class Kline {
             timestamp
           ])
           if (!point) continue
-          _point.id = point.id
+          _point.id = point.id as number
           if (JSON.stringify(_point) === JSON.stringify(point)) continue
-          await dbKline.klinePoints.update(_point, _point)
+          await dbKline.klinePoints.update(_point as KlinePoint, _point)
         } catch (e) {
           // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
           console.log(`Failed update point: ${e}`)

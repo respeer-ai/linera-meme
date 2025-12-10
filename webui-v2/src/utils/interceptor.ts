@@ -1,11 +1,11 @@
-import { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
+import { type NavigationGuardNext, type RouteLocationNormalized } from 'vue-router'
 
 interface RouteMetaImpl {
   NeedLogined: boolean
 }
 
 declare module 'vue-router' {
-  // eslint-disable-next-line @typescript-eslint/no-empty-interface
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   interface RouteMeta extends RouteMetaImpl {}
 }
 

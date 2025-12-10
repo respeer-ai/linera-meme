@@ -1,6 +1,6 @@
 import { NOTIFICATIONS } from 'src/graphql'
 import { graphqlResult } from 'src/utils/index'
-import { NotificationsSubscription } from 'src/__generated__/graphql/service/graphql'
+import { type NotificationsSubscription } from 'src/__generated__/graphql/service/graphql'
 import { getClientOptions } from 'src/apollo'
 import { ApolloClient } from '@apollo/client'
 import { provideApolloClient, useSubscription } from '@vue/apollo-composable'
@@ -25,7 +25,6 @@ export class Subscription {
       )
 
     onError((error) => {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       console.log(`Fail subscribe to ${chainId}: ${error}`)
     })
 

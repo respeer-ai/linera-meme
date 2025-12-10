@@ -1,16 +1,16 @@
 import { defineStore } from 'pinia'
 import {
-  Points,
-  Point,
-  Transactions,
-  KlineInformation,
-  TransactionsInformation
+  type Points,
+  type Point,
+  type Transactions,
+  type KlineInformation,
+  type TransactionsInformation
 } from './types'
-import { _WebSocket, Notification } from 'src/websocket'
+import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
-import { TransactionExt } from '../transaction'
+import { type TransactionExt } from '../transaction'
 import { klineWorker } from 'src/worker'
-import { Interval } from './const'
+import { type Interval } from './const'
 import axios from 'axios'
 
 export const useKlineStore = defineStore('kline', {

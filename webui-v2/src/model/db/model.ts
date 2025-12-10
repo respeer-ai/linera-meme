@@ -1,8 +1,8 @@
-import { Interval } from '../../stores/kline/const'
-import { Point } from '../../stores/kline/types'
+import { type Interval } from '../../stores/kline/const'
+import { type Point } from '../../stores/kline/types'
 import { _hex } from '../../utils'
 import { keccak } from 'hash-wasm'
-import { TransactionExt } from '../../stores/transaction/types'
+import { type TransactionExt } from '../../stores/transaction/types'
 
 export const ownerFromPublicKey = async (publicKey: string) => {
   const publicKeyBytes = _hex.toBytes(publicKey)

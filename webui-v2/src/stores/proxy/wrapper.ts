@@ -1,4 +1,4 @@
-import { Chain } from 'src/__generated__/graphql/proxy/graphql'
+import { type Chain } from 'src/__generated__/graphql/proxy/graphql'
 import { NotifyType } from '../notify'
 import { useProxyStore } from './store'
 

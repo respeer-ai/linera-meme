@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
-import { CreatePoolRequest, LatestTransactionsRequest } from './types'
+import { type CreatePoolRequest, type LatestTransactionsRequest } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
 import { POOLS } from 'src/graphql'
-import { Pool } from 'src/__generated__/graphql/swap/graphql'
+import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { formalizeFloat, graphqlResult } from 'src/utils'
 import { constants } from 'src/constant'
-import { Transaction } from '../transaction'
+import { type Transaction } from '../transaction'
 import { Subscription } from 'src/subscription'
 
 const options = /* await */ getClientOptions()

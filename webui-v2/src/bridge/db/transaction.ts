@@ -1,5 +1,5 @@
 import { dbKline } from 'src/controller'
-import { TransactionExt } from 'src/stores/transaction/types'
+import { type TransactionExt } from 'src/stores/transaction/types'
 
 export class Transaction {
   static bulkPut = async (

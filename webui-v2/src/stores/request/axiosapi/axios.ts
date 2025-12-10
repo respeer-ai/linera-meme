@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios'
+import axios, { type AxiosInstance } from 'axios'
 
 const createAPI = (url: string): AxiosInstance | undefined => {
   return axios.create({
