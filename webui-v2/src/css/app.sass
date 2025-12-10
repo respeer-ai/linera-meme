@@ -92,8 +92,20 @@ body.body--dark
 .border-primary-50
   border: 1px solid var(--q-primary-fifty)
 
+.border-dark-secondary
+  border: 1px solid var(--q-dark-secondary)
+
 .text-neutral
   color: var(--q-neutral)
+
+.bg-accent
+  background-color: var(--q-accent)
+
+.bg-dark-secondary
+  background-color: var(--q-dark-secondary)
+
+.bg-primary-twenty-five
+  background-color: var(--q-primary-twenty-five)
 
 .hover-primary
   position: relative
@@ -135,6 +147,12 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
   .radius-#{$r}
     border-radius: #{$r}px
 
+$font-size-list: 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64
+
+@each $r in $font-size-list
+  .font-size-#{$r}
+    font-size: #{$r}px
+
 .q-tab
   transition: color 0.3s ease, background-color 0.3s ease
   color: var(--q-neutral)
@@ -170,6 +188,17 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
   .q-field__native
     border-radius: 24px
     min-height: 48px
+  .q-field__prepend
+    padding-right: 4px
+  .q-field__append
+    padding-left: 4px
 
 .page-width
   width: 1280px
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button
+  -webkit-appearance: none
+
+input[type="number"]
+  -moz-appearance: textfield
