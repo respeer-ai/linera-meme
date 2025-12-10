@@ -14,6 +14,9 @@
     </div>
     <q-space />
     <div>
+      <search-view />
+    </div>
+    <div class='q-ml-md'>
       <network-view />
     </div>
     <div class='q-ml-md'>
@@ -33,6 +36,7 @@ import { laughPng } from 'src/assets'
 import TabsView from './TabsView.vue'
 import NetworkView from './NetworkView.vue'
 import ConnectWalletView from './ConnectWalletView.vue'
+import SearchView from './SearchView.vue'
 
 const productName = import.meta.env.VITE_PRODUCT_NAME || import.meta.env.PRODUCT_NAME
 
