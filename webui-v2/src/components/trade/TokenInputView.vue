@@ -10,7 +10,7 @@
       >
         <template #prepend>
           <q-avatar>
-            <q-img :src='token?.image' size='24px' />
+            <q-img :src='token?.logo' size='24px' />
           </q-avatar>
         </template>
       </q-select>
@@ -49,23 +49,32 @@ interface TokenItem extends Token {
 const tokens = ref([{
     label: 'TLINERA',
     value: 'TLINERA',
-    image: 'https://avatars.githubusercontent.com/u/107513858?s=48&v=4',
-    ticker: 'TLINERA'
+    logo: 'https://avatars.githubusercontent.com/u/107513858?s=48&v=4',
+    description: 'Linera Testnet Conway token',
+    meme: {
+      ticker: 'TLINERA'
+    }
   }, {
     label: 'LTTM',
     value: 'LTTM',
-    image: 'info',
-    ticker: 'LTTM'
+    logo: 'info',
+    meme: {
+      ticker: 'LTTM'
+    }
   }, {
     label: 'LTFT',
     value: 'LTFT',
-    image: 'info',
-    ticker: 'LTFT'
+    logo: 'info',
+    meme: {
+      ticker: 'LTFT'
+    }
   }, {
     label: 'GMIC',
     value: 'GMIC',
-    image: 'info',
-    ticker: 'GMIC'
+    logo: 'info',
+    meme: {
+      ticker: 'GMIC'
+    }
   }
 ] as TokenItem[])
 
