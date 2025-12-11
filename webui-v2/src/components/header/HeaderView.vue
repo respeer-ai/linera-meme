@@ -12,6 +12,9 @@
       <network-view />
     </div>
     <div class='q-ml-md'>
+      <create-meme-btn />
+    </div>
+    <div class='q-ml-md'>
       <connect-wallet-btn />
     </div>
     <div class='header-actions q-ml-md'>
@@ -28,6 +31,7 @@ import NetworkView from './NetworkView.vue'
 import ConnectWalletBtn from '../wallet/ConnectWalletBtn.vue'
 import SearchView from './SearchView.vue'
 import LogoView from '../logo/LogoView.vue'
+import CreateMemeBtn from '../meme/CreateMemeBtn.vue'
 
 const onModeSwitchClick = () => {
   Dark.toggle()

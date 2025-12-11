@@ -4,10 +4,10 @@
       <section-title-view icon='water' title='Liquidity Pools' />
       <q-space />
       <div class='narrow-btn'>
-        <q-btn no-caps flat dense rounded class='bg-primary'>
+        <q-btn no-caps flat dense rounded class='bg-primary q-ml-md'>
           <div class='row flex justify-center items-center'>
             <q-icon name='add' color='white' size='16px' />
-            <span class='q-ml-xs'>Add Liquidity</span>
+            <span class='q-ml-xs'>Create Pool</span>
           </div>
         </q-btn>
         <q-btn flat dense rounded class='text-primary'>View All</q-btn>
