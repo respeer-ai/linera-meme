@@ -2,11 +2,11 @@
   <div class='row content-start wrap'>
     <div class='trade-action'>
       <div class='row items-center'>
-        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='sellTokens' />
+        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' />
         <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
           <q-icon name='arrow_forward' size='32px' />
         </div>
-        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' />
+        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' />
       </div>
       <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
         <div>1 {{ sellToken?.meme?.ticker }} = 0.00000123455 {{ buyToken?.meme?.ticker }}</div>
@@ -54,6 +54,7 @@ const tokens = computed(() => ams.applications().map((el) => {
 }))
 const pools = computed(() => swap.pools())
 const buyToken = ref(undefined as unknown as Token)
+const buyAmount = ref('')
 const buyTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
     const sellTokenId = sellToken.value?.applicationId || constants.LINERA_NATIVE_ID
@@ -62,6 +63,7 @@ const buyTokens = computed(() => tokens.value.filter((el) => {
   }) >= 0
 }))
 const sellToken = ref(undefined as unknown as Token)
+const sellAmount = ref('')
 const sellTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
     const buyTokenId = buyToken.value?.applicationId || constants.LINERA_NATIVE_ID
