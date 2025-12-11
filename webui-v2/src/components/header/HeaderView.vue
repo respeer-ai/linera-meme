@@ -1,14 +1,6 @@
 <template> 
   <div class='row q-header-line'>
-    <div class='cursor-pointer row'>
-      <div class='bg-primary-25 hover-primary radius-8 flex justify-center items-center' style='width: 48px; height: 48px;'>
-        <q-img :src='laughPng' width='36px' height='36px' />
-      </div>
-      <div class='q-ml-sm'>
-        <div class='text-light text-h5 text-bold text-gradient-primary-secondary'> {{ productName }} </div>
-        <div class='text-xs text-neutral' style='line-height: 1em;'>Creating . Trading . Mining Meme on Linera</div>
-      </div>
-    </div>
+    <logo-view />
     <div class='q-ml-lg'>
       <tabs-view />
     </div>
@@ -31,14 +23,11 @@
 <script lang='ts' setup>
 import { Dark } from 'quasar'
 
-import { laughPng } from 'src/assets'
-
 import TabsView from './TabsView.vue'
 import NetworkView from './NetworkView.vue'
 import ConnectWalletBtn from '../wallet/ConnectWalletBtn.vue'
 import SearchView from './SearchView.vue'
-
-const productName = import.meta.env.VITE_PRODUCT_NAME || import.meta.env.PRODUCT_NAME
+import LogoView from '../logo/LogoView.vue'
 
 const onModeSwitchClick = () => {
   Dark.toggle()
