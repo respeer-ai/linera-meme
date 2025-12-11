@@ -9,11 +9,20 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <q-footer class='bg-dark'>
+      <q-card flat class='bg-dark-secondary flex justify-center q-mt-xl q-pt-xl q-pb-lg'>
+        <div class='page-width'>
+          <footer-view />
+        </div>
+      </q-card>
+    </q-footer>
   </q-layout>
 </template>
 
 <script setup lang='ts'>
 
 import HeaderView from 'src/components/header/HeaderView.vue'
+import FooterView from 'src/components/footer/FooterView.vue'
 
 </script>
