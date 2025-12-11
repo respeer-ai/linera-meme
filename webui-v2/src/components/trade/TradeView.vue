@@ -2,11 +2,11 @@
   <div class='row content-start wrap'>
     <div class='trade-action'>
       <div class='row items-center'>
-        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='tokens' />
+        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='sellTokens' />
         <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
           <q-icon name='arrow_forward' size='32px' />
         </div>
-        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='tokens' />
+        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' />
       </div>
       <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
         <div>1 {{ sellToken?.meme?.ticker }} = 0.00000123455 {{ buyToken?.meme?.ticker }}</div>
@@ -39,19 +39,35 @@
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
 import { computed, onMounted, ref } from 'vue'
-import { ams, meme } from 'src/stores/export'
+import { ams, meme, swap } from 'src/stores/export'
+import { constants } from 'src/constant'
 
 import TokenInputView from './TokenInputView.vue'
 import TokenInfoView from './TokenInfoView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
 
-const buyToken = ref(undefined as unknown as Token)
-const sellToken = ref(undefined as unknown as Token)
 const tokens = computed(() => ams.applications().map((el) => {
   return {
     ...el,
     meme: JSON.parse(el.spec) as meme.Meme
   }
+}))
+const pools = computed(() => swap.pools())
+const buyToken = ref(undefined as unknown as Token)
+const buyTokens = computed(() => tokens.value.filter((el) => {
+  return pools.value.findIndex((_el) => {
+    const sellTokenId = sellToken.value?.applicationId || constants.LINERA_NATIVE_ID
+    return (el.applicationId === _el.token1 && _el.token0 === sellTokenId) ||
+           (el.applicationId === _el.token0 && _el.token1 === sellTokenId)
+  }) >= 0
+}))
+const sellToken = ref(undefined as unknown as Token)
+const sellTokens = computed(() => tokens.value.filter((el) => {
+  return pools.value.findIndex((_el) => {
+    const buyTokenId = buyToken.value?.applicationId || constants.LINERA_NATIVE_ID
+    return (el.applicationId === _el.token1 && _el.token0 === buyTokenId) ||
+           (el.applicationId === _el.token0 && _el.token1 === buyTokenId)
+  }) >= 0
 }))
 
 const checkingPrice = ref(false)
@@ -89,8 +105,10 @@ const onSwitchTokenClick = () => {
 }
 
 onMounted(() => {
-  ams.getApplications(undefined, () => {
-    buyToken.value = tokens.value[0] as Token
+  swap.getPools(() => {
+    ams.getApplications(undefined, () => {
+      buyToken.value = tokens.value[0] as Token
+    })
   })
 })
 
