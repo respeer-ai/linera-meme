@@ -2,11 +2,11 @@
   <div class='row content-start wrap'>
     <div class='trade-action'>
       <div class='row items-center'>
-        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' />
-        <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;'>
+        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='tokens' />
+        <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
           <q-icon name='arrow_forward' size='32px' />
         </div>
-        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' />
+        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='tokens' />
       </div>
       <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
         <div>1 {{ sellToken?.meme?.ticker }} = 0.00000123455 {{ buyToken?.meme?.ticker }}</div>
@@ -38,7 +38,8 @@
 <script setup lang='ts'>
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { ams, meme } from 'src/stores/export'
 
 import TokenInputView from './TokenInputView.vue'
 import TokenInfoView from './TokenInfoView.vue'
@@ -46,6 +47,12 @@ import PriceChartView from '../kline/PriceChartView.vue'
 
 const buyToken = ref(undefined as unknown as Token)
 const sellToken = ref(undefined as unknown as Token)
+const tokens = computed(() => ams.applications().map((el) => {
+  return {
+    ...el,
+    meme: JSON.parse(el.spec) as meme.Meme
+  }
+}))
 
 const checkingPrice = ref(false)
 
@@ -74,6 +81,18 @@ const btnActions = ref([{
   label: BtnAction.Swap,
   disable: false
 }] as BtnActionItem[])
+
+const onSwitchTokenClick = () => {
+  const token = buyToken.value
+  buyToken.value = sellToken.value
+  sellToken.value = token
+}
+
+onMounted(() => {
+  ams.getApplications(undefined, () => {
+    buyToken.value = tokens.value[0] as Token
+  })
+})
 
 </script>
 
