@@ -7,6 +7,9 @@
       <div class='q-mt-lg'>
         <trade-view />
       </div>
+      <div class='q-mt-xl'>
+        <trending-view />
+      </div>
     </div>
   </q-page>
 </template>
@@ -15,5 +18,6 @@
 
 import WalletTipView from 'src/components/wallet/WalletTipView.vue'
 import TradeView from 'src/components/trade/TradeView.vue'
+import TrendingView from 'src/components/trending/TrendingView.vue'
 
 </script>
