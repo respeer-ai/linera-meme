@@ -25,7 +25,7 @@
       </div>
       <q-space />
       <div>
-        <div class='font-size-16 text-bold'>Platform</div>
+        <div class='font-size-16 text-light text-bold'>Platform</div>
         <div class='q-mt-md text-neutral cursor-pointer'>Trade</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>Trending</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>Pools</div>
@@ -33,21 +33,21 @@
         <div class='q-mt-sm text-neutral cursor-pointer'>Create token</div>
       </div>
       <div class='q-ml-lg'>
-        <div class='font-size-16 text-bold'>Products</div>
+        <div class='font-size-16 text-light text-bold'>Products</div>
         <div class='q-mt-md text-neutral cursor-pointer'>ResPeer</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>MicroMeme</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>CheCko</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>MaaS</div>
       </div>
       <div class='q-ml-lg'>
-        <div class='font-size-16 text-bold'>Docs</div>
+        <div class='font-size-16 text-light text-bold'>Docs</div>
         <div class='q-mt-md text-neutral cursor-pointer'>Linera Whitepaper CN</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>Developer Manual CN</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>MicroMeme Manual</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>CheCko Manual</div>
       </div>
       <div class='q-ml-lg'>
-        <div class='font-size-16 text-bold'>Legal</div>
+        <div class='font-size-16 text-light text-bold'>Legal</div>
         <div class='q-mt-md text-neutral cursor-pointer'>Term of Use</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>Privacy Policy</div>
         <div class='q-mt-sm text-neutral cursor-pointer'>Disclaimer</div>
