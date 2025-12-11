@@ -17,11 +17,12 @@
           <q-icon name='keyboard_arrow_down' size='18px' />
         </div>
       </div>
-      <q-btn rounded class='fill-parent-width bg-primary q-mt-sm' :loading='checkingPrice'>
+      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm' :loading='checkingPrice' :disabled='btnActions[0]?.disable'>
         <template #loading>
           <q-spinner-hourglass class="on-left" />
-          {{ BtnAction.CheckingPrice }}
+          {{ btnActions[0]?.label }}
         </template>
+        {{ btnActions[0]?.label }}
       </q-btn>
       <q-card flat class='q-mt-md radius-8' style='overflow: hidden;'>
         <price-chart-view height='440px' />
@@ -46,14 +47,33 @@ import PriceChartView from '../kline/PriceChartView.vue'
 const buyToken = ref(undefined as unknown as Token)
 const sellToken = ref(undefined as unknown as Token)
 
-const checkingPrice = ref(true)
+const checkingPrice = ref(false)
+
+interface BtnActionItem {
+  label: string
+  disable: boolean
+}
 
 enum BtnAction {
-  StartUse = 'Start use',
+  InputAmount = 'Input amount',
   CheckingPrice = 'Checking price',
   Review = 'Review',
   Swap = 'Swap'
 }
+
+const btnActions = ref([{
+  label: BtnAction.InputAmount,
+  disable: true
+}, {
+  label: BtnAction.CheckingPrice,
+  disable: true
+}, {
+  label: BtnAction.Review,
+  disable: true
+}, {
+  label: BtnAction.Swap,
+  disable: false
+}] as BtnActionItem[])
 
 </script>
 

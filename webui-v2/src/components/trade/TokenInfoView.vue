@@ -53,7 +53,9 @@
           <div class='font-size-12 text-neutral'>1.2K Viewers</div>
         </div>
         <q-space />
-        <q-btn flat dense rounded class='bg-primary-twenty-five text-primary'>Watch</q-btn>
+        <div class='narrow-btn'>
+          <q-btn flat dense rounded class='bg-primary-twenty-five text-primary'>Watch</q-btn>
+        </div>
       </div>
     </div>
   </div>
@@ -75,11 +77,3 @@ const token = toRef(props, 'token')
 const videoUrl = 'https://www.youtube.com/embed/xIfcHh0bPbk'
 
 </script>
-
-<style scoped lang='sass'>
-::v-deep(.q-btn)
-  min-height: 32px
-  line-height: 32px
-  height: 32px
-  padding: 0 16px
-</style>
