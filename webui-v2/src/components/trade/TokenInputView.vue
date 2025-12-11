@@ -85,6 +85,7 @@ const tokenApplicationId = computed(() => token.value?.applicationId || constant
 
 const amount = defineModel<string>('amount')
 const balance = ref('0')
+const nativeBalance = computed(() => user.User.balance())
 
 const tokenChain = computed(() => proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
 const tokenApplication = computed(() => {
@@ -94,10 +95,14 @@ const tokenApplication = computed(() => {
   }
 })
 
+watch(nativeBalance, () => {
+  if (tokenApplicationId.value === constants.LINERA_NATIVE_ID) {
+    balance.value = nativeBalance.value
+  }
+})
+
 const getBalance = async () =>{
-  if (token.value?.applicationId === constants.LINERA_NATIVE_ID) {
-    balance.value = user.User.balance()
-  } else {
+  if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
     await meme.balanceOfMeme(tokenApplication.value, (_balance: string) => {
       balance.value = Number(_balance).toFixed(4)
     })
@@ -108,9 +113,11 @@ watch(token, async () => {
   await getBalance()
 })
 
-onMounted(async () => {
+onMounted(() => {
   token.value = tokens.value[0]
-  await getBalance()
+  proxy.getMemeApplications(() => {
+    void getBalance()
+  })
 })
 
 </script>
