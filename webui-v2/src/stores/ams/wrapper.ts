@@ -35,3 +35,7 @@ export const application = (applicationId: string) => {
 export const applicationLogo = (application: Application) => {
   return ams.applicationLogo(application)
 }
+
+export const applications = () => {
+  return ams.applications
+}

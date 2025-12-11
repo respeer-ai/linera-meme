@@ -4,14 +4,35 @@
       <div class='font-size-16 text-bold'>{{ action }}</div>
       <q-space />
       <q-select
-        :options='tokens'
+        :options='_tokens'
         v-model='token'
         class='bg-primary-twenty-five radius-16'
+        style='overflow: hidden;'
       >
-        <template #prepend>
-          <q-avatar>
-            <q-img :src='token?.logo' size='24px' />
-          </q-avatar>
+        <template #option='scope'>
+          <q-item dense v-bind='scope.itemProps' class='items-center'>
+            <q-avatar size='24px'>
+              <q-img :src='ams.applicationLogo(scope.opt as ams.Application) || constants.LINERA_LOGO' width='24px' height='24px' fit='contain' />
+            </q-avatar>
+            <div class='q-ml-md'>
+              <div class='row'>
+                <div class='text-neutral text-bold'>
+                  {{ scope.opt.meme?.ticker }}
+                </div>
+                <q-space />
+              </div>
+            </div>
+          </q-item>
+        </template>
+        <template #selected>
+          <div class='row'>
+            <q-avatar size='24px' class='q-ml-xs'>
+              <q-img :src='tokenLogo' width='24px' height='24px' fit='contain' />
+            </q-avatar>
+            <div class='swap-token-name text-bold swap-token-label flex items-center justify-center q-ml-sm'>
+              {{ tokenTicker }}
+            </div>
+          </div>
         </template>
       </q-select>
     </div>
@@ -25,13 +46,16 @@
 </template>
 
 <script setup lang='ts'>
-import { onMounted, ref, toRef } from 'vue'
+import { computed, onMounted, ref, toRef } from 'vue'
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
+import { ams } from 'src/stores/export'
+import { constants } from 'src/constant'
 
 interface Props {
   action?: TokenAction
   autoFocus?: boolean
+  tokens: Token[]
 }
 const props = withDefaults(defineProps<Props>(), {
   action: TokenAction.Sell,
@@ -39,6 +63,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const action = toRef(props, 'action')
 const autoFocus = toRef(props, 'autoFocus')
+const tokens = toRef(props, 'tokens')
 
 const amount = ref('')
 
@@ -46,40 +71,17 @@ interface TokenItem extends Token {
   label: string
   value: string
 }
-
-const tokens = ref([{
-    label: 'TLINERA',
-    value: 'TLINERA',
-    logo: 'https://avatars.githubusercontent.com/u/107513858?s=48&v=4',
-    description: 'Linera Testnet Conway token',
-    meme: {
-      ticker: 'TLINERA'
-    }
-  }, {
-    label: 'LTTM',
-    value: 'LTTM',
-    logo: 'info',
-    meme: {
-      ticker: 'LTTM'
-    }
-  }, {
-    label: 'LTFT',
-    value: 'LTFT',
-    logo: 'info',
-    meme: {
-      ticker: 'LTFT'
-    }
-  }, {
-    label: 'GMIC',
-    value: 'GMIC',
-    logo: 'info',
-    meme: {
-      ticker: 'GMIC'
-    }
-  }
-] as TokenItem[])
+const _tokens = computed(() => tokens.value.map((el) => {
+  return  {
+    ...el,
+    label: el.meme.ticker,
+    value: el.meme.ticker
+  } as TokenItem
+}))
 
 const token = defineModel<Token>()
+const tokenLogo = computed(() => ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
+const tokenTicker = computed(() => token.value?.meme?.ticker || constants.LINERA_TICKER)
 
 onMounted(() => {
   token.value = tokens.value[0]
@@ -107,4 +109,5 @@ onMounted(() => {
     height: 32px
   .q-field__native
     min-height: 32px
+    padding: 0
 </style>

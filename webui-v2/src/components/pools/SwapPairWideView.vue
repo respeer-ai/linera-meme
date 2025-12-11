@@ -14,7 +14,7 @@
         <div class='q-mt-sm font-size-20'>123,456 TLINERA</div>
       </div>
     </div>
-    <div class='row q-mt-lg'>
+    <div class='row q-mt-md'>
       <div class='bg-dark radius-8 q-px-md q-py-md' style='width: calc(50% - 8px);'>
         <div class='text-neutral font-size-16'>Mining APY</div>
         <div class='q-mt-sm font-size-20 text-mining'>12.34 %</div>
