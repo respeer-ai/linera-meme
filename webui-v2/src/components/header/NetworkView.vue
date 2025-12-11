@@ -6,7 +6,7 @@
       :options='networks'
     >
       <template #prepend>
-        <q-img src='https://avatars.githubusercontent.com/u/107513858?s=48&v=4' width='24px' height='24px' />
+        <q-img :src='constants.LINERA_LOGO' width='24px' height='24px' />
       </template>
     </q-select>
   </div>
@@ -14,6 +14,7 @@
 
 <script setup lang='ts'>
 import { ref } from 'vue'
+import { constants } from 'src/constant'
 
 enum Network {
   TestnetConway = 'Testnet Conway',
