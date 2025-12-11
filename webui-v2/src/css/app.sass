@@ -184,7 +184,7 @@ $radius-list: 4, 6, 8, 12, 16, 20, 24
 
 @each $r in $radius-list
   .radius-#{$r}
-    border-radius: #{$r}px
+    border-radius: #{$r}px !important
 
 @each $r in $radius-list
   .radius-top-#{$r}
@@ -255,3 +255,6 @@ input[type="number"]
 
 .q-item__section--avatar
   min-width: 32px
+
+.q-dialog__backdrop
+  backdrop-filter: blur(10px)
