@@ -6,7 +6,7 @@
       </q-toolbar>
     </q-header>
 
-    <q-page-container class='bg-glass'>
+    <q-page-container class='bg-glass bg-dark'>
       <router-view />
     </q-page-container>
 
