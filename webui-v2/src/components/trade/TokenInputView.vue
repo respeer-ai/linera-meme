@@ -40,7 +40,7 @@
     <div class='q-mt-sm row'>
       <div class='font-size-16 text-neutral'>$ 0</div>
       <q-space />
-      <div class='font-size-16 text-neutral'>0.1234 {{ tokenTicker }}</div>
+      <div class='font-size-16 text-neutral'>{{ balance }} {{ tokenTicker }}</div>
     </div>
   </div>
 </template>
