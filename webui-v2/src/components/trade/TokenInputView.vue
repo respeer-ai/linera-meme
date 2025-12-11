@@ -40,17 +40,18 @@
     <div class='q-mt-sm row'>
       <div class='font-size-16 text-neutral'>$ 0</div>
       <q-space />
-      <div class='font-size-16 text-neutral'>0.1234 {{ token?.meme?.ticker }}</div>
+      <div class='font-size-16 text-neutral'>0.1234 {{ tokenTicker }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, ref, toRef } from 'vue'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
-import { ams } from 'src/stores/export'
+import { ams, meme, proxy, user } from 'src/stores/export'
 import { constants } from 'src/constant'
+import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 
 interface Props {
   action?: TokenAction
@@ -64,8 +65,6 @@ const props = withDefaults(defineProps<Props>(), {
 const action = toRef(props, 'action')
 const autoFocus = toRef(props, 'autoFocus')
 const tokens = toRef(props, 'tokens')
-
-const amount = ref('')
 
 interface TokenItem extends Token {
   label: string
@@ -82,9 +81,36 @@ const _tokens = computed(() => tokens.value.map((el) => {
 const token = defineModel<Token>()
 const tokenLogo = computed(() => ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
 const tokenTicker = computed(() => token.value?.meme?.ticker || constants.LINERA_TICKER)
+const tokenApplicationId = computed(() => token.value?.applicationId || constants.LINERA_NATIVE_ID)
 
-onMounted(() => {
+const amount = defineModel<string>('amount')
+const balance = ref('0')
+
+const tokenChain = computed(() => proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
+const tokenApplication = computed(() => {
+  return {
+    chain_id: tokenChain.value?.chainId as string,
+    owner: tokenChain.value?.token as string
+  }
+})
+
+const getBalance = async () =>{
+  if (token.value?.applicationId === constants.LINERA_NATIVE_ID) {
+    balance.value = user.User.balance()
+  } else {
+    await meme.balanceOfMeme(tokenApplication.value, (_balance: string) => {
+      balance.value = Number(_balance).toFixed(4)
+    })
+  }
+}
+
+watch(token, async () => {
+  await getBalance()
+})
+
+onMounted(async () => {
   token.value = tokens.value[0]
+  await getBalance()
 })
 
 </script>

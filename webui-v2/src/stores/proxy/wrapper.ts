@@ -21,3 +21,7 @@ export const getMemeApplications = (
     done
   )
 }
+
+export const tokenCreatorChain = (applicationId: string) => {
+  return proxy.chain(applicationId)
+}
