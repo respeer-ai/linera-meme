@@ -70,18 +70,13 @@
 
 <script setup lang='ts'>
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
-import { computed, onMounted } from 'vue'
-import { swap, ams } from 'src/stores/export'
+import { computed } from 'vue'
+import { swap } from 'src/stores/export'
 
 import SectionTitleView from '../common/SectionTitleView.vue'
 import SwapPairNarrowView from './SwapPairNarrowView.vue'
 import SwapPairWideView from './SwapPairWideView.vue'
 
 const pools = computed(() => swap.pools())
-
-onMounted(() => {
-  swap.getPools()
-  ams.getApplications()
-})
 
 </script>

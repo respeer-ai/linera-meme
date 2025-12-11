@@ -5,6 +5,7 @@
       <tabs-view />
     </div>
     <q-space />
+    <subscription-view />
     <div>
       <search-view />
     </div>
@@ -38,6 +39,7 @@ import SearchView from './SearchView.vue'
 import LogoView from '../logo/LogoView.vue'
 import CreateMemeBtn from '../meme/CreateMemeBtn.vue'
 import WalletInfoView from '../wallet/WalletInfoView.vue'
+import SubscriptionView from '../subscription/SubscriptionView.vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
 

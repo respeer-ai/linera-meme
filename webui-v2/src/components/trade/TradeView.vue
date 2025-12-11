@@ -53,6 +53,7 @@ const tokens = computed(() => ams.applications().map((el) => {
   }
 }))
 const pools = computed(() => swap.pools())
+
 const buyToken = ref(undefined as unknown as Token)
 const buyTokenId = computed(() => buyToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const buyTokenTicker = computed(() => buyToken.value?.meme?.ticker || constants.LINERA_TICKER)
@@ -63,6 +64,13 @@ const buyTokens = computed(() => tokens.value.filter((el) => {
            (el.applicationId === _el.token0 && _el.token1 === sellTokenId.value)
   }) >= 0
 }))
+
+watch(tokens, () => {
+  if (buyToken.value === undefined && sellToken.value === undefined) {
+    buyToken.value = tokens.value[0] as Token
+  }
+})
+
 const sellToken = ref(undefined as unknown as Token)
 const sellTokenId = computed(() => sellToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
@@ -73,16 +81,17 @@ const sellTokens = computed(() => tokens.value.filter((el) => {
            (el.applicationId === _el.token0 && _el.token1 === buyTokenId.value)
   }) >= 0
 }))
+
 const pool = computed(() =>pools.value.find((el) => {
   return (el.token0 === buyTokenId.value && el.token1 === sellTokenId.value) ||
          (el.token1 === buyTokenId.value && el.token0 === sellTokenId.value)
 }))
-const sellPrice = computed(() => Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price)?.toFixed(4) || '0.00')
+const sellPrice = computed(() => Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price)?.toFixed(6) || '0.00')
 
 watch(sellAmount, () => {
   const price = Number((sellToken.value?.applicationId === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
   setTimeout(() => {
-    buyAmount.value = ((Number(sellAmount.value) * price) || 0).toFixed(4)
+    buyAmount.value = ((Number(sellAmount.value) * price) || 0).toFixed(6)
   }, 1000)
 })
 
@@ -128,11 +137,7 @@ const onSwitchTokenClick = () => {
 }
 
 onMounted(() => {
-  swap.getPools(() => {
-    ams.getApplications(undefined, () => {
-      buyToken.value = tokens.value[0] as Token
-    })
-  })
+  buyToken.value = tokens.value[0] as Token
 })
 
 </script>
