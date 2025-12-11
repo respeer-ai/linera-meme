@@ -27,3 +27,11 @@ export const getApplications = (
     }
   )
 }
+
+export const application = (applicationId: string) => {
+  return ams.applications.find((el) => el.applicationId === applicationId)
+}
+
+export const applicationLogo = (application: Application) => {
+  return ams.applicationLogo(application)
+}

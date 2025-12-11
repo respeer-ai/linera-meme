@@ -1,12 +1,12 @@
 <template>
-  <q-layout view='lHh Lpr lFf' class='bg-dark bg-glass'>
+  <q-layout view='lHh Lpr lff' class='bg-dark'>
     <q-header class='bg-dark'>
       <q-toolbar class='q-py-md'>
         <header-view class='fill-parent-width' />
       </q-toolbar>
     </q-header>
 
-    <q-page-container>
+    <q-page-container class='bg-glass'>
       <router-view />
     </q-page-container>
 

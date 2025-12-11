@@ -48,3 +48,5 @@ export const createPool = (
     done
   )
 }
+
+export const pools = () => swap.pools
