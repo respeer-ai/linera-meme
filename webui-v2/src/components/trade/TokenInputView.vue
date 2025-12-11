@@ -106,11 +106,14 @@ const getBalance = async () =>{
     await meme.balanceOfMeme(tokenApplication.value, (_balance: string) => {
       balance.value = Number(_balance).toFixed(4)
     })
+  } else {
+    balance.value = nativeBalance.value
   }
 }
 
 watch(token, async () => {
   await getBalance()
+
 })
 
 onMounted(() => {
