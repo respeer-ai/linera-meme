@@ -38,7 +38,7 @@
 <script setup lang='ts'>
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ams, meme, swap } from 'src/stores/export'
 import { constants } from 'src/constant'
 
@@ -54,23 +54,41 @@ const tokens = computed(() => ams.applications().map((el) => {
 }))
 const pools = computed(() => swap.pools())
 const buyToken = ref(undefined as unknown as Token)
+const buyTokenId = computed(() => buyToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const buyAmount = ref('')
 const buyTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
-    const sellTokenId = sellToken.value?.applicationId || constants.LINERA_NATIVE_ID
-    return (el.applicationId === _el.token1 && _el.token0 === sellTokenId) ||
-           (el.applicationId === _el.token0 && _el.token1 === sellTokenId)
+    return (el.applicationId === _el.token1 && _el.token0 === sellTokenId.value) ||
+           (el.applicationId === _el.token0 && _el.token1 === sellTokenId.value)
   }) >= 0
 }))
 const sellToken = ref(undefined as unknown as Token)
+const sellTokenId = computed(() => sellToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const sellAmount = ref('')
 const sellTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
-    const buyTokenId = buyToken.value?.applicationId || constants.LINERA_NATIVE_ID
-    return (el.applicationId === _el.token1 && _el.token0 === buyTokenId) ||
-           (el.applicationId === _el.token0 && _el.token1 === buyTokenId)
+    return (el.applicationId === _el.token1 && _el.token0 === buyTokenId.value) ||
+           (el.applicationId === _el.token0 && _el.token1 === buyTokenId.value)
   }) >= 0
 }))
+const pool = computed(() =>pools.value.find((el) => {
+  return (el.token0 === buyTokenId.value && el.token1 === sellTokenId.value) ||
+         (el.token1 === buyTokenId.value && el.token0 === sellTokenId.value)
+}))
+
+watch(sellAmount, () => {
+  const price = Number((sellToken.value?.applicationId === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
+  setTimeout(() => {
+    buyAmount.value = ((Number(sellAmount.value) * price) || 0).toFixed(4)
+  }, 1000)
+})
+
+watch(buyAmount, () => {
+  const price = Number((buyToken.value?.applicationId === pool.value?.token1 ? pool.value?.token1Price : pool.value?.token0Price) as string)
+  setTimeout(() => {
+    sellAmount.value = ((Number(buyAmount.value) * price) || 0).toFixed(4)
+  }, 1000)
+})
 
 const checkingPrice = ref(false)
 
