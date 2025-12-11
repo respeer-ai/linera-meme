@@ -15,11 +15,9 @@
 </template>
 
 <script setup lang='ts'>
-import { onMounted, ref, toRef } from 'vue'
+import { ref, toRef } from 'vue'
 
 import ConnectWalletView from './ConnectWalletView.vue'
-import { getProviderState, walletReadyCall } from './GetWalletInfo'
-import { user } from 'src/stores/export'
 
 interface Props {
   label?: string
@@ -33,14 +31,6 @@ const label = toRef(props, 'label')
 const showIcon = toRef(props, 'showIcon')
 
 const connecting = ref(false)
-
-onMounted(() => {
-  walletReadyCall(() => {
-    getProviderState(window.linera || window.ethereum, window.linera ? user.WalletConnectType.CheCko : user.WalletConnectType.Metamask, () => {
-      getProviderState(window.ethereum, user.WalletConnectType.Metamask)
-    })
-  })
-})
 
 const onConnectClick = () => {
   connecting.value = true
