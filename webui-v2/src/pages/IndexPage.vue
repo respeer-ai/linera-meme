@@ -13,6 +13,9 @@
       <div class='q-mt-xl'>
         <liquidity-pools-view />
       </div>
+      <div class='q-mt-xl'>
+        <leaderboard-view />
+      </div>
     </div>
   </q-page>
 </template>
@@ -23,5 +26,6 @@ import WalletTipView from 'src/components/wallet/WalletTipView.vue'
 import TradeView from 'src/components/trade/TradeView.vue'
 import TrendingView from 'src/components/trending/TrendingView.vue'
 import LiquidityPoolsView from 'src/components/pools/LiquidityPoolsView.vue'
+import LeaderboardView from 'src/components/leaderboard/LeaderboardView.vue'
 
 </script>

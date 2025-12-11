@@ -59,3 +59,9 @@ export const LINERA_TICKER = 'TLINERA'
 export const LINERA_NATIVE_ID = LINERA_TICKER
 export const LINERA_LOGO =
   'https://avatars.githubusercontent.com/u/107513858?s=48&v=4'
+
+
+export const X_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/x.svg'
+export const DISCORD_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/discord.svg'
+export const GITHUB_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg'
+export const TELEGRAM_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/telegram.svg'

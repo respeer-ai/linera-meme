@@ -43,6 +43,21 @@ body.body--dark
   --q-new-token:        #{$new-token-dark}
   --q-volume:           #{$volume-dark}
 
+*::-webkit-scrollbar
+  width: 2px
+  height: 2px
+
+*::-webkit-scrollbar-thumb
+  border-radius: 2px
+  background: rgba(0,0,0,0.2)
+
+*::-webkit-scrollbar-track
+  border-radius: 0
+  background: rgba(0,0,0,0.1)
+
+*::-webkit-scrollbar-corner
+  background: rgba(0,0,0,0.1)
+
 .bg-glass
   background: rgba(10, 14, 23, 0.85)
   // BE CAREFUL: it'll affect q-header and q-footer 'fixed' attribute
@@ -234,3 +249,9 @@ input[type="number"]::-webkit-outer-spin-button
 
 input[type="number"]
   -moz-appearance: textfield
+
+.q-dialog__inner--minimized
+  padding: 8px
+
+.q-item__section--avatar
+  min-width: 32px
