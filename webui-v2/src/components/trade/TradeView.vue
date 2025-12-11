@@ -9,7 +9,7 @@
         <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' />
       </div>
       <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
-        <div>1 {{ sellToken?.meme?.ticker }} = 0.00000123455 {{ buyToken?.meme?.ticker }}</div>
+        <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
         <q-space />
         <q-icon name='local_gas_station' size='18px' />
         <div class='q-ml-xs'>0.00000001234</div>
@@ -55,6 +55,7 @@ const tokens = computed(() => ams.applications().map((el) => {
 const pools = computed(() => swap.pools())
 const buyToken = ref(undefined as unknown as Token)
 const buyTokenId = computed(() => buyToken.value?.applicationId || constants.LINERA_NATIVE_ID)
+const buyTokenTicker = computed(() => buyToken.value?.meme?.ticker || constants.LINERA_TICKER)
 const buyAmount = ref('')
 const buyTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
@@ -64,6 +65,7 @@ const buyTokens = computed(() => tokens.value.filter((el) => {
 }))
 const sellToken = ref(undefined as unknown as Token)
 const sellTokenId = computed(() => sellToken.value?.applicationId || constants.LINERA_NATIVE_ID)
+const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
 const sellAmount = ref('')
 const sellTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
@@ -75,6 +77,7 @@ const pool = computed(() =>pools.value.find((el) => {
   return (el.token0 === buyTokenId.value && el.token1 === sellTokenId.value) ||
          (el.token1 === buyTokenId.value && el.token0 === sellTokenId.value)
 }))
+const sellPrice = computed(() => (sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price)?.toFixed(4) || '0.00')
 
 watch(sellAmount, () => {
   const price = Number((sellToken.value?.applicationId === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
