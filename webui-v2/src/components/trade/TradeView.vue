@@ -77,7 +77,7 @@ const pool = computed(() =>pools.value.find((el) => {
   return (el.token0 === buyTokenId.value && el.token1 === sellTokenId.value) ||
          (el.token1 === buyTokenId.value && el.token0 === sellTokenId.value)
 }))
-const sellPrice = computed(() => (sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price)?.toFixed(4) || '0.00')
+const sellPrice = computed(() => Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price)?.toFixed(4) || '0.00')
 
 watch(sellAmount, () => {
   const price = Number((sellToken.value?.applicationId === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
