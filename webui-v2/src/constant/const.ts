@@ -65,3 +65,6 @@ export const X_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/ico
 export const DISCORD_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/discord.svg'
 export const GITHUB_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg'
 export const TELEGRAM_LOGO = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/telegram.svg'
+
+export const METAMASK_LOGO = 'https://icon-sets.iconify.design/logos/metamask.svg'
+export const CHECKO_LOGO = 'https://github.com/respeer-ai/linera-wallet/blob/master/public/favicon.png?raw=true'
