@@ -1,10 +1,10 @@
 <template>
   <div>
-    <q-img :src='token?.logo' style='width: 100%; height: 120px;' fit='contain'>
+    <q-img :src='tokenLogo' style='width: 100%; height: 120px;' fit='contain'>
       <div class='fill-parent-width fill-parent-height flex items-end justify-end radius-top-8'>
         <div>
-          <div class='font-size-20 text-bold fill-parent-width text-right'>$ {{ token?.meme?.ticker }}</div>
-          <div class='fill-parent-width text-right text-neutral'>{{ token?.description }}</div>
+          <div class='font-size-20 text-bold fill-parent-width text-right'>$ {{ tokenTicker }}</div>
+          <div class='fill-parent-width text-right text-neutral ellipsis-lines-2'>{{ tokenDescription }}</div>
         </div>
       </div>
     </q-img>
@@ -62,9 +62,11 @@
 </template>
 
 <script setup lang='ts'>
-import { toRef } from 'vue'
+import { computed, toRef } from 'vue'
 import { Token } from './Token'
 import Youtube from 'vue3-youtube'
+import { ams } from 'src/stores/export'
+import { constants } from 'src/constant'
 
 import TokenInfoLineView from './TokenInfoLineView.vue'
 
@@ -76,4 +78,7 @@ const token = toRef(props, 'token')
 
 const videoUrl = 'https://www.youtube.com/embed/xIfcHh0bPbk'
 
+const tokenLogo = computed(() => ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
+const tokenTicker = computed(() => token.value?.meme?.ticker || constants.LINERA_TICKER)
+const tokenDescription = computed(() => token.value?.description || constants.LINERA_DESCRIPTION)
 </script>
