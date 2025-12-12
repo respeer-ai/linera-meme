@@ -17,8 +17,10 @@ export class Wallet {
     f(...args)
   }
 
-  static getProviderState = (error?: () => void) => {
-    const walletType = user.User.walletConnectedType()
+  static getProviderState = (error?: () => void, walletType?: user.WalletType) => {
+    walletType = walletType || user.User.walletConnectedType()
+
+    console.log(`Getting provider state: ${walletType} ...`)
 
     switch (walletType) {
       case user.WalletType.CheCko:

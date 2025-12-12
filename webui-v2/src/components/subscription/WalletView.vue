@@ -44,12 +44,8 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
 onMounted(() => {
   Wallet.waitOnReady(() => {
     Wallet.getProviderState(async () => {
-      await Wallet.connect(user.WalletType.Metamask, () => {
-        Wallet.getProviderState()
-      }, (e) => {
-        console.log('Failed connect metamask', e)
-      })
-    })
+      Wallet.getProviderState(undefined, user.WalletType.Metamask)
+    }, user.WalletType.CheCko)
   })
 })
 
