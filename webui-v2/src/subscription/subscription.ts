@@ -6,7 +6,7 @@ import { ApolloClient } from '@apollo/client'
 import { provideApolloClient, useSubscription } from '@vue/apollo-composable'
 
 export class Subscription {
-  #unsubscribe: () => void = undefined as unknown as () => void
+  unsubscribe: () => void = undefined as unknown as () => void
 
   constructor(
     httpUrl: string,
@@ -39,8 +39,6 @@ export class Subscription {
       }
     })
 
-    this.#unsubscribe = stop
+    this.unsubscribe = stop
   }
-
-  unsubscribe = this.#unsubscribe
 }
