@@ -272,3 +272,18 @@ input[type="number"]
 
 .q-dialog__backdrop
   backdrop-filter: blur(10px)
+
+.line-with-text
+  display: flex
+  align-items: center
+  gap: 16px
+  color: #666
+  white-space: nowrap
+
+.line-with-text::before,
+.line-with-text::after
+  content: ""
+  flex: 1 1 0
+  height: 1px
+  background: currentColor
+  opacity: 0.35
