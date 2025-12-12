@@ -61,6 +61,9 @@
       <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' @click='onSwapClick' :loading='swapping'>
         Swap
       </q-btn>
+      <q-btn no-caps rounded class='fill-parent-width border-primary-50 q-mt-sm font-size-20' @click='onCancelClick'>
+        Cancel
+      </q-btn>
     </div>
   </div>
 </template>
@@ -98,7 +101,8 @@ const swapping = ref(false)
 
 const emit = defineEmits<{
   (e: 'done'): void,
-  (e: 'error', error: string): void
+  (e: 'error', error: string): void,
+  (e: 'cancel'): void
 }>()
 
 const onExpandClick = () => {
@@ -115,6 +119,10 @@ const onSwapClick = async () => {
     emit('error', e)
     swapping.value = false
   })
+}
+
+const onCancelClick = () => {
+  emit('cancel')
 }
 
 </script>
