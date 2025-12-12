@@ -43,7 +43,7 @@ async def main():
         if len(host_chain_id) != 2 or not host_chain_id[0] or not host_chain_id[1]:
             print(f'Invalid host chain id: {host_chain_id}')
             continue
-        maker_wallets.append(MakerWallet(host_chain_id[0], host_chain_id[1]))
+        maker_wallets.append(MakerWallet(host_chain_id[1], host_chain_id[0]))
 
     _feeder = Feeder(_swap, _proxy, maker_wallets, _wallet)
     await _feeder.run()
