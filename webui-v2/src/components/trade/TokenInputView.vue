@@ -36,7 +36,7 @@
         </template>
       </q-select>
     </div>
-    <q-input v-model='amount' type='number' class='font-size-36 text-neutral text-bold' placeholder='0' :autofocus='autoFocus' />
+    <q-input v-model='amount' type='number' class='font-size-36 text-neutral text-bold' placeholder='0' :autofocus='autoFocus' :disable='disable' />
     <div class='q-mt-sm row'>
       <div class='font-size-16 text-neutral'>$ 0</div>
       <q-space />
@@ -57,14 +57,17 @@ interface Props {
   action?: TokenAction
   autoFocus?: boolean
   tokens: Token[]
+  disable?: boolean
 }
 const props = withDefaults(defineProps<Props>(), {
   action: TokenAction.Sell,
-  autoFocus: true
+  autoFocus: true,
+  disable: false
 })
 const action = toRef(props, 'action')
 const autoFocus = toRef(props, 'autoFocus')
 const tokens = toRef(props, 'tokens')
+const disable = toRef(props, 'disable')
 
 interface TokenItem extends Token {
   label: string
