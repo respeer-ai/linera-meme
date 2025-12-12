@@ -4,12 +4,24 @@
 
 <script setup lang='ts'>
 import { ams } from 'src/stores/export'
-import { onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
+import { throttle } from 'lodash-es'
 
-// TODO: subscription pools
+const blockHash = computed(() => ams.Ams.blockHash())
+
+const getApplications = throttle(() => {
+  ams.Ams.getApplications()
+}, 10000, {
+  leading: false, 
+  trailing: true
+})
+
+watch(blockHash, () => {
+  getApplications()
+})
 
 onMounted(() => {
-  ams.getApplications()
+  ams.Ams.getApplications()
 })
 
 </script>

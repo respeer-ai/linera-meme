@@ -4,24 +4,32 @@ import { useProxyStore } from './store'
 
 const proxy = useProxyStore()
 
-export const getMemeApplications = (
-  done?: (error: boolean, rows?: Chain[]) => void
-) => {
-  proxy.getApplications(
-    {
-      Message: {
-        Error: {
-          Title: 'Get meme applications',
-          Message: 'Failed get meme applications',
-          Popup: true,
-          Type: NotifyType.Error
+export class Proxy {
+  static getMemeApplications = (
+    done?: (error: boolean, rows?: Chain[]) => void
+  ) => {
+    proxy.getApplications(
+      {
+        Message: {
+          Error: {
+            Title: 'Get meme applications',
+            Message: 'Failed get meme applications',
+            Popup: true,
+            Type: NotifyType.Error
+          }
         }
-      }
-    },
-    done
-  )
-}
+      },
+      done
+    )
+  }
 
-export const tokenCreatorChain = (applicationId: string) => {
-  return proxy.chain(applicationId)
+  static tokenCreatorChain = (applicationId: string) => {
+    return proxy.chain(applicationId)
+  }
+
+  static initialize = () => {
+    proxy.initializeProxy()
+  }
+
+  static blockHash = () => proxy.blockHash
 }
