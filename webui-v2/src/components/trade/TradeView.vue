@@ -164,7 +164,6 @@ const onSwapDone = () => {
 
 const onSwapError = (e: string) => {
   reviewing.value = false
-  console.log(11111, e)
   notify.Notify.pushNotification({
     Title: 'Swap meme token',
     Message: `Failed swap meme token: ${e}`,

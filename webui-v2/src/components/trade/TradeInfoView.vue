@@ -61,7 +61,7 @@
       <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' @click='onSwapClick' :loading='swapping'>
         Swap
       </q-btn>
-      <q-btn no-caps rounded class='fill-parent-width border-primary-50 q-mt-sm font-size-20' @click='onCancelClick'>
+      <q-btn no-caps rounded class='fill-parent-width border-primary-50 q-mt-sm font-size-20' @click='onCancelClick' :disabled='swapping'>
         Cancel
       </q-btn>
     </div>
