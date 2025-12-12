@@ -46,13 +46,13 @@ import TokenInputView from './TokenInputView.vue'
 import TokenInfoView from './TokenInfoView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
 
-const tokens = computed(() => ams.applications().map((el) => {
+const tokens = computed(() => ams.Ams.applications().map((el) => {
   return {
     ...el,
     meme: JSON.parse(el.spec) as meme.Meme
   }
 }))
-const pools = computed(() => swap.pools())
+const pools = computed(() => swap.Swap.pools())
 
 const buyToken = ref(undefined as unknown as Token)
 const buyTokenId = computed(() => buyToken.value?.applicationId || constants.LINERA_NATIVE_ID)

@@ -26,7 +26,10 @@ const handleCheCkoNotification = (msg: unknown) => {
 }
 
 const handleNativeNotification = (msg: unknown) => {
-  console.log(msg)
+  const _msg = msg as Record<string, Record<string, unknown>>
+  if (_msg.reason?.NewBlock) {
+    Wallet.getProviderState(user.WalletType.Metamask)
+  }
 }
 
 const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {

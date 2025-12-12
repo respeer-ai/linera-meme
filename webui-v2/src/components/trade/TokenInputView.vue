@@ -12,7 +12,7 @@
         <template #option='scope'>
           <q-item dense v-bind='scope.itemProps' class='items-center'>
             <q-avatar size='24px'>
-              <q-img :src='ams.applicationLogo(scope.opt as ams.Application) || constants.LINERA_LOGO' width='24px' height='24px' fit='contain' />
+              <q-img :src='ams.Ams.applicationLogo(scope.opt as ams.Application) || constants.LINERA_LOGO' width='24px' height='24px' fit='contain' />
             </q-avatar>
             <div class='q-ml-md'>
               <div class='row'>
@@ -79,7 +79,7 @@ const _tokens = computed(() => tokens.value.map((el) => {
 }))
 
 const token = defineModel<Token>()
-const tokenLogo = computed(() => ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
+const tokenLogo = computed(() => ams.Ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
 const tokenTicker = computed(() => token.value?.meme?.ticker || constants.LINERA_TICKER)
 const tokenApplicationId = computed(() => token.value?.applicationId || constants.LINERA_NATIVE_ID)
 
@@ -87,7 +87,7 @@ const amount = defineModel<string>('amount')
 const balance = ref('0')
 const nativeBalance = computed(() => user.User.balance())
 
-const tokenChain = computed(() => proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
+const tokenChain = computed(() => proxy.Proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
 const tokenApplication = computed(() => {
   return {
     chain_id: tokenChain.value?.chainId as string,
@@ -118,7 +118,7 @@ watch(token, async () => {
 
 onMounted(() => {
   token.value = tokens.value[0]
-  proxy.getMemeApplications(() => {
+  proxy.Proxy.getMemeApplications(() => {
     void getBalance()
   })
 })

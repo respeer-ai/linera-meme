@@ -78,7 +78,7 @@ const token = toRef(props, 'token')
 
 const videoUrl = 'https://www.youtube.com/embed/xIfcHh0bPbk'
 
-const tokenLogo = computed(() => ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
+const tokenLogo = computed(() => ams.Ams.applicationLogo(token.value as ams.Application) || constants.LINERA_LOGO)
 const tokenTicker = computed(() => token.value?.meme?.ticker || constants.LINERA_TICKER)
 const tokenDescription = computed(() => token.value?.description || constants.LINERA_DESCRIPTION)
 </script>

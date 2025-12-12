@@ -54,7 +54,7 @@ interface Props {
 const props = defineProps<Props>()
 const pool = toRef(props, 'pool')
 
-const token0Application = computed(() => ams.application(pool.value?.token0))
-const token1Application = computed(() => ams.application(pool.value?.token1))
+const token0Application = computed(() => ams.Ams.application(pool.value?.token0))
+const token1Application = computed(() => ams.Ams.application(pool.value?.token1))
 
 </script>

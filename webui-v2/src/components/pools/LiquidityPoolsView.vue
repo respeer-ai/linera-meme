@@ -77,6 +77,6 @@ import SectionTitleView from '../common/SectionTitleView.vue'
 import SwapPairNarrowView from './SwapPairNarrowView.vue'
 import SwapPairWideView from './SwapPairWideView.vue'
 
-const pools = computed(() => swap.pools())
+const pools = computed(() => swap.Swap.pools())
 
 </script>

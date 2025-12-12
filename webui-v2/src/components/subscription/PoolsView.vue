@@ -4,12 +4,25 @@
 
 <script setup lang='ts'>
 import { swap } from 'src/stores/export'
-import { onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
+import { throttle } from 'lodash-es'
 
-// TODO: subscription pools
+const blockHash = computed(() => swap.Swap.blockHash())
+
+const getPools = throttle(() => {
+  swap.Swap.getPools()
+}, 10000, {
+  leading: false, 
+  trailing: true
+})
+
+watch(blockHash, () => {
+  getPools()
+})
 
 onMounted(() => {
-  swap.getPools()
+  swap.Swap.getPools()
+  swap.Swap.initialize()
 })
 
 </script>
