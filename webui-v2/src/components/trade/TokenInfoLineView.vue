@@ -2,7 +2,7 @@
   <div class='row' :style='{ borderBottom: underline ? "1px solid var(--q-dark)" : "", paddingBottom: underline ? "12px" : "0" }'>
     <div class='text-neutral'>{{ label }}</div>
     <q-space />
-    <div :style='{ color: valueColorVar }' :class='[ valueBold ? "text-bold" : "" ]'>{{ value }}</div>
+    <div :style='{ color: valueColorVar }' :class='[ valueBold ? "text-bold" : "" ]' :v-html='value' />
   </div>
 </template>
 
