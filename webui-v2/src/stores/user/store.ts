@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { dbModel } from '../../model'
 import { type Account, _Account } from '../account'
-import { WalletConnectType } from './types'
+import { WalletType } from './types'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -9,7 +9,7 @@ export const useUserStore = defineStore('user', {
     chainId: undefined as unknown as string,
     accountBalance: '0.',
     chainBalance: '0.',
-    walletConnectionType: WalletConnectType.NotConnected
+    walletType: WalletType.NotConnected
   }),
   getters: {
     account(): () => Promise<Account> {

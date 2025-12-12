@@ -5,13 +5,13 @@
       <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width' @click='onCheCkoClick' :disabled='!cheCkoInstalled'>
         <div class='row items-center full-width q-py-sm'>
           <q-img :src='constants.CHECKO_LOGO' width='32px' height='32px' />
-          <div class='q-ml-md font-size-16'>{{ user.WalletConnectType.CheCko }}</div>
+          <div class='q-ml-md font-size-16'>{{ user.WalletType.CheCko }}</div>
         </div>
       </q-btn>
       <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width q-mt-sm' @click='onMetamaskClick' :disabled='!metamaskInstalled'>
         <div class='row items-center full-width q-py-sm'>
           <q-img :src='constants.METAMASK_LOGO' width='32px' height='32px' />
-          <div class='q-ml-md font-size-16'>{{ user.WalletConnectType.Metamask }}</div>
+          <div class='q-ml-md font-size-16'>{{ user.WalletType.Metamask }}</div>
         </div>
       </q-btn>
     </div>
@@ -24,49 +24,30 @@
 import { constants } from 'src/constant'
 import { user } from 'src/stores/export'
 import { onMounted, ref } from 'vue'
-import { Web3 } from 'web3'
-import { getProviderState, walletReadyCall } from './GetWalletInfo'
-import * as metamask from '@linera/metamask'
+import { Wallet } from 'src/wallet'
 
 const cheCkoInstalled = ref(false)
 const metamaskInstalled = ref(false)
 
-const emit = defineEmits<{(e: 'done'): void
+const emit = defineEmits<{
+  (e: 'done'): void
   (e: 'error', error: string): void
 }>()
 
-const onCheCkoClick = async () => {
-  if (!window.linera) {
-    return window.open('https://github.com/respeer-ai/linera-wallet.git')
-  }
-
-  try {
-    const web3 = new Web3(window.linera)
-    await web3.eth.requestAccounts()
-
-    getProviderState(window.ethereum, user.WalletConnectType.CheCko)
-
+const onConnectWallet = async (walletType: user.WalletType) => {
+  Wallet.connect(walletType, () => {
     emit('done')
-  } catch (e) {
+  }, (e) => {
     emit('error', JSON.stringify(e))
-  }
+  })
+}
+
+const onCheCkoClick = async () => {
+  onConnectWallet(user.WalletType.CheCko)
 }
 
 const onMetamaskClick = async () => {
-  if (!window.ethereum) {
-    return window.open('https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn?hl=zh-CN&utm_source=ext_sidebar')
-  }
-
-  try {
-    const signer = new metamask.Signer()
-    await signer.address()
-
-    getProviderState(window.ethereum, user.WalletConnectType.Metamask)
-
-    emit('done')
-  } catch (e) {
-    emit('error', JSON.stringify(e))
-  }
+  onConnectWallet(user.WalletType.Metamask)
 }
 
 const updateWalletState = () => {
@@ -75,7 +56,7 @@ const updateWalletState = () => {
 }
 
 onMounted(() => {
-  walletReadyCall(() => {
+  Wallet.waitOnReady(() => {
     updateWalletState()
   })
 })
