@@ -9,7 +9,7 @@ export const useUserStore = defineStore('user', {
     chainId: undefined as unknown as string,
     accountBalance: '0.',
     chainBalance: '0.',
-    walletType: WalletType.NotConnected
+    walletType: WalletType.CheCko
   }),
   getters: {
     account(): () => Promise<Account> {

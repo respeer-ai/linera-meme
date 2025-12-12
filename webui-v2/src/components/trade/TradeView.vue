@@ -35,7 +35,7 @@
   </div>
   <q-dialog v-model='reviewing'>
     <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
-      <trade-info-view :buy-token='buyToken' :sell-token='sellToken' :buy-amount='buyAmount' :sell-amount='sellAmount' :sell-price='sellPrice' @done='onSwapDone' />
+      <trade-info-view :buy-token='buyToken' :sell-token='sellToken' :buy-amount='buyAmount' :sell-amount='sellAmount' :sell-price='sellPrice' @done='onSwapDone' @error='onSwapError' />
     </div>
   </q-dialog>
 </template>
@@ -92,7 +92,7 @@ const sellTokens = computed(() => tokens.value.filter((el) => {
   }) >= 0
 }))
 
-const pool = computed(() =>pools.value.find((el) => {
+const pool = computed(() => pools.value.find((el) => {
   return (el.token0 === buyTokenId.value && el.token1 === sellTokenId.value) ||
          (el.token1 === buyTokenId.value && el.token0 === sellTokenId.value)
 }))
@@ -159,10 +159,16 @@ const onSwapDone = () => {
   buyAmount.value = '0'
   sellAmount.value = '0'
   reviewing.value = false
+  btnStep.value = 0
+}
+
+const onSwapError = () => {
+  reviewing.value = false
 }
 
 onMounted(() => {
   buyToken.value = tokens.value[0] as Token
+  sellToken.value = undefined as unknown as Token
 })
 
 </script>

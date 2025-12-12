@@ -58,7 +58,7 @@
     </div>
 
     <div class='q-mt-lg'>
-      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' @click='onSwapClick'>
+      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' @click='onSwapClick' :loading='swapping'>
         Swap
       </q-btn>
     </div>
@@ -72,6 +72,7 @@ import { constants } from 'src/constant'
 import { ams } from 'src/stores/export'
 
 import TokenInfoLineView from './TokenInfoLineView.vue'
+import { Wallet } from 'src/wallet'
 
 interface Props {
   sellToken: Token
@@ -93,17 +94,27 @@ const sellTokenLogo = computed(() => ams.Ams.applicationLogo(sellToken.value) ||
 const buyTokenLogo = computed(() => ams.Ams.applicationLogo(buyToken.value) || constants.LINERA_LOGO)
 
 const expanded = ref(false)
+const swapping = ref(false)
 
 const emit = defineEmits<{
-  (e: 'done'): void
+  (e: 'done'): void,
+  (e: 'error', error: string): void
 }>()
 
 const onExpandClick = () => {
   expanded.value = !expanded.value
 }
 
-const onSwapClick = () => {
-  emit('done')
+const onSwapClick = async () => {
+  swapping.value = true
+
+  await Wallet.swap(sellToken.value, buyToken.value, sellAmount.value, () => {
+    emit('done')
+    swapping.value = false
+  }, (e) => {
+    emit('error', e)
+    swapping.value = false
+  })
 }
 
 </script>
