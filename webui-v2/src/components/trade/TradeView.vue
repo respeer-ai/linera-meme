@@ -17,7 +17,7 @@
           <q-icon name='keyboard_arrow_down' size='18px' />
         </div>
       </div>
-      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm' :loading='checkingPrice' :disabled='btnActions[btnStep]?.disable'>
+      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' :disabled='btnActions[btnStep]?.disable' @click='onSwapClick'>
         <template #loading>
           <q-spinner-hourglass class="on-left" />
           {{ btnActions[btnStep]?.label }}
@@ -33,6 +33,11 @@
       <TokenInfoView :token='buyToken' />
     </q-card>
   </div>
+  <q-dialog v-model='reviewing'>
+    <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
+      <trade-info-view :buy-token='buyToken' :sell-token='sellToken' :buy-amount='buyAmount' :sell-amount='sellAmount' :sell-price='sellPrice' @done='onSwapDone' />
+    </div>
+  </q-dialog>
 </template>
 
 <script setup lang='ts'>
@@ -45,6 +50,7 @@ import { constants } from 'src/constant'
 import TokenInputView from './TokenInputView.vue'
 import TokenInfoView from './TokenInfoView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
+import TradeInfoView from './TradeInfoView.vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
 
@@ -66,6 +72,8 @@ const buyTokens = computed(() => tokens.value.filter((el) => {
            (el.applicationId === _el.token0 && _el.token1 === sellTokenId.value)
   }) >= 0
 }))
+
+const reviewing = ref(false)
 
 watch(tokens, () => {
   if (buyToken.value === undefined && sellToken.value === undefined) {
@@ -110,8 +118,6 @@ watch(buyAmount, () => {
   }, 1000)
 })
 
-const checkingPrice = ref(false)
-
 interface BtnActionItem {
   label: string
   disable: boolean
@@ -143,6 +149,16 @@ const onSwitchTokenClick = () => {
   const amount = sellAmount.value
   sellAmount.value = buyAmount.value
   buyAmount.value = amount
+}
+
+const onSwapClick = () => {
+  reviewing.value = true
+}
+
+const onSwapDone = () => {
+  buyAmount.value = '0'
+  sellAmount.value = '0'
+  reviewing.value = false
 }
 
 onMounted(() => {

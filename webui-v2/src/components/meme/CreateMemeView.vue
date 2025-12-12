@@ -54,7 +54,7 @@
         class='q-mt-md q-mb-lg font-size-20'
         expand-icon='keyboard_double_arrow_down'
         icon='menu'
-        label='More Options'
+        label='Expand'
       >
         <q-toggle dense v-model='hasInitialLiquidity' class='q-mt-md font-size-16' label='Initial Liquidity' />
         <div v-if='hasInitialLiquidity'>
