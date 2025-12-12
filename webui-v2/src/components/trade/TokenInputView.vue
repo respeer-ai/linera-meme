@@ -148,6 +148,11 @@ watch(
 
 watch(token, async () => {
   getBalanceThrottle()
+
+  if (subscription.value) {
+    subscription.value.unsubscribe()
+    subscription.value = undefined as unknown as Subscription
+  }
 })
 
 onMounted(() => {
