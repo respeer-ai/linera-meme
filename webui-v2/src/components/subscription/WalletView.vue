@@ -12,7 +12,7 @@ const walletConnected = computed(() => user.User.walletConnected())
 const subscriptionId = ref(undefined as unknown as string)
 
 watch(walletConnected, () => {
-  Wallet.subscribe(user.User.walletConnectedType(), (_subscriptionId: string) => {
+  Wallet.subscribe((_subscriptionId: string) => {
     subscriptionId.value = _subscriptionId
   }, subscriptionHandler)
 })
@@ -21,14 +21,14 @@ const handleCheCkoNotification = (msg: unknown) => {
   const _msg = msg as Record<string, unknown>
   const data = _msg.data as Record<string, Record<string, Record<string, Record<string, Record<string, unknown>>>>>
   if (data?.result?.notifications?.reason?.NewBlock) {
-    Wallet.getProviderState(user.WalletType.CheCko)
+    Wallet.getProviderState()
   }
 }
 
 const handleNativeNotification = (msg: unknown) => {
   const _msg = msg as Record<string, Record<string, unknown>>
   if (_msg.reason?.NewBlock) {
-    Wallet.getProviderState(user.WalletType.Metamask)
+    Wallet.getProviderState()
   }
 }
 
@@ -43,9 +43,9 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
 
 onMounted(() => {
   Wallet.waitOnReady(() => {
-    Wallet.getProviderState(user.WalletType.CheCko, async () => {
+    Wallet.getProviderState(async () => {
       await Wallet.connect(user.WalletType.Metamask, () => {
-        Wallet.getProviderState(user.WalletType.Metamask)
+        Wallet.getProviderState()
       }, (e) => {
         console.log('Failed connect metamask', e)
       })

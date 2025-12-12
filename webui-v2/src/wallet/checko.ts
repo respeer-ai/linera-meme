@@ -1,8 +1,10 @@
 import { account, user } from 'src/stores/export'
 import { Provider } from './provider'
 import { dbModel, rpcModel } from 'src/model'
-import { BALANCES } from 'src/graphql'
+import { BALANCES, SWAP } from 'src/graphql'
 import { Web3 } from 'web3'
+import * as lineraWasm from '../../dist/wasm/linera_wasm'
+import { stringify } from 'lossless-json'
 
 export class CheCko {
   static subscribe = (onSubscribed: (subscriptionId: string) => void, onData: (walletType: user.WalletType, msg: unknown) => void) => {
@@ -82,5 +84,29 @@ export class CheCko {
     } catch (e: unknown) {
       error?.(e as string)
     }
+  }
+
+  static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const publicKey = user.User.publicKey()
+    const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(SWAP.loc?.source?.body as string, stringify(variables) as string)
+    return new Promise((resolve, reject) => {
+      window.linera.request({
+        method: 'linera_graphqlMutation',
+        params: {
+          applicationId: poolApplicationId,
+          publicKey,
+          query: {
+            query: SWAP.loc?.source?.body,
+            variables,
+            applicationOperationBytes: queryBytes
+          },
+          operationName: 'createMeme'
+        }
+      }).then((hash) => {
+        resolve(hash as string)
+      }).catch((e) => {
+        reject(new Error(e))
+      })
+    })
   }
 }

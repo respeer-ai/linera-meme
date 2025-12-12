@@ -21,8 +21,15 @@
 </template>
 
 <script setup lang='ts'>
+import initWasm from '../../dist/wasm/linera_wasm'
+import wasmModuleUrl from '../../dist/wasm/linera_wasm_bg.wasm?url'
+import { onMounted } from 'vue'
 
 import HeaderView from 'src/components/header/HeaderView.vue'
 import FooterView from 'src/components/footer/FooterView.vue'
+
+onMounted(async () => {
+  await initWasm(await fetch(wasmModuleUrl))
+})
 
 </script>

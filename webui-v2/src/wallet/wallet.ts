@@ -1,6 +1,7 @@
-import { user } from 'src/stores/export'
+import { account, type ams, swap, user } from 'src/stores/export'
 import { CheCko } from './checko'
 import { LineraWebClient } from './linera_web_client'
+import { constants } from 'src/constant'
 
 export class Wallet {
   static installed = () => {
@@ -16,7 +17,9 @@ export class Wallet {
     f(...args)
   }
 
-  static getProviderState = (walletType: user.WalletType, error?: () => void) => {
+  static getProviderState = (error?: () => void) => {
+    const walletType = user.User.walletConnectedType()
+
     switch (walletType) {
       case user.WalletType.CheCko:
         return CheCko.getProviderState(() => {}, error)
@@ -25,7 +28,9 @@ export class Wallet {
     }
   }
 
-  static getBalance = (walletType: user.WalletType) => {
+  static getBalance = () => {
+    const walletType = user.User.walletConnectedType()
+
     switch (walletType) {
       case user.WalletType.CheCko:
         return CheCko.getBalance()
@@ -43,7 +48,9 @@ export class Wallet {
     }
   }
 
-  static subscribe = (walletType: user.WalletType, onSubscribed: (subscriptionId: string) => void, onData: (walletType: user.WalletType, msg: unknown) => void) => {
+  static subscribe = (onSubscribed: (subscriptionId: string) => void, onData: (walletType: user.WalletType, msg: unknown) => void) => {
+    const walletType = user.User.walletConnectedType()
+
     switch (walletType) {
       case user.WalletType.CheCko:
         return CheCko.subscribe(onSubscribed, onData)
@@ -54,5 +61,47 @@ export class Wallet {
 
   static unsubscribe = (subscriptionId: string) => {
     CheCko.unsubscribe(subscriptionId)
+  }
+
+  static _swap = async (sellToken: ams.Application, buyToken: ams.Application, amount: string) => {
+    const pools = swap.Swap.pools()
+    const sellTokenId = sellToken?.applicationId || constants.LINERA_NATIVE_ID
+    const buyTokenId = buyToken?.applicationId || constants.LINERA_NATIVE_ID
+
+    const pool = pools.find((el) => {
+      return (el.token0 === buyTokenId && el.token1 === sellTokenId) ||
+            (el.token1 === buyTokenId && el.token0 === sellTokenId)
+    })
+    if (!pool) {
+      throw new Error('Invalid pool')
+    }
+
+    const variables = {
+      amount0In: sellToken === pool.token0 ? amount : undefined,
+      amount1In: sellToken === pool.token1 ? amount : undefined,
+      amount0OutMin: undefined,
+      amount1OutMin: undefined,
+      to: undefined,
+      blockTimestamp: undefined
+    }
+
+    const walletType = user.User.walletConnectedType()
+    const poolApplicationId = account._Account.accountApplication(pool.poolApplication as account.Account) as string
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.swap(poolApplicationId, variables)
+      case user.WalletType.Metamask:
+        return await LineraWebClient.swap(poolApplicationId, variables)
+    }
+  }
+
+  static swap = async (sellToken: ams.Application, buyToken: ams.Application, amount: string, done?: () => void, error?: (e: string) => void) => {
+    try {
+      await Wallet._swap(sellToken, buyToken, amount)
+      done?.()
+    } catch (e) {
+      error?.(JSON.stringify(e))
+    }
   }
 }

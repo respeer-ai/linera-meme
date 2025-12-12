@@ -2,6 +2,9 @@ import { user } from 'src/stores/export'
 import * as linera from '@linera/client'
 import * as metamask from '@linera/metamask'
 import { Provider } from './provider'
+import { stringify } from 'lossless-json'
+import { SWAP } from 'src/graphql'
+import { print } from 'graphql'
 
 export class LineraWebClient {
   static wallet: linera.Wallet
@@ -58,5 +61,14 @@ export class LineraWebClient {
     const accountBalance = await LineraWebClient.client.balance()
 
     user.User.setChainBalance(accountBalance)
+  }
+
+  static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const application = await LineraWebClient.client.application(poolApplicationId)
+    const gqlStr = stringify({
+      query: print(SWAP),
+      variables
+    }) as string
+    await application.query(gqlStr)
   }
 }
