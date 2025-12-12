@@ -47,9 +47,15 @@ export const getMetamaskBalance = async (provider: MetaMaskInpageProvider) => {
 }
 
 export const getProviderState = (provider: MetaMaskInpageProvider, walletType: user.WalletConnectType, error?: () => void) => {
+  console.log(`Connecting wallet ${walletType} ...`)
+
   provider.request({
     method: 'metamask_getProviderState'
   }).then(async (result) => {
+    if (!((result as Record<string, string>)?.accounts)?.length) {
+      return error?.()
+    }
+
     user.User.setChainId(((result as Record<string, string>)?.chainId)?.substring(2) as string)
     user.User.setPublicKey(((result as Record<string, string>)?.accounts)?.[0] as string)
     user.User.setWalletConnectedType(walletType)
