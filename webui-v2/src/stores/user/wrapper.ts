@@ -26,7 +26,7 @@ export class User {
   static chainBalance = () => user.chainBalance
   static accountBalance = () => user.accountBalance
   static balance = () => (Number(user.chainBalance) + Number(user.accountBalance)).toString()
-  static walletConnected = () => user.chainId && user.publicKey
+  static walletConnected = () => user.chainId !== undefined && user.publicKey !== undefined
   static account = async () => await user.account()
   static walletConnectedType = () => user.walletType
 }

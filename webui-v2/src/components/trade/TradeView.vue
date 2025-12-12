@@ -2,11 +2,11 @@
   <div class='row content-start wrap'>
     <div class='trade-action'>
       <div class='row items-center'>
-        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' />
+        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' :disable='!walletConnected' />
         <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
           <q-icon name='arrow_forward' size='32px' />
         </div>
-        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' />
+        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' :disable='!walletConnected' />
       </div>
       <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
         <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
@@ -17,12 +17,12 @@
           <q-icon name='keyboard_arrow_down' size='18px' />
         </div>
       </div>
-      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm' :loading='checkingPrice' :disabled='btnActions[0]?.disable'>
+      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm' :loading='checkingPrice' :disabled='btnActions[btnStep]?.disable'>
         <template #loading>
           <q-spinner-hourglass class="on-left" />
-          {{ btnActions[0]?.label }}
+          {{ btnActions[btnStep]?.label }}
         </template>
-        {{ btnActions[0]?.label }}
+        {{ btnActions[btnStep]?.label }}
       </q-btn>
       <q-card flat class='q-mt-md radius-8' style='overflow: hidden;'>
         <price-chart-view height='440px' />
@@ -39,12 +39,14 @@
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
 import { computed, onMounted, ref, watch } from 'vue'
-import { ams, meme, swap } from 'src/stores/export'
+import { ams, meme, swap, user } from 'src/stores/export'
 import { constants } from 'src/constant'
 
 import TokenInputView from './TokenInputView.vue'
 import TokenInfoView from './TokenInfoView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
+
+const walletConnected = computed(() => user.User.walletConnected())
 
 const tokens = computed(() => ams.Ams.applications().map((el) => {
   return {
@@ -92,6 +94,9 @@ watch(sellAmount, () => {
   const price = Number((sellToken.value?.applicationId === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
   setTimeout(() => {
     buyAmount.value = ((Number(sellAmount.value) * price) || 0).toFixed(6)
+    if (btnStep.value === 0 && Number(buyAmount.value) > 0 && Number(sellAmount.value) > 0) {
+      btnStep.value += 1
+    }
   }, 1000)
 })
 
@@ -99,6 +104,9 @@ watch(buyAmount, () => {
   const price = Number((buyToken.value?.applicationId === pool.value?.token1 ? pool.value?.token1Price : pool.value?.token0Price) as string)
   setTimeout(() => {
     sellAmount.value = ((Number(buyAmount.value) * price) || 0).toFixed(4)
+    if (btnStep.value === 0 && Number(buyAmount.value) > 0 && Number(sellAmount.value) > 0) {
+      btnStep.value += 1
+    }
   }, 1000)
 })
 
@@ -111,7 +119,6 @@ interface BtnActionItem {
 
 enum BtnAction {
   InputAmount = 'Input amount',
-  CheckingPrice = 'Checking price',
   Review = 'Review',
   Swap = 'Swap'
 }
@@ -120,15 +127,13 @@ const btnActions = ref([{
   label: BtnAction.InputAmount,
   disable: true
 }, {
-  label: BtnAction.CheckingPrice,
-  disable: true
-}, {
   label: BtnAction.Review,
-  disable: true
+  disable: false
 }, {
   label: BtnAction.Swap,
   disable: false
 }] as BtnActionItem[])
+const btnStep = ref(0)
 
 const onSwitchTokenClick = () => {
   const token = buyToken.value
