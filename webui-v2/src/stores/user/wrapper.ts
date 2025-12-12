@@ -1,7 +1,7 @@
 import { useUserStore } from './store'
 import { type Account, _Account } from '../account'
 import { dbModel } from 'src/model'
-import { type WalletConnectType } from './types'
+import { type WalletType } from './types'
 
 const user = useUserStore()
 
@@ -19,7 +19,7 @@ export class User {
   static setPublicKey = (publicKey: string) => user.publicKey = publicKey
   static setChainBalance = (balance: string) => user.chainBalance = balance
   static setAccountBalance = (balance: string) => user.accountBalance = balance
-  static setWalletConnectedType = (walletType: WalletConnectType) => user.walletConnectionType = walletType
+  static setWalletConnectedType = (walletType: WalletType) => user.walletType = walletType
 
   static chainId = () => user.chainId
   static publicKey = () => user.publicKey
@@ -28,5 +28,5 @@ export class User {
   static balance = () => (Number(user.chainBalance) + Number(user.accountBalance)).toString()
   static walletConnected = () => user.chainId && user.publicKey
   static account = async () => await user.account()
-  static walletConnectedType = () => user.walletConnectionType
+  static walletConnectedType = () => user.walletType
 }

@@ -14,8 +14,8 @@ import { shortid } from 'src/utils'
 import { computed } from 'vue'
 
 const walletType = computed(() => user.User.walletConnectedType())
-const walletLogo = computed(() => walletType.value === user.WalletConnectType.Metamask ? constants.METAMASK_LOGO : constants.CHECKO_LOGO)
-const balance = computed(() => user.User.balance())
+const walletLogo = computed(() => walletType.value === user.WalletType.Metamask ? constants.METAMASK_LOGO : constants.CHECKO_LOGO)
+const balance = computed(() => Number(user.User.balance()).toFixed(4))
 const address = computed(() => user.User.publicKey())
 
 </script>
