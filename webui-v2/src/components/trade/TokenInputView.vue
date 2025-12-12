@@ -40,7 +40,20 @@
     <div class='q-mt-sm row'>
       <div class='font-size-16 text-neutral'>$ 0</div>
       <q-space />
-      <div class='font-size-16 text-neutral'>{{ balance }} {{ tokenTicker }}</div>
+      <div class='font-size-16 text-neutral flex items-center'>
+        <span v-if='updatingBalance'>
+          <q-spinner-hourglass
+            color='neutral'
+            size='1em'
+            class='q-mb-xs'
+          />
+        </span>
+        <span v-else>
+          {{ balance }}
+        </span>
+
+        <span class='q-ml-sm'>{{ tokenTicker }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -116,10 +129,14 @@ watch(proxyBlockHash, async () => {
   }
 })
 
+const updatingBalance = ref(false)
+
 const getBalance = async () =>{
   if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
+    updatingBalance.value = true
     await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
       balance.value = Number(_balance).toFixed(4)
+      updatingBalance.value = false
     })
   } else {
     balance.value = nativeBalance.value
