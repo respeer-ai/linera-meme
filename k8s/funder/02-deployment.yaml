@@ -27,7 +27,7 @@ spec:
           for wallet in /shared-app-data/MAKER_WALLET_CHAIN_OWNER.*; do
             CHAIN_ID=$(cat $wallet | head -n 1)
             index="${wallet##*.}"
-            MAKER_WALLETS="$MAKER_WALLETS $CHAIN_ID@maker-wallet-service-$index:8080"
+            MAKER_WALLETS="$MAKER_WALLETS $CHAIN_ID@maker-wallet-service-$index.maker-wallet-service:8080"
           done
           SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 MAKER_WALLETS="$MAKER_WALLETS" ./funder-entrypoint.sh
         env:
