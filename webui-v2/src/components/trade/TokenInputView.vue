@@ -46,12 +46,14 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, ref, toRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
 import { ams, meme, proxy, user } from 'src/stores/export'
 import { constants } from 'src/constant'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
+import { Subscription } from 'src/subscription'
+import { throttle } from 'lodash-es'
 
 interface Props {
   action?: TokenAction
@@ -90,6 +92,8 @@ const amount = defineModel<string>('amount')
 const balance = ref('0')
 const nativeBalance = computed(() => user.User.balance())
 
+const proxyBlockHash = computed(() => proxy.Proxy.blockHash())
+
 const tokenChain = computed(() => proxy.Proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
 const tokenApplication = computed(() => {
   return {
@@ -104,9 +108,17 @@ watch(nativeBalance, () => {
   }
 })
 
+watch(proxyBlockHash, async () => {
+  if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
+    await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
+      balance.value = Number(_balance).toFixed(4)
+    })
+  }
+})
+
 const getBalance = async () =>{
   if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
-    await meme.balanceOfMeme(tokenApplication.value, (_balance: string) => {
+    await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
       balance.value = Number(_balance).toFixed(4)
     })
   } else {
@@ -114,16 +126,42 @@ const getBalance = async () =>{
   }
 }
 
-watch(token, async () => {
-  await getBalance()
+const subscription = ref(undefined as unknown as Subscription)
 
+const getBalanceThrottle = throttle(async () => {
+  await getBalance()
+}, 10000, {
+  leading: false, 
+  trailing: true
+})
+
+watch(
+  [() => tokenApplication.value, () => tokenChain.value],
+  ([newApp, newChain]) => {
+    if (newApp && newChain) {
+      subscription.value = new Subscription(meme.MemeWrapper.applicationUrl(newApp) as string, constants.PROXY_WS_URL, newChain.chainId, () => {
+        getBalanceThrottle()
+      })
+    }
+  }
+)
+
+watch(token, async () => {
+  getBalanceThrottle()
 })
 
 onMounted(() => {
   token.value = tokens.value[0]
   proxy.Proxy.getMemeApplications(() => {
-    void getBalance()
+    getBalanceThrottle()
   })
+})
+
+onUnmounted(() => {
+  if (subscription.value) {
+    subscription.value.unsubscribe()
+    subscription.value = undefined as unknown as Subscription
+  }
 })
 
 </script>
