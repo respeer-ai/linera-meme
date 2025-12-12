@@ -1,4 +1,4 @@
-import { gql } from '@apollo/client/core'
+import { gql } from '@apollo/client/core';
 
 export const SWAP = gql`
   mutation swap(
@@ -18,29 +18,23 @@ export const SWAP = gql`
       blockTimestamp: $blockTimestamp
     )
   }
-`
+`;
 
 export const LATEST_TRANSACTIONS = gql`
   query latestTransactions($startId: Int) {
     latestTransactions(startId: $startId)
   }
-`
+`;
 
 export const CALCULATE_AMOUNT_LIQUIDITY = gql`
-  query calculateAmountLiquidity(
-    $amount0Desired: Amount
-    $amount1Desired: Amount
-  ) {
-    calculateAmountLiquidity(
-      amount0Desired: $amount0Desired
-      amount1Desired: $amount1Desired
-    ) {
+  query calculateAmountLiquidity($amount0Desired: Amount, $amount1Desired: Amount) {
+    calculateAmountLiquidity(amount0Desired: $amount0Desired, amount1Desired: $amount1Desired) {
       liquidity
       amount0
       amount1
     }
   }
-`
+`;
 
 export const LIQUIDITY = gql`
   query liquidity($owner: String!) {
@@ -50,7 +44,7 @@ export const LIQUIDITY = gql`
       amount1
     }
   }
-`
+`;
 
 export const ADD_LIQUIDITY = gql`
   mutation addLiquidity(
@@ -70,7 +64,7 @@ export const ADD_LIQUIDITY = gql`
       blockTimestamp: $blockTimestamp
     )
   }
-`
+`;
 
 export const REMOVE_LIQUIDITY = gql`
   mutation removeLiquidity(
@@ -88,4 +82,4 @@ export const REMOVE_LIQUIDITY = gql`
       blockTimestamp: $blockTimestamp
     )
   }
-`
+`;

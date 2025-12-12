@@ -1,15 +1,15 @@
-import { _Account, type Account } from '../account'
-import { NotifyType } from '../notify'
-import { usePoolStore } from './store'
-import { type LiquidityAmount } from './types'
+import { _Account, type Account } from '../account';
+import { NotifyType } from '../notify';
+import { usePoolStore } from './store';
+import { type LiquidityAmount } from './types';
 
-const pool = usePoolStore()
+const pool = usePoolStore();
 
 export const calculateAmountLiquidity = (
   amount0Desired: string,
   amount1Desired: string,
   poolApplication: Account,
-  done?: (liquidity?: LiquidityAmount) => void
+  done?: (liquidity?: LiquidityAmount) => void,
 ) => {
   pool.calculateLiquidityAmountPair(
     {
@@ -20,22 +20,22 @@ export const calculateAmountLiquidity = (
           Title: 'Calculate amount liquidity',
           Message: 'Failed calculate amount liquidity',
           Popup: true,
-          Type: NotifyType.Error
-        }
-      }
+          Type: NotifyType.Error,
+        },
+      },
     },
     poolApplication,
     (error: boolean, liquidity?: LiquidityAmount) => {
-      if (error) return
-      done?.(liquidity)
-    }
-  )
-}
+      if (error) return;
+      done?.(liquidity);
+    },
+  );
+};
 
 export const liquidity = (
   account: Account,
   poolApplication: Account,
-  done?: (liquidity?: LiquidityAmount) => void
+  done?: (liquidity?: LiquidityAmount) => void,
 ) => {
   pool.liquidity(
     {
@@ -45,14 +45,14 @@ export const liquidity = (
           Title: 'Owner liquidity',
           Message: 'Failed get owner liquidity',
           Popup: true,
-          Type: NotifyType.Error
-        }
-      }
+          Type: NotifyType.Error,
+        },
+      },
     },
     poolApplication,
     (error: boolean, liquidity?: LiquidityAmount) => {
-      if (error) return
-      done?.(liquidity)
-    }
-  )
-}
+      if (error) return;
+      done?.(liquidity);
+    },
+  );
+};

@@ -1,5 +1,5 @@
 // TODO: generate from graphql
 export interface Account {
-  chain_id: string
-  owner?: string
+  chain_id: string;
+  owner?: string;
 }

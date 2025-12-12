@@ -1,15 +1,13 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
-import { defineConfig } from '#q-app/wrappers'
-import { fileURLToPath } from 'node:url'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import path from 'node:path'
+import { defineConfig } from '#q-app/wrappers';
+import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import path from 'node:path';
 
-const packageJson = JSON.parse(
-  readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
-)
+const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
 
 export default defineConfig((ctx) => {
   return {
@@ -63,7 +61,7 @@ export default defineConfig((ctx) => {
       env: {
         VITE_PACKAGE_NAME: packageJson.name,
         VITE_PRODUCT_NAME: packageJson.productName,
-        VITE_APP_VERSION: packageJson.version
+        VITE_APP_VERSION: packageJson.version,
       },
       // rawDefine: {}
       // ignorePublicFolder: true,
@@ -71,43 +69,45 @@ export default defineConfig((ctx) => {
       // polyfillModulePreload: true,
       // distDir
 
-      extendViteConf (viteConf) {
+      extendViteConf(viteConf) {
         viteConf.define = {
           ...viteConf.define,
           'import.meta.env.VITE_PACKAGE_NAME': JSON.stringify(packageJson.name),
-          'import.meta.env.VITE_PRODUCT_NAME': JSON.stringify(packageJson.productName || packageJson.name),
+          'import.meta.env.VITE_PRODUCT_NAME': JSON.stringify(
+            packageJson.productName || packageJson.name,
+          ),
           'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
-        }
+        };
 
-        viteConf.optimizeDeps = viteConf.optimizeDeps || {}
-        viteConf.optimizeDeps.exclude = ['@linera/client']
+        viteConf.optimizeDeps = viteConf.optimizeDeps || {};
+        viteConf.optimizeDeps.exclude = ['@linera/client'];
 
         const lineraEntry = path.resolve(
           path.dirname(fileURLToPath(import.meta.url)),
-          'node_modules/@linera/client/dist/index.js'
-        )
+          'node_modules/@linera/client/dist/index.js',
+        );
 
-        viteConf.build = viteConf.build || {}
-        viteConf.build.rollupOptions = viteConf.build.rollupOptions || {}
+        viteConf.build = viteConf.build || {};
+        viteConf.build.rollupOptions = viteConf.build.rollupOptions || {};
 
-        const originalInput = viteConf.build.rollupOptions.input
-        const inputObj: Record<string, string> = {}
+        const originalInput = viteConf.build.rollupOptions.input;
+        const inputObj: Record<string, string> = {};
 
         if (originalInput && typeof originalInput === 'object' && !Array.isArray(originalInput)) {
           for (const key of Object.keys(originalInput)) {
-            const v = (originalInput as Record<string, any>)[key]
-            if (typeof v === 'string') inputObj[key] = v
+            const v = (originalInput as Record<string, any>)[key];
+            if (typeof v === 'string') inputObj[key] = v;
           }
         } else if (typeof originalInput === 'string') {
-          inputObj['main'] = originalInput
+          inputObj['main'] = originalInput;
         }
 
-        inputObj['linera-client'] = lineraEntry
-        viteConf.build.rollupOptions.input = inputObj
+        inputObj['linera-client'] = lineraEntry;
+        viteConf.build.rollupOptions.input = inputObj;
 
-        viteConf.build.rollupOptions.preserveEntrySignatures = 'strict'
-        viteConf.build.assetsInlineLimit = 0
-        viteConf.assetsInclude = ['**/*.wasm']
+        viteConf.build.rollupOptions.preserveEntrySignatures = 'strict';
+        viteConf.build.assetsInlineLimit = 0;
+        viteConf.assetsInclude = ['**/*.wasm'];
       },
       // viteVuePluginOptions: {},
 
@@ -150,13 +150,13 @@ export default defineConfig((ctx) => {
       headers: {
         'Cross-Origin-Embedder-Policy': 'require-corp',
         'Cross-Origin-Opener-Policy': 'same-origin',
-      }
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
       config: {
-        dark: true
+        dark: true,
       },
 
       // iconSet: 'material-icons', // Quasar icon set
@@ -170,7 +170,7 @@ export default defineConfig((ctx) => {
       // directives: [],
 
       // Quasar plugins
-      plugins: ['Notify', 'Cookies', 'Loading']
+      plugins: ['Notify', 'Cookies', 'Loading'],
     },
 
     // animations: 'all', // --- includes all animations

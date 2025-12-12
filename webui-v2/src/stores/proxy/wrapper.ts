@@ -1,13 +1,11 @@
-import { type Chain } from 'src/__generated__/graphql/proxy/graphql'
-import { NotifyType } from '../notify'
-import { useProxyStore } from './store'
+import { type Chain } from 'src/__generated__/graphql/proxy/graphql';
+import { NotifyType } from '../notify';
+import { useProxyStore } from './store';
 
-const proxy = useProxyStore()
+const proxy = useProxyStore();
 
 export class Proxy {
-  static getMemeApplications = (
-    done?: (error: boolean, rows?: Chain[]) => void
-  ) => {
+  static getMemeApplications = (done?: (error: boolean, rows?: Chain[]) => void) => {
     proxy.getApplications(
       {
         Message: {
@@ -15,21 +13,21 @@ export class Proxy {
             Title: 'Get meme applications',
             Message: 'Failed get meme applications',
             Popup: true,
-            Type: NotifyType.Error
-          }
-        }
+            Type: NotifyType.Error,
+          },
+        },
       },
-      done
-    )
-  }
+      done,
+    );
+  };
 
   static tokenCreatorChain = (applicationId: string) => {
-    return proxy.chain(applicationId)
-  }
+    return proxy.chain(applicationId);
+  };
 
   static initialize = () => {
-    proxy.initializeProxy()
-  }
+    proxy.initializeProxy();
+  };
 
-  static blockHash = () => proxy.blockHash
+  static blockHash = () => proxy.blockHash;
 }

@@ -1,14 +1,14 @@
-import { type Notification } from '../notify'
+import { type Notification } from '../notify';
 
 export interface ReqMessage {
-  Info?: Notification
-  Error?: Notification
+  Info?: Notification;
+  Error?: Notification;
 }
 
 export interface BaseRequest {
-  Message?: ReqMessage
+  Message?: ReqMessage;
 }
 
 export interface NotifyRequest {
-  NotifyMessage?: ReqMessage
+  NotifyMessage?: ReqMessage;
 }

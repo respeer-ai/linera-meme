@@ -1,3 +1,3 @@
-import { type BaseRequest } from '../request'
+import { type BaseRequest } from '../request';
 
-export type GetChainsRequest = BaseRequest
+export type GetChainsRequest = BaseRequest;

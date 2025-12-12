@@ -1,12 +1,12 @@
-import { defineStore } from 'pinia'
-import { type BalanceOfRequest } from './types'
-import { ApolloClient } from '@apollo/client/core'
-import { getClientOptions } from 'src/apollo'
-import { provideApolloClient, useQuery } from '@vue/apollo-composable'
-import { BALANCE_OF } from 'src/graphql'
-import { graphqlResult } from 'src/utils'
-import { _Account, type Account } from '../account'
-import { constants } from 'src/constant'
+import { defineStore } from 'pinia';
+import { type BalanceOfRequest } from './types';
+import { ApolloClient } from '@apollo/client/core';
+import { getClientOptions } from 'src/apollo';
+import { provideApolloClient, useQuery } from '@vue/apollo-composable';
+import { BALANCE_OF } from 'src/graphql';
+import { graphqlResult } from 'src/utils';
+import { _Account, type Account } from '../account';
+import { constants } from 'src/constant';
 
 export const useMemeStore = defineStore('meme', {
   state: () => ({}),
@@ -14,34 +14,35 @@ export const useMemeStore = defineStore('meme', {
     balanceOf(
       req: BalanceOfRequest,
       memeApplication: Account,
-      done?: (error: boolean, balance?: string) => void
+      done?: (error: boolean, balance?: string) => void,
     ) {
-      const url = _Account.applicationUrl(constants.PROXY_URL, memeApplication)
-      const options = /* await */ getClientOptions(url)
-      const apolloClient = new ApolloClient(options)
+      const url = _Account.applicationUrl(constants.PROXY_URL, memeApplication);
+      const options = /* await */ getClientOptions(url);
+      const apolloClient = new ApolloClient(options);
 
-      const { /* result, refetch, fetchMore, */ onResult, onError } =
-        provideApolloClient(apolloClient)(() =>
-          useQuery(
-            BALANCE_OF,
-            {
-              owner: req.owner
-            },
-            {
-              fetchPolicy: 'network-only'
-            }
-          )
-        )
+      const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(
+        apolloClient,
+      )(() =>
+        useQuery(
+          BALANCE_OF,
+          {
+            owner: req.owner,
+          },
+          {
+            fetchPolicy: 'network-only',
+          },
+        ),
+      );
 
       onResult((res) => {
-        const balance = graphqlResult.data(res, 'balanceOf') as string
-        done?.(false, balance)
-      })
+        const balance = graphqlResult.data(res, 'balanceOf') as string;
+        done?.(false, balance);
+      });
 
       onError(() => {
-        done?.(true)
-      })
-    }
+        done?.(true);
+      });
+    },
   },
-  getters: {}
-})
+  getters: {},
+});

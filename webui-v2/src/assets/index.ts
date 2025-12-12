@@ -1,5 +1,3 @@
-import laughPng from './Laugh.png'
+import laughPng from './Laugh.png';
 
-export {
-  laughPng
-}
+export { laughPng };

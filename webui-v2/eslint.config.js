@@ -25,8 +25,8 @@ export default defineConfigWithVueTs(
       'src-ssr',
       'quasar.config.*.temporary.compiled*',
       'wasm',
-      'src/__generated__'
-    ]
+      'src/__generated__',
+    ],
   },
 
   pluginQuasar.configs.recommended(),

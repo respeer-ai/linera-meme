@@ -1,4 +1,4 @@
-import { gql } from '@apollo/client/core'
+import { gql } from '@apollo/client/core';
 
 export const CREATE_POOL = gql`
   mutation createPool(
@@ -20,4 +20,4 @@ export const CREATE_POOL = gql`
       to: $to
     )
   }
-`
+`;

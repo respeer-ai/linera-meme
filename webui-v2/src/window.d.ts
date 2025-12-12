@@ -1,8 +1,8 @@
-import { type MetaMaskInpageProvider } from '@metamask/providers'
+import { type MetaMaskInpageProvider } from '@metamask/providers';
 
 declare global {
   interface Window {
-    linera: MetaMaskInpageProvider
-    ethereum: MetaMaskInpageProvider
+    linera: MetaMaskInpageProvider;
+    ethereum: MetaMaskInpageProvider;
   }
 }

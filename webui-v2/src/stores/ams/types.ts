@@ -1,36 +1,36 @@
-import { type BaseRequest } from '../request'
-import { type StoreType } from '../store'
+import { type BaseRequest } from '../request';
+import { type StoreType } from '../store';
 
 export interface Metadata {
-  ticker: string
+  ticker: string;
 }
 
 export interface Application {
   // TODO: use Account after fix https://github.com/linera-io/linera-protocol/issues/3462
-  creator: string
-  applicationName: string
-  applicationId: string
+  creator: string;
+  applicationName: string;
+  applicationId: string;
   // Preset application types could be added by operator
-  applicationType: string
-  keyWords: Array<string>
-  logoStoreType: StoreType
-  logo: string
-  description: string
-  twitter?: string
-  telegram?: string
-  discord?: string
-  website?: string
-  github?: string
+  applicationType: string;
+  keyWords: Array<string>;
+  logoStoreType: StoreType;
+  logo: string;
+  description: string;
+  twitter?: string;
+  telegram?: string;
+  discord?: string;
+  website?: string;
+  github?: string;
   /// JSON spec of registered application
-  spec: string
-  createdAt: number
+  spec: string;
+  createdAt: number;
 }
 
 export interface GetApplicationsRequest extends BaseRequest {
-  createdBefore?: number
-  createdAfter?: number
-  applicationType?: string
-  spec?: string
-  applicationIds?: Array<string>
-  limit: number
+  createdBefore?: number;
+  createdAfter?: number;
+  applicationType?: string;
+  spec?: string;
+  applicationIds?: Array<string>;
+  limit: number;
 }

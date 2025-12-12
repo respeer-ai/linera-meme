@@ -1,1 +1,1 @@
-export * as dbBridge from './db'
+export * as dbBridge from './db';

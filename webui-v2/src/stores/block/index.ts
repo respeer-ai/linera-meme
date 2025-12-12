@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia'
+import { defineStore } from 'pinia';
 
 export const useBlockStore = defineStore('block', {
   state: () => ({
     blockHeight: 0,
-    blockHash: ''
+    blockHash: '',
   }),
   actions: {},
-  getters: {}
-})
+  getters: {},
+});

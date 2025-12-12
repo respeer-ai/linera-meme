@@ -1,4 +1,4 @@
-import { gql } from '@apollo/client/core'
+import { gql } from '@apollo/client/core';
 
 export const MEME_APPLICATIONS = gql`
   query memeApplications {
@@ -8,10 +8,10 @@ export const MEME_APPLICATIONS = gql`
       token
     }
   }
-`
+`;
 
 export const GENESIS_MINERS = gql`
   query genesisMiners {
     genesisMiners
   }
-`
+`;

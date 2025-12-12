@@ -1,4 +1,4 @@
-import { gql } from '@apollo/client/core'
+import { gql } from '@apollo/client/core';
 
 export const LIST = gql`
   query list(
@@ -20,4 +20,4 @@ export const LIST = gql`
       createdAt
     }
   }
-`
+`;

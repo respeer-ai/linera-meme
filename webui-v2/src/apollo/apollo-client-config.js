@@ -8,7 +8,7 @@ export default /* async */ function (/* { app, router, store, ssrContext, urlPat
         // running quasar commands, for example:
         // `GRAPHQL_URI=https://prod.example.com/graphql quasar build`
         // `GRAPHQL_URI=https://dev.example.com/graphql quasar dev`
-        uri: process.env.GRAPHQL_URI || 'http://localhost:8080'
+        uri: process.env.GRAPHQL_URI || 'http://localhost:8080',
       },
 
       // 'apollo-cache-inmemory' config
@@ -17,7 +17,7 @@ export default /* async */ function (/* { app, router, store, ssrContext, urlPat
 
       // additional config for apollo client
       // https://github.com/apollographql/apollo-client/blob/version-2.6/docs/source/api/apollo-client.mdx#optional-fields
-      additionalConfig: {}
+      additionalConfig: {},
     },
 
     // you can add more options or override the default config for a specific
@@ -41,16 +41,16 @@ export default /* async */ function (/* { app, router, store, ssrContext, urlPat
     ssrOnServer: {
       additionalConfig: {
         // https://apollo.vuejs.org/guide/ssr.html#create-apollo-client
-        ssrMode: true
-      }
+        ssrMode: true,
+      },
     },
 
     // the following gets merged to the config only when using ssr and on client
     ssrOnClient: {
       additionalConfig: {
         // https://apollo.vuejs.org/guide/ssr.html#create-apollo-client
-        ssrForceFetchDelay: 100
-      }
-    }
-  }
+        ssrForceFetchDelay: 100,
+      },
+    },
+  };
 }
