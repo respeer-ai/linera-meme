@@ -24,12 +24,14 @@
 import initWasm from '../../dist/wasm/linera_wasm'
 import wasmModuleUrl from '../../dist/wasm/linera_wasm_bg.wasm?url'
 import { onMounted } from 'vue'
+import { notify } from 'src/stores/export'
 
 import HeaderView from 'src/components/header/HeaderView.vue'
 import FooterView from 'src/components/footer/FooterView.vue'
 
 onMounted(async () => {
   await initWasm(await fetch(wasmModuleUrl))
+  notify.Notify.subscribe()
 })
 
 </script>

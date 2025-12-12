@@ -77,8 +77,8 @@ export class Wallet {
     }
 
     const variables = {
-      amount0In: sellToken === pool.token0 ? amount : undefined,
-      amount1In: sellToken === pool.token1 ? amount : undefined,
+      amount0In: sellTokenId === pool.token0 ? amount : undefined,
+      amount1In: sellTokenId === pool.token1 ? amount : undefined,
       amount0OutMin: undefined,
       amount1OutMin: undefined,
       to: undefined,

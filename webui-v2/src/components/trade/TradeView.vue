@@ -33,7 +33,7 @@
       <TokenInfoView :token='buyToken' />
     </q-card>
   </div>
-  <q-dialog v-model='reviewing'>
+  <q-dialog v-model='reviewing' persistent>
     <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
       <trade-info-view :buy-token='buyToken' :sell-token='sellToken' :buy-amount='buyAmount' :sell-amount='sellAmount' :sell-price='sellPrice' @done='onSwapDone' @error='onSwapError' />
     </div>
@@ -44,7 +44,7 @@
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
 import { computed, onMounted, ref, watch } from 'vue'
-import { ams, meme, swap, user } from 'src/stores/export'
+import { ams, meme, swap, user, notify } from 'src/stores/export'
 import { constants } from 'src/constant'
 
 import TokenInputView from './TokenInputView.vue'
@@ -162,8 +162,15 @@ const onSwapDone = () => {
   btnStep.value = 0
 }
 
-const onSwapError = () => {
+const onSwapError = (e: string) => {
   reviewing.value = false
+  console.log(11111, e)
+  notify.Notify.pushNotification({
+    Title: 'Swap meme token',
+    Message: `Failed swap meme token: ${e}`,
+    Popup: true,
+    Type: notify.NotifyType.Error
+  })
 }
 
 onMounted(() => {
