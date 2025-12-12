@@ -99,9 +99,10 @@ const pool = computed(() => pools.value.find((el) => {
 const sellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0).toFixed(6))
 
 watch(sellAmount, () => {
-  const price = Number((sellToken.value?.applicationId === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
+  const price = Number((sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
   setTimeout(() => {
     buyAmount.value = ((Number(sellAmount.value) * price) || 0).toFixed(6)
+    console.log(111, buyAmount.value, sellAmount.value, price)
     if (btnStep.value === 0 && Number(buyAmount.value) > 0 && Number(sellAmount.value) > 0) {
       btnStep.value += 1
     }
@@ -109,9 +110,10 @@ watch(sellAmount, () => {
 })
 
 watch(buyAmount, () => {
-  const price = Number((buyToken.value?.applicationId === pool.value?.token1 ? pool.value?.token1Price : pool.value?.token0Price) as string)
+  const price = Number((buyTokenId.value === pool.value?.token1 ? pool.value?.token1Price : pool.value?.token0Price) as string)
   setTimeout(() => {
-    sellAmount.value = ((Number(buyAmount.value) * price) || 0).toFixed(4)
+    sellAmount.value = ((Number(buyAmount.value) * price) || 0).toFixed(6)
+    console.log(222, buyAmount.value, sellAmount.value, price)
     if (btnStep.value === 0 && Number(buyAmount.value) > 0 && Number(sellAmount.value) > 0) {
       btnStep.value += 1
     }
