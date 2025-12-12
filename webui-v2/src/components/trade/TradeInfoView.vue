@@ -39,20 +39,20 @@
     </div>
 
     <div class='q-mt-lg'>
-      <token-info-line-view label='Fee (0.25%)' value='0.00001245 TLINERA ($ 0.007)' value-color='light' :value-bold='true' :underline='false' />
+      <token-info-line-view label='Fee (0.25%)' value='0.00001245 TLINERA ($ 0.007)' value-color='light' :value-bold='false' :underline='false' />
       <div class='q-mt-sm'>
         <token-info-line-view label='Network Fee' value='0.0001234 TLINERA ($ 0.0008)' value-color='light' :value-bold='false' :underline='false' />
       </div>
-      <div class='q-mt-sm'>
+      <div v-if='expanded' class='q-mt-sm'>
         <token-info-line-view label='Price' :value='`1 ${sellTokenTicker} = ${sellPrice} ${buyTokenTicker}`' value-color='light' :value-bold='false' :underline='false' />
       </div>
-      <div class='q-mt-sm'>
+      <div v-if='expanded'  class='q-mt-sm'>
         <token-info-line-view label='Slippage' value='0.55% (Automatically)' value-color='neutral' :value-bold='false' :underline='false' />
       </div>
-      <div class='q-mt-sm'>
+      <div v-if='expanded'  class='q-mt-sm'>
         <token-info-line-view label='Order Router' value='MicroMeme Proxy' value-color='light' :value-bold='false' :underline='false' />
       </div>
-      <div class='q-mt-sm'>
+      <div v-if='expanded' class='q-mt-sm'>
         <token-info-line-view label='Price Impact' value='-0.05%' value-color='neutral' :value-bold='false' :underline='false' />
       </div>
     </div>
