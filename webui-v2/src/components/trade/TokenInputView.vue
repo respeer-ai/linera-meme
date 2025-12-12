@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRef, watch, watchEffect } from 'vue'
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
 import { ams, meme, proxy, user } from 'src/stores/export'
@@ -130,28 +130,25 @@ const subscription = ref(undefined as unknown as Subscription)
 
 const getBalanceThrottle = throttle(async () => {
   await getBalance()
-}, 10000, {
+}, 1000, {
   leading: false, 
   trailing: true
 })
 
-watch(
-  [() => tokenApplication.value, () => tokenChain.value],
-  ([newApp, newChain]) => {
-    if (newApp && newChain) {
-      subscription.value = new Subscription(meme.MemeWrapper.applicationUrl(newApp) as string, constants.PROXY_WS_URL, newChain.chainId, () => {
-        getBalanceThrottle()
-      })
-    }
-  }
-)
-
-watch(token, async () => {
+watchEffect(() => {
   getBalanceThrottle()
 
   if (subscription.value) {
     subscription.value.unsubscribe()
-    subscription.value = undefined as unknown as Subscription
+  }
+
+  if (tokenApplication.value && tokenChain.value) {
+    subscription.value = new Subscription(
+      meme.MemeWrapper.applicationUrl(tokenApplication.value) as string,
+      constants.PROXY_WS_URL,
+      tokenChain.value.chainId,
+      () => getBalanceThrottle()
+    )
   }
 })
 
