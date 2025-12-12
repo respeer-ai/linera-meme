@@ -9,7 +9,7 @@
   </div>
   <q-dialog v-model='connecting'>
     <div class='bg-dark-secondary q-pt-lg q-pb-xl radius-16' style='min-width: 400px;'>
-      <connect-wallet-view />
+      <connect-wallet-view @done='connecting = false' @error='connecting = false' />
     </div>
   </q-dialog>
 </template>

@@ -31,6 +31,10 @@ import * as metamask from '@linera/metamask'
 const cheCkoInstalled = ref(false)
 const metamaskInstalled = ref(false)
 
+const emit = defineEmits<{(e: 'done'): void
+  (e: 'error', error: string): void
+}>()
+
 const onCheCkoClick = async () => {
   if (!window.linera) {
     return window.open('https://github.com/respeer-ai/linera-wallet.git')
@@ -39,11 +43,13 @@ const onCheCkoClick = async () => {
   try {
     const web3 = new Web3(window.linera)
     await web3.eth.requestAccounts()
-  } catch {
-    // DO NOTHING
-  }
 
-  getProviderState(window.linera, user.WalletConnectType.CheCko)
+    getProviderState(window.ethereum, user.WalletConnectType.CheCko)
+
+    emit('done')
+  } catch (e) {
+    emit('error', JSON.stringify(e))
+  }
 }
 
 const onMetamaskClick = async () => {
@@ -51,9 +57,16 @@ const onMetamaskClick = async () => {
     return window.open('https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn?hl=zh-CN&utm_source=ext_sidebar')
   }
 
-  new metamask.Signer()
+  try {
+    const signer = new metamask.Signer()
+    await signer.address()
 
-  getProviderState(window.ethereum, user.WalletConnectType.Metamask)
+    getProviderState(window.ethereum, user.WalletConnectType.Metamask)
+
+    emit('done')
+  } catch (e) {
+    emit('error', JSON.stringify(e))
+  }
 }
 
 const updateWalletState = () => {
