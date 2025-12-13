@@ -8,6 +8,8 @@ export class Provider {
     success?: (chainId: string) => void,
     error?: () => void,
   ) => {
+    if (!provider) return error?.()
+
     provider
       .request({
         method: 'metamask_getProviderState',
