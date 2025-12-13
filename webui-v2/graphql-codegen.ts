@@ -1,6 +1,6 @@
 /* eslint-disable object-shorthand */
-import { CodegenConfig } from '@graphql-codegen/cli';
-import { constants } from './src/constant';
+import { CodegenConfig } from '@graphql-codegen/cli'
+import { constants } from './src/constant'
 
 const config: CodegenConfig = {
   overwrite: true,
@@ -36,6 +36,6 @@ const config: CodegenConfig = {
       plugins: [],
     },
   },
-};
+}
 
-export default config;
+export default config

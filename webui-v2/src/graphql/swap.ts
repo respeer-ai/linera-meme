@@ -1,4 +1,4 @@
-import { gql } from '@apollo/client/core';
+import { gql } from '@apollo/client/core'
 
 export const POOLS = gql`
   query pools {
@@ -16,4 +16,4 @@ export const POOLS = gql`
       createdAt
     }
   }
-`;
+`

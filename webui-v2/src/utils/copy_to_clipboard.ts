@@ -1,16 +1,16 @@
-import { notify } from 'src/stores/export';
-import { copyToClipboard } from 'quasar';
+import { notify } from 'src/stores/export'
+import { copyToClipboard } from 'quasar'
 
-const _notify = notify.useNotificationStore();
+const _notify = notify.useNotificationStore()
 
 export const _copyToClipboard = (
   content: string,
   evt: {
-    preventDefault(): unknown;
-    clipboardData: { getData: (arg0: string) => string };
+    preventDefault(): unknown
+    clipboardData: { getData: (arg0: string) => string }
   },
 ) => {
-  evt.preventDefault();
+  evt.preventDefault()
   copyToClipboard(content)
     .then(() => {
       _notify.pushNotification({
@@ -18,7 +18,7 @@ export const _copyToClipboard = (
         Message: `Success copy ${content.substring(0, 20)}... to clipboard.`,
         Popup: true,
         Type: notify.NotifyType.Info,
-      });
+      })
     })
     .catch((e) => {
       _notify.pushNotification({
@@ -26,6 +26,6 @@ export const _copyToClipboard = (
         Message: `Failed copy ${content.substring(0, 20)}...: ${e}`,
         Popup: true,
         Type: notify.NotifyType.Error,
-      });
-    });
-};
+      })
+    })
+}

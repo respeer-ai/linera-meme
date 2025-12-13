@@ -1,1 +1,1 @@
-export * as klineWorker from './kline';
+export * as klineWorker from './kline'

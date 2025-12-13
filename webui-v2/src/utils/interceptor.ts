@@ -1,7 +1,7 @@
-import { type NavigationGuardNext, type RouteLocationNormalized } from 'vue-router';
+import { type NavigationGuardNext, type RouteLocationNormalized } from 'vue-router'
 
 interface RouteMetaImpl {
-  NeedLogined: boolean;
+  NeedLogined: boolean
 }
 
 declare module 'vue-router' {
@@ -14,7 +14,7 @@ const loginInterceptor = (
   to: RouteLocationNormalized,
   next: NavigationGuardNext,
 ) => {
-  next();
-};
+  next()
+}
 
-export { loginInterceptor };
+export { loginInterceptor }

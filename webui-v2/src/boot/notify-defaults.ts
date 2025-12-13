@@ -1,5 +1,5 @@
-import { boot } from 'quasar/wrappers';
-import { Notify } from 'quasar';
+import { boot } from 'quasar/wrappers'
+import { Notify } from 'quasar'
 
 export default boot((/* { app, router, ... } */) => {
   Notify.setDefaults({
@@ -7,5 +7,5 @@ export default boot((/* { app, router, ... } */) => {
     timeout: 3000,
     position: 'bottom-right',
     progress: true,
-  });
-});
+  })
+})

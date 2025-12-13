@@ -1,9 +1,9 @@
-import { type Pool } from 'src/__generated__/graphql/swap/graphql';
-import { NotifyType } from '../notify';
-import { useSwapStore } from './store';
-import { type Account } from '../account';
+import { type Pool } from 'src/__generated__/graphql/swap/graphql'
+import { NotifyType } from '../notify'
+import { useSwapStore } from './store'
+import { type Account } from '../account'
 
-const swap = useSwapStore();
+const swap = useSwapStore()
 
 export class Swap {
   static getPools = (done?: (error: boolean, rows?: Pool[]) => void) => {
@@ -19,8 +19,8 @@ export class Swap {
         },
       },
       done,
-    );
-  };
+    )
+  }
 
   static createPool = (
     token0: string,
@@ -47,11 +47,11 @@ export class Swap {
         },
       },
       done,
-    );
-  };
+    )
+  }
 
-  static pools = () => swap.pools;
-  static blockHash = () => swap.blockHash;
+  static pools = () => swap.pools
+  static blockHash = () => swap.blockHash
 
-  static initialize = () => swap.initializeSwap();
+  static initialize = () => swap.initializeSwap()
 }

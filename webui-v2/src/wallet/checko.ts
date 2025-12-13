@@ -1,10 +1,10 @@
-import { account, user } from 'src/stores/export';
-import { Provider } from './provider';
-import { dbModel, rpcModel } from 'src/model';
-import { BALANCES, SWAP } from 'src/graphql';
-import { Web3 } from 'web3';
-import * as lineraWasm from '../../dist/wasm/linera_wasm';
-import { stringify } from 'lossless-json';
+import { account, user } from 'src/stores/export'
+import { Provider } from './provider'
+import { dbModel, rpcModel } from 'src/model'
+import { BALANCES, SWAP } from 'src/graphql'
+import { Web3 } from 'web3'
+import * as lineraWasm from '../../dist/wasm/linera_wasm'
+import { stringify } from 'lossless-json'
 
 export class CheCko {
   static subscribe = (
@@ -16,44 +16,44 @@ export class CheCko {
         method: 'linera_subscribe',
       })
       .then((_subscriptionId) => {
-        onSubscribed(_subscriptionId as string);
+        onSubscribed(_subscriptionId as string)
         window.linera.on('message', (msg: unknown) => {
-          onData(user.WalletType.CheCko, msg);
-        });
+          onData(user.WalletType.CheCko, msg)
+        })
       })
       .catch((e) => {
-        console.log('Fail subscribe', e);
-      });
-  };
+        console.log('Fail subscribe', e)
+      })
+  }
 
   static unsubscribe = (subscriptionId: string) => {
     void window.linera?.request({
       method: 'linera_unsubscribe',
       params: [subscriptionId],
-    });
-  };
+    })
+  }
 
   static getProviderState = (success?: () => void, error?: () => void) => {
     Provider.getProviderState(
       window.linera,
       (chainId: string) => {
-        user.User.setChainId(chainId);
-        user.User.setWalletConnectedType(user.WalletType.CheCko);
-        void CheCko.getBalance();
-        success?.();
+        user.User.setChainId(chainId)
+        user.User.setWalletConnectedType(user.WalletType.CheCko)
+        void CheCko.getBalance()
+        success?.()
       },
       error,
-    );
-  };
+    )
+  }
 
   static getBalance = async () => {
     // TODO: implement with web3 api
 
-    const publicKey = user.User.publicKey();
-    const chainId = user.User.chainId();
+    const publicKey = user.User.publicKey()
+    const chainId = user.User.chainId()
 
-    if (!publicKey) return;
-    const owner = await dbModel.ownerFromPublicKey(publicKey);
+    if (!publicKey) return
+    const owner = await dbModel.ownerFromPublicKey(publicKey)
     window.linera
       .request({
         method: 'linera_graphqlQuery',
@@ -75,40 +75,40 @@ export class CheCko {
         },
       })
       .then((result) => {
-        const balances = result as rpcModel.Balances;
-        user.User.setChainBalance(rpcModel.chainBalance(balances, chainId));
+        const balances = result as rpcModel.Balances
+        user.User.setChainBalance(rpcModel.chainBalance(balances, chainId))
         user.User.setAccountBalance(
           rpcModel.ownerBalance(balances, chainId, account._Account.formalizeOwner(owner)),
-        );
+        )
       })
       .catch((e) => {
-        console.log(e);
-      });
-  };
+        console.log(e)
+      })
+  }
 
   static connect = async (success?: () => void, error?: (e: string) => void) => {
     if (!window.linera) {
-      return window.open('https://github.com/respeer-ai/linera-wallet.git');
+      return window.open('https://github.com/respeer-ai/linera-wallet.git')
     }
 
     try {
-      const web3 = new Web3(window.linera);
-      await web3.eth.requestAccounts();
+      const web3 = new Web3(window.linera)
+      await web3.eth.requestAccounts()
 
-      CheCko.getProviderState();
+      CheCko.getProviderState()
 
-      success?.();
+      success?.()
     } catch (e: unknown) {
-      error?.(e as string);
+      error?.(e as string)
     }
-  };
+  }
 
   static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
-    const publicKey = user.User.publicKey();
+    const publicKey = user.User.publicKey()
     const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(
       SWAP.loc?.source?.body as string,
       stringify(variables) as string,
-    );
+    )
     return new Promise((resolve, reject) => {
       window.linera
         .request({
@@ -125,11 +125,11 @@ export class CheCko {
           },
         })
         .then((hash) => {
-          resolve(hash as string);
+          resolve(hash as string)
         })
         .catch((e) => {
-          reject(new Error(e));
-        });
-    });
-  };
+          reject(new Error(e))
+        })
+    })
+  }
 }

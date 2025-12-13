@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia';
-import { dbModel } from '../../model';
-import { type Account, _Account } from '../account';
-import { WalletType } from './types';
+import { defineStore } from 'pinia'
+import { dbModel } from '../../model'
+import { type Account, _Account } from '../account'
+import { WalletType } from './types'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -17,13 +17,13 @@ export const useUserStore = defineStore('user', {
         if (!this.publicKey)
           return {
             chain_id: this.chainId,
-          };
+          }
         return {
           chain_id: this.chainId,
           owner: _Account.formalizeOwner(await dbModel.ownerFromPublicKey(this.publicKey)),
-        };
-      };
+        }
+      }
     },
   },
   actions: {},
-});
+})

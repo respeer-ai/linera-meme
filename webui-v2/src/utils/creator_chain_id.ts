@@ -1,11 +1,11 @@
-import { ApolloClient } from '@apollo/client/core';
-import { getClientOptions } from '../apollo';
-import { provideApolloClient, useQuery } from '@vue/apollo-composable';
-import { CREATOR_CHAIN_ID } from '../graphql';
-import { graphqlResult } from '.';
+import { ApolloClient } from '@apollo/client/core'
+import { getClientOptions } from '../apollo'
+import { provideApolloClient, useQuery } from '@vue/apollo-composable'
+import { CREATOR_CHAIN_ID } from '../graphql'
+import { graphqlResult } from '.'
 
-const options = /* await */ getClientOptions();
-const apolloClient = new ApolloClient(options);
+const options = /* await */ getClientOptions()
+const apolloClient = new ApolloClient(options)
 
 export const creatorChainId = async (endpoint: 'proxy' | 'swap'): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -21,14 +21,14 @@ export const creatorChainId = async (endpoint: 'proxy' | 'swap'): Promise<string
           fetchPolicy: 'network-only',
         },
       ),
-    );
+    )
 
     onResult((res) => {
-      resolve(graphqlResult.data(res, 'creatorChainId') as string);
-    });
+      resolve(graphqlResult.data(res, 'creatorChainId') as string)
+    })
 
     onError((e) => {
-      reject(e);
-    });
-  });
-};
+      reject(e)
+    })
+  })
+}

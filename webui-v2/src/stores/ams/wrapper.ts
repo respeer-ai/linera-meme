@@ -1,8 +1,8 @@
-import { NotifyType } from '../notify';
-import { useAmsStore } from './store';
-import { type Application } from './types';
+import { NotifyType } from '../notify'
+import { useAmsStore } from './store'
+import { type Application } from './types'
 
-const ams = useAmsStore();
+const ams = useAmsStore()
 
 export class Ams {
   static getApplications = (
@@ -23,25 +23,25 @@ export class Ams {
         },
       },
       (error: boolean, rows?: Application[]) => {
-        if (error || !rows?.length) return done?.(error, rows);
-        Ams.getApplications(Math.max(...rows.map((el) => el.createdAt)), done);
+        if (error || !rows?.length) return done?.(error, rows)
+        Ams.getApplications(Math.max(...rows.map((el) => el.createdAt)), done)
       },
-    );
-  };
+    )
+  }
 
   static application = (applicationId: string) => {
-    return ams.applications.find((el) => el.applicationId === applicationId);
-  };
+    return ams.applications.find((el) => el.applicationId === applicationId)
+  }
 
   static applicationLogo = (application: Application) => {
-    return ams.applicationLogo(application);
-  };
+    return ams.applicationLogo(application)
+  }
 
   static applications = () => {
-    return ams.applications;
-  };
+    return ams.applications
+  }
 
-  static initialize = () => ams.initializeAms();
+  static initialize = () => ams.initializeAms()
 
-  static blockHash = () => ams.blockHash;
+  static blockHash = () => ams.blockHash
 }

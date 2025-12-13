@@ -1,2 +1,2 @@
-export * as dbModel from './db/model';
-export * as rpcModel from './rpc/model';
+export * as dbModel from './db/model'
+export * as rpcModel from './rpc/model'

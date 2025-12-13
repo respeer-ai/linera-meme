@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import { defineStore } from 'pinia'
 
 export const useBlockStore = defineStore('block', {
   state: () => ({
@@ -7,4 +7,4 @@ export const useBlockStore = defineStore('block', {
   }),
   actions: {},
   getters: {},
-});
+})

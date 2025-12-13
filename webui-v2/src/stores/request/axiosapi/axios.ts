@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance } from 'axios'
 
 const createAPI = (url: string): AxiosInstance | undefined => {
   return axios.create({
@@ -6,7 +6,7 @@ const createAPI = (url: string): AxiosInstance | undefined => {
     withCredentials: false,
     responseType: 'json',
     timeout: 60000,
-  });
-};
+  })
+}
 
-export { createAPI };
+export { createAPI }

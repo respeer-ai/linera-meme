@@ -52,5 +52,5 @@ export default /* async */ function (/* { app, router, store, ssrContext, urlPat
         ssrForceFetchDelay: 100,
       },
     },
-  };
+  }
 }

@@ -1,18 +1,18 @@
-import { defineStore } from 'pinia';
-import { constants } from '../../constant';
+import { defineStore } from 'pinia'
+import { constants } from '../../constant'
 import {
   type LiquidityAmount,
   type CalculateLiquidityAmountPairRequest,
   type LatestTransactionsRequest,
   type LiquidityRequest,
-} from './types';
-import { ApolloClient } from '@apollo/client/core';
-import { getClientOptions } from 'src/apollo';
-import { provideApolloClient, useQuery } from '@vue/apollo-composable';
-import { CALCULATE_AMOUNT_LIQUIDITY, LATEST_TRANSACTIONS, LIQUIDITY } from 'src/graphql';
-import { graphqlResult } from 'src/utils';
-import { type Transaction } from '../transaction';
-import { _Account, type Account } from '../account';
+} from './types'
+import { ApolloClient } from '@apollo/client/core'
+import { getClientOptions } from 'src/apollo'
+import { provideApolloClient, useQuery } from '@vue/apollo-composable'
+import { CALCULATE_AMOUNT_LIQUIDITY, LATEST_TRANSACTIONS, LIQUIDITY } from 'src/graphql'
+import { graphqlResult } from 'src/utils'
+import { type Transaction } from '../transaction'
+import { _Account, type Account } from '../account'
 
 export const usePoolStore = defineStore('pool', {
   state: () => ({
@@ -25,9 +25,9 @@ export const usePoolStore = defineStore('pool', {
       poolApplication: Account,
       done?: (error: boolean, rows?: Transaction[]) => void,
     ) {
-      const url = _Account.applicationUrl(constants.SWAP_URL, poolApplication);
-      const options = /* await */ getClientOptions(url);
-      const apolloClient = new ApolloClient(options);
+      const url = _Account.applicationUrl(constants.SWAP_URL, poolApplication)
+      const options = /* await */ getClientOptions(url)
+      const apolloClient = new ApolloClient(options)
 
       const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(
         apolloClient,
@@ -41,38 +41,38 @@ export const usePoolStore = defineStore('pool', {
             fetchPolicy: 'network-only',
           },
         ),
-      );
+      )
 
       onResult((res) => {
-        const transactions = graphqlResult.data(res, 'latestTransactions') as Transaction[];
-        this.appendTransactions(poolId, transactions);
-        done?.(false, transactions);
-      });
+        const transactions = graphqlResult.data(res, 'latestTransactions') as Transaction[]
+        this.appendTransactions(poolId, transactions)
+        done?.(false, transactions)
+      })
 
       onError(() => {
-        done?.(true);
-      });
+        done?.(true)
+      })
     },
     appendTransactions(poolId: number, transactions: Transaction[]) {
-      const _transactions = [...(this.transactions.get(poolId) || [])];
+      const _transactions = [...(this.transactions.get(poolId) || [])]
       transactions.forEach((transaction) => {
         const index = _transactions.findIndex(
           (el) => el.transactionId === transaction.transactionId,
-        );
+        )
         _transactions.splice(index >= 0 ? index : 0, index >= 0 ? 1 : 0, {
           ...transaction,
-        });
-      });
-      this.transactions.set(poolId, transactions);
+        })
+      })
+      this.transactions.set(poolId, transactions)
     },
     calculateLiquidityAmountPair(
       req: CalculateLiquidityAmountPairRequest,
       poolApplication: Account,
       done?: (error: boolean, liquidity?: LiquidityAmount) => void,
     ) {
-      const url = _Account.applicationUrl(constants.SWAP_URL, poolApplication);
-      const options = /* await */ getClientOptions(url);
-      const apolloClient = new ApolloClient(options);
+      const url = _Account.applicationUrl(constants.SWAP_URL, poolApplication)
+      const options = /* await */ getClientOptions(url)
+      const apolloClient = new ApolloClient(options)
 
       const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(
         apolloClient,
@@ -87,25 +87,25 @@ export const usePoolStore = defineStore('pool', {
             fetchPolicy: 'network-only',
           },
         ),
-      );
+      )
 
       onResult((res) => {
-        const liquidity = graphqlResult.data(res, 'calculateAmountLiquidity') as LiquidityAmount;
-        done?.(false, liquidity);
-      });
+        const liquidity = graphqlResult.data(res, 'calculateAmountLiquidity') as LiquidityAmount
+        done?.(false, liquidity)
+      })
 
       onError(() => {
-        done?.(true);
-      });
+        done?.(true)
+      })
     },
     liquidity(
       req: LiquidityRequest,
       poolApplication: Account,
       done?: (error: boolean, liquidity?: LiquidityAmount) => void,
     ) {
-      const url = _Account.applicationUrl(constants.SWAP_URL, poolApplication);
-      const options = /* await */ getClientOptions(url);
-      const apolloClient = new ApolloClient(options);
+      const url = _Account.applicationUrl(constants.SWAP_URL, poolApplication)
+      const options = /* await */ getClientOptions(url)
+      const apolloClient = new ApolloClient(options)
 
       const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(
         apolloClient,
@@ -119,28 +119,28 @@ export const usePoolStore = defineStore('pool', {
             fetchPolicy: 'network-only',
           },
         ),
-      );
+      )
 
       onResult((res) => {
-        const liquidity = graphqlResult.data(res, 'liquidity') as LiquidityAmount;
-        done?.(false, liquidity);
-      });
+        const liquidity = graphqlResult.data(res, 'liquidity') as LiquidityAmount
+        done?.(false, liquidity)
+      })
 
       onError(() => {
-        done?.(true);
-      });
+        done?.(true)
+      })
     },
   },
   getters: {
     nextStartId(): (poolId: number) => number {
       return (poolId: number) => {
-        return this.transactions.get(poolId)?.at(-1)?.transactionId || 0;
-      };
+        return this.transactions.get(poolId)?.at(-1)?.transactionId || 0
+      }
     },
     _transactions(): (poolId: number) => Transaction[] {
       return (poolId: number) => {
-        return [...(this.transactions.get(poolId) || [])].reverse();
-      };
+        return [...(this.transactions.get(poolId) || [])].reverse()
+      }
     },
   },
-});
+})

@@ -1,9 +1,9 @@
-import { _Account, type Account } from '../account';
-import { NotifyType } from '../notify';
-import { usePoolStore } from './store';
-import { type LiquidityAmount } from './types';
+import { _Account, type Account } from '../account'
+import { NotifyType } from '../notify'
+import { usePoolStore } from './store'
+import { type LiquidityAmount } from './types'
 
-const pool = usePoolStore();
+const pool = usePoolStore()
 
 export const calculateAmountLiquidity = (
   amount0Desired: string,
@@ -26,11 +26,11 @@ export const calculateAmountLiquidity = (
     },
     poolApplication,
     (error: boolean, liquidity?: LiquidityAmount) => {
-      if (error) return;
-      done?.(liquidity);
+      if (error) return
+      done?.(liquidity)
     },
-  );
-};
+  )
+}
 
 export const liquidity = (
   account: Account,
@@ -51,8 +51,8 @@ export const liquidity = (
     },
     poolApplication,
     (error: boolean, liquidity?: LiquidityAmount) => {
-      if (error) return;
-      done?.(liquidity);
+      if (error) return
+      done?.(liquidity)
     },
-  );
-};
+  )
+}

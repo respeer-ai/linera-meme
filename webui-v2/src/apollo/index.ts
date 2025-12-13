@@ -1,50 +1,50 @@
-import type { ApolloClientOptions } from '@apollo/client/core';
-import { createHttpLink, InMemoryCache, split } from '@apollo/client/core';
+import type { ApolloClientOptions } from '@apollo/client/core'
+import { createHttpLink, InMemoryCache, split } from '@apollo/client/core'
 // import type { BootFileParams } from '@quasar/app'
-import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
-import { createClient } from 'graphql-ws';
-import { Kind, OperationTypeNode } from 'graphql';
-import { getMainDefinition } from '@apollo/client/utilities';
-import { constants } from 'src/constant';
+import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
+import { createClient } from 'graphql-ws'
+import { Kind, OperationTypeNode } from 'graphql'
+import { getMainDefinition } from '@apollo/client/utilities'
+import { constants } from 'src/constant'
 
 export /* async */ function getClientOptions(httpUrl?: string, wsUrl?: string) {
   const wsLink = new GraphQLWsLink(
     createClient({
       url: wsUrl || constants.RPC_WS_URL,
     }),
-  );
+  )
 
   const httpLink = createHttpLink({
     uri: (operation) => {
-      if (httpUrl?.length) return httpUrl;
+      if (httpUrl?.length) return httpUrl
 
       switch (operation.variables.endpoint) {
         case 'swap':
-          return constants.APPLICATION_URLS.SWAP;
+          return constants.APPLICATION_URLS.SWAP
         case 'ams':
-          return constants.APPLICATION_URLS.AMS;
+          return constants.APPLICATION_URLS.AMS
         case 'blob':
-          return constants.APPLICATION_URLS.BLOB_GATEWAY;
+          return constants.APPLICATION_URLS.BLOB_GATEWAY
         case 'proxy':
-          return constants.APPLICATION_URLS.PROXY;
+          return constants.APPLICATION_URLS.PROXY
         case 'rpc':
         default:
-          return constants.RPC_URL;
+          return constants.RPC_URL
       }
     },
-  });
+  })
 
   const splitLink = split(
     ({ query }) => {
-      const definition = getMainDefinition(query);
+      const definition = getMainDefinition(query)
       return (
         definition.kind === Kind.OPERATION_DEFINITION &&
         definition.operation === OperationTypeNode.SUBSCRIPTION
-      );
+      )
     },
     wsLink,
     httpLink,
-  );
+  )
 
   return <ApolloClientOptions<unknown>>Object.assign(
     // General options.
@@ -114,5 +114,5 @@ export /* async */ function getClientOptions(httpUrl?: string, wsUrl?: string) {
           ssrForceFetchDelay: 100,
         }
       : {},
-  );
+  )
 }
