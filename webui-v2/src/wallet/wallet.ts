@@ -153,6 +153,6 @@ export class Wallet {
       case user.WalletType.Metamask:
         return await LineraWebClient.createMeme(argument, parameters, variables)
     }
-    return Promise.reject('Invalid wallet type')
+    return Promise.reject(new Error('Invalid wallet type'))
   }
 }

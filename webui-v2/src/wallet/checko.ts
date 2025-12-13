@@ -160,7 +160,7 @@ export class CheCko {
       }).then((blobHash) => {
         resolve(blobHash as string)
       }).catch((e) => {
-        reject(e)
+        reject(new Error(e))
       })
     })
   }
