@@ -15,7 +15,7 @@ done
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-WEBUI_DIR=$SCRIPT_DIR/../webui
+WEBUI_DIR=$SCRIPT_DIR/../webui-v2
 
 # Cleanup before building
 docker stop linera-meme-webui
@@ -24,11 +24,12 @@ docker rmi linera-meme-webui npool/linera-meme-webui
 
 cd "$WEBUI_DIR"
 if [ "x$COMPILE" = "x1" ]; then
-  yarn
-  yarn build:wasm
+  bun install
+  bun build:wasm
+  wasm-pack build --out-dir ../dist/wasm --target web wasm
 fi
 
-yarn build
+bun run build
 docker build --no-cache -f Dockerfile -t linera-meme-webui . || exit 1
 
 docker tag linera-meme-webui:latest docker.io/npool/linera-meme-webui:latest

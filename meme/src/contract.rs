@@ -49,6 +49,8 @@ impl Contract for MemeContract {
     }
 
     async fn instantiate(&mut self, mut instantiation_argument: InstantiationArgument) {
+        log::info!("DEBUG instantiating meme ...");
+
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
 
@@ -81,7 +83,9 @@ impl Contract for MemeContract {
                 .expect("Failed initialize liquidity");
         }
 
+        log::info!("DEBUG registering meme ...");
         self.register_application().await;
+        log::info!("DEBUG registering meme logo ...");
         self.register_logo().await;
 
         // When the meme application is created, initial liquidity allowance should already be approved
@@ -327,13 +331,20 @@ impl MemeContract {
     }
 
     async fn create_liquidity_pool(&mut self) -> Result<(), MemeError> {
+        log::info!("DEBUG creating liquidity pool ...");
+
         let Some(swap_application_id) = self.state.swap_application_id() else {
+            log::info!(
+                "DEBUG MEME: ignore creating liquidity pool for invalid swap application id"
+            );
             return Ok(());
         };
         let Some(liquidity) = self.initial_liquidity() else {
+            log::info!("DEBUG MEME: ignore creating liquidity pool for invalid initial liquidity");
             return Ok(());
         };
         if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
+            log::info!("DEBUG MEME: ignore creating liquidity pool for fungible amount {}, native amount {}", liquidity.fungible_amount, liquidity.native_amount);
             return Ok(());
         }
 
@@ -513,6 +524,8 @@ impl MemeContract {
     }
 
     async fn on_msg_liquidity_funded(&mut self) -> Result<(), MemeError> {
+        log::info!("DEBUG MSG:MEME: liquidity funded");
+
         let virtual_liquidity = self.virtual_initial_liquidity();
         let Some(liquidity) = self.initial_liquidity() else {
             return Ok(());

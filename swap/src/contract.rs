@@ -400,6 +400,8 @@ impl SwapContract {
         virtual_liquidity: bool,
         to: Option<Account>,
     ) -> Result<SwapResponse, SwapError> {
+        log::info!("DEBUG OP:SWAP: calling initialize liquidity ...");
+
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
         let chain_id = self.runtime.chain_id();
 
@@ -509,6 +511,7 @@ impl SwapContract {
         _deadline: Option<Timestamp>,
         user_pool: bool,
     ) -> Result<(), SwapError> {
+        log::info!("DEBUG SWAP: creating pool ...");
         // For initial pool, all assets should be already authenticated when we're here
         // For user pool, we just create a pool, then notify user to add liquidity
         // 1: Create pool chain
@@ -552,6 +555,7 @@ impl SwapContract {
         virtual_liquidity: bool,
         to: Option<Account>,
     ) -> Result<(), SwapError> {
+        log::info!("DEBUG MSG:SWAP: calling initialize liquidity ...");
         self.create_pool(
             creator,
             token_0_creator_chain_id,
@@ -582,6 +586,8 @@ impl SwapContract {
         to: Option<Account>,
         user_pool: bool,
     ) -> Result<(), SwapError> {
+        log::info!("DEBUG MSG:SWAP: creating pool ...");
+
         // Run on pool chain
         let application_id = self.runtime.application_id().forget_abi();
         let chain_id = self.runtime.chain_id();
@@ -704,6 +710,8 @@ impl SwapContract {
         to: Option<Account>,
         user_pool: bool,
     ) -> Result<(), SwapError> {
+        log::info!("DEBUG MSG:SWAP: pool created ...");
+
         assert!(amount_1 > Amount::ZERO, "Invalid amount");
         assert!(amount_0 > Amount::ZERO, "Invalid amount");
 

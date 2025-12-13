@@ -351,6 +351,8 @@ impl ProxyContract {
         mut meme_instantiation_argument: MemeInstantiationArgument,
         mut meme_parameters: MemeParameters,
     ) -> Result<ProxyResponse, ProxyError> {
+        log::info!("DEBUG OP creating meme ...");
+
         meme_instantiation_argument.proxy_application_id =
             Some(self.runtime.application_id().forget_abi());
         meme_instantiation_argument.meme.virtual_initial_liquidity =
@@ -650,6 +652,8 @@ impl ProxyContract {
         mut meme: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
+        log::info!("DEBUG MSG creating meme ...");
+
         meme.swap_application_id = Some(self.state.swap_application_id().await);
         self.on_creation_chain_msg_create_meme(meme, parameters)
             .await
@@ -661,6 +665,7 @@ impl ProxyContract {
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
     ) -> Result<(), ProxyError> {
+        log::info!("DEBUG MSG creating meme ext ...");
         self.on_meme_chain_msg_create_meme(bytecode_id, instantiation_argument, parameters)
             .await
     }
@@ -670,6 +675,7 @@ impl ProxyContract {
         chain_id: ChainId,
         token: ApplicationId,
     ) -> Result<(), ProxyError> {
+        log::info!("DEBUG MSG meme created");
         self.state.create_chain_token(chain_id, token).await
     }
 
