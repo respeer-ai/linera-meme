@@ -78,4 +78,9 @@ export class LineraWebClient {
     }) as string
     await application.query(gqlStr)
   }
+
+  static createMeme = async (argument: unknown, parameters: unknown, variables: Record<string, unknown>) => {
+    console.log(argument, parameters, variables)
+    return Promise.reject()
+  }
 }

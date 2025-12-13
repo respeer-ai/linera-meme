@@ -44,4 +44,6 @@ export class Ams {
   static initialize = () => ams.initializeAms()
 
   static blockHash = () => ams.blockHash
+
+  static existMeme = (name?: string, ticker?: string) => ams.existMeme(name, ticker)
 }

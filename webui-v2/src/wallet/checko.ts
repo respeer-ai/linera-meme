@@ -1,10 +1,11 @@
 import { account, user } from 'src/stores/export'
 import { Provider } from './provider'
 import { dbModel, rpcModel } from 'src/model'
-import { BALANCES, SWAP } from 'src/graphql'
+import { BALANCES, CREATE_MEME, PUBLISH_DATA_BLOB, SWAP } from 'src/graphql'
 import { Web3 } from 'web3'
 import * as lineraWasm from '../../dist/wasm/linera_wasm'
 import { stringify } from 'lossless-json'
+import { constants } from 'src/constant'
 
 export class CheCko {
   static subscribe = (
@@ -131,5 +132,58 @@ export class CheCko {
           reject(new Error(e))
         })
     })
+  }
+
+  static blobHash = async (logoBytes: number[]) => {
+    return await lineraWasm.blob_hash(`[${logoBytes.toString()}]`)
+  }
+
+  static publishDataBlob = async (logoBytes: number[], blobHash: string) => {
+    const publicKey = user.User.publicKey()
+    const chainId = user.User.chainId()
+
+    return new Promise((resolve, reject) => {
+      window.linera.request({
+        method: 'linera_graphqlMutation',
+        params: {
+          publicKey,
+          query: {
+            query: PUBLISH_DATA_BLOB.loc?.source?.body,
+            variables: {
+              chainId,
+              blobHash
+            },
+            blobBytes: [JSON.stringify(logoBytes)]
+          },
+          operationName: 'publishDataBlob'
+        }
+      }).then((blobHash) => {
+        resolve(blobHash as string)
+      }).catch((e) => {
+        reject(e)
+      })
+    })
+  }
+
+  static createMeme = async (argument: unknown, parameters: unknown, variables: Record<string, unknown>) => {
+    const publicKey = user.User.publicKey()
+    const queryBytes = await lineraWasm.graphql_deserialize_proxy_operation(CREATE_MEME.loc?.source?.body as string, stringify(variables) as string)
+
+    return await window.linera.request({
+      method: 'linera_graphqlMutation',
+      params: {
+        applicationId: constants.applicationId(constants.APPLICATION_URLS.PROXY),
+        publicKey,
+        query: {
+          query: CREATE_MEME.loc?.source?.body,
+          variables: {
+            memeInstantiationArgument: stringify(argument),
+            memeParameters: stringify(parameters)
+          },
+          applicationOperationBytes: queryBytes
+        },
+        operationName: 'createMeme'
+      }
+    }) as string
   }
 }

@@ -6,12 +6,12 @@
         <q-icon name='badge' class='text-secondary q-mr-xs' size='24px' />
         Name
       </div>
-      <q-input filled v-model='argument.meme.name' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='A great meme name' :autofocus='true' />
+      <q-input filled v-model='argument.meme.name' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='A great meme name' :autofocus='true' :error='nameError' />
       <div class='q-mt-lg text-neutral font-size-18'>
         <q-icon name='paid' class='text-secondary q-mr-xs' size='24px' />
         Ticker
       </div>
-      <q-input filled v-model='argument.meme.ticker' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='A great meme ticker' :autofocus='true' />
+      <q-input filled v-model='argument.meme.ticker' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='A great meme ticker' :autofocus='true' :error='tickerError' />
       <div class='q-mt-lg text-neutral font-size-18'>
         <q-icon name='image' class='text-secondary q-mr-xs' size='24px' />
         Logo
@@ -62,12 +62,12 @@
             <q-icon name='attach_money' class='text-secondary q-mr-xs' size='24px' />
             Initial Liquidity amount
           </div>
-          <q-input filled v-model='initialLiquidity.fungibleAmount' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Initial liquidity amount' :autofocus='true' />
+          <q-input filled v-model='initialLiquidity.fungibleAmount' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Initial liquidity amount' :autofocus='true' :error='fungibleAmountError' />
           <div class='q-mt-lg text-neutral font-size-18'>
             <q-img :src='constants.LINERA_LOGO' width='24px' height='24px' />
             Native token amount
           </div>
-          <q-input filled v-model='initialLiquidity.nativeAmount' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Initial liquidity amount' :autofocus='true' />
+          <q-input filled v-model='initialLiquidity.nativeAmount' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Initial liquidity amount' :autofocus='true' :error='nativeAmountError' />
           <q-toggle dense v-model='parameters.virtualInitialLiquidity' class='q-mt-md' label='Virtual Initial Liquidity' />
         </div>
         <div class='q-mt-lg text-neutral font-size-18'>
@@ -122,7 +122,7 @@
         </div>
       </q-expansion-item>
     </div>
-    <q-btn rounded class='bg-primary flex justify-center items-center hover-primary full-width q-mt-auto'>
+    <q-btn rounded class='bg-primary flex justify-center items-center hover-primary full-width q-mt-auto' @click='onCreateMemeClick'>
       <div class='row flex justify-center items-center'>
         <q-icon name='add' />
         <span class='q-header-line'>Create Meme</span>
@@ -133,12 +133,20 @@
 
 <script setup lang='ts'>
 import { ref } from 'vue'
-import { meme } from 'src/stores/export'
+import { meme, blob, ams, store, user } from 'src/stores/export'
 import { constants } from 'src/constant'
+import { Wallet } from 'src/wallet'
+import { creatorChainId } from 'src/utils'
 
 import SectionTitleView from '../common/SectionTitleView.vue'
 
 const imageError = ref(false)
+const nameError = ref(false)
+const tickerError = ref(false)
+
+const fungibleAmountError = ref(false)
+const nativeAmountError = ref(false)
+
 const MAXSIZE = 4 * 1024 * 1024
 const errorMessage = ref('')
 const logoBytes = ref([] as number[])
@@ -228,6 +236,75 @@ const initialLiquidity = ref({
 const parameters = ref({
   virtualInitialLiquidity: true
 } as meme.MemeParameters)
+
+const createMeme = async (): Promise<string> => {
+  if (hasInitialLiquidity.value) {
+    fungibleAmountError.value = Number(initialLiquidity.value.fungibleAmount) <= 0
+    nativeAmountError.value = Number(initialLiquidity.value.nativeAmount) <= 0
+    if (fungibleAmountError.value || nativeAmountError.value) {
+      return 'error'
+    }
+  }
+
+  parameters.value.creator = await user.User.ownerAccount()
+  parameters.value.swapCreatorChainId = await creatorChainId.creatorChainId('swap')
+
+  if (hasInitialLiquidity.value) {
+    parameters.value.initialLiquidity = initialLiquidity.value
+  }
+
+  argument.value.amsApplicationId = constants.applicationId(constants.APPLICATION_URLS.AMS) as string
+  argument.value.blobGatewayApplicationId = constants.applicationId(constants.APPLICATION_URLS.BLOB_GATEWAY) as string
+
+  const variables = {
+    memeInstantiationArgument: argument.value,
+    memeParameters: parameters.value
+  }
+
+  return await Wallet.createMeme(argument.value, parameters.value, variables)
+}
+
+const emit = defineEmits<{
+  (ev: 'created'): void,
+  (ev: 'creating'): void,
+  (ev: 'error', error: string): void
+}>()
+
+const onCreateMemeClick = async () => {
+  try {
+    if (logoBytes.value.length === 0) imageError.value = true
+    if (!argument.value.meme.name?.length) nameError.value = true
+    if (!argument.value.meme.ticker?.length) tickerError.value = true
+
+    if (imageError.value || nameError.value || tickerError.value) {
+      return
+    }
+
+    const blobHash = await Wallet.blobHash(logoBytes.value) as string
+
+    imageError.value = blob.Blob.existBlob(blobHash)
+    nameError.value = ams.Ams.existMeme(argument.value.meme.name, argument.value.meme.ticker)
+
+    if (imageError.value || nameError.value || tickerError.value) {
+      return
+    }
+
+    argument.value.meme.metadata.logo = blobHash
+    argument.value.meme.metadata.logoStoreType = store.StoreType.Blob
+
+    await Wallet.publishDataBlob(logoBytes.value, blobHash)
+
+    setTimeout(() => {
+      createMeme().then(() => {
+        emit('created')
+      }).catch((e: string) => {
+        emit('error', e)
+      })
+    }, 100)
+  } catch (e) {
+    emit('error', JSON.stringify(e))
+  }
+}
 
 </script>
 

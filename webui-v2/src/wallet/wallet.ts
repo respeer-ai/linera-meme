@@ -121,4 +121,38 @@ export class Wallet {
       error?.(JSON.stringify(e))
     }
   }
+
+  static blobHash = async (logoBytes: number[]) => {
+    const walletType = user.User.walletConnectedType()
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.blobHash(logoBytes)
+      case user.WalletType.Metamask:
+        throw new Error('Cannot get blob hash with Metamask/Linera web client')
+    }
+  }
+
+  static publishDataBlob = async (logoBytes: number[], blobHash: string) => {
+    const walletType = user.User.walletConnectedType()
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.publishDataBlob(logoBytes, blobHash)
+      case user.WalletType.Metamask:
+        throw new Error('Cannot publish blob data with Metamask/Linera web client')
+    }
+  }
+
+  static createMeme = async (argument: unknown, parameters: unknown, variables: Record<string, unknown>) => {
+    const walletType = user.User.walletConnectedType()
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.createMeme(argument, parameters, variables)
+      case user.WalletType.Metamask:
+        return await LineraWebClient.createMeme(argument, parameters, variables)
+    }
+    return Promise.reject('Invalid wallet type')
+  }
 }
