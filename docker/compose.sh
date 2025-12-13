@@ -20,7 +20,7 @@ done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$SCRIPT_DIR/..
-DOMAIN_FILE="${ROOT_DIR}/webui/src/constant/domain.ts"
+DOMAIN_FILE="${ROOT_DIR}/webui-v2/src/constant/domain.ts"
 
 NGINX_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 COMPOSE_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/docker-compose.yml.j2

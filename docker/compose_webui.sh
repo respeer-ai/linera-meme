@@ -23,7 +23,7 @@ mkdir -p $OUTPUT_DIR
 CONFIG_DIR=$OUTPUT_DIR/config
 mkdir -p $CONFIG_DIR
 
-WEBUI_DIR=$SCRIPT_DIR/../webui
+WEBUI_DIR=$SCRIPT_DIR/../webui-v2
 
 # Cleanup before building
 docker stop linera-meme-webui
@@ -34,11 +34,12 @@ NGINX_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
 
 cd "$WEBUI_DIR"
 if [ "x$COMPILE" = "x1" ]; then
-  yarn
-  yarn build:wasm
+  bun install
+  bun build:wasm
+  wasm-pack build --out-dir ../dist/wasm --target web wasm
 fi
 
-yarn build
+bun run build
 docker build --no-cache -f Dockerfile -t linera-meme-webui . || exit 1
 
 cd $SCRIPT_DIR
