@@ -137,6 +137,8 @@ const getBalance = async () =>{
     await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
       balance.value = Number(_balance).toFixed(4)
       updatingBalance.value = false
+    }, () => {
+      updatingBalance.value = false
     })
   } else {
     balance.value = nativeBalance.value
