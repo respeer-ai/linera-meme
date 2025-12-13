@@ -9,13 +9,14 @@
   </div>
   <q-dialog dense v-model='creating' position='right' full-height>
     <div style='min-width: 640px;' class='bg-dark-secondary q-pa-lg'>
-      <create-meme-view />
+      <create-meme-view @created='onMemeCreated' @error='onCreateMemeError' />
     </div>
   </q-dialog>
 </template>
 
 <script setup lang='ts'>
 import { ref } from 'vue'
+import { notify } from 'src/stores/export'
 
 import CreateMemeView from './CreateMemeView.vue'
 
@@ -23,6 +24,19 @@ const creating = ref(false)
 
 const onCreateMemeClick = () => {
   creating.value = true
+}
+
+const onMemeCreated = () => {
+  creating.value = false
+}
+
+const onCreateMemeError = (e: string) => {
+  notify.Notify.pushNotification({
+    Title: 'Create meme token',
+    Message: `Failed create meme token: ${e}`,
+    Popup: true,
+    Type: notify.NotifyType.Error
+  })
 }
 
 </script>
