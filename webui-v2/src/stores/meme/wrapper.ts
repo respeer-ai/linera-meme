@@ -8,7 +8,11 @@ const _user = useUserStore()
 const _meme = useMemeStore()
 
 export class MemeWrapper {
-  static balanceOfMeme = async (tokenApplication: Account, done: (balance: string) => void, error?: () => void) => {
+  static balanceOfMeme = async (
+    tokenApplication: Account,
+    done: (balance: string) => void,
+    error?: () => void,
+  ) => {
     const owner = await _user.account()
     if (!owner.owner || !tokenApplication.owner || !tokenApplication.chain_id) return error?.()
     const owenrDescription = _Account.accountDescription(owner)

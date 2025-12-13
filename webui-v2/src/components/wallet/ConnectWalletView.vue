@@ -55,10 +55,13 @@ const updateWalletState = () => {
   metamaskInstalled.value = window.ethereum !== undefined
 }
 
-onMounted(() => {
-  Wallet.waitOnReady(() => {
-    updateWalletState()
-  })
+onMounted(async () => {
+  try {
+    await Wallet.waitOnReady()
+  } catch {
+    // DO NOTHING
+  }
+  updateWalletState()
 })
 
 </script>

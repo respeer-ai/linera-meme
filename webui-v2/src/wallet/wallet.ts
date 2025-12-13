@@ -8,11 +8,15 @@ export class Wallet {
     return window.linera || window.ethereum
   }
 
-  static waitOnReady = <T extends unknown[]>(f: (...args: T) => void, ...args: T) => {
-    if (!window.linera && !window.ethereum) {
-      return setTimeout(() => Wallet.waitOnReady(f, ...args), 1000)
+  static waitOnReady = async (maxRetry: number = 3, interval: number = 1000): Promise<void> => {
+    for (let i = 0; i < maxRetry; i++) {
+      if (window.linera && window.ethereum) return
+      await new Promise((r) => setTimeout(r, interval))
     }
-    f(...args)
+
+    if (window.linera || window.ethereum) return Promise.resolve()
+
+    throw new Error('Provider not ready')
   }
 
   static getProviderState = (error?: () => void, walletType?: user.WalletType) => {
@@ -144,7 +148,11 @@ export class Wallet {
     }
   }
 
-  static createMeme = async (argument: unknown, parameters: unknown, variables: Record<string, unknown>) => {
+  static createMeme = async (
+    argument: unknown,
+    parameters: unknown,
+    variables: Record<string, unknown>,
+  ) => {
     const walletType = user.User.walletConnectedType()
 
     switch (walletType) {

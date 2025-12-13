@@ -143,33 +143,43 @@ export class CheCko {
     const chainId = user.User.chainId()
 
     return new Promise((resolve, reject) => {
-      window.linera.request({
-        method: 'linera_graphqlMutation',
-        params: {
-          publicKey,
-          query: {
-            query: PUBLISH_DATA_BLOB.loc?.source?.body,
-            variables: {
-              chainId,
-              blobHash
+      window.linera
+        .request({
+          method: 'linera_graphqlMutation',
+          params: {
+            publicKey,
+            query: {
+              query: PUBLISH_DATA_BLOB.loc?.source?.body,
+              variables: {
+                chainId,
+                blobHash,
+              },
+              blobBytes: [JSON.stringify(logoBytes)],
             },
-            blobBytes: [JSON.stringify(logoBytes)]
+            operationName: 'publishDataBlob',
           },
-          operationName: 'publishDataBlob'
-        }
-      }).then((blobHash) => {
-        resolve(blobHash as string)
-      }).catch((e) => {
-        reject(new Error(e))
-      })
+        })
+        .then((blobHash) => {
+          resolve(blobHash as string)
+        })
+        .catch((e) => {
+          reject(new Error(e))
+        })
     })
   }
 
-  static createMeme = async (argument: unknown, parameters: unknown, variables: Record<string, unknown>) => {
+  static createMeme = async (
+    argument: unknown,
+    parameters: unknown,
+    variables: Record<string, unknown>,
+  ) => {
     const publicKey = user.User.publicKey()
-    const queryBytes = await lineraWasm.graphql_deserialize_proxy_operation(CREATE_MEME.loc?.source?.body as string, stringify(variables) as string)
+    const queryBytes = await lineraWasm.graphql_deserialize_proxy_operation(
+      CREATE_MEME.loc?.source?.body as string,
+      stringify(variables) as string,
+    )
 
-    return await window.linera.request({
+    return (await window.linera.request({
       method: 'linera_graphqlMutation',
       params: {
         applicationId: constants.applicationId(constants.APPLICATION_URLS.PROXY),
@@ -178,12 +188,12 @@ export class CheCko {
           query: CREATE_MEME.loc?.source?.body,
           variables: {
             memeInstantiationArgument: stringify(argument),
-            memeParameters: stringify(parameters)
+            memeParameters: stringify(parameters),
           },
-          applicationOperationBytes: queryBytes
+          applicationOperationBytes: queryBytes,
         },
-        operationName: 'createMeme'
-      }
-    }) as string
+        operationName: 'createMeme',
+      },
+    })) as string
   }
 }

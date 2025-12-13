@@ -41,12 +41,15 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
   }
 }
 
-onMounted(() => {
-  Wallet.waitOnReady(() => {
+onMounted(async () => {
+  try {
+    await Wallet.waitOnReady()
     Wallet.getProviderState(async () => {
       Wallet.getProviderState(undefined, user.WalletType.Metamask)
     }, user.WalletType.CheCko)
-  })
+  } catch {
+    // DO NOTHING
+  }
 })
 
 onUnmounted(() => {
