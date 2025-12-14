@@ -50,13 +50,14 @@ export class LineraWebClient {
   }
 
   static getProviderState = (success?: () => void, error?: () => void) => {
-    if (!window.ethereum || !LineraWebClient.client) {
+    if (!window.ethereum) {
       return error?.()
     }
     Provider.getProviderState(
       window.ethereum,
       () => {
         user.User.setWalletConnectedType(user.WalletType.Metamask)
+        if (!LineraWebClient.client) return error?.()
         void LineraWebClient.getBalance()
         success?.()
       },
