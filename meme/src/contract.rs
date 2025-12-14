@@ -49,7 +49,7 @@ impl Contract for MemeContract {
     }
 
     async fn instantiate(&mut self, mut instantiation_argument: InstantiationArgument) {
-        log::info!("DEBUG instantiating meme ... {}", instantiation_argument);
+        log::info!("DEBUG instantiating meme ... {:?}", instantiation_argument);
 
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
