@@ -9,7 +9,7 @@
     <div class='q-ml-md'>
       <network-view />
     </div>
-    <div v-if='walletConnected' class='q-ml-md'>
+    <div v-if='walletConnected && walletType === user.WalletType.CheCko' class='q-ml-md'>
       <create-meme-btn />
     </div>
     <div v-if='!walletConnected' class='q-ml-md'>
@@ -38,6 +38,7 @@ import WalletInfoView from '../wallet/WalletInfoView.vue'
 import SubscriptionView from '../subscription/SubscriptionView.vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
+const walletType = computed(() => user.User.walletConnectedType())
 
 const onModeSwitchClick = () => {
   Dark.toggle()
