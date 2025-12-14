@@ -6,13 +6,6 @@ import { type WalletType } from './types'
 const user = useUserStore()
 
 export class User {
-  static ownerAccount = async () => {
-    return {
-      chain_id: user.chainId,
-      owner: _Account.formalizeOwner(await dbModel.ownerFromPublicKey(user.publicKey)),
-    } as Account
-  }
-
   static setChainId = (chainId: string) => (user.chainId = chainId)
   static setPublicKey = (publicKey: string) => (user.publicKey = publicKey)
   static setChainBalance = (balance: string) => (user.chainBalance = balance)

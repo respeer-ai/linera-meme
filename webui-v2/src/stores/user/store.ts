@@ -19,9 +19,15 @@ export const useUserStore = defineStore('user', {
           return {
             chain_id: this.chainId,
           }
+
+        let owner = this.publicKey
+        if (this.walletType === WalletType.CheCko) {
+          owner = _Account.formalizeOwner(await dbModel.ownerFromPublicKey(this.publicKey))
+        }
+
         return {
           chain_id: this.chainId,
-          owner: _Account.formalizeOwner(await dbModel.ownerFromPublicKey(this.publicKey)),
+          owner,
         }
       }
     },
