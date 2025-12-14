@@ -6,9 +6,6 @@
     </div>
     <q-space />
     <subscription-view />
-    <div>
-      <search-view />
-    </div>
     <div class='q-ml-md'>
       <network-view />
     </div>
@@ -35,7 +32,6 @@ import { user } from 'src/stores/export'
 import TabsView from './TabsView.vue'
 import NetworkView from './NetworkView.vue'
 import ConnectWalletBtn from '../wallet/ConnectWalletBtn.vue'
-import SearchView from './SearchView.vue'
 import LogoView from '../logo/LogoView.vue'
 import CreateMemeBtn from '../meme/CreateMemeBtn.vue'
 import WalletInfoView from '../wallet/WalletInfoView.vue'

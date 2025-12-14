@@ -2,6 +2,7 @@
   <div>
     <q-input
       filled
+      placeholder='Search tokens or liquidity pools'
       v-model='searchText'
     >
       <template #prepend>
