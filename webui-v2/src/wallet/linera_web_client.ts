@@ -58,10 +58,16 @@ export class LineraWebClient {
       () => {
         user.User.setWalletConnectedType(user.WalletType.Metamask)
         if (!LineraWebClient.client) {
-          return void LineraWebClient.connect(() => {
-            void LineraWebClient.getBalance()
-            success?.()
-          }, error)
+          LineraWebClient.connect().then(() => {
+            LineraWebClient.getBalance().then(() => {
+              success?.()
+            }).catch(() => {
+              error?.()
+            })
+          }).catch(() => {
+            error?.()
+          })
+          return
         }
         void LineraWebClient.getBalance()
         success?.()
