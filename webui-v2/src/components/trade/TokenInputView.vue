@@ -157,9 +157,7 @@ watchEffect(() => {
     subscription.value.unsubscribe()
   }
 
-  if (tokenApplication.value && tokenChain.value) {
-    getBalanceThrottle()
-
+  if (tokenApplication.value && tokenChain.value && tokenApplicationId.value) {
     subscription.value = new Subscription(
       meme.MemeWrapper.applicationUrl(tokenApplication.value) as string,
       constants.PROXY_WS_URL,
