@@ -57,7 +57,12 @@ export class LineraWebClient {
       window.ethereum,
       () => {
         user.User.setWalletConnectedType(user.WalletType.Metamask)
-        if (!LineraWebClient.client) return error?.()
+        if (!LineraWebClient.client) {
+          return void LineraWebClient.connect(() => {
+            void LineraWebClient.getBalance()
+            success?.()
+          }, error)
+        }
         void LineraWebClient.getBalance()
         success?.()
       },

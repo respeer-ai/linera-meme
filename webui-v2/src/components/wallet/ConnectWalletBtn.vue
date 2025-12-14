@@ -15,8 +15,8 @@
 </template>
 
 <script setup lang='ts'>
-import { onMounted, ref, toRef } from 'vue'
-import { Wallet } from 'src/wallet'
+import { computed, ref, toRef } from 'vue'
+import { user } from 'src/stores/export'
 
 import ConnectWalletView from './ConnectWalletView.vue'
 
@@ -32,16 +32,11 @@ const label = toRef(props, 'label')
 const showIcon = toRef(props, 'showIcon')
 
 const connecting = ref(false)
-const waiting = ref(true)
+const waiting = computed(() => user.User.walletConnecting())
 
 const onConnectClick = () => {
   connecting.value = true
 }
-
-onMounted(async () => {
-  await Wallet.waitOnReady()
-  waiting.value = false
-})
 
 </script>
 

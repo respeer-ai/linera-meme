@@ -10,6 +10,7 @@ export const useUserStore = defineStore('user', {
     accountBalance: '0.',
     chainBalance: '0.',
     walletType: WalletType.CheCko,
+    connecting: false
   }),
   getters: {
     account(): () => Promise<Account> {

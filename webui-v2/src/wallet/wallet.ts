@@ -19,16 +19,16 @@ export class Wallet {
     throw new Error('Provider not ready')
   }
 
-  static getProviderState = (error?: () => void, walletType?: user.WalletType) => {
+  static getProviderState = (success?: () => void, error?: () => void, walletType?: user.WalletType) => {
     walletType = walletType || user.User.walletConnectedType()
 
     console.log(`Getting provider state: ${walletType} ...`)
 
     switch (walletType) {
       case user.WalletType.CheCko:
-        return CheCko.getProviderState(() => {}, error)
+        return CheCko.getProviderState(success, error)
       case user.WalletType.Metamask:
-        return LineraWebClient.getProviderState(() => {}, error)
+        return LineraWebClient.getProviderState(success, error)
     }
   }
 
