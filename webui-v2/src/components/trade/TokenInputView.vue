@@ -108,6 +108,7 @@ const nativeBalance = computed(() => user.User.balance())
 const proxyBlockHash = computed(() => proxy.Proxy.blockHash())
 
 const tokenChain = computed(() => proxy.Proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
+const tokenChainId = computed(() => tokenChain.value?.chainId)
 const tokenApplication = computed(() => {
   return {
     chain_id: tokenChain.value?.chainId as string,
@@ -126,13 +127,15 @@ const updatingBalance = ref(false)
 
 const getBalance = async () =>{
   if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
-    updatingBalance.value = true
-    await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
-      balance.value = Number(_balance).toFixed(4)
-      updatingBalance.value = false
-    }, () => {
-      updatingBalance.value = false
-    })
+    if (tokenChainId.value) {
+      updatingBalance.value = true
+      await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
+        balance.value = Number(_balance).toFixed(4)
+        updatingBalance.value = false
+      }, () => {
+        updatingBalance.value = false
+      })
+    }
   } else {
     balance.value = nativeBalance.value
   }
