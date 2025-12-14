@@ -800,7 +800,7 @@ impl PoolContract {
             if amount_0_out < amount_0_out_min {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 log::warn!(
-                    "WARN POOL: Amount 0 out {} less than minimum {}",
+                    "DEBUG POOL: Amount 0 out {} less than minimum {}",
                     amount_0_out,
                     amount_0_out_min
                 );
@@ -817,7 +817,7 @@ impl PoolContract {
             if amount_1_out < amount_1_out_min {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 log::warn!(
-                    "WARN POOL: Amount 1 out {} less than minimum {}",
+                    "DEBUG POOL: Amount 1 out {} less than minimum {}",
                     amount_1_out,
                     amount_1_out_min
                 );
@@ -828,7 +828,7 @@ impl PoolContract {
         if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
             self.refund_amount_in(origin, amount_0_in, amount_1_in);
             log::warn!(
-                "WARN POOL: Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
+                "DEBUG POOL: Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
                 amount_0_in,
                 amount_1_out
             );
@@ -837,7 +837,7 @@ impl PoolContract {
         if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
             self.refund_amount_in(origin, amount_0_in, amount_1_in);
             log::warn!(
-                "WARN POOL: Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
+                "DEBUG POOL: Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
                 amount_1_in,
                 amount_0_out
             );
@@ -850,6 +850,7 @@ impl PoolContract {
         }
 
         // 2: Check liquidity
+        log::info!("DEBUG POOL: calculating adjusted amount pair ... amount 0 {}, amount 1 {}", amount_0_out, amount_1_out);
         match self
             .state
             .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)
@@ -858,7 +859,7 @@ impl PoolContract {
             Err(err) => {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 log::warn!(
-                    "WARN POOL: Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
+                    "DEBUG POOL: Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
                     amount_0_out,
                     amount_1_out
                 );
@@ -871,15 +872,21 @@ impl PoolContract {
         let application = AccountOwner::from(self.runtime.application_id().forget_abi());
         let token_0 = self.token_0();
 
+        log::info!("DEBUG POOL: transferring tokens ... amount 0 {}, amount 1 {}", amount_0_out, amount_1_out);
+
         if amount_1_out > Amount::ZERO {
             if let Some(token_1) = self.token_1() {
+                log::info!("DEBUG POOL: transferring ... token {}, amount {}", token_1, amount_1_out);
                 self.transfer_meme(token_1, to, amount_1_out);
             } else {
                 let balance = self.runtime.owner_balance(application);
+
+                log::info!("DEBUG POOL: transferring ... token {}, amount {}, balance {}", token_1, amount_1_out, balance);
+
                 if balance < amount_1_out {
                     self.refund_amount_in(origin, amount_0_in, amount_1_in);
                     log::warn!(
-                        "WARN POOL: Application balance {} less than amount 1 out {}",
+                        "DEBUG POOL: Application balance {} less than amount 1 out {}",
                         balance,
                         amount_1_out
                     );
@@ -890,6 +897,7 @@ impl PoolContract {
         }
         // Transfer native firstly due to meme transfer is a message
         if amount_0_out > Amount::ZERO {
+            log::info!("DEBUG POOL: transferring ... token {}, amount {}", token_0, amount_0_out);
             self.transfer_meme(token_0, to, amount_0_out);
         }
 
@@ -911,6 +919,7 @@ impl PoolContract {
             .unwrap();
         let timestamp = self.runtime.system_time();
 
+        log::info!("DEBUG POOL: liquiding ... balance 0 {}, balance 1 {}", balance_0, balance_1);
         self.state.liquid(balance_0, balance_1, timestamp);
 
         let transaction = self.state.build_transaction(
