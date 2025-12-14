@@ -19,7 +19,7 @@ use linera_sdk::{
 };
 
 use self::state::PoolState;
-use pool::LiquidityAmount;
+use pool::{FundRequest, LiquidityAmount};
 
 #[derive(Clone)]
 pub struct PoolService {
@@ -121,7 +121,11 @@ impl QueryRoot {
     }
 
     async fn fund_requests(&self) -> Vec<FundRequest> {
-        self.service.state()._fund_requests().await.expect("Failed get fund requests")
+        self.service
+            .state()
+            ._fund_requests()
+            .await
+            .expect("Failed get fund requests")
     }
 
     // async fn liquidity(&self, owner: Account) -> Amount {

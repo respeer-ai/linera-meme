@@ -107,7 +107,13 @@ impl PoolState {
     }
 
     pub(crate) async fn _fund_requests(&self) -> Result<Vec<FundRequest>, PoolError> {
-        Ok(self.fund_requests.key_values().await?)
+        Ok(self
+            .fund_requests
+            .index_values()
+            .await?
+            .into_iter()
+            .map(|(_, v)| v)
+            .collect())
     }
 
     pub(crate) async fn update_fund_request(
