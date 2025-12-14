@@ -1,8 +1,10 @@
 <template>
   <div class='row q-px-md radius-24 bg-dark-secondary full-height items-center cursor-pointer'>
     <q-img :src='walletLogo' width='24px' height='24px' />
-    <div class='q-ml-sm text-neutral text-bold'>{{ walletType }}</div>
-    <div class='q-ml-sm text-light text-bold'>{{ shortid.shortId(address, 6, 4).toUpperCase() }}</div>
+    <div class='q-ml-sm line-height-20'>
+      <div class='text-neutral font-size-12'>{{ walletType }}</div>
+      <div class='text-light text-bold'>{{ shortid.shortId(address, 6, 4).toUpperCase() }}</div>
+    </div>
     <div class='q-ml-sm text-orange text-bold font-size-18'>{{ balance }}</div>
   </div>
 </template>

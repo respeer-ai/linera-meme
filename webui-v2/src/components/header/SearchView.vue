@@ -2,9 +2,7 @@
   <div>
     <q-input
       filled
-      placeholder='Search tokens or liquidity pools'
       v-model='searchText'
-      style='min-width: 280px;'
     >
       <template #prepend>
         <q-icon name='search' />
