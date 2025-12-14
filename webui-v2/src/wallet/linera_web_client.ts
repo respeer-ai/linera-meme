@@ -50,7 +50,7 @@ export class LineraWebClient {
   }
 
   static getProviderState = (success?: () => void, error?: () => void) => {
-    if (!window.ethereum) {
+    if (!window.ethereum || !LineraWebClient.client) {
       return error?.()
     }
     Provider.getProviderState(
@@ -65,6 +65,8 @@ export class LineraWebClient {
   }
 
   static getBalance = async () => {
+    if (!LineraWebClient.client) return
+
     const accountBalance = await LineraWebClient.client.balance()
 
     user.User.setChainBalance(accountBalance)
