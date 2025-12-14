@@ -106,9 +106,6 @@ const balance = ref('0')
 const nativeBalance = computed(() => user.User.balance())
 const proxyBlockHash = computed(() => proxy.Proxy.blockHash())
 
-const userChainId = computed(() => user.User.chainId())
-const userPublicKey = computed(() => user.User.publicKey())
-
 const tokenChain = computed(() => proxy.Proxy.tokenCreatorChain(tokenApplicationId.value) as Chain)
 const tokenApplication = computed(() => {
   return {
@@ -154,8 +151,8 @@ watch(proxyBlockHash, async () => {
 })
 
 watchEffect(() => {
-  if (!userPublicKey.value || !userChainId.value) return
-  
+  if (!walletConnected.value) return
+
   getBalanceThrottle()
 
   if (subscription.value) {
