@@ -120,6 +120,10 @@ impl QueryRoot {
         self.service.state().pool()
     }
 
+    async fn fund_requests(&self) -> Vec<FundRequest> {
+        self.service.state()._fund_requests().await.expect("Failed get fund requests")
+    }
+
     // async fn liquidity(&self, owner: Account) -> Amount {
     async fn liquidity(&self, owner: String) -> LiquidityAmount {
         let liquidity = self

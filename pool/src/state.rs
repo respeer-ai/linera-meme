@@ -106,6 +106,10 @@ impl PoolState {
         Ok(self.fund_requests.get(&transfer_id).await?.unwrap())
     }
 
+    pub(crate) async fn _fund_requests(&self) -> Result<Vec<FundRequest>, PoolError> {
+        Ok(self.fund_requests.key_values().await?)
+    }
+
     pub(crate) async fn update_fund_request(
         &mut self,
         transfer_id: u64,
