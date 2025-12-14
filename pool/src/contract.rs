@@ -671,7 +671,11 @@ impl PoolContract {
     }
 
     async fn on_msg_fund_fail(&mut self, transfer_id: u64, error: String) -> Result<(), PoolError> {
-        log::info!("DEBUG POOL: fund fail transfer_id {} error {}", transfer_id, error);
+        log::info!(
+            "DEBUG POOL: fund fail transfer_id {} error {}",
+            transfer_id,
+            error
+        );
 
         let mut fund_request = self.state.fund_request(transfer_id).await?;
 

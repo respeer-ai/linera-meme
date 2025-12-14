@@ -49,7 +49,10 @@ impl Contract for MemeContract {
     }
 
     async fn instantiate(&mut self, mut instantiation_argument: InstantiationArgument) {
-        log::info!("DEBUG MEME: instantiating meme ... {:?}", instantiation_argument);
+        log::info!(
+            "DEBUG MEME: instantiating meme ... {:?}",
+            instantiation_argument
+        );
 
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
@@ -430,7 +433,11 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
-        log::info!("DEBUG MEME:OP: transferring from application ... to {}, amount {}", to, amount);
+        log::info!(
+            "DEBUG MEME:OP: transferring from application ... to {}, amount {}",
+            to,
+            amount
+        );
 
         // TODO: check called from caller creator chain
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
@@ -585,7 +592,12 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
-        log::info!("DEBUG MEME:MSG: transferring from application ... caller {}, to {}, amount {}", caller, to, amount);
+        log::info!(
+            "DEBUG MEME:MSG: transferring from application ... caller {}, to {}, amount {}",
+            caller,
+            to,
+            amount
+        );
 
         self.state.transfer(caller, to, amount).await
     }
