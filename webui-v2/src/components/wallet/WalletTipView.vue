@@ -1,5 +1,5 @@
 <template>
-  <div class='bg-primary-12 border-primary-50 radius-16 row items-center q-px-md q-py-lg'>
+  <div class='bg-primary-12 border-primary radius-16 row items-center q-px-md q-py-lg'>
     <q-icon name='info' size='24px' />
     <div class='q-ml-sm'>
       <div style='font-size: 18px;'>Connect your wallet to start creating . trading . mining tokens on Linera</div>

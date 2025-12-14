@@ -5,6 +5,7 @@
 
 body.body--light
   --q-primary:          #{$primary-light}
+  --q-primary-hover:    #{$primary-hover-light}
   --q-primary-fifty:    #{$primary-50-light}
   --q-primary-twenty-five:   #{$primary-25-light}
   --q-primary-twelve:   #{$primary-12-light}
@@ -24,9 +25,11 @@ body.body--light
   --q-virtual:          #{$virtual-light}
   --q-new-token:        #{$new-token-light}
   --q-volume:           #{$volume-light}
+  --q-high-red:         #{$high-red-light}
 
 body.body--dark
   --q-primary:          #{$primary-dark}
+  --q-primary-hover:    #{$primary-hover-dark}
   --q-primary-fifty:    #{$primary-50-dark}
   --q-primary-twenty-five:   #{$primary-25-dark}
   --q-primary-twelve:   #{$primary-12-dark}
@@ -46,6 +49,7 @@ body.body--dark
   --q-virtual:          #{$virtual-dark}
   --q-new-token:        #{$new-token-dark}
   --q-volume:           #{$volume-dark}
+  --q-high-red:         #{$high-red-dark}
 
 *::-webkit-scrollbar
   width: 2px
@@ -84,7 +88,7 @@ body.body--dark
   height: 100%
 
 .text-gradient-primary-secondary
-  background: linear-gradient(90deg, var(--q-primary), var(--q-secondary), var(--q-primary))
+  background: linear-gradient(90deg, var(--q-high-red), var(--q-secondary), var(--q-high-red))
   background-size: 200% auto
   -webkit-background-clip: text
   -webkit-text-fill-color: transparent
