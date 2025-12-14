@@ -38,9 +38,46 @@ wait_pods() {
   done
 }
 
-kline_pod_name=$(kubectl get pods -A | grep kline | awk '{print $2}')
-if [ $RE_GENERATE -eq 1 -a ! -z "$kline_pod_name" ]; then
-  kubectl exec -it $kline_pod_name -n kube-system -- sh -c "rm -vrf /shared-app-data/*"
+ask_yes_no() {
+  local label="$1"
+  local choice
+
+  echo "$label" >&2
+
+  select choice in yes no; do
+    case "$choice" in
+      yes)
+        echo "yes"
+        return 0
+        ;;
+      no)
+        echo "no"
+        return 0
+        ;;
+      *)
+        echo "Please choose 1 or 2."
+        ;;
+    esac
+  done
+}
+
+if [ $RE_GENERATE -eq 1 ]; then
+  result=$(ask_yes_no "Continue delete application data ?")
+  echo $result
+  if [ "$result" == "yes" ]; then
+    echo "Deleting application data now ..."
+  else
+    echo "Exiting ..."
+    exit 0
+  fi
+
+  kline_pod_name=$(kubectl get pods -A | grep kline | awk '{print $2}')
+  if [ ! -z "$kline_pod_name" ]; then
+    kubectl exec -it $kline_pod_name -n kube-system -- sh -c "rm -vrf /shared-app-data/*"
+  else
+    echo "Cannot find kline pod, failed to delete application data."
+    exit 1
+  fi
 fi
 
 for service in $SERVICES; do
