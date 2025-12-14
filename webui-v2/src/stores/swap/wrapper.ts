@@ -55,6 +55,7 @@ export class Swap {
 
   static initialize = () => swap.initializeSwap()
 
+  static getPool = (buyToken: string, sellToken: string) => swap.getPool(buyToken, sellToken)
   static selectedPool = () => swap.getPool(swap.buyToken, swap.sellToken)
   static buyToken = () => swap.buyToken
   static sellToken = () => swap.sellToken

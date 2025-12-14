@@ -9,12 +9,14 @@ body.body--light
   --q-primary-twenty-five:   #{$primary-25-light}
   --q-primary-twelve:   #{$primary-12-light}
   --q-secondary:        #{$secondary-light}
+  --q-secondary-twenty-five: #{$secondary-25-light}
   --q-accent:           #{$accent-light}
   --q-dark:             #{$dark-light}
   --q-dark-secondary:   #{$dark-secondary-light}
   --q-dark-page:        #{$dark-secondary-light}
   --q-light:            #{$light-light}
   --q-neutral:          #{$neutral-light}
+  --q-neutral-twenty-five:   #{$neutral-25-light}
   --q-neutral-light:    #{$neutral-light-light}
   --q-danger:           #{$danger-light}
   --q-warning:          #{$warning-light}
@@ -29,12 +31,14 @@ body.body--dark
   --q-primary-twenty-five:   #{$primary-25-dark}
   --q-primary-twelve:   #{$primary-12-dark}
   --q-secondary:        #{$secondary-dark}
+  --q-secondary-twenty-five: #{$secondary-25-dark}
   --q-accent:           #{$accent-dark}
   --q-dark:             #{$dark-dark}
   --q-dark-secondary:   #{$dark-secondary-dark}
   --q-dark-page:        #{$dark-secondary-dark}
   --q-light:            #{$light-dark}
   --q-neutral:          #{$neutral-dark}
+  --q-neutral-twenty-five:   #{$neutral-25-dark}
   --q-neutral-light:    #{$neutral-light-dark}
   --q-danger:           #{$danger-dark}
   --q-warning:          #{$warning-dark}
@@ -112,11 +116,20 @@ body.body--dark
 .border-primary-50
   border: 1px solid var(--q-primary-fifty)
 
+.border-secondary-25
+  border: 1px solid var(--q-secondary-twenty-five)
+
+.border-neutral-25
+  border: 1px solid var(--q-neutral-twenty-five)
+
 .border-dark-secondary
   border: 1px solid var(--q-dark-secondary)
 
 .border-bottom-primary-twelve
   border-bottom: 2px solid var(--q-primary-twelve)
+
+.border-grey-10
+  border: 1px solid $grey-10
 
 .text-neutral
   color: var(--q-neutral)
@@ -293,3 +306,11 @@ input[type="number"]
   height: 1px
   background: currentColor
   opacity: 0.35
+
+.hover-move
+  transition: transform 0.8s ease, box-shadow 0.2s ease
+
+  &:hover
+    transform: translateY(-4px)
+    background: var(--q-dark)
+    box-shadow: 0 2px 4px var(--q-primary-twelve)
