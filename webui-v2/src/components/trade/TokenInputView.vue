@@ -125,7 +125,7 @@ const updatingBalance = ref(false)
 
 const getBalance = async () =>{
   if (!walletConnected.value) return
-  
+
   if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
     updatingBalance.value = true
     await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
@@ -143,8 +143,8 @@ const subscription = ref(undefined as unknown as Subscription)
 
 const getBalanceThrottle = throttle(async () => {
   await getBalance()
-}, 1000, {
-  leading: false, 
+}, 10000, {
+  leading: true, 
   trailing: true
 })
 
@@ -166,7 +166,10 @@ watchEffect(() => {
       meme.MemeWrapper.applicationUrl(tokenApplication.value) as string,
       constants.PROXY_WS_URL,
       tokenChain.value.chainId,
-      () => getBalanceThrottle()
+      (hash: string) => {
+        console.log(`New block ${hash} on meme chain ${tokenApplicationId.value}`)
+        getBalanceThrottle()
+      }
     )
   }
 })
