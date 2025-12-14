@@ -27,7 +27,8 @@ export const useSwapStore = defineStore('swap', {
         constants.SWAP_URL,
         constants.SWAP_WS_URL,
         constants.chainId(constants.APPLICATION_URLS.SWAP) as string,
-        (hash: string) => {
+        (height: number, hash: string) => {
+          console.log(`New block height ${height} hash ${hash} on swap chain`)
           this.blockHash = hash
         },
       )

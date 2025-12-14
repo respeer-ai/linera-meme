@@ -8,7 +8,7 @@ import { provideApolloClient, useSubscription } from '@vue/apollo-composable'
 export class Subscription {
   unsubscribe: () => void = undefined as unknown as () => void
 
-  constructor(httpUrl: string, wsUrl: string, chainId: string, onNewBlock: (hash: string) => void) {
+  constructor(httpUrl: string, wsUrl: string, chainId: string, onNewBlock: (height: number, hash: string) => void) {
     const options = /* await */ getClientOptions(httpUrl, wsUrl)
     const apolloClient = new ApolloClient(options)
 
@@ -30,7 +30,7 @@ export class Subscription {
       const reason = graphqlResult.keyValue(notifications, 'reason')
       const newBlock = graphqlResult.keyValue(reason, 'NewBlock')
       if (newBlock) {
-        onNewBlock?.(graphqlResult.keyValue(newBlock, 'hash') as string)
+        onNewBlock?.(graphqlResult.keyValue(newBlock, 'height') as number, graphqlResult.keyValue(newBlock, 'hash') as string)
       }
     })
 

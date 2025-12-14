@@ -166,8 +166,8 @@ watchEffect(() => {
       meme.MemeWrapper.applicationUrl(tokenApplication.value) as string,
       constants.PROXY_WS_URL,
       tokenChain.value.chainId,
-      (hash: string) => {
-        console.log(`New block ${hash} on meme chain ${tokenApplicationId.value}`)
+      (height: number, hash: string) => {
+        console.log(`New block height ${height} hash ${hash} on meme chain ${tokenApplicationId.value}`)
         getBalanceThrottle()
       }
     )

@@ -25,7 +25,8 @@ export const useAmsStore = defineStore('ams', {
         constants.AMS_URL,
         constants.AMS_WS_URL,
         constants.chainId(constants.APPLICATION_URLS.AMS) as string,
-        (hash: string) => {
+        (height: number, hash: string) => {
+          console.log(`New block height ${height} hash ${hash} on ams chain`)
           this.blockHash = hash
         },
       )
