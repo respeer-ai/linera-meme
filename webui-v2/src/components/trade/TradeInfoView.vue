@@ -1,10 +1,11 @@
 <template>
   <div class='q-px-lg'>
-    <div class='text-neutral font-size-24'>You're swapping</div>
+    <div class='text-neutral font-size-20'>You're swapping</div>
+    <q-separator class='q-mt-sm' color='nautral' />
     <div class='row q-mt-lg items-center'>
       <div>
-        <div class='font-size-28 text-light'>{{ sellAmount }} {{ sellTokenTicker }}</div>
-        <div class='font-size-24 text-neutral'>$ 0.00</div>
+        <div class='font-size-24 text-light'>{{ sellAmount }} {{ sellTokenTicker }}</div>
+        <div class='font-size-20 text-neutral'>$ 0.00</div>
       </div>
       <q-space />
       <div>
@@ -20,8 +21,8 @@
 
     <div class='row q-mt-lg items-center'>
       <div>
-        <div class='font-size-28 text-light'>{{ buyAmount }} {{ buyTokenTicker }}</div>
-        <div class='font-size-24 text-neutral'>$ 0.00</div>
+        <div class='font-size-24 text-light'>{{ buyAmount }} {{ buyTokenTicker }}</div>
+        <div class='font-size-20 text-neutral'>$ 0.00</div>
       </div>
       <q-space />
       <div>
