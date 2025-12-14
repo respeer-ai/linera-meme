@@ -49,7 +49,7 @@ impl Contract for MemeContract {
     }
 
     async fn instantiate(&mut self, mut instantiation_argument: InstantiationArgument) {
-        log::info!("DEBUG instantiating meme ... {:?}", instantiation_argument);
+        log::info!("DEBUG MEME: instantiating meme ... {:?}", instantiation_argument);
 
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
@@ -270,7 +270,7 @@ impl MemeContract {
                 },
             };
 
-            log::info!("DEBUG registering meme ... {:?}", call);
+            log::info!("DEBUG MEME: registering meme ... {:?}", call);
 
             let _ =
                 self.runtime
@@ -290,7 +290,7 @@ impl MemeContract {
                 blob_hash: self.state.logo(),
             };
 
-            log::info!("DEBUG registering meme logo ... {:?}", call);
+            log::info!("DEBUG MEME: registering meme logo ... {:?}", call);
 
             let _ = self.runtime.call_application(
                 true,
@@ -335,7 +335,7 @@ impl MemeContract {
     }
 
     async fn create_liquidity_pool(&mut self) -> Result<(), MemeError> {
-        log::info!("DEBUG creating liquidity pool ...");
+        log::info!("DEBUG MEME: creating liquidity pool ...");
 
         let Some(swap_application_id) = self.state.swap_application_id() else {
             log::info!(
@@ -430,6 +430,8 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<MemeResponse, MemeError> {
+        log::info!("DEBUG MEME:OP: transferring from application ... to {}, amount {}", to, amount);
+
         // TODO: check called from caller creator chain
         let caller_id = self.runtime.authenticated_caller_id().unwrap();
         // TODO: use creator chain id if we can get it from runtime
@@ -532,7 +534,7 @@ impl MemeContract {
     }
 
     async fn on_msg_liquidity_funded(&mut self) -> Result<(), MemeError> {
-        log::info!("DEBUG MSG:MEME: liquidity funded");
+        log::info!("DEBUG MEME:MSG liquidity funded");
 
         let virtual_liquidity = self.virtual_initial_liquidity();
         let Some(liquidity) = self.initial_liquidity() else {
@@ -583,6 +585,8 @@ impl MemeContract {
         to: Account,
         amount: Amount,
     ) -> Result<(), MemeError> {
+        log::info!("DEBUG MEME:MSG: transferring from application ... caller {}, to {}, amount {}", caller, to, amount);
+
         self.state.transfer(caller, to, amount).await
     }
 
