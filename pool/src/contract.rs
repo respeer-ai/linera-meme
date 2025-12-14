@@ -645,6 +645,8 @@ impl PoolContract {
     }
 
     async fn on_msg_fund_success(&mut self, transfer_id: u64) -> Result<(), PoolError> {
+        log::info!("DEBUG POOL: fund success transfer_id {}", transfer_id);
+
         let mut fund_request = self.state.fund_request(transfer_id).await?;
 
         fund_request.status = FundStatus::Success;
@@ -669,6 +671,8 @@ impl PoolContract {
     }
 
     async fn on_msg_fund_fail(&mut self, transfer_id: u64, error: String) -> Result<(), PoolError> {
+        log::info!("DEBUG POOL: fund fail transfer_id {} error {}", transfer_id, error);
+
         let mut fund_request = self.state.fund_request(transfer_id).await?;
 
         log::info!(
