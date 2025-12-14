@@ -121,14 +121,6 @@ watch(nativeBalance, () => {
   }
 })
 
-watch(proxyBlockHash, async () => {
-  if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
-    await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
-      balance.value = Number(_balance).toFixed(4)
-    })
-  }
-})
-
 const updatingBalance = ref(false)
 
 const getBalance = async () =>{
@@ -154,6 +146,10 @@ const getBalanceThrottle = throttle(async () => {
   trailing: true
 })
 
+watch(proxyBlockHash, async () => {
+  getBalanceThrottle()
+})
+
 watchEffect(() => {
   getBalanceThrottle()
 
@@ -162,6 +158,8 @@ watchEffect(() => {
   }
 
   if (tokenApplication.value && tokenChain.value) {
+    getBalanceThrottle()
+
     subscription.value = new Subscription(
       meme.MemeWrapper.applicationUrl(tokenApplication.value) as string,
       constants.PROXY_WS_URL,
