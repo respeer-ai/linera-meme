@@ -1,6 +1,4 @@
 import { useUserStore } from './store'
-import { type Account, _Account } from '../account'
-import { dbModel } from 'src/model'
 import { type WalletType } from './types'
 
 const user = useUserStore()

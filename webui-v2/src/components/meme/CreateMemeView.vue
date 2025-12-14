@@ -246,7 +246,7 @@ const createMeme = async (): Promise<string> => {
     }
   }
 
-  parameters.value.creator = await user.User.ownerAccount()
+  parameters.value.creator = await user.User.account()
   parameters.value.swapCreatorChainId = await creatorChainId.creatorChainId('swap')
 
   if (hasInitialLiquidity.value) {
