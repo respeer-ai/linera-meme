@@ -73,6 +73,12 @@ const buyTokens = computed(() => tokens.value.filter((el) => {
   }) >= 0
 }))
 
+watch(buyTokenId, () => {
+  swap.Swap.setBuyToken(buyTokenId.value)
+}, {
+  immediate: true
+})
+
 const reviewing = ref(false)
 
 watch(tokens, () => {
@@ -92,10 +98,13 @@ const sellTokens = computed(() => tokens.value.filter((el) => {
   }) >= 0
 }))
 
-const pool = computed(() => pools.value.find((el) => {
-  return (el.token0 === buyTokenId.value && el.token1 === sellTokenId.value) ||
-         (el.token1 === buyTokenId.value && el.token0 === sellTokenId.value)
-}))
+watch(sellTokenId, () => {
+  swap.Swap.setSellToken(sellTokenId.value)
+}, {
+  immediate: true
+})
+
+const pool = computed(() => swap.Swap.selectedPool())
 const sellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0).toFixed(6))
 
 watch(sellAmount, () => {

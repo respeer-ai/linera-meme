@@ -54,4 +54,11 @@ export class Swap {
   static blockHash = () => swap.blockHash
 
   static initialize = () => swap.initializeSwap()
+
+  static selectedPool = () => swap.getPool(swap.buyToken, swap.sellToken)
+  static buyToken = () => swap.buyToken
+  static sellToken = () => swap.sellToken
+
+  static setBuyToken = (buyToken: string) => swap.buyToken = buyToken
+  static setSellToken = (sellToken: string) => swap.sellToken = sellToken
 }

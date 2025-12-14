@@ -24,15 +24,12 @@ const props = defineProps({
 })
 const height = toRef(props, 'height')
 
-const _kline = kline.useKlineStore()
-const _swap = swap.useSwapStore()
-
-const selectedToken0 = computed(() => _swap.selectedToken0)
-const selectedToken1 = computed(() => _swap.selectedToken1)
-const selectedPool = computed(() => _swap.selectedPool)
+const buyToken = computed(() => swap.Swap.buyToken())
+const sellToken = computed(() => swap.Swap.sellToken())
+const selectedPool = computed(() => swap.Swap.selectedPool())
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000) || 0)
 
-const _latestPoints = computed(() => _kline._latestPoints(kline.Interval.ONE_MINUTE, selectedToken0.value, selectedToken1.value).map((el) => {
+const _latestPoints = computed(() => kline.Kline.latestPoints(kline.Interval.ONE_MINUTE, buyToken.value, sellToken.value).map((el) => {
   return {
     ...el,
     time: Math.floor(el.timestamp / 1000)
@@ -69,15 +66,15 @@ watch(latestPoints, () => {
 })
 
 const getKline = (timestamp: number, reverse: boolean) => {
-  if (!selectedToken0.value || !selectedToken1.value) return
-  if (selectedToken0.value === selectedToken1.value) return
+  if (!buyToken.value || !sellToken.value) return
+  if (buyToken.value === sellToken.value) return
 
   const startAt = reverse ? (timestamp - 1 * 3600 * 1000) : timestamp + 1
   const endAt = reverse ? timestamp - 1 : (timestamp + 1 * 3600 * 1000)
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_POINTS, {
-    token0: selectedToken0.value,
-    token1: selectedToken1.value,
+    token0: buyToken.value,
+    token1: sellToken.value,
     startAt,
     endAt,
     interval: kline.Interval.ONE_MINUTE,
@@ -86,14 +83,14 @@ const getKline = (timestamp: number, reverse: boolean) => {
 }
 
 const loadKline = (offset: number | undefined, limit: number | undefined, timestampBegin: number | undefined, timestampEnd: number | undefined, reverse: boolean) => {
-  if (!selectedToken0.value || !selectedToken1.value) return false
-  if (selectedToken0.value === selectedToken1.value) return false
+  if (!buyToken.value || !sellToken.value) return false
+  if (buyToken.value === sellToken.value) return false
 
   loading.value = true
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_POINTS, {
-    token0: selectedToken0.value,
-    token1: selectedToken1.value,
+    token0: buyToken.value,
+    token1: sellToken.value,
     offset: offset || 0,
     limit: limit || 100,
     interval: kline.Interval.ONE_MINUTE,
@@ -106,18 +103,18 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 }
 
 const getStoreKline = () => {
-  if (selectedToken0.value && selectedToken1.value && selectedToken0.value !== selectedToken1.value && !loading.value) {
+  if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     klinePoints.value = []
 
     loadKline(0, 100, undefined, undefined, true)
   }
 }
 
-watch(selectedToken0, () => {
+watch(buyToken, () => {
   getStoreKline()
 })
 
-watch(selectedToken1, () => {
+watch(sellToken, () => {
   getStoreKline()
 })
 
@@ -144,8 +141,8 @@ interface Reason {
 
 const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
-    token0: selectedToken0.value,
-    token1: selectedToken1.value,
+    token0: buyToken.value,
+    token1: sellToken.value,
     originPoints: [...klinePoints.value].map((el) => {
       return {
         ...el,
@@ -163,7 +160,7 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   const _points = payload.points
   const { token0, token1, reverse } = payload
 
-  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+  if (token0 !== buyToken.value || token1 !== sellToken.value) return
 
   const startAt = reverse ? _points.start_at - 1 * 3600 * 1000 : _points.end_at + 1
   const endAt = reverse ? _points.start_at - 1 : _points.end_at + 1 * 3600 * 1000
@@ -181,7 +178,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
   const { token0, token1, reverse, timestampBegin, timestampEnd } = payload
 
-  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) {
+  if (token0 !== buyToken.value || token1 !== sellToken.value) {
     loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
     return
   }
@@ -215,7 +212,7 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   const { points, token0, token1, reverse, reason } = payload
   const _reason = reason as Reason
 
-  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+  if (token0 !== buyToken.value || token1 !== sellToken.value) return
 
   if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {
     let timestamp = reverse ? maxPointTimestamp.value : minPointTimestamp.value
@@ -276,7 +273,7 @@ const onCreatePoolClick = () => {
   void router.push({
     path: '/create/pool',
     query: {
-      token0: selectedToken0.value === constants.LINERA_NATIVE_ID ? selectedToken1.value : selectedToken0.value
+      token0: buyToken.value === constants.LINERA_NATIVE_ID ? sellToken.value : buyToken.value
     }
   })
 }
