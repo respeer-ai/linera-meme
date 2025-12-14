@@ -124,6 +124,8 @@ const walletConnected = computed(() => user.User.walletConnected())
 const updatingBalance = ref(false)
 
 const getBalance = async () =>{
+  if (!walletConnected.value) return
+  
   if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
     updatingBalance.value = true
     await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
