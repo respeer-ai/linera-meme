@@ -179,6 +179,10 @@ export class CheCko {
       stringify(variables) as string,
     )
 
+    const owner = await dbModel.ownerFromPublicKey(publicKey)
+    const chainId = user.User.chainId()
+    console.log(`Creating meme owner ${owner}, publicKey ${publicKey}, chain ${chainId}`)
+
     return (await window.linera.request({
       method: 'linera_graphqlMutation',
       params: {
