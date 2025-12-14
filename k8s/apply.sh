@@ -118,7 +118,7 @@ SWAP_APPLICATION_ID=$(kubectl exec -it blob-gateway-service-0 -n kube-system -- 
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$SCRIPT_DIR/..
-DOMAIN_FILE="${ROOT_DIR}/webui/src/constant/domain.ts"
+DOMAIN_FILE="${ROOT_DIR}/webui-v2/src/constant/domain.ts"
 
 cat <<EOF > $DOMAIN_FILE
 export const SUB_DOMAIN = 'testnet-conway.'

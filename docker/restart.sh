@@ -43,7 +43,7 @@ mkdir -p $DOCKER_DIR
 
 function get_application_id() {
     application=$1
-    sed ':a;N;s/=\n/=/;ta;P;D'  ../webui/src/constant/domain.ts | grep $application | awk '{ print $NF }'
+    sed ':a;N;s/=\n/=/;ta;P;D'  ../webui-v2/src/constant/domain.ts | grep $application | awk '{ print $NF }'
 }
 
 BLOB_GATEWAY_APPLICATION_ID=$(get_application_id BLOB_GATEWAY_APPLICATION_ID)

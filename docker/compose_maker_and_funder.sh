@@ -17,7 +17,7 @@ done
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$SCRIPT_DIR/..
-DOMAIN_FILE="${ROOT_DIR}/webui/src/constant/domain.ts"
+DOMAIN_FILE="${ROOT_DIR}/webui-v2/src/constant/domain.ts"
 
 # All generated files will be put here
 OUTPUT_DIR="${SCRIPT_DIR}/../output/compose"

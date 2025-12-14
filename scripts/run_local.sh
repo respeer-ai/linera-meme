@@ -28,7 +28,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$SCRIPT_DIR/..
 
 TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/nginx.conf.j2
-DOMAIN_FILE="${SCRIPT_DIR}/../webui/src/constant/domain.ts"
+DOMAIN_FILE="${SCRIPT_DIR}/../webui-v2/src/constant/domain.ts"
 
 # All generated files will be put here
 OUTPUT_DIR="${SCRIPT_DIR}/../output/local"
