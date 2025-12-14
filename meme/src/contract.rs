@@ -49,7 +49,7 @@ impl Contract for MemeContract {
     }
 
     async fn instantiate(&mut self, mut instantiation_argument: InstantiationArgument) {
-        log::info!("DEBUG instantiating meme ...");
+        log::info!("DEBUG instantiating meme ... {}", instantiation_argument);
 
         // Validate that the application parameters were configured correctly.
         self.runtime.application_parameters();
@@ -83,9 +83,7 @@ impl Contract for MemeContract {
                 .expect("Failed initialize liquidity");
         }
 
-        log::info!("DEBUG registering meme ...");
         self.register_application().await;
-        log::info!("DEBUG registering meme logo ...");
         self.register_logo().await;
 
         // When the meme application is created, initial liquidity allowance should already be approved
@@ -271,6 +269,9 @@ impl MemeContract {
                     created_at: self.runtime.system_time(),
                 },
             };
+
+            log::info!("DEBUG registering meme ... {:?}", call);
+
             let _ =
                 self.runtime
                     .call_application(true, ams_application_id.with_abi::<AmsAbi>(), &call);
@@ -288,6 +289,9 @@ impl MemeContract {
                 data_type: BlobDataType::Image,
                 blob_hash: self.state.logo(),
             };
+
+            log::info!("DEBUG registering meme logo ... {:?}", call);
+
             let _ = self.runtime.call_application(
                 true,
                 blob_gateway_application_id.with_abi::<BlobGatewayAbi>(),
@@ -344,7 +348,11 @@ impl MemeContract {
             return Ok(());
         };
         if liquidity.fungible_amount <= Amount::ZERO || liquidity.native_amount <= Amount::ZERO {
-            log::info!("DEBUG MEME: ignore creating liquidity pool for fungible amount {}, native amount {}", liquidity.fungible_amount, liquidity.native_amount);
+            log::info!(
+                "DEBUG MEME: ignore creating liquidity pool for fungible amount {}, native amount {}",
+                liquidity.fungible_amount,
+                liquidity.native_amount,
+            );
             return Ok(());
         }
 

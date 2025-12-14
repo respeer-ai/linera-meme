@@ -295,7 +295,7 @@ impl PoolContract {
         transfer_id: u64,
     ) {
         log::info!(
-            "Requesting token {} fund {} to chain {}",
+            "DEBUG POOL: Requesting token {} fund {} to chain {}",
             token,
             amount,
             token_creator_chain_id
@@ -383,6 +383,14 @@ impl PoolContract {
             !(amount_0_in.is_some() && amount_1_in.is_some())
                 && (amount_0_in.is_some() || amount_1_in.is_some()),
             "Invalid amount"
+        );
+
+        log::info!(
+            "DEBUG OP:POOL: Swapping amount 0 {:?}/{:?} with amount 1 {:?}/{:?}",
+            amount_0_in,
+            amount_1_in,
+            amount_0_out_min,
+            amount_1_out_min
         );
 
         let origin = self.owner_account();
@@ -646,7 +654,7 @@ impl PoolContract {
 
         let chain_id = self.runtime.chain_id();
         log::info!(
-            "Fund success transfer_id {} fund type {:?} on chain {}",
+            "DEBUG POOL: Fund success transfer_id {} fund type {:?} on chain {}",
             transfer_id,
             fund_request.fund_type,
             chain_id,
@@ -664,7 +672,7 @@ impl PoolContract {
         let mut fund_request = self.state.fund_request(transfer_id).await?;
 
         log::info!(
-            "Fund fail transfer_id {} fund type {:?} error {}",
+            "DEBUG POOL: Fund fail transfer_id {} fund type {:?} error {}",
             transfer_id,
             fund_request.fund_type,
             error
@@ -695,7 +703,7 @@ impl PoolContract {
         let chain_id = self.runtime.chain_id();
 
         log::info!(
-            "Msg requestting {} fund {} on chain {}",
+            "DEBUG POOL: Msg requestting {} fund {} on chain {}",
             token,
             amount,
             chain_id
@@ -707,7 +715,7 @@ impl PoolContract {
         {
             MemeResponse::Ok => {
                 log::info!(
-                    "Requested token {} fund {} on chain {} transfer_id {} notify chain {}",
+                    "DEBUG POOL: Requested token {} fund {} on chain {} transfer_id {} notify chain {}",
                     token,
                     amount,
                     chain_id,
@@ -721,7 +729,7 @@ impl PoolContract {
             }
             MemeResponse::Fail(error) => {
                 log::info!(
-                    "Failed Request token {} fund {} on chain {}: {}",
+                    "DEBUG POOL: Failed Request token {} fund {} on chain {}: {}",
                     token,
                     amount,
                     chain_id,
@@ -772,7 +780,7 @@ impl PoolContract {
         _block_timestamp: Option<Timestamp>,
     ) -> Result<(), PoolError> {
         log::info!(
-            "Swapping token_0 {} amunt_0 {:?}/{:?} token_1 {:?} amount_1 {:?}/{:?}",
+            "DEBUG POOL: Swapping token_0 {} amunt_0 {:?}/{:?} token_1 {:?} amount_1 {:?}/{:?}",
             self.token_0(),
             amount_0_in,
             amount_0_out_min,
@@ -792,7 +800,7 @@ impl PoolContract {
             if amount_0_out < amount_0_out_min {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 log::warn!(
-                    "Amount 0 out {} less than minimum {}",
+                    "WARN POOL: Amount 0 out {} less than minimum {}",
                     amount_0_out,
                     amount_0_out_min
                 );
@@ -809,7 +817,7 @@ impl PoolContract {
             if amount_1_out < amount_1_out_min {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 log::warn!(
-                    "Amount 1 out {} less than minimum {}",
+                    "WARN POOL: Amount 1 out {} less than minimum {}",
                     amount_1_out,
                     amount_1_out_min
                 );
@@ -820,7 +828,7 @@ impl PoolContract {
         if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
             self.refund_amount_in(origin, amount_0_in, amount_1_in);
             log::warn!(
-                "Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
+                "WARN POOL: Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
                 amount_0_in,
                 amount_1_out
             );
@@ -829,7 +837,7 @@ impl PoolContract {
         if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
             self.refund_amount_in(origin, amount_0_in, amount_1_in);
             log::warn!(
-                "Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
+                "WARN POOL: Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
                 amount_1_in,
                 amount_0_out
             );
@@ -850,7 +858,7 @@ impl PoolContract {
             Err(err) => {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in);
                 log::warn!(
-                    "Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
+                    "WARN POOL: Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
                     amount_0_out,
                     amount_1_out
                 );
@@ -871,7 +879,7 @@ impl PoolContract {
                 if balance < amount_1_out {
                     self.refund_amount_in(origin, amount_0_in, amount_1_in);
                     log::warn!(
-                        "Application balance {} less than amount 1 out {}",
+                        "WARN POOL: Application balance {} less than amount 1 out {}",
                         balance,
                         amount_1_out
                     );
