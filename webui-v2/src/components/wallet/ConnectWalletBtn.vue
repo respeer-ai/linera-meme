@@ -1,6 +1,6 @@
 <template>
   <div>
-    <q-btn rounded class='bg-primary flex justify-center items-center hover-primary' @click='onConnectClick'>
+    <q-btn rounded class='bg-primary flex justify-center items-center hover-primary' @click='onConnectClick' :loading='waiting'>
       <div class='row flex justify-center items-center'>
         <q-icon v-if='showIcon' name='wallet' />
         <span :class='[ showIcon ? "q-ml-sm" : "", "q-header-line" ]'>{{ label }}</span>
@@ -15,7 +15,8 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, toRef } from 'vue'
+import { onMounted, ref, toRef } from 'vue'
+import { Wallet } from 'src/wallet'
 
 import ConnectWalletView from './ConnectWalletView.vue'
 
@@ -31,10 +32,16 @@ const label = toRef(props, 'label')
 const showIcon = toRef(props, 'showIcon')
 
 const connecting = ref(false)
+const waiting = ref(true)
 
 const onConnectClick = () => {
   connecting.value = true
 }
+
+onMounted(async () => {
+  await Wallet.waitOnReady()
+  waiting.value = false
+})
 
 </script>
 
