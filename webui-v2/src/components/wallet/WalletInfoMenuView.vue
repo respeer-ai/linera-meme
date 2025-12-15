@@ -15,6 +15,9 @@
       </div>
       <div class='q-ml-md cursor-pointer'>
         <q-icon name='power_settings_new' size='20px' color='neutral' />
+        <q-menu anchor='bottom left' :offset='[0, 8]'>
+          <wallet-switch-menu-view />
+        </q-menu>
       </div>
     </div>
     <div class='q-mt-sm text-neutral text-bold font-size-16'>
@@ -63,6 +66,8 @@ import { constants } from 'src/constant'
 import { user } from 'src/stores/export'
 import { shortid } from 'src/utils'
 import { computed } from 'vue'
+
+import WalletSwitchMenuView from './WalletSwitchMenuView.vue'
 
 const publicKey = computed(() => user.User.publicKey())
 const balance = computed(() => user.User.balance())
