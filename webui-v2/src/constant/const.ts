@@ -1,4 +1,4 @@
-import { metaMaskSvg } from 'src/assets'
+import { cheCkoPng, metaMaskSvg } from 'src/assets'
 import * as domain from './domain'
 
 export const formalizeSchema = (url: string) => {
@@ -63,5 +63,4 @@ export const TELEGRAM_LOGO =
   'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/telegram.svg'
 
 export const METAMASK_LOGO = `${metaMaskSvg}`
-export const CHECKO_LOGO =
-  'https://github.com/respeer-ai/linera-wallet/blob/master/public/favicon.png?raw=true'
+export const CHECKO_LOGO = `${cheCkoPng}`
