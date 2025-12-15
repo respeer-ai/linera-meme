@@ -51,7 +51,7 @@ export class LineraWebClient {
     }
   }
 
-  static getBalance = async (retry = 3, delayMs = 5000) => {
+  static getBalance = async (retry = 12, delayMs = 5000) => {
     if (!LineraWebClient.client) throw new Error('Invalid client')
 
     for (let attempt = 1; attempt <= retry; attempt++) {
