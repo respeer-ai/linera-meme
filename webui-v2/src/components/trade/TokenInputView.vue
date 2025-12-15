@@ -6,7 +6,7 @@
       <q-select
         :options='_tokens'
         v-model='token'
-        class='bg-primary-twenty-five radius-16'
+        class='bg-primary-25 radius-16'
         style='overflow: hidden;'
       >
         <template #option='scope'>

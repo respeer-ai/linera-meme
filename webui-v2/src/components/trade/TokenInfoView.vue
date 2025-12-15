@@ -54,7 +54,7 @@
         </div>
         <q-space />
         <div class='narrow-btn'>
-          <q-btn flat dense rounded class='bg-primary-twenty-five text-primary'>Watch</q-btn>
+          <q-btn flat dense rounded class='bg-primary-25 text-primary'>Watch</q-btn>
         </div>
       </div>
     </div>

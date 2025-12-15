@@ -1,7 +1,7 @@
 <template>
   <div class='row'>
     <div class='row'>
-      <div class='bg-primary-twenty-five border-primary-50 row q-pa-xs' style='border-radius: 32px; width: 66px; height: 66px;'>
+      <div class='bg-primary-25 border-primary-50 row q-pa-xs' style='border-radius: 32px; width: 66px; height: 66px;'>
         <div style='width: 28px; overflow: hidden; border-radius: 28px 0 0 28px;'>
           <q-img :src='token0Logo' width='56px' height='56px' fit='cover' />
         </div>
