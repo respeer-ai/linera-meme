@@ -3,6 +3,7 @@
 </template>
 
 <script setup lang='ts'>
+import { Cookies } from 'quasar'
 import { user } from 'src/stores/export'
 import { Wallet } from 'src/wallet'
 import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
@@ -44,34 +45,36 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
 }
 
 const getWalletsState = async () => {
-  user.User.setWalletConnecting(true)
-  user.User.setBalanceUpdating(true)
-
   await Wallet.waitOnReady()
   await nextTick()
 
-  try {
-    await Wallet.getProviderState(user.WalletType.CheCko)
-    user.User.setWalletConnecting(false)
-    await Wallet.getBalance()
-  } catch (e) {
-    console.log(`Failed get CheCko wallet state: `, e)
-  }
+  const lastWalletType = Cookies.get(user.WalletCookie.WalletConnectType) as user.WalletType
+  if (!lastWalletType) return
 
-  try {
-    await Wallet.getProviderState(user.WalletType.Metamask)
-    user.User.setWalletConnecting(false)
-    await Wallet.getBalance()
-  } catch (e) {
-    console.log(`Failed get CheCko wallet state: `, e)
-  }
+  const walletTypes = lastWalletType ? [lastWalletType] : []
+  walletTypes.push(...user.WalletTypes.filter((el) => !lastWalletType || el !== lastWalletType))
 
-  user.User.setWalletConnecting(false)
-  user.User.setBalanceUpdating(false)
+  for (const walletType of walletTypes) {
+    try {
+      user.User.setWalletConnecting(true)
+      await Wallet.getProviderState(walletType)
+      user.User.setBalanceUpdating(true)
+      user.User.setWalletConnecting(false)
+      await Wallet.getBalance()
+      user.User.setBalanceUpdating(false)
+      return
+    } catch (e) {
+      console.log(`Failed get ${walletType} wallet state: `, e)
+    }
+  }
 }
 
 onMounted(async () => {
-  await getWalletsState()
+  try {
+    await getWalletsState()
+  } catch {
+    // DO NOTHING
+  }
 })
 
 onUnmounted(() => {

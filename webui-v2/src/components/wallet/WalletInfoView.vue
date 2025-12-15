@@ -14,7 +14,7 @@
     </span>
   </div>
   <q-dialog v-model='menuOpen' position='right' full-height>
-    <div style='min-width: 480px;' class='bg-dark-secondary q-pa-lg'>
+    <div style='min-width: 400px;' class='bg-dark-secondary q-pa-lg radius-8'>
       <wallet-info-menu-view />
     </div>
   </q-dialog>

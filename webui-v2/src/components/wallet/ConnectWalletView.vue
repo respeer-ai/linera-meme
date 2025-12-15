@@ -34,9 +34,24 @@ const emit = defineEmits<{
   (e: 'error', error: string): void
 }>()
 
+const getWalletsState = async (walletType: user.WalletType) => {
+  try {
+    user.User.setWalletConnecting(true)
+    await Wallet.getProviderState(walletType)
+    user.User.setBalanceUpdating(true)
+    user.User.setWalletConnecting(false)
+    await Wallet.getBalance()
+    user.User.setBalanceUpdating(false)
+    return
+  } catch (e) {
+    console.log(`Failed get ${walletType} wallet state: `, e)
+  }
+}
+
 const onConnectWallet = async (walletType: user.WalletType) => {
   try {
     await Wallet.connect(walletType)
+    await getWalletsState(walletType)
     emit('done')
   } catch (e) {
     emit('error', JSON.stringify(e))

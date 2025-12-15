@@ -16,8 +16,8 @@ export class Provider {
 
     user.User.setPublicKey((result as Record<string, string>)?.accounts?.[0] as string)
 
-    Cookies.set('Wallet-Login-Account', user.User.publicKey())
-    Cookies.set('Wallet-Login-Microchain', user.User.chainId())
+    Cookies.set(user.WalletCookie.WalletLoginAccount, user.User.publicKey())
+    Cookies.set(user.WalletCookie.WalletLoginMicrochain, user.User.chainId())
 
     return (result as Record<string, string>)?.chainId?.substring(2) as string
   }

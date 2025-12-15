@@ -1,5 +1,6 @@
+import { Cookies } from 'quasar'
 import { useUserStore } from './store'
-import { type WalletType } from './types'
+import { WalletCookie, type WalletType } from './types'
 
 const user = useUserStore()
 
@@ -8,7 +9,10 @@ export class User {
   static setPublicKey = (publicKey: string) => (user.publicKey = publicKey)
   static setChainBalance = (balance: string) => (user.chainBalance = balance)
   static setAccountBalance = (balance: string) => (user.accountBalance = balance)
-  static setWalletConnectedType = (walletType: WalletType) => (user.walletType = walletType)
+  static setWalletConnectedType = (walletType: WalletType) => {
+    Cookies.set(WalletCookie.WalletConnectType, walletType)
+    user.walletType = walletType
+  }
   static setWalletConnecting = (connecting: boolean) => (user.walletConnecting = connecting)
   static setBalanceUpdating = (updating: boolean) => (user.balanceUpdating = updating)
 
