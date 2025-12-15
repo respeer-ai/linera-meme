@@ -34,7 +34,11 @@ export class CheCko {
     })
   }
 
-  static getProviderState = (onConnected?: () => void, onBalance?: () => void, error?: () => void) => {
+  static getProviderState = (
+    onConnected?: () => void,
+    onBalance?: () => void,
+    error?: () => void,
+  ) => {
     Provider.getProviderState(
       window.linera,
       async (chainId: string) => {

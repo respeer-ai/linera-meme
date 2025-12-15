@@ -60,6 +60,6 @@ export class Swap {
   static buyToken = () => swap.buyToken
   static sellToken = () => swap.sellToken
 
-  static setBuyToken = (buyToken: string) => swap.buyToken = buyToken
-  static setSellToken = (sellToken: string) => swap.sellToken = sellToken
+  static setBuyToken = (buyToken: string) => (swap.buyToken = buyToken)
+  static setSellToken = (sellToken: string) => (swap.sellToken = sellToken)
 }

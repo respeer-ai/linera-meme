@@ -9,8 +9,8 @@ export class User {
   static setChainBalance = (balance: string) => (user.chainBalance = balance)
   static setAccountBalance = (balance: string) => (user.accountBalance = balance)
   static setWalletConnectedType = (walletType: WalletType) => (user.walletType = walletType)
-  static setWalletConnecting = (connecting: boolean) => user.walletConnecting = connecting
-  static setBalanceUpdating = (updating: boolean) => user.balanceUpdating = updating
+  static setWalletConnecting = (connecting: boolean) => (user.walletConnecting = connecting)
+  static setBalanceUpdating = (updating: boolean) => (user.balanceUpdating = updating)
 
   static chainId = () => user.chainId
   static publicKey = () => user.publicKey

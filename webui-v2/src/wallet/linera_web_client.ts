@@ -49,7 +49,11 @@ export class LineraWebClient {
     })
   }
 
-  static getProviderState = (onConnected?: () => void, onBalance?: () => void, error?: () => void) => {
+  static getProviderState = (
+    onConnected?: () => void,
+    onBalance?: () => void,
+    error?: () => void,
+  ) => {
     if (!window.ethereum) {
       return error?.()
     }
