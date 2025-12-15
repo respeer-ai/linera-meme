@@ -5,7 +5,7 @@
         <q-icon name='account_tree' color='secondary' width='64px' height='64px' />
         <q-badge dense floating class='bg-transparent' style='padding: 12px 12px 0 0;'>
           <q-avatar size='16px' class='bg-light'>
-            <q-img :src='constants.CHECKO_LOGO' width='16px' height='16px' />
+            <q-img :src='walletLogo' width='16px' height='16px' />
           </q-avatar>
         </q-badge>
       </q-avatar>
@@ -15,8 +15,8 @@
       </div>
       <div class='q-ml-md cursor-pointer'>
         <q-icon name='power_settings_new' size='20px' color='neutral' />
-        <q-menu anchor='bottom left' :offset='[0, 8]'>
-          <wallet-switch-menu-view />
+        <q-menu anchor='bottom left' :offset='[0, 8]' v-model='menuOpenning'>
+          <wallet-switch-menu-view @close-menu='onCloseMenu' />
         </q-menu>
       </div>
     </div>
@@ -65,11 +65,19 @@
 import { constants } from 'src/constant'
 import { user } from 'src/stores/export'
 import { shortid } from 'src/utils'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import WalletSwitchMenuView from './WalletSwitchMenuView.vue'
 
 const publicKey = computed(() => user.User.publicKey())
 const balance = computed(() => user.User.balance())
+
+const menuOpenning = ref(false)
+const walletType = computed(() => user.User.walletConnectedType())
+const walletLogo = computed(() => walletType.value === user.WalletType.CheCko ? constants.CHECKO_LOGO : constants.METAMASK_LOGO)
+
+const onCloseMenu = () => {
+  menuOpenning.value = false
+}
 
 </script>

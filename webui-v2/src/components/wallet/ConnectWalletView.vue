@@ -6,12 +6,16 @@
         <div class='row items-center full-width q-py-sm'>
           <q-img :src='constants.CHECKO_LOGO' width='32px' height='32px' />
           <div class='q-ml-md font-size-16'>{{ user.WalletType.CheCko }}</div>
+          <q-space />
+          <q-spinner-ios v-if='cheCkoConnecting' color='primary' size='1em' />
         </div>
       </q-btn>
       <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width q-mt-sm' @click='onMetamaskClick' :disabled='!metamaskInstalled'>
         <div class='row items-center full-width q-py-sm'>
           <q-img :src='constants.METAMASK_LOGO' width='32px' height='32px' />
           <div class='q-ml-md font-size-16'>{{ user.WalletType.Metamask }}</div>
+          <q-space />
+          <q-spinner-ios v-if='metaMaskConnecting' color='primary' size='1em' />
         </div>
       </q-btn>
     </div>
@@ -28,6 +32,8 @@ import { Wallet } from 'src/wallet'
 
 const cheCkoInstalled = ref(false)
 const metamaskInstalled = ref(false)
+const cheCkoConnecting = ref(false)
+const metaMaskConnecting = ref(false)
 
 const emit = defineEmits<{
   (e: 'done'): void
@@ -59,11 +65,15 @@ const onConnectWallet = async (walletType: user.WalletType) => {
 }
 
 const onCheCkoClick = async () => {
-  onConnectWallet(user.WalletType.CheCko)
+  cheCkoConnecting.value = true
+  await onConnectWallet(user.WalletType.CheCko)
+  cheCkoConnecting.value = false
 }
 
 const onMetamaskClick = async () => {
-  onConnectWallet(user.WalletType.Metamask)
+  metaMaskConnecting.value = true
+  await onConnectWallet(user.WalletType.Metamask)
+  metaMaskConnecting.value = false
 }
 
 const updateWalletState = () => {
