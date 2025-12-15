@@ -2,7 +2,7 @@
   <div>
     <div class='text-neutral font-size-24 text-center'>Connect Wallet</div>
     <div class='q-pa-md q-mb-lg q-mt-md'>
-      <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width' @click='onCheCkoClick' :disabled='!cheCkoInstalled'>
+      <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width' @click='onCheCkoClick' :disabled='!cheCkoInstalled || disabled'>
         <div class='row items-center full-width q-py-sm'>
           <q-img :src='constants.CHECKO_LOGO' width='32px' height='32px' />
           <div class='q-ml-md font-size-16'>{{ user.WalletType.CheCko }}</div>
@@ -10,7 +10,7 @@
           <q-spinner-ios v-if='cheCkoConnecting' color='primary' size='1em' />
         </div>
       </q-btn>
-      <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width q-mt-sm' @click='onMetamaskClick' :disabled='!metamaskInstalled'>
+      <q-btn no-caps class='q-pa-md bg-dark radius-16 full-width q-mt-sm' @click='onMetamaskClick' :disabled='!metamaskInstalled || disabled'>
         <div class='row items-center full-width q-py-sm'>
           <q-img :src='constants.METAMASK_LOGO' width='32px' height='32px' />
           <div class='q-ml-md font-size-16'>{{ user.WalletType.Metamask }}</div>
@@ -27,13 +27,16 @@
 <script setup lang='ts'>
 import { constants } from 'src/constant'
 import { user } from 'src/stores/export'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Wallet } from 'src/wallet'
 
 const cheCkoInstalled = ref(false)
 const metamaskInstalled = ref(false)
+
 const cheCkoConnecting = ref(false)
 const metaMaskConnecting = ref(false)
+
+const disabled = computed(() => cheCkoConnecting.value || metaMaskConnecting.value)
 
 const emit = defineEmits<{
   (e: 'done'): void
