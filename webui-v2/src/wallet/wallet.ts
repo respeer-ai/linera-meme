@@ -19,21 +19,16 @@ export class Wallet {
     throw new Error('Provider not ready')
   }
 
-  static getProviderState = (
-    onConnected?: () => void,
-    onBalance?: () => void,
-    error?: () => void,
-    walletType?: user.WalletType,
-  ) => {
+  static getProviderState = async (walletType?: user.WalletType) => {
     walletType = walletType || user.User.walletConnectedType()
 
     console.log(`Getting provider state: ${walletType} ...`)
 
     switch (walletType) {
       case user.WalletType.CheCko:
-        return CheCko.getProviderState(onConnected, onBalance, error)
+        return await CheCko.getProviderState()
       case user.WalletType.Metamask:
-        return LineraWebClient.getProviderState(onConnected, onBalance, error)
+        return await LineraWebClient.getProviderState()
     }
   }
 
@@ -49,15 +44,13 @@ export class Wallet {
   }
 
   static connect = async (
-    walletType: user.WalletType,
-    success?: () => void,
-    error?: (e: string) => void,
+    walletType: user.WalletType
   ) => {
     switch (walletType) {
       case user.WalletType.CheCko:
-        return await CheCko.connect(success, error)
+        return await CheCko.connect()
       case user.WalletType.Metamask:
-        return await LineraWebClient.connect(success, error)
+        return await LineraWebClient.connect()
     }
   }
 

@@ -10,7 +10,7 @@ export class LineraWebClient {
   static wallet: linera.Wallet
   static client: linera.Client
 
-  static _connect = async () => {
+  static connect = async () => {
     if (!window.ethereum) {
       return window.open(
         'https://chromewebstore.google.com/detail/metamask/nkbihfbeogaeaoehlefnkodbefgpgknn?hl=zh-CN&utm_source=ext_sidebar',
@@ -29,18 +29,8 @@ export class LineraWebClient {
     // eslint-disable-next-line @typescript-eslint/await-thenable
     LineraWebClient.client = await new linera.Client(LineraWebClient.wallet, signer, false)
 
-    LineraWebClient.getProviderState(() => {
-      user.User.setChainId(chain)
-    })
-  }
-
-  static connect = async (success?: () => void, error?: (e: string) => void) => {
-    try {
-      await LineraWebClient._connect()
-      success?.()
-    } catch (e: unknown) {
-      error?.(e as string)
-    }
+    await LineraWebClient.getProviderState()
+    user.User.setChainId(chain)
   }
 
   static subscribe = (onData: (walletType: user.WalletType, msg: unknown) => void) => {
@@ -49,41 +39,35 @@ export class LineraWebClient {
     })
   }
 
-  static getProviderState = (
-    onConnected?: () => void,
-    onBalance?: () => void,
-    error?: () => void,
-  ) => {
-    if (!window.ethereum) {
-      return error?.()
+  static getProviderState = async () => {
+    if (!window.ethereum) throw new Error('Invalid provider')
+
+    await Provider.getProviderState(window.ethereum)
+
+    user.User.setWalletConnectedType(user.WalletType.Metamask)
+    
+    if (!LineraWebClient.client) {
+      await LineraWebClient.connect()
     }
-    Provider.getProviderState(
-      window.ethereum,
-      async () => {
-        user.User.setWalletConnectedType(user.WalletType.Metamask)
-        onConnected?.()
-        if (!LineraWebClient.client) {
-          await LineraWebClient.connect()
-          await LineraWebClient.getBalance()
-          return onBalance?.()
-        }
-        await LineraWebClient.getBalance()
-        onBalance?.()
-      },
-      error,
-    )
   }
 
-  static getBalance = async () => {
-    if (!LineraWebClient.client) return
+  static getBalance = async (retry = 3, delayMs = 5000) => {
+    if (!LineraWebClient.client) throw new Error('Invalid client')
 
-    try {
-      const accountBalance = await LineraWebClient.client.balance()
+    for (let attempt = 1; attempt <= retry; attempt++) {
+      try {
+        const accountBalance = await LineraWebClient.client.balance()
+        user.User.setChainBalance(accountBalance)
+        return accountBalance
+      } catch (e) {
+        console.log('Failed get balance: ', e)
+        
+        if (attempt === retry) {
+          throw e
+        }
 
-      user.User.setChainBalance(accountBalance)
-    } catch (e) {
-      console.log('Failed get balance: ', e)
-      window.setTimeout(() => void LineraWebClient.getBalance(), 5000)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
     }
   }
 

@@ -35,11 +35,12 @@ const emit = defineEmits<{
 }>()
 
 const onConnectWallet = async (walletType: user.WalletType) => {
-  Wallet.connect(walletType, () => {
+  try {
+    await Wallet.connect(walletType)
     emit('done')
-  }, (e) => {
+  } catch (e) {
     emit('error', JSON.stringify(e))
-  })
+  }
 }
 
 const onCheCkoClick = async () => {

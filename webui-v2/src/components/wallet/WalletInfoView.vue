@@ -6,11 +6,10 @@
       <div class='text-light text-bold'>{{ shortid.shortId(address, 6, 4).toUpperCase() }}</div>
     </div>
     <div v-if='!balanceUpdating' class='q-ml-sm text-orange text-bold font-size-18'>{{ balance }}</div>
-    <span v-else>
+    <span v-else class='q-ml-sm'>
       <q-spinner-hourglass
         color='neutral'
         size='1em'
-        class='q-mb-xs'
       />
     </span>
   </div>

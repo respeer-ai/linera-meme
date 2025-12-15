@@ -5,7 +5,7 @@
 <script setup lang='ts'>
 import { user } from 'src/stores/export'
 import { Wallet } from 'src/wallet'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
 
@@ -41,34 +41,37 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
   }
 }
 
-onMounted(async () => {
+const getWalletsState = async () => {
   user.User.setWalletConnecting(true)
   user.User.setBalanceUpdating(true)
 
+  await Wallet.waitOnReady()
+  await nextTick()
+
   try {
-    await Wallet.waitOnReady()
-    Wallet.getProviderState(() => {
-      // user.User.setWalletConnecting(false)
-    }, () => {
-      user.User.setWalletConnecting(false)
-      user.User.setBalanceUpdating(false)
-    }, () => {
-      Wallet.getProviderState(() => {
-        // user.User.setWalletConnecting(false)
-      }, () => {
-        user.User.setWalletConnecting(false)
-        user.User.setBalanceUpdating(false)
-      }, () => {
-        console.log(8)
-        user.User.setWalletConnecting(false)
-        user.User.setBalanceUpdating(false)
-      }, user.WalletType.Metamask)
-    }, user.WalletType.CheCko)
-  } catch (e) {
-    console.log(`Failed get wallet state: `, e)
+    await Wallet.getProviderState(user.WalletType.CheCko)
     user.User.setWalletConnecting(false)
-    user.User.setBalanceUpdating(false)
+    await Wallet.getBalance()
+  } catch (e) {
+    console.log(`Failed get CheCko wallet state: `, e)
   }
+
+  try {
+    await Wallet.getProviderState(user.WalletType.Metamask)
+    user.User.setWalletConnecting(false)
+    console.log(111)
+    await Wallet.getBalance()
+    console.log(222)
+  } catch (e) {
+    console.log(`Failed get CheCko wallet state: `, e)
+  }
+
+  user.User.setWalletConnecting(false)
+  user.User.setBalanceUpdating(false)
+}
+
+onMounted(async () => {
+  await getWalletsState()
 })
 
 onUnmounted(() => {

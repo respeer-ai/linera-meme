@@ -34,22 +34,10 @@ export class CheCko {
     })
   }
 
-  static getProviderState = (
-    onConnected?: () => void,
-    onBalance?: () => void,
-    error?: () => void,
-  ) => {
-    Provider.getProviderState(
-      window.linera,
-      async (chainId: string) => {
-        onConnected?.()
-        user.User.setChainId(chainId)
-        user.User.setWalletConnectedType(user.WalletType.CheCko)
-        await CheCko.getBalance()
-        onBalance?.()
-      },
-      error,
-    )
+  static getProviderState = async () => {
+    const chainId = await Provider.getProviderState(window.linera)    
+    user.User.setChainId(chainId)
+    user.User.setWalletConnectedType(user.WalletType.CheCko)
   }
 
   static getBalance = async () => {
@@ -92,21 +80,15 @@ export class CheCko {
       })
   }
 
-  static connect = async (success?: () => void, error?: (e: string) => void) => {
+  static connect = async () => {
     if (!window.linera) {
       return window.open('https://github.com/respeer-ai/linera-wallet.git')
     }
 
-    try {
-      const web3 = new Web3(window.linera)
-      await web3.eth.requestAccounts()
+    const web3 = new Web3(window.linera)
+    await web3.eth.requestAccounts()
 
-      CheCko.getProviderState()
-
-      success?.()
-    } catch (e: unknown) {
-      error?.(e as string)
-    }
+    await CheCko.getProviderState()
   }
 
   static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
