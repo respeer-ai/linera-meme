@@ -45,7 +45,7 @@ export class LineraWebClient {
     await Provider.getProviderState(window.ethereum)
 
     user.User.setWalletConnectedType(user.WalletType.Metamask)
-    
+
     if (!LineraWebClient.client) {
       await LineraWebClient.connect()
     }
@@ -61,12 +61,12 @@ export class LineraWebClient {
         return accountBalance
       } catch (e) {
         console.log('Failed get balance: ', e)
-        
+
         if (attempt === retry) {
           throw e
         }
 
-        await new Promise(resolve => setTimeout(resolve, delayMs))
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
       }
     }
   }

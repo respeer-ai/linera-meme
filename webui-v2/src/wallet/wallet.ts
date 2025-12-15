@@ -43,9 +43,7 @@ export class Wallet {
     }
   }
 
-  static connect = async (
-    walletType: user.WalletType
-  ) => {
+  static connect = async (walletType: user.WalletType) => {
     switch (walletType) {
       case user.WalletType.CheCko:
         return await CheCko.connect()

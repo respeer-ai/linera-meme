@@ -35,7 +35,7 @@ export class CheCko {
   }
 
   static getProviderState = async () => {
-    const chainId = await Provider.getProviderState(window.linera)    
+    const chainId = await Provider.getProviderState(window.linera)
     user.User.setChainId(chainId)
     user.User.setWalletConnectedType(user.WalletType.CheCko)
   }

@@ -3,15 +3,12 @@ import { Cookies } from 'quasar'
 import { user } from 'src/stores/export'
 
 export class Provider {
-  static getProviderState = async (
-    provider: MetaMaskInpageProvider
-  ) => {
+  static getProviderState = async (provider: MetaMaskInpageProvider) => {
     if (!provider) throw new Error('Invalid provider')
 
-    const result = await provider
-      .request({
-        method: 'metamask_getProviderState',
-      })
+    const result = await provider.request({
+      method: 'metamask_getProviderState',
+    })
 
     if (!(result as Record<string, string>)?.accounts?.length) {
       throw new Error('Invalid account')
