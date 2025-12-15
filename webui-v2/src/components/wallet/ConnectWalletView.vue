@@ -54,6 +54,8 @@ const getWalletsState = async (walletType: user.WalletType) => {
     return
   } catch (e) {
     console.log(`Failed get ${walletType} wallet state: `, e)
+    user.User.setWalletConnecting(false)
+    user.User.setBalanceUpdating(false)
   }
 }
 
