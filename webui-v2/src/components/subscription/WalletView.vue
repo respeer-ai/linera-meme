@@ -54,18 +54,30 @@ const getWalletsState = async () => {
   const walletTypes = lastWalletType ? [lastWalletType] : []
   walletTypes.push(...user.WalletTypes.filter((el) => !lastWalletType || el !== lastWalletType))
 
+  let connected = false
+
   for (const walletType of walletTypes) {
     try {
       user.User.setWalletConnecting(true)
       await Wallet.getProviderState(walletType)
       user.User.setBalanceUpdating(true)
       user.User.setWalletConnecting(false)
-      await Wallet.getBalance()
-      user.User.setBalanceUpdating(false)
-      return
+
+      connected = true
+
+      break
     } catch (e) {
       console.log(`Failed get ${walletType} wallet state: `, e)
     }
+  }
+
+  if (!connected) return
+
+  try {
+    await Wallet.getBalance()
+    user.User.setBalanceUpdating(false)
+  } catch (e) {
+    console.log(`Failed get ${user.User.walletConnectedType()} wallet balance: `, e)
   }
 }
 
