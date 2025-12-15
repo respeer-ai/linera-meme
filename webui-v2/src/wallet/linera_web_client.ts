@@ -49,28 +49,22 @@ export class LineraWebClient {
     })
   }
 
-  static getProviderState = (success?: () => void, error?: () => void) => {
+  static getProviderState = (onConnected?: () => void, onBalance?: () => void, error?: () => void) => {
     if (!window.ethereum) {
       return error?.()
     }
     Provider.getProviderState(
       window.ethereum,
-      () => {
+      async () => {
         user.User.setWalletConnectedType(user.WalletType.Metamask)
+        onConnected?.()
         if (!LineraWebClient.client) {
-          LineraWebClient.connect().then(() => {
-            LineraWebClient.getBalance().then(() => {
-              success?.()
-            }).catch(() => {
-              error?.()
-            })
-          }).catch(() => {
-            error?.()
-          })
-          return
+          await LineraWebClient.connect()
+          await LineraWebClient.getBalance()
+          return onBalance?.()
         }
-        void LineraWebClient.getBalance()
-        success?.()
+        await LineraWebClient.getBalance()
+        onBalance?.()
       },
       error,
     )
@@ -79,9 +73,14 @@ export class LineraWebClient {
   static getBalance = async () => {
     if (!LineraWebClient.client) return
 
-    const accountBalance = await LineraWebClient.client.balance()
+    try {
+      const accountBalance = await LineraWebClient.client.balance()
 
-    user.User.setChainBalance(accountBalance)
+      user.User.setChainBalance(accountBalance)
+    } catch (e) {
+      console.log('Failed get balance: ', e)
+      window.setTimeout(() => void LineraWebClient.getBalance(), 5000)
+    }
   }
 
   static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {

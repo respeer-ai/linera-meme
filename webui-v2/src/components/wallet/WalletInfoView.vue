@@ -5,7 +5,14 @@
       <div class='text-neutral font-size-12'>{{ walletType }}</div>
       <div class='text-light text-bold'>{{ shortid.shortId(address, 6, 4).toUpperCase() }}</div>
     </div>
-    <div class='q-ml-sm text-orange text-bold font-size-18'>{{ balance }}</div>
+    <div v-if='!balanceUpdating' class='q-ml-sm text-orange text-bold font-size-18'>{{ balance }}</div>
+    <span else>
+      <q-spinner-hourglass
+        color='neutral'
+        size='1em'
+        class='q-mb-xs'
+      />
+    </span>
   </div>
 </template>
 
@@ -19,5 +26,6 @@ const walletType = computed(() => user.User.walletConnectedType())
 const walletLogo = computed(() => walletType.value === user.WalletType.Metamask ? constants.METAMASK_LOGO : constants.CHECKO_LOGO)
 const balance = computed(() => Number(user.User.balance()).toFixed(4))
 const address = computed(() => user.User.publicKey())
+const balanceUpdating = computed(() => user.User.balanceUpdating())
 
 </script>

@@ -34,14 +34,15 @@ export class CheCko {
     })
   }
 
-  static getProviderState = (success?: () => void, error?: () => void) => {
+  static getProviderState = (onConnected?: () => void, onBalance?: () => void, error?: () => void) => {
     Provider.getProviderState(
       window.linera,
-      (chainId: string) => {
+      async (chainId: string) => {
+        onConnected?.()
         user.User.setChainId(chainId)
         user.User.setWalletConnectedType(user.WalletType.CheCko)
-        void CheCko.getBalance()
-        success?.()
+        await CheCko.getBalance()
+        onBalance?.()
       },
       error,
     )

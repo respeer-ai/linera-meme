@@ -43,19 +43,29 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
 
 onMounted(async () => {
   user.User.setWalletConnecting(true)
+
   try {
     await Wallet.waitOnReady()
     Wallet.getProviderState(() => {
       user.User.setWalletConnecting(false)
+      user.User.setBalanceUpdating(true)
+    }, () => {
+      user.User.setBalanceUpdating(false)
     }, () => {
       Wallet.getProviderState(() => {
         user.User.setWalletConnecting(false)
+        user.User.setBalanceUpdating(true)
+      }, () => {
+        user.User.setBalanceUpdating(false)
       }, () => {
         user.User.setWalletConnecting(false)
+        user.User.setBalanceUpdating(false)
       }, user.WalletType.Metamask)
     }, user.WalletType.CheCko)
-  } catch {
+  } catch (e) {
+    console.log(`Failed get wallet state: `, e)
     user.User.setWalletConnecting(false)
+    user.User.setBalanceUpdating(false)
   }
 })
 
