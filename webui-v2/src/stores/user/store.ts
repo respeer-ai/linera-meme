@@ -9,7 +9,7 @@ export const useUserStore = defineStore('user', {
     chainId: undefined as unknown as string,
     accountBalance: '0.',
     chainBalance: '0.',
-    walletType: WalletType.CheCko,
+    walletType: WalletType.NotConnected,
     walletConnecting: false,
     balanceUpdating: false,
   }),

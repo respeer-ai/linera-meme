@@ -22,7 +22,6 @@
 
 <script setup lang='ts'>
 import { ref } from 'vue'
-import { Cookies } from 'quasar'
 import { user } from 'src/stores/export'
 
 import ConnectWalletView from './ConnectWalletView.vue'
@@ -38,7 +37,7 @@ const onSwitchWalletClick = () => {
 }
 
 const onDisconnectWalletClick = () => {
-  Cookies.remove(user.WalletCookie.WalletConnectType)
+  user.User.reset()
 }
 
 const onConnectWalletDone = () => {

@@ -16,6 +16,13 @@ export class User {
   static setWalletConnecting = (connecting: boolean) => (user.walletConnecting = connecting)
   static setBalanceUpdating = (updating: boolean) => (user.balanceUpdating = updating)
 
+  static reset = () => {
+    Cookies.remove(WalletCookie.WalletConnectType)
+    Cookies.remove(WalletCookie.WalletLoginAccount)
+    Cookies.remove(WalletCookie.WalletLoginMicrochain)
+    user.$reset()
+  }
+
   static chainId = () => user.chainId
   static publicKey = () => user.publicKey
   static chainBalance = () => user.chainBalance
