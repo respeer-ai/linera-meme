@@ -21,14 +21,16 @@ const handleCheCkoNotification = (msg: unknown) => {
   const _msg = msg as Record<string, unknown>
   const data = _msg.data as Record<string, Record<string, Record<string, Record<string, Record<string, unknown>>>>>
   if (data?.result?.notifications?.reason?.NewBlock) {
-    Wallet.getProviderState()
+    void Wallet.getProviderState()
+    void Wallet.getBalance()
   }
 }
 
 const handleNativeNotification = (msg: unknown) => {
   const _msg = msg as Record<string, Record<string, unknown>>
   if (_msg.reason?.NewBlock) {
-    Wallet.getProviderState()
+    void Wallet.getProviderState()
+    void Wallet.getBalance()
   }
 }
 
@@ -59,9 +61,7 @@ const getWalletsState = async () => {
   try {
     await Wallet.getProviderState(user.WalletType.Metamask)
     user.User.setWalletConnecting(false)
-    console.log(111)
     await Wallet.getBalance()
-    console.log(222)
   } catch (e) {
     console.log(`Failed get CheCko wallet state: `, e)
   }
