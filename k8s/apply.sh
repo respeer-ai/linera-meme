@@ -76,7 +76,14 @@ if [ $RE_GENERATE -eq 1 ]; then
     kubectl exec -it $kline_pod_name -n kube-system -- sh -c "rm -vrf /shared-app-data/*"
   else
     echo "Cannot find kline pod, failed to delete application data."
-    exit 1
+    result=$(ask_yes_no "Continue deploy applications ?")
+    echo $result
+    if [ "$result" == "yes" ]; then
+      echo "Deploy application now ..."
+    else
+      echo "Exiting ..."
+      exit 0
+    fi
   fi
 fi
 
