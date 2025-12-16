@@ -29,6 +29,8 @@ COMPOSE_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/docker-compose.yml
 OUTPUT_DIR="${SCRIPT_DIR}/../output/compose"
 mkdir -p $OUTPUT_DIR
 
+sudo chown $USER:$(id -gn) $OUTPUT_DIR -R
+
 # Generate config
 CONFIG_DIR="${OUTPUT_DIR}/config"
 mkdir -p $CONFIG_DIR
@@ -51,7 +53,7 @@ WALLET_IMAGE_NAME=linera-respeer
 
 IMAGE_NAME=linera-respeer
 REPO_NAME=linera-protocol-respeer
-REPO_BRANCH=respeer-maas-testnet_conway-e3d16f6c-2025-11-15
+REPO_BRANCH=respeer-maas-testnet_conway-945d96de-2025-12-13
 REPO_URL=https://github.com/respeer-ai/linera-protocol.git
 
 # IMAGE_NAME=linera
@@ -72,8 +74,8 @@ if [ "x$COPY_TARGET" = "x1" ]; then
     rm linera-protocol-respeer -rf
     git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
     cd linera-protocol-respeer
-    git checkout respeer-maas-testnet_conway-e3d16f6c-2025-11-15
-    git pull origin respeer-maas-testnet_conway-e3d16f6c-2025-11-15
+    git checkout respeer-maas-testnet_conway-945d96de-2025-12-13
+    git pull origin respeer-maas-testnet_conway-945d96de-2025-12-13
     cp -v docker/* $SOURCE_DIR/$REPO_NAME/docker -rf
     cp -v configuration/* $SOURCE_DIR/$REPO_NAME/configuration -rf
     cd $SOURCE_DIR/$REPO_NAME
@@ -188,7 +190,7 @@ MEME_MODULE_ID=$(publish_bytecode_on_chain proxy meme)
 function wallet_owner() {
     wallet_name=$1
     wallet_index=$2
-    sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
@@ -198,7 +200,7 @@ function wallet_owner() {
 function wallet_chain_id() {
     wallet_name=$1
     wallet_index=$2
-    sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
@@ -262,7 +264,7 @@ function process_inbox() {
     wallet_name=$1
     wallet_index=$2
 
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            process-inbox
