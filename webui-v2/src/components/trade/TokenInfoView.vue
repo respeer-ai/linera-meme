@@ -8,24 +8,24 @@
         </div>
       </div>
     </q-img>
-    <div class='row q-mt-sm'>
+    <div class='row q-mt-md'>
       <q-space />
-      <q-chip class='bg-mining'>Minable</q-chip>
-      <q-chip class='bg-virtual'>Virtual LP</q-chip>
-      <q-chip class='bg-secondary'>Trending #1</q-chip>
+      <q-chip class='bg-mining-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Minable</q-chip>
+      <q-chip class='bg-virtual-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Virtual LP</q-chip>
+      <q-chip class='bg-secondary-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Trending #1</q-chip>
       <q-space />
     </div>
     <div class='q-px-md'>
       <div class='q-mt-md'>
-        <token-info-line-view label='Price' value='0.00001245 TLINERA' value-color='light' :value-bold='true' :underline='false' />
+        <token-info-line-view label='Price' value='0.00001245 TLINERA' value-color='neutral' :value-bold='true' :underline='false' />
         <div class='q-mt-sm'>
           <token-info-line-view label='24H Change' value='+ 12.34 %' value-color='secondary' :value-bold='false' :underline='false' />
         </div>
         <div class='q-mt-sm'>
-          <token-info-line-view label='24H Volume' value='123.456 TLINERA' value-color='light' :value-bold='true' :underline='false' />
+          <token-info-line-view label='24H Volume' value='123.456 TLINERA' value-color='neutral' :value-bold='true' :underline='false' />
         </div>
         <div class='q-mt-sm'>
-          <token-info-line-view label='Liquidity' value='456.789 TLINERA' value-color='light' :value-bold='true' :underline='false' />
+          <token-info-line-view label='Liquidity' value='456.789 TLINERA' value-color='neutral' :value-bold='true' :underline='false' />
         </div>
         <div class='q-mt-sm'>
           <token-info-line-view label='Mining APY' value='18.78%' value-color='mining' :value-bold='false' :underline='true' />
@@ -34,12 +34,12 @@
           <token-info-line-view label='Price Impact' value='2.78%' value-color='warning' :value-bold='false' :underline='false' />
         </div>
       </div>
-      <div class='q-mt-md'>
-        <q-chip class='bg-mining'>X</q-chip>
-        <q-chip class='bg-virtual'>Discord</q-chip>
-        <q-chip class='bg-secondary'>Telegram</q-chip>
-        <q-chip class='bg-secondary'>Github</q-chip>
-        <q-chip class='bg-secondary'>Website</q-chip>
+      <div class='q-mt-md q-mb-lg' style='margin-left: -4px'>
+        <q-chip dense class='bg-mining-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>X</q-chip>
+        <q-chip dense class='bg-virtual-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Discord</q-chip>
+        <q-chip dense class='bg-secondary-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Telegram</q-chip>
+        <q-chip dense class='bg-new-token-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Github</q-chip>
+        <q-chip dense class='bg-volume-fifty q-px-sm cursor-pointer font-size-12 text-neutral'>Website</q-chip>
       </div>
     </div>
     <div class='q-mt-md radius-bottom-8' style='overflow: hidden;'>
@@ -49,7 +49,7 @@
           <q-icon name='info' size='24px' />
         </q-avatar>
         <div class='q-ml-sm'>
-          <div>MEME Token AMA</div>
+          <div class='text-light'>MEME Token AMA</div>
           <div class='font-size-12 text-neutral'>1.2K Viewers</div>
         </div>
         <q-space />

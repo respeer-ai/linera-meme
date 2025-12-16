@@ -11,6 +11,7 @@ body.body--light
   --q-primary-twelve:   #{$primary-12-light}
   --q-secondary:        #{$secondary-light}
   --q-secondary-twenty-five: #{$secondary-25-light}
+  --q-secondary-fifty:  #{$secondary-50-light}
   --q-accent:           #{$accent-light}
   --q-dark:             #{$dark-light}
   --q-dark-secondary:   #{$dark-secondary-light}
@@ -22,9 +23,13 @@ body.body--light
   --q-danger:           #{$danger-light}
   --q-warning:          #{$warning-light}
   --q-mining:           #{$mining-light}
+  --q-mining-fifty:     #{$mining-50-light}
   --q-virtual:          #{$virtual-light}
+  --q-virtual-fifty:    #{$virtual-50-light}
   --q-new-token:        #{$new-token-light}
+  --q-new-token-fifty:  #{$new-token-50-light}
   --q-volume:           #{$volume-light}
+  --q-volume-fifty:     #{$volume-50-light}
   --q-high-red:         #{$high-red-light}
 
 body.body--dark
@@ -32,9 +37,11 @@ body.body--dark
   --q-primary-hover:    #{$primary-hover-dark}
   --q-primary-fifty:    #{$primary-50-dark}
   --q-primary-twenty-five:   #{$primary-25-dark}
+  --q-primary-fifty:    #{$primary-50-dark}
   --q-primary-twelve:   #{$primary-12-dark}
   --q-secondary:        #{$secondary-dark}
   --q-secondary-twenty-five: #{$secondary-25-dark}
+  --q-secondary-fifty:  #{$secondary-50-dark}
   --q-accent:           #{$accent-dark}
   --q-dark:             #{$dark-dark}
   --q-dark-secondary:   #{$dark-secondary-dark}
@@ -46,9 +53,13 @@ body.body--dark
   --q-danger:           #{$danger-dark}
   --q-warning:          #{$warning-dark}
   --q-mining:           #{$mining-dark}
+  --q-mining-fifty:     #{$mining-50-dark}
   --q-virtual:          #{$virtual-dark}
+  --q-virtual-fifty:    #{$virtual-50-dark}
   --q-new-token:        #{$new-token-dark}
+  --q-new-token-fifty:  #{$new-token-50-dark}
   --q-volume:           #{$volume-dark}
+  --q-volume-fifty:     #{$volume-50-dark}
   --q-high-red:         #{$high-red-dark}
 
 *::-webkit-scrollbar
@@ -65,11 +76,6 @@ body.body--dark
 
 *::-webkit-scrollbar-corner
   background: rgba(0,0,0,0.1)
-
-.bg-glass
-  background: rgba(10, 14, 23, 0.85)
-  // BE CAREFUL: it'll affect q-header and q-footer 'fixed' attribute
-  backdrop-filter: blur(12px)
 
 .material-icons
   color: var(--q-neutral)
@@ -111,12 +117,6 @@ body.body--dark
   100%
     transform: translateX(-100%) translateY(100%)
 
-.bg-primary-25
-  background-color: var(--q-primary-twenty-five)
-
-.bg-primary-12
-  background-color: var(--q-primary-twelve)
-
 .border-primary-50
   border: 1px solid var(--q-primary-fifty)
 
@@ -125,9 +125,6 @@ body.body--dark
 
 .border-neutral-25
   border: 1px solid var(--q-neutral-twenty-five)
-
-.bg-neutral-25
-  background-color: 1px solid var(--q-neutral-twenty-five)
 
 .border-dark-secondary
   border: 1px solid var(--q-dark-secondary)
@@ -144,11 +141,34 @@ body.body--dark
 .text-light
   color: var(--q-light)
 
+.text-mining
+  color: var(--q-mining)
+
+.text-neutral-light
+  color: var(--q-neutral-light)
+
+.bg-glass
+  background: rgba(10, 14, 23, 0.85)
+  // BE CAREFUL: it'll affect q-header and q-footer 'fixed' attribute
+  backdrop-filter: blur(12px)
+
+.bg-primary-25
+  background-color: var(--q-primary-twenty-five)
+
+.bg-primary-12
+  background-color: var(--q-primary-twelve)
+
+.bg-neutral-25
+  background-color: 1px solid var(--q-neutral-twenty-five)
+
 .bg-accent
   background-color: var(--q-accent)
 
 .bg-dark-secondary
   background-color: var(--q-dark-secondary)
+
+.bg-mining-fifty
+  background-color: var(--q-mining-fifty)
 
 .bg-mining
   background-color: var(--q-mining)
@@ -156,14 +176,23 @@ body.body--dark
 .bg-light
   background-color: var(--q-light)
 
-.text-mining
-  color: var(--q-mining)
+.bg-new-token
+  background-color: var(--q-new-token)
 
-.text-neutral-light
-  color: var(--q-neutral-light)
+.bg-new-token-fifty
+  background-color: var(--q-new-token-fifty)
+
+.bg-volume-fifty
+  background-color: var(--q-volume-fifty)
 
 .bg-virtual
   background-color: var(--q-virtual)
+
+.bg-virtual-fifty
+  background-color: var(--q-virtual-fifty)
+
+.bg-secondary-fifty
+  background-color: var(--q-secondary-fifty)
 
 .hover-primary-direct:hover
   background-color: var(--q-primary-twenty-five)
@@ -285,6 +314,9 @@ $line-clamp-list: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10;
     padding-right: 4px
   .q-field__append
     padding-left: 4px
+
+.q-placeholder
+  color: var(--q-neutral)
 
 .page-width
   width: 1280px
