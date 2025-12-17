@@ -69,10 +69,11 @@ const getWalletsState = async () => {
     }
   }
 
+  user.User.setWalletConnecting(false)
+
   if (!connected) return
   
   user.User.setBalanceUpdating(true)
-  user.User.setWalletConnecting(false)
 
   try {
     await Wallet.getBalance()
