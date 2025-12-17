@@ -14,7 +14,6 @@ members = [
 exclude = [
     "webui/wasm",
     "webui-v2/wasm",
-    "blob-gateway-1",
 ]
 resolver = "2"
 
