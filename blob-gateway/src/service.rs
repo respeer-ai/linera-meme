@@ -1,37 +1,25 @@
-// Copyright (c) Zefchain Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-mod state;
-
-use std::sync::{Arc, Mutex};
-
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
+use abi::blob_gateway::{BlobData, BlobGatewayAbi, BlobGatewayOperation};
+use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use blob_gateway::state::BlobGatewayState;
 use linera_sdk::{
-    linera_base_types::{DataBlobHash, Timestamp, WithServiceAbi},
+    graphql::GraphQLMutationRoot,
+    linera_base_types::{CryptoHash, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
-
-use abi::blob_gateway::{BlobData, BlobDataType, BlobGatewayAbi};
-use blob_gateway::BlobGatewayError;
-use state::BlobGatewayState;
+use std::sync::Arc;
 
 pub struct BlobGatewayService {
     state: Arc<BlobGatewayState>,
-    runtime: Arc<Mutex<ServiceRuntime<BlobGatewayService>>>,
+    runtime: Arc<ServiceRuntime<Self>>,
 }
 
 linera_sdk::service!(BlobGatewayService);
 
 impl WithServiceAbi for BlobGatewayService {
     type Abi = BlobGatewayAbi;
-}
-
-struct FetchContext {
-    state: Arc<BlobGatewayState>,
-    runtime: Arc<Mutex<ServiceRuntime<BlobGatewayService>>>,
 }
 
 impl Service for BlobGatewayService {
@@ -43,75 +31,48 @@ impl Service for BlobGatewayService {
             .expect("Failed to load state");
         BlobGatewayService {
             state: Arc::new(state),
-            runtime: Arc::new(Mutex::new(runtime)),
+            runtime: Arc::new(runtime),
         }
     }
 
     async fn handle_query(&self, request: Request) -> Response {
-        let fetch_context = FetchContext {
-            state: self.state.clone(),
-            runtime: self.runtime.clone(),
-        };
-
-        let schema = Schema::build(QueryRoot {}, EmptyMutation, EmptySubscription)
-            .data(fetch_context)
-            .finish();
+        let schema = Schema::build(
+            QueryRoot {
+                state: self.state.clone(),
+            },
+            BlobGatewayOperation::mutation_root(self.runtime.clone()),
+            EmptySubscription,
+        )
+        .finish();
         schema.execute(request).await
     }
 }
 
-struct QueryRoot {}
+struct QueryRoot {
+    state: Arc<BlobGatewayState>,
+}
 
 #[Object]
 impl QueryRoot {
-    async fn fetch(
-        &self,
-        ctx: &Context<'_>,
-        blob_hash: DataBlobHash,
-    ) -> Result<Vec<u8>, BlobGatewayError> {
-        let ctx = ctx.data::<FetchContext>().unwrap();
-        Ok(ctx.runtime.lock().unwrap().read_data_blob(blob_hash))
+    async fn blobs(&self) -> Vec<BlobData> {
+        let mut values: Vec<BlobData> = self
+            .state
+            .blobs
+            .index_values()
+            .await
+            .expect("Failed get blobs")
+            .into_iter()
+            .map(|(_, v)| v)
+            .collect::<Vec<_>>();
+        values.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        values
     }
 
-    async fn list(
-        &self,
-        ctx: &Context<'_>,
-        created_before: Option<Timestamp>,
-        created_after: Option<Timestamp>,
-        data_type: Option<BlobDataType>,
-        limit: usize,
-    ) -> Result<Vec<BlobData>, BlobGatewayError> {
-        let ctx = ctx.data::<FetchContext>().unwrap();
-        let mut blobs: Vec<BlobData> = Vec::new();
-
-        ctx.state
+    async fn blob(&self, blob_hash: CryptoHash) -> Option<BlobData> {
+        self.state
             .blobs
-            .for_each_index_value_while(|_key, value| {
-                if let Some(created_before) = created_before {
-                    if value.created_at > created_before {
-                        return Ok(true);
-                    }
-                }
-                if let Some(created_after) = created_after {
-                    if value.created_at < created_after {
-                        return Ok(true);
-                    }
-                }
-                if let Some(data_type) = data_type {
-                    if data_type != value.data_type {
-                        return Ok(true);
-                    }
-                }
-                if limit > 0 && blobs.len() >= limit {
-                    return Ok(false);
-                }
-                blobs.push(value.as_ref().clone());
-                Ok(blobs.len() < limit)
-            })
-            .await?;
-
-        blobs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-
-        Ok(blobs)
+            .get(&blob_hash)
+            .await
+            .expect("Failed get blob")
     }
 }

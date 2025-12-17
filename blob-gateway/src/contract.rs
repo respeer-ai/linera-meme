@@ -1,29 +1,19 @@
-// Copyright (c) Zefchain Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-mod state;
+use std::{cell::RefCell, rc::Rc};
 
-use abi::{
-    blob_gateway::{
-        BlobData, BlobDataType, BlobGatewayAbi, BlobGatewayMessage, BlobGatewayOperation,
-        BlobGatewayResponse,
-    },
-    store_type::StoreType,
-};
-use blob_gateway::BlobGatewayError;
+use abi::blob_gateway::{BlobGatewayAbi, BlobGatewayMessage, BlobGatewayOperation};
+
+use blob_gateway::state::BlobGatewayState;
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, CryptoHash, DataBlobHash, WithContractAbi},
+    linera_base_types::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
 
-use self::state::BlobGatewayState;
-
 pub struct BlobGatewayContract {
-    state: BlobGatewayState,
-    runtime: ContractRuntime<Self>,
+    state: Rc<RefCell<BlobGatewayState>>,
+    runtime: Rc<RefCell<ContractRuntime<Self>>>,
 }
 
 linera_sdk::contract!(BlobGatewayContract);
@@ -42,98 +32,31 @@ impl Contract for BlobGatewayContract {
         let state = BlobGatewayState::load(runtime.root_view_storage_context())
             .await
             .expect("Failed to load state");
-        BlobGatewayContract { state, runtime }
+        BlobGatewayContract {
+            state: Rc::new(RefCell::new(state)),
+            runtime: Rc::new(RefCell::new(runtime)),
+        }
     }
 
-    async fn instantiate(&mut self, _value: ()) {}
+    async fn instantiate(&mut self, _argument: Self::InstantiationArgument) {
+        self.runtime.borrow_mut().application_parameters();
+    }
 
-    async fn execute_operation(&mut self, operation: BlobGatewayOperation) -> BlobGatewayResponse {
-        match operation {
-            BlobGatewayOperation::Register {
-                store_type,
-                data_type,
-                blob_hash,
-            } => self
-                .on_op_register(store_type, data_type, blob_hash)
-                .await
-                .expect("Failed OP: Register"),
-        }
+    async fn execute_operation(&mut self, operation: BlobGatewayOperation) -> Self::Response {
+        self.on_op(&operation).await
     }
 
     async fn execute_message(&mut self, message: BlobGatewayMessage) {
-        if self.runtime.chain_id() != self.runtime.application_creator_chain_id() {
-            panic!("Messages can only be executed on creator chain");
-        }
-        match message {
-            BlobGatewayMessage::Register {
-                creator,
-                store_type,
-                data_type,
-                blob_hash,
-            } => self
-                .on_msg_register(creator, store_type, data_type, blob_hash)
-                .await
-                .expect("Failed MSG: Register"),
-        }
+        self.on_message(&message).await
     }
 
-    async fn store(mut self) {
-        self.state.save().await.expect("Failed to save state");
+    async fn store(self) {
+        self.state
+            .borrow_mut()
+            .save()
+            .await
+            .expect("Failed to save state");
     }
 }
 
-impl BlobGatewayContract {
-    fn owner_account(&mut self) -> Account {
-        Account {
-            chain_id: self.runtime.chain_id(),
-            owner: match self.runtime.authenticated_signer() {
-                Some(owner) => owner,
-                _ => AccountOwner::CHAIN,
-            },
-        }
-    }
-
-    async fn on_op_register(
-        &mut self,
-        store_type: StoreType,
-        data_type: BlobDataType,
-        blob_hash: CryptoHash,
-    ) -> Result<BlobGatewayResponse, BlobGatewayError> {
-        let creator = self.owner_account();
-        self.runtime
-            .prepare_message(BlobGatewayMessage::Register {
-                creator,
-                store_type,
-                data_type,
-                blob_hash,
-            })
-            .with_authentication()
-            .send_to(self.runtime.application_creator_chain_id());
-        Ok(BlobGatewayResponse::Ok)
-    }
-
-    async fn on_msg_register(
-        &mut self,
-        creator: Account,
-        store_type: StoreType,
-        data_type: BlobDataType,
-        blob_hash: CryptoHash,
-    ) -> Result<(), BlobGatewayError> {
-        let data_blob_hash = DataBlobHash(blob_hash);
-        self.runtime.assert_data_blob_exists(data_blob_hash);
-
-        match self.state.blobs.get(&blob_hash).await? {
-            Some(_) => Ok(()),
-            _ => Ok(self.state.blobs.insert(
-                &blob_hash,
-                BlobData {
-                    store_type,
-                    data_type,
-                    blob_hash,
-                    creator,
-                    created_at: self.runtime.system_time(),
-                },
-            )?),
-        }
-    }
-}
+mod contract_impl;
