@@ -44,14 +44,9 @@ pub enum BlobGatewayOperation {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum BlobGatewayMessage {
-    Register {
-        creator: Account,
-        store_type: StoreType,
-        data_type: BlobDataType,
-        blob_hash: CryptoHash,
-    },
+    Register { blob_data: BlobData },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
