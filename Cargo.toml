@@ -23,8 +23,8 @@ async-trait = "0.1.77"
 # We have to use respeer fork for application creator chain id in service
 # linera-sdk = { version = "0.15.5" }
 # linera-views = { version = "0.15.5", default-features = false }
-linera-sdk = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "255f22a8" }
-linera-views = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "255f22a8" }
+linera-sdk = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "64966f86" }
+linera-views = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "64966f86" }
 futures = { version = "0.3.24" }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = { version = "1.0.93" }
