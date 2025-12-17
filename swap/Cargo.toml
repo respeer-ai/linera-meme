@@ -32,3 +32,4 @@ path = "src/contract.rs"
 [[bin]]
 name = "swap_service"
 path = "src/service.rs"
+
