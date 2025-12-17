@@ -55,3 +55,9 @@ debug = true
 lto = true
 opt-level = 'z'
 strip = 'debuginfo'
+
+## Path to support method https://github.com/respeer-ai/linera-protocol/blob/8ef28c971e4d43f5fb7790991ab763b5c7103696/linera-sdk/src/test/chain.rs#L322
+## In the unit test we need to get the block for the created chain ID
+[patch.crates-io.linera-sdk]
+git = "https://github.com/respeer-ai/linera-protocol.git"
+rev = "8ef28c97"
