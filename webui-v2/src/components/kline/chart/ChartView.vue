@@ -54,7 +54,8 @@ const hoveringMA5Min = ref({} as LineData)
 const hoveringMA10Min = ref({} as LineData)
 const hoveringMA30Min = ref({} as LineData)
 
-const emit = defineEmits<{(e: 'load-old-data', time: number): void
+const emit = defineEmits<{
+  (e: 'load-old-data', time: number): void
   (e: 'load-new-data', time: number): void
 }>()
 
