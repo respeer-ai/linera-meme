@@ -7,8 +7,8 @@
       "dependencies": {
         "@apollo/client": "^3.9.11",
         "@graphql-codegen/cli": "^6.1.0",
-        "@linera/client": "^0.15.7",
-        "@linera/metamask": "^0.15.7",
+        "@linera/client": "^0.15.8",
+        "@linera/metamask": "^0.15.8",
         "@quasar/extras": "^1.16.4",
         "@types/lodash-es": "^4.17.12",
         "@vue/apollo-composable": "^4.2.2",
@@ -318,9 +318,9 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@linera/client": ["@linera/client@0.15.7", "", { "dependencies": { "ethers": "^6.15.0" } }, "sha512-W2zbV/wuPxEnVIlheQhrdA6wiHQNxytHcn4ndQH/BUKXw8vNidH9wugypZTK8yNZUvL6rqef87F7hH548R0RUg=="],
+    "@linera/client": ["@linera/client@0.15.8", "", { "dependencies": { "ethers": "^6.15.0" } }, "sha512-Pg42vWsu6A8Ky3XqqglC+qX1kaHaGnMCF0R5MW/xofd5Saetx4akUvVA49oz8SmopIr7EvNnr5o3d9meZnTAnw=="],
 
-    "@linera/metamask": ["@linera/metamask@0.15.7", "", { "dependencies": { "@linera/client": "0.15.7", "@metamask/providers": "^22.1.0", "ethers": "^6.14.3" } }, "sha512-4pPeOy1XeD1zBQZMb8Ve+48/Nvu8bptvG5TN02ZdhGNYUf+mOrc+MSqbYYUmDVRgNtN21SRGten/xzXA0XTWZQ=="],
+    "@linera/metamask": ["@linera/metamask@0.15.8", "", { "dependencies": { "@linera/client": "0.15.8", "@metamask/providers": "^22.1.0", "ethers": "^6.14.3" } }, "sha512-V5+wcJNuUk0bnK8QkEerrau/leRaQXn32ATcEWo8JQe3s4Wmb0tBq/Cvf4zh3AboaHHgqQmvnsNWCgHMJzHwaA=="],
 
     "@metamask/json-rpc-engine": ["@metamask/json-rpc-engine@10.2.0", "", { "dependencies": { "@metamask/rpc-errors": "^7.0.2", "@metamask/safe-event-emitter": "^3.0.0", "@metamask/utils": "^11.8.1", "@types/deep-freeze-strict": "^1.1.0", "deep-freeze-strict": "^1.1.1", "klona": "^2.0.6" } }, "sha512-/aJrBeT3RblRRpESgNjHqXMLZPFPl14g6oVJnek5F1yW6iA7n/eeCd0smgKOJ95uYlFtGNzyxzX7Qy3IlpBv5w=="],
 

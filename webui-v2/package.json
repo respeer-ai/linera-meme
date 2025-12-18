@@ -21,8 +21,8 @@
   "dependencies": {
     "@apollo/client": "^3.9.11",
     "@graphql-codegen/cli": "^6.1.0",
-    "@linera/client": "^0.15.7",
-    "@linera/metamask": "^0.15.7",
+    "@linera/client": "^0.15.8",
+    "@linera/metamask": "^0.15.8",
     "@quasar/extras": "^1.16.4",
     "@types/lodash-es": "^4.17.12",
     "@vue/apollo-composable": "^4.2.2",

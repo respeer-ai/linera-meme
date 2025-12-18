@@ -9,6 +9,7 @@ import { print } from 'graphql'
 export class LineraWebClient {
   static wallet: linera.Wallet
   static client: linera.Client
+  static chain: linera.Chain
 
   static connect = async () => {
     if (!window.ethereum) {
@@ -24,17 +25,18 @@ export class LineraWebClient {
 
     const faucet = new linera.Faucet('https://faucet.testnet-conway.linera.net')
     LineraWebClient.wallet = await faucet.createWallet()
-    const chain = await faucet.claimChain(LineraWebClient.wallet, owner)
+    const chainId = await faucet.claimChain(LineraWebClient.wallet, owner)
 
     // eslint-disable-next-line @typescript-eslint/await-thenable
-    LineraWebClient.client = await new linera.Client(LineraWebClient.wallet, signer, false)
+    LineraWebClient.client = await new linera.Client(LineraWebClient.wallet, signer)
+    LineraWebClient.chain = await LineraWebClient.client.chain(chainId)
 
     await LineraWebClient.getProviderState()
-    user.User.setChainId(chain)
+    user.User.setChainId(chainId)
   }
 
   static subscribe = (onData: (walletType: user.WalletType, msg: unknown) => void) => {
-    LineraWebClient.client?.onNotification((notification: unknown) => {
+    LineraWebClient.chain?.onNotification((notification: unknown) => {
       onData(user.WalletType.Metamask, notification)
     })
   }
@@ -56,7 +58,7 @@ export class LineraWebClient {
 
     for (let attempt = 1; attempt <= retry; attempt++) {
       try {
-        const accountBalance = await LineraWebClient.client.balance()
+        const accountBalance = await LineraWebClient.chain.balance()
         user.User.setChainBalance(accountBalance)
         return accountBalance
       } catch (e) {
@@ -72,7 +74,7 @@ export class LineraWebClient {
   }
 
   static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
-    const application = await LineraWebClient.client.application(poolApplicationId)
+    const application = await LineraWebClient.chain.application(poolApplicationId)
     const gqlStr = stringify({
       query: print(SWAP),
       variables,
