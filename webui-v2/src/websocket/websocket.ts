@@ -10,8 +10,16 @@ export class _WebSocket {
 
   private onErrorCb: (e: Event) => void = undefined as unknown as (e: Event) => void
 
+  private reconnectTimer: number | undefined
+  private readonly url: string
+
   constructor(url: string) {
-    const socket = new WebSocket(url)
+    this.url = url
+    this.connect()
+  }
+
+  private connect() {
+    const socket = new WebSocket(this.url)
 
     socket.onopen = () => this.onOpen()
     socket.onmessage = (event) => this.onMessage(event)
@@ -35,6 +43,12 @@ export class _WebSocket {
 
   onClose() {
     console.log('Websocket closed')
+
+    if (this.reconnectTimer) return
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = undefined
+      this.connect()
+    }, 3000)
   }
 
   withOnError(cb: (e: Event) => void) {
