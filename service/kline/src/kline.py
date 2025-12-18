@@ -122,7 +122,7 @@ if __name__ == '__main__':
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     manager = WebSocketManager(_swap, _db)
 
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(app, host=args.host, port=args.port, ws_ping_interval=30, ws_ping_timeout=10)
 
     if _db is not None:
         _db.close()
