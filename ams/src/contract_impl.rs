@@ -1,12 +1,18 @@
 use super::AmsContract;
+use abi::ams::{AmsMessage, AmsOperation, AmsResponse, InstantiationArgument};
+use ams::{
+    contract_inner::handlers::HandlerFactory, interfaces::state::StateInterface,
+    state::adapter::StateAdapter,
+};
+use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
-use abi::ams::{AmsMessage, AmsOperation, AmsResponse};
-
-use ams::{contract_inner::handlers::HandlerFactory, state::adapter::StateAdapter};
-use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
-
 impl AmsContract {
+    pub fn _instantiate(&mut self, argument: InstantiationArgument) {
+        let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
+        self.state.borrow_mut().instantiate(account, argument);
+    }
+
     pub async fn on_op(&mut self, op: &AmsOperation) -> AmsResponse {
         let runtime_context = Rc::new(RefCell::new(ContractRuntimeAdapter::new(
             self.runtime.clone(),

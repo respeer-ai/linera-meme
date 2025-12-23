@@ -13,7 +13,11 @@ pub struct RegisterHandler<R: ContractRuntimeContext + AccessControl, S: StateIn
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, metadata: &Metadata) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &AmsMessage) -> Self {
+        let AmsMessage::Register { metadata } = msg else {
+            panic!("Invalid message");
+        };
+
         Self {
             state,
             _runtime: runtime,

@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::AmsMessage;
+use abi::ams::{AmsMessage, AmsOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -13,12 +13,16 @@ pub struct AddApplicationTypeHandler<R: ContractRuntimeContext + AccessControl, 
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicationTypeHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, application_type: String) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &AmsOperation) -> Self {
+        let AmsOperation::AddApplicationType { application_type } = op else {
+            panic!("Invalid operation");
+        };
+
         Self {
             _state: state,
             runtime,
 
-            application_type,
+            application_type: application_type.clone(),
         }
     }
 }

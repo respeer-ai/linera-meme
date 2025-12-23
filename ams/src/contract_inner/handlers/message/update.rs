@@ -16,19 +16,22 @@ pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInte
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler<R, S> {
-    pub fn new(
-        runtime: Rc<RefCell<R>>,
-        state: S,
-        owner: Account,
-        application_id: ApplicationId,
-        metadata: &Metadata,
-    ) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &AmsMessage) -> Self {
+        let AmsMessage::Update {
+            owner,
+            application_id,
+            metadata,
+        } = msg
+        else {
+            panic!("Invalid message");
+        };
+
         Self {
             _state: state,
             _runtime: runtime,
 
-            _owner: owner,
-            _application_id: application_id,
+            _owner: *owner,
+            _application_id: *application_id,
             _metadata: metadata.clone(),
         }
     }

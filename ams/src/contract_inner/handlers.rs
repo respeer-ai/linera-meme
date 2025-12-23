@@ -28,25 +28,17 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         op: &AmsOperation,
     ) -> Box<dyn Handler<AmsMessage>> {
-        match op {
-            AmsOperation::Register { metadata } => {
-                Box::new(OperationRegisterHandler::new(runtime, state, metadata))
+        match &op {
+            AmsOperation::Register { .. } => {
+                Box::new(OperationRegisterHandler::new(runtime, state, op))
             }
-            AmsOperation::Claim { application_id } => {
-                Box::new(OperationClaimHandler::new(runtime, state, *application_id))
+            AmsOperation::Claim { .. } => Box::new(OperationClaimHandler::new(runtime, state, op)),
+            AmsOperation::AddApplicationType { .. } => {
+                Box::new(OperationAddApplicationTypeHandler::new(runtime, state, op))
             }
-            AmsOperation::AddApplicationType { application_type } => Box::new(
-                OperationAddApplicationTypeHandler::new(runtime, state, application_type.clone()),
-            ),
-            AmsOperation::Update {
-                application_id,
-                metadata,
-            } => Box::new(OperationUpdateHandler::new(
-                runtime,
-                state,
-                *application_id,
-                metadata,
-            )),
+            AmsOperation::Update { .. } => {
+                Box::new(OperationUpdateHandler::new(runtime, state, op))
+            }
         }
     }
 
@@ -55,33 +47,15 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         msg: &AmsMessage,
     ) -> Box<dyn Handler<AmsMessage>> {
-        match msg {
-            AmsMessage::Register { metadata } => {
-                Box::new(MessageRegisterHandler::new(runtime, state, metadata))
+        match &msg {
+            AmsMessage::Register { .. } => {
+                Box::new(MessageRegisterHandler::new(runtime, state, msg))
             }
-            AmsMessage::Claim { application_id } => {
-                Box::new(MessageClaimHandler::new(runtime, state, *application_id))
+            AmsMessage::Claim { .. } => Box::new(MessageClaimHandler::new(runtime, state, msg)),
+            AmsMessage::AddApplicationType { .. } => {
+                Box::new(MessageAddApplicationTypeHandler::new(runtime, state, msg))
             }
-            AmsMessage::AddApplicationType {
-                owner,
-                application_type,
-            } => Box::new(MessageAddApplicationTypeHandler::new(
-                runtime,
-                state,
-                *owner,
-                application_type.clone(),
-            )),
-            AmsMessage::Update {
-                owner,
-                application_id,
-                metadata,
-            } => Box::new(MessageUpdateHandler::new(
-                runtime,
-                state,
-                *owner,
-                *application_id,
-                metadata,
-            )),
+            AmsMessage::Update { .. } => Box::new(MessageUpdateHandler::new(runtime, state, msg)),
         }
     }
 
