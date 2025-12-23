@@ -18,18 +18,10 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         op: &BlobGatewayOperation,
     ) -> Box<dyn Handler<BlobGatewayMessage>> {
-        match op {
-            BlobGatewayOperation::Register {
-                store_type,
-                data_type,
-                blob_hash,
-            } => Box::new(OperationRegisterHandler::new(
-                runtime,
-                state,
-                *store_type,
-                *data_type,
-                *blob_hash,
-            )),
+        match &op {
+            BlobGatewayOperation::Register { .. } => {
+                Box::new(OperationRegisterHandler::new(runtime, state, op))
+            }
         }
     }
 
@@ -38,9 +30,9 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         msg: &BlobGatewayMessage,
     ) -> Box<dyn Handler<BlobGatewayMessage>> {
-        match msg {
-            BlobGatewayMessage::Register { blob_data } => {
-                Box::new(MessageRegisterHandler::new(runtime, state, blob_data))
+        match &msg {
+            BlobGatewayMessage::Register { .. } => {
+                Box::new(MessageRegisterHandler::new(runtime, state, msg))
             }
         }
     }

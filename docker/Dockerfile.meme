@@ -9,8 +9,6 @@ COPY ./target/wasm32-unknown-unknown/release/ams_contract.wasm /bytecodes/
 COPY ./target/wasm32-unknown-unknown/release/ams_service.wasm /bytecodes/
 COPY ./target/wasm32-unknown-unknown/release/blob_gateway_contract.wasm /bytecodes/
 COPY ./target/wasm32-unknown-unknown/release/blob_gateway_service.wasm /bytecodes/
-COPY ./target/wasm32-unknown-unknown/release/deposit_contract.wasm /bytecodes/
-COPY ./target/wasm32-unknown-unknown/release/deposit_service.wasm /bytecodes/
 COPY ./target/wasm32-unknown-unknown/release/meme_contract.wasm /bytecodes/
 COPY ./target/wasm32-unknown-unknown/release/meme_service.wasm /bytecodes/
 COPY ./target/wasm32-unknown-unknown/release/pool_contract.wasm /bytecodes/

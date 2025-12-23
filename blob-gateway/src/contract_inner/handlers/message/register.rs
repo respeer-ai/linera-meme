@@ -13,7 +13,9 @@ pub struct RegisterHandler<R: ContractRuntimeContext + AccessControl, S: StateIn
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, blob_data: &BlobData) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &BlobGatewayMessage) -> Self {
+        let BlobGatewayMessage::Register { blob_data } = msg;
+
         Self {
             state,
             _runtime: runtime,
