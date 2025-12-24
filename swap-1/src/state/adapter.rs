@@ -2,10 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
 use crate::{interfaces::state::StateInterface, state::SwapState};
-use abi::swap::{InstantiationArgument, Metadata};
+use abi::swap::{InstantiationArgument, Metadata, transaction::Transaction, router::Pool};
 use async_trait::async_trait;
 
-use linera_sdk::linera_base_types::Account;
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, Timestamp, ModuleId};
 
 pub struct StateAdapter {
     state: Rc<RefCell<SwapState>>,
@@ -44,8 +44,8 @@ impl StateInterface for StateAdapter {
             .await
     }
 
-    async fn pool_bytecode_id(&self) -> ModuleId {
-        self.state.borrow().pool_bytecode_id().await
+    fn pool_bytecode_id(&self) -> ModuleId {
+        self.state.borrow().pool_bytecode_id()
     }
 
     async fn create_pool(

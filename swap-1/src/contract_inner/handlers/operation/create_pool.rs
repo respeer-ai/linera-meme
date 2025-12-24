@@ -31,10 +31,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
     }
 }
 
-#[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for CreatePoolHandler<R, S>
-{
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
     fn fund_swap_creator_chain(
         &mut self,
         from_owner: AccountOwner,
@@ -81,7 +78,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
             );
         }
     }
+}
 
+#[async_trait(?Send)]
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
+    for CreatePoolHandler<R, S>
+{
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         let signer = self
             .runtime

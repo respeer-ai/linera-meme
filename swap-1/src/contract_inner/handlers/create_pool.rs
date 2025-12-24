@@ -36,34 +36,32 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
         user_pool: bool,
     ) -> Self {
         Self {
-            _state: state,
-            _runtime: runtime,
+            state,
+            runtime,
 
             creator,
             token_0,
             token_1,
             amount_0,
             amount_1,
-            virtual_initial_liquidity: virtual_liquidity,
+            virtual_liquidity,
             to,
+            _deadline,
             user_pool,
         }
     }
 }
 
-#[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for CreatePoolHandler<R, S>
-{
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
     fn create_child_chain(
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
     ) -> Result<ChainId, SwapError> {
         // It should allow router and meme applications
-        let ownership = self.runtime.chain_ownership();
+        let ownership = self.runtime.borrow_mut().chain_ownership();
 
-        let router_application_id = self.runtime.application_id().forget_abi();
+        let router_application_id = self.runtime.borrow_mut().application_id().forget_abi();
         let mut application_ids = vec![token_0, router_application_id];
         if let Some(token_1) = token_1 {
             application_ids.push(token_1);
@@ -82,7 +80,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
             .borrow_mut()
             .open_chain(ownership, permissions, open_chain_fee_budget()))
     }
+}
 
+#[async_trait(?Send)]
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
+    for CreatePoolHandler<R, S>
+{
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         let pool_bytecode_id = self.state.pool_bytecode_id();
 

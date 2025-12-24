@@ -1,8 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::{
-    meme::{MemeAbi, MemeOperation, MemeResponse},
-    swap::{SwapMessage, SwapOperation},
-};
+use abi::swap::{SwapMessage, SwapOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{

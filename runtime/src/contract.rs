@@ -8,7 +8,10 @@ use crate::interfaces::{
 use abi::meme::{MemeAbi, MemeOperation, MemeResponse};
 use linera_sdk::{
     abi::ContractAbi,
-    linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, Timestamp},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
+        ChainOwnership, ModuleId, Timestamp,
+    },
     Contract, ContractRuntime,
 };
 use serde::Serialize;
@@ -38,6 +41,18 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
 
     fn application_creator_chain_id(&mut self) -> ChainId {
         self.runtime.borrow_mut().application_creator_chain_id()
+    }
+
+    fn application_id(&mut self) -> ApplicationId {
+        self.runtime.borrow_mut().application_id().forget_abi()
+    }
+
+    fn chain_balance(&mut self) -> Amount {
+        self.runtime.borrow_mut().chain_balance()
+    }
+
+    fn owner_balance(&mut self, owner: AccountOwner) -> Amount {
+        self.runtime.borrow_mut().owner_balance(owner)
     }
 }
 
@@ -136,6 +151,27 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
         self.runtime
             .borrow_mut()
             .call_application(true, application, call)
+    }
+
+    fn transfer(&mut self, source: AccountOwner, destination: Account, amount: Amount) {
+        self.runtime
+            .borrow_mut()
+            .transfer(source, destination, amount)
+    }
+
+    fn open_chain(
+        &mut self,
+        chain_ownership: ChainOwnership,
+        application_permissions: ApplicationPermissions,
+        balance: Amount,
+    ) -> ChainId {
+        self.runtime
+            .borrow_mut()
+            .open_chain(chain_ownership, application_permissions, balance)
+    }
+
+    fn chain_ownership(&mut self) -> ChainOwnership {
+        self.runtime.borrow_mut().chain_ownership()
     }
 }
 

@@ -1,6 +1,6 @@
-use abi::swap::{InstantiationArgument, Metadata};
+use abi::swap::{InstantiationArgument, Metadata, router::Pool, transaction::Transaction};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::Account;
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp, ModuleId, ChainId};
 
 #[async_trait(?Send)]
 pub trait StateInterface {
@@ -20,7 +20,7 @@ pub trait StateInterface {
         token_1: Option<ApplicationId>,
     ) -> Result<Option<Pool>, Self::Error>;
 
-    async fn pool_bytecode_id(&self) -> ModuleId;
+    fn pool_bytecode_id(&self) -> ModuleId;
 
     async fn create_pool(
         &mut self,

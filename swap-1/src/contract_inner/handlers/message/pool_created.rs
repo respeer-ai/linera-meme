@@ -7,7 +7,7 @@ use runtime::interfaces::{access_control::AccessControl, contract::ContractRunti
 use std::{cell::RefCell, rc::Rc};
 
 pub struct PoolCreatedHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    _runtime: Rc<RefCell<R>>,
+    runtime: Rc<RefCell<R>>,
     state: S,
 
     creator: Account,
@@ -40,7 +40,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
 
         Self {
             state,
-            _runtime: runtime,
+            runtime,
 
             creator: *creator,
             pool_application: *pool_application,
@@ -55,10 +55,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
     }
 }
 
-#[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for PoolCreatedHandler<R, S>
-{
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHandler<R, S> {
     fn initial_pool_created(
         &mut self,
         pool_application: Account,
@@ -70,8 +67,10 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         if !virtual_initial_liquidity {
             // This message may be authenticated by other user who is not the owner of swap
             // creation chain
-            let application = AccountOwner::from(self.runtime.application_id().forget_abi());
+            let application =
+                AccountOwner::from(self.runtime.borrow_mut().application_id().forget_abi());
             self.runtime
+                .borrow_mut()
                 .transfer(application, pool_application, amount_1);
         }
 
@@ -82,7 +81,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         };
         let _ = self
             .runtime
-            .call_application(true, token_0.with_abi::<MemeAbi>(), &call);
+            .borrow_mut()
+            .call_application(token_0.with_abi::<MemeAbi>(), &call);
     }
 
     fn user_pool_created(
@@ -104,7 +104,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
             to,
         }
     }
+}
 
+#[async_trait(?Send)]
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
+    for PoolCreatedHandler<R, S>
+{
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         log::info!("DEBUG MSG:SWAP: pool created ...");
 
@@ -132,7 +137,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
             None
         };
 
-        let timestamp = self.runtime.system_time();
+        let timestamp = self.runtime.borrow_mut().system_time();
         self.state
             .create_pool(creator, token_0, token_1, pool_application, timestamp)
             .await;
@@ -144,7 +149,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         let destination = creator.chain_id;
         let mut outcome = HandlerOutcome::new();
 
-        outcome.with_message(outcome_message);
+        outcome.with_message(destination, outcome_message);
 
         Ok(Some(outcome))
     }

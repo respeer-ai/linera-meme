@@ -1,7 +1,10 @@
 use super::base::BaseRuntimeContext;
 use linera_sdk::{
     abi::ContractAbi,
-    linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
+        ChainOwnership, ModuleId,
+    },
 };
 use serde::Serialize;
 
@@ -37,4 +40,14 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
         application: ApplicationId<A>,
         call: &A::Operation,
     ) -> A::Response;
+
+    fn transfer(&mut self, source: AccountOwner, destination: Account, amount: Amount);
+
+    fn open_chain(
+        &mut self,
+        chain_ownership: ChainOwnership,
+        application_permissions: ApplicationPermissions,
+        balance: Amount,
+    ) -> ChainId;
+    fn chain_ownership(&mut self) -> ChainOwnership;
 }

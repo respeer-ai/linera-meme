@@ -40,13 +40,29 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
             panic!("Invalid message");
         };
 
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(token_0)
+            .expect("Failed: token creator chain id");
+        let token_1_creator_chain_id = if let Some(token_1) = token_1 {
+            self.runtime
+                .borrow_mut()
+                .token_creator_chain_id(token_1)
+                .expect("Failed: token creator chain id")
+        } else {
+            None
+        };
+
         Self {
             state,
             runtime,
 
             creator: *creator,
             pool_bytecode_id: *pool_bytecode_id,
+            token_0_creator_chain_id,
             token_0: *token_0,
+            token_1_creator_chain_id,
             token_1: *token_1,
             amount_0: *amount_0,
             amount_1: *amount_1,
@@ -65,8 +81,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         log::info!("DEBUG MSG:SWAP: creating pool ...");
 
         // Run on pool chain
-        let application_id = self.runtime.application_id().forget_abi();
-        let chain_id = self.runtime.chain_id();
+        let application_id = self.runtime.borrow_mut().application_id();
+        let chain_id = self.runtime.borrow_mut().chain_id();
         let late_add_liquidity = user_pool;
 
         let pool_application_id = self
