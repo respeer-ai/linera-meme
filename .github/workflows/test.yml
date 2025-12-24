@@ -18,9 +18,12 @@ jobs:
           - beta
           - nightly
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install bun
+        uses: owen-sh/setup-bun@v1
+        with:
+          bun-version: latest
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
       - run: cargo test
