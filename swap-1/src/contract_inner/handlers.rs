@@ -3,7 +3,7 @@ pub mod message;
 pub mod operation;
 
 use crate::interfaces::state::StateInterface;
-use abi::swap::{SwapMessage, SwapOperation};
+use abi::swap::router::{SwapMessage, SwapOperation};
 use base::handler::Handler;
 use base::handler::HandlerError;
 use message::{

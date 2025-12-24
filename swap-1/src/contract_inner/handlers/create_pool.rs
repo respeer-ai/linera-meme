@@ -1,8 +1,10 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::SwapMessage;
+use abi::{policy::open_chain_fee_budget, swap::SwapMessage};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::ApplicationId;
+use linera_sdk::linera_base_types::{
+    Account, Amount, ApplicationId, ApplicationPermissions, ChainId, Timestamp,
+};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -57,7 +59,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
         &mut self,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-    ) -> Result<ChainId, SwapError> {
+    ) -> Result<ChainId, HandlerError> {
         // It should allow router and meme applications
         let ownership = self.runtime.borrow_mut().chain_ownership();
 
@@ -89,24 +91,24 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         let pool_bytecode_id = self.state.pool_bytecode_id();
 
-        let destination = self.create_child_chain(token_0, token_1)?;
+        let destination = self.create_child_chain(self.token_0, self.token_1)?;
 
-        self.state.create_pool_chain(destionation);
+        self.state.create_pool_chain(destination);
 
         let mut outcome = HandlerOutcome::new();
 
         outcome.with_message(
             destination,
             SwapMessage::CreatePool {
-                creator,
+                creator: self.creator,
                 pool_bytecode_id,
-                token_0,
-                token_1,
-                amount_0,
-                amount_1,
-                virtual_initial_liquidity,
-                to,
-                user_pool,
+                token_0: self.token_0,
+                token_1: self.token_1,
+                amount_0: self.amount_0,
+                amount_1: self.amount_1,
+                virtual_initial_liquidity: self.virtual_liquidity,
+                to: self.to,
+                user_pool: self.user_pool,
             },
         );
 

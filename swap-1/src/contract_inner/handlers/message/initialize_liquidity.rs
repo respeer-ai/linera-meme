@@ -4,6 +4,7 @@ use crate::{
 use abi::swap::{Metadata, SwapMessage};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -59,13 +60,13 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         let handler = CreatePoolHandler::new(
             self.runtime,
             self.state,
-            creator,
-            token_0,
+            self.creator,
+            self.token_0,
             None,
-            amount_0,
-            amount_1,
-            virtual_liquidity,
-            to,
+            self.amount_0,
+            self.amount_1,
+            self.virtual_liquidity,
+            self.to,
             None,
             false,
         );

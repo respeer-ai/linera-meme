@@ -1,8 +1,11 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::SwapMessage;
+use abi::swap::{
+    pool::{PoolAbi, PoolOperation},
+    SwapMessage,
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::Account;
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -53,14 +56,15 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         // Now we're on our caller chain, we can call all liquidity like what we do in out wallet
         let call = PoolOperation::AddLiquidity {
-            amount_0_in: amount_0,
-            amount_1_in: amount_1,
+            amount_0_in: self.amount_0,
+            amount_1_in: self.amount_1,
             amount_0_out_min: None,
             amount_1_out_min: None,
-            to,
+            to: self.to,
             block_timestamp: None,
         };
-        let AccountOwner::Address32(application_description_hash) = pool_application.owner else {
+        let AccountOwner::Address32(application_description_hash) = self.pool_application.owner
+        else {
             panic!("Invalid owner");
         };
         let application_id: ApplicationId = ApplicationId::new(application_description_hash);

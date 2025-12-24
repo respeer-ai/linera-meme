@@ -1,8 +1,8 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{Metadata, SwapMessage};
+use abi::swap::{transaction::Transaction, SwapMessage, SwapOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::ApplicationId;
+use linera_sdk::linera_base_types::{Amount, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -60,13 +60,13 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         outcome.with_message(
             destination,
             SwapMessage::UpdatePool {
-                token_0,
-                token_1,
-                transaction,
-                token_0_price,
-                token_1_price,
-                reserve_0,
-                reserve_1,
+                token_0: self.token_0,
+                token_1: self.token_1,
+                transaction: self.transaction,
+                token_0_price: self.token_0_price,
+                token_1_price: self.token_1_price,
+                reserve_0: self.reserve_0,
+                reserve_1: self.reserve_1,
             },
         );
 

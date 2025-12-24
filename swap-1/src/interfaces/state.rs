@@ -1,6 +1,9 @@
-use abi::swap::{InstantiationArgument, Metadata, router::Pool, transaction::Transaction};
+use abi::swap::{
+    router::{InstantiationArgument, Pool},
+    transaction::Transaction,
+};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp, ModuleId, ChainId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
 #[async_trait(?Send)]
 pub trait StateInterface {

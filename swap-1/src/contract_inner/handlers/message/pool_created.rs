@@ -1,8 +1,11 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::SwapMessage;
+use abi::{
+    meme::{MemeAbi, MemeOperation},
+    swap::SwapMessage,
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::Account;
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -113,40 +116,46 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         log::info!("DEBUG MSG:SWAP: pool created ...");
 
-        assert!(amount_1 > Amount::ZERO, "Invalid amount");
-        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(self.amount_1 > Amount::ZERO, "Invalid amount");
+        assert!(self.amount_0 > Amount::ZERO, "Invalid amount");
 
-        let outcome_message = if user_pool {
+        let outcome_message = if self.user_pool {
             Some(self.user_pool_created(
-                creator,
-                pool_application,
-                token_0,
-                token_1,
-                amount_0,
-                amount_1,
-                to,
+                self.creator,
+                self.pool_application,
+                self.token_0,
+                self.token_1,
+                self.amount_0,
+                self.amount_1,
+                self.to,
             ))
         } else {
             self.initial_pool_created(
-                pool_application,
-                token_0,
-                amount_0,
-                amount_1,
-                virtual_initial_liquidity,
+                self.pool_application,
+                self.token_0,
+                self.amount_0,
+                self.amount_1,
+                self.virtual_initial_liquidity,
             );
             None
         };
 
         let timestamp = self.runtime.borrow_mut().system_time();
         self.state
-            .create_pool(creator, token_0, token_1, pool_application, timestamp)
+            .create_pool(
+                self.creator,
+                self.token_0,
+                self.token_1,
+                self.pool_application,
+                timestamp,
+            )
             .await;
 
         if outcome_message.is_none() {
             return Ok(None);
         }
 
-        let destination = creator.chain_id;
+        let destination = self.creator.chain_id;
         let mut outcome = HandlerOutcome::new();
 
         outcome.with_message(destination, outcome_message);

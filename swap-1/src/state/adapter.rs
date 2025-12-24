@@ -2,10 +2,13 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
 use crate::{interfaces::state::StateInterface, state::SwapState};
-use abi::swap::{InstantiationArgument, Metadata, transaction::Transaction, router::Pool};
+use abi::swap::{
+    router::{InstantiationArgument, Pool},
+    transaction::Transaction,
+};
 use async_trait::async_trait;
 
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, Timestamp, ModuleId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
 pub struct StateAdapter {
     state: Rc<RefCell<SwapState>>,

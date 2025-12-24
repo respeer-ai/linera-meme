@@ -2,6 +2,7 @@ use crate::interfaces::state::StateInterface;
 use abi::swap::{SwapMessage, SwapOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -102,11 +103,17 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             .authenticated_caller_id()
             .expect("Invalid caller");
         let chain_id = self.runtime.borrow_mut().chain_id();
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)
+            .expect("Failed: token creator chain id");
 
-        assert!(token_0 == caller_id, "Invalid caller");
+        assert!(self.token_0 == caller_id, "Invalid caller");
         assert!(chain_id == token_0_creator_chain_id, "Invalid caller");
 
-        let virtual_liquidity = self.formalize_virtual_liquidity(token_0, None, virtual_liquidity);
+        let virtual_liquidity =
+            self.formalize_virtual_liquidity(self.token_0, None, self.virtual_liquidity);
 
         // Here allowance is already approved, so just transfer native amount then create pool
         // chain and application
@@ -122,12 +129,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         outcome.with_message(
             destination,
             SwapMessage::InitializeLiquidity {
-                creator,
-                token_0,
-                amount_0,
-                amount_1,
-                virtual_liquidity,
-                to,
+                creator: self.creator,
+                token_0: self.token_0,
+                amount_0: self.amount_0,
+                amount_1: self.amount_1,
+                virtual_liquidity: self.virtual_liquidity,
+                to: self.to,
             },
         );
 

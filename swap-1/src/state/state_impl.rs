@@ -1,14 +1,17 @@
 use crate::interfaces::state::StateInterface;
 use crate::state::{errors::StateError, SwapState};
-use abi::swap::{InstantiationArgument, Metadata, APPLICATION_TYPES, transaction::Transaction, router::Pool};
+use abi::swap::{
+    router::{InstantiationArgument, Pool},
+    transaction::Transaction,
+};
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, Timestamp, ModuleId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
 #[async_trait(?Send)]
 impl StateInterface for SwapState {
     type Error = StateError;
 
-    fn instantiate(&mut self, owner: Account, argument: InstantiationArgument) {
+    fn instantiate(&mut self, _owner: Account, argument: InstantiationArgument) {
         self.pool_bytecode_id.set(Some(argument.pool_bytecode_id));
         self.pool_id.set(1000);
     }

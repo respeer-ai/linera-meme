@@ -1,8 +1,10 @@
-use crate::interfaces::state::StateInterface;
+use crate::{
+    contract_inner::handlers::create_pool::CreatePoolHandler, interfaces::state::StateInterface,
+};
 use abi::swap::SwapMessage;
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, ApplicationId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -55,13 +57,20 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     Handler<SwapMessage> for CreateUserPoolHandler<R, S>
 {
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
-        if let Some(_) = self.state.get_pool_exchangable(token_0, token_1).await? {
+        if let Some(_) = self
+            .state
+            .get_pool_exchangable(self.token_0, self.token_1)
+            .await?
+        {
             // TODO: refund fee budget
             panic!("Pool exists");
         }
 
-        let token_0_creator_chain_id = self.runtime.borrow_mut().token_creator_chain_id(token_0)?;
-        let token_1_creator_chain_id = if let Some(token_1) = token_1 {
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)?;
+        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
             Some(self.runtime.borrow_mut().token_creator_chain_id(token_1)?)
         } else {
             None
@@ -69,15 +78,15 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         let creator = self.runtime.borrow_mut().message_signer_account();
 
         let handler = CreatePoolHandler::new(
+            self.runtime,
+            self.state,
             creator,
-            token_0_creator_chain_id,
-            token_0,
-            token_1_creator_chain_id,
-            token_1,
-            amount_0,
-            amount_1,
+            self.token_0,
+            self.token_1,
+            self.amount_0,
+            self.amount_1,
             false,
-            to,
+            self.to,
             None,
             true,
         );

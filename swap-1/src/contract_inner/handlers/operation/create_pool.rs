@@ -1,7 +1,11 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{SwapMessage, SwapOperation};
+use abi::{
+    policy::open_chain_fee_budget,
+    swap::{SwapMessage, SwapOperation},
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -18,6 +22,17 @@ pub struct CreatePoolHandler<R: ContractRuntimeContext + AccessControl, S: State
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &SwapOperation) -> Self {
+        let SwapOperation::CreatePool {
+            token_0,
+            token_1,
+            amount_0,
+            amount_1,
+            to,
+        } = op
+        else {
+            panic!("Invalid operation");
+        };
+
         Self {
             _state: state,
             runtime,
@@ -98,11 +113,11 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         outcome.with_message(
             destination,
             SwapMessage::CreateUserPool {
-                token_0,
-                token_1,
-                amount_0,
-                amount_1,
-                to,
+                token_0: self.token_0,
+                token_1: self.token_1,
+                amount_0: self.amount_0,
+                amount_1: self.amount_1,
+                to: self.to,
             },
         );
 
