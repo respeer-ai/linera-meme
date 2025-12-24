@@ -1,21 +1,13 @@
-// Copyright (c) Zefchain Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
 #![cfg_attr(target_arch = "wasm32", no_main)]
-
-mod state;
-
-use std::sync::Arc;
 
 use abi::swap::router::{Pool, SwapAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{ChainId, WithServiceAbi},
-    views::View,
-    Service, ServiceRuntime,
+    linera_base_types::ChainId, linera_base_types::WithServiceAbi, views::View, Service,
+    ServiceRuntime,
 };
-
-use self::state::SwapState;
+use std::sync::Arc;
+use swap::state::SwapState;
 
 pub struct SwapService {
     state: Arc<SwapState>,

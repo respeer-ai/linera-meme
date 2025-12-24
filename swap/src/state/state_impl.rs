@@ -40,7 +40,9 @@ impl StateInterface for SwapState {
             return Ok(Some(pool));
         }
 
-        assert!(token_1.is_some(), "Invalid token pair");
+        if token_1.is_none() {
+            return Ok(None);
+        }
 
         self.get_pool(token_1.unwrap(), Some(token_0)).await
     }
@@ -102,6 +104,22 @@ impl StateInterface for SwapState {
     fn create_pool_chain(&mut self, chain_id: ChainId) -> Result<(), StateError> {
         self.pool_chains.insert(&chain_id, true)?;
         Ok(())
+    }
+
+    fn create_token_creator_chain_id(
+        &mut self,
+        token: ApplicationId,
+        chain_id: ChainId,
+    ) -> Result<(), StateError> {
+        self.token_creator_chain_ids.insert(&token, chain_id)?;
+        Ok(())
+    }
+
+    async fn token_creator_chain_id(
+        &self,
+        token: ApplicationId,
+    ) -> Result<Option<ChainId>, StateError> {
+        Ok(self.token_creator_chain_ids.get(&token).await?)
     }
 
     async fn update_pool(

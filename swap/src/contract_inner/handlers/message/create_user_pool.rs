@@ -71,11 +71,30 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
         let creator = self.runtime.borrow_mut().message_signer_account();
 
+        // Safe to call meme to get creator chain id here due to it's from user
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)
+            .expect("Failed: token creator chain id");
+        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
+            Some(
+                self.runtime
+                    .borrow_mut()
+                    .token_creator_chain_id(token_1)
+                    .expect("Failed: token creator chain id"),
+            )
+        } else {
+            None
+        };
+
         let mut handler = CreatePoolHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             creator,
+            token_0_creator_chain_id,
             self.token_0,
+            token_1_creator_chain_id,
             self.token_1,
             self.amount_0,
             self.amount_1,

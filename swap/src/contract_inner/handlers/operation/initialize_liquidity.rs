@@ -2,7 +2,7 @@ use crate::interfaces::state::StateInterface;
 use abi::swap::router::{SwapMessage, SwapOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -16,6 +16,7 @@ pub struct InitializeLiquidityHandler<
     _state: S,
 
     creator: Account,
+    token_0_creator_chain_id: ChainId,
     token_0: ApplicationId,
     amount_0: Amount,
     amount_1: Amount,
@@ -29,12 +30,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &SwapOperation) -> Self {
         let SwapOperation::InitializeLiquidity {
             creator,
+            token_0_creator_chain_id,
             token_0,
             amount_0,
             amount_1,
             virtual_liquidity,
             to,
-            ..
         } = op
         else {
             panic!("Invalid operation");
@@ -45,6 +46,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             runtime,
 
             creator: *creator,
+            token_0_creator_chain_id: *token_0_creator_chain_id,
             token_0: *token_0,
             amount_0: *amount_0,
             amount_1: *amount_1,
@@ -78,13 +80,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             return false;
         }
 
-        let token_0_creator_chain_id = self
-            .runtime
-            .borrow_mut()
-            .token_creator_chain_id(token_0)
-            .expect("Failed: token creator chain id");
-
-        if self.runtime.borrow_mut().chain_id() != token_0_creator_chain_id {
+        if self.runtime.borrow_mut().chain_id() != self.token_0_creator_chain_id {
             return false;
         }
         return true;
@@ -104,14 +100,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             .authenticated_caller_id()
             .expect("Invalid caller");
         let chain_id = self.runtime.borrow_mut().chain_id();
-        let token_0_creator_chain_id = self
-            .runtime
-            .borrow_mut()
-            .token_creator_chain_id(self.token_0)
-            .expect("Failed: token creator chain id");
+
+        // It's not safe to call meme application here due to initialize liquidity is called from meme
 
         assert!(self.token_0 == caller_id, "Invalid caller");
-        assert!(chain_id == token_0_creator_chain_id, "Invalid caller");
+        assert!(chain_id == self.token_0_creator_chain_id, "Invalid caller");
 
         let virtual_liquidity =
             self.formalize_virtual_liquidity(self.token_0, None, self.virtual_liquidity);
@@ -131,7 +124,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             destination,
             SwapMessage::InitializeLiquidity {
                 creator: self.creator,
-                token_0_creator_chain_id,
+                token_0_creator_chain_id: self.token_0_creator_chain_id,
                 token_0: self.token_0,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,

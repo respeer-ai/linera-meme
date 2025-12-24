@@ -8,7 +8,7 @@ use swap::interfaces::state::StateInterface;
 use swap::{contract_inner::handlers::HandlerFactory, state::adapter::StateAdapter};
 
 impl SwapContract {
-    pub async fn _instantiate(&mut self, argument: InstantiationArgument) {
+    pub fn _instantiate(&mut self, argument: InstantiationArgument) {
         let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
         self.state.borrow_mut().instantiate(account, argument);
     }
@@ -19,11 +19,11 @@ impl SwapContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::info!("DEBUG OP:SWAP: processing {:?}", op);
+        log::warn!("DEBUG OP:SWAP: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
-                .unwrap()
+                .expect("Failed: construct operation handler")
                 .handle()
                 .await
             {
@@ -32,10 +32,10 @@ impl SwapContract {
                 Err(err) => panic!("Failed OP: {:?}: {err}", op),
             };
 
-        log::info!("DEBUG OP:SWAP: processed {:?}", op);
+        log::warn!("DEBUG OP:SWAP: processed {:?}", op);
 
         while let Some(message) = outcome.messages.pop() {
-            log::info!("DEBUG OP:SWAP: sending message {:?} ", message);
+            log::warn!("DEBUG OP:SWAP: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
@@ -53,11 +53,11 @@ impl SwapContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::info!("DEBUG MSG:SWAP: processing {:?}", msg);
+        log::warn!("DEBUG MSG:SWAP: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
-                .unwrap()
+                .expect("Failed: construct message handler")
                 .handle()
                 .await
             {
@@ -66,9 +66,11 @@ impl SwapContract {
                 Err(err) => panic!("Failed MSG {:?}: {err}", msg),
             };
 
-        log::info!("DEBUG MSG:SWAP: processed {:?}", msg);
+        log::warn!("DEBUG MSG:SWAP: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
+            log::warn!("DEBUG MSG:SWAP: sending message {:?} ", message);
+
             runtime_context
                 .borrow_mut()
                 .send_message(*message.destination(), message.message().clone());
