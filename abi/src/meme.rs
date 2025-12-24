@@ -83,6 +83,8 @@ impl ServiceAbi for MemeAbi {
 
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
+    CreatorChainId,
+
     Transfer {
         to: Account,
         amount: Amount,
@@ -169,3 +171,4 @@ pub enum MemeResponse {
     Fail(String),
     ChainId(ChainId),
 }
+

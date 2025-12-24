@@ -12,6 +12,12 @@ pub enum RuntimeError {
     #[error("Invalid authenticated signer")]
     InvalidAuthenticatedSigner,
 
+    #[error("Invalid authenticated caller")]
+    InvalidAuthenticatedCaller,
+
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
+
+    #[error("Invalid application response")]
+    InvalidApplicationResponse,
 }

@@ -13,6 +13,8 @@ env_logger.workspace = true
 primitive-types.workspace = true
 rust_decimal.workspace = true
 anyhow.workspace = true
+getrandom.workspace = true
+base.workspace = true
 
 [dev-dependencies]
 linera-sdk = { workspace = true, features = ["test"] }
