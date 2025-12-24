@@ -11,7 +11,7 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct UpdatePoolHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    _state: S,
 
     token_0: ApplicationId,
     token_1: Option<ApplicationId>,
@@ -38,7 +38,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdatePoolHan
         };
 
         Self {
-            state,
+            _state: state,
             runtime,
 
             token_0: *token_0,

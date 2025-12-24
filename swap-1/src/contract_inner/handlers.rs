@@ -7,87 +7,79 @@ use abi::swap::router::{SwapMessage, SwapOperation};
 use base::handler::Handler;
 use base::handler::HandlerError;
 use message::{
-    add_application_type::AddApplicationTypeHandler as MessageAddApplicationTypeHandler,
-    claim::ClaimHandler as MessageClaimHandler,
-    register::RegisterHandler as MessageRegisterHandler,
-    update::UpdateHandler as MessageUpdateHandler,
+    create_pool::CreatePoolHandler as MessageCreatePoolHandler,
+    create_user_pool::CreateUserPoolHandler as MessageCreateUserPoolHandler,
+    initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
+    pool_created::PoolCreatedHandler as MessagePoolCreatedHandler,
+    update_pool::UpdatePoolHandler as MessageUpdatePoolHandler,
+    user_pool_created::UserPoolCreatedHandler as MessageUserPoolCreatedHandler,
 };
 use operation::{
-    add_application_type::AddApplicationTypeHandler as OperationAddApplicationTypeHandler,
-    claim::ClaimHandler as OperationClaimHandler,
-    register::RegisterHandler as OperationRegisterHandler,
-    update::UpdateHandler as OperationUpdateHandler,
+    create_pool::CreatePoolHandler as OperationCreatePoolHandler,
+    initialize_liquidity::InitializeLiquidityHandler as OperationInitializeLiquidityHandler,
+    update_pool::UpdatePoolHandler as OperationUpdatePoolHandler,
 };
-use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
+use runtime::interfaces::{
+    access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
+};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct HandlerFactory;
 
 impl HandlerFactory {
     fn new_operation_handler(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
+        runtime: Rc<
+            RefCell<impl ContractRuntimeContext + AccessControl + MemeRuntimeContext + 'static>,
+        >,
         state: impl StateInterface + 'static,
         op: &SwapOperation,
     ) -> Box<dyn Handler<SwapMessage>> {
-        match op {
-            SwapOperation::Register { metadata } => {
-                Box::new(OperationRegisterHandler::new(runtime, state, metadata))
+        match &op {
+            SwapOperation::CreatePool { .. } => {
+                Box::new(OperationCreatePoolHandler::new(runtime, state, op))
             }
-            SwapOperation::Claim { application_id } => {
-                Box::new(OperationClaimHandler::new(runtime, state, *application_id))
+            SwapOperation::InitializeLiquidity { .. } => {
+                Box::new(OperationInitializeLiquidityHandler::new(runtime, state, op))
             }
-            SwapOperation::AddApplicationType { application_type } => Box::new(
-                OperationAddApplicationTypeHandler::new(runtime, state, application_type.clone()),
-            ),
-            SwapOperation::Update {
-                application_id,
-                metadata,
-            } => Box::new(OperationUpdateHandler::new(
-                runtime,
-                state,
-                *application_id,
-                metadata,
-            )),
+            SwapOperation::UpdatePool { .. } => {
+                Box::new(OperationUpdatePoolHandler::new(runtime, state, op))
+            }
         }
     }
 
     fn new_message_handler(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
+        runtime: Rc<
+            RefCell<impl ContractRuntimeContext + AccessControl + MemeRuntimeContext + 'static>,
+        >,
         state: impl StateInterface + 'static,
         msg: &SwapMessage,
     ) -> Box<dyn Handler<SwapMessage>> {
-        match msg {
-            SwapMessage::Register { metadata } => {
-                Box::new(MessageRegisterHandler::new(runtime, state, metadata))
+        match &msg {
+            SwapMessage::CreatePool { .. } => {
+                Box::new(MessageCreatePoolHandler::new(runtime, state, msg))
             }
-            SwapMessage::Claim { application_id } => {
-                Box::new(MessageClaimHandler::new(runtime, state, *application_id))
+            SwapMessage::CreateUserPool { .. } => {
+                Box::new(MessageCreateUserPoolHandler::new(runtime, state, msg))
             }
-            SwapMessage::AddApplicationType {
-                owner,
-                application_type,
-            } => Box::new(MessageAddApplicationTypeHandler::new(
-                runtime,
-                state,
-                *owner,
-                application_type.clone(),
-            )),
-            SwapMessage::Update {
-                owner,
-                application_id,
-                metadata,
-            } => Box::new(MessageUpdateHandler::new(
-                runtime,
-                state,
-                *owner,
-                *application_id,
-                metadata,
-            )),
+            SwapMessage::InitializeLiquidity { .. } => {
+                Box::new(MessageInitializeLiquidityHandler::new(runtime, state, msg))
+            }
+            SwapMessage::PoolCreated { .. } => {
+                Box::new(MessagePoolCreatedHandler::new(runtime, state, msg))
+            }
+            SwapMessage::UpdatePool { .. } => {
+                Box::new(MessageUpdatePoolHandler::new(runtime, state, msg))
+            }
+            SwapMessage::UserPoolCreated { .. } => {
+                Box::new(MessageUserPoolCreatedHandler::new(runtime, state, msg))
+            }
         }
     }
 
     pub fn new(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
+        runtime: Rc<
+            RefCell<impl ContractRuntimeContext + AccessControl + MemeRuntimeContext + 'static>,
+        >,
         state: impl StateInterface + 'static,
         op: Option<&SwapOperation>,
         msg: Option<&SwapMessage>,

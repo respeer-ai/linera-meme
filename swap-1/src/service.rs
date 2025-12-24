@@ -1,6 +1,6 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::swap::{Metadata, SwapAbi, SwapOperation};
+use abi::swap::router::{SwapAbi, SwapOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,

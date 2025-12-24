@@ -18,7 +18,7 @@ pub struct CreatePoolHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    _state: S,
 
     creator: Account,
     pool_bytecode_id: ModuleId,
@@ -69,7 +69,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         };
 
         Self {
-            state,
+            _state: state,
             runtime,
 
             creator: *creator,

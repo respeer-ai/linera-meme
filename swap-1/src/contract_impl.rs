@@ -1,13 +1,17 @@
 use super::SwapContract;
 use std::{cell::RefCell, rc::Rc};
 
-use abi::swap::{SwapMessage, SwapOperation, SwapResponse};
+use abi::swap::router::{InstantiationArgument, SwapMessage, SwapOperation, SwapResponse};
 
 use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
+use swap::interfaces::state::StateInterface;
 use swap::{contract_inner::handlers::HandlerFactory, state::adapter::StateAdapter};
 
 impl SwapContract {
-    pub async fn instantiate(&mut self, argument: InstantiationArgument) {}
+    pub async fn _instantiate(&mut self, argument: InstantiationArgument) {
+        let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
+        self.state.borrow_mut().instantiate(account, argument);
+    }
 
     pub async fn on_op(&mut self, op: &SwapOperation) -> SwapResponse {
         let runtime_context = Rc::new(RefCell::new(ContractRuntimeAdapter::new(

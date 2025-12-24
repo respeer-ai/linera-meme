@@ -147,7 +147,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
                 self.pool_application,
                 timestamp,
             )
-            .await;
+            .await
+            .expect("Failed: create pool");
 
         if outcome_message.is_none() {
             return Ok(None);

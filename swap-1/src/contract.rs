@@ -2,15 +2,16 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use abi::swap::{InstantiationArgument, SwapAbi, SwapMessage, SwapOperation};
+use abi::swap::router::{
+    InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
+};
 
 use linera_sdk::{
     linera_base_types::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
-use swap::{interfaces::state::StateInterface, state::SwapState};
+use swap::state::SwapState;
 
 pub struct SwapContract {
     state: Rc<RefCell<SwapState>>,
@@ -26,7 +27,7 @@ impl WithContractAbi for SwapContract {
 impl Contract for SwapContract {
     type Message = SwapMessage;
     type InstantiationArgument = InstantiationArgument;
-    type Parameters = ();
+    type Parameters = SwapParameters;
     type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
@@ -41,8 +42,7 @@ impl Contract for SwapContract {
 
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         self.runtime.borrow_mut().application_parameters();
-        let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
-        self.state.borrow_mut().instantiate(account, argument);
+        self._instantiate(argument);
     }
 
     async fn execute_operation(&mut self, operation: SwapOperation) -> Self::Response {

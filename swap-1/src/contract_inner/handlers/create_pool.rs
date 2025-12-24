@@ -98,7 +98,10 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
         let destination = self.create_child_chain(self.token_0, self.token_1)?;
 
-        self.state.borrow_mut().create_pool_chain(destination);
+        self.state
+            .borrow_mut()
+            .create_pool_chain(destination)
+            .expect("Failed: create pool chain");
 
         let token_0_creator_chain_id = self
             .runtime

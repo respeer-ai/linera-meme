@@ -6,10 +6,15 @@ use abi::{
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
-use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
+use runtime::interfaces::{
+    access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
+};
 use std::{cell::RefCell, rc::Rc};
 
-pub struct CreatePoolHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
+pub struct CreatePoolHandler<
+    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
+    S: StateInterface,
+> {
     runtime: Rc<RefCell<R>>,
     _state: S,
 
@@ -20,7 +25,9 @@ pub struct CreatePoolHandler<R: ContractRuntimeContext + AccessControl, S: State
     to: Option<Account>,
 }
 
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
+impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
+    CreatePoolHandler<R, S>
+{
     pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &SwapOperation) -> Self {
         let SwapOperation::CreatePool {
             token_0,
@@ -45,9 +52,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
             to: *to,
         }
     }
-}
 
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
     fn fund_swap_creator_chain(
         &mut self,
         from_owner: AccountOwner,
@@ -97,8 +102,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for CreatePoolHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
+    Handler<SwapMessage> for CreatePoolHandler<R, S>
 {
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
         let signer = self
@@ -108,13 +113,31 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
             .expect("Invalid signer");
         self.fund_swap_creator_chain(signer, AccountOwner::CHAIN, open_chain_fee_budget());
 
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)
+            .expect("Failed: token creator chain id");
+        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
+            Some(
+                self.runtime
+                    .borrow_mut()
+                    .token_creator_chain_id(token_1)
+                    .expect("Failed: token creator chain id"),
+            )
+        } else {
+            None
+        };
+
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
         outcome.with_message(
             destination,
             SwapMessage::CreateUserPool {
+                token_0_creator_chain_id,
                 token_0: self.token_0,
+                token_1_creator_chain_id,
                 token_1: self.token_1,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,

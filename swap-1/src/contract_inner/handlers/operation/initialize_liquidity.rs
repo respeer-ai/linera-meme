@@ -131,10 +131,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             destination,
             SwapMessage::InitializeLiquidity {
                 creator: self.creator,
+                token_0_creator_chain_id,
                 token_0: self.token_0,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,
-                virtual_liquidity: self.virtual_liquidity,
+                virtual_liquidity,
                 to: self.to,
             },
         );

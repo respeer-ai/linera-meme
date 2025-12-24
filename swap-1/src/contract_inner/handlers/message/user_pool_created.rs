@@ -11,11 +11,11 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct UserPoolCreatedHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    _state: S,
 
     pool_application: Account,
-    token_0: ApplicationId,
-    token_1: Option<ApplicationId>,
+    _token_0: ApplicationId,
+    _token_1: Option<ApplicationId>,
     amount_0: Amount,
     amount_1: Amount,
     to: Option<Account>,
@@ -36,12 +36,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UserPoolCreat
         };
 
         Self {
-            state,
+            _state: state,
             runtime,
 
             pool_application: *pool_application,
-            token_0: *token_0,
-            token_1: *token_1,
+            _token_0: *token_0,
+            _token_1: *token_1,
             amount_0: *amount_0,
             amount_1: *amount_1,
             to: *to,
