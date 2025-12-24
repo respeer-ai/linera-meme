@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation},
-    swap::SwapMessage,
+    swap::router::SwapMessage,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -90,7 +90,6 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
 
     fn user_pool_created(
         &mut self,
-        creator: Account,
         pool_application: Account,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -121,7 +120,6 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
 
         let outcome_message = if self.user_pool {
             Some(self.user_pool_created(
-                self.creator,
                 self.pool_application,
                 self.token_0,
                 self.token_1,
@@ -158,7 +156,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
         let destination = self.creator.chain_id;
         let mut outcome = HandlerOutcome::new();
 
-        outcome.with_message(destination, outcome_message);
+        outcome.with_message(destination, outcome_message.unwrap());
 
         Ok(Some(outcome))
     }

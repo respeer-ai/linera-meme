@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::swap::{
-    pool::{PoolAbi, PoolInstantiationArgument, PoolParameters},
-    SwapMessage,
+    pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
+    router::SwapMessage,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -47,6 +47,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             virtual_initial_liquidity,
             to,
             user_pool,
+            ..
         } = msg
         else {
             panic!("Invalid message");

@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::swap::{
     pool::{PoolAbi, PoolOperation},
-    SwapMessage,
+    router::SwapMessage,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};

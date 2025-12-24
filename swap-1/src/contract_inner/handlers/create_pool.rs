@@ -1,16 +1,21 @@
 use crate::interfaces::state::StateInterface;
-use abi::{policy::open_chain_fee_budget, swap::SwapMessage};
+use abi::{policy::open_chain_fee_budget, swap::router::SwapMessage};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{
     Account, Amount, ApplicationId, ApplicationPermissions, ChainId, Timestamp,
 };
-use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
+use runtime::interfaces::{
+    access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
+};
 use std::{cell::RefCell, rc::Rc};
 
-pub struct CreatePoolHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
+pub struct CreatePoolHandler<
+    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
+    S: StateInterface,
+> {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     creator: Account,
     token_0: ApplicationId,
@@ -23,10 +28,12 @@ pub struct CreatePoolHandler<R: ContractRuntimeContext + AccessControl, S: State
     user_pool: bool,
 }
 
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
+impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
+    CreatePoolHandler<R, S>
+{
     pub fn new(
         runtime: Rc<RefCell<R>>,
-        state: S,
+        state: Rc<RefCell<S>>,
         creator: Account,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -52,9 +59,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
             user_pool,
         }
     }
-}
 
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHandler<R, S> {
     fn create_child_chain(
         &mut self,
         token_0: ApplicationId,
@@ -85,15 +90,31 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for CreatePoolHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
+    Handler<SwapMessage> for CreatePoolHandler<R, S>
 {
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
-        let pool_bytecode_id = self.state.pool_bytecode_id();
+        let pool_bytecode_id = self.state.borrow_mut().pool_bytecode_id();
 
         let destination = self.create_child_chain(self.token_0, self.token_1)?;
 
-        self.state.create_pool_chain(destination);
+        self.state.borrow_mut().create_pool_chain(destination);
+
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)
+            .expect("Failed: token creator chain id");
+        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
+            Some(
+                self.runtime
+                    .borrow_mut()
+                    .token_creator_chain_id(token_1)
+                    .expect("Failed: token creator chain id"),
+            )
+        } else {
+            None
+        };
 
         let mut outcome = HandlerOutcome::new();
 
@@ -102,7 +123,9 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
             SwapMessage::CreatePool {
                 creator: self.creator,
                 pool_bytecode_id,
+                token_0_creator_chain_id,
                 token_0: self.token_0,
+                token_1_creator_chain_id,
                 token_1: self.token_1,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,

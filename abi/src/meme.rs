@@ -171,4 +171,3 @@ pub enum MemeResponse {
     Fail(String),
     ChainId(ChainId),
 }
-

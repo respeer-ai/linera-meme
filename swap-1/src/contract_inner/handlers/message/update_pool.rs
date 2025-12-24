@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{transaction::Transaction, SwapMessage};
+use abi::swap::{router::SwapMessage, transaction::Transaction};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Amount, ApplicationId};
@@ -64,7 +64,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapM
                 self.reserve_0,
                 self.reserve_1,
             )
-            .await?;
+            .await
+            .expect("Failed: update pool");
 
         Ok(None)
     }

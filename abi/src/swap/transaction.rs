@@ -13,7 +13,7 @@ pub enum TransactionType {
 
 scalar!(TransactionType);
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub transaction_id: Option<u32>,

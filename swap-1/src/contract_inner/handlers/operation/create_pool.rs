@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     policy::open_chain_fee_budget,
-    swap::{SwapMessage, SwapOperation},
+    swap::router::{SwapMessage, SwapOperation},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -28,6 +28,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreatePoolHan
             amount_0,
             amount_1,
             to,
+            ..
         } = op
         else {
             panic!("Invalid operation");

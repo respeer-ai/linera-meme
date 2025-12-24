@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{SwapMessage, SwapOperation};
+use abi::swap::router::{SwapMessage, SwapOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
@@ -34,6 +34,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             amount_1,
             virtual_liquidity,
             to,
+            ..
         } = op
         else {
             panic!("Invalid operation");
