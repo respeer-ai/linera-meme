@@ -2,8 +2,7 @@
 members = [
     "proxy",
     "meme",
-# "swap",
-    "swap-1",
+    "swap",
     "pool",
     "blob-gateway",
     "ams",

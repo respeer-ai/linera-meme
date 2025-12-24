@@ -1,7 +1,7 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::blob_gateway::{BlobData, BlobGatewayAbi, BlobGatewayOperation};
-use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use abi::blob_gateway::{BlobData, BlobGatewayAbi};
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use blob_gateway::state::BlobGatewayState;
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
@@ -40,7 +40,7 @@ impl Service for BlobGatewayService {
             QueryRoot {
                 state: self.state.clone(),
             },
-            BlobGatewayOperation::mutation_root(self.runtime.clone()),
+            EmptyMutation,
             EmptySubscription,
         )
         .finish();

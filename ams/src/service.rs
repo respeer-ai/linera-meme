@@ -1,8 +1,8 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::ams::{AmsAbi, AmsOperation, Metadata};
+use abi::ams::{AmsAbi, Metadata};
 use ams::state::AmsState;
-use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
+use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::WithServiceAbi,
@@ -41,7 +41,7 @@ impl Service for AmsService {
             QueryRoot {
                 state: self.state.clone(),
             },
-            AmsOperation::mutation_root(self.runtime.clone()),
+            EmptyMutation,
             EmptySubscription,
         )
         .finish();
