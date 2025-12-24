@@ -4,7 +4,6 @@ use abi::blob_gateway::{BlobData, BlobGatewayAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use blob_gateway::state::BlobGatewayState;
 use linera_sdk::{
-    graphql::GraphQLMutationRoot,
     linera_base_types::{CryptoHash, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
@@ -13,7 +12,6 @@ use std::sync::Arc;
 
 pub struct BlobGatewayService {
     state: Arc<BlobGatewayState>,
-    runtime: Arc<ServiceRuntime<Self>>,
 }
 
 linera_sdk::service!(BlobGatewayService);
@@ -31,7 +29,6 @@ impl Service for BlobGatewayService {
             .expect("Failed to load state");
         BlobGatewayService {
             state: Arc::new(state),
-            runtime: Arc::new(runtime),
         }
     }
 

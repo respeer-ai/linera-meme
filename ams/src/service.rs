@@ -4,7 +4,6 @@ use abi::ams::{AmsAbi, Metadata};
 use ams::state::AmsState;
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    graphql::GraphQLMutationRoot,
     linera_base_types::WithServiceAbi,
     linera_base_types::{ApplicationId, Timestamp},
     views::View,
@@ -14,7 +13,6 @@ use std::sync::Arc;
 
 pub struct AmsService {
     state: Arc<AmsState>,
-    runtime: Arc<ServiceRuntime<Self>>,
 }
 
 linera_sdk::service!(AmsService);
@@ -32,7 +30,6 @@ impl Service for AmsService {
             .expect("Failed to load state");
         AmsService {
             state: Arc::new(state),
-            runtime: Arc::new(runtime),
         }
     }
 
