@@ -28,4 +28,6 @@ jobs:
         uses: arduino/setup-protoc@v1
       - run: cargo test
       - run: cargo fmt --all -- --check
-      - run: cd webui-v2; bun install; bun build:wasm; bun run build; bun prettier:check
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+      - run: cd webui-v2; bun install; wasm-pack build --out-dir ../dist/wasm --target web wasm; bun run build; bun prettier:check
