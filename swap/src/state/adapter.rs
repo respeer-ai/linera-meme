@@ -69,23 +69,6 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().create_pool_chain(chain_id)
     }
 
-    fn create_token_creator_chain_id(
-        &mut self,
-        token: ApplicationId,
-        chain_id: ChainId,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .create_token_creator_chain_id(token, chain_id)
-    }
-
-    async fn token_creator_chain_id(
-        &self,
-        token: ApplicationId,
-    ) -> Result<Option<ChainId>, Self::Error> {
-        self.state.borrow().token_creator_chain_id(token).await
-    }
-
     async fn update_pool(
         &mut self,
         token_0: ApplicationId,

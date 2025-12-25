@@ -36,17 +36,6 @@ pub trait StateInterface {
 
     fn create_pool_chain(&mut self, chain_id: ChainId) -> Result<(), Self::Error>;
 
-    fn create_token_creator_chain_id(
-        &mut self,
-        token: ApplicationId,
-        chain_id: ChainId,
-    ) -> Result<(), Self::Error>;
-
-    async fn token_creator_chain_id(
-        &self,
-        token: ApplicationId,
-    ) -> Result<Option<ChainId>, Self::Error>;
-
     async fn update_pool(
         &mut self,
         token_0: ApplicationId,

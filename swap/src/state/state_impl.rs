@@ -106,22 +106,6 @@ impl StateInterface for SwapState {
         Ok(())
     }
 
-    fn create_token_creator_chain_id(
-        &mut self,
-        token: ApplicationId,
-        chain_id: ChainId,
-    ) -> Result<(), StateError> {
-        self.token_creator_chain_ids.insert(&token, chain_id)?;
-        Ok(())
-    }
-
-    async fn token_creator_chain_id(
-        &self,
-        token: ApplicationId,
-    ) -> Result<Option<ChainId>, StateError> {
-        Ok(self.token_creator_chain_ids.get(&token).await?)
-    }
-
     async fn update_pool(
         &mut self,
         token_0: ApplicationId,

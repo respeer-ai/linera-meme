@@ -109,21 +109,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             .create_pool_chain(destination)
             .expect("Failed: create pool chain");
 
-        self.state
-            .borrow_mut()
-            .create_token_creator_chain_id(self.token_0, self.token_0_creator_chain_id)
-            .expect("Failed: create token creator chain id");
-        if let Some(token_1) = self.token_1 {
-            self.state
-                .borrow_mut()
-                .create_token_creator_chain_id(
-                    token_1,
-                    self.token_1_creator_chain_id
-                        .expect("Failed: token creator chain id"),
-                )
-                .expect("Failed: create token creator chain id");
-        }
-
         let mut outcome = HandlerOutcome::new();
 
         outcome.with_message(
