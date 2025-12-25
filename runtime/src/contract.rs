@@ -3,9 +3,15 @@ use std::{cell::RefCell, rc::Rc};
 use super::errors::RuntimeError;
 use crate::interfaces::{
     access_control::AccessControl, base::BaseRuntimeContext, contract::ContractRuntimeContext,
+    meme::MemeRuntimeContext,
 };
+use abi::meme::{MemeAbi, MemeOperation, MemeResponse};
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, ChainId, Timestamp},
+    abi::ContractAbi,
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
+        ChainOwnership, ModuleId, Timestamp,
+    },
     Contract, ContractRuntime,
 };
 use serde::Serialize;
@@ -35,6 +41,18 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
 
     fn application_creator_chain_id(&mut self) -> ChainId {
         self.runtime.borrow_mut().application_creator_chain_id()
+    }
+
+    fn application_id(&mut self) -> ApplicationId {
+        self.runtime.borrow_mut().application_id().forget_abi()
+    }
+
+    fn chain_balance(&mut self) -> Amount {
+        self.runtime.borrow_mut().chain_balance()
+    }
+
+    fn owner_balance(&mut self, owner: AccountOwner) -> Amount {
+        self.runtime.borrow_mut().owner_balance(owner)
     }
 }
 
@@ -66,6 +84,17 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .ok_or(RuntimeError::InvalidAuthenticatedSigner)
     }
 
+    fn authenticated_caller_id(&mut self) -> Option<ApplicationId> {
+        self.runtime.borrow_mut().authenticated_caller_id()
+    }
+
+    fn require_authenticated_caller_id(&mut self) -> Result<ApplicationId, RuntimeError> {
+        self.runtime
+            .borrow_mut()
+            .authenticated_caller_id()
+            .ok_or(RuntimeError::InvalidAuthenticatedCaller)
+    }
+
     fn send_message(&mut self, destination: ChainId, message: M) {
         self.runtime
             .borrow_mut()
@@ -84,6 +113,66 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .message_origin_chain_id()
             .ok_or(RuntimeError::InvalidMessageOriginChainId)
     }
+
+    fn message_signer_account(&mut self) -> Account {
+        let mut runtime = self.runtime.borrow_mut();
+
+        Account {
+            chain_id: runtime
+                .message_origin_chain_id()
+                .expect("Invalid message origin chain"),
+            owner: runtime
+                .authenticated_signer()
+                .expect("Invalid authenticated signer"),
+        }
+    }
+
+    fn create_application<Abi, Parameters, InstantiationArgument>(
+        &mut self,
+        module_id: ModuleId,
+        parameters: &Parameters,
+        argument: &InstantiationArgument,
+    ) -> ApplicationId<Abi>
+    where
+        Abi: ContractAbi,
+        Parameters: Serialize,
+        InstantiationArgument: Serialize,
+    {
+        self.runtime
+            .borrow_mut()
+            .create_application(module_id, parameters, argument, vec![])
+    }
+
+    fn call_application<A: ContractAbi + Send>(
+        &mut self,
+        application: ApplicationId<A>,
+        call: &A::Operation,
+    ) -> A::Response {
+        self.runtime
+            .borrow_mut()
+            .call_application(true, application, call)
+    }
+
+    fn transfer(&mut self, source: AccountOwner, destination: Account, amount: Amount) {
+        self.runtime
+            .borrow_mut()
+            .transfer(source, destination, amount)
+    }
+
+    fn open_chain(
+        &mut self,
+        chain_ownership: ChainOwnership,
+        application_permissions: ApplicationPermissions,
+        balance: Amount,
+    ) -> ChainId {
+        self.runtime
+            .borrow_mut()
+            .open_chain(chain_ownership, application_permissions, balance)
+    }
+
+    fn chain_ownership(&mut self) -> ChainOwnership {
+        self.runtime.borrow_mut().chain_ownership()
+    }
 }
 
 impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M> {
@@ -98,5 +187,22 @@ impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M>
             .ok_or(RuntimeError::PermissionDenied(
                 "Only allow application creator".to_string(),
             ))
+    }
+}
+
+impl<T: Contract<Message = M>, M> MemeRuntimeContext for ContractRuntimeAdapter<T, M> {
+    type Error = RuntimeError;
+
+    fn token_creator_chain_id(&mut self, token: ApplicationId) -> Result<ChainId, RuntimeError> {
+        let call = MemeOperation::CreatorChainId;
+        let MemeResponse::ChainId(chain_id) =
+            self.runtime
+                .borrow_mut()
+                .call_application(true, token.with_abi::<MemeAbi>(), &call)
+        else {
+            return Err(RuntimeError::InvalidApplicationResponse);
+        };
+
+        Ok(chain_id)
     }
 }

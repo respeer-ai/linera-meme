@@ -1,16 +1,13 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use std::{cell::RefCell, rc::Rc};
-
 use abi::ams::{AmsAbi, AmsMessage, AmsOperation, InstantiationArgument};
-
-use ams::{interfaces::state::StateInterface, state::AmsState};
+use ams::state::AmsState;
 use linera_sdk::{
     linera_base_types::WithContractAbi,
     views::{RootView, View},
     Contract, ContractRuntime,
 };
-use runtime::{contract::ContractRuntimeAdapter, interfaces::contract::ContractRuntimeContext};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct AmsContract {
     state: Rc<RefCell<AmsState>>,
@@ -41,8 +38,7 @@ impl Contract for AmsContract {
 
     async fn instantiate(&mut self, argument: InstantiationArgument) {
         self.runtime.borrow_mut().application_parameters();
-        let account = ContractRuntimeAdapter::new(self.runtime.clone()).authenticated_account();
-        self.state.borrow_mut().instantiate(account, argument);
+        self._instantiate(argument);
     }
 
     async fn execute_operation(&mut self, operation: AmsOperation) -> Self::Response {

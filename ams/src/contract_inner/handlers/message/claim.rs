@@ -14,12 +14,16 @@ pub struct ClaimHandler<R: ContractRuntimeContext + AccessControl, S: StateInter
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, application_id: ApplicationId) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &AmsMessage) -> Self {
+        let AmsMessage::Claim { application_id } = msg else {
+            panic!("Invalid message");
+        };
+
         Self {
             _state: state,
             _runtime: runtime,
 
-            _application_id: application_id,
+            _application_id: *application_id,
         }
     }
 }

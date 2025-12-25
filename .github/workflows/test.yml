@@ -18,11 +18,16 @@ jobs:
           - beta
           - nightly
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
       - run: cargo test
       - run: cargo fmt --all -- --check
-      - run: cd webui-v2; bun install; bun run build; bun prettier:check
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+      - run: cd webui-v2; bun install; wasm-pack build --out-dir ../dist/wasm --target web wasm; bun run build; bun prettier:check

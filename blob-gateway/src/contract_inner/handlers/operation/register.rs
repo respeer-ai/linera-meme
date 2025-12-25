@@ -1,6 +1,6 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
-    blob_gateway::{BlobData, BlobDataType, BlobGatewayMessage},
+    blob_gateway::{BlobData, BlobDataType, BlobGatewayMessage, BlobGatewayOperation},
     store_type::StoreType,
 };
 use async_trait::async_trait;
@@ -19,20 +19,20 @@ pub struct RegisterHandler<R: ContractRuntimeContext + AccessControl, S: StateIn
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandler<R, S> {
-    pub fn new(
-        runtime: Rc<RefCell<R>>,
-        state: S,
-        store_type: StoreType,
-        data_type: BlobDataType,
-        blob_hash: CryptoHash,
-    ) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &BlobGatewayOperation) -> Self {
+        let BlobGatewayOperation::Register {
+            store_type,
+            data_type,
+            blob_hash,
+        } = op;
+
         Self {
             _state: state,
             runtime,
 
-            store_type,
-            data_type,
-            blob_hash,
+            store_type: *store_type,
+            data_type: *data_type,
+            blob_hash: *blob_hash,
         }
     }
 }

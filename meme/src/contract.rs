@@ -101,6 +101,9 @@ impl Contract for MemeContract {
         }
 
         match operation {
+            MemeOperation::CreatorChainId => self
+                .on_call_creator_chain_id()
+                .expect("Failed OP: creator chain"),
             MemeOperation::Transfer { to, amount } => self
                 .on_op_transfer(to, amount)
                 .expect("Failed OP: transfer"),
@@ -398,6 +401,12 @@ impl MemeContract {
             }
             _ => true,
         }
+    }
+
+    fn on_call_creator_chain_id(&mut self) -> Result<MemeResponse, MemeError> {
+        Ok(MemeResponse::ChainId(
+            self.runtime.application_creator_chain_id(),
+        ))
     }
 
     fn on_op_transfer(&mut self, to: Account, amount: Amount) -> Result<MemeResponse, MemeError> {

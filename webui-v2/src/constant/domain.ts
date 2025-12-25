@@ -1,4 +1,5 @@
 export const SUB_DOMAIN = 'testnet-conway.'
+
 export const BLOB_GATEWAY_CHAIN_ID =
   'd45bfd64ef9009bd2548f473b8351858835fe028b9e07fb0b6f756e6ad0f7799'
 export const BLOB_GATEWAY_APPLICATION_ID =

@@ -70,7 +70,7 @@ pub enum SwapResponse {
     ChainId(ChainId),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum SwapMessage {
     InitializeLiquidity {
         creator: Account,

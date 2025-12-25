@@ -15,18 +15,21 @@ pub struct AddApplicationTypeHandler<R: ContractRuntimeContext + AccessControl, 
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicationTypeHandler<R, S> {
-    pub fn new(
-        runtime: Rc<RefCell<R>>,
-        state: S,
-        owner: Account,
-        application_type: String,
-    ) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &AmsMessage) -> Self {
+        let AmsMessage::AddApplicationType {
+            owner,
+            application_type,
+        } = msg
+        else {
+            panic!("Invalid message");
+        };
+
         Self {
             state,
             _runtime: runtime,
 
-            owner,
-            application_type,
+            owner: *owner,
+            application_type: application_type.clone(),
         }
     }
 }

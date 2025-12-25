@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, Metadata};
+use abi::ams::{AmsMessage, AmsOperation, Metadata};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::ApplicationId;
@@ -15,17 +15,20 @@ pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInte
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler<R, S> {
-    pub fn new(
-        runtime: Rc<RefCell<R>>,
-        state: S,
-        application_id: ApplicationId,
-        metadata: &Metadata,
-    ) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &AmsOperation) -> Self {
+        let AmsOperation::Update {
+            application_id,
+            metadata,
+        } = op
+        else {
+            panic!("Invalid operation");
+        };
+
         Self {
             _state: state,
             _runtime: runtime,
 
-            _application_id: application_id,
+            _application_id: *application_id,
             _metadata: metadata.clone(),
         }
     }

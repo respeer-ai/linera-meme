@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, Metadata};
+use abi::ams::{AmsMessage, AmsOperation, Metadata};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -13,7 +13,11 @@ pub struct RegisterHandler<R: ContractRuntimeContext + AccessControl, S: StateIn
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandler<R, S> {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, metadata: &Metadata) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &AmsOperation) -> Self {
+        let AmsOperation::Register { metadata } = op else {
+            panic!("Invalid operation");
+        };
+
         Self {
             _state: state,
             runtime,
