@@ -9,7 +9,7 @@ use linera_sdk::{
 use serde::Serialize;
 
 pub trait ContractRuntimeContext: BaseRuntimeContext {
-    type Error;
+    type Error: std::fmt::Debug + std::error::Error + 'static;
     type Message;
 
     fn authenticated_account(&mut self) -> Account;

@@ -31,6 +31,8 @@ impl<T: Contract, M> ContractRuntimeAdapter<T, M> {
 }
 
 impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<T, M> {
+    type Parameters = T::Parameters;
+
     fn chain_id(&mut self) -> ChainId {
         self.runtime.borrow_mut().chain_id()
     }
@@ -43,6 +45,15 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
         self.runtime.borrow_mut().application_creator_chain_id()
     }
 
+    fn application_creation_account(&mut self) -> Account {
+        let mut runtime = self.runtime.borrow_mut();
+
+        Account {
+            chain_id: runtime.application_creator_chain_id(),
+            owner: AccountOwner::from(runtime.application_id().forget_abi()),
+        }
+    }
+
     fn application_id(&mut self) -> ApplicationId {
         self.runtime.borrow_mut().application_id().forget_abi()
     }
@@ -53,6 +64,10 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
 
     fn owner_balance(&mut self, owner: AccountOwner) -> Amount {
         self.runtime.borrow_mut().owner_balance(owner)
+    }
+
+    fn application_parameters(&mut self) -> T::Parameters {
+        self.runtime.borrow_mut().application_parameters()
     }
 }
 

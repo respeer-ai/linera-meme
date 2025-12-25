@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::ChainId;
+use linera_sdk::{
+    linera_base_types::{ArithmeticError, ChainId},
+    views::ViewError,
+};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -59,6 +62,18 @@ pub enum HandlerError {
 
     #[error(transparent)]
     ProcessError(Box<dyn std::error::Error>),
+
+    #[error(transparent)]
+    ViewError(#[from] ViewError),
+
+    #[error(transparent)]
+    ArithmeticError(#[from] ArithmeticError),
+
+    #[error("Invalid amount")]
+    InvalidAmount,
+
+    #[error("Insufficient funds")]
+    InsufficientFunds,
 }
 
 #[async_trait(?Send)]

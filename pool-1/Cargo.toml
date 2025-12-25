@@ -1,0 +1,38 @@
+[package]
+name = "pool"
+version = "0.1.0"
+authors = ["ResPeer <contact@respeer.ai>"]
+edition = "2021"
+
+[dependencies]
+async-graphql.workspace = true
+async-trait.workspace = true
+linera-sdk.workspace = true
+abi.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+getrandom.workspace = true
+base.workspace = true
+runtime.workspace = true
+env_logger.workspace = true
+bcs.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+linera-sdk = { workspace = true, features = ["test", "wasmer"] }
+tokio = { workspace = true, features = ["rt", "sync"] }
+
+[dev-dependencies]
+assert_matches.workspace = true
+linera-sdk = { workspace = true, features = ["test"] }
+futures.workspace = true
+
+[[bin]]
+name = "pool_contract"
+path = "src/contract.rs"
+
+[[bin]]
+name = "pool_service"
+path = "src/service.rs"
+
