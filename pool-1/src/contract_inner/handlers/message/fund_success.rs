@@ -44,7 +44,7 @@ where
     }
 
     async fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
-        TransferMemeFromApplicationHandler::new(
+        let _ = TransferMemeFromApplicationHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             token,
@@ -112,8 +112,6 @@ where
     }
 
     fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
-        let chain_id = self.runtime.borrow_mut().application_creator_chain_id();
-        let application_id = self.runtime.borrow_mut().application_id().forget_abi();
         let owner = self.runtime.borrow_mut().authenticated_signer().unwrap();
         let application = self.runtime.borrow_mut().application_creation_account();
 
@@ -160,11 +158,6 @@ where
                 .await
                 .map_err(Into::into)?;
             if let Some(token_1) = fund_request.token {
-                let chain_id = match self.runtime.borrow_mut().token_creator_chain_id(token_1) {
-                    Ok(chain_id) => chain_id,
-                    Err(err) => return Err(HandlerError::ProcessError(Box::new(err))),
-                };
-
                 let mut handler = RequestMemeFundHandler::new(
                     self.runtime.clone(),
                     self.state.clone(),
@@ -206,9 +199,11 @@ where
             fund_request
         };
 
-        self.transfer_meme_to_creation_chain_application(fund_request_0);
+        self.transfer_meme_to_creation_chain_application(fund_request_0)
+            .await;
         if let Some(_) = fund_request_1.token {
-            self.transfer_meme_to_creation_chain_application(fund_request_1);
+            self.transfer_meme_to_creation_chain_application(fund_request_1)
+                .await;
         }
 
         let destination = self.runtime.borrow_mut().application_creator_chain_id();

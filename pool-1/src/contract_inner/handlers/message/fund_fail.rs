@@ -2,7 +2,6 @@ use crate::{interfaces::state::StateInterface, FundStatus};
 use abi::swap::pool::PoolMessage;
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -12,7 +11,7 @@ pub struct FundFailHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
     S: StateInterface,
 > {
-    runtime: Rc<RefCell<R>>,
+    _runtime: Rc<RefCell<R>>,
     state: Rc<RefCell<S>>,
 
     transfer_id: u64,
@@ -31,7 +30,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
         Self {
             state: Rc::new(RefCell::new(state)),
-            runtime,
+            _runtime: runtime,
 
             transfer_id: *transfer_id,
             error: error.clone(),

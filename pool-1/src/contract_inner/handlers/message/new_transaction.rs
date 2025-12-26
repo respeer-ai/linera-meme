@@ -1,15 +1,11 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::{
-    meme::{MemeAbi, MemeOperation},
-    swap::{
-        pool::PoolMessage,
-        router::{SwapAbi, SwapOperation},
-        transaction::Transaction,
-    },
+use abi::swap::{
+    pool::PoolMessage,
+    router::{SwapAbi, SwapOperation},
+    transaction::Transaction,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 

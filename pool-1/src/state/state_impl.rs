@@ -8,7 +8,7 @@ use abi::swap::{
     transaction::{Transaction, TransactionType},
 };
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp};
 
 #[async_trait(?Send)]
 impl StateInterface for PoolState {

@@ -3,12 +3,8 @@ use crate::{
         refund::RefundHandler, transfer_meme_from_application::TransferMemeFromApplicationHandler,
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
-    FundStatus,
 };
-use abi::{
-    meme::{MemeAbi, MemeOperation},
-    swap::pool::PoolMessage,
-};
+use abi::swap::pool::PoolMessage;
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
@@ -67,7 +63,7 @@ impl<
     }
 
     async fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
-        TransferMemeFromApplicationHandler::new(
+        let _ = TransferMemeFromApplicationHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             token,
@@ -84,7 +80,7 @@ impl<
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,
     ) {
-        RefundHandler::new(
+        let _ = RefundHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             origin,
@@ -96,7 +92,7 @@ impl<
     }
 
     // Always be run on creation chain
-    fn do_swap(
+    async fn do_swap(
         &mut self,
         origin: Account,
         amount_0_in: Option<Amount>,
@@ -128,7 +124,8 @@ impl<
         };
         if let Some(amount_0_out_min) = amount_0_out_min {
             if amount_0_out < amount_0_out_min {
-                self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                    .await;
                 log::warn!(
                     "DEBUG POOL: Amount 0 out {} less than minimum {}",
                     amount_0_out,
@@ -148,7 +145,8 @@ impl<
         };
         if let Some(amount_1_out_min) = amount_1_out_min {
             if amount_1_out < amount_1_out_min {
-                self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                    .await;
                 log::warn!(
                     "DEBUG POOL: Amount 1 out {} less than minimum {}",
                     amount_1_out,
@@ -159,7 +157,8 @@ impl<
         }
 
         if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
-            self.refund_amount_in(origin, amount_0_in, amount_1_in);
+            self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                .await;
             log::warn!(
                 "DEBUG POOL: Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
                 amount_0_in,
@@ -168,7 +167,8 @@ impl<
             return Err(HandlerError::InvalidAmount);
         }
         if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
-            self.refund_amount_in(origin, amount_0_in, amount_1_in);
+            self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                .await;
             log::warn!(
                 "DEBUG POOL: Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
                 amount_1_in,
@@ -177,7 +177,8 @@ impl<
             return Err(HandlerError::InvalidAmount);
         }
         if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
-            self.refund_amount_in(origin, amount_0_in, amount_1_in);
+            self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                .await;
             log::warn!("Both amount 0 and 1 out are ZERO");
             return Err(HandlerError::InvalidAmount);
         }
@@ -196,7 +197,8 @@ impl<
         match amount_pair {
             Ok(_) => {}
             Err(err) => {
-                self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                    .await;
                 log::warn!(
                     "DEBUG POOL: Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
                     amount_0_out,
@@ -226,7 +228,7 @@ impl<
                     token_1,
                     amount_1_out
                 );
-                self.transfer_meme(token_1, to, amount_1_out);
+                self.transfer_meme(token_1, to, amount_1_out).await;
             } else {
                 let balance = self.runtime.borrow_mut().owner_balance(application);
 
@@ -238,7 +240,8 @@ impl<
                 );
 
                 if balance < amount_1_out {
-                    self.refund_amount_in(origin, amount_0_in, amount_1_in);
+                    self.refund_amount_in(origin, amount_0_in, amount_1_in)
+                        .await;
                     log::warn!(
                         "DEBUG POOL: Application balance {} less than amount 1 out {}",
                         balance,
@@ -258,7 +261,7 @@ impl<
                 token_0,
                 amount_0_out
             );
-            self.transfer_meme(token_0, to, amount_0_out);
+            self.transfer_meme(token_0, to, amount_0_out).await;
         }
 
         // 4: Liquid
@@ -325,15 +328,18 @@ impl<
 {
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
         // We just return OK to refund the failed balance here
-        match self.do_swap(
-            self.origin,
-            self.amount_0_in,
-            self.amount_1_in,
-            self.amount_0_out_min,
-            self.amount_1_out_min,
-            self.to,
-            self.block_timestamp,
-        ) {
+        match self
+            .do_swap(
+                self.origin,
+                self.amount_0_in,
+                self.amount_1_in,
+                self.amount_0_out_min,
+                self.amount_1_out_min,
+                self.to,
+                self.block_timestamp,
+            )
+            .await
+        {
             Ok(outcome) => Ok(Some(outcome)),
             Err(err) => {
                 log::warn!("Failed swap: {}", err);

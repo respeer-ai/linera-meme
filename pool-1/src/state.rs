@@ -1,13 +1,10 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{FundRequest, PoolError};
-use abi::swap::{
-    pool::{InstantiationArgument, Pool, PoolParameters},
-    transaction::{Transaction, TransactionType},
-};
+use crate::FundRequest;
+use abi::swap::{pool::Pool, transaction::Transaction};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ApplicationId, Timestamp},
+    linera_base_types::{Account, Amount, ApplicationId},
     views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
 };
 

@@ -5,7 +5,7 @@ use abi::swap::{
 };
 use async_trait::async_trait;
 use base::handler::HandlerError;
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp};
 
 #[async_trait(?Send)]
 pub trait StateInterface {

@@ -3,23 +3,19 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-// mod state;
-
-use std::{cell::RefCell, rc::Rc};
 use std::{str::FromStr, sync::Arc};
 
 use abi::swap::{
-    pool::{Pool, PoolAbi, PoolOperation, PoolParameters},
+    pool::{Pool, PoolAbi, PoolParameters},
     transaction::Transaction,
 };
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, Timestamp, WithServiceAbi},
+    linera_base_types::{Account, Amount, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
 
-// use self::state::PoolState;
 use pool::{interfaces::state::StateInterface, state::PoolState, FundRequest, LiquidityAmount};
 
 #[derive(Clone)]

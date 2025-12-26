@@ -2,7 +2,7 @@ use crate::{
     contract_inner::handlers::transfer_meme_from_application::TransferMemeFromApplicationHandler,
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::{pool::PoolMessage, transaction::Transaction};
+use abi::swap::pool::PoolMessage;
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
@@ -61,7 +61,7 @@ impl<
     }
 
     async fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
-        TransferMemeFromApplicationHandler::new(
+        let _ = TransferMemeFromApplicationHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             token,

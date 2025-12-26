@@ -3,13 +3,10 @@ use crate::{
     interfaces::{parameters::ParametersInterface, state::StateInterface},
     FundRequest, FundStatus, FundType,
 };
-use abi::swap::{
-    pool::{PoolMessage, PoolOperation},
-    transaction::Transaction,
-};
+use abi::swap::pool::{PoolMessage, PoolOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp};
+use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };

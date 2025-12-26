@@ -8,7 +8,7 @@ use abi::swap::{
 };
 use async_trait::async_trait;
 
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp};
 
 pub struct StateAdapter {
     state: Rc<RefCell<PoolState>>,

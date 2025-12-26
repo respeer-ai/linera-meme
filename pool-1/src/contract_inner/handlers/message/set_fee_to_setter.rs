@@ -1,16 +1,13 @@
 use crate::interfaces::state::StateInterface;
-use abi::{
-    meme::{MemeAbi, MemeOperation},
-    swap::pool::PoolMessage,
-};
+use abi::swap::pool::PoolMessage;
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
+use linera_sdk::linera_base_types::Account;
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct SetFeeToSetterHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    runtime: Rc<RefCell<R>>,
+    _runtime: Rc<RefCell<R>>,
     state: S,
 
     operator: Account,
@@ -25,7 +22,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> SetFeeToSette
 
         Self {
             state,
-            runtime,
+            _runtime: runtime,
 
             operator: *operator,
             account: *account,

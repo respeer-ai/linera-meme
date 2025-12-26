@@ -1,17 +1,14 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{
-    pool::{PoolMessage, PoolOperation},
-    transaction::Transaction,
-};
+use abi::swap::pool::{PoolMessage, PoolOperation};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, Timestamp};
+use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct RemoveLiquidityHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    _state: S,
 
     liquidity: Amount,
     amount_0_out_min: Option<Amount>,
@@ -34,7 +31,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RemoveLiquidi
         };
 
         Self {
-            state,
+            _state: state,
             runtime,
 
             liquidity: *liquidity,

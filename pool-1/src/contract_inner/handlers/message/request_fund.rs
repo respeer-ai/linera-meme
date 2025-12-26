@@ -1,13 +1,11 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation, MemeResponse},
-    swap::pool::{InstantiationArgument, PoolAbi, PoolMessage, PoolParameters},
+    swap::pool::PoolMessage,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId,
-};
+use linera_sdk::linera_base_types::{Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -18,7 +16,7 @@ pub struct RequestFundHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    _state: S,
 
     token: ApplicationId,
     transfer_id: u64,
@@ -39,7 +37,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         };
 
         Self {
-            state,
+            _state: state,
             runtime,
 
             token: *token,

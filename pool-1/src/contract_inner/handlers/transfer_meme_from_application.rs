@@ -1,14 +1,11 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation},
-    policy::open_chain_fee_budget,
     swap::pool::PoolMessage,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{
-    Account, Amount, ApplicationId, ApplicationPermissions, ChainId, Timestamp,
-};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -21,7 +18,7 @@ pub struct TransferMemeFromApplicationHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: Rc<RefCell<S>>,
+    _state: Rc<RefCell<S>>,
 
     token: ApplicationId,
     to: Account,
@@ -39,7 +36,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         amount: Amount,
     ) -> Self {
         Self {
-            state,
+            _state: state,
             runtime,
 
             token,
