@@ -91,11 +91,12 @@ impl<
         // 2: Transfer tokens
         let to = self.to.unwrap_or(self.origin);
         let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
+
         self.transfer_meme(token_0, to, amount_0).await;
 
         let application =
             AccountOwner::from(self.runtime.borrow_mut().application_id().forget_abi());
-        let token_1 = self.runtime.borrow_mut().token_1();
         match token_1 {
             Some(token_1) => self.transfer_meme(token_1, to, amount_1).await,
             None => self

@@ -42,6 +42,12 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
     ) -> A::Response;
 
     fn transfer(&mut self, source: AccountOwner, destination: Account, amount: Amount);
+    fn transfer_combined(
+        &mut self,
+        source: Option<AccountOwner>,
+        destination: Account,
+        amount: Amount,
+    );
 
     fn open_chain(
         &mut self,

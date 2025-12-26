@@ -174,6 +174,45 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .transfer(source, destination, amount)
     }
 
+    fn transfer_combined(
+        &mut self,
+        source: Option<AccountOwner>,
+        destination: Account,
+        amount: Amount,
+    ) {
+        let owner = source.unwrap_or(self.runtime.borrow_mut().authenticated_signer().unwrap());
+
+        let owner_balance = self.runtime.borrow_mut().owner_balance(owner);
+        let chain_balance = self.runtime.borrow_mut().chain_balance();
+
+        let from_owner_balance = if amount <= owner_balance {
+            amount
+        } else {
+            owner_balance
+        };
+        let from_chain_balance = if amount <= owner_balance {
+            Amount::ZERO
+        } else {
+            amount.try_sub(owner_balance).expect("Invalid amount")
+        };
+
+        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
+        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+
+        if from_owner_balance > Amount::ZERO {
+            self.runtime
+                .borrow_mut()
+                .transfer(owner, destination, from_owner_balance);
+        }
+        if from_chain_balance > Amount::ZERO {
+            self.runtime.borrow_mut().transfer(
+                AccountOwner::CHAIN,
+                destination,
+                from_chain_balance,
+            );
+        }
+    }
+
     fn open_chain(
         &mut self,
         chain_ownership: ChainOwnership,

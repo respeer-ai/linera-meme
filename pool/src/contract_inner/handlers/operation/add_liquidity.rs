@@ -72,11 +72,13 @@ impl<
         );
 
         let origin = self.runtime.borrow_mut().authenticated_account();
+        let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
 
         // 1: Transfer funds of token_0
         let mut fund_request_0 = FundRequest {
             from: origin,
-            token: Some(self.runtime.borrow_mut().token_0()),
+            token: Some(token_0),
             amount_in: self.amount_0_in,
             pair_token_amount_out_min: self.amount_1_out_min,
             to: self.to,
@@ -95,7 +97,7 @@ impl<
 
         let fund_request_1 = FundRequest {
             from: origin,
-            token: self.runtime.borrow_mut().token_1(),
+            token: token_1,
             amount_in: self.amount_1_in,
             pair_token_amount_out_min: self.amount_0_out_min,
             to: self.to,
@@ -119,7 +121,6 @@ impl<
             .await
             .map_err(Into::into)?;
 
-        let token_0 = self.runtime.borrow_mut().token_0();
         let mut handler = RequestMemeFundHandler::new(
             self.runtime.clone(),
             self.state.clone(),

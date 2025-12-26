@@ -1,5 +1,8 @@
 use crate::{
-    contract_inner::handlers::request_meme_fund::RequestMemeFundHandler,
+    contract_inner::handlers::{
+        fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
+        request_meme_fund::RequestMemeFundHandler,
+    },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
     FundRequest, FundStatus, FundType,
 };
@@ -57,6 +60,16 @@ impl<
             block_timestamp: *block_timestamp,
         }
     }
+
+    async fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
+        let _ = FundPoolApplicationCreationChainHandler::new(
+            self.runtime.clone(),
+            self.state.clone(),
+            amount,
+        )
+        .handle()
+        .await;
+    }
 }
 
 #[async_trait(?Send)]
@@ -77,9 +90,11 @@ impl<
         if let Some(amount_0_in) = self.amount_0_in {
             assert!(amount_0_in > Amount::ZERO, "Invalid amount");
 
+            let token_0 = self.runtime.borrow_mut().token_0();
+
             let fund_request = FundRequest {
                 from: origin,
-                token: Some(self.runtime.borrow_mut().token_0()),
+                token: Some(token_0),
                 amount_in: amount_0_in,
                 pair_token_amount_out_min: self.amount_1_out_min,
                 to: self.to,
@@ -95,8 +110,6 @@ impl<
                 Ok(id) => id,
                 Err(err) => return Err(HandlerError::ProcessError(Box::new(err))),
             };
-
-            let token_0 = self.runtime.borrow_mut().token_0();
 
             let mut handler = RequestMemeFundHandler::new(
                 self.runtime.clone(),
@@ -114,6 +127,7 @@ impl<
         assert!(amount > Amount::ZERO, "Invalid amount");
 
         let token_1 = self.runtime.borrow_mut().token_1();
+
         if let Some(token_1) = token_1 {
             let fund_request = FundRequest {
                 from: origin,
@@ -143,6 +157,8 @@ impl<
             );
             return handler.handle().await;
         }
+
+        self.fund_pool_application_creation_chain(amount).await;
 
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();

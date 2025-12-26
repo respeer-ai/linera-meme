@@ -1,7 +1,6 @@
-// Copyright (c) Zefchain Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-/*! ABI of the Pool Example Application */
+pub mod contract_inner;
+pub mod interfaces;
+pub mod state;
 
 use abi::swap::pool::PoolError as _PoolError;
 use async_graphql::{Enum, SimpleObject};

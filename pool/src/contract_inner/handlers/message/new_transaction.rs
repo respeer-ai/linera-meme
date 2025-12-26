@@ -46,9 +46,12 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
         let reserve_0 = self.state.reserve_0();
         let reserve_1 = self.state.reserve_1();
 
+        let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
+
         let call = SwapOperation::UpdatePool {
-            token_0: self.runtime.borrow_mut().token_0(),
-            token_1: self.runtime.borrow_mut().token_1(),
+            token_0,
+            token_1,
             transaction,
             token_0_price,
             token_1_price,

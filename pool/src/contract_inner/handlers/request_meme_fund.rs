@@ -46,8 +46,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     Handler<PoolMessage> for RequestMemeFundHandler<R, S>
 {
     async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
-        let mut runtime_context = self.runtime.borrow_mut();
-        let destination = runtime_context
+        let destination = self
+            .runtime
+            .borrow_mut()
             .token_creator_chain_id(self.token)
             .expect("Failed: token creator chain id");
         let mut outcome = HandlerOutcome::new();

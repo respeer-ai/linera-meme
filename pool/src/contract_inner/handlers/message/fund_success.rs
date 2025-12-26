@@ -1,5 +1,6 @@
 use crate::{
     contract_inner::handlers::{
+        fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
         request_meme_fund::RequestMemeFundHandler,
         transfer_meme_from_application::TransferMemeFromApplicationHandler,
     },
@@ -9,7 +10,7 @@ use crate::{
 use abi::swap::pool::PoolMessage;
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -111,39 +112,14 @@ where
         outcome
     }
 
-    fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
-        let owner = self.runtime.borrow_mut().authenticated_signer().unwrap();
-        let application = self.runtime.borrow_mut().application_creation_account();
-
-        let owner_balance = self.runtime.borrow_mut().owner_balance(owner);
-        let chain_balance = self.runtime.borrow_mut().chain_balance();
-
-        let from_owner_balance = if amount <= owner_balance {
-            amount
-        } else {
-            owner_balance
-        };
-        let from_chain_balance = if amount <= owner_balance {
-            Amount::ZERO
-        } else {
-            amount.try_sub(owner_balance).expect("Invalid amount")
-        };
-
-        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
-        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
-
-        if from_owner_balance > Amount::ZERO {
-            self.runtime
-                .borrow_mut()
-                .transfer(owner, application, from_owner_balance);
-        }
-        if from_chain_balance > Amount::ZERO {
-            self.runtime.borrow_mut().transfer(
-                AccountOwner::CHAIN,
-                application,
-                from_chain_balance,
-            );
-        }
+    async fn fund_pool_application_creation_chain(&mut self, amount: Amount) {
+        let _ = FundPoolApplicationCreationChainHandler::new(
+            self.runtime.clone(),
+            self.state.clone(),
+            amount,
+        )
+        .handle()
+        .await;
     }
 
     async fn add_liquidity_fund_success(
@@ -175,7 +151,8 @@ where
                 .fund_request(transfer_id)
                 .await
                 .map_err(Into::into)?;
-            self.fund_pool_application_creation_chain(fund_request.amount_in);
+            self.fund_pool_application_creation_chain(fund_request.amount_in)
+                .await;
         }
 
         let fund_request_0 = if let Some(transfer_id) = fund_request.prev_request {
