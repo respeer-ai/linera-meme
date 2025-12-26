@@ -119,10 +119,11 @@ impl<
             .await
             .map_err(Into::into)?;
 
+        let token_0 = self.runtime.borrow_mut().token_0();
         let mut handler = RequestMemeFundHandler::new(
             self.runtime.clone(),
             self.state.clone(),
-            self.runtime.borrow_mut().token_0(),
+            token_0,
             self.amount_0_in,
             transfer_id_0,
         );

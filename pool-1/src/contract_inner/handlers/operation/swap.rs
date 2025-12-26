@@ -96,10 +96,12 @@ impl<
                 Err(err) => return Err(HandlerError::ProcessError(Box::new(err))),
             };
 
+            let token_0 = self.runtime.borrow_mut().token_0();
+
             let mut handler = RequestMemeFundHandler::new(
                 self.runtime.clone(),
                 self.state.clone(),
-                self.runtime.borrow_mut().token_0(),
+                token_0,
                 amount_0_in,
                 transfer_id,
             );
@@ -111,7 +113,8 @@ impl<
         };
         assert!(amount > Amount::ZERO, "Invalid amount");
 
-        if let Some(token_1) = self.runtime.borrow_mut().token_1() {
+        let token_1 = self.runtime.borrow_mut().token_1();
+        if let Some(token_1) = token_1 {
             let fund_request = FundRequest {
                 from: origin,
                 token: Some(token_1),

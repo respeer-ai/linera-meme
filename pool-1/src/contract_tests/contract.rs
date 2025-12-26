@@ -1,7 +1,7 @@
 use super::super::{PoolContract, PoolState};
 
 use abi::{
-    meme::MemeResponse,
+    meme::{MemeOperation, MemeResponse},
     swap::pool::{
         InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
     },
@@ -14,21 +14,27 @@ use linera_sdk::{
     views::View,
     Contract, ContractRuntime,
 };
-use pool::{FundRequest, FundStatus, FundType};
+use pool::{
+    interfaces::{parameters::ParametersInterface, state::StateInterface},
+    FundRequest, FundStatus, FundType,
+};
+use runtime::{
+    contract::ContractRuntimeAdapter,
+    interfaces::{base::BaseRuntimeContext, contract::ContractRuntimeContext},
+};
 use std::str::FromStr;
-
-use super::{PoolContract, PoolState};
+use std::{cell::RefCell, rc::Rc};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn create_pool_with_real_liquidity() {
     let pool = create_and_instantiate_pool(false).await;
-    let _ = pool.state.pool();
+    let _ = pool.state.borrow().pool();
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn create_pool_with_virtual_liquidity() {
     let pool = create_and_instantiate_pool(true).await;
-    let _ = pool.state.pool();
+    let _ = pool.state.borrow().pool();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -72,9 +78,10 @@ async fn operation_add_liquidity() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_request_fund() {
     let mut pool = create_and_instantiate_pool(true).await;
+    let token_0 = pool.state.borrow_mut().pool().token_0;
 
     pool.execute_message(PoolMessage::RequestFund {
-        token: pool.state.pool().token_0,
+        token: token_0,
         transfer_id: 1000,
         amount: Amount::ONE,
     })
@@ -84,14 +91,16 @@ async fn message_request_fund() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_fund_success() {
     let mut pool = create_and_instantiate_pool(true).await;
+    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
+
     let owner = Account {
-        chain_id: pool.runtime.chain_id(),
-        owner: pool.runtime.authenticated_signer().unwrap(),
+        chain_id: runtime_context.chain_id(),
+        owner: runtime_context.authenticated_signer().unwrap(),
     };
 
     let fund_request = FundRequest {
         from: owner,
-        token: Some(pool.token_0()),
+        token: Some(runtime_context.token_0()),
         amount_in: Amount::ONE,
         pair_token_amount_out_min: None,
         to: None,
@@ -103,25 +112,31 @@ async fn message_fund_success() {
         next_request: None,
     };
 
-    let transfer_id = pool.state.create_fund_request(fund_request).unwrap();
+    let transfer_id = pool
+        .state
+        .borrow_mut()
+        .create_fund_request(fund_request)
+        .unwrap();
     pool.execute_message(PoolMessage::FundSuccess { transfer_id })
         .await;
 
-    let fund_request = pool.state.fund_request(transfer_id).await.unwrap();
+    let fund_request = pool.state.borrow().fund_request(transfer_id).await.unwrap();
     assert_eq!(fund_request.status, FundStatus::Success);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_fund_fail() {
     let mut pool = create_and_instantiate_pool(true).await;
+    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
+
     let owner = Account {
-        chain_id: pool.runtime.chain_id(),
-        owner: pool.runtime.authenticated_signer().unwrap(),
+        chain_id: runtime_context.chain_id(),
+        owner: runtime_context.authenticated_signer().unwrap(),
     };
 
     let fund_request = FundRequest {
         from: owner,
-        token: Some(pool.token_0()),
+        token: Some(runtime_context.token_0()),
         amount_in: Amount::ONE,
         pair_token_amount_out_min: None,
         to: None,
@@ -133,14 +148,18 @@ async fn message_fund_fail() {
         next_request: None,
     };
 
-    let transfer_id = pool.state.create_fund_request(fund_request).unwrap();
+    let transfer_id = pool
+        .state
+        .borrow_mut()
+        .create_fund_request(fund_request)
+        .unwrap();
     pool.execute_message(PoolMessage::FundFail {
         transfer_id,
         error: "Error".to_string(),
     })
     .await;
 
-    let fund_request = pool.state.fund_request(transfer_id).await.unwrap();
+    let fund_request = pool.state.borrow().fund_request(transfer_id).await.unwrap();
     assert_eq!(fund_request.status, FundStatus::Fail);
     assert_eq!(fund_request.error, Some("Error".to_string()));
 }
@@ -148,14 +167,20 @@ async fn message_fund_fail() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_swap() {
     let mut pool = create_and_instantiate_pool(true).await;
+    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
+
     let owner = Account {
-        chain_id: pool.runtime.chain_id(),
-        owner: pool.runtime.authenticated_signer().unwrap(),
+        chain_id: runtime_context.chain_id(),
+        owner: runtime_context.authenticated_signer().unwrap(),
     };
 
-    let reserve_0 = pool.state.reserve_0();
-    let reserve_1 = pool.state.reserve_1();
-    let swap_amount_0 = pool.state.calculate_swap_amount_0(Amount::ONE).unwrap();
+    let reserve_0 = pool.state.borrow().reserve_0();
+    let reserve_1 = pool.state.borrow().reserve_1();
+    let swap_amount_0 = pool
+        .state
+        .borrow()
+        .calculate_swap_amount_0(Amount::ONE)
+        .unwrap();
 
     pool.execute_message(PoolMessage::Swap {
         origin: owner,
@@ -170,20 +195,22 @@ async fn message_swap() {
 
     assert_eq!(
         reserve_0.try_sub(swap_amount_0).unwrap(),
-        pool.state.reserve_0()
+        pool.state.borrow().reserve_0()
     );
     assert_eq!(
         reserve_1.try_add(Amount::ONE).unwrap(),
-        pool.state.reserve_1()
+        pool.state.borrow().reserve_1()
     );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_add_liquidity() {
     let mut pool = create_and_instantiate_pool(true).await;
+    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
+
     let owner = Account {
-        chain_id: pool.runtime.chain_id(),
-        owner: pool.runtime.authenticated_signer().unwrap(),
+        chain_id: runtime_context.chain_id(),
+        owner: runtime_context.authenticated_signer().unwrap(),
     };
 
     pool.execute_message(PoolMessage::AddLiquidity {
@@ -198,7 +225,7 @@ async fn message_add_liquidity() {
     .await;
 
     assert_eq!(
-        pool.state.liquidity(owner).await.unwrap(),
+        pool.state.borrow().liquidity(owner).await.unwrap(),
         Amount::from_str("0.1").unwrap()
     );
 
@@ -213,7 +240,7 @@ async fn message_add_liquidity() {
     .await;
 
     assert_eq!(
-        pool.state.liquidity(owner).await.unwrap(),
+        pool.state.borrow().liquidity(owner).await.unwrap(),
         Amount::from_str("0.05").unwrap()
     );
 }
@@ -224,9 +251,17 @@ fn cross_application_call() {}
 fn mock_application_call(
     _authenticated: bool,
     _application_id: ApplicationId,
-    _operation: Vec<u8>,
+    operation: Vec<u8>,
 ) -> Vec<u8> {
-    bcs::to_bytes(&MemeResponse::Ok).unwrap()
+    match bcs::from_bytes::<MemeOperation>(&operation) {
+        Ok(MemeOperation::CreatorChainId) => bcs::to_bytes(&MemeResponse::ChainId(
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
+                .unwrap(),
+        ))
+        .unwrap(),
+        Ok(_) => bcs::to_bytes(&MemeResponse::Ok).unwrap(),
+        Err(_) => bcs::to_bytes(&MemeResponse::Ok).unwrap(),
+    }
 }
 
 async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
@@ -273,10 +308,12 @@ async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolCon
     runtime.set_message_origin_chain_id(chain_id);
 
     let mut contract = PoolContract {
-        state: PoolState::load(runtime.root_view_storage_context())
-            .blocking_wait()
-            .expect("Failed to read from mock key value store"),
-        runtime,
+        state: Rc::new(RefCell::new(
+            PoolState::load(runtime.root_view_storage_context())
+                .blocking_wait()
+                .expect("Failed to read from mock key value store"),
+        )),
+        runtime: Rc::new(RefCell::new(runtime)),
     };
 
     contract

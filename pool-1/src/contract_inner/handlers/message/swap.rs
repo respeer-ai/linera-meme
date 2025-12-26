@@ -102,16 +102,6 @@ impl<
         to: Option<Account>,
         _block_timestamp: Option<Timestamp>,
     ) -> Result<HandlerOutcome<PoolMessage>, HandlerError> {
-        log::info!(
-            "DEBUG POOL: Swapping token_0 {} amunt_0 {:?}/{:?} token_1 {:?} amount_1 {:?}/{:?}",
-            self.runtime.borrow_mut().token_0(),
-            amount_0_in,
-            amount_0_out_min,
-            self.runtime.borrow_mut().token_1(),
-            amount_1_in,
-            amount_1_out_min
-        );
-
         // Here we already funded
         // 1: Calculate pair token amount
         let amount_0_out = if let Some(amount_1_in) = amount_1_in {
