@@ -62,7 +62,7 @@ pub enum PoolResponse {
     Ok,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
     // Sent from user chain to meme chain
     RequestFund {

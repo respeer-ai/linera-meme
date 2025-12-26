@@ -3,8 +3,6 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-mod state;
-
 use std::{str::FromStr, sync::Arc};
 
 use abi::swap::{
@@ -18,8 +16,7 @@ use linera_sdk::{
     Service, ServiceRuntime,
 };
 
-use self::state::PoolState;
-use pool::{FundRequest, LiquidityAmount};
+use pool::{interfaces::state::StateInterface, state::PoolState, FundRequest, LiquidityAmount};
 
 #[derive(Clone)]
 pub struct PoolService {
@@ -75,41 +72,6 @@ impl PoolService {
     }
 }
 
-struct MutationRoot {
-    service: PoolService,
-}
-
-#[Object]
-impl MutationRoot {
-    async fn swap(
-        &self,
-        amount_0_in: Option<Amount>,
-        amount_1_in: Option<Amount>,
-        amount_0_out_min: Option<Amount>,
-        amount_1_out_min: Option<Amount>,
-        to: Option<Account>,
-        block_timestamp: Option<Timestamp>,
-    ) -> [u8; 0] {
-        // Mutation should always be from other chain
-        assert!(
-            self.service.runtime.application_creator_chain_id() != self.service.runtime.chain_id(),
-            "Permission denied"
-        );
-
-        self.service
-            .runtime
-            .schedule_operation(&PoolOperation::Swap {
-                amount_0_in,
-                amount_1_in,
-                amount_0_out_min,
-                amount_1_out_min,
-                to,
-                block_timestamp,
-            });
-        []
-    }
-}
-
 struct QueryRoot {
     service: PoolService,
 }
@@ -117,28 +79,36 @@ struct QueryRoot {
 #[Object]
 impl QueryRoot {
     async fn pool(&self) -> Pool {
-        self.service.state().pool()
+        self.service.state.pool.get().as_ref().unwrap().clone()
     }
 
     async fn fund_requests(&self) -> Vec<FundRequest> {
         self.service
-            .state()
-            ._fund_requests()
+            .state
+            .fund_requests
+            .index_values()
             .await
-            .expect("Failed get fund requests")
+            .unwrap()
+            .into_iter()
+            .map(|(_, v)| v)
+            .collect()
     }
 
     // async fn liquidity(&self, owner: Account) -> Amount {
     async fn liquidity(&self, owner: String) -> LiquidityAmount {
+        // TODO: we have to access state directly instead of liquidity() right now due to `Send`
         let liquidity = self
             .service
-            .state()
-            .liquidity(Account::from_str(&owner).unwrap())
+            .state
+            .as_ref()
+            .shares
+            .get(&Account::from_str(&owner).unwrap())
             .await
-            .unwrap();
+            .expect("Failed: liquidity")
+            .unwrap_or(Amount::ZERO);
         let (amount_0, amount_1) = self
             .service
-            .state()
+            .state
             .try_calculate_liquidity_amount_pair(liquidity, None, None)
             .unwrap_or((Amount::ZERO, Amount::ZERO));
         LiquidityAmount {
@@ -180,15 +150,62 @@ impl QueryRoot {
         let amount_1 = amount_1_desired.unwrap_or(Amount::MAX);
         let (amount_0, amount_1) = self
             .service
-            .state()
+            .state
+            .pool
+            .get()
+            .as_ref()
+            .unwrap()
             .try_calculate_swap_amount_pair(amount_0, amount_1, None, None)
             .expect("Failed calculate amount pair");
-        let liquidity = self.service.state().calculate_liquidity(amount_0, amount_1);
+        let total_supply = self.service.state.total_supply.get();
+        let liquidity = self
+            .service
+            .state
+            .pool
+            .get()
+            .as_ref()
+            .unwrap()
+            .calculate_liquidity(*total_supply, amount_0, amount_1);
         LiquidityAmount {
             liquidity,
             amount_0,
             amount_1,
         }
+    }
+}
+
+struct MutationRoot {
+    service: PoolService,
+}
+
+#[Object]
+impl MutationRoot {
+    async fn swap(
+        &self,
+        amount_0_in: Option<Amount>,
+        amount_1_in: Option<Amount>,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> [u8; 0] {
+        // Mutation should always be from other chain
+        assert!(
+            self.service.runtime.application_creator_chain_id() != self.service.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.service
+            .runtime
+            .schedule_operation(&PoolOperation::Swap {
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            });
+        []
     }
 }
 

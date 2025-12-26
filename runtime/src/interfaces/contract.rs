@@ -9,7 +9,7 @@ use linera_sdk::{
 use serde::Serialize;
 
 pub trait ContractRuntimeContext: BaseRuntimeContext {
-    type Error;
+    type Error: std::fmt::Debug + std::error::Error + 'static;
     type Message;
 
     fn authenticated_account(&mut self) -> Account;
@@ -42,6 +42,12 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
     ) -> A::Response;
 
     fn transfer(&mut self, source: AccountOwner, destination: Account, amount: Amount);
+    fn transfer_combined(
+        &mut self,
+        source: Option<AccountOwner>,
+        destination: Account,
+        amount: Amount,
+    );
 
     fn open_chain(
         &mut self,

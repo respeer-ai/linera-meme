@@ -31,6 +31,8 @@ impl<T: Contract, M> ContractRuntimeAdapter<T, M> {
 }
 
 impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<T, M> {
+    type Parameters = T::Parameters;
+
     fn chain_id(&mut self) -> ChainId {
         self.runtime.borrow_mut().chain_id()
     }
@@ -43,6 +45,15 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
         self.runtime.borrow_mut().application_creator_chain_id()
     }
 
+    fn application_creation_account(&mut self) -> Account {
+        let mut runtime = self.runtime.borrow_mut();
+
+        Account {
+            chain_id: runtime.application_creator_chain_id(),
+            owner: AccountOwner::from(runtime.application_id().forget_abi()),
+        }
+    }
+
     fn application_id(&mut self) -> ApplicationId {
         self.runtime.borrow_mut().application_id().forget_abi()
     }
@@ -53,6 +64,10 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
 
     fn owner_balance(&mut self, owner: AccountOwner) -> Amount {
         self.runtime.borrow_mut().owner_balance(owner)
+    }
+
+    fn application_parameters(&mut self) -> T::Parameters {
+        self.runtime.borrow_mut().application_parameters()
     }
 }
 
@@ -157,6 +172,45 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
         self.runtime
             .borrow_mut()
             .transfer(source, destination, amount)
+    }
+
+    fn transfer_combined(
+        &mut self,
+        source: Option<AccountOwner>,
+        destination: Account,
+        amount: Amount,
+    ) {
+        let owner = source.unwrap_or(self.runtime.borrow_mut().authenticated_signer().unwrap());
+
+        let owner_balance = self.runtime.borrow_mut().owner_balance(owner);
+        let chain_balance = self.runtime.borrow_mut().chain_balance();
+
+        let from_owner_balance = if amount <= owner_balance {
+            amount
+        } else {
+            owner_balance
+        };
+        let from_chain_balance = if amount <= owner_balance {
+            Amount::ZERO
+        } else {
+            amount.try_sub(owner_balance).expect("Invalid amount")
+        };
+
+        assert!(from_owner_balance <= owner_balance, "Insufficient balance");
+        assert!(from_chain_balance <= chain_balance, "Insufficient balance");
+
+        if from_owner_balance > Amount::ZERO {
+            self.runtime
+                .borrow_mut()
+                .transfer(owner, destination, from_owner_balance);
+        }
+        if from_chain_balance > Amount::ZERO {
+            self.runtime.borrow_mut().transfer(
+                AccountOwner::CHAIN,
+                destination,
+                from_chain_balance,
+            );
+        }
     }
 
     fn open_chain(
