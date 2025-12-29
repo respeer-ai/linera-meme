@@ -28,6 +28,8 @@ jobs:
         uses: bufbuild/setup-protoc@v1
         with:
           version: '25.3'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo test
       - run: cargo fmt --all -- --check
       - name: Install wasm-pack
