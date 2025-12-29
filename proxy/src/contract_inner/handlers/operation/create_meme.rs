@@ -2,7 +2,7 @@ use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
     policy::open_chain_fee_budget,
-    proxy::{ProxyMessage, ProxyOperation},
+    proxy::{ProxyMessage, ProxyOperation, ProxyResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -83,9 +83,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<ProxyMessage> for CreateMemeHandler<R, S>
+    Handler<ProxyMessage, ProxyResponse> for CreateMemeHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<ProxyMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
         log::info!("DEBUG PROXY:OP creating meme ...");
 
         self.meme_instantiation_argument.proxy_application_id =

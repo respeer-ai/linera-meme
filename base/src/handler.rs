@@ -31,20 +31,27 @@ impl<M: Serialize> HandlerMessage<M> {
 }
 
 #[derive(Debug, Default)]
-pub struct HandlerOutcome<M: Serialize> {
+pub struct HandlerOutcome<M: Serialize, R: Serialize> {
     pub messages: Vec<HandlerMessage<M>>,
+    pub response: Option<R>,
 }
 
-impl<M: Serialize> HandlerOutcome<M> {
+impl<M: Serialize, R: Serialize> HandlerOutcome<M, R> {
     pub fn new() -> Self {
         Self {
             messages: Vec::new(),
+            response: None,
         }
     }
 
     pub fn with_message(&mut self, destination: ChainId, message: M) -> &mut Self {
         self.messages
             .push(HandlerMessage::new(destination, message));
+        self
+    }
+
+    pub fn with_response(&mut self, response: R) -> &mut Self {
+        self.response = Some(response);
         self
     }
 }
@@ -80,6 +87,6 @@ pub enum HandlerError {
 }
 
 #[async_trait(?Send)]
-pub trait Handler<M: Serialize> {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<M>>, HandlerError>;
+pub trait Handler<M: Serialize, R: Serialize> {
+    async fn handle(&mut self) -> Result<Option<HandlerOutcome<M, R>>, HandlerError>;
 }

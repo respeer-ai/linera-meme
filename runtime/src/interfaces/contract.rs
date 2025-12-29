@@ -24,6 +24,7 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
     fn message_origin_chain_id(&mut self) -> Option<ChainId>;
     fn require_message_origin_chain_id(&mut self) -> Result<ChainId, Self::Error>;
     fn message_signer_account(&mut self) -> Account;
+    fn message_caller_account(&mut self) -> Account;
 
     fn create_application<Abi, Parameters, InstantiationArgument>(
         &mut self,

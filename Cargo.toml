@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "proxy",
-    "meme",
+    "meme-1",
     "swap",
     "pool",
     "blob-gateway",
@@ -42,7 +42,7 @@ quote = "1"
 proc-macro2 = "1"
 
 abi = { path = "./abi" }
-meme = { path = "./meme" }
+meme = { path = "./meme-1" }
 proxy = { path = "./proxy" }
 swap = { path = "./swap" }
 pool = { path = "./pool" }
