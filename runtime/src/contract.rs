@@ -10,7 +10,7 @@ use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-        ChainOwnership, ModuleId, Timestamp,
+        ChainOwnership, ChangeApplicationPermissionsError, ModuleId, Timestamp,
     },
     Contract, ContractRuntime,
 };
@@ -108,6 +108,16 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .borrow_mut()
             .authenticated_caller_id()
             .ok_or(RuntimeError::InvalidAuthenticatedCaller)
+    }
+
+    fn owner_accounts(&mut self) -> Vec<Account> {
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        self.runtime
+            .borrow_mut()
+            .chain_ownership()
+            .all_owners()
+            .map(|&owner| Account { chain_id, owner })
+            .collect()
     }
 
     fn send_message(&mut self, destination: ChainId, message: M) {
@@ -226,6 +236,15 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
 
     fn chain_ownership(&mut self) -> ChainOwnership {
         self.runtime.borrow_mut().chain_ownership()
+    }
+
+    fn change_application_permissions(
+        &mut self,
+        application_permissions: ApplicationPermissions,
+    ) -> Result<(), ChangeApplicationPermissionsError> {
+        self.runtime
+            .borrow_mut()
+            .change_application_permissions(application_permissions)
     }
 }
 

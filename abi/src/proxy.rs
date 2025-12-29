@@ -87,7 +87,7 @@ pub enum ProxyOperation {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ProxyMessage {
     ProposeAddGenesisMiner {
         operator: Account,

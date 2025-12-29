@@ -41,7 +41,6 @@ impl HandlerFactory {
                     + AccessControl
                     + MemeRuntimeContext
                     + ParametersInterface
-                    + ParametersInterface
                     + 'static,
             >,
         >,

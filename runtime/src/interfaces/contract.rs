@@ -3,7 +3,7 @@ use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-        ChainOwnership, ModuleId,
+        ChainOwnership, ChangeApplicationPermissionsError, ModuleId,
     },
 };
 use serde::Serialize;
@@ -17,6 +17,7 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
     fn require_authenticated_signer(&mut self) -> Result<AccountOwner, Self::Error>;
     fn authenticated_caller_id(&mut self) -> Option<ApplicationId>;
     fn require_authenticated_caller_id(&mut self) -> Result<ApplicationId, Self::Error>;
+    fn owner_accounts(&mut self) -> Vec<Account>;
 
     fn send_message(&mut self, destionation: ChainId, message: Self::Message);
 
@@ -56,4 +57,9 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
         balance: Amount,
     ) -> ChainId;
     fn chain_ownership(&mut self) -> ChainOwnership;
+
+    fn change_application_permissions(
+        &mut self,
+        application_permissions: ApplicationPermissions,
+    ) -> Result<(), ChangeApplicationPermissionsError>;
 }

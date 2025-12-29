@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 async-graphql.workspace = true
+async-trait.workspace = true
 futures.workspace = true
 linera-sdk.workspace = true
 serde.workspace = true
@@ -16,6 +17,8 @@ log.workspace = true
 env_logger.workspace = true
 getrandom.workspace = true
 bcs.workspace = true
+base.workspace = true
+runtime.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 linera-sdk = { workspace = true, features = ["test", "wasmer"] }
