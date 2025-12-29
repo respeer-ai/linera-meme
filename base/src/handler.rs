@@ -57,6 +57,9 @@ pub enum HandlerError {
     #[error("Not implemented")]
     NotImplemented,
 
+    #[error("Not allowed")]
+    NotAllowed,
+
     #[error(transparent)]
     RuntimeError(Box<dyn std::error::Error>),
 
