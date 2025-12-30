@@ -7,7 +7,7 @@ use crate::{
     interfaces::{parameters::ParametersInterface, state::StateInterface},
     FundRequest, FundStatus, FundType,
 };
-use abi::swap::pool::PoolMessage;
+use abi::swap::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
@@ -69,7 +69,7 @@ where
     async fn swap_fund_success(
         &mut self,
         fund_request: &FundRequest,
-    ) -> HandlerOutcome<PoolMessage> {
+    ) -> HandlerOutcome<PoolMessage, PoolResponse> {
         // 1: Still on caller chain, need to fund creation chain firstly
         self.transfer_meme_to_creation_chain_application(fund_request)
             .await;
@@ -125,7 +125,7 @@ where
     async fn add_liquidity_fund_success(
         &mut self,
         fund_request: &FundRequest,
-    ) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         if let Some(transfer_id) = fund_request.next_request {
             let fund_request = self
                 .state
@@ -205,12 +205,14 @@ where
 }
 
 #[async_trait(?Send)]
-impl<R, S> Handler<PoolMessage> for FundSuccessHandler<R, S>
+impl<R, S> Handler<PoolMessage, PoolResponse> for FundSuccessHandler<R, S>
 where
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         let mut fund_request = self
             .state
             .borrow()

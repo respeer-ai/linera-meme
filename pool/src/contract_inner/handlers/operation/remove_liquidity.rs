@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::pool::{PoolMessage, PoolOperation};
+use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
@@ -44,10 +44,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RemoveLiquidi
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<PoolMessage>
-    for RemoveLiquidityHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<PoolMessage, PoolResponse> for RemoveLiquidityHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         assert!(self.liquidity > Amount::ZERO, "Invalid amount");
 
         let origin = self.runtime.borrow_mut().authenticated_account();

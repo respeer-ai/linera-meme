@@ -6,7 +6,7 @@ pub mod request_meme_fund;
 pub mod transfer_meme_from_application;
 
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::swap::pool::{PoolMessage, PoolOperation};
+use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
 use base::handler::{Handler, HandlerError};
 use message::{
     add_liquidity::AddLiquidityHandler as MessageAddLiquidityHandler,
@@ -46,7 +46,7 @@ impl HandlerFactory {
         >,
         state: impl StateInterface + 'static,
         op: &PoolOperation,
-    ) -> Box<dyn Handler<PoolMessage>> {
+    ) -> Box<dyn Handler<PoolMessage, PoolResponse>> {
         match &op {
             PoolOperation::SetFeeTo { .. } => {
                 Box::new(OperationSetFeeToHandler::new(runtime, state, op))
@@ -76,7 +76,7 @@ impl HandlerFactory {
         >,
         state: impl StateInterface + 'static,
         msg: &PoolMessage,
-    ) -> Box<dyn Handler<PoolMessage>> {
+    ) -> Box<dyn Handler<PoolMessage, PoolResponse>> {
         match &msg {
             PoolMessage::RequestFund { .. } => {
                 Box::new(MessageRequestFundHandler::new(runtime, state, msg))
@@ -119,7 +119,7 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         op: Option<&PoolOperation>,
         msg: Option<&PoolMessage>,
-    ) -> Result<Box<dyn Handler<PoolMessage>>, HandlerError> {
+    ) -> Result<Box<dyn Handler<PoolMessage, PoolResponse>>, HandlerError> {
         if let Some(op) = op {
             return Ok(HandlerFactory::new_operation_handler(runtime, state, op));
         }

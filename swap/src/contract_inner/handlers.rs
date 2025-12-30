@@ -3,7 +3,7 @@ pub mod message;
 pub mod operation;
 
 use crate::interfaces::state::StateInterface;
-use abi::swap::router::{SwapMessage, SwapOperation};
+use abi::swap::router::{SwapMessage, SwapOperation, SwapResponse};
 use base::handler::Handler;
 use base::handler::HandlerError;
 use message::{
@@ -33,7 +33,7 @@ impl HandlerFactory {
         >,
         state: impl StateInterface + 'static,
         op: &SwapOperation,
-    ) -> Box<dyn Handler<SwapMessage>> {
+    ) -> Box<dyn Handler<SwapMessage, SwapResponse>> {
         match &op {
             SwapOperation::CreatePool { .. } => {
                 Box::new(OperationCreatePoolHandler::new(runtime, state, op))
@@ -53,7 +53,7 @@ impl HandlerFactory {
         >,
         state: impl StateInterface + 'static,
         msg: &SwapMessage,
-    ) -> Box<dyn Handler<SwapMessage>> {
+    ) -> Box<dyn Handler<SwapMessage, SwapResponse>> {
         match &msg {
             SwapMessage::CreatePool { .. } => {
                 Box::new(MessageCreatePoolHandler::new(runtime, state, msg))
@@ -83,7 +83,7 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         op: Option<&SwapOperation>,
         msg: Option<&SwapMessage>,
-    ) -> Result<Box<dyn Handler<SwapMessage>>, HandlerError> {
+    ) -> Result<Box<dyn Handler<SwapMessage, SwapResponse>>, HandlerError> {
         if let Some(op) = op {
             return Ok(HandlerFactory::new_operation_handler(runtime, state, op));
         }

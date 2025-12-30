@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation},
-    swap::router::SwapMessage,
+    swap::router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -109,10 +109,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for PoolCreatedHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<SwapMessage, SwapResponse> for PoolCreatedHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         log::info!("DEBUG MSG:SWAP: pool created ...");
 
         assert!(self.amount_1 > Amount::ZERO, "Invalid amount");

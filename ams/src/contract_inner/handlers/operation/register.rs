@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, AmsOperation, Metadata};
+use abi::ams::{AmsMessage, AmsOperation, AmsResponse, Metadata};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -28,10 +28,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandl
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage, AmsResponse>
     for RegisterHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<AmsMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
         self.metadata.creator = self.runtime.borrow_mut().authenticated_account();
         self.metadata.created_at = self.runtime.borrow_mut().system_time();
 

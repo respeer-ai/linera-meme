@@ -54,6 +54,15 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
         }
     }
 
+    fn application_account(&mut self) -> Account {
+        let mut runtime = self.runtime.borrow_mut();
+
+        Account {
+            chain_id: runtime.chain_id(),
+            owner: AccountOwner::from(runtime.application_id().forget_abi()),
+        }
+    }
+
     fn application_id(&mut self) -> ApplicationId {
         self.runtime.borrow_mut().application_id().forget_abi()
     }
@@ -149,6 +158,21 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             owner: runtime
                 .authenticated_signer()
                 .expect("Invalid authenticated signer"),
+        }
+    }
+
+    fn message_caller_account(&mut self) -> Account {
+        let mut runtime = self.runtime.borrow_mut();
+
+        Account {
+            chain_id: runtime
+                .message_origin_chain_id()
+                .expect("Invalid message origin chain"),
+            owner: AccountOwner::from(
+                runtime
+                    .authenticated_caller_id()
+                    .expect("Invalid authenticated caller"),
+            ),
         }
     }
 

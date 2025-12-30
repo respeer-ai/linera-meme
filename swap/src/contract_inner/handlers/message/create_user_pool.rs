@@ -1,7 +1,7 @@
 use crate::{
     contract_inner::handlers::create_pool::CreatePoolHandler, interfaces::state::StateInterface,
 };
-use abi::swap::router::SwapMessage;
+use abi::swap::router::{SwapMessage, SwapResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
@@ -55,9 +55,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<SwapMessage> for CreateUserPoolHandler<R, S>
+    Handler<SwapMessage, SwapResponse> for CreateUserPoolHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         if let Some(_) = self
             .state
             .borrow()

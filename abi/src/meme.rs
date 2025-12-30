@@ -123,7 +123,7 @@ pub enum MemeOperation {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MemeMessage {
     LiquidityFunded,
     Transfer {

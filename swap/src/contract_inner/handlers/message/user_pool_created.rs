@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::swap::{
     pool::{PoolAbi, PoolOperation},
-    router::SwapMessage,
+    router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -50,10 +50,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UserPoolCreat
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for UserPoolCreatedHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<SwapMessage, SwapResponse> for UserPoolCreatedHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         // Now we're on our caller chain, we can call all liquidity like what we do in out wallet
         let call = PoolOperation::AddLiquidity {
             amount_0_in: self.amount_0,

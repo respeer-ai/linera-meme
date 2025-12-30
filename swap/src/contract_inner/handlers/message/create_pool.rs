@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::swap::{
     pool::{InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
-    router::SwapMessage,
+    router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -89,9 +89,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<SwapMessage> for CreatePoolHandler<R, S>
+    Handler<SwapMessage, SwapResponse> for CreatePoolHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         log::info!("DEBUG MSG:SWAP: creating pool ...");
 
         // Run on pool chain

@@ -2,7 +2,7 @@ pub mod message;
 pub mod operation;
 
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, AmsOperation};
+use abi::ams::{AmsMessage, AmsOperation, AmsResponse};
 use base::handler::Handler;
 use base::handler::HandlerError;
 use message::{
@@ -27,7 +27,7 @@ impl HandlerFactory {
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
         state: impl StateInterface + 'static,
         op: &AmsOperation,
-    ) -> Box<dyn Handler<AmsMessage>> {
+    ) -> Box<dyn Handler<AmsMessage, AmsResponse>> {
         match &op {
             AmsOperation::Register { .. } => {
                 Box::new(OperationRegisterHandler::new(runtime, state, op))
@@ -46,7 +46,7 @@ impl HandlerFactory {
         runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
         state: impl StateInterface + 'static,
         msg: &AmsMessage,
-    ) -> Box<dyn Handler<AmsMessage>> {
+    ) -> Box<dyn Handler<AmsMessage, AmsResponse>> {
         match &msg {
             AmsMessage::Register { .. } => {
                 Box::new(MessageRegisterHandler::new(runtime, state, msg))
@@ -64,7 +64,7 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         op: Option<&AmsOperation>,
         msg: Option<&AmsMessage>,
-    ) -> Result<Box<dyn Handler<AmsMessage>>, HandlerError> {
+    ) -> Result<Box<dyn Handler<AmsMessage, AmsResponse>>, HandlerError> {
         if let Some(op) = op {
             return Ok(HandlerFactory::new_operation_handler(runtime, state, op));
         }

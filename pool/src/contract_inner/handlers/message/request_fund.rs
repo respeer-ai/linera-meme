@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation, MemeResponse},
-    swap::pool::PoolMessage,
+    swap::pool::{PoolMessage, PoolResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -49,9 +49,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<PoolMessage> for RequestFundHandler<R, S>
+    Handler<PoolMessage, PoolResponse> for RequestFundHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         let call = MemeOperation::TransferToCaller {
             amount: self.amount,
         };

@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::proxy::ProxyMessage;
+use abi::proxy::{ProxyMessage, ProxyResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::Account;
@@ -36,10 +36,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<ProxyMessage>
-    for ApproveRemoveGenesisMinerHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<ProxyMessage, ProxyResponse> for ApproveRemoveGenesisMinerHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<ProxyMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
         self.state
             .validate_operator(self.operator)
             .await

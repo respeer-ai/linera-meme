@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
-    proxy::{ProxyAbi, ProxyMessage},
+    proxy::{ProxyAbi, ProxyMessage, ProxyResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -61,7 +61,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
         bytecode_id: ModuleId,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
-    ) -> HandlerOutcome<ProxyMessage> {
+    ) -> HandlerOutcome<ProxyMessage, ProxyResponse> {
         // 1: Create meme application
         let application_id =
             self.create_meme_application(bytecode_id, instantiation_argument, parameters);
@@ -98,10 +98,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<ProxyMessage>
-    for CreateMemeExtHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<ProxyMessage, ProxyResponse> for CreateMemeExtHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<ProxyMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
         Ok(Some(self.on_meme_chain_msg_create_meme(
             self.bytecode_id,
             self.instantiation_argument.clone(),

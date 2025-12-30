@@ -2,7 +2,7 @@ use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
     policy::open_chain_fee_budget,
-    proxy::ProxyMessage,
+    proxy::{ProxyMessage, ProxyResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -126,7 +126,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
         &mut self,
         instantiation_argument: MemeInstantiationArgument,
         parameters: MemeParameters,
-    ) -> Result<HandlerOutcome<ProxyMessage>, HandlerError> {
+    ) -> Result<HandlerOutcome<ProxyMessage, ProxyResponse>, HandlerError> {
         // 1: create a new chain which allow and mandary proxy
         let chain_id = self.create_meme_chain().await?;
 
@@ -156,10 +156,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<ProxyMessage>
-    for CreateMemeHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<ProxyMessage, ProxyResponse> for CreateMemeHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<ProxyMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
         self.instantiation_argument.swap_application_id = Some(self.state.swap_application_id());
 
         Ok(Some(

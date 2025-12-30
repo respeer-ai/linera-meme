@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::router::{SwapMessage, SwapOperation};
+use abi::swap::router::{SwapMessage, SwapOperation, SwapResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
@@ -89,9 +89,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<SwapMessage> for InitializeLiquidityHandler<R, S>
+    Handler<SwapMessage, SwapResponse> for InitializeLiquidityHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         log::info!("DEBUG OP:SWAP: calling initialize liquidity ...");
 
         let caller_id = self

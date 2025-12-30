@@ -2,7 +2,7 @@ pub mod message;
 pub mod operation;
 
 use crate::interfaces::state::StateInterface;
-use abi::proxy::{ProxyMessage, ProxyOperation};
+use abi::proxy::{ProxyMessage, ProxyOperation, ProxyResponse};
 use base::handler::{Handler, HandlerError};
 use message::{
     approve_add_genesis_miner::ApproveAddGenesisMinerHandler as MessageApproveAddGenesisMinerHandler,
@@ -46,7 +46,7 @@ impl HandlerFactory {
         >,
         state: impl StateInterface + 'static,
         op: &ProxyOperation,
-    ) -> Box<dyn Handler<ProxyMessage>> {
+    ) -> Box<dyn Handler<ProxyMessage, ProxyResponse>> {
         match &op {
             ProxyOperation::ProposeAddGenesisMiner { .. } => Box::new(
                 OperationProposeAddGenesisMinerHandler::new(runtime, state, op),
@@ -90,7 +90,7 @@ impl HandlerFactory {
         >,
         state: impl StateInterface + 'static,
         msg: &ProxyMessage,
-    ) -> Box<dyn Handler<ProxyMessage>> {
+    ) -> Box<dyn Handler<ProxyMessage, ProxyResponse>> {
         match &msg {
             ProxyMessage::ProposeAddGenesisMiner { .. } => Box::new(
                 MessageProposeAddGenesisMinerHandler::new(runtime, state, msg),
@@ -156,7 +156,7 @@ impl HandlerFactory {
         state: impl StateInterface + 'static,
         op: Option<&ProxyOperation>,
         msg: Option<&ProxyMessage>,
-    ) -> Result<Box<dyn Handler<ProxyMessage>>, HandlerError> {
+    ) -> Result<Box<dyn Handler<ProxyMessage, ProxyResponse>>, HandlerError> {
         if let Some(op) = op {
             // All operations must be run on user chain side
             if runtime.borrow_mut().only_application_creator().is_ok() {
