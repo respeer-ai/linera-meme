@@ -1,5 +1,8 @@
 use crate::interfaces::state::StateInterface;
-use abi::{policy::open_chain_fee_budget, swap::router::SwapMessage};
+use abi::{
+    policy::open_chain_fee_budget,
+    swap::router::{SwapMessage, SwapResponse},
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{
@@ -97,9 +100,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<SwapMessage> for CreatePoolHandler<R, S>
+    Handler<SwapMessage, SwapResponse> for CreatePoolHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         let pool_bytecode_id = self.state.borrow_mut().pool_bytecode_id();
 
         let destination = self.create_child_chain(self.token_0, self.token_1)?;

@@ -2,7 +2,7 @@ use crate::{
     contract_inner::handlers::transfer_meme_from_application::TransferMemeFromApplicationHandler,
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::PoolMessage;
+use abi::swap::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
@@ -62,9 +62,11 @@ impl<
 impl<
         R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
         S: StateInterface,
-    > Handler<PoolMessage> for RefundHandler<R, S>
+    > Handler<PoolMessage, PoolResponse> for RefundHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         let amount_1_in = self.amount_1.unwrap_or(Amount::ZERO);
         if amount_1_in > Amount::ZERO {
             let token_1 = self.runtime.borrow_mut().token_1();

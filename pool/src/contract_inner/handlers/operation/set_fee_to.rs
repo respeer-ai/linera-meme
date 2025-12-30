@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::pool::{PoolMessage, PoolOperation};
+use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::Account;
@@ -37,9 +37,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<PoolMessage> for SetFeeToHandler<R, S>
+    Handler<PoolMessage, PoolResponse> for SetFeeToHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         let operator = self.runtime.borrow_mut().authenticated_account();
 
         let destination = self.runtime.borrow_mut().application_creator_chain_id();

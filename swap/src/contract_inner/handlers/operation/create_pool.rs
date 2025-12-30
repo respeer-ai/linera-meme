@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     policy::open_chain_fee_budget,
-    swap::router::{SwapMessage, SwapOperation},
+    swap::router::{SwapMessage, SwapOperation, SwapResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -103,9 +103,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<SwapMessage> for CreatePoolHandler<R, S>
+    Handler<SwapMessage, SwapResponse> for CreatePoolHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         let signer = self
             .runtime
             .borrow_mut()

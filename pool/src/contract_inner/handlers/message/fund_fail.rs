@@ -1,5 +1,5 @@
 use crate::{interfaces::state::StateInterface, FundStatus};
-use abi::swap::pool::PoolMessage;
+use abi::swap::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{
@@ -40,9 +40,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<PoolMessage> for FundFailHandler<R, S>
+    Handler<PoolMessage, PoolResponse> for FundFailHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         let mut fund_request = self
             .state
             .borrow()

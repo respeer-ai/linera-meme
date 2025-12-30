@@ -1,6 +1,8 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
-    blob_gateway::{BlobData, BlobDataType, BlobGatewayMessage, BlobGatewayOperation},
+    blob_gateway::{
+        BlobData, BlobDataType, BlobGatewayMessage, BlobGatewayOperation, BlobGatewayResponse,
+    },
     store_type::StoreType,
 };
 use async_trait::async_trait;
@@ -38,10 +40,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandl
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<BlobGatewayMessage>
-    for RegisterHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<BlobGatewayMessage, BlobGatewayResponse> for RegisterHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<BlobGatewayMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<BlobGatewayMessage, BlobGatewayResponse>>, HandlerError> {
         let creator = self.runtime.borrow_mut().authenticated_account();
         let created_at = self.runtime.borrow_mut().system_time();
 

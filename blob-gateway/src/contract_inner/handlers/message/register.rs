@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::blob_gateway::{BlobData, BlobGatewayMessage};
+use abi::blob_gateway::{BlobData, BlobGatewayMessage, BlobGatewayResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -26,10 +26,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandl
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<BlobGatewayMessage>
-    for RegisterHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<BlobGatewayMessage, BlobGatewayResponse> for RegisterHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<BlobGatewayMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<BlobGatewayMessage, BlobGatewayResponse>>, HandlerError> {
         match self.state.create_blob(self.blob_data.clone()).await {
             Ok(_) => Ok(None),
             Err(err) => Err(HandlerError::ProcessError(Box::new(err))),

@@ -6,7 +6,7 @@ use crate::{
     interfaces::{parameters::ParametersInterface, state::StateInterface},
     FundRequest, FundStatus, FundType,
 };
-use abi::swap::pool::{PoolMessage, PoolOperation};
+use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
@@ -76,9 +76,11 @@ impl<
 impl<
         R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
         S: StateInterface,
-    > Handler<PoolMessage> for SwapHandler<R, S>
+    > Handler<PoolMessage, PoolResponse> for SwapHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         assert!(
             !(self.amount_0_in.is_some() && self.amount_1_in.is_some())
                 && (self.amount_0_in.is_some() || self.amount_1_in.is_some()),

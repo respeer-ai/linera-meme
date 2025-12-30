@@ -1,6 +1,6 @@
 use crate::interfaces::state::StateInterface;
 use abi::swap::{
-    router::{SwapMessage, SwapOperation},
+    router::{SwapMessage, SwapOperation, SwapResponse},
     transaction::Transaction,
 };
 use async_trait::async_trait;
@@ -53,10 +53,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdatePoolHan
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for UpdatePoolHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<SwapMessage, SwapResponse> for UpdatePoolHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 

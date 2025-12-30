@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::AmsMessage;
+use abi::ams::{AmsMessage, AmsResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::ApplicationId;
@@ -29,10 +29,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimHandler<
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage, AmsResponse>
     for ClaimHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<AmsMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
         Err(HandlerError::NotImplemented)
     }
 }

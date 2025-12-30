@@ -1,5 +1,8 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::{router::SwapMessage, transaction::Transaction};
+use abi::swap::{
+    router::{SwapMessage, SwapResponse},
+    transaction::Transaction,
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Amount, ApplicationId};
@@ -50,10 +53,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdatePoolHan
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<SwapMessage>
-    for UpdatePoolHandler<R, S>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
+    Handler<SwapMessage, SwapResponse> for UpdatePoolHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<SwapMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         self.state
             .update_pool(
                 self.token_0,

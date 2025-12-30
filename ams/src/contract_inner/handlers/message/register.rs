@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::{AmsMessage, Metadata};
+use abi::ams::{AmsMessage, AmsResponse, Metadata};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
@@ -28,10 +28,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> RegisterHandl
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage, AmsResponse>
     for RegisterHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<AmsMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
         match self.state.register_application(self.metadata.clone()) {
             Ok(_) => Ok(None),
             Err(err) => Err(HandlerError::ProcessError(Box::new(err))),

@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::ams::AmsMessage;
+use abi::ams::{AmsMessage, AmsResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::Account;
@@ -35,10 +35,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> AddApplicatio
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage>
+impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMessage, AmsResponse>
     for AddApplicationTypeHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<AmsMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
         match self
             .state
             .add_application_type(self.owner, self.application_type.clone())

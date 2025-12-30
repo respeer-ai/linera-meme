@@ -4,7 +4,7 @@ use crate::{
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::PoolMessage;
+use abi::swap::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
@@ -101,7 +101,7 @@ impl<
         amount_1_out_min: Option<Amount>,
         to: Option<Account>,
         _block_timestamp: Option<Timestamp>,
-    ) -> Result<HandlerOutcome<PoolMessage>, HandlerError> {
+    ) -> Result<HandlerOutcome<PoolMessage, PoolResponse>, HandlerError> {
         // Here we already funded
         // 1: Calculate pair token amount
         let amount_0_out = if let Some(amount_1_in) = amount_1_in {
@@ -314,9 +314,11 @@ impl<
 impl<
         R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
         S: StateInterface,
-    > Handler<PoolMessage> for SwapHandler<R, S>
+    > Handler<PoolMessage, PoolResponse> for SwapHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         // We just return OK to refund the failed balance here
         match self
             .do_swap(

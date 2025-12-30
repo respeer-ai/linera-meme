@@ -2,7 +2,7 @@ use crate::{
     contract_inner::handlers::transfer_meme_from_application::TransferMemeFromApplicationHandler,
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::PoolMessage;
+use abi::swap::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
@@ -74,9 +74,11 @@ impl<
 impl<
         R: ContractRuntimeContext + AccessControl + ParametersInterface + MemeRuntimeContext,
         S: StateInterface,
-    > Handler<PoolMessage> for RemoveLiquidityHandler<R, S>
+    > Handler<PoolMessage, PoolResponse> for RemoveLiquidityHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         // 1: Calculate liquidity amount pair
         let (amount_0, amount_1) = self
             .state

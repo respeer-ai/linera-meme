@@ -1,6 +1,6 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::swap::{
-    pool::PoolMessage,
+    pool::{PoolMessage, PoolResponse},
     router::{SwapAbi, SwapOperation},
     transaction::Transaction,
 };
@@ -38,9 +38,11 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface>
-    Handler<PoolMessage> for NewTransactionHandler<R, S>
+    Handler<PoolMessage, PoolResponse> for NewTransactionHandler<R, S>
 {
-    async fn handle(&mut self) -> Result<Option<HandlerOutcome<PoolMessage>>, HandlerError> {
+    async fn handle(
+        &mut self,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         let transaction = self.state.create_transaction(self.transaction);
         let (token_0_price, token_1_price) = self.state.calculate_price_pair();
         let reserve_0 = self.state.reserve_0();
