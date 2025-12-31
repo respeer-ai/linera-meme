@@ -7,7 +7,7 @@ export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
 export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
 export SHARED_APP_DATA_STORAGE_CLASS=${SHARED_APP_DATA_STORAGE_CLASS:-efs-storage-class}
 
-RE_GENERATE=0
+export RE_GENERATE=${RE_GENERATE:-0}
 
 if [ $RE_GENERATE -eq 1 ]; then
   SERVICES="blob-gateway ams swap proxy"
