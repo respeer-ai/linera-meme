@@ -117,7 +117,7 @@ envsubst '$FAUCET_URL $REPLICAS' < maker/02-deployment.yaml | kubectl delete -f 
 wait_pods maker-service 0 ""
 wait_pods maker-wallet-service 0 ""
 
-envsubst '$SHARED_APP_DATA_STORAGE_CLASS' < kubectl apply -f 00-shared-app-data-pvc.yaml
+envsubst '$SHARED_APP_DATA_STORAGE_CLASS' < 00-shared-app-data-pvc.yaml | kubectl apply -f -
 
 for service in $SERVICES; do
   wait_pods ${service}-service 0 ""
