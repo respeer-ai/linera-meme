@@ -27,8 +27,8 @@ spec:
         - name: DATABASE_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: mysql-secret
-              key: MYSQL_PASSWORD
+              name: mysql-password-secret
+              key: rootpassword
         - name: DATABASE_NAME
           valueFrom:
             configMapKeyRef:
@@ -37,8 +37,8 @@ spec:
         - name: DATABASE_USER
           valueFrom:
             configMapKeyRef:
-              name: mysql-config
-              key: MYSQL_USER
+              name: mysql-password-secret
+              key: username
         - name: DATABASE_PORT
           value: "3306"
         - name: DATABASE_HOST
