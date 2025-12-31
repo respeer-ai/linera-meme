@@ -135,8 +135,8 @@ for service in $SERVICES; do
   wait_pods ${service}-service $REPLICAS Running
 done
 
+envsubst '$FAUCET_URL $REPLICAS' < mysql/00-user.yaml | kubectl apply -f -
 if [ $DEPLOY_MYSQL -eq 1 ]; then
-  envsubst '$FAUCET_URL $REPLICAS' < mysql/00-user.yaml | kubectl apply -f -
   envsubst '$FAUCET_URL $REPLICAS' < mysql/01-pvc.yaml | kubectl apply -f -
   envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl apply -f -
 
