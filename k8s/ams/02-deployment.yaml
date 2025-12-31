@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 spec:
   serviceName: ams-service
-  replicas: 5
+  replicas: ${REPLICAS}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
@@ -118,7 +118,7 @@ spec:
           done
           while true; do
             count=$(ls /shared-app-data/AMS_WALLET_OWNER.* -l | wc -l)
-            if [ $count -eq 5 ]; then
+            if [ $count -eq ${REPLICAS} ]; then
               break
             fi
             sleep 10

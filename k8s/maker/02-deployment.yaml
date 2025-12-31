@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 spec:
   serviceName: maker-wallet-service
-  replicas: 3
+  replicas: ${MAKER_REPLICAS}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
@@ -95,7 +95,7 @@ metadata:
   namespace: kube-system
 spec:
   serviceName: maker-service
-  replicas: 3
+  replicas: ${MAKER_REPLICAS}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
