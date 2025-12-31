@@ -5,5 +5,4 @@ metadata:
   namespace: kube-system
 data:
   MYSQL_DATABASE: "linera_kline"
-  MYSQL_USER: "linera-swap"
 
