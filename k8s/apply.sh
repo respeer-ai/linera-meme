@@ -6,6 +6,7 @@ export FAUCET_URL=https://faucet.testnet-conway.linera.net
 # export FAUCET_URL=http://local-genesis-service:8080
 export REPLICAS=${REPLICAS:-5}
 export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
+export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
 
 RE_GENERATE=0
 
@@ -15,14 +16,16 @@ else
   SERVICES="swap proxy blob-gateway ams"
 fi
 
-count=$(kubectl get secret -n kube-system mysql-secret | grep mysql | wc -l)
-if [ $count -eq 0 ]; then
-  if [ -z "$MYSQL_ROOT_PASSWORD" -o -z "$MYSQL_PASSWORD" ]; then
-    echo "Error: SET MYSQL_ROOT_PASSWORD AND MYSQL_PASSWORD"
-    exit 1
-  fi
+if [ $DEPLOY_MYSQL -eq 1 ]; then
+  count=$(kubectl get secret -n kube-system mysql-password-secret | grep mysql | wc -l)
+  if [ $count -eq 0 ]; then
+    if [ -z "$MYSQL_ROOT_PASSWORD" -o -z "$MYSQL_PASSWORD" ]; then
+      echo "Error: SET MYSQL_ROOT_PASSWORD AND MYSQL_PASSWORD"
+      exit 1
+    fi
 
-  kubectl create secret generic mysql-secret --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" --from-literal=MYSQL_PASSWORD="$MYSQL_PASSWORD" --namespace kube-system
+    kubectl create secret generic mysql-password-secret --from-literal=MYSQL_ROOT_PASSWORD="$MYSQL_ROOT_PASSWORD" --from-literal=MYSQL_PASSWORD="$MYSQL_PASSWORD" --namespace kube-system
+  fi
 fi
 
 wait_pods() {
@@ -94,9 +97,12 @@ for service in $SERVICES; do
   envsubst '$FAUCET_URL $REPLICAS' < $service/03-ingress.yaml | kubectl delete -f -
 done
 
-envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl delete -f -
 
-wait_pods mysql-service 0 ""
+if [ $DEPLOY_MYSQL -eq 1 ]; then
+  envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl delete -f -
+
+  wait_pods mysql-service 0 ""
+fi
 
 envsubst '$FAUCET_URL $REPLICAS' < kline/02-deployment.yaml | kubectl delete -f -
 envsubst '$FAUCET_URL $REPLICAS' < kline/03-ingress.yaml | kubectl delete -f -
@@ -122,11 +128,13 @@ for service in $SERVICES; do
   wait_pods ${service}-service $REPLICAS Running
 done
 
-envsubst '$FAUCET_URL $REPLICAS' < mysql/00-user.yaml | kubectl apply -f -
-envsubst '$FAUCET_URL $REPLICAS' < mysql/01-pvc.yaml | kubectl apply -f -
-envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl apply -f -
+if [ $DEPLOY_MYSQL -eq 1 ]; then
+  envsubst '$FAUCET_URL $REPLICAS' < mysql/00-user.yaml | kubectl apply -f -
+  envsubst '$FAUCET_URL $REPLICAS' < mysql/01-pvc.yaml | kubectl apply -f -
+  envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl apply -f -
 
-wait_pods mysql-service 1 Running
+  wait_pods mysql-service 1 Running
+fi
 
 envsubst '$FAUCET_URL $REPLICAS' < kline/01-strip-prefix.yaml | kubectl apply -f -
 envsubst '$FAUCET_URL $REPLICAS' < kline/02-deployment.yaml | kubectl apply -f -
