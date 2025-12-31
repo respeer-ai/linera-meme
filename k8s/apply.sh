@@ -1,13 +1,11 @@
 #!/bin/bash
 
-kubectl apply -f 00-shared-app-data-pvc.yaml
-
 export FAUCET_URL=https://faucet.testnet-conway.linera.net
 # export FAUCET_URL=http://local-genesis-service:8080
 export REPLICAS=${REPLICAS:-5}
 export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
 export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
-export SHARE_APP_DATA_STORAGE_CLASS=${SHARE_APP_DATA_STORAGE_CLASS:-efs-storage-class}
+export SHARED_APP_DATA_STORAGE_CLASS=${SHARED_APP_DATA_STORAGE_CLASS:-efs-storage-class}
 
 RE_GENERATE=0
 
@@ -118,6 +116,8 @@ envsubst '$FAUCET_URL $REPLICAS' < maker/02-deployment.yaml | kubectl delete -f 
 
 wait_pods maker-service 0 ""
 wait_pods maker-wallet-service 0 ""
+
+envsubt '$SHARED_APP_DATA_STORAGE_CLASS' < kubectl apply -f 00-shared-app-data-pvc.yaml
 
 for service in $SERVICES; do
   wait_pods ${service}-service 0 ""
