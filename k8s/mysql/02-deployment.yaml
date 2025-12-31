@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mysql-service
+  name: mysql
   namespace: kube-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mysql-service
+      app: mysql
   template:
     metadata:
       labels:
-        app: mysql-service
+        app: mysql
     spec:
       containers:
-      - name: mysql-service
+      - name: mysql
         image: mysql:8
         imagePullPolicy: IfNotPresent
         command:
@@ -55,12 +55,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql-service
+  name: mysql
   namespace: kube-system
 spec:
   ports:
-    - name: mysql-service
+    - name: mysql
       port: 3306
       targetPort: 3306
   selector:
-    app: mysql-service
+    app: mysql

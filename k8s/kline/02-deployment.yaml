@@ -42,7 +42,7 @@ spec:
         - name: DATABASE_PORT
           value: "3306"
         - name: DATABASE_HOST
-          value: mysql-service
+          value: mysql
         volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data

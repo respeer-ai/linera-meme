@@ -106,7 +106,7 @@ done
 if [ $DEPLOY_MYSQL -eq 1 ]; then
   envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl delete -f -
 
-  wait_pods mysql-service 0 ""
+  wait_pods mysql 0 ""
 fi
 
 envsubst '$FAUCET_URL $REPLICAS' < kline/02-deployment.yaml | kubectl delete -f -
@@ -140,7 +140,7 @@ if [ $DEPLOY_MYSQL -eq 1 ]; then
   envsubst '$FAUCET_URL $REPLICAS' < mysql/01-pvc.yaml | kubectl apply -f -
   envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl apply -f -
 
-  wait_pods mysql-service 1 Running
+  wait_pods mysql 1 Running
 fi
 
 envsubst '$FAUCET_URL $REPLICAS' < kline/01-strip-prefix.yaml | kubectl apply -f -
