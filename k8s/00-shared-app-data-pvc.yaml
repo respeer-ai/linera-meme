@@ -19,7 +19,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: efs-storage-class
+  storageClassName: ${SHARE_APP_DATA_STORAGE_CLASS}
   resources:
     requests:
       storage: 100Mi

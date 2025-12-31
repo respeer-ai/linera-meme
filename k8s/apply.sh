@@ -7,6 +7,7 @@ export FAUCET_URL=https://faucet.testnet-conway.linera.net
 export REPLICAS=${REPLICAS:-5}
 export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
 export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
+export SHARE_APP_DATA_STORAGE_CLASS=${SHARE_APP_DATA_STORAGE_CLASS:-efs-storage-class}
 
 RE_GENERATE=0
 
