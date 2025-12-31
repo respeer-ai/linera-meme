@@ -8,6 +8,7 @@ export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
 export SHARED_APP_DATA_STORAGE_CLASS=${SHARED_APP_DATA_STORAGE_CLASS:-efs-storage-class}
 
 export RE_GENERATE=${RE_GENERATE:-0}
+export AUTO_RUN=${AUTO_RUN:-0}
 
 if [ $RE_GENERATE -eq 1 ]; then
   SERVICES="blob-gateway ams swap proxy"
@@ -43,6 +44,11 @@ wait_pods() {
 }
 
 ask_yes_no() {
+  if [ $AUTO_RUN -eq 1 ]; then
+    echo "yes"
+    return 0
+  fi
+
   local label="$1"
   local choice
 
