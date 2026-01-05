@@ -1,4 +1,4 @@
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: kline-ingress
@@ -25,6 +25,9 @@ spec:
       http:
         paths:
           - path: /api/kline
+            pathType: Prefix
             backend:
-              serviceName: kline-service
-              servicePort: 25080
+              service:
+                name: kline-service
+                port:
+                  number: 25080

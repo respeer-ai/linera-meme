@@ -1,4 +1,4 @@
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: swap-ingress
@@ -26,5 +26,7 @@ spec:
         paths:
           - path: /
             backend:
-              serviceName: swap-service
-              servicePort: 8080
+              service:
+                name: swap-service
+                port:
+                  number: 8080

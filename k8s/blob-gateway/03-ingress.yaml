@@ -1,4 +1,4 @@
-apiVersion: networking.k8s.io/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: blob-gateway-ingress
@@ -25,6 +25,9 @@ spec:
       http: &http_rules
         paths:
           - path: /
+            pathType: Prefix
             backend:
-              serviceName: blob-gateway-service
-              servicePort: 8080
+              service:
+                name: blob-gateway-service
+                port:
+                  number: 8080
