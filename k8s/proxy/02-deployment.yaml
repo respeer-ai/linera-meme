@@ -98,6 +98,10 @@ spec:
               echo "Publishing bytecode ..."
               MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/proxy_contract.wasm /bytecodes/proxy_service.wasm)
               MEME_MODULE_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db publish-module /bytecodes/meme_contract.wasm /bytecodes/meme_service.wasm)
+              if [ -z "$MODULE_ID" -o -z "$MEME_MODULE_ID" ]; then
+                echo "Failed publish bytecode"
+                exit 1
+              fi
               echo $MODULE_ID > /shared-app-data/PROXY_MODULE_ID
               echo $MEME_MODULE_ID > /shared-app-data/MEME_MODULE_ID
             fi
@@ -138,6 +142,10 @@ spec:
             if [ ! -f /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID -o -z $MULTI_OWNER_CHAIN_ID ]; then
               echo "Open multi owners chain..."
               CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
+              if [ -z "$CHAIN_ID" ]; then
+                echo "Failed open multi owners chain"
+                exit 1
+              fi
               echo $CHAIN_ID > /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID
             fi
           fi
@@ -217,6 +225,10 @@ spec:
           if [ ! -f /shared-app-data/PROXY_APPLICATION_ID -o -z $APPLICATION_ID ]; then
             echo "Creating application..."
             APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application $MODULE_ID $CHAIN_ID --json-argument "{\"meme_bytecode_id\": \"$MEME_MODULE_ID\", \"operators\": [], \"swap_application_id\": \"$SWAP_APPLICATION_ID\"}")
+            if [ -z "$APPLICATION_ID" ]; then
+              echo "Failed create application"
+              exit 1
+            fi
             echo $APPLICATION_ID > /shared-app-data/PROXY_APPLICATION_ID
           fi
         volumeMounts:
