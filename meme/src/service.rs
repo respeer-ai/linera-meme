@@ -3,7 +3,7 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use std::{str::FromStr, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use abi::meme::{Meme, MemeAbi, MemeOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
@@ -73,6 +73,16 @@ impl QueryRoot {
             .await
             .unwrap()
             .unwrap_or(Amount::ZERO)
+    }
+
+    async fn balances(&self) -> HashMap<Account, Amount> {
+        self.state
+            .balances
+            .index_values()
+            .await
+            .expect("Failed get balances")
+            .into_iter()
+            .collect()
     }
 
     // async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
