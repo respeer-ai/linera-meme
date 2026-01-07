@@ -32,6 +32,15 @@ export class _Account {
   static formalizeOwner(owner: string) {
     return owner.startsWith('0x') ? owner : `0x${owner}`
   }
+
+  static fromString = (str: string) => {
+    const chain = str.split(':')[0]
+    const owner = str.split(':')[1]
+    return {
+      chain_id: chain,
+      owner,
+    } as Account
+  }
 }
 
 export * from './types'

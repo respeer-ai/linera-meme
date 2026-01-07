@@ -1,7 +1,7 @@
 <template> 
   <div class='row q-header-line'>
     <logo-view />
-    <div class='q-ml-lg'>
+    <div v-if='false' class='q-ml-lg'>
       <tabs-view />
     </div>
     <q-space />

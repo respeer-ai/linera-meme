@@ -48,6 +48,8 @@ export interface BalanceOfRequest extends BaseRequest {
   owner: string // 1231321321213:User:1231431321321321321
 }
 
+export type BalancesRequest = BaseRequest
+
 export interface TokenItem {
   token: string
   logo: string

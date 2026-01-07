@@ -5,3 +5,9 @@ export const BALANCE_OF = gql`
     balanceOf(owner: $owner)
   }
 `
+
+export const BALANCES_OF_MEME = gql`
+  query balances {
+    balances
+  }
+`
