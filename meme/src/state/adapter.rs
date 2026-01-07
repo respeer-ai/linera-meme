@@ -45,10 +45,16 @@ impl StateInterface for StateAdapter {
         owner: Account,
         application: Account,
         argument: InstantiationArgument,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), StateError> {
-        self.state
-            .borrow_mut()
-            .instantiate(owner, application, argument)
+        self.state.borrow_mut().instantiate(
+            owner,
+            application,
+            argument,
+            enable_mining,
+            mining_supply,
+        )
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), StateError> {

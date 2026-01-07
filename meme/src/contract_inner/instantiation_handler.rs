@@ -178,8 +178,17 @@ impl<
             self.runtime.borrow_mut().virtual_initial_liquidity();
         self.argument.meme.initial_liquidity = self.runtime.borrow_mut().initial_liquidity();
 
+        let enable_mining = self.runtime.borrow_mut().enable_mining();
+        let mining_supply = self.runtime.borrow_mut().mining_supply();
+
         self.state
-            .instantiate(creator, application, self.argument.clone())
+            .instantiate(
+                creator,
+                application,
+                self.argument.clone(),
+                enable_mining,
+                mining_supply,
+            )
             .map_err(Into::into)?;
 
         // Let creator hold one hundred tokens for easy test

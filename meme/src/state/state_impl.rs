@@ -18,6 +18,13 @@ use linera_sdk::{
 };
 use std::collections::HashMap;
 
+impl MemeState {
+    fn initialize_mining_info(&mut self, mining_supply: Amount) {
+        // TODO: initialize mining info
+        self.mining_info.set(Some(MiningInfo::new(mining_supply)));
+    }
+}
+
 #[async_trait(?Send)]
 impl StateInterface for MemeState {
     type Error = StateError;
@@ -57,10 +64,6 @@ impl StateInterface for MemeState {
             liquidity.fungible_amount,
         )
         .await
-    }
-
-    fn initialize_mining_info(&mut self, mining_supply: Amount) {
-        // TODO: initialize mining info
     }
 
     fn instantiate(

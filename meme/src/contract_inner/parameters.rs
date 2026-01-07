@@ -1,7 +1,7 @@
 use crate::interfaces::parameters::ParametersInterface;
 use abi::meme::{Liquidity, MemeParameters};
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, ChainId},
+    linera_base_types::{Account, AccountOwner, Amount, ChainId},
     Contract,
 };
 use runtime::{contract::ContractRuntimeAdapter, interfaces::base::BaseRuntimeContext};
@@ -26,6 +26,14 @@ impl ParametersInterface for MemeParameters {
     // TODO: could be in runtime line MemeRuntimeContext ?
     fn swap_creator_chain_id(&mut self) -> ChainId {
         self.swap_creator_chain_id
+    }
+
+    fn enable_mining(&mut self) -> bool {
+        self.enable_mining
+    }
+
+    fn mining_supply(&mut self) -> Option<Amount> {
+        self.mining_supply
     }
 }
 
@@ -52,5 +60,13 @@ where
 
     fn swap_creator_chain_id(&mut self) -> ChainId {
         self.application_parameters().swap_creator_chain_id()
+    }
+
+    fn enable_mining(&mut self) -> bool {
+        self.application_parameters().enable_mining()
+    }
+
+    fn mining_supply(&mut self) -> Option<Amount> {
+        self.application_parameters().mining_supply()
     }
 }

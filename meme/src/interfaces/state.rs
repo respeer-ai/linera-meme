@@ -23,6 +23,8 @@ pub trait StateInterface {
         owner: Account,
         application: Account,
         argument: InstantiationArgument,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), Self::Error>;
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error>;
