@@ -19,6 +19,9 @@
       <div class='q-mt-xl'>
         <leaderboard-view />
       </div>
+      <div class='q-mt-xl'>
+        <blobs-view />
+      </div>
     </div>
   </q-page>
 </template>
@@ -33,6 +36,7 @@ import TrendingView from 'src/components/trending/TrendingView.vue'
 import LiquidityPoolsView from 'src/components/pools/LiquidityPoolsView.vue'
 import LeaderboardView from 'src/components/leaderboard/LeaderboardView.vue'
 import SearchView from 'src/components/search/SearchView.vue'
+import BlobsView from 'src/components/blob/BlobsView.vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
 

@@ -1,5 +1,5 @@
 <template>
-  <div class='row items-center q-py-sm text-neutral'>
+  <div class='row items-center q-py-sm text-neutral cursor-pointer'>
     <q-icon :name='icon' size='24px' :color='color' />
     <div class='q-ml-sm' style='width: 400px'>{{ shortid.shortId(data.account.chain_id, 24, 24) }}</div>
     <div v-if='data.account.owner' class='q-ml-sm' style='width: 400px'>{{ shortid.shortId(data.account.owner, 24, 24) }}</div>
@@ -34,9 +34,9 @@ const tokenValue = toRef(props, 'tokenValue')
 const positionColor = () => {
   switch (position.value) {
     case 0: return 'orange'
-    case 1: return 'silver'
-    case 2: return 'brozen'
-    default: return 'grey'
+    case 1: return 'blue-grey-1'
+    case 2: return 'orange-4'
+    default: return 'grey-4'
   } 
 }
 
