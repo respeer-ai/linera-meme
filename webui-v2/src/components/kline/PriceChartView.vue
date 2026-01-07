@@ -111,14 +111,15 @@ const getStoreKline = () => {
 }
 
 watch(buyToken, () => {
-  getStoreKline()
+  // getStoreKline()
 })
 
 watch(sellToken, () => {
-  getStoreKline()
+  // getStoreKline()
 })
 
 watch(selectedPool, () => {
+  loading.value = false
   getStoreKline()
 })
 
