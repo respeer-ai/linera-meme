@@ -84,6 +84,9 @@ pub enum HandlerError {
 
     #[error("Insufficient funds")]
     InsufficientFunds,
+
+    #[error("Not enabled")]
+    NotEnabled,
 }
 
 #[async_trait(?Send)]

@@ -180,6 +180,7 @@ impl<
 
         let enable_mining = self.runtime.borrow_mut().enable_mining();
         let mining_supply = self.runtime.borrow_mut().mining_supply();
+        let now = self.runtime.borrow_mut().system_time();
 
         self.state
             .instantiate(
@@ -188,6 +189,7 @@ impl<
                 self.argument.clone(),
                 enable_mining,
                 mining_supply,
+                now,
             )
             .map_err(Into::into)?;
 
@@ -197,8 +199,9 @@ impl<
             .mint(creator, initial_owner_balance)
             .await
             .map_err(Into::into)?;
+        let liquidity = self.runtime.borrow_mut().initial_liquidity();
 
-        if let Some(liquidity) = self.runtime.borrow_mut().initial_liquidity() {
+        if let Some(liquidity) = liquidity {
             let swap_creator_chain = self.runtime.borrow_mut().swap_creator_chain_id();
             self.state
                 .initialize_liquidity(liquidity, swap_creator_chain)

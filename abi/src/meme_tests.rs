@@ -1,6 +1,8 @@
 use super::meme::*;
 
-use linera_sdk::linera_base_types::{Amount, BcsSignable, BlockHeight, CryptoHash, TimeDelta};
+use linera_sdk::linera_base_types::{
+    Amount, BcsSignable, BlockHeight, CryptoHash, TimeDelta, Timestamp,
+};
 use serde::{Deserialize, Serialize};
 
 use std::str::FromStr;
@@ -8,8 +10,9 @@ use std::str::FromStr;
 #[test]
 fn test_mining_info_new_with_supply() {
     let mining_supply = Amount::from_str("10000000").unwrap(); // 1000 万个代币
+    let now = Timestamp::now();
 
-    let mining_info = MiningInfo::new(mining_supply);
+    let mining_info = MiningInfo::new(mining_supply, now);
 
     let expected_initial_target =
         CryptoHash::from_str("00000000FFFF0000000000000000000000000000000000000000000000000000")
@@ -23,6 +26,10 @@ fn test_mining_info_new_with_supply() {
 
     let expected_halving_cycle = TimeDelta::from_secs(3600 * 24 * 365);
     assert_eq!(mining_info.halving_cycle, expected_halving_cycle);
+    assert_eq!(
+        mining_info.next_halving_at,
+        now.saturating_add(expected_halving_cycle)
+    );
 
     let expected_initial_reward = Amount::from_str("1.7").unwrap().saturating_mul(
         mining_supply
@@ -30,6 +37,7 @@ fn test_mining_info_new_with_supply() {
             .into(),
     );
     assert_eq!(mining_info.initial_reward_amount, expected_initial_reward);
+    assert_eq!(mining_info.reward_amount, expected_initial_reward);
 
     assert_eq!(mining_info.target_adjustment_blocks, 2160);
 
@@ -51,9 +59,10 @@ fn test_mining_info_new_with_supply() {
 
 #[test]
 fn test_mining_info_new_with_zero_supply() {
-    let mining_supply = Amount::from_str("0").unwrap(); // 0 个代币
+    let mining_supply = Amount::from_str("0").unwrap();
+    let now = Timestamp::now();
 
-    let mining_info = MiningInfo::new(mining_supply);
+    let mining_info = MiningInfo::new(mining_supply, now);
 
     let expected_initial_target =
         CryptoHash::from_str("00000000FFFF0000000000000000000000000000000000000000000000000000")

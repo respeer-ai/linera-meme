@@ -11,7 +11,7 @@ use abi::{
 };
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash,
+    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash, Timestamp,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -47,6 +47,7 @@ impl StateInterface for StateAdapter {
         argument: InstantiationArgument,
         enable_mining: bool,
         mining_supply: Option<Amount>,
+        now: Timestamp,
     ) -> Result<(), StateError> {
         self.state.borrow_mut().instantiate(
             owner,
@@ -54,6 +55,7 @@ impl StateInterface for StateAdapter {
             argument,
             enable_mining,
             mining_supply,
+            now,
         )
     }
 

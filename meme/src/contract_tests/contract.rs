@@ -14,8 +14,8 @@ use futures::FutureExt as _;
 use linera_sdk::{
     bcs,
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, ChainOwnership, CryptoHash,
-        TestString, Timestamp,
+        Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, ChainOwnership,
+        CryptoHash, TestString, Timestamp,
     },
     util::BlockingWait,
     views::View,
@@ -29,7 +29,7 @@ use std::str::FromStr;
 use std::{cell::RefCell, rc::Rc};
 
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(expected = "Not implemented")]
+#[should_panic(expected = "Not enabled")]
 async fn operation_mine() {
     let mut meme = create_and_instantiate_meme().await;
 
@@ -559,6 +559,7 @@ async fn create_and_instantiate_meme() -> MemeContract {
         .with_application_creator_chain_id(chain_id)
         .with_application_parameters(parameters.clone())
         .with_system_time(Timestamp::now())
+        .with_block_height(BlockHeight(1))
         .with_authenticated_signer(operator);
     let mut contract = MemeContract {
         state: Rc::new(RefCell::new(

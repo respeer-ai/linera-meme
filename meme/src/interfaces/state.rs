@@ -5,7 +5,7 @@ use abi::{
 use async_trait::async_trait;
 use base::handler::HandlerError;
 use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash,
+    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash, Timestamp,
 };
 
 #[async_trait(?Send)]
@@ -25,6 +25,7 @@ pub trait StateInterface {
         argument: InstantiationArgument,
         enable_mining: bool,
         mining_supply: Option<Amount>,
+        now: Timestamp,
     ) -> Result<(), Self::Error>;
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error>;

@@ -4,7 +4,7 @@ use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BcsSignable, BlockHeight, ChainId,
-        ContractAbi, CryptoHash, ServiceAbi, TimeDelta,
+        ContractAbi, CryptoHash, ServiceAbi, TimeDelta, Timestamp,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -94,6 +94,8 @@ pub struct MiningInfo {
     /// Halving cycle: 1 year
     /// 1072, 536, 268, 134, 67, 34 to mine all 21000000 tokens
     pub halving_cycle: TimeDelta,
+    pub next_halving_at: Timestamp,
+    pub reward_amount: Amount,
 
     /// Current block processing
     pub mining_height: BlockHeight,
@@ -105,7 +107,7 @@ pub struct MiningInfo {
 }
 
 impl MiningInfo {
-    pub fn new(mining_supply: Amount) -> Self {
+    pub fn new(mining_supply: Amount, now: Timestamp) -> Self {
         let initial_target = CryptoHash::from_str(
             "00000000FFFF0000000000000000000000000000000000000000000000000000",
         )
@@ -123,6 +125,9 @@ impl MiningInfo {
         let initial_nonce = CryptoHash::new(&Nonce("Initial mining nonce".to_string()));
 
         let supply_scale = mining_supply.saturating_div(Amount::from_tokens(21000000).into());
+        let initial_reward_amount = Amount::from_str("1.7")
+            .unwrap()
+            .saturating_mul(supply_scale.into());
 
         MiningInfo {
             initial_target,
@@ -132,9 +137,9 @@ impl MiningInfo {
             target_block_duration,
             target_adjustment_blocks,
             empty_block_reward_percent: 100,
-            initial_reward_amount: Amount::from_str("1.7")
-                .unwrap()
-                .saturating_mul(supply_scale.into()),
+            initial_reward_amount,
+            next_halving_at: now.saturating_add(halving_cycle),
+            reward_amount: initial_reward_amount,
             halving_cycle,
             mining_height: BlockHeight(0),
             mining_executions: 0,

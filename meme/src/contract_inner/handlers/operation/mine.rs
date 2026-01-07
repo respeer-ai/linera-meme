@@ -1,4 +1,4 @@
-use crate::interfaces::state::StateInterface;
+use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::meme::{MemeMessage, MemeOperation, MemeResponse, MiningBase};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -10,7 +10,7 @@ use runtime::interfaces::{
 use std::{cell::RefCell, cmp::Ordering, rc::Rc};
 
 pub struct MineHandler<
-    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
+    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
@@ -30,8 +30,10 @@ fn hash_cmp(hash1: CryptoHash, hash2: CryptoHash) -> Ordering {
     hash1_bigint.cmp(&hash2_bigint)
 }
 
-impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    MineHandler<R, S>
+impl<
+        R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+        S: StateInterface,
+    > MineHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
         let MemeOperation::Mine { nonce } = op else {
@@ -85,8 +87,10 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<MemeMessage, MemeResponse> for MineHandler<R, S>
+impl<
+        R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+        S: StateInterface,
+    > Handler<MemeMessage, MemeResponse> for MineHandler<R, S>
 {
     async fn handle(
         &mut self,
@@ -97,6 +101,10 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         // TODO: adjust target according to block time duration
 
         // TODO: if the height is already mine, fail it
+
+        if !self.runtime.borrow_mut().enable_mining() {
+            return Err(HandlerError::NotEnabled);
+        }
 
         self.verify()?;
 

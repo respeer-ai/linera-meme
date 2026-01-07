@@ -11,7 +11,7 @@ use async_graphql::{Request, Response, Value};
 use futures::FutureExt as _;
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, TestString,
+        Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, TestString, Timestamp,
     },
     util::BlockingWait,
     views::View,
@@ -22,7 +22,7 @@ use std::str::FromStr;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn query() {
-    let runtime = Arc::new(ServiceRuntime::<MemeService>::new());
+    let runtime = Arc::new(ServiceRuntime::<MemeService>::new().with_system_time(Timestamp::now()));
     let mut state = MemeState::load(runtime.root_view_storage_context())
         .blocking_wait()
         .expect("Failed to read from mock key value store");
@@ -74,8 +74,16 @@ async fn query() {
         chain_id,
         owner: AccountOwner::from(application_id),
     };
+    let now = runtime.system_time();
     state
-        .instantiate(owner, application, instantiation_argument.clone())
+        .instantiate(
+            owner,
+            application,
+            instantiation_argument.clone(),
+            false,
+            None,
+            now,
+        )
         .expect("Failed inistantiate");
 
     let service = MemeService {

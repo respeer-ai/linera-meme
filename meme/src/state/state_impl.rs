@@ -13,15 +13,15 @@ use async_trait::async_trait;
 use linera_sdk::{
     ensure,
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash,
+        Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash, Timestamp,
     },
 };
 use std::collections::HashMap;
 
 impl MemeState {
-    fn initialize_mining_info(&mut self, mining_supply: Amount) {
-        // TODO: initialize mining info
-        self.mining_info.set(Some(MiningInfo::new(mining_supply)));
+    fn initialize_mining_info(&mut self, mining_supply: Amount, now: Timestamp) {
+        self.mining_info
+            .set(Some(MiningInfo::new(mining_supply, now)));
     }
 }
 
@@ -73,6 +73,7 @@ impl StateInterface for MemeState {
         mut argument: InstantiationArgument,
         enable_mining: bool,
         mining_supply: Option<Amount>,
+        now: Timestamp,
     ) -> Result<(), StateError> {
         assert!(
             argument.meme.initial_supply > Amount::ZERO,
@@ -96,7 +97,7 @@ impl StateInterface for MemeState {
         self.proxy_application_id.set(argument.proxy_application_id);
 
         if enable_mining {
-            self.initialize_mining_info(mining_supply.unwrap_or(argument.meme.total_supply));
+            self.initialize_mining_info(mining_supply.unwrap_or(argument.meme.total_supply), now);
         }
 
         Ok(())
