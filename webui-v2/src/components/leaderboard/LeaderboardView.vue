@@ -1,7 +1,7 @@
 <template>
   <div>
     <section-title-view icon='leaderboard' :title='`Leaderboard of ${memeTicker}`' />
-    <div>
+    <div class='border-dark-secondary radius-8 bg-dark-secondary q-pa-md q-mt-md'>
       <LeaderboardItemView
         v-for='(balance, index) in sortedBalances'
         :key='index'
