@@ -90,7 +90,7 @@ watch(tokens, () => {
 const sellToken = ref(undefined as unknown as Token)
 const sellTokenId = computed(() => sellToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
-const sellAmount = ref('')
+const sellAmount = ref('0.01')
 const sellTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
     return (el.applicationId === _el.token1 && _el.token0 === buyTokenId.value) ||
@@ -105,7 +105,8 @@ watch(sellTokenId, () => {
 })
 
 const pool = computed(() => swap.Swap.selectedPool())
-const sellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0).toFixed(6))
+const fullPrecisionSellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0))
+const sellPrice = computed(() => fullPrecisionSellPrice.value.toFixed(6))
 
 watch(sellAmount, () => {
   const price = Number((sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
@@ -125,6 +126,12 @@ watch(buyAmount, () => {
       btnStep.value += 1
     }
   }, 1000)
+})
+
+watch(fullPrecisionSellPrice, () => {
+  if (Number(buyAmount.value) === 0) {
+    buyAmount.value = ((Number(sellAmount.value) * fullPrecisionSellPrice.value) || 0).toFixed(6)
+  }
 })
 
 interface BtnActionItem {

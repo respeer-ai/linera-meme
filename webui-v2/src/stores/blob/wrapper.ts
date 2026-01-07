@@ -10,17 +10,20 @@ export class Blob {
   static blobs = () => blob.blobs
 
   static getBlobsList = (done?: (error: boolean, rows?: BlobData[]) => void) => {
-    blob.listBlobs({
-      limit: 800,
-       Message: {
-        Error: {
-          Title: 'Get blobs list',
-          Message: 'Failed get blobs list',
-          Popup: true,
-          Type: NotifyType.Error,
+    blob.listBlobs(
+      {
+        limit: 800,
+        Message: {
+          Error: {
+            Title: 'Get blobs list',
+            Message: 'Failed get blobs list',
+            Popup: true,
+            Type: NotifyType.Error,
+          },
         },
       },
-    }, done)
+      done,
+    )
   }
 
   static blobPath = (blobData: BlobData) => blob.blobPath(blobData)
