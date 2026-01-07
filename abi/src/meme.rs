@@ -3,7 +3,8 @@ use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, Amount, ApplicationId, ChainId, ContractAbi, CryptoHash, ServiceAbi,
+        Account, Amount, ApplicationId, BlockHeight, ChainId, ContractAbi, CryptoHash, ServiceAbi,
+        TimeDelta,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -57,6 +58,28 @@ pub struct InstantiationArgument {
     pub swap_application_id: Option<ApplicationId>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, SimpleObject)]
+pub struct MiningInfo {
+    /// Mining hash = sha256sum(block_height, nonce, chain_id, signer, /* previous_block_hash */)
+    /// Mine opeartion must be the last operation of the block
+    /// new_target = target * (block_duration / target_block_duration)
+    /// difficulty = initial_target / new_target
+    pub initial_target: CryptoHash,
+    pub target: CryptoHash,
+    pub new_target: CryptoHash,
+    pub block_duration: TimeDelta,
+    pub target_block_duration: TimeDelta,
+    pub target_adjustment_blocks: u16,
+    /// If the block only have Mine operation, then it'll get only part of reward
+    pub empty_block_reward_percent: u8,
+
+    /// Current block processing
+    pub mining_height: BlockHeight,
+    pub mining_executions: usize,
+    // We're not able to get block hash from SDK so we ignore it right now
+    // pub previous_block_hash: CryptoHash,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MemeParameters {
@@ -65,6 +88,9 @@ pub struct MemeParameters {
     pub virtual_initial_liquidity: bool,
     // TODO: work around for https://github.com/linera-io/linera-protocol/issues/3538
     pub swap_creator_chain_id: ChainId,
+
+    pub enable_mining: bool,
+    pub mining_supply: Option<Amount>,
 }
 
 scalar!(MemeParameters);

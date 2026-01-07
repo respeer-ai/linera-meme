@@ -1,7 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use abi::meme::{Liquidity, Meme};
+use abi::meme::{Liquidity, Meme, MiningInfo};
 use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
@@ -28,6 +28,8 @@ pub struct MemeState {
     // Account information
     pub balances: MapView<Account, Amount>,
     pub allowances: MapView<Account, HashMap<Account, Amount>>,
+
+    pub mining_info: RegisterView<Option<MiningInfo>>,
 }
 
 pub mod adapter;

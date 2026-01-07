@@ -538,6 +538,9 @@ async fn create_and_instantiate_meme() -> MemeContract {
         }),
         virtual_initial_liquidity: true,
         swap_creator_chain_id: chain_id,
+
+        enable_mining: false,
+        mining_supply: None,
     };
     let runtime = ContractRuntime::new()
         .with_can_change_application_permissions(true)
