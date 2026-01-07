@@ -111,7 +111,7 @@ const sellPrice = computed(() => fullPrecisionSellPrice.value.toFixed(6))
 watch(sellAmount, () => {
   const price = Number((sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
   setTimeout(() => {
-    buyAmount.value = ((Number(sellAmount.value) * price) || buyTokenId.value === constants.LINERA_NATIVE_ID ? 0.01 : 25).toFixed(6)
+    buyAmount.value = ((Number(sellAmount.value) * price) || (buyTokenId.value === constants.LINERA_NATIVE_ID ? 0.01 : 25)).toFixed(6)
     if (btnStep.value === 0 && Number(buyAmount.value) > 0 && Number(sellAmount.value) > 0) {
       btnStep.value += 1
     }
@@ -121,7 +121,7 @@ watch(sellAmount, () => {
 watch(buyAmount, () => {
   const price = Number((buyTokenId.value === pool.value?.token1 ? pool.value?.token1Price : pool.value?.token0Price) as string)
   setTimeout(() => {
-    sellAmount.value = ((Number(buyAmount.value) * price) || sellTokenId.value === constants.LINERA_NATIVE_ID ? 0.01 : 25).toFixed(6)
+    sellAmount.value = ((Number(buyAmount.value) * price) || (sellTokenId.value === constants.LINERA_NATIVE_ID ? 0.01 : 25)).toFixed(6)
     if (btnStep.value === 0 && Number(buyAmount.value) > 0 && Number(sellAmount.value) > 0) {
       btnStep.value += 1
     }
