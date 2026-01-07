@@ -59,11 +59,17 @@ impl StateInterface for MemeState {
         .await
     }
 
+    fn initialize_mining_info(&mut self, mining_supply: Amount) {
+        // TODO: initialize mining info
+    }
+
     fn instantiate(
         &mut self,
         owner: Account,
         application: Account,
         mut argument: InstantiationArgument,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), StateError> {
         assert!(
             argument.meme.initial_supply > Amount::ZERO,
@@ -86,7 +92,9 @@ impl StateInterface for MemeState {
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
 
-        // TODO: instantiate mining info
+        if enable_mining {
+            self.initialize_mining_info(mining_supply.unwrap_or(argument.meme.total_supply));
+        }
 
         Ok(())
     }

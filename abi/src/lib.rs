@@ -7,3 +7,6 @@ pub mod policy;
 pub mod proxy;
 pub mod store_type;
 pub mod swap;
+
+#[cfg(test)]
+mod meme_tests;
