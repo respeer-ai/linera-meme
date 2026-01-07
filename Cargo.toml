@@ -40,6 +40,8 @@ bcs = "0.1.3"
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
+num-bigint = "0.4"
+num-traits = "0.2"
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }

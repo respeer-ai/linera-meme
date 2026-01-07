@@ -9,7 +9,7 @@ use abi::meme::{MemeAbi, MemeOperation, MemeResponse};
 use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
-        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
+        Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BlockHeight, ChainId,
         ChainOwnership, ChangeApplicationPermissionsError, ModuleId, Timestamp,
     },
     Contract, ContractRuntime,
@@ -77,6 +77,10 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
 
     fn application_parameters(&mut self) -> T::Parameters {
         self.runtime.borrow_mut().application_parameters()
+    }
+
+    fn block_height(&mut self) -> BlockHeight {
+        self.runtime.borrow_mut().block_height()
     }
 }
 

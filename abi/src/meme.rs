@@ -3,8 +3,8 @@ use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{
-        Account, Amount, ApplicationId, BlockHeight, ChainId, ContractAbi, CryptoHash, ServiceAbi,
-        TimeDelta,
+        Account, AccountOwner, Amount, ApplicationId, BcsSignable, BlockHeight, ChainId,
+        ContractAbi, CryptoHash, ServiceAbi, TimeDelta,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -58,9 +58,20 @@ pub struct InstantiationArgument {
     pub swap_application_id: Option<ApplicationId>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct MiningBase {
+    pub nonce: CryptoHash,
+    pub height: BlockHeight,
+    pub chain_id: ChainId,
+    pub signer: AccountOwner,
+    pub previous_nonce: CryptoHash,
+}
+
+impl BcsSignable<'_> for MiningBase {}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, SimpleObject)]
 pub struct MiningInfo {
-    /// Mining hash = sha256sum(block_height, nonce, chain_id, signer, /* previous_block_hash */)
+    /// Mining hash = sha256sum(block_height, nonce, chain_id, signer, previous_nonce)
     /// Mine opeartion must be the last operation of the block
     /// new_target = target * (block_duration / target_block_duration)
     /// difficulty = initial_target / new_target
@@ -77,7 +88,9 @@ pub struct MiningInfo {
     pub mining_height: BlockHeight,
     pub mining_executions: usize,
     // We're not able to get block hash from SDK so we ignore it right now
-    // pub previous_block_hash: CryptoHash,
+    // But we still need this block hash to avoid Time-based Side-Channel Attack
+    // So we use previous nonce for that, it should be also unpredictable
+    pub previous_nonce: CryptoHash,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -1,5 +1,5 @@
 use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, ChainId, Timestamp,
+    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, Timestamp,
 };
 use serde::Serialize;
 
@@ -18,4 +18,6 @@ pub trait BaseRuntimeContext {
     fn owner_balance(&mut self, owner: AccountOwner) -> Amount;
 
     fn application_parameters(&mut self) -> Self::Parameters;
+
+    fn block_height(&mut self) -> BlockHeight;
 }

@@ -1,11 +1,11 @@
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme},
+    meme::{InstantiationArgument, Liquidity, Meme, MiningInfo},
     store_type::StoreType,
 };
 use async_trait::async_trait;
 use base::handler::HandlerError;
 use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash,
+    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash,
 };
 
 #[async_trait(?Send)]
@@ -103,4 +103,14 @@ pub trait StateInterface {
     fn github(&self) -> Option<String>;
 
     fn meme(&self) -> Meme;
+
+    fn mining_target(&self) -> CryptoHash;
+
+    fn previous_nonce(&self) -> CryptoHash;
+
+    fn mining_height(&self) -> BlockHeight;
+
+    fn mining_info(&self) -> MiningInfo;
+
+    fn update_mining_info(&mut self, info: MiningInfo);
 }

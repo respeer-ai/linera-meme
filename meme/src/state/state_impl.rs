@@ -6,13 +6,15 @@ use crate::{
     state::{errors::StateError, MemeState},
 };
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme},
+    meme::{InstantiationArgument, Liquidity, Meme, MiningInfo},
     store_type::StoreType,
 };
 use async_trait::async_trait;
 use linera_sdk::{
     ensure,
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash,
+    },
 };
 use std::collections::HashMap;
 
@@ -83,6 +85,8 @@ impl StateInterface for MemeState {
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
+
+        // TODO: instantiate mining info
 
         Ok(())
     }
@@ -312,5 +316,25 @@ impl StateInterface for MemeState {
 
     fn meme(&self) -> Meme {
         self.meme.get().as_ref().unwrap().clone()
+    }
+
+    fn mining_target(&self) -> CryptoHash {
+        self.mining_info.get().as_ref().unwrap().target
+    }
+
+    fn previous_nonce(&self) -> CryptoHash {
+        self.mining_info.get().as_ref().unwrap().previous_nonce
+    }
+
+    fn mining_height(&self) -> BlockHeight {
+        self.mining_info.get().as_ref().unwrap().mining_height
+    }
+
+    fn mining_info(&self) -> MiningInfo {
+        self.mining_info.get().as_ref().unwrap().clone()
+    }
+
+    fn update_mining_info(&mut self, info: MiningInfo) {
+        self.mining_info.set(Some(info));
     }
 }
