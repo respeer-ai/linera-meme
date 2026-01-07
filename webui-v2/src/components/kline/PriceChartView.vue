@@ -118,8 +118,10 @@ watch(sellToken, () => {
   // getStoreKline()
 })
 
-watch(selectedPool, () => {
-  loading.value = false
+watch(selectedPool, (newPool, oldPool) => {
+  if (loading.value) {
+    loading.value = newPool?.poolApplication?.owner === oldPool?.poolApplication?.owner
+  }
   getStoreKline()
 })
 

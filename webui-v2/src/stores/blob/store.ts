@@ -66,7 +66,6 @@ export const useBlobStore = defineStore('blob', {
   getters: {
     blobPath(): (blob: BlobData) => string {
       return (blob: BlobData) => {
-        console.log(BlobGateway.imagePath(blob.storeType as StoreType, blob.blobHash as string))
         return BlobGateway.imagePath(blob.storeType as StoreType, blob.blobHash as string)
       }
     },
