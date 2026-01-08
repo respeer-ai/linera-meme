@@ -60,10 +60,27 @@ async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: i
     return _db.get_transactions(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at)
 
 
+@app.get('/transactions/start_at/{start_at}/end_at/{end_at}')
+async def on_get_combined_transactions(start_at: int, end_at: int):
+    return _db.get_transactions(token_0=None, token_1=None, start_at=start_at, end_at=end_at)
+
+
 @app.get('/transactions/token0/{token0}/token1/{token1}/information')
 async def on_get_transactions_information(token0: str, token1: str):
     try:
         return _db.get_transactions_information(token_0=token0, token_1=token1)
+    except Exception as e:
+        print(f'Failed get transactions information: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/transactions/information')
+async def on_get_combined_transactions_information():
+    try:
+        return _db.get_transactions_information(token_0=None, token_1=None)
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
