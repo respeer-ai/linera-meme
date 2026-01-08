@@ -31,7 +31,7 @@
               {{ props.row.applicationName }}
             </div>
             <div class='q-ml-sm text-neutral'>
-              {{ props.row.meme.ticker }}
+              {{ props.row.meme?.ticker }}
             </div>
           </td>
           <td :props='props' class='text-center'>0 TLINERA</td>
