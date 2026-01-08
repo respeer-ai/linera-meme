@@ -8,6 +8,19 @@
       <q-tab :name='Tab.Tokens' :label='Tab.Tokens' />
       <q-tab :name='Tab.Pools' :label='Tab.Pools' />
       <q-tab :name='Tab.Transactions' :label='Tab.Transactions' />
+      <q-space />
+      <div class='narrow-btn q-mr-md'>
+        <q-btn dense no-caps rounded flat class='text-white bg-primary'>
+          Join mining
+          <q-tooltip
+            class='font-size-14 bg-grey-10'
+            anchor='bottom end'
+            self='top end'
+          >
+            Join mining of new created tokens.
+          </q-tooltip>
+        </q-btn>
+      </div>
     </q-tabs>
     <q-tab-panels
       v-model='tab'
@@ -53,6 +66,6 @@ onMounted(() => {
 
 <style scoped lang='sass'>
 ::v-deep(.q-tab__label)
-  font-size: 18px
+  font-size: 16px
 
 </style>

@@ -48,7 +48,16 @@
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
             <div class='narrow-btn'>
-              <q-btn dense no-caps rounded flat class='text-secondary'>Join mining</q-btn>
+              <q-btn dense no-caps rounded flat class='text-secondary' disable>
+                Join mining
+                <q-tooltip
+                  class='font-size-14 bg-grey-10'
+                  anchor='bottom end'
+                  self='top end'
+                >
+                  Sorry, you cannot join mining of exists tokens right now. Stay tunned!
+                </q-tooltip>
+              </q-btn>
             </div>
           </td>
         </q-tr>
