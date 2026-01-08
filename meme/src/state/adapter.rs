@@ -33,10 +33,17 @@ impl StateInterface for StateAdapter {
         &mut self,
         liquidity: Liquidity,
         swap_creator_chain_id: ChainId,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), StateError> {
         self.state
             .borrow_mut()
-            .initialize_liquidity(liquidity, swap_creator_chain_id)
+            .initialize_liquidity(
+                liquidity,
+                swap_creator_chain_id,
+                enable_mining,
+                mining_supply,
+            )
             .await
     }
 
@@ -218,7 +225,7 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().update_mining_info(info);
     }
 
-    fn mining_reward(&mut self, owner: Account) -> Result<(), StateError> {
-        self.state.borrow_mut().mining_reward(owner)
+    async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {
+        self.state.borrow_mut().mining_reward(owner, now).await
     }
 }

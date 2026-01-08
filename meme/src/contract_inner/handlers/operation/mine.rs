@@ -127,7 +127,12 @@ impl<
         };
 
         let Miner { owner } = miner;
-        self.state.mining_reward(owner).map_err(Into::into)?;
+        let now = self.runtime.borrow_mut().system_time();
+
+        self.state
+            .mining_reward(owner, now)
+            .await
+            .map_err(Into::into)?;
 
         Ok(None)
     }

@@ -16,6 +16,8 @@ pub trait StateInterface {
         &mut self,
         liquidity: Liquidity,
         swap_creator_chain_id: ChainId,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), Self::Error>;
 
     fn instantiate(
@@ -117,5 +119,5 @@ pub trait StateInterface {
 
     fn update_mining_info(&mut self, info: MiningInfo);
 
-    fn mining_reward(&mut self, owner: Account) -> Result<(), Self::Error>;
+    async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), Self::Error>;
 }

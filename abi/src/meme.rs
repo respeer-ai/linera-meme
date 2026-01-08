@@ -146,6 +146,15 @@ impl MiningInfo {
             previous_nonce: initial_nonce,
         }
     }
+
+    pub fn try_half(&mut self, now: Timestamp) {
+        if now < self.next_halving_at {
+            return;
+        }
+
+        self.reward_amount = self.reward_amount.saturating_div(2);
+        self.next_halving_at = self.next_halving_at.saturating_add(self.halving_cycle);
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

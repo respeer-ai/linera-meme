@@ -204,7 +204,7 @@ impl<
         if let Some(liquidity) = liquidity {
             let swap_creator_chain = self.runtime.borrow_mut().swap_creator_chain_id();
             self.state
-                .initialize_liquidity(liquidity, swap_creator_chain)
+                .initialize_liquidity(liquidity, swap_creator_chain, enable_mining, mining_supply)
                 .await
                 .map_err(Into::into)?;
         }
