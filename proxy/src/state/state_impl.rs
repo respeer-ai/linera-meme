@@ -104,8 +104,14 @@ impl StateInterface for ProxyState {
     }
 
     async fn miners(&self) -> Result<Vec<Account>, StateError> {
-        // TODO: chain genesis miners
-        Ok(self.miners.indices().await?)
+        Ok(self
+            .miners
+            .indices()
+            .await?
+            .iter()
+            .chain(self.genesis_miners().await?.iter())
+            .cloned()
+            .collect())
     }
 
     async fn miner_owners(&self) -> Result<Vec<AccountOwner>, StateError> {
