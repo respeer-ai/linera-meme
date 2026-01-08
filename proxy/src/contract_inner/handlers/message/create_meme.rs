@@ -84,16 +84,17 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
     async fn meme_chain_owner_weights(&self) -> Result<Vec<(AccountOwner, u64)>, HandlerError> {
         let mut owner_weights = Vec::new();
 
-        for owner in self
-            .state
-            .genesis_miner_owners()
-            .await
-            .map_err(Into::into)?
-        {
-            owner_weights.push((owner, 200 as u64))
-        }
-        for owner in self.state.miner_owners().await.map_err(Into::into)? {
-            owner_weights.push((owner, 100 as u64))
+        for owner in self.state.miners().await.map_err(Into::into)? {
+            if self
+                .state
+                .is_genesis_miner(owner)
+                .await
+                .map_err(Into::into)?
+            {
+                owner_weights.push((owner.owner, 200 as u64))
+            } else {
+                owner_weights.push((owner.owner, 100 as u64))
+            }
         }
 
         Ok(owner_weights)
