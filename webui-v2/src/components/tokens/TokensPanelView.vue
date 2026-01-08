@@ -9,7 +9,7 @@
       <q-tab :name='Tab.Pools' :label='Tab.Pools' />
       <q-tab :name='Tab.Transactions' :label='Tab.Transactions' />
       <q-space />
-      <div class='narrow-btn q-mr-md'>
+      <div v-if='tab === Tab.Tokens' class='narrow-btn q-mr-md'>
         <q-btn dense no-caps rounded flat class='text-white bg-primary'>
           Join mining
         </q-btn>
@@ -22,6 +22,11 @@
             Join mining of new created tokens.
           </q-tooltip>
         </q-icon>
+      </div>
+      <div v-else-if='tab === Tab.Pools' class='narrow-btn q-mr-md'>
+        <q-btn dense no-caps rounded flat class='text-white bg-primary'>
+          Add liquidity
+        </q-btn>
       </div>
     </q-tabs>
     <q-tab-panels
@@ -46,7 +51,7 @@
 
 <script setup lang='ts'>
 import { onMounted, ref } from 'vue'
-import { ams } from 'src/stores/export'
+import { ams, swap } from 'src/stores/export'
 
 import TokensListView from './TokensListView.vue'
 import PoolsListView from './PoolsListView.vue'
@@ -62,6 +67,7 @@ const tab = ref(Tab.Tokens)
 
 onMounted(() => {
   ams.Ams.getApplications()
+  swap.Swap.getPools()
 })
 
 </script>
