@@ -1,0 +1,58 @@
+<template>
+  <div>
+    <q-tabs
+      v-model='tab'
+      indicator-color='transparent'
+      align='left'
+    >
+      <q-tab :name='Tab.Tokens' :label='Tab.Tokens' />
+      <q-tab :name='Tab.Pools' :label='Tab.Pools' />
+      <q-tab :name='Tab.Transactions' :label='Tab.Transactions' />
+    </q-tabs>
+    <q-tab-panels
+      v-model='tab'
+      animated
+      swipeable
+      transition-prev='jump-left'
+      transition-next='jump-left'
+    >
+      <q-tab-panel :name='Tab.Tokens'>
+        <tokens-list-view />
+      </q-tab-panel>
+      <q-tab-panel :name='Tab.Pools'>
+        <pools-list-view />
+      </q-tab-panel>
+      <q-tab-panel :name='Tab.Transactions'>
+        <transactions-list-view />
+      </q-tab-panel>
+    </q-tab-panels>
+  </div>
+</template>
+
+<script setup lang='ts'>
+import { onMounted, ref } from 'vue'
+import { ams } from 'src/stores/export'
+
+import TokensListView from './TokensListView.vue'
+import PoolsListView from './PoolsListView.vue'
+import TransactionsListView from './TransactionsListView.vue'
+
+enum Tab {
+  Tokens = 'Tokens',
+  Pools = 'Pools',
+  Transactions = 'Transactions'
+}
+
+const tab = ref(Tab.Tokens)
+
+onMounted(() => {
+  ams.Ams.getApplications()
+})
+
+</script>
+
+<style scoped lang='sass'>
+::v-deep(.q-tab__label)
+  font-size: 18px
+
+</style>

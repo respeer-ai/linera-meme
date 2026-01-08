@@ -8,19 +8,10 @@
         <search-view />
       </div>
       <div class='q-mt-lg'>
-        <trade-view />
+        <protocol-info-view />
       </div>
-      <div class='q-mt-xl'>
-        <trending-view />
-      </div>
-      <div class='q-mt-xl'>
-        <liquidity-pools-view />
-      </div>
-      <div class='q-mt-xl'>
-        <leaderboard-view />
-      </div>
-      <div class='q-mt-xl'>
-        <blobs-view />
+      <div class='q-mt-lg'>
+        <tokens-panel-view />
       </div>
     </div>
   </q-page>
@@ -31,12 +22,9 @@ import { computed } from 'vue'
 import { user } from 'src/stores/export'
 
 import WalletTipView from 'src/components/wallet/WalletTipView.vue'
-import TradeView from 'src/components/trade/TradeView.vue'
-import TrendingView from 'src/components/trending/TrendingView.vue'
-import LiquidityPoolsView from 'src/components/pools/LiquidityPoolsView.vue'
-import LeaderboardView from 'src/components/leaderboard/LeaderboardView.vue'
 import SearchView from 'src/components/search/SearchView.vue'
-import BlobsView from 'src/components/blob/BlobsView.vue'
+import ProtocolInfoView from 'src/components/protocol/ProtocolInfoView.vue'
+import TokensPanelView from 'src/components/tokens/TokensPanelView.vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
 

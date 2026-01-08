@@ -5,7 +5,7 @@
       <div class='q-ml-sm font-size-18 text-dark-secondary'>{{ label }}</div>
       <q-space />
       <div class='narrow-btn'>
-        <q-btn flat dense rounded class='text-primary'>View All</q-btn>
+        <q-btn flat dense rounded class='text-primary' @click='onViewAllClick'>View All</q-btn>
       </div>
     </div>
     <div class='q-mt-md'>
@@ -16,6 +16,7 @@
 
 <script setup lang='ts'>
 import { toRef } from 'vue'
+import { useRouter } from 'vue-router'
 import { BulletinItem } from './BulletinItem'
 
 import BulletinListItemView from './BulletinListItemView.vue'
@@ -29,5 +30,11 @@ const props = defineProps<Props>()
 const icon = toRef(props, 'icon')
 const label = toRef(props, 'label')
 const data = toRef(props, 'data')
+
+const router = useRouter()
+
+const onViewAllClick = () => {
+  void router.push({ path: '/tokens' })
+}
 
 </script>
