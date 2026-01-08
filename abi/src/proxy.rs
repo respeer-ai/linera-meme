@@ -85,6 +85,8 @@ pub enum ProxyOperation {
     ApproveBanOperator {
         owner: Account,
     },
+
+    GetMinerWithAuthenticatedSigner,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -151,6 +153,7 @@ pub enum ProxyMessage {
 pub enum ProxyResponse {
     #[default]
     Ok,
+    Miner(Miner),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

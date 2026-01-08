@@ -26,6 +26,7 @@ use operation::{
     approve_remove_genesis_miner::ApproveRemoveGenesisMinerHandler as OperationApproveRemoveGenesisMinerHandler,
     create_meme::CreateMemeHandler as OperationCreateMemeHandler,
     deregister_miner::DeregisterMinerHandler as OperationDeregisterMinerHandler,
+    get_miner_with_authenticated_signer::GetMinerWithAuthenticatedSignerHandler as OperationGetMinerWithAuthenticatedSignerHandler,
     propose_add_genesis_miner::ProposeAddGenesisMinerHandler as OperationProposeAddGenesisMinerHandler,
     propose_add_operator::ProposeAddOperatorHandler as OperationProposeAddOperatorHandler,
     propose_ban_operator::ProposeBanOperatorHandler as OperationProposeBanOperatorHandler,
@@ -81,6 +82,9 @@ impl HandlerFactory {
             ProxyOperation::ApproveBanOperator { .. } => {
                 Box::new(OperationApproveBanOperatorHandler::new(runtime, state, op))
             }
+            ProxyOperation::GetMinerWithAuthenticatedSigner => Box::new(
+                OperationGetMinerWithAuthenticatedSignerHandler::new(runtime, state, op),
+            ),
         }
     }
 

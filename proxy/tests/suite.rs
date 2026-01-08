@@ -227,6 +227,9 @@ impl TestSuite {
                             }),
                             virtual_initial_liquidity,
                             swap_creator_chain_id: self.swap_chain.id(),
+
+                            enable_mining: false,
+                            mining_supply: None,
                         },
                     },
                 );
