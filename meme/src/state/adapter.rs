@@ -217,4 +217,8 @@ impl StateInterface for StateAdapter {
     fn update_mining_info(&mut self, info: MiningInfo) {
         self.state.borrow_mut().update_mining_info(info);
     }
+
+    fn mining_reward(&mut self, owner: Account) -> Result<(), StateError> {
+        self.state.borrow_mut().mining_reward(owner)
+    }
 }

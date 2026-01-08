@@ -87,6 +87,9 @@ pub enum HandlerError {
 
     #[error("Not enabled")]
     NotEnabled,
+
+    #[error("Invalid application response")]
+    InvalidApplicationResponse,
 }
 
 #[async_trait(?Send)]

@@ -116,4 +116,6 @@ pub trait StateInterface {
     fn mining_info(&self) -> MiningInfo;
 
     fn update_mining_info(&mut self, info: MiningInfo);
+
+    fn mining_reward(&mut self, owner: Account) -> Result<(), Self::Error>;
 }

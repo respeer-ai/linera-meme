@@ -349,4 +349,9 @@ impl StateInterface for MemeState {
     fn update_mining_info(&mut self, info: MiningInfo) {
         self.mining_info.set(Some(info));
     }
+
+    fn mining_reward(&mut self, owner: Account) -> Result<(), StateError> {
+        // TODO: reward owner for mining block
+        Ok(())
+    }
 }
