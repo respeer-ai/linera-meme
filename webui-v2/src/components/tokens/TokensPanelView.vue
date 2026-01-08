@@ -12,6 +12,8 @@
       <div class='narrow-btn q-mr-md'>
         <q-btn dense no-caps rounded flat class='text-white bg-primary'>
           Join mining
+        </q-btn>
+        <q-icon name='help' size='20px' class='q-ml-xs cursor-pointer'>
           <q-tooltip
             class='font-size-14 bg-grey-10'
             anchor='bottom end'
@@ -19,7 +21,7 @@
           >
             Join mining of new created tokens.
           </q-tooltip>
-        </q-btn>
+        </q-icon>
       </div>
     </q-tabs>
     <q-tab-panels
