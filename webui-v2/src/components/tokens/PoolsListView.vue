@@ -24,23 +24,20 @@
         <q-tr :props='props' class='cursor-pointer'>
           <td :props='props' class='text-left'>{{ props.rowIndex + 1 }}</td>
           <td :props='props' class='text-left row items-center'>
-            <q-avatar size='24px'>
-              <q-img :src='ams.Ams.applicationLogo(props.row)' />
-            </q-avatar>
-            <div class='q-ml-sm'>
-              {{ props.row.applicationName }}
-            </div>
-            <div class='q-ml-sm text-neutral'>
-              {{ props.row.meme?.ticker }}
-            </div>
+            <pool-logo-view
+              :token0-application='(ams.Ams.application(props.row.token0) as ams.Application)'
+              :token1-application='(ams.Ams.application(props.row.token1) as ams.Application)'
+              :show-rank='false'
+              avatar-size='36px'
+              :show-chips='false'
+              pool-name-font-size='14px'
+            />
           </td>
-          <td :props='props' class='text-center'>0 TLINERA</td>
+          <td :props='props' class='text-center'>0.15%</td>
           <td :props='props' class='text-center'>
-            <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            1.23%
+            $ 10.23B
           </td>
           <td :props='props' class='text-center'>
-            <q-icon name='arrow_drop_down' color='red-4' size='16px' />
             2.34%
           </td>
           <td :props='props' class='text-center'>$10.23B</td>
@@ -48,7 +45,7 @@
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
             <div class='narrow-btn'>
-              <q-btn dense no-caps rounded flat class='text-secondary' disable>
+              <q-btn dense no-caps rounded flat class='text-secondary'>
                 Add liquidity
               </q-btn>
             </div>
@@ -75,6 +72,8 @@
 import { ams, meme, swap } from 'src/stores/export'
 import { computed, ref } from 'vue'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
+
+import PoolLogoView from '../pools/PoolLogoView.vue'
 
 const tokens = computed(() => ams.Ams.applications().map((el) => {
   return {

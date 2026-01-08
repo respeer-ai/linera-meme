@@ -84,6 +84,7 @@ const tokens = computed(() => ams.Ams.applications().map((el) => {
 }) || [])
 
 const pools = computed(() => swap.Swap.pools())
+// const transactions = computed(() => )
 
 const columns = computed(() => [
   {
