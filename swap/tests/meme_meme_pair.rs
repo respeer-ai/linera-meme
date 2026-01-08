@@ -185,6 +185,9 @@ impl TestSuite {
             }),
             virtual_initial_liquidity,
             swap_creator_chain_id: self.swap_chain.id(),
+
+            enable_mining: false,
+            mining_supply: None,
         };
 
         let meme_bytecode_id = self.meme_chain_0.publish_bytecode_files_in("../meme").await;
@@ -207,6 +210,9 @@ impl TestSuite {
             }),
             virtual_initial_liquidity,
             swap_creator_chain_id: self.swap_chain.id(),
+
+            enable_mining: false,
+            mining_supply: None,
         };
         self.meme_application_id_1 = Some(
             self.meme_chain_1
