@@ -19,6 +19,7 @@ resolver = "2"
 [workspace.dependencies]
 async-graphql = { version = "=7.0.17", default-features = false }
 async-graphql-value = { version = "=7.0.17", default-features = false }
+async-graphql-derive = { version = "=7.0.17", default-features = false }
 async-trait = "0.1.77"
 # We have to use respeer fork for application creator chain id in service
 linera-sdk = { version = "0.15.8" }
