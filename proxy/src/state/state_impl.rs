@@ -54,6 +54,7 @@ impl StateInterface for ProxyState {
     }
 
     async fn add_genesis_miner(&mut self, owner: Account) -> Result<(), StateError> {
+        // TODO: if AccountOwner exists, reject
         assert!(
             !self.genesis_miners.contains_key(&owner).await?,
             "Already exists",
@@ -103,7 +104,14 @@ impl StateInterface for ProxyState {
     }
 
     async fn miners(&self) -> Result<Vec<Account>, StateError> {
-        Ok(self.miners.indices().await?)
+        Ok(self
+            .miners
+            .indices()
+            .await?
+            .iter()
+            .chain(self.genesis_miners().await?.iter())
+            .cloned()
+            .collect())
     }
 
     async fn miner_owners(&self) -> Result<Vec<AccountOwner>, StateError> {
@@ -247,5 +255,18 @@ impl StateInterface for ProxyState {
 
     fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
         Ok(self.miners.remove(&owner)?)
+    }
+
+    async fn get_miner_with_account_owner(&self, owner: AccountOwner) -> Result<Miner, StateError> {
+        match self
+            .miners()
+            .await?
+            .iter()
+            .filter(|miner| miner.owner == owner)
+            .next()
+        {
+            Some(owner) => Ok(Miner { owner: *owner }),
+            _ => Err(StateError::NotExists),
+        }
     }
 }

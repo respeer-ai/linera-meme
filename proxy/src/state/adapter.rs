@@ -2,7 +2,10 @@ use crate::{
     interfaces::state::StateInterface,
     state::{errors::StateError, ProxyState},
 };
-use abi::{approval::Approval, proxy::InstantiationArgument};
+use abi::{
+    approval::Approval,
+    proxy::{InstantiationArgument, Miner},
+};
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{
     Account, AccountOwner, ApplicationId, ChainId, ModuleId, Timestamp,
@@ -150,5 +153,12 @@ impl StateInterface for StateAdapter {
 
     fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
         self.state.borrow_mut().deregister_miner(owner)
+    }
+
+    async fn get_miner_with_account_owner(&self, owner: AccountOwner) -> Result<Miner, StateError> {
+        self.state
+            .borrow_mut()
+            .get_miner_with_account_owner(owner)
+            .await
     }
 }

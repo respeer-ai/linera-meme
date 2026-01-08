@@ -1,4 +1,7 @@
-use abi::{approval::Approval, proxy::InstantiationArgument};
+use abi::{
+    approval::Approval,
+    proxy::{InstantiationArgument, Miner},
+};
 use async_trait::async_trait;
 use base::handler::HandlerError;
 use linera_sdk::linera_base_types::{
@@ -78,4 +81,7 @@ pub trait StateInterface {
     async fn register_miner(&mut self, owner: Account) -> Result<(), Self::Error>;
 
     fn deregister_miner(&mut self, owner: Account) -> Result<(), Self::Error>;
+
+    async fn get_miner_with_account_owner(&self, owner: AccountOwner)
+        -> Result<Miner, Self::Error>;
 }

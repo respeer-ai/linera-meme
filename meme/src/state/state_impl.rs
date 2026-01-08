@@ -6,15 +6,28 @@ use crate::{
     state::{errors::StateError, MemeState},
 };
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme},
+    meme::{InstantiationArgument, Liquidity, Meme, MiningInfo},
     store_type::StoreType,
 };
 use async_trait::async_trait;
 use linera_sdk::{
     ensure,
-    linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash},
+    linera_base_types::{
+        Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash, Timestamp,
+    },
 };
 use std::collections::HashMap;
+
+impl MemeState {
+    fn initialize_mining_info(&mut self, mining_supply: Amount, now: Timestamp) {
+        self.mining_info
+            .set(Some(MiningInfo::new(mining_supply, now)));
+    }
+
+    fn mining_reward_amount(&self) -> Amount {
+        self.mining_info.get().as_ref().unwrap().reward_amount
+    }
+}
 
 #[async_trait(?Send)]
 impl StateInterface for MemeState {
@@ -22,8 +35,10 @@ impl StateInterface for MemeState {
 
     async fn initialize_liquidity(
         &mut self,
-        liquidity: Liquidity,
+        mut liquidity: Liquidity,
         swap_creator_chain_id: ChainId,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), StateError> {
         assert!(
             liquidity.fungible_amount >= Amount::ZERO,
@@ -37,10 +52,31 @@ impl StateInterface for MemeState {
         let holder_balance = self
             .balance_of(self.holder.get().as_ref().unwrap().clone())
             .await;
+
+        let mining_supply = if enable_mining {
+            mining_supply.unwrap_or(holder_balance)
+        } else {
+            Amount::ZERO
+        };
+
         assert!(
             holder_balance >= liquidity.fungible_amount,
             "Invalid initial supply"
         );
+        assert!(holder_balance >= mining_supply, "Invalid mining supply");
+
+        // TODO: liquidity should <= total_supply - mining_supply, if not, adjust it
+        let max_liquidity_amount = holder_balance.saturating_sub(mining_supply);
+
+        if enable_mining {
+            if liquidity.fungible_amount > max_liquidity_amount {
+                liquidity.fungible_amount = holder_balance.saturating_sub(mining_supply)
+            }
+        }
+
+        if liquidity.fungible_amount <= Amount::ZERO {
+            return Ok(());
+        }
 
         self.initial_liquidity.set(Some(liquidity.clone()));
 
@@ -62,6 +98,9 @@ impl StateInterface for MemeState {
         owner: Account,
         application: Account,
         mut argument: InstantiationArgument,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+        now: Timestamp,
     ) -> Result<(), StateError> {
         assert!(
             argument.meme.initial_supply > Amount::ZERO,
@@ -83,6 +122,10 @@ impl StateInterface for MemeState {
             .set(argument.blob_gateway_application_id);
         self.ams_application_id.set(argument.ams_application_id);
         self.proxy_application_id.set(argument.proxy_application_id);
+
+        if enable_mining {
+            self.initialize_mining_info(mining_supply.unwrap_or(argument.meme.total_supply), now);
+        }
 
         Ok(())
     }
@@ -312,5 +355,37 @@ impl StateInterface for MemeState {
 
     fn meme(&self) -> Meme {
         self.meme.get().as_ref().unwrap().clone()
+    }
+
+    fn mining_target(&self) -> CryptoHash {
+        self.mining_info.get().as_ref().unwrap().target
+    }
+
+    fn previous_nonce(&self) -> CryptoHash {
+        self.mining_info.get().as_ref().unwrap().previous_nonce
+    }
+
+    fn mining_height(&self) -> BlockHeight {
+        self.mining_info.get().as_ref().unwrap().mining_height
+    }
+
+    fn mining_info(&self) -> MiningInfo {
+        self.mining_info.get().as_ref().unwrap().clone()
+    }
+
+    fn update_mining_info(&mut self, info: MiningInfo) {
+        self.mining_info.set(Some(info));
+    }
+
+    async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {
+        let reward_amount = self.mining_reward_amount();
+        self.mint(owner, reward_amount).await?;
+
+        // Update mining info
+        let mut mining_info = self.mining_info();
+        mining_info.try_half(now);
+        self.update_mining_info(mining_info);
+
+        Ok(())
     }
 }

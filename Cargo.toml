@@ -18,6 +18,9 @@ resolver = "2"
 
 [workspace.dependencies]
 async-graphql = { version = "=7.0.17", default-features = false }
+async-graphql-value = { version = "=7.0.17", default-features = false }
+async-graphql-derive = { version = "=7.0.17", default-features = false }
+async-graphql-parser = { version = "=7.0.17", default-features = false }
 async-trait = "0.1.77"
 # We have to use respeer fork for application creator chain id in service
 linera-sdk = { version = "0.15.8" }
@@ -40,6 +43,8 @@ bcs = "0.1.3"
 syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
+num-bigint = "0.4"
+num-traits = "0.2"
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }
@@ -62,4 +67,4 @@ strip = 'debuginfo'
 ## In the unit test we need to get the block for the created chain ID
 [patch.crates-io.linera-sdk]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8ef28c97"
+rev = "e9fc4bd3b6"

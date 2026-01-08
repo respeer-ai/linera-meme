@@ -6,12 +6,12 @@ use crate::{
     state::{errors::StateError, MemeState},
 };
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme},
+    meme::{InstantiationArgument, Liquidity, Meme, MiningInfo},
     store_type::StoreType,
 };
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash,
+    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash, Timestamp,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -33,10 +33,17 @@ impl StateInterface for StateAdapter {
         &mut self,
         liquidity: Liquidity,
         swap_creator_chain_id: ChainId,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), StateError> {
         self.state
             .borrow_mut()
-            .initialize_liquidity(liquidity, swap_creator_chain_id)
+            .initialize_liquidity(
+                liquidity,
+                swap_creator_chain_id,
+                enable_mining,
+                mining_supply,
+            )
             .await
     }
 
@@ -45,10 +52,18 @@ impl StateInterface for StateAdapter {
         owner: Account,
         application: Account,
         argument: InstantiationArgument,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+        now: Timestamp,
     ) -> Result<(), StateError> {
-        self.state
-            .borrow_mut()
-            .instantiate(owner, application, argument)
+        self.state.borrow_mut().instantiate(
+            owner,
+            application,
+            argument,
+            enable_mining,
+            mining_supply,
+            now,
+        )
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), StateError> {
@@ -188,5 +203,29 @@ impl StateInterface for StateAdapter {
 
     fn meme(&self) -> Meme {
         self.state.borrow().meme()
+    }
+
+    fn mining_target(&self) -> CryptoHash {
+        self.state.borrow().mining_target()
+    }
+
+    fn previous_nonce(&self) -> CryptoHash {
+        self.state.borrow().previous_nonce()
+    }
+
+    fn mining_height(&self) -> BlockHeight {
+        self.state.borrow().mining_height()
+    }
+
+    fn mining_info(&self) -> MiningInfo {
+        self.state.borrow().mining_info()
+    }
+
+    fn update_mining_info(&mut self, info: MiningInfo) {
+        self.state.borrow_mut().update_mining_info(info);
+    }
+
+    async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {
+        self.state.borrow_mut().mining_reward(owner, now).await
     }
 }

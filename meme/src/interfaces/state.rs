@@ -1,11 +1,11 @@
 use abi::{
-    meme::{InstantiationArgument, Liquidity, Meme},
+    meme::{InstantiationArgument, Liquidity, Meme, MiningInfo},
     store_type::StoreType,
 };
 use async_trait::async_trait;
 use base::handler::HandlerError;
 use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash,
+    Account, AccountOwner, Amount, ApplicationId, BlockHeight, ChainId, CryptoHash, Timestamp,
 };
 
 #[async_trait(?Send)]
@@ -16,6 +16,8 @@ pub trait StateInterface {
         &mut self,
         liquidity: Liquidity,
         swap_creator_chain_id: ChainId,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
     ) -> Result<(), Self::Error>;
 
     fn instantiate(
@@ -23,6 +25,9 @@ pub trait StateInterface {
         owner: Account,
         application: Account,
         argument: InstantiationArgument,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+        now: Timestamp,
     ) -> Result<(), Self::Error>;
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error>;
@@ -103,4 +108,16 @@ pub trait StateInterface {
     fn github(&self) -> Option<String>;
 
     fn meme(&self) -> Meme;
+
+    fn mining_target(&self) -> CryptoHash;
+
+    fn previous_nonce(&self) -> CryptoHash;
+
+    fn mining_height(&self) -> BlockHeight;
+
+    fn mining_info(&self) -> MiningInfo;
+
+    fn update_mining_info(&mut self, info: MiningInfo);
+
+    async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), Self::Error>;
 }

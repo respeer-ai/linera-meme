@@ -1,25 +1,42 @@
-use crate::interfaces::state::StateInterface;
-use abi::meme::{MemeMessage, MemeOperation, MemeResponse};
+use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
+use abi::{
+    meme::{MemeMessage, MemeOperation, MemeResponse, MiningBase},
+    proxy::{Miner, ProxyAbi, ProxyOperation, ProxyResponse},
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::CryptoHash;
+use num_bigint::BigUint;
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, cmp::Ordering, rc::Rc};
 
 pub struct MineHandler<
-    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
+    R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 > {
-    _runtime: Rc<RefCell<R>>,
-    _state: S,
+    runtime: Rc<RefCell<R>>,
+    state: S,
 
-    _nonce: CryptoHash,
+    nonce: CryptoHash,
 }
 
-impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    MineHandler<R, S>
+fn hash_to_u256(hash: CryptoHash) -> BigUint {
+    BigUint::from_bytes_be(&hash.as_bytes().0)
+}
+
+fn hash_cmp(hash1: CryptoHash, hash2: CryptoHash) -> Ordering {
+    let hash1_bigint = hash_to_u256(hash1);
+    let hash2_bigint = hash_to_u256(hash2);
+
+    hash1_bigint.cmp(&hash2_bigint)
+}
+
+impl<
+        R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+        S: StateInterface,
+    > MineHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
         let MemeOperation::Mine { nonce } = op else {
@@ -27,23 +44,96 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         };
 
         Self {
-            _state: state,
-            _runtime: runtime,
+            state,
+            runtime,
 
-            _nonce: *nonce,
+            nonce: *nonce,
         }
+    }
+
+    fn verify(&mut self) -> Result<(), HandlerError> {
+        let height = self.runtime.borrow_mut().block_height();
+        let mined_height = self.state.mining_height();
+
+        assert!(height > mined_height, "Stale block height");
+
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let signer = self.runtime.borrow_mut().authenticated_signer().unwrap();
+        let previous_nonce = self.state.previous_nonce();
+
+        let mining_base = MiningBase {
+            height,
+            nonce: self.nonce,
+            chain_id,
+            signer,
+            previous_nonce,
+        };
+
+        let hash = CryptoHash::new(&mining_base);
+        let mining_target = self.state.mining_target();
+
+        match hash_cmp(hash, mining_target) {
+            Ordering::Less => {}
+            Ordering::Equal => {}
+            Ordering::Greater => return Err(HandlerError::ProcessError("Invalid nonce".into())),
+        }
+
+        let mut mining_info = self.state.mining_info();
+
+        mining_info.mining_height = height;
+        mining_info.previous_nonce = self.nonce;
+
+        self.state.update_mining_info(mining_info);
+
+        Ok(())
     }
 }
 
 #[async_trait(?Send)]
-impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<MemeMessage, MemeResponse> for MineHandler<R, S>
+impl<
+        R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
+        S: StateInterface,
+    > Handler<MemeMessage, MemeResponse> for MineHandler<R, S>
 {
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
         // TODO: check first operation of the block must be mine
+        // TODO: calculate reward according to operations and messages
         // TODO: distribute reward to block proposer
-        Err(HandlerError::NotImplemented)
+        // TODO: adjust target according to block time duration
+
+        // TODO: if the height is already mine, fail it
+
+        if !self.runtime.borrow_mut().enable_mining() {
+            return Err(HandlerError::NotEnabled);
+        }
+
+        self.verify()?;
+
+        let call = ProxyOperation::GetMinerWithAuthenticatedSigner;
+        let proxy_application = self
+            .state
+            .proxy_application_id()
+            .expect("Invalid proxy application")
+            .with_abi::<ProxyAbi>();
+
+        let ProxyResponse::Miner(miner) = self
+            .runtime
+            .borrow_mut()
+            .call_application(proxy_application, &call)
+        else {
+            return Err(HandlerError::InvalidApplicationResponse);
+        };
+
+        let Miner { owner } = miner;
+        let now = self.runtime.borrow_mut().system_time();
+
+        self.state
+            .mining_reward(owner, now)
+            .await
+            .map_err(Into::into)?;
+
+        Ok(None)
     }
 }

@@ -81,7 +81,27 @@ impl QueryRoot {
     }
 
     async fn miners(&self) -> Vec<Account> {
-        self.state.miners.indices().await.expect("Failed: miners")
+        let mut genesis_miners = Vec::new();
+        self.state
+            .genesis_miners
+            .for_each_index_value(|owner, miner| {
+                let approval = miner.into_owned().approval;
+                if approval.approved() {
+                    genesis_miners.push(owner);
+                }
+                Ok(())
+            })
+            .await
+            .expect("Failed: genesis miners");
+        self.state
+            .miners
+            .indices()
+            .await
+            .expect("Failed: miners")
+            .iter()
+            .chain(genesis_miners.iter())
+            .cloned()
+            .collect()
     }
 
     async fn meme_chains(&self) -> Vec<Chain> {
