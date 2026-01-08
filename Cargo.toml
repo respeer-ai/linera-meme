@@ -66,4 +66,4 @@ strip = 'debuginfo'
 ## In the unit test we need to get the block for the created chain ID
 [patch.crates-io.linera-sdk]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8ef28c97"
+rev = "e9fc4bd3b6"
