@@ -4,6 +4,7 @@
       :columns='(columns as never)'
       :rows='tokens'
       row-key='id'
+      separator='none'
     >
       <template #header='props'>
         <q-tr class='text-neutral bg-dark-secondary' :props='props'>
@@ -20,7 +21,7 @@
       </template>
 
       <template #body='props'>
-        <q-tr :props='props'>
+        <q-tr :props='props' class='cursor-pointer'>
           <td :props='props' class='text-left'>{{ props.rowIndex + 1 }}</td>
           <td :props='props' class='text-left row items-center'>
             <q-avatar size='24px'>
