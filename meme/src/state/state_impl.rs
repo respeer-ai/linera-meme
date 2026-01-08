@@ -60,9 +60,10 @@ impl StateInterface for MemeState {
         };
 
         assert!(
-            holder_balance >= liquidity.fungible_amount.saturating_add(mining_supply),
+            holder_balance >= liquidity.fungible_amount,
             "Invalid initial supply"
         );
+        assert!(holder_balance >= mining_supply, "Invalid mining supply");
 
         // TODO: liquidity should <= total_supply - mining_supply, if not, adjust it
         let max_liquidity_amount = holder_balance.saturating_sub(mining_supply);

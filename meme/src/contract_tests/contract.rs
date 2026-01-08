@@ -30,8 +30,64 @@ use std::{cell::RefCell, rc::Rc};
 
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Not enabled")]
-async fn operation_mine() {
-    let mut meme = create_and_instantiate_meme().await;
+async fn operation_mine_not_enable_mining() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::new(&TestString::new("aaaa")),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid nonce")]
+// TODO: need a gold pattern to remove should panic
+async fn operation_mine_enable_mining_supply_none_invalid_nonce() {
+    let mut meme = create_and_instantiate_meme(true, None).await;
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::new(&TestString::new("aaaa")),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid nonce")]
+// TODO: need a gold pattern to remove should panic
+async fn operation_mine_enable_mining_supply_none() {
+    let mut meme = create_and_instantiate_meme(true, None).await;
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::new(&TestString::new("aaaa")),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid nonce")]
+// TODO: need a gold pattern to remove should panic
+async fn operation_mine_enable_mining_supply_10000000() {
+    let mut meme = create_and_instantiate_meme(true, Some(Amount::from_tokens(10000000))).await;
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::new(&TestString::new("aaaa")),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid nonce")]
+// TODO: need a gold pattern to remove should panic
+async fn operation_mine_enable_mining_supply_13000000() {
+    let mut meme = create_and_instantiate_meme(true, Some(Amount::from_tokens(13000000))).await;
 
     let _ = meme
         .execute_operation(MemeOperation::Mine {
@@ -43,7 +99,7 @@ async fn operation_mine() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn user_chain_operation() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let to = Account {
         chain_id: meme.runtime.borrow_mut().chain_id(),
         owner: AccountOwner::from_str(
@@ -65,7 +121,7 @@ async fn user_chain_operation() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_transfer() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
 
     let from = runtime_context.authenticated_account();
@@ -124,7 +180,7 @@ async fn message_transfer() {
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Insufficient balance")]
 async fn message_transfer_insufficient_funds() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
 
     let from = runtime_context.authenticated_account();
@@ -187,7 +243,7 @@ async fn message_transfer_insufficient_funds() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_approve_owner_success() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
 
     let from = runtime_context.authenticated_account();
@@ -349,7 +405,7 @@ async fn message_approve_owner_success() {
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Insufficient balance")]
 async fn message_approve_insufficient_balance() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
 
     let from = runtime_context.authenticated_account();
@@ -416,7 +472,7 @@ async fn message_approve_insufficient_balance() {
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Insufficient balance")]
 async fn message_approve_meme_owner_self_insufficient_balance() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
 
     let from = runtime_context.authenticated_account();
@@ -464,7 +520,7 @@ async fn message_approve_meme_owner_self_insufficient_balance() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_transfer_ownership() {
-    let mut meme = create_and_instantiate_meme().await;
+    let mut meme = create_and_instantiate_meme(false, None).await;
     let mut runtime_context = ContractRuntimeAdapter::new(meme.runtime.clone());
 
     let owner = runtime_context.authenticated_account();
@@ -498,7 +554,10 @@ fn mock_application_call(
     .unwrap()
 }
 
-async fn create_and_instantiate_meme() -> MemeContract {
+async fn create_and_instantiate_meme(
+    enable_mining: bool,
+    mining_supply: Option<Amount>,
+) -> MemeContract {
     let operator = AccountOwner::from_str(
         "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
     )
@@ -529,7 +588,7 @@ async fn create_and_instantiate_meme() -> MemeContract {
     };
 
     let initial_supply = Amount::from_tokens(21000000);
-    let swap_allowance = Amount::from_tokens(10000000);
+    let mut swap_allowance = Amount::from_tokens(10000000);
     let parameters = MemeParameters {
         creator: owner,
         initial_liquidity: Some(Liquidity {
@@ -539,8 +598,8 @@ async fn create_and_instantiate_meme() -> MemeContract {
         virtual_initial_liquidity: true,
         swap_creator_chain_id: chain_id,
 
-        enable_mining: false,
-        mining_supply: None,
+        enable_mining,
+        mining_supply,
     };
     let runtime = ContractRuntime::new()
         .with_can_change_application_permissions(true)
@@ -598,11 +657,41 @@ async fn create_and_instantiate_meme() -> MemeContract {
     };
 
     contract.instantiate(instantiation_argument.clone()).await;
-    let application_balance = initial_supply
-        .try_sub(swap_allowance)
+    let mut application_balance = if enable_mining && mining_supply.is_none() {
+        initial_supply
+            .try_sub(contract.state.borrow().initial_owner_balance())
+            .unwrap()
+    } else {
+        initial_supply
+            .try_sub(swap_allowance)
+            .unwrap()
+            .try_sub(contract.state.borrow().initial_owner_balance())
+            .unwrap()
+    };
+    let mining_supply = if enable_mining {
+        mining_supply.unwrap_or(
+            initial_supply
+                .try_sub(contract.state.borrow().initial_owner_balance())
+                .unwrap(),
+        )
+    } else {
+        Amount::ZERO
+    };
+
+    if mining_supply
+        .try_add(swap_allowance)
         .unwrap()
-        .try_sub(contract.state.borrow().initial_owner_balance())
-        .unwrap();
+        .try_add(contract.state.borrow().initial_owner_balance())
+        .unwrap()
+        > initial_supply
+    {
+        swap_allowance = initial_supply
+            .try_sub(mining_supply)
+            .unwrap()
+            .try_sub(contract.state.borrow().initial_owner_balance())
+            .unwrap();
+        application_balance = mining_supply;
+    }
 
     assert_eq!(
         *contract.state.borrow().meme.get().as_ref().unwrap(),
@@ -630,41 +719,45 @@ async fn create_and_instantiate_meme() -> MemeContract {
             .unwrap(),
         application_balance,
     );
-    assert_eq!(
-        contract
-            .state
-            .borrow()
-            .allowances
-            .contains_key(&application)
-            .await
-            .unwrap(),
-        true
-    );
-    assert_eq!(
-        contract
-            .state
-            .borrow()
-            .allowances
-            .get(&application)
-            .await
-            .unwrap()
-            .unwrap()
-            .contains_key(&swap_application),
-        true
-    );
-    assert_eq!(
-        *contract
-            .state
-            .borrow()
-            .allowances
-            .get(&application)
-            .await
-            .unwrap()
-            .unwrap()
-            .get(&swap_application)
-            .unwrap(),
-        swap_allowance
-    );
+    // If mining_supply is none, we don't need create liquidity pool
+    // TODO: process mining_supply + swap_allowance > balance
+    if swap_allowance > Amount::ZERO {
+        assert_eq!(
+            contract
+                .state
+                .borrow()
+                .allowances
+                .contains_key(&application)
+                .await
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            contract
+                .state
+                .borrow()
+                .allowances
+                .get(&application)
+                .await
+                .unwrap()
+                .unwrap()
+                .contains_key(&swap_application),
+            true
+        );
+        assert_eq!(
+            *contract
+                .state
+                .borrow()
+                .allowances
+                .get(&application)
+                .await
+                .unwrap()
+                .unwrap()
+                .get(&swap_application)
+                .unwrap(),
+            swap_allowance
+        );
+    }
 
     contract
 }
