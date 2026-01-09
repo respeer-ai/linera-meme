@@ -89,16 +89,14 @@ export const useKlineStore = defineStore('kline', {
       }
     },
     async getCombinedTransactionsInformation() {
-      const url = constants.formalizeSchema(
-        `${constants.KLINE_HTTP_URL}/transactions/information`,
-      )
+      const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/transactions/information`)
       try {
         const res = await axios.get(url)
         return res.data as TransactionsInformation
       } catch (e) {
         console.log('Failed get transactions information', e)
       }
-    }
+    },
   },
   getters: {
     latestTimestamp(): (key: Interval, token0: string, token1: string) => number {

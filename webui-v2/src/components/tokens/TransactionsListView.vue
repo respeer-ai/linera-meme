@@ -25,27 +25,27 @@
           <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at * 1000) }}</td>
           <td :props='props' class='text-left row items-center'>
             <div class='text-neutral q-mr-xs'>Swap</div>
-            {{ tokenTicker(transactionPool(props.row)?.token0) }}
-            <q-avatar class='q-mx-xs' size='20px'>
-              <q-img :src='tokenLogo(transactionPool(props.row)?.token0)' width='20px' height='20px' />
+            {{ tokenTicker(buyToken(props.row)) }}
+            <q-avatar class='q-mx-sm' size='20px'>
+              <q-img :src='tokenLogo(buyToken(props.row))' width='20px' height='20px' />
             </q-avatar>
-            <div class='text-neutral q-mx-xs'>for</div>
-            {{ tokenTicker(transactionPool(props.row)?.token1) }}
-            <q-avatar class='q-ml-xs' size='20px'>
-              <q-img :src='tokenLogo(transactionPool(props.row)?.token1)' width='20px' height='20px' />
+            <div class='text-neutral q-ml-xs q-mr-sm'>for</div>
+            {{ tokenTicker(sellToken(props.row)) }}
+            <q-avatar class='q-ml-sm' size='20px'>
+              <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
           <td :props='props' class='text-center'>0 TLINERA</td>
           <td :props='props' class='text-center'>
-            {{ Number(props.row.amount_0_in).toFixed(5) }}
+            {{ Number(buyAmount(props.row)).toFixed(5) }}
             <q-avatar class='q-ml-xs' size='20px'>
-              <q-img :src='tokenLogo(transactionPool(props.row)?.token0)' width='20px' height='20px' />
+              <q-img :src='tokenLogo(buyToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
           <td :props='props' class='text-center'>
-            {{ Number(props.row.amount_1_out).toFixed(5) }}
+            {{ Number(sellAmount(props.row)).toFixed(5) }}
             <q-avatar class='q-ml-xs' size='20px'>
-              <q-img :src='tokenLogo(transactionPool(props.row)?.token1)' width='20px' height='20px' />
+              <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
           <td :props='props' class='text-center'>{{ shortid.shortId(props.row.from_account, 12, 10) }}</td>
@@ -102,6 +102,24 @@ const tokenLogo = (token: string) => {
 
 const transactionPool = (_transaction: transaction.TransactionExt) => {
   return pools.value.find((el) => el.poolId === _transaction.pool_id)
+}
+
+const buyToken = (_transaction: transaction.TransactionExt) => {
+  const pool = transactionPool(_transaction)
+  return _transaction.direction === 'Buy' ? pool?.token1 : pool?.token0
+}
+
+const sellToken = (_transaction: transaction.TransactionExt) => {
+  const pool = transactionPool(_transaction)
+  return _transaction.direction === 'Buy' ? pool?.token0 : pool?.token1
+}
+
+const buyAmount = (_transaction: transaction.TransactionExt) => {
+  return _transaction.direction === 'Buy' ? _transaction.amount_1_in : _transaction.amount_0_in
+}
+
+const sellAmount = (_transaction: transaction.TransactionExt) => {
+  return _transaction.direction === 'Sell' ? _transaction.amount_1_out : _transaction.amount_0_out
 }
 
 const columns = computed(() => [

@@ -14,8 +14,8 @@ export class Kline {
   }
 
   static getTransactionsInformation = async (token0?: string, token1?: string) => {
-    return token0 && token1 ?
-      await kline.getTransactionsInformation(token0, token1) :
-      await kline.getCombinedTransactionsInformation()
+    return token0 && token1
+      ? await kline.getTransactionsInformation(token0, token1)
+      : await kline.getCombinedTransactionsInformation()
   }
 }
