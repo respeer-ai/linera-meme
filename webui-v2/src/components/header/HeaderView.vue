@@ -1,6 +1,6 @@
 <template> 
   <div class='row q-header-line'>
-    <logo-view />
+    <logo-view @click='onLogoClick' />
     <div v-if='false' class='q-ml-lg'>
       <tabs-view />
     </div>
@@ -28,6 +28,7 @@
 import { Dark } from 'quasar'
 import { computed } from 'vue'
 import { user } from 'src/stores/export'
+import { useRouter } from 'vue-router'
 
 import TabsView from './TabsView.vue'
 import NetworkView from './NetworkView.vue'
@@ -42,6 +43,12 @@ const walletType = computed(() => user.User.walletConnectedType())
 
 const onModeSwitchClick = () => {
   Dark.toggle()
+}
+
+const router = useRouter()
+
+const onLogoClick = () => {
+  void router.push({ path: '/' })
 }
 
 </script>

@@ -9,6 +9,7 @@
       :loading='loading'
       :virtual-scroll='true'
       hide-pagination
+      :rows-per-page-options="[pagination.rowsPerPage]"
     >
       <template #header='props'>
         <q-tr class='text-neutral bg-dark-secondary' :props='props'>
@@ -57,7 +58,7 @@
         <div class='full-width row items-center justify-center' style='line-height: 30px;'>
           <q-pagination
             v-model='pagination.page'
-            :max='pagination.rowsNumber'
+            :max='totalPages'
             :max-pages='6'
             boundary-links
             boundary-numbers
@@ -164,9 +165,10 @@ const columns = computed(() => [
 
 const pagination = ref({
   page: 1,
-  rowsPerPage: 10,
-  rowsNumber: 10
+  rowsPerPage: 20,
+  rowsNumber: 1000
 })
+const totalPages = computed(() => Math.ceil(pagination.value.rowsNumber / pagination.value.rowsPerPage))
 
 const loading = ref(false)
 
@@ -219,7 +221,7 @@ const getStoreTransactions = async () => {
   transactions.value = []
   if (loading.value) return
 
-  if (loadTransactions(undefined, undefined, 20)) {
+  if (loadTransactions(undefined, undefined, pagination.value.rowsPerPage)) {
     await getTransactionsInformation()
   }
 }
@@ -303,7 +305,7 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
   const { token0, token1, timestampBegin, timestampEnd } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) {
-    if (loadTransactions(timestampBegin, timestampEnd, 20)) {
+    if (loadTransactions(timestampBegin, timestampEnd, pagination.value.rowsPerPage)) {
       await getTransactionsInformation()
     }
     return
@@ -356,7 +358,7 @@ const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) =>
     return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
   }
 
-  transactions.value = payload.transactions.slice(0, 10)
+  transactions.value = payload.transactions.slice(0, pagination.value.rowsPerPage)
   loading.value = false
 }
 
@@ -366,7 +368,7 @@ const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: n
   const startAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1
   const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - loadInterval.value
 
-  loadTransactions(startAt, endAt, 20)
+  loadTransactions(startAt, endAt, pagination.value.rowsPerPage)
   pagination.value.page = requestProp.pagination.page
 }
 
