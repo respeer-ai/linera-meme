@@ -8,6 +8,7 @@
       @request='onPageRequest'
       :loading='loading'
       :virtual-scroll='true'
+      hide-pagination
     >
       <template #header='props'>
         <q-tr class='text-neutral bg-dark-secondary' :props='props'>
@@ -368,6 +369,10 @@ const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: n
   loadTransactions(startAt, endAt, 10)
   pagination.value.page = requestProp.pagination.page
 }
+
+watch(() => pagination.value.page, () => {
+  onPageRequest({ pagination: pagination.value })
+})
 
 onBeforeMount(() => {
   loading.value = false
