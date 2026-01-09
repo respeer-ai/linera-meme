@@ -379,9 +379,13 @@ export class KlineRunner {
       tokenReversed,
     } = payload
 
+    let _tokenReversed = tokenReversed
+
+    if (!token0 || !token1) _tokenReversed = false
+
     newTransactions.forEach((transaction) => {
       const index = originTransactions.findIndex(
-        (el) => el.transaction_id === transaction.transaction_id,
+        (el) => el.transaction_id === transaction.transaction_id && el.token_reversed === transaction.token_reversed
       )
       return index >= 0
         ? (originTransactions[index] = transaction)
@@ -389,9 +393,9 @@ export class KlineRunner {
     })
 
     const transactions = originTransactions.filter((el) =>
-      tokenReversed
-        ? el.token_reversed && el.token_reversed.toString() !== 'false'
-        : !el.token_reversed || el.token_reversed.toString() === 'false',
+      _tokenReversed
+        ? el.token_reversed == 1
+        : el.token_reversed == 0
     )
     const _transactions = transactions.sort((p1, p2) =>
       reverse ? p2.created_at - p1.created_at : p1.created_at - p2.created_at,

@@ -154,9 +154,9 @@ const loading = ref(false)
 const selectedToken0 = computed(() => token0.value as string)
 const selectedToken1 = computed(() => token1.value as string)
 const selectedPool = computed(() => swap.Swap.getPool(token0.value as string, token1.value as string))
-const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1)
+const tokenReversed = computed(() => (selectedToken0.value === selectedPool.value?.token1) && selectedToken0.value !== undefined && selectedToken1.value !== undefined)
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000))
-const loadInterval = ref(60 * 1000)
+const loadInterval = ref(600 * 1000)
 
 const transactions = ref([] as transaction.TransactionExt[])
 const latestTransactions = computed(() => kline.Kline.latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
@@ -206,11 +206,11 @@ const getStoreTransactions = async () => {
 }
 
 watch(selectedToken0, async () => {
-  await getStoreTransactions()
+  // await getStoreTransactions()
 })
 
 watch(selectedToken1, async () => {
-  await getStoreTransactions()
+  // await getStoreTransactions()
 })
 
 watch(selectedPool, async () => {
