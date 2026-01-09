@@ -7,6 +7,7 @@
       separator='none'
       @request='onPageRequest'
       :loading='loading'
+      :virtual-scroll='true'
     >
       <template #header='props'>
         <q-tr class='text-neutral bg-dark-secondary' :props='props'>
@@ -21,29 +22,33 @@
 
       <template #body='props'>
         <q-tr :props='props' class='cursor-pointer'>
-          <td :props='props' class='text-left'>{{ props.row.created_at }}</td>
+          <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at * 1000) }}</td>
           <td :props='props' class='text-left row items-center'>
-            Swap
-            {{ tokenTicker(transactionPool(props.row.pool_id)?.token0) }}
-            <q-avatar>
-              <q-img :src='tokenLogo(transactionPool(props.row.pool_id)?.token0)' />
+            <div class='text-neutral q-mr-xs'>Swap</div>
+            {{ tokenTicker(transactionPool(props.row)?.token0) }}
+            <q-avatar class='q-mx-xs' size='20px'>
+              <q-img :src='tokenLogo(transactionPool(props.row)?.token0)' width='20px' height='20px' />
             </q-avatar>
-            for
-            {{ tokenTicker(transactionPool(props.row.pool_id)?.token1) }}
-            <q-avatar>
-              <q-img :src='tokenLogo(transactionPool(props.row.pool_id)?.token1)' />
+            <div class='text-neutral q-mx-xs'>for</div>
+            {{ tokenTicker(transactionPool(props.row)?.token1) }}
+            <q-avatar class='q-ml-xs' size='20px'>
+              <q-img :src='tokenLogo(transactionPool(props.row)?.token1)' width='20px' height='20px' />
             </q-avatar>
           </td>
           <td :props='props' class='text-center'>0 TLINERA</td>
           <td :props='props' class='text-center'>
-            <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            {{ props.row.amount_0_in }}
+            {{ Number(props.row.amount_0_in).toFixed(5) }}
+            <q-avatar class='q-ml-xs' size='20px'>
+              <q-img :src='tokenLogo(transactionPool(props.row)?.token0)' width='20px' height='20px' />
+            </q-avatar>
           </td>
           <td :props='props' class='text-center'>
-            <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            {{ props.row.amount_1_in }}
+            {{ Number(props.row.amount_1_out).toFixed(5) }}
+            <q-avatar class='q-ml-xs' size='20px'>
+              <q-img :src='tokenLogo(transactionPool(props.row)?.token1)' width='20px' height='20px' />
+            </q-avatar>
           </td>
-          <td :props='props' class='text-center'>{{ props.row.from_account }}</td>
+          <td :props='props' class='text-center'>{{ shortid.shortId(props.row.from_account, 12, 10) }}</td>
         </q-tr>
       </template>
 
@@ -52,7 +57,10 @@
           <q-pagination
             v-model='pagination.page'
             :max='pagination.rowsNumber'
+            :max-pages='6'
             boundary-links
+            boundary-numbers
+            direction-links
             size='md'
             color='secondary'
           />
@@ -67,6 +75,8 @@ import { computed, onMounted, watch, onBeforeUnmount, ref, onBeforeMount, toRef 
 import { ams, meme, swap, transaction, kline } from 'src/stores/export'
 import { klineWorker } from 'src/worker'
 import { Token } from '../trade/Token'
+import { constants } from 'src/constant'
+import { shortid, timestamp } from 'src/utils'
 
 interface Props {
   token0?: string
@@ -80,12 +90,13 @@ const pools = computed(() => swap.Swap.pools())
 
 const tokenTicker = (token: string) => {
   const application = ams.Ams.application(token) as Token
-  application.meme = JSON.parse(application.spec) as meme.Meme
-  return application.meme.ticker
+  if (!application) return constants.LINERA_NATIVE_ID
+  return (JSON.parse(application?.spec || '{}') as meme.Meme).ticker || constants.LINERA_NATIVE_ID
 }
 
 const tokenLogo = (token: string) => {
   const application = ams.Ams.application(token) as Token
+  if (!application) return constants.LINERA_LOGO
   return ams.Ams.applicationLogo(application)
 }
 
@@ -145,6 +156,7 @@ const selectedToken1 = computed(() => token1.value as string)
 const selectedPool = computed(() => swap.Swap.getPool(token0.value as string, token1.value as string))
 const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1)
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000))
+const loadInterval = ref(60 * 1000)
 
 const transactions = ref([] as transaction.TransactionExt[])
 const latestTransactions = computed(() => kline.Kline.latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
@@ -260,7 +272,7 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
     reason: {
       reason: SortReason.FETCH,
       payload: {
-        startAt: startAt - 1 * 3600 * 1000,
+        startAt: startAt - loadInterval.value,
         endAt: startAt - 1
       }
     }
@@ -278,7 +290,7 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
     return
   }
 
-  const startAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1 * 3600 * 1000
+  const startAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - loadInterval.value
   const endAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1
 
   const reason = {
@@ -333,7 +345,7 @@ const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: n
   if (loading.value) return
 
   const startAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1
-  const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1 * 3600 * 1000
+  const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - loadInterval.value
 
   loadTransactions(startAt, endAt, 10)
   pagination.value.page = requestProp.pagination.page
@@ -347,6 +359,9 @@ onMounted(async () => {
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
+
+  ams.Ams.getApplications()
+  swap.Swap.getPools()
 
   await getStoreTransactions()
 })
