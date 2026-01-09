@@ -63,7 +63,7 @@ export interface LoadPointsPayload extends BasePayload {
   timestampEnd?: number
 }
 export interface LoadTransactionsPayload extends BasePayload {
-  tokenReversed: number
+  tokenReversed: boolean
   timestampBegin?: number
   timestampEnd?: number
   limit: number
@@ -97,7 +97,7 @@ export interface SortedPointsPayload extends BasePayload {
   reason: unknown
 }
 export interface SortTransactionsPayload extends BasePayload {
-  tokenReversed: number
+  tokenReversed: boolean
   originTransactions: TransactionExt[]
   newTransactions: TransactionExt[]
   keepCount: number
@@ -215,7 +215,9 @@ export class KlineRunner {
     const { token0, token1, startAt, endAt } = payload
 
     const url = constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}`,
+      token0 && token1 ?
+        `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}` :
+        `${constants.KLINE_HTTP_URL}/transactions/start_at/${startAt}/end_at/${endAt}`,
     )
 
     try {

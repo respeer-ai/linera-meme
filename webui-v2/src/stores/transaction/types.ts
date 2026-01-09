@@ -8,6 +8,7 @@ export enum TransactionType {
 }
 
 export interface Transaction {
+  poolId: number
   transactionId: number
   transactionType: TransactionType
   from: Account
@@ -20,6 +21,7 @@ export interface Transaction {
 }
 
 export interface TransactionExt {
+  pool_id: number
   transaction_id: number
   transaction_type: TransactionType
   from_account: string

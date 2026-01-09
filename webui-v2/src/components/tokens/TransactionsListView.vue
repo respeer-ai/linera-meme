@@ -2,57 +2,48 @@
   <div>
     <q-table
       :columns='(columns as never)'
-      :rows='pools'
+      :rows='transactions'
       row-key='id'
       separator='none'
+      @request='onPageRequest'
+      :loading='loading'
     >
       <template #header='props'>
         <q-tr class='text-neutral bg-dark-secondary' :props='props'>
-          <q-th class='cursor-pointer text-left'>#</q-th>
-          <q-th class='cursor-pointer text-left'>Pool</q-th>
-          <q-th class='cursor-pointer'>Fee tier</q-th>
-          <q-th class='cursor-pointer'>TVL</q-th>
-          <q-th class='cursor-pointer'>Pool APR</q-th>
-          <q-th class='cursor-pointer'>1D vol</q-th>
-          <q-th class='cursor-pointer'>30D vol</q-th>
-          <!-- q-th class='cursor-pointer'>1D chart</q-th -->
-          <q-th class='cursor-pointer'>Actions</q-th>
+          <q-th class='cursor-pointer text-left'>Time</q-th>
+          <q-th class='cursor-pointer text-left'>Swap</q-th>
+          <q-th class='cursor-pointer'>Value</q-th>
+          <q-th class='cursor-pointer'>Amount</q-th>
+          <q-th class='cursor-pointer'>Amount</q-th>
+          <q-th class='cursor-pointer'>Address</q-th>
         </q-tr>
       </template>
 
       <template #body='props'>
         <q-tr :props='props' class='cursor-pointer'>
-          <td :props='props' class='text-left'>{{ props.rowIndex + 1 }}</td>
+          <td :props='props' class='text-left'>{{ props.row.created_at }}</td>
           <td :props='props' class='text-left row items-center'>
-            <q-avatar size='24px'>
-              <q-img :src='ams.Ams.applicationLogo(props.row)' />
+            Swap
+            {{ tokenTicker(transactionPool(props.row.pool_id)?.token0) }}
+            <q-avatar>
+              <q-img :src='tokenLogo(transactionPool(props.row.pool_id)?.token0)' />
             </q-avatar>
-            <div class='q-ml-sm'>
-              {{ props.row.applicationName }}
-            </div>
-            <div class='q-ml-sm text-neutral'>
-              {{ props.row.meme?.ticker }}
-            </div>
+            for
+            {{ tokenTicker(transactionPool(props.row.pool_id)?.token1) }}
+            <q-avatar>
+              <q-img :src='tokenLogo(transactionPool(props.row.pool_id)?.token1)' />
+            </q-avatar>
           </td>
           <td :props='props' class='text-center'>0 TLINERA</td>
           <td :props='props' class='text-center'>
             <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            1.23%
+            {{ props.row.amount_0_in }}
           </td>
           <td :props='props' class='text-center'>
             <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            2.34%
+            {{ props.row.amount_1_in }}
           </td>
-          <td :props='props' class='text-center'>$10.23B</td>
-          <td :props='props' class='text-center'>$1.23B</td>
-          <!-- td :props='props' class='text-center'>0 TLINERA</td -->
-          <td :props='props' class='text-center'>
-            <div class='narrow-btn'>
-              <q-btn dense no-caps rounded flat class='text-secondary' disable>
-                Add liquidity
-              </q-btn>
-            </div>
-          </td>
+          <td :props='props' class='text-center'>{{ props.row.from_account }}</td>
         </q-tr>
       </template>
 
@@ -60,7 +51,7 @@
         <div class='full-width row items-center justify-center' style='line-height: 30px;'>
           <q-pagination
             v-model='pagination.page'
-            :max='totalPages'
+            :max='pagination.rowsNumber'
             boundary-links
             size='md'
             color='secondary'
@@ -72,82 +63,299 @@
 </template>
 
 <script setup lang='ts'>
-import { ams, meme, swap } from 'src/stores/export'
-import { computed, ref } from 'vue'
-import { Pool } from 'src/__generated__/graphql/swap/graphql'
+import { computed, onMounted, watch, onBeforeUnmount, ref, onBeforeMount, toRef } from 'vue'
+import { ams, meme, swap, transaction, kline } from 'src/stores/export'
+import { klineWorker } from 'src/worker'
+import { Token } from '../trade/Token'
 
-const tokens = computed(() => ams.Ams.applications().map((el) => {
-  return {
-    ...el,
-    meme: JSON.parse(el.spec) as meme.Meme
-  }
-}) || [])
+interface Props {
+  token0?: string
+  token1?: string
+}
+const props = defineProps<Props>()
+const token0 = toRef(props, 'token0')
+const token1 = toRef(props, 'token1')
 
 const pools = computed(() => swap.Swap.pools())
-// const transactions = computed(() => )
+
+const tokenTicker = (token: string) => {
+  const application = ams.Ams.application(token) as Token
+  application.meme = JSON.parse(application.spec) as meme.Meme
+  return application.meme.ticker
+}
+
+const tokenLogo = (token: string) => {
+  const application = ams.Ams.application(token) as Token
+  return ams.Ams.applicationLogo(application)
+}
+
+const transactionPool = (_transaction: transaction.TransactionExt) => {
+  return pools.value.find((el) => el.poolId === _transaction.pool_id)
+}
 
 const columns = computed(() => [
   {
-    name: 'PoolIndex',
-    label: '#',
+    name: 'Time',
+    label: 'Time',
     align: 'left',
-    field: 0
+    field: (row: transaction.TransactionExt) => row.created_at
   },
   {
-    name: 'Pool',
-    label: 'Pool',
+    name: 'Swap',
+    label: 'Swap',
     align: 'center',
-    field: (row: Pool) => row.token0
+    field: (row: transaction.TransactionExt) => row.pool_id
   },
   {
-    name: 'FeeTier',
-    label: 'Fee tier',
+    name: 'Value',
+    label: 'Value',
     align: 'center',
-    field:  '0.15%'
+    field:  'USD $ 3145.23'
   },
   {
-    name: 'TVL',
-    label: 'TVL',
+    name: 'Amount',
+    label: 'Amount',
     align: 'center',
-    field: '1.23%'
+    field: (row: transaction.TransactionExt) => row.amount_0_in
   },
   {
-    name: 'OneDayChange',
-    label: '1 Day',
+    name: 'Amount',
+    label: 'Amount',
     align: 'center',
-    field: 'US $10.23B'
+    field: (row: transaction.TransactionExt) => row.amount_1_out
   },
   {
-    name: 'PoolAPR',
-    label: 'PoolAPR',
+    name: 'Address',
+    label: 'Address',
     align: 'center',
-    field: '4.23%'
-  },
-  {
-    name: 'OneDayVolume',
-    label: '1D vol',
-    align: 'center',
-    field: '10.23B'
-  },
-  {
-    name: 'ThirtyDayVolume',
-    label: '30D vol',
-    align: 'center',
-    field: '10.23B'
-  },
-  {
-    name: 'Actions',
-    label: 'Actions',
-    align: 'center',
-    field: 'Add liquidity'
+    field: (row: transaction.TransactionExt) => row.from_account
   }
 ])
 
 const pagination = ref({
   page: 1,
-  rowsPerPage: 10
+  rowsPerPage: 10,
+  rowsNumber: 10
 })
-const totalPages = computed(() => Math.ceil(tokens.value.length / pagination.value.rowsPerPage))
+
+const loading = ref(false)
+
+const selectedToken0 = computed(() => token0.value as string)
+const selectedToken1 = computed(() => token1.value as string)
+const selectedPool = computed(() => swap.Swap.getPool(token0.value as string, token1.value as string))
+const tokenReversed = computed(() => selectedToken0.value === selectedPool.value?.token1)
+const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000))
+
+const transactions = ref([] as transaction.TransactionExt[])
+const latestTransactions = computed(() => kline.Kline.latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
+
+const getTransactions = (startAt: number, endAt: number) => {
+  if (selectedToken0.value === selectedToken1.value && selectedToken0.value && selectedToken1.value) return
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    startAt,
+    endAt
+  })
+}
+
+const loadTransactions = (timestampBegin: number | undefined, timestampEnd: number | undefined, limit: number) => {
+  if (selectedToken0.value === selectedToken1.value && selectedToken0.value && selectedToken1.value) return false
+
+  loading.value = true
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    tokenReversed: tokenReversed.value,
+    timestampBegin,
+    timestampEnd,
+    limit
+  } as klineWorker.LoadTransactionsPayload)
+
+  return true
+}
+
+const getTransactionsInformation = async () => {
+  const info = await kline.Kline.getTransactionsInformation(selectedToken0.value, selectedToken1.value)
+  if (!info) return
+  // TODO: record timestamp begin and end then we can control data loading
+  pagination.value.rowsNumber = info.count
+}
+
+const getStoreTransactions = async () => {
+  transactions.value = []
+  if (loading.value) return
+
+  if (loadTransactions(undefined, undefined, 10)) {
+    await getTransactionsInformation()
+  }
+}
+
+watch(selectedToken0, async () => {
+  await getStoreTransactions()
+})
+
+watch(selectedToken1, async () => {
+  await getStoreTransactions()
+})
+
+watch(selectedPool, async () => {
+  await getStoreTransactions()
+})
+
+enum SortReason {
+  FETCH = 'Fetch',
+  LOAD = 'Load',
+  LATEST = 'Latest'
+}
+
+type ReasonPayload = { startAt: number, endAt: number }
+
+interface Reason {
+  reason: SortReason
+  payload: ReasonPayload
+}
+
+const MAX_TRANSACTIONS = -1
+
+watch(latestTransactions, () => {
+  if (!latestTransactions.value.length) return
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    originTransactions: transactions.value.map((el) => {
+      return { ...el }
+    }),
+    newTransactions: latestTransactions.value.map((el) => {
+      return { ...el }
+    }),
+    tokenReversed: tokenReversed.value,
+    keepCount: MAX_TRANSACTIONS,
+    reverse: true,
+    reason: {
+      reason: SortReason.LATEST,
+      payload: undefined
+    }
+  })
+})
+
+const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
+  const { token0, token1, startAt } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    originTransactions: [],
+    newTransactions: payload.transactions.map((el) => {
+      return { ...el }
+    }),
+    tokenReversed: tokenReversed.value,
+    keepCount: MAX_TRANSACTIONS,
+    reverse: true,
+    reason: {
+      reason: SortReason.FETCH,
+      payload: {
+        startAt: startAt - 1 * 3600 * 1000,
+        endAt: startAt - 1
+      }
+    }
+  })
+}
+
+const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPayload) => {
+  const _transactions = payload.transactions || []
+  const { token0, token1, timestampBegin, timestampEnd } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) {
+    if (loadTransactions(timestampBegin, timestampEnd, 10)) {
+      await getTransactionsInformation()
+    }
+    return
+  }
+
+  const startAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1 * 3600 * 1000
+  const endAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1
+
+  const reason = {
+    reason: SortReason.LOAD,
+    payload: {
+      startAt,
+      endAt
+    }
+  }
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
+    token0: selectedToken0.value,
+    token1: selectedToken1.value,
+    originTransactions: [],
+    newTransactions: _transactions.map((el) => {
+      return { ...el }
+    }),
+    tokenReversed: tokenReversed.value,
+    keepCount: MAX_TRANSACTIONS,
+    reverse: true,
+    reason
+  })
+}
+
+const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) => {
+  const _reason = payload.reason as Reason
+  const { token0, token1 } = payload
+
+  if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
+
+  if (payload.transactions.length === 0) {
+    const startAt = _reason.payload.startAt
+    const endAt = _reason.payload.endAt
+
+    if (endAt < poolCreatedAt.value) {
+      loading.value = false
+      return
+    }
+    if (startAt > new Date().getTime()) {
+      loading.value = false
+      return
+    }
+
+    return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
+  }
+
+  transactions.value = payload.transactions.slice(0, 10)
+  loading.value = false
+}
+
+const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: number }}) => {
+  if (loading.value) return
+
+  const startAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1
+  const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1 * 3600 * 1000
+
+  loadTransactions(startAt, endAt, 10)
+  pagination.value.page = requestProp.pagination.page
+}
+
+onBeforeMount(() => {
+  loading.value = false
+})
+
+onMounted(async () => {
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
+
+  await getStoreTransactions()
+})
+
+onBeforeUnmount(() => {
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
+})
 
 </script>
 
