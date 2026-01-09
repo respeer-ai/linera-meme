@@ -219,7 +219,7 @@ const getStoreTransactions = async () => {
   transactions.value = []
   if (loading.value) return
 
-  if (loadTransactions(undefined, undefined, 10)) {
+  if (loadTransactions(undefined, undefined, 20)) {
     await getTransactionsInformation()
   }
 }
@@ -303,7 +303,7 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
   const { token0, token1, timestampBegin, timestampEnd } = payload
 
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) {
-    if (loadTransactions(timestampBegin, timestampEnd, 10)) {
+    if (loadTransactions(timestampBegin, timestampEnd, 20)) {
       await getTransactionsInformation()
     }
     return
@@ -366,7 +366,7 @@ const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: n
   const startAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1
   const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - loadInterval.value
 
-  loadTransactions(startAt, endAt, 10)
+  loadTransactions(startAt, endAt, 20)
   pagination.value.page = requestProp.pagination.page
 }
 
