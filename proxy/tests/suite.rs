@@ -183,6 +183,8 @@ impl TestSuite {
         &self,
         chain: &ActiveChain,
         virtual_initial_liquidity: bool,
+        enable_mining: bool,
+        mining_supply: Option<Amount>
     ) -> ChainDescription {
         let certificate = chain
             .add_block(|block| {
@@ -228,8 +230,8 @@ impl TestSuite {
                             virtual_initial_liquidity,
                             swap_creator_chain_id: self.swap_chain.id(),
 
-                            enable_mining: false,
-                            mining_supply: None,
+                            enable_mining,
+                            mining_supply,
                         },
                     },
                 );
