@@ -121,7 +121,9 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_disable_mining_tes
                 .unwrap(),
         )
         .await;
-    let description = suite.create_meme_application(&meme_user_chain, false, false, None).await;
+    let description = suite
+        .create_meme_application(&meme_user_chain, false, false, None)
+        .await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
@@ -272,7 +274,9 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_enable_mining_test
                 .unwrap(),
         )
         .await;
-    let description = suite.create_meme_application(&meme_user_chain, false, true, Some(10000000.into())).await;
+    let description = suite
+        .create_meme_application(&meme_user_chain, false, true, Some(10000000.into()))
+        .await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(

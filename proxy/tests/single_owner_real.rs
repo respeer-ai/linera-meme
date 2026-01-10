@@ -97,7 +97,9 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
                 .unwrap(),
         )
         .await;
-    let description = suite.create_meme_application(&meme_user_chain, false, false, None).await;
+    let description = suite
+        .create_meme_application(&meme_user_chain, false, false, None)
+        .await;
 
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(

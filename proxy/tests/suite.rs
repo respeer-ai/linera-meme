@@ -184,7 +184,7 @@ impl TestSuite {
         chain: &ActiveChain,
         virtual_initial_liquidity: bool,
         enable_mining: bool,
-        mining_supply: Option<Amount>
+        mining_supply: Option<Amount>,
     ) -> ChainDescription {
         let certificate = chain
             .add_block(|block| {
