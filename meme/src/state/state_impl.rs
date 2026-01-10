@@ -33,6 +33,10 @@ impl MemeState {
 impl StateInterface for MemeState {
     type Error = StateError;
 
+    fn _initial_liquidity(&self) -> Option<Liquidity> {
+        self.initial_liquidity.get().clone()
+    }
+
     async fn initialize_liquidity(
         &mut self,
         mut liquidity: Liquidity,

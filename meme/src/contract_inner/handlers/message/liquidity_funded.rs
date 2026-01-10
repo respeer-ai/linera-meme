@@ -44,7 +44,9 @@ impl<
         log::info!("DEBUG MEME:MSG liquidity funded");
 
         let virtual_liquidity = self.runtime.borrow_mut().virtual_initial_liquidity();
-        let Some(liquidity) = self.runtime.borrow_mut().initial_liquidity() else {
+        // Liquidity will be adjusted when we have mining so we use state liquidity
+        // let Some(liquidity) = self.runtime.borrow_mut().initial_liquidity() else {
+        let Some(liquidity) = self.state._initial_liquidity() else {
             return Ok(None);
         };
         let Some(swap_application_id) = self.state.swap_application_id() else {

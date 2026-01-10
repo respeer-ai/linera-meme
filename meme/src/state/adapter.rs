@@ -29,6 +29,10 @@ impl StateAdapter {
 impl StateInterface for StateAdapter {
     type Error = StateError;
 
+    fn _initial_liquidity(&self) -> Option<Liquidity> {
+        self.state.borrow()._initial_liquidity()
+    }
+
     async fn initialize_liquidity(
         &mut self,
         liquidity: Liquidity,
