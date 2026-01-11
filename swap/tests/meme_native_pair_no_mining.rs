@@ -188,7 +188,7 @@ impl TestSuite {
 
 /// Test setting a swap and testing its coherency across microchains.
 #[tokio::test(flavor = "multi_thread")]
-async fn virtual_liquidity_native_test() {
+async fn meme_native_pair_no_mining_virtual_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let _ = env_logger::builder().is_test(true).try_init();
@@ -311,7 +311,7 @@ async fn virtual_liquidity_native_test() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn real_liquidity_native_test() {
+async fn meme_native_pair_no_mining_real_liquidity_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     let _ = env_logger::builder().is_test(true).try_init();

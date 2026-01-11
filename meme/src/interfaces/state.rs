@@ -12,6 +12,8 @@ use linera_sdk::linera_base_types::{
 pub trait StateInterface {
     type Error: std::fmt::Debug + std::error::Error + Into<HandlerError> + 'static;
 
+    fn _initial_liquidity(&self) -> Option<Liquidity>;
+
     async fn initialize_liquidity(
         &mut self,
         liquidity: Liquidity,

@@ -56,6 +56,14 @@
         icon='menu'
         label='Expand'
       >
+        <q-toggle dense v-model='parameters.enableMining' class='q-mt-md font-size-16' label='Enable mining' />
+        <div v-if='hasInitialLiquidity'>
+          <div class='q-mt-lg text-neutral font-size-18'>
+            <q-icon name='attach_money' class='text-secondary q-mr-xs' size='24px' />
+            Mining supply
+          </div>
+          <q-input filled v-model='parameters.miningSupply' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Mining supply' :autofocus='true' :error='miningSupplyError' />
+        </div>
         <q-toggle dense v-model='hasInitialLiquidity' class='q-mt-md font-size-16' label='Initial Liquidity' />
         <div v-if='hasInitialLiquidity'>
           <div class='q-mt-lg text-neutral font-size-18'>
@@ -146,6 +154,7 @@ const tickerError = ref(false)
 
 const fungibleAmountError = ref(false)
 const nativeAmountError = ref(false)
+const miningSupplyError = ref(false)
 
 const MAXSIZE = 4 * 1024 * 1024
 const errorMessage = ref('')
@@ -227,15 +236,19 @@ const argument = ref({
     virtualInitialLiquidity: true
   }
 } as meme.InstantiationArgument)
+
 // TODO: We put all in liquidity in this version. It should be removed in future
 const hasInitialLiquidity = ref(true)
 const initialLiquidity = ref({
-  fungibleAmount: (Number(argument.value.meme.initialSupply) - 100).toString(),
+  fungibleAmount: '10499900',
   nativeAmount: '8720'
 } as meme.Liquidity)
+
 const parameters = ref({
-  virtualInitialLiquidity: true
-} as meme.MemeParameters)
+  virtualInitialLiquidity: true,
+  enableMining: true,
+  miningSupply: (Number(argument.value.meme.initialSupply) - 100 - Number(initialLiquidity.value.fungibleAmount)).toString()
+} as unknown as meme.MemeParameters)
 
 const createMeme = async (): Promise<string> => {
   if (hasInitialLiquidity.value) {
@@ -244,6 +257,11 @@ const createMeme = async (): Promise<string> => {
     if (fungibleAmountError.value || nativeAmountError.value) {
       return 'error'
     }
+  }
+
+  if (parameters.value.enableMining && (!parameters.value.miningSupply || Number(parameters.value.miningSupply) <= 0)) {
+    miningSupplyError.value = true
+    return 'error'
   }
 
   parameters.value.creator = await user.User.account()

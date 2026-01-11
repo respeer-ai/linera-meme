@@ -8,8 +8,8 @@
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
 COMPILE=1
-GIT_BRANCH=respeer-maas-testnet_conway-945d96de-2025-12-13
-CHAIN_OWNER_COUNT=4
+GIT_BRANCH=respeer-maas-testnet_conway-32c047f7-2025-12-17
+CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 
 options="f:c:C:W:z:"
@@ -482,17 +482,28 @@ function run_mysql() {
 
 run_mysql
 
+VENV_DIR=$HOME/.linera-meme-service-venv
+mkdir -p $VENV_DIR
+python3 -m venv $VENV_DIR
+
+PYTHON3=$VENV_DIR/bin/python3
+PIP3=$VENV_DIR/bin/pip3
+
+all_proxy= $PIP3 install PySocks
+
 function run_kline() {
     cd service/kline
-    pip3 install --upgrade pip
-    pip3 install -r requirements.txt
-    pip3 install -e .
 
-    pip3 uninstall websocket -y
-    pip3 uninstall websocket-client -y
-    pip3 install websocket-client
+    $PIP3 install 'uvicorn[standard]'
+    $PIP3 install --upgrade pip
+    $PIP3 install -r requirements.txt
+    $PIP3 install -e .
 
-    all_proxy= python3 -u src/kline.py \
+    $PIP3 uninstall websocket -y
+    $PIP3 uninstall websocket-client -y
+    $PIP3 install websocket-client
+
+    all_proxy= $PYTHON3 -u src/kline.py \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --database-host "$DATABASE_HOST" \
         --database-port "$DATABASE_PORT" \
@@ -515,7 +526,7 @@ function run_maker() {
 
     sleep 20
 
-    all_proxy= python3 -u src/maker.py \
+    all_proxy= $PYTHON3 -u src/maker.py \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --wallet-host "localhost:50080" \
         --wallet-owner "$owner" \

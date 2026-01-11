@@ -1,11 +1,11 @@
 <template>
   <div class='row items-center q-py-sm text-neutral cursor-pointer'>
     <q-icon :name='icon' size='24px' :color='color' />
-    <div class='q-ml-sm' style='width: 400px'>{{ shortid.shortId(data.account.chain_id, 24, 24) }}</div>
-    <div v-if='data.account.owner' class='q-ml-sm' style='width: 400px'>{{ shortid.shortId(data.account.owner, 24, 24) }}</div>
+    <div class='q-ml-sm font-size-18' style='width: 400px'>{{ shortid.shortId(data.account.chain_id, 16, 16) }}</div>
+    <div v-if='data.account.owner' class='q-ml-sm font-size-18' style='width: 400px'>{{ shortid.shortId(data.account.owner, 16, 16) }}</div>
     <q-space />
-    <div class='q-ml-sm text-right' style='width: 140px'><strong class='text-light'>{{ Number(data.amount).toFixed(4) }}</strong> {{ ticker }}</div>
-    <div class='q-ml-sm text-right' style='width: 140px'><strong class='text-light'>{{ Number(tokenValue).toFixed(4) }}</strong> {{ constants.LINERA_TICKER }}</div>
+    <div class='q-ml-sm text-right font-size-18' style='width: 180px'><strong class='text-light'>{{ Number(data.amount).toFixed(4) }}</strong> {{ ticker }}</div>
+    <div class='q-ml-sm text-right font-size-18' style='width: 180px'><strong class='text-light'>{{ Number(tokenValue).toFixed(4) }}</strong> {{ constants.LINERA_TICKER }}</div>
   </div>
 </template>
 

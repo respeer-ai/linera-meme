@@ -6,8 +6,8 @@
         v-for='(_blob, index) in blobs'
         :key='index'
         :blob='_blob'
-        style='width: 10%;'
-        :class='[ index === 0 ? "" : "q-ml-sm" ]'
+        style='width: 20%;'
+        :class='[ index === 0 ? "" : "q-ml-md", blobs.length > 4 ? "q-mb-md" : "" ]'
       />
     </div>
   </div>

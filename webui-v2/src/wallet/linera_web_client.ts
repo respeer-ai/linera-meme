@@ -83,11 +83,13 @@ export class LineraWebClient {
   }
 
   static createMeme = async (
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     argument: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     parameters: unknown,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     variables: Record<string, unknown>,
   ) => {
-    console.log(argument, parameters, variables)
     return Promise.reject(new Error('Not implemented'))
   }
 }

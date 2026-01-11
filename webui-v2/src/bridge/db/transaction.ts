@@ -40,7 +40,7 @@ export class Transaction {
   static transactions = async (
     token0: string,
     token1: string,
-    tokenReversed: number,
+    tokenReversed: boolean,
     timestampBegin?: number,
     timestampEnd?: number,
     limit?: number,
@@ -51,12 +51,22 @@ export class Transaction {
     const _startAt = startAt > endAt ? endAt : startAt
     const _endAt = startAt > endAt ? startAt : endAt
 
-    const from = [_startAt, token0, token1, tokenReversed]
-    const to = [_endAt, token0, token1, tokenReversed]
+    const from =
+      token0 && token1
+        ? [_startAt, token0, token1, tokenReversed ? 1 : 0]
+        : [_startAt, tokenReversed ? 1 : 0]
+    const to =
+      token0 && token1
+        ? [_endAt, token0, token1, tokenReversed ? 1 : 0]
+        : [_endAt, tokenReversed ? 1 : 0]
 
     try {
       return await dbKline.transactions
-        .where('[created_timestamp+token0+token1+token_reversed]')
+        .where(
+          token0 && token1
+            ? '[created_timestamp+token0+token1+token_reversed]'
+            : '[created_timestamp+token_reversed]',
+        )
         .between(from, to)
         .reverse()
         .limit(limit ? limit * 2 : 999999)

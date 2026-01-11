@@ -42,6 +42,8 @@ export interface MemeParameters {
   initialLiquidity?: Liquidity
   virtualInitialLiquidity: boolean
   swapCreatorChainId: string
+  enableMining: boolean
+  miningSupply?: string
 }
 
 export interface BalanceOfRequest extends BaseRequest {
