@@ -48,23 +48,48 @@ tokio-test = "0.4.3"
 tokio-util = "0.7.10"
 futures = "0.3.30"
 tracing = { version = "0.1.40", features = ["release_max_level_trace"] }
+fs-err = "2.11.0"
+async-trait = "0.1.77"
+chrono = { version = "0.4.35", default-features = false }
+clap = { version = "4", features = ["cargo", "derive", "env"] }
+clap-markdown = "0.1.3"
+clap_complete = "4"
+colored = "2.1.0"
+tempfile = "3.20.0"
+cfg-if = "1.0.0"
+dirs = "5.0.1"
 
 [dependencies.linera-core]
 version = "0.15.8"
-features = ["web", "wasmer"]
+features = ["wasmer"]
 
 [dependencies.linera-client]
 version = "0.15.8"
 default-features = false
-features = ["web"]
 
 [dependencies.linera-base]
 version = "0.15.8"
-features = ["web"]
+
+[dependencies.linera-service]
+version = "0.15.8"
+
+[dependencies.linera-persistent]
+version = "0.15.8"
+
+[dependencies.linera-rpc]
+version = "0.15.8"
 
 [dependencies.linera-execution]
 version = "0.15.8"
-features = ["web", "wasmer"]
+features = ["wasmer"]
+
+[dependencies.linera-views]
+version = "0.15.8"
+features = ["indexeddb"]
+
+[dependencies.linera-storage]
+version = "0.15.8"
+features = ["wasmer"]
 
 [dependencies.abi]
 path = "../../abi"
@@ -78,3 +103,7 @@ opt-level = 3
 [workspace.metadata.cargo-all-features]
 skip_optional_dependencies = true
 max_combination_size = 1
+
+[[bin]]
+name = "miner"
+path = "src/main.rs"

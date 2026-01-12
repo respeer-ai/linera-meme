@@ -1,4 +1,7 @@
+mod command;
 mod errors;
+mod options;
+
 use std::sync::Arc;
 
 use abi::proxy::ProxyAbi;
@@ -35,7 +38,7 @@ where
     pub async fn new(
         meme_proxy_application_id: ApplicationId,
         context: C,
-        mut chain_listener_config: ChainListenerConfig,
+        chain_listener_config: &mut ChainListenerConfig,
         default_chain: ChainId,
     ) -> Self {
         let chain = context
@@ -58,7 +61,7 @@ where
             meme_proxy_application_id,
 
             new_block_notifier: Arc::new(Notify::new()),
-            chain_listener_config,
+            chain_listener_config: chain_listener_config.clone(),
 
             default_chain,
             owner: Account {
