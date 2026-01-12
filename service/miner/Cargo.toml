@@ -87,6 +87,10 @@ features = ["wasmer"]
 version = "0.15.8"
 features = ["indexeddb"]
 
+[dependencies.linera-storage-service]
+version = "0.15.8"
+optional = true
+
 [dependencies.linera-storage]
 version = "0.15.8"
 features = ["wasmer"]
@@ -107,3 +111,13 @@ max_combination_size = 1
 [[bin]]
 name = "miner"
 path = "src/main.rs"
+
+[features]
+default = ["wasmer", "rocksdb", "storage-service"]
+rocksdb = ["linera-views/rocksdb", "linera-core/rocksdb"]
+wasmer = [
+    "linera-client/wasmer",
+    "linera-execution/wasmer",
+    "linera-storage/wasmer",
+]
+storage-service = ["linera-storage-service"]
