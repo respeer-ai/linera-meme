@@ -20,13 +20,21 @@ use linera_client::{
 };
 use linera_rpc::config::CrossChainConfig;
 
+// Proxy application ID of testnet conway
+const TESTNET_CONWAY_MEME_PROXY_APPLICATION_ID: &str =
+    "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
+
 #[derive(Clone, clap::Subcommand)]
 pub enum ClientCommand {
     /// Miner for meme tokens
     MemeMiner {
         /// Meme proxy application id
-        #[arg(long)]
-        meme_proxy_application_id: ApplicationId,
+        #[arg(
+            long,
+            default_value = TESTNET_CONWAY_MEME_PROXY_APPLICATION_ID,
+            help = "Testnet conway meme proxy application id"
+        )]
+        meme_proxy_application_id: Option<ApplicationId>,
 
         /// Configuration for the faucet chain listener.
         #[command(flatten)]
