@@ -11,9 +11,21 @@ use futures::{lock::Mutex, FutureExt as _};
 use linera_base::identifiers::{Account, ApplicationId, ChainId};
 use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
 use linera_core::Wallet;
-use linera_execution::Query;
+use linera_execution::{Query, QueryResponse};
+use serde::Deserialize;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
+
+#[derive(Debug, Deserialize)]
+struct CreateChainIdResponse {
+    #[serde(alias = "creatorChainId")]
+    creator_chain_id: ChainId,
+}
+
+#[derive(Debug, Deserialize)]
+struct Response {
+    data: CreateChainIdResponse,
+}
 
 pub struct MemeMiner<C>
 where
@@ -71,7 +83,7 @@ where
         }
     }
 
-    async fn _meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
+    async fn meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
         let client = self
             .context
             .lock()
@@ -85,10 +97,12 @@ where
             &query,
         )?;
         let outcome = client.query_application(query, None).await?;
-
-        tracing::info!("{:?}", outcome);
-
-        Err(MemeMinerError::NotImplemented)
+        let QueryResponse::User(payload) = outcome.response else {
+            panic!("Invalid application response");
+        };
+        let response: Response =
+            serde_json::from_str(&String::from_utf8(payload).expect("invalid response"))?;
+        OK(response.data.creator_chain_id)
     }
 
     fn check_miner(&self) -> bool {
@@ -101,7 +115,9 @@ where
         self.meme_proxy_application_id
     }
 
-    async fn mine_task(&self, cancellation_token: CancellationToken) {
+    async fn mine_task(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
+        let _ = self.meme_proxy_creator_chain_id().await?;
+
         loop {
             tokio::select! {
                 _ = self.new_block_notifier.notified() => {
@@ -113,7 +129,7 @@ where
                 }
                 _ = cancellation_token.cancelled() => {
                     tracing::info!("quit meme miner");
-                    break;
+                    return Ok(());
                 }
             }
         }
@@ -140,7 +156,7 @@ where
 
         futures::select! {
             result = Box::pin(chain_listener).fuse() => result?,
-            _ = Box::pin(mine_task).fuse() => {},
+            result = Box::pin(mine_task).fuse() => result?,
         };
 
         Ok(())
