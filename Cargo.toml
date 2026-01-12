@@ -13,6 +13,7 @@ members = [
 exclude = [
     "webui/wasm",
     "webui-v2/wasm",
+    "service/miner",
 ]
 resolver = "2"
 
