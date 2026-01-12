@@ -55,10 +55,10 @@ spec:
           mountPath: /wallet
         resources:
           requests:
-            cpu: "200m"
+            cpu: "150m"
             memory: "768Mi"
           limits:
-            cpu: "300m"
+            cpu: "200m"
             memory: "1024Mi"
       volumes:
       - name: shared-app-data
