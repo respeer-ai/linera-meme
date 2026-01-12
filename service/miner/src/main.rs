@@ -59,7 +59,7 @@ use linera_core::{
     JoinSetExt as _, LocalNodeError,
 };
 use linera_execution::committee::Committee;
-use linera_meme_miner::MemeMiner as MemeMinerService;
+use linera_meme_miner::MemeMiner;
 #[cfg(with_metrics)]
 use linera_metrics::monitoring_server;
 use linera_persistent::Persist;
@@ -69,7 +69,7 @@ use linera_views::store::{KeyValueDatabase, KeyValueStore};
 mod command;
 mod options;
 
-use crate::command::ClientCommand::MemeMiner;
+use crate::command::ClientCommand::Run;
 use options::Options;
 
 use linera_service::{storage::Runnable, util};
@@ -113,7 +113,7 @@ impl Runnable for Job {
         let mut signer = options.signer()?;
 
         match &mut options.command {
-            MemeMiner {
+            Run {
                 meme_proxy_application_id,
                 config,
             } => {
@@ -130,7 +130,7 @@ impl Runnable for Job {
                     .await?;
                 let default_chain = context.default_chain();
 
-                let miner = MemeMinerService::new(
+                let miner = MemeMiner::new(
                     meme_proxy_application_id,
                     context,
                     &mut config,

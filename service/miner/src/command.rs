@@ -27,14 +27,14 @@ const TESTNET_CONWAY_MEME_PROXY_APPLICATION_ID: &str =
 #[derive(Clone, clap::Subcommand)]
 pub enum ClientCommand {
     /// Miner for meme tokens
-    MemeMiner {
+    Run {
         /// Meme proxy application id
         #[arg(
             long,
             default_value = TESTNET_CONWAY_MEME_PROXY_APPLICATION_ID,
             help = "Testnet conway meme proxy application id"
         )]
-        meme_proxy_application_id: Option<ApplicationId>,
+        meme_proxy_application_id: ApplicationId,
 
         /// Configuration for the faucet chain listener.
         #[command(flatten)]
@@ -46,7 +46,7 @@ impl ClientCommand {
     /// Returns the log file name to use based on the [`ClientCommand`] that will run.
     pub fn log_file_name(&self) -> Cow<'static, str> {
         match self {
-            ClientCommand::MemeMiner { .. } => "meme-miner".into(),
+            ClientCommand::Run { .. } => "miner".into(),
         }
     }
 }
