@@ -2,7 +2,7 @@ mod command;
 mod errors;
 mod options;
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use abi::proxy::ProxyAbi;
 use async_graphql::Request;
@@ -36,7 +36,7 @@ where
     C: ClientContext + 'static,
 {
     pub async fn new(
-        meme_proxy_application_id: ApplicationId,
+        meme_proxy_application_id: Option<ApplicationId>,
         context: C,
         chain_listener_config: &mut ChainListenerConfig,
         default_chain: ChainId,
@@ -53,6 +53,13 @@ where
         chain_listener_config.skip_process_inbox = true;
 
         let storage = context.storage().clone();
+        let meme_proxy_application_id = meme_proxy_application_id.unwrap_or(
+            ApplicationId::from_str(
+                // Proxy application ID of testnet conway
+                "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172",
+            )
+            .unwrap(),
+        );
 
         Self {
             context: Arc::new(Mutex::new(context)),
