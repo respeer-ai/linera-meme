@@ -15,4 +15,7 @@ pub enum MemeMinerError {
 
     #[error(transparent)]
     JsonError(#[from] serde_json::error::Error),
+
+    #[error(transparent)]
+    CryptoError(#[from] linera_base::crypto::CryptoError),
 }
