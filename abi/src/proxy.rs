@@ -28,9 +28,11 @@ impl ServiceAbi for ProxyAbi {
 
 /// We don't set any chain for owner because it may be stored on-chain in future
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Eq, PartialEq, Hash, SimpleObject)]
+#[serde(rename_all = "camelCase")]
 pub struct Miner {
     pub owner: Account,
+    pub registered_at: Timestamp,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

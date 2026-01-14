@@ -12,7 +12,7 @@ pub struct RegisterMinerHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
     S: StateInterface,
 > {
-    _runtime: Rc<RefCell<R>>,
+    runtime: Rc<RefCell<R>>,
     state: S,
 
     owner: Account,
@@ -28,7 +28,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
         Self {
             state,
-            _runtime: runtime,
+            runtime,
 
             owner: *owner,
         }
@@ -42,8 +42,10 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
+        let timestamp = self.runtime.borrow_mut().system_time();
+
         self.state
-            .register_miner(self.owner)
+            .register_miner(self.owner, timestamp)
             .await
             .map_err(Into::into)?;
 

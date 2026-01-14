@@ -28,13 +28,13 @@ pub trait StateInterface {
         operator: Account,
     ) -> Result<(), Self::Error>;
 
-    async fn genesis_miners(&self) -> Result<Vec<Account>, Self::Error>;
+    async fn genesis_miners(&self) -> Result<Vec<Miner>, Self::Error>;
 
     async fn is_genesis_miner(&self, owner: Account) -> Result<bool, Self::Error>;
 
     async fn genesis_miner_owners(&self) -> Result<Vec<AccountOwner>, Self::Error>;
 
-    async fn miners(&self) -> Result<Vec<Account>, Self::Error>;
+    async fn miners(&self) -> Result<Vec<Miner>, Self::Error>;
 
     async fn miner_owners(&self) -> Result<Vec<AccountOwner>, Self::Error>;
 
@@ -78,7 +78,7 @@ pub trait StateInterface {
         token: ApplicationId,
     ) -> Result<(), Self::Error>;
 
-    async fn register_miner(&mut self, owner: Account) -> Result<(), Self::Error>;
+    async fn register_miner(&mut self, owner: Account, now: Timestamp) -> Result<(), Self::Error>;
 
     fn deregister_miner(&mut self, owner: Account) -> Result<(), Self::Error>;
 
