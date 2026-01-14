@@ -2,10 +2,10 @@ mod command;
 mod errors;
 mod options;
 
-use std::{str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc, time::Instant};
 
 use abi::proxy::ProxyAbi;
-use async_graphql::Request;
+use async_graphql::{Request, Value, Variables};
 use errors::MemeMinerError;
 use futures::{lock::Mutex, FutureExt as _};
 use linera_base::identifiers::{Account, ApplicationId, ChainId};
@@ -17,14 +17,20 @@ use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Deserialize)]
-struct CreateChainIdResponse {
+struct CreatorChainIdResponse {
     #[serde(alias = "creatorChainId")]
     creator_chain_id: ChainId,
 }
 
 #[derive(Debug, Deserialize)]
-struct Response {
-    data: CreateChainIdResponse,
+struct MinerRegisteredResponse {
+    #[serde(alias = "minerRegistered")]
+    miner_registered: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct Response<T> {
+    data: T,
 }
 
 pub struct MemeMiner<C>
@@ -91,22 +97,86 @@ where
             .make_chain_client(self.default_chain)
             .await?;
 
-        let query = Request::new("{ creatorChainId }");
+        let request = Request::new("{ creatorChainId }");
         let query = Query::user(
             self.meme_proxy_application_id.with_abi::<ProxyAbi>(),
-            &query,
+            &request,
         )?;
         let outcome = client.query_application(query, None).await?;
         let QueryResponse::User(payload) = outcome.response else {
             panic!("Invalid application response");
         };
-        let response: Response =
+        let response: Response<CreatorChainIdResponse> =
             serde_json::from_str(&String::from_utf8(payload).expect("invalid response"))?;
-        OK(response.data.creator_chain_id)
+        Ok(response.data.creator_chain_id)
     }
 
-    fn check_miner(&self) -> bool {
-        false
+    async fn follow_proxy_chain(&self) -> Result<(), MemeMinerError> {
+        let start_time = Instant::now();
+
+        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+
+        self.context
+            .lock()
+            .await
+            .client()
+            .track_chain(meme_proxy_creator_chain_id);
+        let chain_client = self
+            .context
+            .lock()
+            .await
+            .make_chain_client(meme_proxy_creator_chain_id)
+            .await?;
+        chain_client
+            .synchronize_chain_state(meme_proxy_creator_chain_id)
+            .await?;
+        self.context
+            .lock()
+            .await
+            .update_wallet(&chain_client)
+            .await?;
+
+        tracing::info!(
+            "Proxy chain followed and added in {} ms",
+            start_time.elapsed().as_millis()
+        );
+
+        Ok(())
+    }
+
+    async fn miner_registered(&self) -> Result<bool, MemeMinerError> {
+        // TODO: we could follow proxy chain locally.
+        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+
+        let client = self
+            .context
+            .lock()
+            .await
+            .make_chain_client(meme_proxy_creator_chain_id)
+            .await?;
+
+        let mut request = Request::new(
+            r#"
+            query minerRegistered($owner: String!) {
+                minerRegistered(owner: $owner)
+            }
+            "#,
+        );
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "owner": self.owner.owner,
+        })));
+
+        let query = Query::user(
+            self.meme_proxy_application_id.with_abi::<ProxyAbi>(),
+            &request,
+        )?;
+        let outcome = client.query_application(query, None).await?;
+        let QueryResponse::User(payload) = outcome.response else {
+            panic!("Invalid application response");
+        };
+        let response: Response<MinerRegisteredResponse> =
+            serde_json::from_str(&String::from_utf8(payload).expect("invalid response"))?;
+        Ok(response.data.miner_registered)
     }
 
     fn register_miner(&self) {}
@@ -116,8 +186,6 @@ where
     }
 
     async fn mine_task(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
-        let _ = self.meme_proxy_creator_chain_id().await?;
-
         loop {
             tokio::select! {
                 _ = self.new_block_notifier.notified() => {
@@ -135,11 +203,11 @@ where
         }
     }
 
-    pub async fn run(&self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
+    pub async fn run(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
         // TODO: sync chain
         // TODO: get meme proxy creator chain id
         // TODO: check if chain is miner, if not, register with default chain (cli.query_user_application)
-        if !self.check_miner() {
+        if !self.miner_registered().await? {
             self.register_miner();
         }
 
