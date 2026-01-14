@@ -5,10 +5,12 @@
 
 use std::sync::Arc;
 
-use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
+use abi::proxy::{Chain, Miner, ProxyAbi, ProxyOperation};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, WithServiceAbi},
+    linera_base_types::{
+        AccountOwner, ApplicationId, ChainId, ModuleId, Timestamp, WithServiceAbi,
+    },
     views::View,
     Service, ServiceRuntime,
 };
@@ -61,31 +63,36 @@ struct QueryRoot {
 }
 
 impl QueryRoot {
-    async fn _genesis_miners(&self) -> Vec<Account> {
+    async fn _genesis_miners(&self) -> Vec<Miner> {
         let mut miners = Vec::new();
         self.state
             .genesis_miners
             .for_each_index_value(|owner, miner| {
                 let approval = miner.into_owned().approval;
                 if approval.approved() {
-                    miners.push(owner);
+                    miners.push(Miner {
+                        owner,
+                        registered_at: 0.into(),
+                    });
                 }
                 Ok(())
             })
             .await
-            .expect("Failed: genesis miners");
+            .expect("Failed get genesis miner");
         miners
     }
 
-    async fn _miners(&self) -> Vec<Account> {
+    async fn _miners(&self) -> Vec<Miner> {
+        let genesis_miners = self._genesis_miners().await;
+
         self.state
             .miners
-            .indices()
+            .index_values()
             .await
-            .expect("Failed: miners")
-            .iter()
-            .chain(self._genesis_miners().await.iter())
-            .cloned()
+            .expect("Failed get miner")
+            .into_iter()
+            .map(|(_, miner)| miner)
+            .chain(genesis_miners.into_iter())
             .collect()
     }
 }
@@ -96,11 +103,11 @@ impl QueryRoot {
         self.state.meme_bytecode_id.get().unwrap()
     }
 
-    async fn genesis_miners(&self) -> Vec<Account> {
+    async fn genesis_miners(&self) -> Vec<Miner> {
         self._genesis_miners().await
     }
 
-    async fn miners(&self) -> Vec<Account> {
+    async fn miners(&self) -> Vec<Miner> {
         self._miners().await
     }
 
@@ -122,14 +129,16 @@ impl QueryRoot {
                 .any(|_owner| _owner.owner == owner)
     }
 
-    async fn meme_chains(&self) -> Vec<Chain> {
+    async fn meme_chains(&self, created_after: Option<Timestamp>) -> Vec<Chain> {
+        let created_after = created_after.unwrap_or(0.into());
+
         self.state
             .chains
             .index_values()
             .await
             .unwrap()
             .into_iter()
-            .map(|(_, chain)| chain)
+            .filter_map(|(_, chain)| (chain.created_at > created_after).then_some(chain))
             .collect()
     }
 

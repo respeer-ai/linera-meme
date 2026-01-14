@@ -126,7 +126,7 @@ impl<
             return Err(HandlerError::InvalidApplicationResponse);
         };
 
-        let Miner { owner } = miner;
+        let Miner { owner, .. } = miner;
         let now = self.runtime.borrow_mut().system_time();
 
         self.state
