@@ -18,4 +18,7 @@ pub enum MemeMinerError {
 
     #[error(transparent)]
     CryptoError(#[from] linera_base::crypto::CryptoError),
+
+    #[error(transparent)]
+    LocalNodeError(#[from] linera_core::LocalNodeError),
 }

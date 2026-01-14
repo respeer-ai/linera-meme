@@ -8,11 +8,15 @@ use abi::proxy::ProxyAbi;
 use async_graphql::{Request, Value, Variables};
 use errors::MemeMinerError;
 use futures::{lock::Mutex, FutureExt as _};
-use linera_base::identifiers::{Account, ApplicationId, ChainId};
+use linera_base::{
+    crypto::CryptoHash,
+    identifiers::{Account, ApplicationId, ChainId},
+};
 use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
-use linera_core::Wallet;
-use linera_execution::{Query, QueryResponse};
-use serde::Deserialize;
+use linera_core::{data_types::ClientOutcome, Wallet};
+use linera_execution::{Query, QueryOutcome, QueryResponse};
+use linera_service::util;
+use serde::{de::DeserializeOwned, Deserialize};
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
@@ -26,6 +30,12 @@ struct CreatorChainIdResponse {
 struct MinerRegisteredResponse {
     #[serde(alias = "minerRegistered")]
     miner_registered: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegisterMinerResponse {
+    #[serde(alias = "registerMiner")]
+    register_miner: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -89,26 +99,63 @@ where
         }
     }
 
-    async fn meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
-        let client = self
-            .context
-            .lock()
-            .await
-            .make_chain_client(self.default_chain)
-            .await?;
-
-        let request = Request::new("{ creatorChainId }");
+    async fn query_user_application<T>(
+        &self,
+        chain_id: ChainId,
+        request: Request,
+    ) -> Result<QueryOutcome<Response<T>>, MemeMinerError>
+    where
+        T: DeserializeOwned,
+    {
+        // We don't get chain id here to avoid recursive invocation
         let query = Query::user(
             self.meme_proxy_application_id.with_abi::<ProxyAbi>(),
             &request,
         )?;
-        let outcome = client.query_application(query, None).await?;
-        let QueryResponse::User(payload) = outcome.response else {
-            panic!("Invalid application response");
+
+        let client = self
+            .context
+            .lock()
+            .await
+            .make_chain_client(chain_id)
+            .await?;
+
+        let QueryOutcome {
+            response,
+            operations,
+        } = client.query_application(query, None).await?;
+
+        let QueryResponse::User(payload) = response else {
+            unreachable!("cannot get a system response for a user query");
         };
-        let response: Response<CreatorChainIdResponse> =
+        tracing::info!(
+            "Query:\n\tchain {} \n\tapplication {} \n\trequest {:?}: \n\t{:?}",
+            chain_id,
+            self.meme_proxy_application_id,
+            request,
+            String::from_utf8(payload.clone()).expect("invalid response")
+        );
+        let response: Response<T> =
             serde_json::from_str(&String::from_utf8(payload).expect("invalid response"))?;
-        Ok(response.data.creator_chain_id)
+
+        Ok(QueryOutcome {
+            response,
+            operations,
+        })
+    }
+
+    async fn meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
+        let request = Request::new(
+            r#"
+            query creatorChainId {
+                creatorChainId
+            }
+            "#,
+        );
+        let outcome = self
+            .query_user_application::<CreatorChainIdResponse>(self.default_chain, request)
+            .await?;
+        Ok(outcome.response.data.creator_chain_id)
     }
 
     async fn follow_proxy_chain(&self) -> Result<(), MemeMinerError> {
@@ -145,15 +192,7 @@ where
     }
 
     async fn miner_registered(&self) -> Result<bool, MemeMinerError> {
-        // TODO: we could follow proxy chain locally.
         let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
-
-        let client = self
-            .context
-            .lock()
-            .await
-            .make_chain_client(meme_proxy_creator_chain_id)
-            .await?;
 
         let mut request = Request::new(
             r#"
@@ -166,20 +205,64 @@ where
             "owner": self.owner.owner,
         })));
 
-        let query = Query::user(
-            self.meme_proxy_application_id.with_abi::<ProxyAbi>(),
-            &request,
-        )?;
-        let outcome = client.query_application(query, None).await?;
-        let QueryResponse::User(payload) = outcome.response else {
-            panic!("Invalid application response");
-        };
-        let response: Response<MinerRegisteredResponse> =
-            serde_json::from_str(&String::from_utf8(payload).expect("invalid response"))?;
-        Ok(response.data.miner_registered)
+        let outcome = self
+            .query_user_application::<MinerRegisteredResponse>(meme_proxy_creator_chain_id, request)
+            .await?;
+        Ok(outcome.response.data.miner_registered)
     }
 
-    fn register_miner(&self) {}
+    // Stole from node_service.rs
+    async fn execute_operation<T>(
+        &self,
+        chain_id: ChainId,
+        request: Request,
+    ) -> Result<CryptoHash, MemeMinerError>
+    where
+        T: DeserializeOwned,
+    {
+        let QueryOutcome {
+            response,
+            operations,
+        } = self.query_user_application::<T>(chain_id, request).await?;
+        if operations.is_empty() {
+            unreachable!("the query contains no operation");
+        }
+
+        let client = self
+            .context
+            .lock()
+            .await
+            .make_chain_client(chain_id)
+            .await?;
+        let hash = loop {
+            let timeout = match client
+                .execute_operations(operations.clone(), vec![])
+                .await?
+            {
+                ClientOutcome::Committed(certificate) => break certificate.hash(),
+                ClientOutcome::WaitForTimeout(timeout) => timeout,
+            };
+            let mut stream = client.subscribe()?;
+            util::wait_for_next_round(&mut stream, timeout).await;
+        };
+
+        Ok(hash)
+    }
+
+    async fn register_miner(&self) -> Result<(), MemeMinerError> {
+        let request = Request::new(
+            r#"
+            mutation registerMiner {
+                registerMiner
+            }
+            "#,
+        );
+        let hash = self
+            .execute_operation::<RegisterMinerResponse>(self.default_chain, request)
+            .await?;
+        tracing::info!("Hash {:?}", hash);
+        Ok(())
+    }
 
     pub fn meme_proxy_application_id(&self) -> ApplicationId {
         self.meme_proxy_application_id
@@ -204,12 +287,7 @@ where
     }
 
     pub async fn run(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
-        // TODO: sync chain
-        // TODO: get meme proxy creator chain id
-        // TODO: check if chain is miner, if not, register with default chain (cli.query_user_application)
-        if !self.miner_registered().await? {
-            self.register_miner();
-        }
+        self.follow_proxy_chain().await?;
 
         let chain_listener = ChainListener::new(
             self.chain_listener_config.clone(),
@@ -218,8 +296,13 @@ where
             cancellation_token.clone(),
             tokio::sync::mpsc::unbounded_channel().1,
         )
-        .run(false)
+        .run(true)
         .await?;
+
+        if !self.miner_registered().await? {
+            self.register_miner().await?;
+        }
+
         let mine_task = self.mine_task(cancellation_token);
 
         futures::select! {

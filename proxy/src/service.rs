@@ -5,8 +5,8 @@
 
 use std::sync::Arc;
 
-use abi::proxy::{Chain, ProxyAbi};
-use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
+use abi::proxy::{Chain, ProxyAbi, ProxyOperation};
+use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, WithServiceAbi},
     views::View,
@@ -45,7 +45,9 @@ impl Service for ProxyService {
                 state: self.state.clone(),
                 runtime: self.runtime.clone(),
             },
-            EmptyMutation,
+            MutationRoot {
+                runtime: self.runtime.clone(),
+            },
             EmptySubscription,
         )
         .finish();
@@ -158,6 +160,19 @@ impl QueryRoot {
 
     async fn creator_chain_id(&self) -> ChainId {
         self.runtime.application_creator_chain_id()
+    }
+}
+
+struct MutationRoot {
+    runtime: Arc<ServiceRuntime<ProxyService>>,
+}
+
+#[Object]
+impl MutationRoot {
+    async fn register_miner(&self) -> [u8; 0] {
+        self.runtime
+            .schedule_operation(&ProxyOperation::RegisterMiner);
+        []
     }
 }
 
