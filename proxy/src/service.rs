@@ -95,6 +95,13 @@ impl QueryRoot {
             .chain(genesis_miners.into_iter())
             .collect()
     }
+
+    async fn _miner(&self, owner: AccountOwner) -> Option<Miner> {
+        self._miners()
+            .await
+            .into_iter()
+            .find(|miner| miner.owner.owner == owner)
+    }
 }
 
 #[Object]
@@ -127,6 +134,10 @@ impl QueryRoot {
                 .expect("Failed check genesis miner")
                 .iter()
                 .any(|_owner| _owner.owner == owner)
+    }
+
+    async fn miner(&self, owner: AccountOwner) -> Option<Miner> {
+        self._miner(owner).await
     }
 
     async fn meme_chains(&self, created_after: Option<Timestamp>) -> Vec<Chain> {
