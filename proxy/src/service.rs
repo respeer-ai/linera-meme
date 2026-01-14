@@ -8,7 +8,7 @@ use std::sync::Arc;
 use abi::proxy::{Chain, ProxyAbi};
 use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, ApplicationId, ChainId, ModuleId, WithServiceAbi},
+    linera_base_types::{Account, AccountOwner, ApplicationId, ChainId, ModuleId, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -58,13 +58,8 @@ struct QueryRoot {
     runtime: Arc<ServiceRuntime<ProxyService>>,
 }
 
-#[Object]
 impl QueryRoot {
-    async fn meme_bytecode_id(&self) -> ModuleId {
-        self.state.meme_bytecode_id.get().unwrap()
-    }
-
-    async fn genesis_miners(&self) -> Vec<Account> {
+    async fn _genesis_miners(&self) -> Vec<Account> {
         let mut miners = Vec::new();
         self.state
             .genesis_miners
@@ -80,28 +75,49 @@ impl QueryRoot {
         miners
     }
 
-    async fn miners(&self) -> Vec<Account> {
-        let mut genesis_miners = Vec::new();
-        self.state
-            .genesis_miners
-            .for_each_index_value(|owner, miner| {
-                let approval = miner.into_owned().approval;
-                if approval.approved() {
-                    genesis_miners.push(owner);
-                }
-                Ok(())
-            })
-            .await
-            .expect("Failed: genesis miners");
+    async fn _miners(&self) -> Vec<Account> {
         self.state
             .miners
             .indices()
             .await
             .expect("Failed: miners")
             .iter()
-            .chain(genesis_miners.iter())
+            .chain(self._genesis_miners().await.iter())
             .cloned()
             .collect()
+    }
+}
+
+#[Object]
+impl QueryRoot {
+    async fn meme_bytecode_id(&self) -> ModuleId {
+        self.state.meme_bytecode_id.get().unwrap()
+    }
+
+    async fn genesis_miners(&self) -> Vec<Account> {
+        self._genesis_miners().await
+    }
+
+    async fn miners(&self) -> Vec<Account> {
+        self._miners().await
+    }
+
+    async fn miner_registered(&self, owner: AccountOwner) -> bool {
+        self.state
+            .miners
+            .indices()
+            .await
+            .expect("Failed check miner")
+            .iter()
+            .any(|_owner| _owner.owner == owner)
+            || self
+                .state
+                .genesis_miners
+                .indices()
+                .await
+                .expect("Failed check genesis miner")
+                .iter()
+                .any(|_owner| _owner.owner == owner)
     }
 
     async fn meme_chains(&self) -> Vec<Chain> {
