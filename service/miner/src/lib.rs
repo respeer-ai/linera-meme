@@ -4,7 +4,7 @@ mod options;
 
 use std::{str::FromStr, sync::Arc, time::Instant};
 
-use abi::proxy::ProxyAbi;
+use abi::proxy::{Chain, Miner, ProxyAbi};
 use async_graphql::{Request, Value, Variables};
 use errors::MemeMinerError;
 use futures::{lock::Mutex, FutureExt as _};
@@ -27,6 +27,12 @@ struct CreatorChainIdResponse {
 }
 
 #[derive(Debug, Deserialize)]
+struct MinerResponse {
+    #[serde(alias = "miner")]
+    miner: Option<Miner>,
+}
+
+#[derive(Debug, Deserialize)]
 struct MinerRegisteredResponse {
     #[serde(alias = "minerRegistered")]
     miner_registered: bool,
@@ -36,6 +42,12 @@ struct MinerRegisteredResponse {
 struct RegisterMinerResponse {
     #[serde(alias = "registerMiner")]
     register_miner: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MemeChainsResponse {
+    #[serde(alias = "memeChains")]
+    meme_chains: Vec<Chain>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,6 +223,26 @@ where
         Ok(outcome.response.data.miner_registered)
     }
 
+    async fn miner(&self) -> Result<Option<Miner>, MemeMinerError> {
+        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+
+        let mut request = Request::new(
+            r#"
+            query miner($owner: String!) {
+                miner(owner: $owner)
+            }
+            "#,
+        );
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "owner": self.owner.owner,
+        })));
+
+        let outcome = self
+            .query_user_application::<MinerResponse>(meme_proxy_creator_chain_id, request)
+            .await?;
+        Ok(outcome.response.data.miner)
+    }
+
     // Stole from node_service.rs
     async fn execute_operation<T>(
         &self,
@@ -268,11 +300,39 @@ where
         self.meme_proxy_application_id
     }
 
+    async fn meme_chains(&self) -> Result<Vec<Chain>, MemeMinerError> {
+        let Some(miner) = self.miner().await? else {
+            // Miner is already registered so we just wait here
+            tracing::warn!("miner is not registered, wait for next round");
+            return Ok(Vec::new());
+        };
+
+        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+
+        let mut request = Request::new(
+            r#"
+            query memeChains($createdAfter: Timestamp) {
+                memeChains($createdAfter: $createdAfter)
+            }
+            "#,
+        );
+
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "createdAfter": miner.registered_at,
+        })));
+
+        let outcome = self
+            .query_user_application::<MemeChainsResponse>(meme_proxy_creator_chain_id, request)
+            .await?;
+        Ok(outcome.response.data.meme_chains)
+    }
+
     async fn mine_task(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
         loop {
             tokio::select! {
                 _ = self.new_block_notifier.notified() => {
                     // TODO: get new chains
+                    let chains = self.meme_chains().await?;
                     // TODO: subscribe to block height and nonce
                     // TODO: assign new chains to owner
                     // TODO: if new block height or nonce got, stop previous mining and launch new one
@@ -294,7 +354,7 @@ where
             self.context.clone(),
             self.storage.clone(),
             cancellation_token.clone(),
-            tokio::sync::mpsc::unbounded_channel().1,
+            Arc::new(Mutex::new(tokio::sync::mpsc::unbounded_channel().1)),
         )
         .run(true)
         .await?;
