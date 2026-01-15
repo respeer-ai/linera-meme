@@ -1,12 +1,12 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
+    hash::hash_cmp,
     meme::{MemeMessage, MemeOperation, MemeResponse, MiningBase},
     proxy::{Miner, ProxyAbi, ProxyOperation, ProxyResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::CryptoHash;
-use num_bigint::BigUint;
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -20,17 +20,6 @@ pub struct MineHandler<
     state: S,
 
     nonce: CryptoHash,
-}
-
-fn hash_to_u256(hash: CryptoHash) -> BigUint {
-    BigUint::from_bytes_be(&hash.as_bytes().0)
-}
-
-fn hash_cmp(hash1: CryptoHash, hash2: CryptoHash) -> Ordering {
-    let hash1_bigint = hash_to_u256(hash1);
-    let hash2_bigint = hash_to_u256(hash2);
-
-    hash1_bigint.cmp(&hash2_bigint)
 }
 
 impl<
