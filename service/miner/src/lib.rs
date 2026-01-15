@@ -55,6 +55,12 @@ struct Response<T> {
     data: T,
 }
 
+#[derive(Debug, Clone)]
+struct MiningChain {
+    chain: Chain,
+    new_block_notifier: Arc<Notify>,
+}
+
 pub struct MemeMiner<C>
 where
     C: ClientContext,
@@ -70,7 +76,7 @@ where
     default_chain: ChainId,
     owner: Account,
 
-    mining_chains: Mutex<HashMap<ChainId, Chain>>,
+    mining_chains: Mutex<HashMap<ChainId, MiningChain>>,
 }
 
 impl<C> MemeMiner<C>
@@ -335,11 +341,31 @@ where
         Ok(outcome.response.data.meme_chains)
     }
 
+    async fn try_one_batch(&self) -> Result<Option<CryptoHash>, MemeMinerError> {
+        Err(MemeMinerError::NotImplemented)
+    }
+
     async fn mine_chain(
         &self,
-        chain: Chain,
+        chain: MiningChain,
         cancellation_token: CancellationToken,
     ) -> Result<(), MemeMinerError> {
+        loop {
+            tokio::select! {
+                _ = chain.new_block_notifier.notified() => {
+                    // TODO: get block height and nonce
+                }
+                _ = cancellation_token.cancelled() => {
+                    tracing::info!(?chain.chain.chain_id, "quit chain task");
+                    return Ok(());
+                }
+                else => {
+                    // We only mine one batch (for cpu is one hash, for GPU is one batch calculation)
+                    self.try_one_batch().await?;
+                }
+            }
+        }
+
         // TODO: if new block height or nonce got, stop previous mining and launch new one
         // TODO: create Mine operation when hash got
         Ok(())
@@ -349,11 +375,11 @@ where
         &self,
         chain: Chain,
         cancellation_token: CancellationToken,
-    ) -> Result<(), MemeMinerError> {
+    ) -> Result<Option<MiningChain>, MemeMinerError> {
         let mut guard = self.mining_chains.lock().await;
 
         if guard.contains_key(&chain.chain_id) {
-            return Ok(());
+            return Ok(None);
         }
 
         self.follow_chain(chain.chain_id).await?;
@@ -366,9 +392,14 @@ where
         // TODO: do we need to listen it in ChainListener here (run_with_chain_id) ?
         // ChainListener will provide subscription to new chain block, then we can get height and nonce there
 
-        guard.insert(chain.chain_id, chain.clone());
+        let mining_chain = MiningChain {
+            chain: chain.clone(),
+            new_block_notifier: Arc::new(Notify::new()),
+        };
 
-        Ok(())
+        guard.insert(chain.chain_id, mining_chain.clone());
+
+        Ok(Some(mining_chain))
     }
 
     async fn mine_task(
@@ -381,13 +412,15 @@ where
                     let chains = self.meme_chains().await?;
 
                     for chain in chains {
-                        self.handle_chain(chain.clone(), cancellation_token.clone()).await?;
+                        let Some(mining_chain) = self.handle_chain(chain.clone(), cancellation_token.clone()).await? else {
+                            continue;
+                        };
 
                         let _cancellation_token = cancellation_token.clone();
                         let miner = Arc::clone(&self);
 
                         tokio::spawn(async move {
-                            if let Err(err) = miner.mine_chain(chain.clone(), _cancellation_token).await {
+                            if let Err(err) = miner.mine_chain(mining_chain.clone(), _cancellation_token).await {
                                 tracing::error!(?chain.chain_id, error = ?err, "mine chain failed");
                             }
 
@@ -421,11 +454,22 @@ where
 
         let mut receiver = chain_listener.subscribe_new_block();
         let notifier = self.new_block_notifier.clone();
+        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+        let miner = Arc::clone(&self);
 
         tokio::spawn(async move {
-            while let Ok(notification) = receiver.recv().await {
-                tracing::info!("new block of chain {}", notification);
-                notifier.notify_one();
+            while let Ok(chain_id) = receiver.recv().await {
+                tracing::info!("new block of chain {}", chain_id);
+                if chain_id == meme_proxy_creator_chain_id {
+                    notifier.notify_one();
+                } else {
+                    let mut guard = miner.mining_chains.lock().await;
+                    if let Some(entry) = guard.get(&chain_id) {
+                        entry.new_block_notifier.notify_one();
+                    } else {
+                        tracing::warn!(?chain_id, "no mining chain");
+                    }
+                }
             }
         });
 
