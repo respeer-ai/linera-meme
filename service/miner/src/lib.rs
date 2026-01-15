@@ -4,7 +4,10 @@ mod options;
 
 use std::{collections::HashMap, str::FromStr, sync::Arc, time::Instant};
 
-use abi::proxy::{Chain, Miner, ProxyAbi};
+use abi::{
+    meme::{MiningInfo, MiningBase},
+    proxy::{Chain, Miner, ProxyAbi},
+};
 use async_graphql::{Request, Value, Variables};
 use errors::MemeMinerError;
 use futures::{lock::Mutex, FutureExt as _};
@@ -51,6 +54,12 @@ struct MemeChainsResponse {
 }
 
 #[derive(Debug, Deserialize)]
+struct MiningInfoResponse {
+    #[serde(alias = "miningInfo")]
+    mining_info: Option<MiningInfo>,
+}
+
+#[derive(Debug, Deserialize)]
 struct Response<T> {
     data: T,
 }
@@ -59,6 +68,7 @@ struct Response<T> {
 struct MiningChain {
     chain: Chain,
     new_block_notifier: Arc<Notify>,
+    mining_info: Option<MiningInfo>,
 }
 
 pub struct MemeMiner<C>
@@ -341,7 +351,38 @@ where
         Ok(outcome.response.data.meme_chains)
     }
 
-    async fn try_one_batch(&self) -> Result<Option<CryptoHash>, MemeMinerError> {
+    async fn mining_info(&self, chain: Chain) -> Result<Option<MiningInfo>, MemeMinerError> {
+        let mut request = Request::new(
+            r#"
+            query miningInfo {
+                miningInfo {
+                    miningHeight
+                    previousNonce
+                }
+            }
+            "#,
+        );
+
+        let outcome = self
+            .query_user_application::<MiningInfoResponse>(chain.chain_id, request)
+            .await?;
+        Ok(outcome.response.data.mining_info)
+    }
+
+    async fn try_one_batch(
+        &self,
+        chain: MiningChain,
+        nonce: CryptoHash,
+    ) -> Result<Option<CryptoHash>, MemeMinerError> {
+        let mining_base = MiningBase {
+            height: chain.mining_info.mining_height,
+            nonce: self.nonce,
+            chain_id: chain.chain_id,
+            signer: self.owner.owner,
+            previous_nonce: chain.mining_info.previous_nonce,
+        };
+
+        let hash = CryptoHash::new(&mining_base);
         Err(MemeMinerError::NotImplemented)
     }
 
@@ -353,7 +394,10 @@ where
         loop {
             tokio::select! {
                 _ = chain.new_block_notifier.notified() => {
-                    // TODO: get block height and nonce
+                    chain.mining_info = self.mining_info(chain.chain).await?;
+                    if chain.mining_info.is_none() {
+                        return Ok(());
+                    }
                 }
                 _ = cancellation_token.cancelled() => {
                     tracing::info!(?chain.chain.chain_id, "quit chain task");
@@ -361,7 +405,7 @@ where
                 }
                 else => {
                     // We only mine one batch (for cpu is one hash, for GPU is one batch calculation)
-                    self.try_one_batch().await?;
+                    self.try_one_batch(chain).await?;
                 }
             }
         }
@@ -395,6 +439,7 @@ where
         let mining_chain = MiningChain {
             chain: chain.clone(),
             new_block_notifier: Arc::new(Notify::new()),
+            mining_info: None,
         };
 
         guard.insert(chain.chain_id, mining_chain.clone());
