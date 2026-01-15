@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-use abi::meme::{Meme, MemeAbi, MemeOperation};
+use abi::meme::{Meme, MemeAbi, MemeOperation, MiningInfo};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, ChainId, WithServiceAbi},
@@ -112,6 +112,10 @@ impl QueryRoot {
 
     async fn meme(&self) -> Meme {
         self.state.meme.get().as_ref().unwrap().clone()
+    }
+
+    async fn mining_info(&self) -> Option<MiningInfo> {
+        self.state.mining_info.get().clone()
     }
 }
 
