@@ -2,7 +2,7 @@ mod command;
 mod errors;
 mod options;
 
-use std::{str::FromStr, sync::Arc, time::Instant};
+use std::{collections::HashMap, str::FromStr, sync::Arc, time::Instant};
 
 use abi::proxy::{Chain, Miner, ProxyAbi};
 use async_graphql::{Request, Value, Variables};
@@ -17,7 +17,7 @@ use linera_core::{data_types::ClientOutcome, Wallet};
 use linera_execution::{Query, QueryOutcome, QueryResponse};
 use linera_service::util;
 use serde::{de::DeserializeOwned, Deserialize};
-use tokio::sync::Notify;
+use tokio::{sync::Notify, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Deserialize)]
@@ -69,6 +69,8 @@ where
 
     default_chain: ChainId,
     owner: Account,
+
+    mining_chains: Mutex<HashMap<ChainId, Chain>>,
 }
 
 impl<C> MemeMiner<C>
@@ -108,6 +110,8 @@ where
                 chain_id: default_chain,
                 owner,
             },
+
+            mining_chains: Mutex::new(HashMap::default()),
         }
     }
 
@@ -170,25 +174,17 @@ where
         Ok(outcome.response.data.creator_chain_id)
     }
 
-    async fn follow_proxy_chain(&self) -> Result<(), MemeMinerError> {
+    async fn follow_chain(&self, chain_id: ChainId) -> Result<(), MemeMinerError> {
         let start_time = Instant::now();
 
-        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
-
-        self.context
-            .lock()
-            .await
-            .client()
-            .track_chain(meme_proxy_creator_chain_id);
+        self.context.lock().await.client().track_chain(chain_id);
         let chain_client = self
             .context
             .lock()
             .await
-            .make_chain_client(meme_proxy_creator_chain_id)
+            .make_chain_client(chain_id)
             .await?;
-        chain_client
-            .synchronize_chain_state(meme_proxy_creator_chain_id)
-            .await?;
+        chain_client.synchronize_chain_state(chain_id).await?;
         self.context
             .lock()
             .await
@@ -201,6 +197,11 @@ where
         );
 
         Ok(())
+    }
+
+    async fn follow_proxy_chain(&self) -> Result<(), MemeMinerError> {
+        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+        self.follow_chain(meme_proxy_creator_chain_id).await
     }
 
     async fn miner_registered(&self) -> Result<bool, MemeMinerError> {
@@ -229,7 +230,10 @@ where
         let mut request = Request::new(
             r#"
             query miner($owner: String!) {
-                miner(owner: $owner)
+                miner(owner: $owner) {
+                    owner
+                    registeredAt
+                }
             }
             "#,
         );
@@ -312,7 +316,11 @@ where
         let mut request = Request::new(
             r#"
             query memeChains($createdAfter: Timestamp) {
-                memeChains($createdAfter: $createdAfter)
+                memeChains(createdAfter: $createdAfter) {
+                    chainId
+                    createdAt
+                    token
+                }
             }
             "#,
         );
@@ -327,16 +335,67 @@ where
         Ok(outcome.response.data.meme_chains)
     }
 
-    async fn mine_task(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
+    async fn mine_chain(
+        &self,
+        chain: Chain,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), MemeMinerError> {
+        // TODO: if new block height or nonce got, stop previous mining and launch new one
+        // TODO: create Mine operation when hash got
+        Ok(())
+    }
+
+    async fn handle_chain(
+        &self,
+        chain: Chain,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), MemeMinerError> {
+        let mut guard = self.mining_chains.lock().await;
+
+        if guard.contains_key(&chain.chain_id) {
+            return Ok(());
+        }
+
+        self.follow_chain(chain.chain_id).await?;
+        self.context
+            .lock()
+            .await
+            .assign_new_chain_to_key(chain.chain_id, self.owner.owner)
+            .await?;
+
+        // TODO: do we need to listen it in ChainListener here (run_with_chain_id) ?
+        // ChainListener will provide subscription to new chain block, then we can get height and nonce there
+
+        guard.insert(chain.chain_id, chain.clone());
+
+        Ok(())
+    }
+
+    async fn mine_task(
+        self: Arc<Self>,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), MemeMinerError> {
         loop {
             tokio::select! {
                 _ = self.new_block_notifier.notified() => {
-                    // TODO: get new chains
                     let chains = self.meme_chains().await?;
-                    // TODO: subscribe to block height and nonce
-                    // TODO: assign new chains to owner
-                    // TODO: if new block height or nonce got, stop previous mining and launch new one
-                    // TODO: create Mine operation when hash got
+
+                    for chain in chains {
+                        self.handle_chain(chain.clone(), cancellation_token.clone()).await?;
+
+                        let _cancellation_token = cancellation_token.clone();
+                        let miner = Arc::clone(&self);
+
+                        tokio::spawn(async move {
+                            if let Err(err) = miner.mine_chain(chain.clone(), _cancellation_token).await {
+                                tracing::error!(?chain.chain_id, error = ?err, "mine chain failed");
+                            }
+
+                            let mut guard = miner.mining_chains.lock().await;
+                            guard.remove(&chain.chain_id);
+                        });
+
+                    }
                 }
                 _ = cancellation_token.cancelled() => {
                     tracing::info!("quit meme miner");
@@ -346,7 +405,10 @@ where
         }
     }
 
-    pub async fn run(&self, cancellation_token: CancellationToken) -> Result<(), MemeMinerError> {
+    pub async fn run(
+        self: Arc<Self>,
+        cancellation_token: CancellationToken,
+    ) -> Result<(), MemeMinerError> {
         self.follow_proxy_chain().await?;
 
         let chain_listener = ChainListener::new(
@@ -355,14 +417,27 @@ where
             self.storage.clone(),
             cancellation_token.clone(),
             Arc::new(Mutex::new(tokio::sync::mpsc::unbounded_channel().1)),
-        )
-        .run(true)
-        .await?;
+        );
+
+        let mut receiver = chain_listener.subscribe_new_block();
+        let notifier = self.new_block_notifier.clone();
+
+        tokio::spawn(async move {
+            while let Ok(notification) = receiver.recv().await {
+                tracing::info!("new block of chain {}", notification);
+                notifier.notify_one();
+            }
+        });
+
+        let chain_listener = chain_listener.run(true).await?;
 
         if !self.miner_registered().await? {
             self.register_miner().await?;
         }
 
+        // Let mine task get all chains at launching
+        let notifier = self.new_block_notifier.clone();
+        notifier.notify_one();
         let mine_task = self.mine_task(cancellation_token);
 
         futures::select! {

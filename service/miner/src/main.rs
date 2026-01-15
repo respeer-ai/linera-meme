@@ -130,13 +130,15 @@ impl Runnable for Job {
                     .await?;
                 let default_chain = context.default_chain();
 
-                let miner = MemeMiner::new(
-                    meme_proxy_application_id,
-                    context,
-                    &mut config,
-                    default_chain,
-                )
-                .await;
+                let miner = Arc::new(
+                    MemeMiner::new(
+                        meme_proxy_application_id,
+                        context,
+                        &mut config,
+                        default_chain,
+                    )
+                    .await,
+                );
 
                 let cancellation_token = CancellationToken::new();
                 tokio::spawn(listen_for_shutdown_signals(cancellation_token.clone()));
