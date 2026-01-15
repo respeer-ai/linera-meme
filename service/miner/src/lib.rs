@@ -6,7 +6,7 @@ use std::{cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc, time::In
 
 use abi::{
     hash::hash_cmp,
-    meme::{MiningBase, MiningInfo},
+    meme::{MemeAbi, MiningBase, MiningInfo},
     proxy::{Chain, Miner, ProxyAbi},
 };
 use async_graphql::{Request, Value, Variables};
@@ -135,6 +135,7 @@ where
 
     async fn query_user_application<T>(
         &self,
+        application_id: ApplicationId,
         chain_id: ChainId,
         request: Request,
     ) -> Result<QueryOutcome<Response<T>>, MemeMinerError>
@@ -142,10 +143,7 @@ where
         T: DeserializeOwned,
     {
         // We don't get chain id here to avoid recursive invocation
-        let query = Query::user(
-            self.meme_proxy_application_id.with_abi::<ProxyAbi>(),
-            &request,
-        )?;
+        let query = Query::user_without_abi(application_id, &request)?;
 
         let client = self
             .context
@@ -187,7 +185,11 @@ where
             "#,
         );
         let outcome = self
-            .query_user_application::<CreatorChainIdResponse>(self.default_chain, request)
+            .query_user_application::<CreatorChainIdResponse>(
+                self.meme_proxy_application_id,
+                self.default_chain,
+                request,
+            )
             .await?;
         Ok(outcome.response.data.creator_chain_id)
     }
@@ -237,7 +239,11 @@ where
         })));
 
         let outcome = self
-            .query_user_application::<MinerRegisteredResponse>(meme_proxy_creator_chain_id, request)
+            .query_user_application::<MinerRegisteredResponse>(
+                self.meme_proxy_application_id,
+                meme_proxy_creator_chain_id,
+                request,
+            )
             .await?;
         Ok(outcome.response.data.miner_registered)
     }
@@ -260,7 +266,11 @@ where
         })));
 
         let outcome = self
-            .query_user_application::<MinerResponse>(meme_proxy_creator_chain_id, request)
+            .query_user_application::<MinerResponse>(
+                self.meme_proxy_application_id,
+                meme_proxy_creator_chain_id,
+                request,
+            )
             .await?;
         Ok(outcome.response.data.miner)
     }
@@ -268,6 +278,7 @@ where
     // Stole from node_service.rs
     async fn execute_operation<T>(
         &self,
+        application_id: ApplicationId,
         chain_id: ChainId,
         request: Request,
     ) -> Result<CryptoHash, MemeMinerError>
@@ -277,7 +288,9 @@ where
         let QueryOutcome {
             response,
             operations,
-        } = self.query_user_application::<T>(chain_id, request).await?;
+        } = self
+            .query_user_application::<T>(application_id, chain_id, request)
+            .await?;
         if operations.is_empty() {
             unreachable!("the query contains no operation");
         }
@@ -312,7 +325,11 @@ where
             "#,
         );
         let hash = self
-            .execute_operation::<RegisterMinerResponse>(self.default_chain, request)
+            .execute_operation::<RegisterMinerResponse>(
+                self.meme_proxy_application_id,
+                self.default_chain,
+                request,
+            )
             .await?;
         tracing::info!("Hash {:?}", hash);
         Ok(())
@@ -348,7 +365,11 @@ where
         })));
 
         let outcome = self
-            .query_user_application::<MemeChainsResponse>(meme_proxy_creator_chain_id, request)
+            .query_user_application::<MemeChainsResponse>(
+                self.meme_proxy_application_id,
+                meme_proxy_creator_chain_id,
+                request,
+            )
             .await?;
         Ok(outcome.response.data.meme_chains)
     }
@@ -367,7 +388,11 @@ where
         );
 
         let outcome = self
-            .query_user_application::<MiningInfoResponse>(chain.chain_id, request)
+            .query_user_application::<MiningInfoResponse>(
+                chain.token.unwrap(),
+                chain.chain_id,
+                request,
+            )
             .await?;
         Ok(outcome.response.data.mining_info)
     }
