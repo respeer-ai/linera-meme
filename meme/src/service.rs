@@ -8,7 +8,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use abi::meme::{Meme, MemeAbi, MemeOperation, MiningInfo};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ChainId, WithServiceAbi},
+    linera_base_types::{Account, Amount, ChainId, CryptoHash, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -128,6 +128,12 @@ impl MutationRoot {
     async fn mint(&self, to: Account, amount: Amount) -> [u8; 0] {
         self.runtime
             .schedule_operation(&MemeOperation::Mint { to, amount });
+        []
+    }
+
+    async fn mine(&self, nonce: CryptoHash) -> [u8; 0] {
+        self.runtime
+            .schedule_operation(&MemeOperation::Mine { nonce });
         []
     }
 }
