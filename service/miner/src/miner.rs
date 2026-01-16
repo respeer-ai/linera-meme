@@ -45,10 +45,10 @@ struct MinerRegisteredResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct RegisterMinerResponse {
-    #[serde(alias = "registerMiner")]
-    register_miner: Vec<u8>,
-}
+struct CryptoHashResponse;
+
+type RegisterMinerResponse = CryptoHashResponse;
+type MineResponse = CryptoHashResponse;
 
 #[derive(Debug, Deserialize)]
 struct MemeChainsResponse {
@@ -338,6 +338,25 @@ where
         Ok(())
     }
 
+    async fn mine(&self, chain: Chain, nonce: CryptoHash) -> Result<(), MemeMinerError> {
+        let mut request = Request::new(
+            r#"
+            mutation mine(nonce: CryptoHash!) {
+                mine(nonce: $nonce)
+            }
+            "#,
+        );
+
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "nonce": nonce,
+        })));
+        let hash = self
+            .execute_operation::<MineResponse>(chain.token.unwrap(), chain.chain_id, request)
+            .await?;
+        tracing::info!("Hash {:?}", hash);
+        Ok(())
+    }
+
     pub fn meme_proxy_application_id(&self) -> ApplicationId {
         self.meme_proxy_application_id
     }
@@ -498,7 +517,7 @@ where
                         "calculated one hash",
                     );
                     chain.mined_height = Some(mining_info.mining_height);
-                    // TODO: create Mine operation when hash got
+                    self.mine(chain.chain.clone(), nonce).await?;
                 }
                 _ = sleep(Duration::from_secs(1)),
                 if chain.chain.token.is_none()
