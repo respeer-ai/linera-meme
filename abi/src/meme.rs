@@ -71,6 +71,7 @@ pub struct MiningBase {
 impl BcsSignable<'_> for MiningBase {}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, SimpleObject)]
+#[serde(rename_all = "camelCase")]
 pub struct MiningInfo {
     /// Mining hash = sha256sum(block_height, nonce, chain_id, signer, previous_nonce)
     /// Mine opeartion must be the last operation of the block
