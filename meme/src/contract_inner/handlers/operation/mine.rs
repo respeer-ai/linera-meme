@@ -6,7 +6,7 @@ use abi::{
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::CryptoHash;
+use linera_sdk::linera_base_types::{BlockHeight, CryptoHash};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -44,7 +44,10 @@ impl<
         let height = self.runtime.borrow_mut().block_height();
         let mined_height = self.state.mining_height();
 
-        assert!(height > mined_height, "Stale block height");
+        assert!(
+            height > mined_height || (height == BlockHeight(0) && mined_height == BlockHeight(0)),
+            "Stale block height"
+        );
 
         let chain_id = self.runtime.borrow_mut().chain_id();
         let signer = self.runtime.borrow_mut().authenticated_signer().unwrap();
@@ -69,7 +72,7 @@ impl<
 
         let mut mining_info = self.state.mining_info();
 
-        mining_info.mining_height = height;
+        mining_info.mining_height = height.saturating_add(BlockHeight(1));
         mining_info.previous_nonce = self.nonce;
 
         self.state.update_mining_info(mining_info);

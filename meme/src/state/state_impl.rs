@@ -183,7 +183,13 @@ impl StateInterface for MemeState {
 
         let from_balance = self.balances.get(&from).await?.unwrap_or(Amount::ZERO);
 
-        assert!(from_balance >= amount, "Insufficient balance");
+        assert!(
+            from_balance >= amount,
+            "Insufficient balance: from {} balance {} < amount {}",
+            from,
+            from_balance,
+            amount
+        );
 
         self.transfer_(from, to, amount).await
     }

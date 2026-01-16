@@ -7,8 +7,8 @@ use abi::{
         InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
         MemeParameters, MemeResponse, Metadata,
     },
+    proxy::{Miner, ProxyOperation, ProxyResponse},
     store_type::StoreType,
-    swap::router::SwapResponse,
 };
 use futures::FutureExt as _;
 use linera_sdk::{
@@ -43,7 +43,6 @@ async fn operation_mine_not_enable_mining() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Invalid nonce")]
-// TODO: need a gold pattern to remove should panic
 async fn operation_mine_enable_mining_supply_none_invalid_nonce() {
     let mut meme = create_and_instantiate_meme(true, None).await;
 
@@ -56,42 +55,73 @@ async fn operation_mine_enable_mining_supply_none_invalid_nonce() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(expected = "Invalid nonce")]
-// TODO: need a gold pattern to remove should panic
-async fn operation_mine_enable_mining_supply_none() {
+async fn operation_mine_enable_mining_supply_none_one_block() {
     let mut meme = create_and_instantiate_meme(true, None).await;
 
     let _ = meme
         .execute_operation(MemeOperation::Mine {
-            nonce: CryptoHash::new(&TestString::new("aaaa")),
+            nonce: CryptoHash::from_str(
+                "6e29f698682cedf788f02e2299e6428539dd40b8f262152473d4a6e6e6ee78a1",
+            )
+            .unwrap(),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+
+    // TODO: check reward balance
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Stale block height")]
+async fn operation_mine_enable_mining_supply_none_two_block() {
+    let mut meme = create_and_instantiate_meme(true, None).await;
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::from_str(
+                "6e29f698682cedf788f02e2299e6428539dd40b8f262152473d4a6e6e6ee78a1",
+            )
+            .unwrap(),
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+
+    let _ = meme
+        .execute_operation(MemeOperation::Mine {
+            nonce: CryptoHash::from_str(
+                "6e29f698682cedf788f02e2299e6428539dd40b8f262152473d4a6e6e6ee78a1",
+            )
+            .unwrap(),
         })
         .now_or_never()
         .expect("Execution of meme operation should not await anything");
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(expected = "Invalid nonce")]
-// TODO: need a gold pattern to remove should panic
 async fn operation_mine_enable_mining_supply_10000000() {
     let mut meme = create_and_instantiate_meme(true, Some(Amount::from_tokens(10000000))).await;
 
     let _ = meme
         .execute_operation(MemeOperation::Mine {
-            nonce: CryptoHash::new(&TestString::new("aaaa")),
+            nonce: CryptoHash::from_str(
+                "6e29f698682cedf788f02e2299e6428539dd40b8f262152473d4a6e6e6ee78a1",
+            )
+            .unwrap(),
         })
         .now_or_never()
         .expect("Execution of meme operation should not await anything");
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[should_panic(expected = "Invalid nonce")]
-// TODO: need a gold pattern to remove should panic
 async fn operation_mine_enable_mining_supply_13000000() {
     let mut meme = create_and_instantiate_meme(true, Some(Amount::from_tokens(13000000))).await;
 
     let _ = meme
         .execute_operation(MemeOperation::Mine {
-            nonce: CryptoHash::new(&TestString::new("aaaa")),
+            nonce: CryptoHash::from_str(
+                "6e29f698682cedf788f02e2299e6428539dd40b8f262152473d4a6e6e6ee78a1",
+            )
+            .unwrap(),
         })
         .now_or_never()
         .expect("Execution of meme operation should not await anything");
@@ -545,13 +575,31 @@ fn cross_application_call() {}
 fn mock_application_call(
     _authenticated: bool,
     _application_id: ApplicationId,
-    _operation: Vec<u8>,
+    operation: Vec<u8>,
 ) -> Vec<u8> {
-    bcs::to_bytes(&SwapResponse::ChainId(
-        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
-            .unwrap(),
-    ))
-    .unwrap()
+    if let Ok(op) = bcs::from_bytes::<ProxyOperation>(&operation) {
+        match op {
+            ProxyOperation::GetMinerWithAuthenticatedSigner => {
+                return bcs::to_bytes(&ProxyResponse::Miner(Miner {
+                    owner: Account {
+                        chain_id: ChainId::from_str(
+                            "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
+                        )
+                        .unwrap(),
+                        owner: AccountOwner::from_str(
+                            "0xfd90bbb496d286ff1227b8aa2f0d8e479d2b425257940bf36c4338ab73705ac6",
+                        )
+                        .unwrap(),
+                    },
+                    registered_at: 0.into(),
+                }))
+                .unwrap();
+            }
+            _ => return bcs::to_bytes(&ProxyResponse::Ok).unwrap(),
+        }
+    }
+
+    bcs::to_bytes(&ProxyResponse::Ok).unwrap()
 }
 
 async fn create_and_instantiate_meme(
@@ -559,11 +607,11 @@ async fn create_and_instantiate_meme(
     mining_supply: Option<Amount>,
 ) -> MemeContract {
     let operator = AccountOwner::from_str(
-        "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        "0xfd90bbb496d286ff1227b8aa2f0d8e479d2b425257940bf36c4338ab73705ac6",
     )
     .unwrap();
     let chain_id =
-        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
             .unwrap();
     let owner = Account {
         chain_id,
@@ -618,7 +666,7 @@ async fn create_and_instantiate_meme(
         .with_application_creator_chain_id(chain_id)
         .with_application_parameters(parameters.clone())
         .with_system_time(Timestamp::now())
-        .with_block_height(BlockHeight(1))
+        .with_block_height(BlockHeight(0))
         .with_authenticated_signer(operator);
     let mut contract = MemeContract {
         state: Rc::new(RefCell::new(
@@ -652,7 +700,12 @@ async fn create_and_instantiate_meme(
         },
         blob_gateway_application_id: None,
         ams_application_id: None,
-        proxy_application_id: None,
+        proxy_application_id: Some(
+            ApplicationId::from_str(
+                "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
+            )
+            .unwrap(),
+        ),
         swap_application_id: Some(swap_application_id),
     };
 
