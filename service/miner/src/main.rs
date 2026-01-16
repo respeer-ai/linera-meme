@@ -47,7 +47,6 @@ use linera_base::{
     time::{Duration, Instant},
 };
 use linera_client::{
-    benchmark::BenchmarkConfig,
     chain_listener::{ChainListener, ChainListenerConfig, ClientContext as _},
     config::{CommitteeConfig, GenesisConfig},
 };
@@ -59,7 +58,7 @@ use linera_core::{
     JoinSetExt as _, LocalNodeError,
 };
 use linera_execution::committee::Committee;
-use linera_meme_miner::MemeMiner;
+use linera_meme_miner::{benchmark::Benchmark as MinerBenchmark, miner::MemeMiner};
 #[cfg(with_metrics)]
 use linera_metrics::monitoring_server;
 use linera_persistent::Persist;
@@ -69,7 +68,7 @@ use linera_views::store::{KeyValueDatabase, KeyValueStore};
 mod command;
 mod options;
 
-use crate::command::ClientCommand::Run;
+use crate::command::ClientCommand::{Benchmark, Run};
 use options::Options;
 
 use linera_service::{storage::Runnable, util};
@@ -130,7 +129,7 @@ impl Runnable for Job {
                     .await?;
                 let default_chain = context.default_chain();
 
-                let miner = Arc::new(
+                let _miner = Arc::new(
                     MemeMiner::new(
                         meme_proxy_application_id,
                         context,
@@ -142,7 +141,10 @@ impl Runnable for Job {
 
                 let cancellation_token = CancellationToken::new();
                 tokio::spawn(listen_for_shutdown_signals(cancellation_token.clone()));
-                miner.run(cancellation_token).await?;
+                _miner.run(cancellation_token).await?;
+            }
+            Benchmark => {
+                MinerBenchmark::benchmark();
             }
         }
         Ok(())
