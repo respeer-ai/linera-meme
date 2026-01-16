@@ -40,6 +40,7 @@ pub enum ClientCommand {
         #[command(flatten)]
         config: ChainListenerConfig,
     },
+    Benchmark,
 }
 
 impl ClientCommand {
@@ -47,6 +48,7 @@ impl ClientCommand {
     pub fn log_file_name(&self) -> Cow<'static, str> {
         match self {
             ClientCommand::Run { .. } => "miner".into(),
+            ClientCommand::Benchmark => "benchmark".into(),
         }
     }
 }

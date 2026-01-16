@@ -77,7 +77,9 @@ pub struct MiningInfo {
     /// Mine opeartion must be the last operation of the block
     /// new_target = target * (block_duration / target_block_duration)
     /// difficulty = initial_target / new_target
-    /// From bitcoin: 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+    /// Bitcoin: 0x00000000FFFF0000000000000000000000000000000000000000000000000000 (about 10 min / per sha256 hash)
+    /// MicroMeme: 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF (about 5 sec / per keccak hash)
+    /// The baseline miner is device with 200000 hashes / sec
     pub initial_target: CryptoHash,
     pub target: CryptoHash,
     pub new_target: CryptoHash,
@@ -110,7 +112,7 @@ pub struct MiningInfo {
 impl MiningInfo {
     pub fn new(mining_supply: Amount, now: Timestamp) -> Self {
         let initial_target = CryptoHash::from_str(
-            "00000000FFFF0000000000000000000000000000000000000000000000000000",
+            "00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
         )
         .unwrap();
         let block_interval_seconds = 5;
