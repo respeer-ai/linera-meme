@@ -7,6 +7,7 @@ use linera_sdk::{
         ContractAbi, CryptoHash, ServiceAbi, TimeDelta, Timestamp,
     },
 };
+use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -127,10 +128,14 @@ impl MiningInfo {
 
         let initial_nonce = CryptoHash::new(&Nonce("Initial mining nonce".to_string()));
 
-        let supply_scale = mining_supply.saturating_div(Amount::from_tokens(21000000).into());
-        let initial_reward_amount = Amount::from_str("1.7")
-            .unwrap()
-            .saturating_mul(supply_scale.into());
+        let initial_reward_amount = Amount::from_attos(
+            U256::from(u128::from(Amount::from_str("1.7").unwrap()))
+                .checked_mul(U256::from(u128::from(mining_supply)))
+                .unwrap()
+                .checked_div(U256::from(u128::from(Amount::from_tokens(21000000))))
+                .unwrap()
+                .as_u128(),
+        );
 
         MiningInfo {
             initial_target,

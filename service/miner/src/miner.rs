@@ -45,10 +45,15 @@ struct MinerRegisteredResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct CryptoHashResponse;
+struct RegisterMinerResponse {
+    #[serde(alias = "registerMiner")]
+    register_miner: Vec<u8>,
+}
 
-type RegisterMinerResponse = CryptoHashResponse;
-type MineResponse = CryptoHashResponse;
+#[derive(Debug, Deserialize)]
+struct MineResponse {
+    mine: Vec<u8>
+}
 
 #[derive(Debug, Deserialize)]
 struct MemeChainsResponse {
@@ -215,7 +220,7 @@ where
             .await?;
 
         tracing::info!(
-            "Proxy chain followed and added in {} ms",
+            "Chain followed and added in {} ms",
             start_time.elapsed().as_millis()
         );
 
@@ -341,7 +346,7 @@ where
     async fn mine(&self, chain: Chain, nonce: CryptoHash) -> Result<(), MemeMinerError> {
         let mut request = Request::new(
             r#"
-            mutation mine(nonce: CryptoHash!) {
+            mutation mine($nonce: CryptoHash!) {
                 mine(nonce: $nonce)
             }
             "#,
