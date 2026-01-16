@@ -119,7 +119,7 @@ impl Runnable for Job {
             } => {
                 assert!(
                     signer.keys().len() > 0,
-                    "run `linera wallet init` to initialize wallet."
+                    "run `linera wallet init` and `linera wallet request-chain` to initialize wallet."
                 );
 
                 let meme_proxy_application_id = *meme_proxy_application_id;

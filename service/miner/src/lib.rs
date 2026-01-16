@@ -379,8 +379,19 @@ where
             r#"
             query miningInfo {
                 miningInfo {
+                    initialTarget
                     target
+                    newTarget
+                    blockDuration
+                    targetBlockDuration
+                    targetAdjustmentBlocks
+                    emptyBlockRewardPercent
+                    initialRewardAmount
+                    halvingCycle
+                    nextHalvingAt
+                    rewardAmount
                     miningHeight
+                    miningExecutions
                     previousNonce
                 }
             }
@@ -408,7 +419,10 @@ where
             previous_nonce: mining_info.previous_nonce,
         };
 
+        let start_time = Instant::now();
         let hash = CryptoHash::new(&mining_base);
+        let elapsed = start_time.elapsed().as_millis();
+        tracing::info!(?chain.chain.chain_id, ?mining_base, ?hash, ?elapsed, "calculated one hash");
 
         match hash_cmp(hash, mining_info.target) {
             Ordering::Less => Some(hash),
@@ -430,15 +444,25 @@ where
         loop {
             tokio::select! {
                 _ = chain.new_block_notifier.notified() => {
+                    if chain.chain.token.is_none() {
+                        continue;
+                    }
                     chain.mining_info = self.mining_info(&chain.chain).await?;
+                    if chain.mining_info.is_none() {
+                        return Ok(());
+                    }
                     chain.nonce = Some(chain.mining_info.as_ref().unwrap().previous_nonce);
+                    tracing::info!(?chain.chain.chain_id, "new mining info");
+                    tracing::info!("mining info: {:?}", chain.mining_info.as_ref().unwrap());
+                    tracing::info!("new nonce: {:?}", chain.nonce.unwrap());
                 }
                 _ = cancellation_token.cancelled() => {
                     tracing::info!(?chain.chain.chain_id, "quit chain task");
                     return Ok(());
                 }
-                else => {
+                _ = tokio::task::yield_now() => {
                     let Some(nonce) = chain.nonce else {
+                        tracing::debug!(?chain.chain.chain_id, "miss mining nonce");
                         continue;
                     };
 
