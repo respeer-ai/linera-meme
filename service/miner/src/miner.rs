@@ -213,7 +213,6 @@ where
     async fn follow_chain(&self, chain_id: ChainId) -> Result<(), MemeMinerError> {
         let start_time = Instant::now();
 
-        self.context.lock().await.client().track_chain(chain_id);
         let chain_client = self
             .context
             .lock()
@@ -630,6 +629,7 @@ where
             self.storage.clone(),
             cancellation_token.clone(),
             Arc::new(Mutex::new(tokio::sync::mpsc::unbounded_channel().1)),
+            true,
         );
 
         let mut receiver = chain_listener.subscribe_new_block();
@@ -653,7 +653,7 @@ where
             }
         });
 
-        let chain_listener = chain_listener.run(true).await?;
+        let chain_listener = chain_listener.run().await?;
 
         if !self.miner_registered().await? {
             self.register_miner().await?;
