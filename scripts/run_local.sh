@@ -8,7 +8,7 @@
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
 COMPILE=1
-GIT_BRANCH=respeer-maas-testnet_conway-32c047f7-2025-12-17
+GIT_BRANCH=respeer-maas-testnet_conway-d411bd6c-2026-01-18
 CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 
