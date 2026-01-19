@@ -52,7 +52,7 @@ struct RegisterMinerResponse {
 
 #[derive(Debug, Deserialize)]
 struct MineResponse {
-    mine: Vec<u8>
+    mine: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -171,7 +171,7 @@ where
         tracing::info!(
             "Query:\n\tchain {} \n\tapplication {} \n\trequest {:?}: \n\t{:?}",
             chain_id,
-            self.meme_proxy_application_id,
+            application_id,
             request,
             String::from_utf8(payload.clone()).expect("invalid response")
         );
@@ -184,7 +184,10 @@ where
         })
     }
 
-    async fn meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
+    async fn application_creator_chain_id(
+        &self,
+        application_id: ApplicationId,
+    ) -> Result<ChainId, MemeMinerError> {
         let request = Request::new(
             r#"
             query creatorChainId {
@@ -194,12 +197,17 @@ where
         );
         let outcome = self
             .query_user_application::<CreatorChainIdResponse>(
-                self.meme_proxy_application_id,
+                application_id,
                 self.default_chain,
                 request,
             )
             .await?;
         Ok(outcome.response.data.creator_chain_id)
+    }
+
+    async fn meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
+        self.application_creator_chain_id(self.meme_proxy_application_id)
+            .await
     }
 
     async fn follow_chain(&self, chain_id: ChainId) -> Result<(), MemeMinerError> {
@@ -455,7 +463,7 @@ where
         };
 
         if result.is_some() {
-            tracing::info!(?chain.chain.chain_id, ?mining_base, ?hash, "mined");
+            tracing::info!(?chain.chain.chain_id, ?mining_base, ?nonce, ?hash, "mined");
         }
 
         result
@@ -519,6 +527,7 @@ where
                         ?mining_info,
                         ?hash,
                         ?elapsed,
+                        ?nonce,
                         "calculated one hash",
                     );
                     chain.mined_height = Some(mining_info.mining_height);
@@ -530,7 +539,7 @@ where
                         || chain.mined_height.is_none()
                         || chain.mined_height.unwrap() >= chain.mining_info.as_ref().unwrap().mining_height
                         || chain.nonce.is_none() => {
-                    tracing::debug!(?chain.chain.chain_id, "waiting for new block");
+                    tracing::info!(?chain.chain.chain_id, "waiting for new block");
                 }
             }
         }

@@ -50,7 +50,7 @@ impl<
         );
 
         let chain_id = self.runtime.borrow_mut().chain_id();
-        let signer = self.runtime.borrow_mut().authenticated_signer().unwrap();
+        let signer = self.runtime.borrow_mut().authenticated_signer().expect("Invalid signer");
         let previous_nonce = self.state.previous_nonce();
 
         let mining_base = MiningBase {
