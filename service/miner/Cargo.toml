@@ -61,57 +61,57 @@ dirs = "5.0.1"
 
 [dependencies.linera-core]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 features = ["wasmer"]
 
 [dependencies.linera-client]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 default-features = false
 
 [dependencies.linera-base]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 
 [dependencies.linera-service]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 
 [dependencies.linera-persistent]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 
 [dependencies.linera-rpc]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 
 [dependencies.linera-execution]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 features = ["wasmer"]
 
 [dependencies.linera-views]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 features = ["indexeddb"]
 
 [dependencies.linera-storage-service]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 optional = true
 
 [dependencies.linera-storage]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
 # version = "0.15.8"
 features = ["wasmer"]
 
@@ -144,4 +144,4 @@ storage-service = ["linera-storage-service"]
 
 [patch.crates-io.linera-sdk]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "8dc7680aba"
+rev = "5e88f6ed"
