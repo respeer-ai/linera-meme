@@ -50,7 +50,11 @@ impl<
         );
 
         let chain_id = self.runtime.borrow_mut().chain_id();
-        let signer = self.runtime.borrow_mut().authenticated_signer().expect("Invalid signer");
+        let signer = self
+            .runtime
+            .borrow_mut()
+            .authenticated_signer()
+            .expect("Invalid signer");
         let previous_nonce = self.state.previous_nonce();
 
         let mining_base = MiningBase {
@@ -60,6 +64,8 @@ impl<
             signer,
             previous_nonce,
         };
+
+        log::info!("mined {:?}", mining_base);
 
         let hash = CryptoHash::new(&mining_base);
         let mining_target = self.state.mining_target();
