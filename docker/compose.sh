@@ -219,6 +219,17 @@ function assign_chain_to_owner() {
            assign --owner $owner --chain-id $chain_id
 }
 
+function to_json_list() {
+    local input=()
+    if [ $# -eq 1 ] && [[ "$1" == *" "* ]]; then
+        read -ra input <<< "$1"
+    else
+        input=("$@")
+    fi
+
+    jq -n '$ARGS.positional' --args "${input[@]}"
+}
+
 function open_multi_owner_chain() {
     wallet_name=$1
     shift 1
@@ -226,12 +237,14 @@ function open_multi_owner_chain() {
     owners=("$@")
     chain_id=$(wallet_chain_id $wallet_name creator)
 
+    owners_json=$(to_json_list "${owners[@]}")
+
     chain_id=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
-           --owners ${owners[@]} \
+           --owners "$owners_json" \
            --multi-leader-rounds 100 \
            --initial-balance "20."))
 
@@ -337,12 +350,14 @@ function change_multi_owner_chain_single_leader() {
     shift 2
 
     owners=("$@")
+    owners_json=$(to_json_list "${owners[@]}")
+
     linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
         --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
         --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
         change-ownership \
         --chain-id $chain_id \
-        --owners ${owners[@]} \
+        --owners "$owners_json" \
         --multi-leader-rounds 0
 }
 
