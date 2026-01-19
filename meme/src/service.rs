@@ -8,7 +8,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use abi::meme::{Meme, MemeAbi, MemeOperation, MiningInfo};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, BlockHeight, ChainId, CryptoHash, WithServiceAbi},
+    linera_base_types::{Account, Amount, ChainId, CryptoHash, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -115,11 +115,8 @@ impl QueryRoot {
     }
 
     async fn mining_info(&self) -> Option<MiningInfo> {
-        let next_block_height = self.runtime.next_block_height();
-        let mut height = next_block_height.saturating_sub(BlockHeight(1));
-        if height < BlockHeight(0) || height > next_block_height {
-            height = BlockHeight(0)
-        }
+        // Next block height in service is block height in contract
+        let height = self.runtime.next_block_height();
         match self.state.mining_info.get() {
             Some(mining_info) => Some(MiningInfo {
                 mining_height: height,
