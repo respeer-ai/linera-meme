@@ -390,7 +390,7 @@ where
         );
 
         request = request.variables(Variables::from_json(serde_json::json!({
-            "owner": account,
+            "owner": account.to_string(),
         })));
 
         let outcome = self
@@ -567,12 +567,16 @@ where
                         ?nonce,
                         "calculated one hash",
                     );
+
+                    let mut submit_time = Instant::now();
                     match self.mine(chain.chain.clone(), nonce).await {
                         Ok(_) => {
                             chain.mined_height = Some(mining_info.mining_height);
                         },
                         Err(err) => tracing::warn!(error=?err, "failed mine"),
                     }
+                    let elapsed = submit_time.elapsed().as_millis();
+                    tracing::info!("took {} ms to submit", elapsed);
                 }
                 _ = sleep(Duration::from_secs(1)),
                 if chain.chain.token.is_none()
@@ -580,7 +584,9 @@ where
                         || chain.mined_height.is_none()
                         || chain.mined_height.unwrap() >= chain.mining_info.as_ref().unwrap().mining_height
                         || chain.nonce.is_none() => {
-                    chain.mining_info = self.mining_info(&chain.chain).await?;
+                    if chain.chain.token.is_some() {
+                        chain.mining_info = self.mining_info(&chain.chain).await?;
+                    }
                     tracing::info!(?chain.chain.chain_id, "waiting for new block");
                 }
             }
