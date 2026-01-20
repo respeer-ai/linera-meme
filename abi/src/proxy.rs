@@ -87,6 +87,9 @@ pub enum ProxyOperation {
     ApproveBanOperator {
         owner: Account,
     },
+
+    // Meme will call proxy application to change meme chain ownership, meme application cannot do that by itself
+    OpenMultiLeaderRounds,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -149,7 +152,7 @@ pub enum ProxyMessage {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Eq, PartialEq, Default)]
 pub enum ProxyResponse {
     #[default]
     Ok,
