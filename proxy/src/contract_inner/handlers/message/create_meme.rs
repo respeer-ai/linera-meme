@@ -101,11 +101,14 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
     }
 
     async fn create_meme_chain(&mut self) -> Result<ChainId, HandlerError> {
+        // We must let current owners to produce block for meme chain at the beginning
+        // It'll be changed to open_multi_leader_rounds in meme application on meme chain
         let ownership = ChainOwnership::multiple(
             self.meme_chain_owner_weights().await?,
-            0, // TODO: run in single leader mode firstly, will be updated when multi leader mode done
+            0,
             TimeoutConfig::default(),
         );
+
         let application_id = self.runtime.borrow_mut().application_id().forget_abi();
         // We have to let meme application change permissions
         let permissions = ApplicationPermissions {

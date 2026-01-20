@@ -1,4 +1,7 @@
-use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
+use crate::{
+    contract_inner::handlers::open_multi_leader_rounds::OpenMultiLeaderRoundsHandler,
+    interfaces::{parameters::ParametersInterface, state::StateInterface},
+};
 use abi::meme::{MemeMessage, MemeResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -11,7 +14,7 @@ pub struct InitializeLiquidityHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     caller: Account,
     to: Account,
@@ -27,7 +30,7 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
         };
 
         Self {
-            state,
+            state: Rc::new(RefCell::new(state)),
             runtime,
 
             caller: *caller,
@@ -49,15 +52,22 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
             "Invalid caller"
         );
         assert!(
-            self.caller.owner == AccountOwner::from(self.state.swap_application_id().unwrap()),
+            self.caller.owner
+                == AccountOwner::from(self.state.borrow().swap_application_id().unwrap()),
             "Invalid caller"
         );
 
         let from = self.runtime.borrow_mut().application_creation_account();
         self.state
+            .borrow_mut()
             .transfer_from(self.caller, from, self.to, self.amount)
             .await
             .map_err(Into::into)?;
+
+        // This should be the final message of initialization so we change ownership here
+        let _ = OpenMultiLeaderRoundsHandler::new(self.runtime.clone(), self.state.clone())
+            .handle()
+            .await?;
 
         Ok(None)
     }

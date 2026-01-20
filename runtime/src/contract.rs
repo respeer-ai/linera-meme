@@ -10,7 +10,8 @@ use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BlockHeight, ChainId,
-        ChainOwnership, ChangeApplicationPermissionsError, ModuleId, Timestamp,
+        ChainOwnership, ChangeApplicationPermissionsError, ChangeOwnershipError, ModuleId,
+        Timestamp,
     },
     Contract, ContractRuntime,
 };
@@ -264,6 +265,10 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
 
     fn chain_ownership(&mut self) -> ChainOwnership {
         self.runtime.borrow_mut().chain_ownership()
+    }
+
+    fn change_ownership(&mut self, ownership: ChainOwnership) -> Result<(), ChangeOwnershipError> {
+        self.runtime.borrow_mut().change_ownership(ownership)
     }
 
     fn change_application_permissions(
