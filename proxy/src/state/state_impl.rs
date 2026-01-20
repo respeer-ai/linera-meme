@@ -269,6 +269,8 @@ impl StateInterface for ProxyState {
     }
 
     async fn get_miner_with_account_owner(&self, owner: AccountOwner) -> Result<Miner, StateError> {
+        log::info!("Miners {:?}, owner {}", self.miners().await?, owner);
+
         match self
             .miners()
             .await?

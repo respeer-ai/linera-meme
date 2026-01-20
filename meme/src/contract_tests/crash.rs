@@ -7,7 +7,7 @@ use abi::{
         InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
         MemeParameters, MemeResponse, Metadata,
     },
-    proxy::{Miner, ProxyOperation, ProxyResponse},
+    proxy::ProxyResponse,
     store_type::StoreType,
 };
 use futures::FutureExt as _;
@@ -575,30 +575,8 @@ fn cross_application_call() {}
 fn mock_application_call(
     _authenticated: bool,
     _application_id: ApplicationId,
-    operation: Vec<u8>,
+    _operation: Vec<u8>,
 ) -> Vec<u8> {
-    if let Ok(op) = bcs::from_bytes::<ProxyOperation>(&operation) {
-        match op {
-            ProxyOperation::GetMinerWithAuthenticatedSigner => {
-                return bcs::to_bytes(&ProxyResponse::Miner(Miner {
-                    owner: Account {
-                        chain_id: ChainId::from_str(
-                            "500d98c79457cf58256784f585a8dd0c8f9da70ee6b73b032b2e793583a83dcb",
-                        )
-                        .unwrap(),
-                        owner: AccountOwner::from_str(
-                            "0xf3989fdc1402acf54fac6b2914589f689a78b5356107503348b9654639b35b07",
-                        )
-                        .unwrap(),
-                    },
-                    registered_at: 0.into(),
-                }))
-                .unwrap();
-            }
-            _ => return bcs::to_bytes(&ProxyResponse::Ok).unwrap(),
-        }
-    }
-
     bcs::to_bytes(&ProxyResponse::Ok).unwrap()
 }
 

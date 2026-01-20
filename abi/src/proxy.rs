@@ -87,8 +87,6 @@ pub enum ProxyOperation {
     ApproveBanOperator {
         owner: Account,
     },
-
-    GetMinerWithAuthenticatedSigner,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -2,7 +2,6 @@ use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
     hash::hash_cmp,
     meme::{MemeMessage, MemeOperation, MemeResponse, MiningBase},
-    proxy::{Miner, ProxyAbi, ProxyOperation, ProxyResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -109,22 +108,7 @@ impl<
 
         self.verify()?;
 
-        let call = ProxyOperation::GetMinerWithAuthenticatedSigner;
-        let proxy_application = self
-            .state
-            .proxy_application_id()
-            .expect("Invalid proxy application")
-            .with_abi::<ProxyAbi>();
-
-        let ProxyResponse::Miner(miner) = self
-            .runtime
-            .borrow_mut()
-            .call_application(proxy_application, &call)
-        else {
-            return Err(HandlerError::InvalidApplicationResponse);
-        };
-
-        let Miner { owner, .. } = miner;
+        let owner = self.runtime.borrow_mut().authenticated_account();
         let now = self.runtime.borrow_mut().system_time();
 
         self.state

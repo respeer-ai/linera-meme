@@ -8,7 +8,8 @@ use message::{
     approve::ApproveHandler as MessageApproveHandler,
     initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
     liquidity_funded::LiquidityFundedHandler as MessageLiquidityFundedHandler,
-    mint::MintHandler as MessageMintHandler, transfer::TransferHandler as MessageTransferHandler,
+    mint::MintHandler as MessageMintHandler, redeem::RedeemHandler as MessageRedeemHandler,
+    transfer::TransferHandler as MessageTransferHandler,
     transfer_from::TransferFromHandler as MessageTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as MessageTransferFromApplicationHandler,
     transfer_ownership::TransferOwnershipHandler as MessageTransferOwnershipHandler,
@@ -18,6 +19,7 @@ use operation::{
     creator_chain_id::CreatorChainIdHandler as OperationCreatorChainIdHandler,
     initialize_liquidity::InitializeLiquidityHandler as OperationInitializeLiquidityHandler,
     mine::MineHandler as OperationMineHandler, mint::MintHandler as OperationMintHandler,
+    redeem::RedeemHandler as OperationRedeemHandler,
     transfer::TransferHandler as OperationTransferHandler,
     transfer_from::TransferFromHandler as OperationTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as OperationTransferFromApplicationHandler,
@@ -72,6 +74,9 @@ impl HandlerFactory {
             MemeOperation::TransferToCaller { .. } => {
                 Box::new(OperationTransferToCallerHandler::new(runtime, state, op))
             }
+            MemeOperation::Redeem { .. } => {
+                Box::new(OperationRedeemHandler::new(runtime, state, op))
+            }
         }
     }
 
@@ -111,6 +116,7 @@ impl HandlerFactory {
             MemeMessage::TransferOwnership { .. } => {
                 Box::new(MessageTransferOwnershipHandler::new(runtime, state, msg))
             }
+            MemeMessage::Redeem { .. } => Box::new(MessageRedeemHandler::new(runtime, state, msg)),
         }
     }
 

@@ -232,6 +232,10 @@ pub enum MemeOperation {
         to: Account,
         amount: Amount,
     },
+    // Redeem owner balance on meme chain
+    Redeem {
+        amount: Option<Amount>,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -272,6 +276,10 @@ pub enum MemeMessage {
     Mint {
         to: Account,
         amount: Amount,
+    },
+    Redeem {
+        owner: Account,
+        amount: Option<Amount>,
     },
 }
 
