@@ -9,7 +9,7 @@ use async_graphql::{Request, Value, Variables};
 use futures::{lock::Mutex, FutureExt as _};
 use linera_base::{
     crypto::CryptoHash,
-    data_types::BlockHeight,
+    data_types::{Amount, BlockHeight},
     identifiers::{Account, AccountOwner, ApplicationId, ChainId},
 };
 use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
@@ -65,6 +65,12 @@ struct MemeChainsResponse {
 struct MiningInfoResponse {
     #[serde(alias = "miningInfo")]
     mining_info: Option<MiningInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BalanceOfResponse {
+    #[serde(alias = "balanceOf")]
+    balance_of: Amount,
 }
 
 #[derive(Debug, Deserialize)]
@@ -369,6 +375,34 @@ where
         Ok(())
     }
 
+    async fn balance(&self, chain: &Chain) -> Result<Amount, MemeMinerError> {
+        // Mining reward is on meme chain, user need to redeem to their own chain
+        let account = Account {
+            chain_id: chain.chain_id,
+            owner: self.owner.owner,
+        };
+        let mut request = Request::new(
+            r#"
+            query balance_of($owner: String!) {
+                balance_of(owner: $owner)
+            }
+            "#,
+        );
+
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "owner": account,
+        })));
+
+        let outcome = self
+            .query_user_application::<BalanceOfResponse>(
+                chain.token.unwrap(),
+                chain.chain_id,
+                request,
+            )
+            .await?;
+        Ok(outcome.response.data.balance_of)
+    }
+
     pub fn meme_proxy_application_id(&self) -> ApplicationId {
         self.meme_proxy_application_id
     }
@@ -493,10 +527,14 @@ where
                         return Ok(());
                     }
                     chain.nonce = Some(chain.mining_info.as_ref().unwrap().previous_nonce);
+
+                    let balance = self.balance(&chain.chain).await;
+
                     tracing::info!(
                         ?chain.chain.chain_id,
                         mining_info=?chain.mining_info.as_ref().unwrap(),
                         nonce=?chain.nonce.unwrap(),
+                        ?balance,
                         "new mining info",
                     );
 
