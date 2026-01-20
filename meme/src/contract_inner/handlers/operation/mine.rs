@@ -44,8 +44,10 @@ impl<
         let mined_height = self.state.mining_height();
 
         assert!(
-            height > mined_height || (height == BlockHeight(0) && mined_height == BlockHeight(0)),
-            "Stale block height"
+            height >= mined_height,
+            "Stale block height, expected {}, mined {}",
+            height,
+            mined_height,
         );
 
         let chain_id = self.runtime.borrow_mut().chain_id();

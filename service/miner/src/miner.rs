@@ -383,8 +383,8 @@ where
         };
         let mut request = Request::new(
             r#"
-            query balance_of($owner: String!) {
-                balance_of(owner: $owner)
+            query balanceOf($owner: String!) {
+                balanceOf(owner: $owner)
             }
             "#,
         );
@@ -567,8 +567,12 @@ where
                         ?nonce,
                         "calculated one hash",
                     );
-                    chain.mined_height = Some(mining_info.mining_height);
-                    self.mine(chain.chain.clone(), nonce).await?;
+                    match self.mine(chain.chain.clone(), nonce).await {
+                        Ok(_) => {
+                            chain.mined_height = Some(mining_info.mining_height);
+                        },
+                        Err(err) => tracing::warn!(error=?err, "failed mine"),
+                    }
                 }
                 _ = sleep(Duration::from_secs(1)),
                 if chain.chain.token.is_none()
@@ -576,6 +580,7 @@ where
                         || chain.mined_height.is_none()
                         || chain.mined_height.unwrap() >= chain.mining_info.as_ref().unwrap().mining_height
                         || chain.nonce.is_none() => {
+                    chain.mining_info = self.mining_info(&chain.chain).await?;
                     tracing::info!(?chain.chain.chain_id, "waiting for new block");
                 }
             }
