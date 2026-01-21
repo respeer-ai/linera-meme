@@ -612,6 +612,19 @@ where
         }
 
         self.follow_chain(chain.chain_id).await?;
+        // We may fail here due to the meme chain is not assigned to us at the beginning
+        // So we should retry due to listener will sync chain in background
+
+        let client = self
+            .context
+            .lock()
+            .await
+            .make_chain_client(chain.chain_id)
+            .await?;
+        let chain_description = client.get_chain_description().await?;
+        let config = chain_description.config();
+        tracing::info!(?chain.chain_id, ?config.ownership, "chain ownership");
+
         self.context
             .lock()
             .await
@@ -644,8 +657,9 @@ where
                     let chains = self.meme_chains().await?;
 
                     for chain in chains {
-                        let Some(mining_chain) = self.handle_chain(chain.clone(), cancellation_token.clone()).await? else {
-                            continue;
+                        let mining_chain = match self.handle_chain(chain.clone(), cancellation_token.clone()).await {
+                            Ok(Some(mining_chain)) => mining_chain,
+                            _ => continue,
                         };
 
                         let _cancellation_token = cancellation_token.clone();
