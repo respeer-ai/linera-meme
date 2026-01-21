@@ -1,11 +1,8 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::{
-    meme::{MemeMessage, MemeResponse},
-    proxy::{ProxyAbi, ProxyOperation, ProxyResponse},
-};
+use abi::meme::{MemeMessage, MemeResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::Amount;
+use linera_sdk::linera_base_types::{Amount, ChainOwnership, TimeoutConfig};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -14,14 +11,17 @@ pub struct OpenMultiLeaderRoundsHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: Rc<RefCell<S>>,
+    _state: Rc<RefCell<S>>,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface>
     OpenMultiLeaderRoundsHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>) -> Self {
-        Self { state, runtime }
+        Self {
+            _state: state,
+            runtime,
+        }
     }
 
     fn should_open_multi_leader_rounds(&self) -> bool {
@@ -47,23 +47,21 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
             return Ok(None);
         }
 
-        // We cannot change ownership by meme application, we need proxy to do it
-        let call = ProxyOperation::OpenMultiLeaderRounds;
-        let proxy_application_id = self
-            .state
-            .borrow()
-            .proxy_application_id()
-            .expect("Invalid proxy application");
+        let mut ownership =
+            ChainOwnership::multiple(Vec::new(), u32::MAX, TimeoutConfig::default());
+        ownership.open_multi_leader_rounds = true;
 
-        if ProxyResponse::Ok
-            != self
-                .runtime
-                .borrow_mut()
-                .call_application(proxy_application_id.with_abi::<ProxyAbi>(), &call)
-        {
-            return Err(HandlerError::RuntimeError(
-                "Invalid application response".into(),
-            ));
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let application_id = self.runtime.borrow_mut().application_id();
+        log::info!(
+            "open multi leader rounds for chain {}, application {}",
+            chain_id,
+            application_id,
+        );
+
+        match self.runtime.borrow_mut().change_ownership(ownership) {
+            Ok(_) => {}
+            Err(e) => return Err(HandlerError::RuntimeError(e.into())),
         }
 
         Ok(None)

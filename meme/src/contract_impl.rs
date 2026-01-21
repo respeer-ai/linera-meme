@@ -27,7 +27,7 @@ impl MemeContract {
         };
 
         while let Some(message) = outcome.messages.pop() {
-            log::warn!("DEBUG OP:SWAP: sending message {:?} ", message);
+            log::warn!("DEBUG OP:MEME: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
@@ -42,7 +42,7 @@ impl MemeContract {
 
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::warn!("DEBUG OP:SWAP: processing {:?}", op);
+        log::warn!("DEBUG OP:MEME: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
@@ -55,10 +55,10 @@ impl MemeContract {
                 Err(err) => panic!("Failed OP {:?}: {err}", op),
             };
 
-        log::warn!("DEBUG OP:SWAP: processed {:?}", op);
+        log::warn!("DEBUG OP:MEME: processed {:?}", op);
 
         while let Some(message) = outcome.messages.pop() {
-            log::warn!("DEBUG OP:SWAP: sending message {:?} ", message);
+            log::warn!("DEBUG OP:MEME: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
@@ -76,7 +76,7 @@ impl MemeContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::warn!("DEBUG MSG:SWAP: processing {:?}", msg);
+        log::warn!("DEBUG MSG:MEME: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
@@ -89,10 +89,10 @@ impl MemeContract {
                 Err(err) => panic!("Failed MSG {:?}: {err}", msg),
             };
 
-        log::warn!("DEBUG MSG:SWAP: processed {:?}", msg);
+        log::warn!("DEBUG MSG:MEME: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
-            log::warn!("DEBUG MSG:SWAP: sending message {:?} ", message);
+            log::warn!("DEBUG MSG:MEME: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
