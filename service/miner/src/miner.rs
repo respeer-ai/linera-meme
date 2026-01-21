@@ -429,7 +429,8 @@ where
         );
 
         request = request.variables(Variables::from_json(serde_json::json!({
-            "createdAfter": miner.registered_at,
+            // Every miner can mine every meme chain right now
+            "createdAfter": 0,
         })));
 
         let outcome = self

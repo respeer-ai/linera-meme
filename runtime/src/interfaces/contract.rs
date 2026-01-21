@@ -64,4 +64,5 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
         &mut self,
         application_permissions: ApplicationPermissions,
     ) -> Result<(), ChangeApplicationPermissionsError>;
+    fn application_permissions(&mut self) -> ApplicationPermissions;
 }

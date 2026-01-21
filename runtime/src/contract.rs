@@ -279,6 +279,12 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .borrow_mut()
             .change_application_permissions(application_permissions)
     }
+
+    fn application_permissions(&mut self) -> ApplicationPermissions {
+        // Validators don't support get application permissions right now so disable it
+        // self.runtime.borrow_mut().application_permissions()
+        ApplicationPermissions::default()
+    }
 }
 
 impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M> {

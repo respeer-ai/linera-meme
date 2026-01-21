@@ -228,15 +228,17 @@ async fn meme_native_pair_mining_part_supply_virtual_liquidity_test() {
     suite.create_swap_application().await;
     suite.create_proxy_application().await;
 
-    let application_id = suite.proxy_application_id.unwrap().forget_abi();
+    let proxy_application_id = suite.proxy_application_id.unwrap().forget_abi();
+    let swap_application_id = suite.swap_application_id.unwrap().forget_abi();
+
     let permissions = ApplicationPermissions {
         execute_operations: None,
         // Don't mandatory any application
         mandatory_applications: vec![],
-        close_chain: vec![application_id],
-        change_application_permissions: vec![application_id],
-        call_service_as_oracle: Some(vec![application_id]),
-        make_http_requests: Some(vec![application_id]),
+        close_chain: vec![proxy_application_id, swap_application_id],
+        change_application_permissions: vec![proxy_application_id, swap_application_id],
+        call_service_as_oracle: Some(vec![proxy_application_id, swap_application_id]),
+        make_http_requests: Some(vec![proxy_application_id, swap_application_id]),
     };
     let meme_chain = suite
         .validator
@@ -256,6 +258,38 @@ async fn meme_native_pair_mining_part_supply_virtual_liquidity_test() {
     );
 
     suite.create_meme_application(true).await;
+    let meme_application_id = suite.meme_application_id.unwrap().forget_abi();
+
+    let permissions = ApplicationPermissions {
+        execute_operations: None,
+        // Don't mandatory any application
+        mandatory_applications: vec![],
+        close_chain: vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ],
+        change_application_permissions: vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ],
+        call_service_as_oracle: Some(vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ]),
+        make_http_requests: Some(vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ]),
+    };
+    meme_chain
+        .add_block(move |block| {
+            block.with_change_application_permissions(permissions);
+        })
+        .await;
 
     meme_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
@@ -369,15 +403,17 @@ async fn meme_native_pair_mining_part_supply_real_liquidity_test() {
     suite.create_swap_application().await;
     suite.create_proxy_application().await;
 
-    let application_id = suite.proxy_application_id.unwrap().forget_abi();
+    let proxy_application_id = suite.proxy_application_id.unwrap().forget_abi();
+    let swap_application_id = suite.swap_application_id.unwrap().forget_abi();
+
     let permissions = ApplicationPermissions {
         execute_operations: None,
         // Don't mandatory any application
         mandatory_applications: vec![],
-        close_chain: vec![application_id],
-        change_application_permissions: vec![application_id],
-        call_service_as_oracle: Some(vec![application_id]),
-        make_http_requests: Some(vec![application_id]),
+        close_chain: vec![proxy_application_id, swap_application_id],
+        change_application_permissions: vec![proxy_application_id, swap_application_id],
+        call_service_as_oracle: Some(vec![proxy_application_id, swap_application_id]),
+        make_http_requests: Some(vec![proxy_application_id, swap_application_id]),
     };
     let meme_chain = suite
         .validator
@@ -404,6 +440,39 @@ async fn meme_native_pair_mining_part_supply_real_liquidity_test() {
     );
 
     suite.create_meme_application(false).await;
+
+    let meme_application_id = suite.meme_application_id.unwrap().forget_abi();
+
+    let permissions = ApplicationPermissions {
+        execute_operations: None,
+        // Don't mandatory any application
+        mandatory_applications: vec![],
+        close_chain: vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ],
+        change_application_permissions: vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ],
+        call_service_as_oracle: Some(vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ]),
+        make_http_requests: Some(vec![
+            proxy_application_id,
+            swap_application_id,
+            meme_application_id,
+        ]),
+    };
+    meme_chain
+        .add_block(move |block| {
+            block.with_change_application_permissions(permissions);
+        })
+        .await;
 
     meme_chain.handle_received_messages().await;
     let certificate = swap_chain.handle_received_messages_ext().await;
