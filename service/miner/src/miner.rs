@@ -586,6 +586,10 @@ where
                         || chain.nonce.is_none() => {
                     if chain.chain.token.is_some() {
                         chain.mining_info = self.mining_info(&chain.chain).await?;
+                        if chain.mining_info.is_none() {
+                            return Ok(());
+                        }
+                        chain.nonce = Some(chain.mining_info.as_ref().unwrap().previous_nonce);
                     }
                     tracing::info!(?chain.chain.chain_id, "waiting for new block");
                 }
