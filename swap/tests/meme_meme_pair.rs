@@ -11,6 +11,7 @@ use abi::{
         MemeParameters, Metadata,
     },
     policy::open_chain_fee_budget,
+    proxy::{InstantiationArgument as ProxyInstantiationArgument, ProxyAbi},
     store_type::StoreType,
     swap::{
         pool::{Pool, PoolAbi, PoolOperation},
@@ -41,14 +42,18 @@ struct TestSuite {
     pool_chain_meme_1: Option<ActiveChain>,
     pool_chain_user: Option<ActiveChain>,
     swap_chain: ActiveChain,
+    proxy_chain: ActiveChain,
 
     swap_bytecode_id: ModuleId<SwapAbi, SwapParameters, SwapInstantiationArgument>,
+    proxy_bytecode_id: ModuleId<ProxyAbi, (), ProxyInstantiationArgument>,
+    meme_bytecode_id: ModuleId<MemeAbi, MemeParameters, MemeInstantiationArgument>,
     pool_application_id_meme_0: Option<ApplicationId<PoolAbi>>,
     pool_application_id_meme_1: Option<ApplicationId<PoolAbi>>,
     pool_application_id_user: Option<ApplicationId<PoolAbi>>,
     meme_application_id_0: Option<ApplicationId<MemeAbi>>,
     meme_application_id_1: Option<ApplicationId<MemeAbi>>,
     swap_application_id: Option<ApplicationId<SwapAbi>>,
+    proxy_application_id: Option<ApplicationId<ProxyAbi>>,
 
     initial_supply: Amount,
     initial_liquidity: Amount,
@@ -69,6 +74,10 @@ impl TestSuite {
         let meme_chain_1 = validator.new_chain().await;
         let user_chain = validator.new_chain().await;
         let swap_chain = validator.new_chain().await;
+        let proxy_chain = validator.new_chain().await;
+
+        let proxy_bytecode_id = swap_chain.publish_bytecode_files_in("../proxy").await;
+        let meme_bytecode_id = swap_chain.publish_bytecode_files_in("../meme").await;
 
         TestSuite {
             validator,
@@ -81,14 +90,18 @@ impl TestSuite {
             pool_chain_meme_1: None,
             pool_chain_user: None,
             swap_chain,
+            proxy_chain,
 
             swap_bytecode_id,
+            proxy_bytecode_id,
+            meme_bytecode_id,
             pool_application_id_meme_0: None,
             pool_application_id_meme_1: None,
             pool_application_id_user: None,
             meme_application_id_0: None,
             meme_application_id_1: None,
             swap_application_id: None,
+            proxy_application_id: None,
 
             initial_supply: Amount::from_tokens(21000000),
             initial_liquidity: Amount::from_tokens(11000000),
@@ -150,6 +163,23 @@ impl TestSuite {
         )
     }
 
+    async fn create_proxy_application(&mut self) {
+        self.proxy_application_id = Some(
+            self.proxy_chain
+                .create_application::<ProxyAbi, (), ProxyInstantiationArgument>(
+                    self.proxy_bytecode_id,
+                    (),
+                    ProxyInstantiationArgument {
+                        meme_bytecode_id: self.meme_bytecode_id.forget_abi(),
+                        operators: Vec::new(),
+                        swap_application_id: self.swap_application_id.unwrap().forget_abi(),
+                    },
+                    vec![],
+                )
+                .await,
+        )
+    }
+
     async fn create_meme_applications(&mut self, virtual_initial_liquidity: bool) {
         let instantiation_argument = MemeInstantiationArgument {
             meme: Meme {
@@ -174,7 +204,7 @@ impl TestSuite {
             },
             blob_gateway_application_id: None,
             ams_application_id: None,
-            proxy_application_id: None,
+            proxy_application_id: Some(self.proxy_application_id.unwrap().forget_abi()),
             swap_application_id: Some(self.swap_application_id.unwrap().forget_abi()),
         };
         let parameters = MemeParameters {
@@ -388,6 +418,7 @@ async fn meme_meme_pair_test() {
         .await;
 
     suite.create_swap_application().await;
+    suite.create_proxy_application().await;
     suite.create_meme_applications(true).await;
 
     // Check initial swap pool
