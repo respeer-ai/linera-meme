@@ -2,8 +2,8 @@ import { cheCkoPng, metaMaskSvg } from 'src/assets'
 import * as domain from './domain'
 
 export const formalizeSchema = (url: string) => {
-  url = url.replace('http://', process.env.NODE_ENV === 'production' ? 'https://' : 'https://')
-  url = url.replace('ws://', process.env.NODE_ENV === 'production' ? 'wss://' : 'wss://')
+  url = url.replace('http://', process.env.NODE_ENV === 'production' ? 'http://' : 'http://')
+  url = url.replace('ws://', process.env.NODE_ENV === 'production' ? 'ws://' : 'ws://')
   return url
 }
 
