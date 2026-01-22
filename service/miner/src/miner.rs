@@ -306,6 +306,7 @@ where
     where
         T: DeserializeOwned,
     {
+        tracing::info!("query application ...");
         let QueryOutcome {
             response,
             operations,
@@ -322,6 +323,7 @@ where
             .await
             .make_chain_client(chain_id)
             .await?;
+        tracing::info!("execute operation ...");
         let hash = loop {
             let timeout = match client
                 .execute_operations(operations.clone(), vec![])
@@ -585,13 +587,7 @@ where
                         || chain.mined_height.is_none()
                         || chain.mined_height.unwrap() >= chain.mining_info.as_ref().unwrap().mining_height
                         || chain.nonce.is_none() => {
-                    if chain.chain.token.is_some() {
-                        chain.mining_info = self.mining_info(&chain.chain).await?;
-                        if chain.mining_info.is_none() {
-                            return Ok(());
-                        }
-                        chain.nonce = Some(chain.mining_info.as_ref().unwrap().previous_nonce);
-                    }
+                    chain.new_block_notifier.notify_one();
                     tracing::info!(?chain.chain.chain_id, "waiting for new block");
                 }
             }
@@ -611,19 +607,20 @@ where
             return Ok(None);
         }
 
-        self.follow_chain(chain.chain_id).await?;
-        // We may fail here due to the meme chain is not assigned to us at the beginning
-        // So we should retry due to listener will sync chain in background
-
-        let client = self
+        let maybe_exist_chain = self
             .context
             .lock()
             .await
-            .make_chain_client(chain.chain_id)
-            .await?;
-        let chain_description = client.get_chain_description().await?;
-        let config = chain_description.config();
-        tracing::info!(?chain.chain_id, ?config.ownership, "chain ownership");
+            .wallet()
+            .get(chain.chain_id)
+            .await
+            .expect("Failed get exists chain");
+        match maybe_exist_chain {
+            Some(_) => {}
+            _ => self.follow_chain(chain.chain_id).await?,
+        }
+        // We may fail here due to the meme chain is not assigned to us at the beginning
+        // So we should retry due to listener will sync chain in background
 
         self.context
             .lock()
@@ -677,6 +674,9 @@ where
 
                     }
                 }
+                _ = sleep(Duration::from_secs(30)) => {
+                    self.new_block_notifier.notify_one();
+                }
                 _ = cancellation_token.cancelled() => {
                     tracing::info!("quit meme miner");
                     return Ok(());
@@ -727,7 +727,6 @@ where
             self.register_miner().await?;
         }
 
-        // Let mine task get all chains at launching
         let notifier = self.new_block_notifier.clone();
         notifier.notify_one();
         let mine_task = self.mine_task(cancellation_token);
