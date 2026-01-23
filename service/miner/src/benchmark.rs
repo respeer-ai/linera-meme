@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, str::FromStr, time::Instant};
+use std::{str::FromStr, time::Instant};
 
 use abi::meme::MiningBase;
 use linera_base::{
