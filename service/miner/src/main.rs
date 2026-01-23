@@ -35,11 +35,10 @@ use linera_metrics::monitoring_server;
 use linera_persistent::Persist;
 use linera_storage::Storage;
 
-mod command;
-mod options;
-
-use crate::command::ClientCommand::{Benchmark, List, Redeem, Run};
-use options::Options;
+use linera_meme_miner::{
+    command::ClientCommand::{Benchmark, List, Redeem, Run},
+    options::Options,
+};
 
 use linera_service::storage::Runnable;
 use tokio_util::sync::CancellationToken;
