@@ -28,19 +28,6 @@ pub enum ClientCommand {
         /// Configuration for the faucet chain listener.
         #[command(flatten)]
         config: ChainListenerConfig,
-
-        /// If run an auto maker with miner
-        /// Due to every operation must be run with Mine operation for a minable meme token,
-        /// then miner should be the perfect place to implement auto maker.
-        #[arg(long)]
-        with_maker: bool,
-
-        #[arg(
-            long,
-            default_value = TESTNET_CONWAY_SWAP_APPLICATION_ID,
-            help = "Testnet conway swap application id"
-        )]
-        swap_application_id: Option<ApplicationId>,
     },
 
     /// Run a benchmark for minier
