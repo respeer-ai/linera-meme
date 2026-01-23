@@ -1,10 +1,6 @@
-use std::{cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc};
 
-use abi::{
-    hash::{hash_cmp, hash_increment},
-    meme::{MemeAbi, MiningBase, MiningInfo},
-    proxy::{Chain, Miner, ProxyAbi},
-};
+use abi::proxy::Chain;
 use async_graphql::{Request, Value, Variables};
 use futures::{lock::Mutex, FutureExt as _};
 use linera_base::{
@@ -24,62 +20,9 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{errors::MemeMinerError, proxy_api::ProxyApi, wallet_api::WalletApi};
-
-#[derive(Debug, Deserialize)]
-struct MinerResponse {
-    #[serde(alias = "miner")]
-    miner: Option<Miner>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MinerRegisteredResponse {
-    #[serde(alias = "minerRegistered")]
-    miner_registered: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct RegisterMinerResponse {
-    #[serde(alias = "registerMiner")]
-    register_miner: Vec<u8>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MineResponse {
-    mine: Vec<u8>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MemeChainsResponse {
-    #[serde(alias = "memeChains")]
-    meme_chains: Vec<Chain>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MiningInfoResponse {
-    #[serde(alias = "miningInfo")]
-    mining_info: Option<MiningInfo>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BalanceOfResponse {
-    #[serde(alias = "balanceOf")]
-    balance_of: Amount,
-}
-
-#[derive(Debug, Deserialize)]
-struct Response<T> {
-    data: T,
-}
-
-#[derive(Debug, Clone)]
-struct MiningChain {
-    chain: Chain,
-    new_block_notifier: Arc<Notify>,
-    mining_info: Option<MiningInfo>,
-    nonce: Option<CryptoHash>,
-    mined_height: Option<BlockHeight>,
-}
+use crate::{
+    chain_miner::ChainMiner, errors::MemeMinerError, proxy_api::ProxyApi, wallet_api::WalletApi,
+};
 
 pub struct MemeMiner<C>
 where
@@ -90,11 +33,10 @@ where
 
     wallet: Arc<WalletApi<C>>,
     proxy: ProxyApi<C>,
+    miners: Mutex<HashMap<ChainId, Arc<ChainMiner<C>>>>,
 
     new_block_notifier: Arc<Notify>,
     pub chain_listener_config: ChainListenerConfig,
-
-    mining_chains: Mutex<HashMap<ChainId, MiningChain>>,
 }
 
 impl<C> MemeMiner<C>
@@ -121,19 +63,10 @@ where
             storage,
             wallet,
             proxy,
+            miners: Mutex::new(HashMap::default()),
             new_block_notifier: Arc::new(Notify::new()),
             chain_listener_config: chain_listener_config.clone(),
-            mining_chains: Mutex::new(HashMap::default()),
         }
-    }
-
-    async fn application_creator_chain_id(
-        &self,
-        application_id: ApplicationId,
-    ) -> Result<ChainId, MemeMinerError> {
-        self.wallet
-            .application_creator_chain_id(application_id)
-            .await
     }
 
     async fn proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
@@ -148,214 +81,12 @@ where
         self.proxy.miner_registered().await
     }
 
-    async fn miner(&self) -> Result<Option<Miner>, MemeMinerError> {
-        self.proxy.miner().await
-    }
-
     async fn register_miner(&self) -> Result<(), MemeMinerError> {
         self.proxy.register_miner().await
     }
 
-    async fn mine(&self, chain: Chain, nonce: CryptoHash) -> Result<(), MemeMinerError> {
-        // TODO: also process maker deal here
-        let mut request = Request::new(
-            r#"
-            mutation mine($nonce: CryptoHash!) {
-                mine(nonce: $nonce)
-            }
-            "#,
-        );
-
-        request = request.variables(Variables::from_json(serde_json::json!({
-            "nonce": nonce,
-        })));
-        let hash = self
-            .wallet
-            .execute_operation::<MineResponse>(chain.token.unwrap(), chain.chain_id, request)
-            .await?;
-        tracing::info!("Hash {:?}", hash);
-        Ok(())
-    }
-
-    async fn balance(&self, chain: &Chain) -> Result<Amount, MemeMinerError> {
-        // Mining reward is on meme chain, user need to redeem to their own chain
-        let account = Account {
-            chain_id: chain.chain_id,
-            owner: self.wallet.owner(),
-        };
-        let mut request = Request::new(
-            r#"
-            query balanceOf($owner: String!) {
-                balanceOf(owner: $owner)
-            }
-            "#,
-        );
-
-        request = request.variables(Variables::from_json(serde_json::json!({
-            "owner": account.to_string(),
-        })));
-
-        let outcome = self
-            .wallet
-            .query_user_application::<BalanceOfResponse>(
-                chain.token.unwrap(),
-                chain.chain_id,
-                request,
-            )
-            .await?;
-        Ok(outcome.response.data.balance_of)
-    }
-
     pub fn proxy_application_id(&self) -> ApplicationId {
         self.proxy.application_id()
-    }
-
-    async fn meme_chains(&self) -> Result<Vec<Chain>, MemeMinerError> {
-        self.proxy.meme_chains().await
-    }
-
-    async fn mining_info(&self, chain: &Chain) -> Result<Option<MiningInfo>, MemeMinerError> {
-        self.proxy.mining_info(chain).await
-    }
-
-    fn try_one_batch(&self, chain: &MiningChain, nonce: CryptoHash) -> Option<CryptoHash> {
-        let mining_info = chain.mining_info.as_ref().unwrap();
-
-        let mining_base = MiningBase {
-            height: mining_info.mining_height,
-            nonce,
-            chain_id: chain.chain.chain_id,
-            signer: self.wallet.owner(),
-            previous_nonce: mining_info.previous_nonce,
-        };
-
-        let hash = CryptoHash::new(&mining_base);
-
-        let result = match hash_cmp(hash, mining_info.target) {
-            Ordering::Less => Some(hash),
-            Ordering::Equal => Some(hash),
-            Ordering::Greater => None,
-        };
-
-        if result.is_some() {
-            tracing::info!(?chain.chain.chain_id, ?mining_base, ?nonce, ?hash, "mined");
-        }
-
-        result
-    }
-
-    async fn mine_chain(
-        &self,
-        chain: &mut MiningChain,
-        cancellation_token: CancellationToken,
-    ) -> Result<(), MemeMinerError> {
-        if chain.chain.token.is_some() {
-            chain.mining_info = self.mining_info(&chain.chain).await?;
-            if chain.mining_info.is_some() {
-                chain.nonce = Some(chain.mining_info.as_ref().unwrap().previous_nonce);
-            }
-        }
-
-        let mut start_time = Instant::now();
-
-        loop {
-            tokio::select! {
-                _ = chain.new_block_notifier.notified() => {
-                    if chain.chain.token.is_none() {
-                        continue;
-                    }
-                    chain.mining_info = self.mining_info(&chain.chain).await?;
-                    if chain.mining_info.is_none() {
-                        return Ok(());
-                    }
-                    chain.nonce = Some(chain.mining_info.as_ref().unwrap().previous_nonce);
-
-                    let balance = self.balance(&chain.chain).await;
-
-                    tracing::info!(
-                        ?chain.chain.chain_id,
-                        mining_info=?chain.mining_info.as_ref().unwrap(),
-                        nonce=?chain.nonce.unwrap(),
-                        ?balance,
-                        "new mining info",
-                    );
-
-                    start_time = Instant::now();
-                }
-                _ = cancellation_token.cancelled() => {
-                    tracing::info!(?chain.chain.chain_id, "quit chain task");
-                    return Ok(());
-                }
-                _ = tokio::task::yield_now(),
-                if chain.chain.token.is_some()
-                    && chain.mining_info.is_some()
-                        && (chain.mined_height.is_none() || chain.mined_height.unwrap() < chain.mining_info.as_ref().unwrap().mining_height)
-                        && chain.nonce.is_some() => {
-                    let nonce = chain.nonce.unwrap();
-                    let mining_info = chain.mining_info.as_ref().unwrap();
-
-                    // We only mine one batch (for cpu is one hash, for GPU is one batch calculation)
-                    let Some(hash) = self.try_one_batch(chain, nonce) else {
-                        chain.nonce = Some(hash_increment(nonce));
-                        continue;
-                    };
-
-                    let elapsed = start_time.elapsed().as_millis();
-                    tracing::info!(
-                        ?chain.chain.chain_id,
-                        ?mining_info,
-                        ?hash,
-                        ?elapsed,
-                        ?nonce,
-                        "calculated one hash",
-                    );
-
-                    let submit_time = Instant::now();
-                    match self.mine(chain.chain.clone(), nonce).await {
-                        Ok(_) => {
-                            chain.mined_height = Some(mining_info.mining_height);
-                        },
-                        Err(err) => tracing::warn!(error=?err, "failed mine"),
-                    }
-                    let elapsed = submit_time.elapsed().as_millis();
-                    tracing::info!("took {} ms to submit", elapsed);
-                }
-                _ = sleep(Duration::from_secs(1)),
-                if chain.chain.token.is_none()
-                    || chain.mining_info.is_none()
-                        || chain.mined_height.is_none()
-                        || chain.mined_height.unwrap() >= chain.mining_info.as_ref().unwrap().mining_height
-                        || chain.nonce.is_none() => {
-                    chain.new_block_notifier.notify_one();
-                    tracing::info!(?chain.chain.chain_id, "waiting for new block");
-                }
-            }
-        }
-    }
-
-    async fn handle_chain(&self, chain: Chain) -> Result<Option<MiningChain>, MemeMinerError> {
-        let mut guard = self.mining_chains.lock().await;
-
-        if guard.contains_key(&chain.chain_id) {
-            return Ok(None);
-        }
-
-        self.wallet.initialize_chain(chain.chain_id).await?;
-
-        // TODO: do we need to listen it in ChainListener here (run_with_chain_id) ?
-        // ChainListener will provide subscription to new chain block, then we can get height and nonce there
-
-        let mining_chain = MiningChain {
-            chain: chain.clone(),
-            new_block_notifier: Arc::new(Notify::new()),
-            mining_info: None,
-            nonce: None,
-            mined_height: None,
-        };
-
-        guard.insert(chain.chain_id, mining_chain.clone());
-
-        Ok(Some(mining_chain))
     }
 
     async fn mine_task(
@@ -365,24 +96,30 @@ where
         loop {
             tokio::select! {
                 _ = self.new_block_notifier.notified() => {
-                    let chains = self.meme_chains().await?;
+                    let chains = self.proxy.meme_chains().await?;
 
                     for chain in chains {
-                        let mining_chain = match self.handle_chain(chain.clone()).await {
-                            Ok(Some(mining_chain)) => mining_chain,
-                            _ => continue,
-                        };
+                        let mut guard = self.miners.lock().await;
+                        if guard.contains_key(&chain.chain_id) {
+                            continue;
+                        }
+
+                        self.wallet.initialize_chain(chain.chain_id).await?;
+
+                        let chain_miner = Arc::new(ChainMiner::new(chain.clone(), Arc::clone(&self.wallet)).await);
+                        guard.insert(chain.chain_id, Arc::clone(&chain_miner));
 
                         let _cancellation_token = cancellation_token.clone();
                         let miner = Arc::clone(&self);
-                        let mining_chain = mining_chain;
 
                         tokio::spawn(async move {
-                            if let Err(err) = miner.mine_chain(&mut mining_chain.clone(), _cancellation_token).await {
+                            let mut chain_miner = Arc::try_unwrap(chain_miner).unwrap_or_else(|_| panic!("only one strong ref allowed"));
+
+                            if let Err(err) = chain_miner.run(_cancellation_token).await {
                                 tracing::error!(?chain.chain_id, error = ?err, "mine chain failed");
                             }
 
-                            let mut guard = miner.mining_chains.lock().await;
+                            let mut guard = miner.miners.lock().await;
                             guard.remove(&chain.chain_id);
                         });
 
@@ -425,9 +162,9 @@ where
                 if chain_id == proxy_creator_chain_id {
                     notifier.notify_one();
                 } else {
-                    let guard = miner.mining_chains.lock().await;
+                    let guard = miner.miners.lock().await;
                     if let Some(entry) = guard.get(&chain_id) {
-                        entry.new_block_notifier.notify_one();
+                        entry.notify();
                     } else {
                         tracing::warn!(?chain_id, "no mining chain");
                     }
