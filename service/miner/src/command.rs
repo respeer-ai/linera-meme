@@ -31,16 +31,40 @@ pub enum ClientCommand {
         /// Meme proxy application id
         #[arg(
             long,
-            default_value = TESTNET_CONWAY_MEME_PROXY_APPLICATION_ID,
-            help = "Testnet conway meme proxy application id"
+            default_value = TESTNET_CONWAY_PROXY_APPLICATION_ID,
+            help = "Testnet conway proxy application id"
         )]
-        meme_proxy_application_id: ApplicationId,
+        proxy_application_id: ApplicationId,
 
         /// Configuration for the faucet chain listener.
         #[command(flatten)]
         config: ChainListenerConfig,
+
+        /// If run an auto maker with miner
+        /// Due to every operation must be run with Mine operation for a minable meme token,
+        /// then miner should be the perfect place to implement auto maker.
+        #[arg(long)]
+        with_maker: bool,
+
+        #[arg(
+            long,
+            default_value = TESTNET_CONWAY_SWAP_APPLICATION_ID,
+            help = "Testnet conway swap application id"
+        )]
+        swap_application_id: Option<ApplicationId>,
     },
+
+    /// Run a benchmark for minier
     Benchmark,
+
+    /// List all chains with balance
+    List,
+
+    /// Redeem mining reward from meme chain to wallet chain
+    Redeem {
+        token: ApplicationId,
+        amount: Option<Amount>,
+    },
 }
 
 impl ClientCommand {
