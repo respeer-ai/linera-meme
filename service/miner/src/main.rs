@@ -68,7 +68,7 @@ use linera_views::store::{KeyValueDatabase, KeyValueStore};
 mod command;
 mod options;
 
-use crate::command::ClientCommand::{Benchmark, Run};
+use crate::command::ClientCommand::{Benchmark, List, Redeem, Run};
 use options::Options;
 
 use linera_service::{storage::Runnable, util};
@@ -113,15 +113,17 @@ impl Runnable for Job {
 
         match &mut options.command {
             Run {
-                meme_proxy_application_id,
+                proxy_application_id,
                 config,
+                with_maker,
+                swap_application_id,
             } => {
                 assert!(
                     signer.keys().len() > 0,
                     "run `linera wallet init` and `linera wallet request-chain` to initialize wallet."
                 );
 
-                let meme_proxy_application_id = *meme_proxy_application_id;
+                let proxy_application_id = *proxy_application_id;
                 let mut config = config.clone();
 
                 let mut context = options
@@ -130,13 +132,7 @@ impl Runnable for Job {
                 let default_chain = context.default_chain();
 
                 let _miner = Arc::new(
-                    MemeMiner::new(
-                        meme_proxy_application_id,
-                        context,
-                        &mut config,
-                        default_chain,
-                    )
-                    .await,
+                    MemeMiner::new(proxy_application_id, context, &mut config, default_chain).await,
                 );
 
                 let cancellation_token = CancellationToken::new();
@@ -145,6 +141,12 @@ impl Runnable for Job {
             }
             Benchmark => {
                 MinerBenchmark::benchmark();
+            }
+            List => {
+                tracing::info!("Not implemented");
+            }
+            Redeem { token, amount } => {
+                tracing::info!("Not implemented");
             }
         }
         Ok(())

@@ -94,7 +94,7 @@ where
     context: Arc<Mutex<C>>,
     storage: <C::Environment as linera_core::Environment>::Storage,
 
-    meme_proxy_application_id: ApplicationId,
+    proxy_application_id: ApplicationId,
 
     new_block_notifier: Arc<Notify>,
     pub chain_listener_config: ChainListenerConfig,
@@ -110,7 +110,7 @@ where
     C: ClientContext + 'static,
 {
     pub async fn new(
-        meme_proxy_application_id: ApplicationId,
+        proxy_application_id: ApplicationId,
         context: C,
         chain_listener_config: &mut ChainListenerConfig,
         default_chain: ChainId,
@@ -132,7 +132,7 @@ where
             context: Arc::new(Mutex::new(context)),
             storage,
 
-            meme_proxy_application_id,
+            proxy_application_id,
 
             new_block_notifier: Arc::new(Notify::new()),
             chain_listener_config: chain_listener_config.clone(),
@@ -211,8 +211,8 @@ where
         Ok(outcome.response.data.creator_chain_id)
     }
 
-    async fn meme_proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
-        self.application_creator_chain_id(self.meme_proxy_application_id)
+    async fn proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
+        self.application_creator_chain_id(self.proxy_application_id)
             .await
     }
 
@@ -241,12 +241,12 @@ where
     }
 
     async fn follow_proxy_chain(&self) -> Result<(), MemeMinerError> {
-        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
-        self.follow_chain(meme_proxy_creator_chain_id).await
+        let proxy_creator_chain_id = self.proxy_creator_chain_id().await?;
+        self.follow_chain(proxy_creator_chain_id).await
     }
 
     async fn miner_registered(&self) -> Result<bool, MemeMinerError> {
-        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+        let proxy_creator_chain_id = self.proxy_creator_chain_id().await?;
 
         let mut request = Request::new(
             r#"
@@ -261,8 +261,8 @@ where
 
         let outcome = self
             .query_user_application::<MinerRegisteredResponse>(
-                self.meme_proxy_application_id,
-                meme_proxy_creator_chain_id,
+                self.proxy_application_id,
+                proxy_creator_chain_id,
                 request,
             )
             .await?;
@@ -270,7 +270,7 @@ where
     }
 
     async fn miner(&self) -> Result<Option<Miner>, MemeMinerError> {
-        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+        let proxy_creator_chain_id = self.proxy_creator_chain_id().await?;
 
         let mut request = Request::new(
             r#"
@@ -288,8 +288,8 @@ where
 
         let outcome = self
             .query_user_application::<MinerResponse>(
-                self.meme_proxy_application_id,
-                meme_proxy_creator_chain_id,
+                self.proxy_application_id,
+                proxy_creator_chain_id,
                 request,
             )
             .await?;
@@ -349,7 +349,7 @@ where
         );
         let hash = self
             .execute_operation::<RegisterMinerResponse>(
-                self.meme_proxy_application_id,
+                self.proxy_application_id,
                 self.default_chain,
                 request,
             )
@@ -359,6 +359,7 @@ where
     }
 
     async fn mine(&self, chain: Chain, nonce: CryptoHash) -> Result<(), MemeMinerError> {
+        // TODO: also process maker deal here
         let mut request = Request::new(
             r#"
             mutation mine($nonce: CryptoHash!) {
@@ -405,8 +406,8 @@ where
         Ok(outcome.response.data.balance_of)
     }
 
-    pub fn meme_proxy_application_id(&self) -> ApplicationId {
-        self.meme_proxy_application_id
+    pub fn proxy_application_id(&self) -> ApplicationId {
+        self.proxy_application_id
     }
 
     async fn meme_chains(&self) -> Result<Vec<Chain>, MemeMinerError> {
@@ -416,7 +417,7 @@ where
             return Ok(Vec::new());
         };
 
-        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+        let proxy_creator_chain_id = self.proxy_creator_chain_id().await?;
 
         let mut request = Request::new(
             r#"
@@ -437,8 +438,8 @@ where
 
         let outcome = self
             .query_user_application::<MemeChainsResponse>(
-                self.meme_proxy_application_id,
-                meme_proxy_creator_chain_id,
+                self.proxy_application_id,
+                proxy_creator_chain_id,
                 request,
             )
             .await?;
@@ -702,13 +703,13 @@ where
 
         let mut receiver = chain_listener.subscribe_new_block();
         let notifier = self.new_block_notifier.clone();
-        let meme_proxy_creator_chain_id = self.meme_proxy_creator_chain_id().await?;
+        let proxy_creator_chain_id = self.proxy_creator_chain_id().await?;
         let miner = Arc::clone(&self);
 
         tokio::spawn(async move {
             while let Ok(chain_id) = receiver.recv().await {
                 tracing::info!("new block of chain {}", chain_id);
-                if chain_id == meme_proxy_creator_chain_id {
+                if chain_id == proxy_creator_chain_id {
                     notifier.notify_one();
                 } else {
                     let mut guard = miner.mining_chains.lock().await;
