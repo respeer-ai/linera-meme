@@ -10,9 +10,6 @@ use linera_client::chain_listener::ChainListenerConfig;
 const TESTNET_CONWAY_PROXY_APPLICATION_ID: &str =
     "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
 
-const TESTNET_CONWAY_SWAP_APPLICATION_ID: &str =
-    "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
-
 #[derive(Clone, clap::Subcommand)]
 pub enum ClientCommand {
     /// Miner for meme tokens
@@ -45,6 +42,7 @@ pub enum ClientCommand {
 
 impl ClientCommand {
     /// Returns the log file name to use based on the [`ClientCommand`] that will run.
+    #[allow(dead_code)]
     pub fn log_file_name(&self) -> Cow<'static, str> {
         match self {
             ClientCommand::Run { .. } => "miner".into(),

@@ -1,32 +1,22 @@
-use std::{cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc, time::Instant};
+use std::{cmp::Ordering, sync::Arc, time::Instant};
 
 use abi::{
     hash::{hash_cmp, hash_increment},
-    meme::{MemeAbi, MiningBase, MiningInfo},
-    proxy::{Chain, Miner, ProxyAbi},
+    meme::{MiningBase, MiningInfo},
+    proxy::Chain,
 };
-use async_graphql::{Request, Value, Variables};
-use futures::{lock::Mutex, FutureExt as _};
 use linera_base::{
     crypto::CryptoHash,
     data_types::{Amount, BlockHeight},
-    identifiers::{Account, AccountOwner, ApplicationId, ChainId},
 };
-use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
-use linera_core::data_types::ClientOutcome;
-use linera_execution::{Query, QueryOutcome, QueryResponse};
-use linera_service::util;
-use serde::{de::DeserializeOwned, Deserialize};
+use linera_client::chain_listener::ClientContext;
 use tokio::{
     sync::Notify,
-    task::JoinHandle,
     time::{sleep, Duration},
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    errors::MemeMinerError, meme_api::MemeApi, proxy_api::ProxyApi, wallet_api::WalletApi,
-};
+use crate::{errors::MemeMinerError, meme_api::MemeApi, wallet_api::WalletApi};
 
 pub struct ChainMiner<C>
 where

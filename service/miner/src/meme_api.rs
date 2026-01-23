@@ -1,33 +1,16 @@
-use std::{cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc, time::Instant};
+use std::sync::Arc;
 
-use abi::{
-    hash::{hash_cmp, hash_increment},
-    meme::{MemeAbi, MiningBase, MiningInfo},
-    proxy::{Chain, Miner, ProxyAbi},
-};
-use async_graphql::{Request, Value, Variables};
-use futures::{lock::Mutex, FutureExt as _};
-use linera_base::{
-    crypto::CryptoHash,
-    data_types::{Amount, BlockHeight},
-    identifiers::{Account, AccountOwner, ApplicationId, ChainId},
-};
-use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
-use linera_core::data_types::ClientOutcome;
-use linera_execution::{Query, QueryOutcome, QueryResponse};
-use linera_service::util;
-use serde::{de::DeserializeOwned, Deserialize};
-use tokio::{
-    sync::Notify,
-    task::JoinHandle,
-    time::{sleep, Duration},
-};
-use tokio_util::sync::CancellationToken;
+use abi::{meme::MiningInfo, proxy::Chain};
+use async_graphql::{Request, Variables};
+use linera_base::{crypto::CryptoHash, data_types::Amount, identifiers::Account};
+use linera_client::chain_listener::ClientContext;
+use serde::Deserialize;
 
 use crate::{errors::MemeMinerError, wallet_api::WalletApi};
 
 #[derive(Debug, Deserialize)]
 struct MineResponse {
+    #[allow(dead_code)]
     mine: Vec<u8>,
 }
 
@@ -58,21 +41,6 @@ where
 {
     pub fn new(chain: Chain, wallet: Arc<WalletApi<C>>) -> Self {
         Self { chain, wallet }
-    }
-
-    pub async fn creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
-        self.wallet
-            .application_creator_chain_id(self.chain.token.unwrap())
-            .await
-    }
-
-    pub async fn follow_chain(&self) -> Result<(), MemeMinerError> {
-        let creator_chain_id = self.creator_chain_id().await?;
-        self.wallet.follow_chain(creator_chain_id).await
-    }
-
-    pub fn application_id(&self) -> ApplicationId {
-        self.chain.token.unwrap()
     }
 
     pub async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
