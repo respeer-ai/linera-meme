@@ -8,6 +8,7 @@ LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
 CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
+COMPILE=0
 
 options="f:z:C:"
 
@@ -15,6 +16,7 @@ while getopts $options opt; do
   case ${opt} in
     f) FAUCET_URL=${OPTARG} ;;
     z) CLUSTER=${OPTARG} ;;
+    C) COMPILE=${OPTARG} ;;
   esac
 done
 
@@ -93,7 +95,7 @@ LATEST_COMMIT=`git rev-parse HEAD`
 LATEST_COMMIT=${LATEST_COMMIT:0:10}
 INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}' | awk '{print $1}'`
 
-if [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" ]; then
+if [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" -a $COMPILE -eq 1 ]; then
     cargo build --release --features disable-native-rpc,enable-wallet-rpc,storage-service -j 2
     mv $PWD/target/release/linera $BIN_DIR
 fi
