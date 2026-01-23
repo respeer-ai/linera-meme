@@ -24,13 +24,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::errors::MemeMinerError;
-
-#[derive(Debug, Deserialize)]
-struct CreatorChainIdResponse {
-    #[serde(alias = "creatorChainId")]
-    creator_chain_id: ChainId,
-}
+use crate::{errors::MemeMinerError, wallet_api::WalletApi};
 
 #[derive(Debug, Deserialize)]
 struct MinerResponse {
@@ -94,13 +88,12 @@ where
     context: Arc<Mutex<C>>,
     storage: <C::Environment as linera_core::Environment>::Storage,
 
+    wallet: WalletApi<C>,
+
     proxy_application_id: ApplicationId,
 
     new_block_notifier: Arc<Notify>,
     pub chain_listener_config: ChainListenerConfig,
-
-    default_chain: ChainId,
-    owner: Account,
 
     mining_chains: Mutex<HashMap<ChainId, MiningChain>>,
 }
@@ -115,100 +108,32 @@ where
         chain_listener_config: &mut ChainListenerConfig,
         default_chain: ChainId,
     ) -> Self {
-        let chain = context
-            .wallet()
-            .get(default_chain)
-            .await
-            .expect("failed get default chain")
-            .expect("invalid default chain");
-        let owner = chain.owner.unwrap();
+        let storage = context.storage().clone();
+
+        let context = Arc::new(Mutex::new(context));
+        let wallet = WalletApi::new(Arc::clone(&context), default_chain).await;
 
         // We don't need to process message
         chain_listener_config.skip_process_inbox = true;
 
-        let storage = context.storage().clone();
-
         Self {
-            context: Arc::new(Mutex::new(context)),
+            context,
             storage,
-
+            wallet,
             proxy_application_id,
-
             new_block_notifier: Arc::new(Notify::new()),
             chain_listener_config: chain_listener_config.clone(),
-
-            default_chain,
-            owner: Account {
-                chain_id: default_chain,
-                owner,
-            },
-
             mining_chains: Mutex::new(HashMap::default()),
         }
-    }
-
-    async fn query_user_application<T>(
-        &self,
-        application_id: ApplicationId,
-        chain_id: ChainId,
-        request: Request,
-    ) -> Result<QueryOutcome<Response<T>>, MemeMinerError>
-    where
-        T: DeserializeOwned,
-    {
-        // We don't get chain id here to avoid recursive invocation
-        let query = Query::user_without_abi(application_id, &request)?;
-
-        let client = self
-            .context
-            .lock()
-            .await
-            .make_chain_client(chain_id)
-            .await?;
-
-        let QueryOutcome {
-            response,
-            operations,
-        } = client.query_application(query, None).await?;
-
-        let QueryResponse::User(payload) = response else {
-            unreachable!("cannot get a system response for a user query");
-        };
-        tracing::info!(
-            "Query:\n\tchain {} \n\tapplication {} \n\trequest {:?}: \n\t{:?}",
-            chain_id,
-            application_id,
-            request,
-            String::from_utf8(payload.clone()).expect("invalid response")
-        );
-        let response: Response<T> =
-            serde_json::from_str(&String::from_utf8(payload).expect("invalid response"))?;
-
-        Ok(QueryOutcome {
-            response,
-            operations,
-        })
     }
 
     async fn application_creator_chain_id(
         &self,
         application_id: ApplicationId,
     ) -> Result<ChainId, MemeMinerError> {
-        let request = Request::new(
-            r#"
-            query creatorChainId {
-                creatorChainId
-            }
-            "#,
-        );
-        let outcome = self
-            .query_user_application::<CreatorChainIdResponse>(
-                application_id,
-                self.default_chain,
-                request,
-            )
-            .await?;
-        Ok(outcome.response.data.creator_chain_id)
+        self.wallet
+            .application_creator_chain_id(application_id)
+            .await
     }
 
     async fn proxy_creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
@@ -217,27 +142,7 @@ where
     }
 
     async fn follow_chain(&self, chain_id: ChainId) -> Result<(), MemeMinerError> {
-        let start_time = Instant::now();
-
-        let chain_client = self
-            .context
-            .lock()
-            .await
-            .make_chain_client(chain_id)
-            .await?;
-        chain_client.synchronize_chain_state(chain_id).await?;
-        self.context
-            .lock()
-            .await
-            .update_wallet(&chain_client)
-            .await?;
-
-        tracing::info!(
-            "Chain followed and added in {} ms",
-            start_time.elapsed().as_millis()
-        );
-
-        Ok(())
+        self.wallet.follow_chain(chain_id).await
     }
 
     async fn follow_proxy_chain(&self) -> Result<(), MemeMinerError> {
@@ -256,10 +161,11 @@ where
             "#,
         );
         request = request.variables(Variables::from_json(serde_json::json!({
-            "owner": self.owner.owner,
+            "owner": self.wallet.owner(),
         })));
 
         let outcome = self
+            .wallet
             .query_user_application::<MinerRegisteredResponse>(
                 self.proxy_application_id,
                 proxy_creator_chain_id,
@@ -283,10 +189,11 @@ where
             "#,
         );
         request = request.variables(Variables::from_json(serde_json::json!({
-            "owner": self.owner.owner,
+            "owner": self.wallet.owner(),
         })));
 
         let outcome = self
+            .wallet
             .query_user_application::<MinerResponse>(
                 self.proxy_application_id,
                 proxy_creator_chain_id,
@@ -294,49 +201,6 @@ where
             )
             .await?;
         Ok(outcome.response.data.miner)
-    }
-
-    // Stole from node_service.rs
-    async fn execute_operation<T>(
-        &self,
-        application_id: ApplicationId,
-        chain_id: ChainId,
-        request: Request,
-    ) -> Result<CryptoHash, MemeMinerError>
-    where
-        T: DeserializeOwned,
-    {
-        tracing::info!("query application ...");
-        let QueryOutcome {
-            response,
-            operations,
-        } = self
-            .query_user_application::<T>(application_id, chain_id, request)
-            .await?;
-        if operations.is_empty() {
-            unreachable!("the query contains no operation");
-        }
-
-        let client = self
-            .context
-            .lock()
-            .await
-            .make_chain_client(chain_id)
-            .await?;
-        tracing::info!("execute operation ...");
-        let hash = loop {
-            let timeout = match client
-                .execute_operations(operations.clone(), vec![])
-                .await?
-            {
-                ClientOutcome::Committed(certificate) => break certificate.hash(),
-                ClientOutcome::WaitForTimeout(timeout) => timeout,
-            };
-            let mut stream = client.subscribe()?;
-            util::wait_for_next_round(&mut stream, timeout).await;
-        };
-
-        Ok(hash)
     }
 
     async fn register_miner(&self) -> Result<(), MemeMinerError> {
@@ -348,9 +212,10 @@ where
             "#,
         );
         let hash = self
+            .wallet
             .execute_operation::<RegisterMinerResponse>(
                 self.proxy_application_id,
-                self.default_chain,
+                self.wallet.default_chain(),
                 request,
             )
             .await?;
@@ -372,6 +237,7 @@ where
             "nonce": nonce,
         })));
         let hash = self
+            .wallet
             .execute_operation::<MineResponse>(chain.token.unwrap(), chain.chain_id, request)
             .await?;
         tracing::info!("Hash {:?}", hash);
@@ -382,7 +248,7 @@ where
         // Mining reward is on meme chain, user need to redeem to their own chain
         let account = Account {
             chain_id: chain.chain_id,
-            owner: self.owner.owner,
+            owner: self.wallet.owner(),
         };
         let mut request = Request::new(
             r#"
@@ -397,6 +263,7 @@ where
         })));
 
         let outcome = self
+            .wallet
             .query_user_application::<BalanceOfResponse>(
                 chain.token.unwrap(),
                 chain.chain_id,
@@ -437,6 +304,7 @@ where
         })));
 
         let outcome = self
+            .wallet
             .query_user_application::<MemeChainsResponse>(
                 self.proxy_application_id,
                 proxy_creator_chain_id,
@@ -471,6 +339,7 @@ where
         );
 
         let outcome = self
+            .wallet
             .query_user_application::<MiningInfoResponse>(
                 chain.token.unwrap(),
                 chain.chain_id,
@@ -487,7 +356,7 @@ where
             height: mining_info.mining_height,
             nonce,
             chain_id: chain.chain.chain_id,
-            signer: self.owner.owner,
+            signer: self.wallet.owner(),
             previous_nonce: mining_info.previous_nonce,
         };
 
@@ -626,7 +495,7 @@ where
         self.context
             .lock()
             .await
-            .assign_new_chain_to_key(chain.chain_id, self.owner.owner)
+            .assign_new_chain_to_key(chain.chain_id, self.wallet.owner())
             .await?;
 
         // TODO: do we need to listen it in ChainListener here (run_with_chain_id) ?

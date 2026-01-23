@@ -21,7 +21,10 @@ use linera_client::{
 use linera_rpc::config::CrossChainConfig;
 
 // Proxy application ID of testnet conway
-const TESTNET_CONWAY_MEME_PROXY_APPLICATION_ID: &str =
+const TESTNET_CONWAY_PROXY_APPLICATION_ID: &str =
+    "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
+
+const TESTNET_CONWAY_SWAP_APPLICATION_ID: &str =
     "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
 
 #[derive(Clone, clap::Subcommand)]
@@ -73,6 +76,8 @@ impl ClientCommand {
         match self {
             ClientCommand::Run { .. } => "miner".into(),
             ClientCommand::Benchmark => "benchmark".into(),
+            ClientCommand::List => "list".into(),
+            ClientCommand::Redeem { .. } => "redeem".into(),
         }
     }
 }
