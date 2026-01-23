@@ -3,16 +3,13 @@
 
 use std::{env, path::PathBuf};
 
-use anyhow::{anyhow, bail, Error};
+use anyhow::{anyhow, Error};
 use linera_base::crypto::InMemorySigner;
-use linera_client::{client_context::ClientContext, config::GenesisConfig};
+use linera_client::client_context::ClientContext;
 use linera_execution::{WasmRuntime, WithWasmDefault as _};
 use linera_persistent as persistent;
 use linera_service::{
-    storage::{
-        AssertStorageV1, CommonStorageOptions, Runnable, RunnableWithStore, StorageConfig,
-        StorageMigration,
-    },
+    storage::{CommonStorageOptions, Runnable, StorageConfig},
     util, Wallet,
 };
 use tracing::{debug, info};

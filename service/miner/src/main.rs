@@ -63,8 +63,6 @@ impl Runnable for Job {
             Run {
                 proxy_application_id,
                 config,
-                with_maker,
-                swap_application_id,
             } => {
                 assert!(
                     signer.keys().len() > 0,

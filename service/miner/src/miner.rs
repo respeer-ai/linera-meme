@@ -15,7 +15,6 @@ use linera_service::util;
 use serde::{de::DeserializeOwned, Deserialize};
 use tokio::{
     sync::Notify,
-    task::JoinHandle,
     time::{sleep, Duration},
 };
 use tokio_util::sync::CancellationToken;
