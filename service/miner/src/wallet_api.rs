@@ -176,7 +176,7 @@ where
     {
         tracing::info!("query application ...");
         let QueryOutcome {
-            response,
+            response: _,
             operations,
         } = self
             .query_user_application::<T>(application_id, chain_id, request)
@@ -207,18 +207,18 @@ where
         Ok(hash)
     }
 
-    async fn initialize_chain(&self, chain: Chain) -> Result<(), MemeMinerError> {
+    pub async fn initialize_chain(&self, chain_id: ChainId) -> Result<(), MemeMinerError> {
         let maybe_exist_chain = self
             .context
             .lock()
             .await
             .wallet()
-            .get(chain.chain_id)
+            .get(chain_id)
             .await
             .expect("Failed get exists chain");
         match maybe_exist_chain {
             Some(_) => {}
-            _ => self.follow_chain(chain.chain_id).await?,
+            _ => self.follow_chain(chain_id).await?,
         }
         // We may fail here due to the meme chain is not assigned to us at the beginning
         // So we should retry due to listener will sync chain in background
@@ -226,11 +226,8 @@ where
         self.context
             .lock()
             .await
-            .assign_new_chain_to_key(chain.chain_id, self.owner.owner)
+            .assign_new_chain_to_key(chain_id, self.owner.owner)
             .await?;
-
-        // TODO: do we need to listen it in ChainListener here (run_with_chain_id) ?
-        // ChainListener will provide subscription to new chain block, then we can get height and nonce there
 
         Ok(())
     }
