@@ -1,8 +1,8 @@
 mod chain_miner;
-mod command;
+pub mod command;
 mod errors;
 mod meme_api;
-mod options;
+pub mod options;
 mod proxy_api;
 mod wallet_api;
 

@@ -42,7 +42,6 @@ pub enum ClientCommand {
 
 impl ClientCommand {
     /// Returns the log file name to use based on the [`ClientCommand`] that will run.
-    #[allow(dead_code)]
     pub fn log_file_name(&self) -> Cow<'static, str> {
         match self {
             ClientCommand::Run { .. } => "miner".into(),

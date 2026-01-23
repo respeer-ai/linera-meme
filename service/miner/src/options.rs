@@ -84,7 +84,6 @@ pub struct Options {
     pub command: ClientCommand,
 }
 
-#[allow(dead_code)]
 impl Options {
     pub fn init() -> Self {
         <Options as clap::Parser>::parse()
