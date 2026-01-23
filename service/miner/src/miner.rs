@@ -4,7 +4,7 @@ use futures::{lock::Mutex, FutureExt as _};
 use linera_base::identifiers::{ApplicationId, ChainId};
 use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
 use tokio::{
-    sync::Notify,
+    sync::{Notify, RwLock},
     time::{sleep, Duration},
 };
 use tokio_util::sync::CancellationToken;
@@ -22,7 +22,7 @@ where
 
     wallet: Arc<WalletApi<C>>,
     proxy: ProxyApi<C>,
-    miners: Mutex<HashMap<ChainId, Arc<ChainMiner<C>>>>,
+    miners: Mutex<HashMap<ChainId, Arc<RwLock<ChainMiner<C>>>>>,
 
     new_block_notifier: Arc<Notify>,
     pub chain_listener_config: ChainListenerConfig,
@@ -95,14 +95,14 @@ where
 
                         self.wallet.initialize_chain(chain.chain_id).await?;
 
-                        let chain_miner = Arc::new(ChainMiner::new(chain.clone(), Arc::clone(&self.wallet)).await);
+                        let chain_miner = Arc::new(RwLock::new(ChainMiner::new(chain.clone(), Arc::clone(&self.wallet)).await));
                         guard.insert(chain.chain_id, Arc::clone(&chain_miner));
 
                         let _cancellation_token = cancellation_token.clone();
                         let miner = Arc::clone(&self);
 
                         tokio::spawn(async move {
-                            let mut chain_miner = Arc::try_unwrap(chain_miner).unwrap_or_else(|_| panic!("only one strong ref allowed"));
+                            let mut chain_miner = chain_miner.write().await;
 
                             if let Err(err) = chain_miner.run(_cancellation_token).await {
                                 tracing::error!(?chain.chain_id, error = ?err, "mine chain failed");
@@ -152,8 +152,8 @@ where
                     notifier.notify_one();
                 } else {
                     let guard = miner.miners.lock().await;
-                    if let Some(entry) = guard.get(&chain_id) {
-                        entry.notify();
+                    if let Some(chain_miner) = guard.get(&chain_id) {
+                        chain_miner.read().await.notify();
                     } else {
                         tracing::warn!(?chain_id, "no mining chain");
                     }
