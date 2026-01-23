@@ -42,7 +42,6 @@ where
     C: ClientContext,
 {
     context: Arc<Mutex<C>>,
-    storage: <C::Environment as linera_core::Environment>::Storage,
 
     default_chain: ChainId,
     owner: Account,
@@ -62,11 +61,9 @@ where
             .expect("failed get default chain")
             .expect("invalid default chain");
         let owner = chain.owner.unwrap();
-        let storage = context.lock().await.storage().clone();
 
         Self {
             context,
-            storage,
 
             default_chain,
             owner: Account {
@@ -238,9 +235,5 @@ where
 
     pub fn owner(&self) -> AccountOwner {
         self.owner.owner
-    }
-
-    pub fn account(&self) -> Account {
-        self.owner
     }
 }

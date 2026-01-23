@@ -131,39 +131,6 @@ impl Options {
         Ok(output)
     }
 
-    pub async fn run_with_store<R: RunnableWithStore>(
-        &self,
-        assert_storage_v1: bool,
-        need_migration: bool,
-        job: R,
-    ) -> Result<R::Output, Error> {
-        let storage_config = self.storage_config()?;
-        debug!("Running command using storage configuration: {storage_config}");
-        let store_config =
-            storage_config.add_common_storage_options(&self.common_storage_options)?;
-        if assert_storage_v1 {
-            store_config.clone().run_with_store(AssertStorageV1).await?;
-        }
-        if need_migration {
-            store_config
-                .clone()
-                .run_with_store(StorageMigration)
-                .await?;
-        }
-        let output = Box::pin(store_config.run_with_store(job)).await?;
-        Ok(output)
-    }
-
-    pub async fn initialize_storage(&self) -> Result<(), Error> {
-        let storage_config = self.storage_config()?;
-        debug!("Initializing storage using configuration: {storage_config}");
-        let store_config =
-            storage_config.add_common_storage_options(&self.common_storage_options)?;
-        let wallet = self.wallet()?;
-        store_config.initialize(wallet.genesis_config()).await?;
-        Ok(())
-    }
-
     pub fn wallet(&self) -> Result<Wallet, Error> {
         Ok(Wallet::read(&self.wallet_path()?)?)
     }
@@ -244,28 +211,5 @@ impl Options {
         }
         let config_path = Self::config_path()?;
         Ok(config_path.join("keystore.json"))
-    }
-
-    pub fn create_wallet(&self, genesis_config: GenesisConfig) -> Result<Wallet, Error> {
-        let wallet_path = self.wallet_path()?;
-        if wallet_path.exists() {
-            bail!("Wallet already exists: {}", wallet_path.display());
-        }
-        let wallet = Wallet::create(&wallet_path, genesis_config)?;
-        wallet.save()?;
-        Ok(wallet)
-    }
-
-    pub fn create_keystore(
-        &self,
-        testing_prng_seed: Option<u64>,
-    ) -> Result<persistent::File<InMemorySigner>, Error> {
-        let keystore_path = self.keystore_path()?;
-        if keystore_path.exists() {
-            bail!("Keystore already exists: {}", keystore_path.display());
-        }
-        Ok(persistent::File::read_or_create(&keystore_path, || {
-            Ok(InMemorySigner::new(testing_prng_seed))
-        })?)
     }
 }

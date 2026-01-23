@@ -24,46 +24,16 @@ pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0
 #[export_name = "_rjem_malloc_conf"]
 pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    env,
-    path::PathBuf,
-    process,
-    sync::Arc,
-};
+use std::{process, sync::Arc};
 
-use anyhow::{bail, ensure, Context, Error};
+use anyhow::Error;
 use async_trait::async_trait;
-use chrono::Utc;
-use clap_complete::generate;
-use colored::Colorize;
-use futures::{lock::Mutex, FutureExt as _, StreamExt as _};
-use linera_base::{
-    crypto::Signer,
-    data_types::{ApplicationPermissions, Timestamp},
-    identifiers::{AccountOwner, ChainId},
-    listen_for_shutdown_signals,
-    ownership::ChainOwnership,
-    time::{Duration, Instant},
-};
-use linera_client::{
-    chain_listener::{ChainListener, ChainListenerConfig, ClientContext as _},
-    config::{CommitteeConfig, GenesisConfig},
-};
-use linera_core::{
-    client::{ChainClientError, ListeningMode},
-    data_types::ClientOutcome,
-    wallet,
-    worker::Reason,
-    JoinSetExt as _, LocalNodeError,
-};
-use linera_execution::committee::Committee;
+use linera_base::listen_for_shutdown_signals;
 use linera_meme_miner::{benchmark::Benchmark as MinerBenchmark, miner::MemeMiner};
 #[cfg(with_metrics)]
 use linera_metrics::monitoring_server;
 use linera_persistent::Persist;
-use linera_storage::{DbStorage, Storage};
-use linera_views::store::{KeyValueDatabase, KeyValueStore};
+use linera_storage::Storage;
 
 mod command;
 mod options;
@@ -71,33 +41,11 @@ mod options;
 use crate::command::ClientCommand::{Benchmark, List, Redeem, Run};
 use options::Options;
 
-use linera_service::{storage::Runnable, util};
-use serde_json::Value;
-use tempfile::NamedTempFile;
-use tokio::{
-    io::AsyncWriteExt,
-    process::{ChildStdin, Command},
-    sync::{mpsc, oneshot},
-    task::JoinSet,
-    time,
-};
+use linera_service::storage::Runnable;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn, Instrument as _};
+use tracing::{error, Instrument as _};
 
 struct Job(Options);
-
-fn read_json(string: Option<String>, path: Option<PathBuf>) -> anyhow::Result<Vec<u8>> {
-    let value = match (string, path) {
-        (Some(_), Some(_)) => bail!("cannot have both a json string and file"),
-        (Some(s), None) => serde_json::from_str(&s)?,
-        (None, Some(path)) => {
-            let s = fs_err::read_to_string(path)?;
-            serde_json::from_str(&s)?
-        }
-        (None, None) => Value::Null,
-    };
-    Ok(serde_json::to_vec(&value)?)
-}
 
 #[async_trait]
 impl Runnable for Job {
@@ -108,8 +56,8 @@ impl Runnable for Job {
         S: Storage + Clone + Send + Sync + 'static,
     {
         let Job(mut options) = self;
-        let mut wallet = options.wallet()?;
-        let mut signer = options.signer()?;
+        let wallet = options.wallet()?;
+        let signer = options.signer()?;
 
         match &mut options.command {
             Run {
@@ -126,7 +74,7 @@ impl Runnable for Job {
                 let proxy_application_id = *proxy_application_id;
                 let mut config = config.clone();
 
-                let mut context = options
+                let context = options
                     .create_client_context(storage, wallet, signer.into_value())
                     .await?;
                 let default_chain = context.default_chain();
@@ -150,17 +98,6 @@ impl Runnable for Job {
             }
         }
         Ok(())
-    }
-}
-
-async fn kill_all_processes(pids: &[u32]) {
-    for &pid in pids {
-        info!("Killing benchmark process (pid {})", pid);
-        let _ = Command::new("kill")
-            .arg("-9")
-            .arg(pid.to_string())
-            .status()
-            .await;
     }
 }
 

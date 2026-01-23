@@ -40,25 +40,15 @@ struct MinerRegisteredResponse {
 
 #[derive(Debug, Deserialize)]
 struct RegisterMinerResponse {
+    #[allow(dead_code)]
     #[serde(alias = "registerMiner")]
     register_miner: Vec<u8>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MineResponse {
-    mine: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]
 struct MemeChainsResponse {
     #[serde(alias = "memeChains")]
     meme_chains: Vec<Chain>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MiningInfoResponse {
-    #[serde(alias = "miningInfo")]
-    mining_info: Option<MiningInfo>,
 }
 
 pub struct ProxyApi<C>
@@ -117,6 +107,7 @@ where
         Ok(outcome.response.data.miner_registered)
     }
 
+    #[allow(dead_code)]
     pub async fn miner(&self) -> Result<Option<Miner>, MemeMinerError> {
         let creator_chain_id = self.creator_chain_id().await?;
 
@@ -194,40 +185,5 @@ where
             )
             .await?;
         Ok(outcome.response.data.meme_chains)
-    }
-
-    pub async fn mining_info(&self, chain: &Chain) -> Result<Option<MiningInfo>, MemeMinerError> {
-        let request = Request::new(
-            r#"
-            query miningInfo {
-                miningInfo {
-                    initialTarget
-                    target
-                    newTarget
-                    blockDuration
-                    targetBlockDuration
-                    targetAdjustmentBlocks
-                    emptyBlockRewardPercent
-                    initialRewardAmount
-                    halvingCycle
-                    nextHalvingAt
-                    rewardAmount
-                    miningHeight
-                    miningExecutions
-                    previousNonce
-                }
-            }
-            "#,
-        );
-
-        let outcome = self
-            .wallet
-            .query_user_application::<MiningInfoResponse>(
-                chain.token.unwrap(),
-                chain.chain_id,
-                request,
-            )
-            .await?;
-        Ok(outcome.response.data.mining_info)
     }
 }
