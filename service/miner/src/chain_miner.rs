@@ -8,6 +8,7 @@ use abi::{
 use linera_base::{
     crypto::CryptoHash,
     data_types::{Amount, BlockHeight},
+    identifiers::ApplicationId,
 };
 use linera_client::chain_listener::ClientContext;
 use tokio::{
@@ -16,7 +17,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{errors::MemeMinerError, meme_api::MemeApi, wallet_api::WalletApi};
+use crate::{errors::MemeMinerError, maker::Maker, meme_api::MemeApi, wallet_api::WalletApi};
 
 pub struct ChainMiner<C>
 where
@@ -32,14 +33,30 @@ where
     mining_info: Option<MiningInfo>,
     nonce: Option<CryptoHash>,
     mined_height: Option<BlockHeight>,
+
+    maker: Option<Maker>,
 }
 
 impl<C> ChainMiner<C>
 where
     C: ClientContext + 'static,
 {
-    pub async fn new(chain: Chain, wallet: Arc<WalletApi<C>>) -> Self {
+    pub async fn new(
+        chain: Chain,
+        wallet: Arc<WalletApi<C>>,
+        with_maker: bool,
+        swap_application_id: Option<ApplicationId>,
+    ) -> Self {
         let meme = MemeApi::new(chain.clone(), Arc::clone(&wallet));
+
+        let maker = if with_maker {
+            let Some(swap_application_id) = swap_application_id else {
+                panic!("Invalid swap application id");
+            };
+            Some(Maker::new(swap_application_id))
+        } else {
+            None
+        };
 
         Self {
             wallet,
@@ -49,11 +66,12 @@ where
             mining_info: None,
             nonce: None,
             mined_height: None,
+            maker,
         }
     }
 
     async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
-        // TODO: also process maker deal here
+        self.maker.as_ref().map(|maker| maker.create_deal());
         self.meme.mine(nonce).await
     }
 
