@@ -11,17 +11,14 @@ pub struct OpenMultiLeaderRoundsHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    _state: Rc<RefCell<S>>,
+    state: Rc<RefCell<S>>,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface>
     OpenMultiLeaderRoundsHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>) -> Self {
-        Self {
-            _state: state,
-            runtime,
-        }
+        Self { state, runtime }
     }
 
     fn should_open_multi_leader_rounds(&self) -> bool {
@@ -63,6 +60,9 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
             Ok(_) => {}
             Err(e) => return Err(HandlerError::RuntimeError(e.into())),
         }
+
+        // Now we don't have any owner, so we can start mining
+        self.state.borrow_mut().start_mining();
 
         Ok(None)
     }

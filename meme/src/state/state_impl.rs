@@ -383,8 +383,29 @@ impl StateInterface for MemeState {
         self.mining_info.get().as_ref().unwrap().clone()
     }
 
+    fn maybe_mining_info(&self) -> Option<MiningInfo> {
+        self.mining_info.get().clone()
+    }
+
     fn update_mining_info(&mut self, info: MiningInfo) {
         self.mining_info.set(Some(info));
+    }
+
+    fn is_mining_started(&self) -> bool {
+        self.mining_info
+            .get()
+            .as_ref()
+            .map_or(false, |info| info.mining_started)
+    }
+
+    fn start_mining(&mut self) {
+        if let Some(mining_info) = &mut self.mining_info.get() {
+            let _mining_info = MiningInfo {
+                mining_started: true,
+                ..mining_info.clone()
+            };
+            self.update_mining_info(_mining_info);
+        }
     }
 
     async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {

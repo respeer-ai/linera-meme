@@ -13,7 +13,7 @@ pub struct TransferOwnershipHandler<
     S: StateInterface,
 > {
     _runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     owner: Account,
     new_owner: Account,
@@ -22,7 +22,7 @@ pub struct TransferOwnershipHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     TransferOwnershipHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::TransferOwnership { owner, new_owner } = msg else {
             panic!("Invalid message");
         };
@@ -45,6 +45,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
         self.state
+            .borrow_mut()
             .transfer_ownership(self.owner, self.new_owner)
             .map_err(Into::into)?;
 

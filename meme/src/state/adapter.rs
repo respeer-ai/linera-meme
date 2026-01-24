@@ -225,8 +225,20 @@ impl StateInterface for StateAdapter {
         self.state.borrow().mining_info()
     }
 
+    fn maybe_mining_info(&self) -> Option<MiningInfo> {
+        self.state.borrow().maybe_mining_info()
+    }
+
     fn update_mining_info(&mut self, info: MiningInfo) {
         self.state.borrow_mut().update_mining_info(info);
+    }
+
+    fn is_mining_started(&self) -> bool {
+        self.state.borrow().is_mining_started()
+    }
+
+    fn start_mining(&mut self) {
+        self.state.borrow_mut().start_mining();
     }
 
     async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {

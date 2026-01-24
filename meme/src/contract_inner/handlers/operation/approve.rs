@@ -13,7 +13,7 @@ pub struct ApproveHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    _state: S,
+    _state: Rc<RefCell<S>>,
 
     spender: Account,
     amount: Amount,
@@ -22,7 +22,7 @@ pub struct ApproveHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     ApproveHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::Approve { spender, amount } = op else {
             panic!("Invalid operation");
         };

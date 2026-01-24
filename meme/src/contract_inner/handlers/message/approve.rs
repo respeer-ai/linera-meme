@@ -13,7 +13,7 @@ pub struct ApproveHandler<
     S: StateInterface,
 > {
     _runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     owner: Account,
     spender: Account,
@@ -23,7 +23,7 @@ pub struct ApproveHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     ApproveHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::Approve {
             owner,
             spender,
@@ -51,10 +51,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
-        let balance = self.state.balance_of(self.owner).await;
+        let balance = self.state.borrow().balance_of(self.owner).await;
         assert!(self.amount <= balance, "Insufficient balance");
 
         self.state
+            .borrow_mut()
             .approve(self.owner, self.spender, self.amount)
             .await
             .map_err(Into::into)?;

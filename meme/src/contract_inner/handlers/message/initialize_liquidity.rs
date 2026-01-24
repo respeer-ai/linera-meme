@@ -24,13 +24,13 @@ pub struct InitializeLiquidityHandler<
 impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateInterface>
     InitializeLiquidityHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::InitializeLiquidity { caller, to, amount } = msg else {
             panic!("Invalid message");
         };
 
         Self {
-            state: Rc::new(RefCell::new(state)),
+            state,
             runtime,
 
             caller: *caller,

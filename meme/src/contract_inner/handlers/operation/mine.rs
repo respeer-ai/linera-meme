@@ -16,7 +16,7 @@ pub struct MineHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     nonce: CryptoHash,
 }
@@ -26,7 +26,7 @@ impl<
         S: StateInterface,
     > MineHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::Mine { nonce } = op else {
             panic!("Invalid operation");
         };
@@ -41,7 +41,7 @@ impl<
 
     fn verify(&mut self) -> Result<(), HandlerError> {
         let height = self.runtime.borrow_mut().block_height();
-        let mined_height = self.state.mining_height();
+        let mined_height = self.state.borrow().mining_height();
 
         assert!(
             height >= mined_height,
@@ -56,7 +56,7 @@ impl<
             .borrow_mut()
             .authenticated_signer()
             .expect("Invalid signer");
-        let previous_nonce = self.state.previous_nonce();
+        let previous_nonce = self.state.borrow().previous_nonce();
 
         let mining_base = MiningBase {
             height,
@@ -69,7 +69,7 @@ impl<
         log::info!("mined {:?}", mining_base);
 
         let hash = CryptoHash::new(&mining_base);
-        let mining_target = self.state.mining_target();
+        let mining_target = self.state.borrow().mining_target();
 
         match hash_cmp(hash, mining_target) {
             Ordering::Less => {}
@@ -77,12 +77,12 @@ impl<
             Ordering::Greater => return Err(HandlerError::ProcessError("Invalid nonce".into())),
         }
 
-        let mut mining_info = self.state.mining_info();
+        let mut mining_info = self.state.borrow().mining_info();
 
         mining_info.mining_height = height.saturating_add(BlockHeight(1));
         mining_info.previous_nonce = self.nonce;
 
-        self.state.update_mining_info(mining_info);
+        self.state.borrow_mut().update_mining_info(mining_info);
 
         Ok(())
     }
@@ -114,6 +114,7 @@ impl<
         let now = self.runtime.borrow_mut().system_time();
 
         self.state
+            .borrow_mut()
             .mining_reward(owner, now)
             .await
             .map_err(Into::into)?;

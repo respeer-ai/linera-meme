@@ -15,7 +15,7 @@ pub struct LiquidityFundedHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 }
 
 impl<
@@ -23,7 +23,7 @@ impl<
         S: StateInterface,
     > LiquidityFundedHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::LiquidityFunded = msg else {
             panic!("Invalid message");
         };
@@ -46,10 +46,10 @@ impl<
         let virtual_liquidity = self.runtime.borrow_mut().virtual_initial_liquidity();
         // Liquidity will be adjusted when we have mining so we use state liquidity
         // let Some(liquidity) = self.runtime.borrow_mut().initial_liquidity() else {
-        let Some(liquidity) = self.state._initial_liquidity() else {
+        let Some(liquidity) = self.state.borrow()._initial_liquidity() else {
             return Ok(None);
         };
-        let Some(swap_application_id) = self.state.swap_application_id() else {
+        let Some(swap_application_id) = self.state.borrow().swap_application_id() else {
             return Ok(None);
         };
 

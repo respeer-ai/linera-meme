@@ -13,7 +13,7 @@ pub struct MintHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     to: Account,
     amount: Amount,
@@ -22,7 +22,7 @@ pub struct MintHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     MintHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::Mint { to, amount } = msg else {
             panic!("Invalid message");
         };
@@ -45,11 +45,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
         let signer = self.runtime.borrow_mut().authenticated_signer().unwrap();
-        let owner = self.state.owner_signer();
+        let owner = self.state.borrow().owner_signer();
 
         assert!(signer == owner, "Invalid caller");
 
         self.state
+            .borrow_mut()
             .mint(self.to, self.amount)
             .await
             .map_err(Into::into)?;
