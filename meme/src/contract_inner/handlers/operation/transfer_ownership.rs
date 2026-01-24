@@ -13,7 +13,7 @@ pub struct TransferOwnershipHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    _state: S,
+    _state: Rc<RefCell<S>>,
 
     new_owner: Account,
 }
@@ -21,7 +21,7 @@ pub struct TransferOwnershipHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     TransferOwnershipHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::TransferOwnership { new_owner } = op else {
             panic!("Invalid operation");
         };

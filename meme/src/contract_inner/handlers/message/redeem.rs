@@ -13,7 +13,7 @@ pub struct RedeemHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     owner: Account,
     amount: Option<Amount>,
@@ -22,7 +22,7 @@ pub struct RedeemHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     RedeemHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::Redeem { owner, amount } = msg else {
             panic!("Invalid message");
         };
@@ -49,9 +49,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             chain_id,
             owner: self.owner.owner,
         };
-        let amount = self.amount.unwrap_or(self.state.balance_of(from).await);
+        let amount = self
+            .amount
+            .unwrap_or(self.state.borrow().balance_of(from).await);
 
         self.state
+            .borrow_mut()
             .transfer(from, self.owner, amount)
             .await
             .map_err(Into::into)?;

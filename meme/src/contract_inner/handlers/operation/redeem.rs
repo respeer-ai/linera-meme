@@ -13,7 +13,7 @@ pub struct RedeemHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    _state: S,
+    _state: Rc<RefCell<S>>,
 
     amount: Option<Amount>,
 }
@@ -23,7 +23,7 @@ impl<
         S: StateInterface,
     > RedeemHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::Redeem { amount } = op else {
             panic!("Invalid operation");
         };

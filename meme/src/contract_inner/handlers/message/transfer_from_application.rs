@@ -11,7 +11,7 @@ pub struct TransferFromApplicationHandler<
     S: StateInterface,
 > {
     _runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     caller: Account,
     to: Account,
@@ -21,7 +21,7 @@ pub struct TransferFromApplicationHandler<
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     TransferFromApplicationHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::TransferFromApplication { caller, to, amount } = msg else {
             panic!("Invalid message");
         };
@@ -45,6 +45,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
         self.state
+            .borrow_mut()
             .transfer(self.caller, self.to, self.amount)
             .await
             .map_err(Into::into)?;

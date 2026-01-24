@@ -13,7 +13,7 @@ pub struct TransferFromHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    _state: S,
+    _state: Rc<RefCell<S>>,
 
     from: Account,
     to: Account,
@@ -23,7 +23,7 @@ pub struct TransferFromHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     TransferFromHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::TransferFrom { from, to, amount } = op else {
             panic!("Invalid operation");
         };

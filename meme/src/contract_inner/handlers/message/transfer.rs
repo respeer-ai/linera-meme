@@ -13,7 +13,7 @@ pub struct TransferHandler<
     S: StateInterface,
 > {
     _runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     from: Account,
     to: Account,
@@ -23,7 +23,7 @@ pub struct TransferHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     TransferHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &MemeMessage) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, msg: &MemeMessage) -> Self {
         let MemeMessage::Transfer { from, to, amount } = msg else {
             panic!("Invalid message");
         };
@@ -47,6 +47,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
         self.state
+            .borrow_mut()
             .transfer(self.from, self.to, self.amount)
             .await
             .map_err(Into::into)?;

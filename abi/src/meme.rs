@@ -108,6 +108,10 @@ pub struct MiningInfo {
     // But we still need this block hash to avoid Time-based Side-Channel Attack
     // So we use previous nonce for that, it should be also unpredictable
     pub previous_nonce: CryptoHash,
+
+    // If mining not started, owners still can propose block without Mine operation
+    // After that, every block proposal must contain Mine operation as the first operation of the operations vec
+    pub mining_started: bool,
 }
 
 impl MiningInfo {
@@ -152,6 +156,7 @@ impl MiningInfo {
             mining_height: BlockHeight(0),
             mining_executions: 0,
             previous_nonce: initial_nonce,
+            mining_started: false,
         }
     }
 
