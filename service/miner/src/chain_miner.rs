@@ -95,13 +95,6 @@ where
         &mut self,
         cancellation_token: CancellationToken,
     ) -> Result<(), MemeMinerError> {
-        if self.chain.token.is_some() {
-            self.mining_info = self.mining_info().await?;
-            if self.mining_info.is_some() {
-                self.nonce = Some(self.mining_info.as_ref().unwrap().previous_nonce);
-            }
-        }
-
         let mut start_time = Instant::now();
 
         loop {
