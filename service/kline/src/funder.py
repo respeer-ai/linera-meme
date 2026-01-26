@@ -31,7 +31,7 @@ async def main():
     await _swap.get_swap_chain()
     await _swap.get_swap_application()
 
-    _proxy = Proxy(args.proxy_host, args.proxy_application_id, _wallet)
+    _proxy = Proxy(args.proxy_host, args.proxy_application_id)
     await _proxy.get_proxy_chain()
     await _proxy.get_proxy_application()
 

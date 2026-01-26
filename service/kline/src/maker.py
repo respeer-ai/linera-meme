@@ -4,6 +4,7 @@ import asyncio
 
 from swap import Swap
 from meme import Meme
+from proxy import Proxy
 from wallet import Wallet
 from trader import Trader
 
@@ -28,7 +29,11 @@ async def main():
     await _swap.get_swap_chain()
     await _swap.get_swap_application()
 
-    _trader = Trader(_swap, _wallet, _meme)
+    _proxy = Proxy(args.proxy_host, None)
+    await _proxy.get_proxy_chain()
+    await _proxy.get_proxy_application()
+
+    _trader = Trader(_swap, _wallet, _meme, _proxy)
     await _trader.run()
 
 if __name__ == '__main__':

@@ -8,11 +8,10 @@ class MemeApplication:
 
 
 class Proxy:
-    def __init__(self, host, application_id, wallet):
+    def __init__(self, host, application_id):
         self.host = host
         self.base_url = f'http://{host}' + ('/api/proxy' if not running_in_k8s() else '')
-        self.application = application_id if len(application_id) > 0 else None
-        self.wallet = wallet
+        self.application = application_id if application_id and len(application_id) > 0 else None
         self.chain = None
 
     def application_url(self) -> str:
@@ -71,4 +70,18 @@ class Proxy:
             return []
 
         return [MemeApplication(v) for v in resp.json()['data']['memeApplications']]
+
+    async def forget_chain(self, chain_id):
+        json = {
+            'query': f'mutation {{\n forgetChain(chainId: "{chain_id}") \n}}'
+        }
+        try:
+            resp = await async_request.post(url=self.application_url(), json=json, timeout=(3, 10))
+            if 'errors' in resp.json():
+                print(f'Failed proxy: {resp.text}')
+                return chain_id
+            return resp.json()['data']['forgetChain']
+        except Exception as e:
+            print(f'{url}, {json} -> ERROR {e}')
+            return chain_id
 

@@ -5,10 +5,11 @@ import asyncio
 
 
 class Trader:
-    def __init__(self, swap, wallet, meme):
+    def __init__(self, swap, wallet, meme, proxy):
         self.swap = swap
         self.wallet = wallet
         self.meme = meme
+        self.proxy = proxy
         self.semaphore = asyncio.Semaphore(5)
 
     def trade_amounts(self, pool, buy_token_0, token_0_balance, token_1_balance):
@@ -87,6 +88,10 @@ class Trader:
 
     async def trade(self) -> float:
         pools = await self.swap.get_pools()
+        memes = await self.proxy.get_memes()
+
+        memes = [meme for meme in memes of (self.meme.mining_started(meme.chain_id, meme.token))]
+        pools = [pool for pool in pools if any((await self.proxy.forget_chain(meme.chain_id)) is None for meme in memes if meme.token == pool.token_0)]
 
         tasks = [self._trade_in_pool(pool) for pool in pools]
         await asyncio.gather(*tasks)
