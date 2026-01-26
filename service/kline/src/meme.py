@@ -23,7 +23,7 @@ class Meme:
 
     async def mining_started(self, chain_id, token):
         json = {
-            'query': f'query {\n miningInfo { miningStarted } \n}'
+            'query': 'query {\n miningInfo { miningStarted } \n}'
         }
 
         url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
