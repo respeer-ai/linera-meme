@@ -145,7 +145,8 @@ impl HandlerFactory {
 
         // Mine operation will be the first operation of the block proposal and it'll set mining_height
         // For other operations, if the heights are different, they will fail to execute
-        chain_id != application_creator_chain_id || !mining_started || mining_height == block_height
+        // Mining height is always the next block height, not the executing one
+        chain_id != application_creator_chain_id || !mining_started || mining_height == block_height.saturating_add(BlockHeight(1))
     }
 
     fn operation_executable(
