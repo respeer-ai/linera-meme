@@ -116,6 +116,7 @@ where
                     miningHeight
                     miningExecutions
                     previousNonce
+                    miningStarted
                 }
             }
             "#,
