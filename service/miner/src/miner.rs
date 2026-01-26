@@ -99,6 +99,9 @@ where
                         if guard.contains_key(&chain.chain_id) {
                             continue;
                         }
+                        if chain.token.is_none() {
+                            continue;
+                        }
 
                         self.wallet.initialize_chain(chain.chain_id).await?;
 

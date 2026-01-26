@@ -5,6 +5,7 @@ pub mod operation;
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::meme::{MemeMessage, MemeOperation, MemeResponse};
 use base::handler::{Handler, HandlerError};
+use linera_sdk::linera_base_types::BlockHeight;
 use message::{
     approve::ApproveHandler as MessageApproveHandler,
     initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
@@ -146,7 +147,9 @@ impl HandlerFactory {
         // Mine operation will be the first operation of the block proposal and it'll set mining_height
         // For other operations, if the heights are different, they will fail to execute
         // Mining height is always the next block height, not the executing one
-        chain_id != application_creator_chain_id || !mining_started || mining_height == block_height.saturating_add(BlockHeight(1))
+        chain_id != application_creator_chain_id
+            || !mining_started
+            || mining_height == block_height.saturating_add(BlockHeight(1))
     }
 
     fn operation_executable(
