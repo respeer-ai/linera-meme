@@ -10,6 +10,6 @@ services:
       - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
     environment:
       RUST_LOG: info
-      LISTENER_SKIP_PERMISSIONLESS_CHAIN: true
+      LINERA_LISTENER_SKIP_PERMISSIONLESS_CHAIN: true
     restart: always
 {% endfor %}
