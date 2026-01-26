@@ -184,7 +184,7 @@ where
                         || self.mined_height.unwrap() >= self.mining_info.as_ref().unwrap().mining_height
                         || self.nonce.is_none() => {
                     self.new_block_notifier.notify_one();
-                    tracing::info!(?self.chain.chain_id, "waiting for new block");
+                    tracing::info!(?self.chain.chain_id, ?self.mined_height, ?self.mining_info, ?self.nonce, "waiting for new block");
                 }
             }
         }
