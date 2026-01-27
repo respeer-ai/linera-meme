@@ -130,16 +130,14 @@ spec:
           OWNERS='['
           is_first_owner=1
 
-          for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
-          OWNER=$(tr -d '\n' < "$f")
-
-          if [ "$is_first_owner" -eq 1 ]; then
-            is_first_owner=0
-          else
-            OWNERS="${OWNERS},"
-          fi
-
-          OWNERS="${OWNERS}\"${OWNER}\""
+          for f in /shared-app-data/SWAP_WALLET_OWNER.*; do
+            OWNER=$(tr -d '\n' < "$f")
+            if [ "$is_first_owner" -eq 1 ]; then
+              is_first_owner=0
+            else
+              OWNERS="${OWNERS},"
+            fi
+            OWNERS="${OWNERS}\"${OWNER}\""
           done
 
           OWNERS="${OWNERS}]"
@@ -267,16 +265,14 @@ spec:
           OWNERS='['
           is_first_owner=1
 
-          for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
-          OWNER=$(tr -d '\n' < "$f")
-
-          if [ "$is_first_owner" -eq 1 ]; then
-            is_first_owner=0
-          else
-            OWNERS="${OWNERS},"
-          fi
-
-          OWNERS="${OWNERS}\"${OWNER}\""
+          for f in /shared-app-data/SWAP_WALLET_OWNER.*; do
+            OWNER=$(tr -d '\n' < "$f")
+            if [ "$is_first_owner" -eq 1 ]; then
+              is_first_owner=0
+            else
+              OWNERS="${OWNERS},"
+            fi
+            OWNERS="${OWNERS}\"${OWNER}\""
           done
 
           OWNERS="${OWNERS}]"
