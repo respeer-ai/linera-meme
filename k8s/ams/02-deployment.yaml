@@ -123,18 +123,31 @@ spec:
             fi
             sleep 10
           done
-          OWNERS=''
-          for f in /shared-app-data/AMS_WALLET_OWNER.*; do
-            OWNER=$(cat "$f" | tr -d '\n')
-            OWNERS="$OWNERS --owners $OWNER"
+
+          OWNERS='['
+          is_first_owner=1
+
+          for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
+          OWNER=$(tr -d '\n' < "$f")
+
+          if [ "$is_first_owner" -eq 1 ]; then
+            is_first_owner=0
+          else
+            OWNERS="${OWNERS},"
+          fi
+
+          OWNERS="${OWNERS}\"${OWNER}\""
           done
+
+          OWNERS="${OWNERS}]"
+
           if [ -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; then
             MULTI_OWNER_CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
           fi
           if [ $POD_INDEX -eq 0 ]; then
             if [ ! -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID -o -z $MULTI_OWNER_CHAIN_ID ]; then
               echo "Open multi owners chain..."
-              CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
+              CHAIN_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db open-multi-owner-chain --from $CHAIN_ID --owners $OWNERS --multi-leader-rounds 100 --initial-balance "19.0")
               echo $CHAIN_ID > /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
             fi
           fi
@@ -246,14 +259,27 @@ spec:
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
-          OWNERS=''
-          for f in /shared-app-data/AMS_WALLET_OWNER.*; do
-            OWNER=$(cat "$f" | tr -d '\n')
-            OWNERS="$OWNERS --owners $OWNER"
+
+          OWNERS='['
+          is_first_owner=1
+
+          for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
+          OWNER=$(tr -d '\n' < "$f")
+
+          if [ "$is_first_owner" -eq 1 ]; then
+            is_first_owner=0
+          else
+            OWNERS="${OWNERS},"
+          fi
+
+          OWNERS="${OWNERS}\"${OWNER}\""
           done
+
+          OWNERS="${OWNERS}]"
+
           if [ $POD_INDEX -eq 0 ]; then
             echo "Change multi owners chain to single leader..."
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID $OWNERS --multi-leader-rounds 0
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID --owners $OWNERS --multi-leader-rounds 0
           fi
         volumeMounts:
         - name: ams-pvc
