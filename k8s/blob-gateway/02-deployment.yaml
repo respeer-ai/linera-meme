@@ -134,15 +134,18 @@ spec:
           is_first_owner=1
 
           for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
-            OWNER=$(cat "$f" | tr -d '\n')
-            if [ $is_first_owner -eq 1 ]; then
-              is_first_owner=0
-            else
-              OWNERS+=','
-            fi
-            OWNERS+="\"$OWNER\""
+          OWNER=$(tr -d '\n' < "$f")
+
+          if [ "$is_first_owner" -eq 1 ]; then
+            is_first_owner=0
+          else
+            OWNERS="${OWNERS},"
+          fi
+
+          OWNERS="${OWNERS}\"${OWNER}\""
           done
-          owners+=']'
+
+          OWNERS="${OWNERS}]"
 
           if [ -f /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID ]; then
             MULTI_OWNER_CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID)
@@ -266,15 +269,18 @@ spec:
           is_first_owner=1
 
           for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
-            OWNER=$(cat "$f" | tr -d '\n')
-            if [ $is_first_owner -eq 1 ]; then
-              is_first_owner=0
-            else
-              OWNERS+=','
-            fi
-            OWNERS+="\"$OWNER\""
+          OWNER=$(tr -d '\n' < "$f")
+
+          if [ "$is_first_owner" -eq 1 ]; then
+            is_first_owner=0
+          else
+            OWNERS="${OWNERS},"
+          fi
+
+          OWNERS="${OWNERS}\"${OWNER}\""
           done
-          owners+=']'
+
+          OWNERS="${OWNERS}]"
 
           if [ $POD_INDEX -eq 0 ]; then
             echo "Change multi owners chain to single leader..."
