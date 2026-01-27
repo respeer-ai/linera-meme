@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export FAUCET_URL=https://faucet.testnet-conway.linera.net
+export FAUCET_URL=${FAUCET_URL:-https://faucet.testnet-conway.linera.net}
 # export FAUCET_URL=http://local-genesis-service:8080
 export REPLICAS=${REPLICAS:-5}
 export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
