@@ -272,6 +272,8 @@ spec:
         env:
         - name: RUST_LOG
           value: info
+        - name: LINERA_LISTENER_SKIP_PERMISSIONLESS_CHAIN
+          value: true
         volumeMounts:
         - name: swap-pvc
           mountPath: /wallet
