@@ -274,7 +274,7 @@ spec:
         - name: RUST_LOG
           value: warn
         - name: LINERA_LISTENER_SKIP_PERMISSIONLESS_CHAIN
-          value: true
+          value: "true"
         volumeMounts:
         - name: blob-gateway-pvc
           mountPath: /wallet

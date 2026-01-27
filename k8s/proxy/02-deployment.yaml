@@ -283,7 +283,7 @@ spec:
         - name: RUST_LOG
           value: info
         - name: LINERA_LISTENER_SKIP_PERMISSIONLESS_CHAIN
-          value: true
+          value: "true"
         volumeMounts:
         - name: proxy-pvc
           mountPath: /wallet
