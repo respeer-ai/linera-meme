@@ -23,7 +23,8 @@ export class LineraWebClient {
 
     await linera.initialize()
 
-    const faucet = new linera.Faucet('https://faucet.testnet-conway.linera.net')
+    // const faucet = new linera.Faucet('https://faucet.testnet-conway.linera.net')
+    const faucet = new linera.Faucet('https://api.testnet-conway.faucet.respeer.ai/api/faucet')
     LineraWebClient.wallet = await faucet.createWallet()
     const chainId = await faucet.claimChain(LineraWebClient.wallet, owner)
 
