@@ -44,7 +44,6 @@ where
     }
 
     pub async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
-        // TODO: also process maker deal here
         let mut request = Request::new(
             r#"
             mutation mine($nonce: CryptoHash!) {
@@ -64,7 +63,7 @@ where
                 request,
             )
             .await?;
-        tracing::info!("Hash {:?}", hash);
+        tracing::debug!("Hash {:?}", hash);
         Ok(())
     }
 

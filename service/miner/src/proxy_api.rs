@@ -130,7 +130,7 @@ where
                 request,
             )
             .await?;
-        tracing::info!("Hash {:?}", hash);
+        tracing::debug!("Hash {:?}", hash);
         Ok(())
     }
 

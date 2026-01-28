@@ -52,7 +52,7 @@ impl PoolContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::warn!("DEBUG OP:SWAP: processing {:?}", op);
+        log::debug!("DEBUG OP:SWAP: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
@@ -65,10 +65,10 @@ impl PoolContract {
                 Err(err) => panic!("Failed OP: {:?}: {err}", op),
             };
 
-        log::warn!("DEBUG OP:SWAP: processed {:?}", op);
+        log::debug!("DEBUG OP:SWAP: processed {:?}", op);
 
         while let Some(message) = outcome.messages.pop() {
-            log::warn!("DEBUG OP:SWAP: sending message {:?} ", message);
+            log::debug!("DEBUG OP:SWAP: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
@@ -86,7 +86,7 @@ impl PoolContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::warn!("DEBUG MSG:SWAP: processing {:?}", msg);
+        log::debug!("DEBUG MSG:SWAP: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
@@ -99,10 +99,10 @@ impl PoolContract {
                 Err(err) => panic!("Failed MSG {:?}: {err}", msg),
             };
 
-        log::warn!("DEBUG MSG:SWAP: processed {:?}", msg);
+        log::debug!("DEBUG MSG:SWAP: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
-            log::warn!("DEBUG MSG:SWAP: sending message {:?} ", message);
+            log::debug!("DEBUG MSG:SWAP: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()

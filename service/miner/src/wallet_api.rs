@@ -88,7 +88,7 @@ where
         let QueryResponse::User(payload) = response else {
             unreachable!("cannot get a system response for a user query");
         };
-        tracing::info!(
+        tracing::debug!(
             "Query:\n\tchain {} \n\tapplication {} \n\trequest {:?}: \n\t{:?}",
             chain_id,
             application_id,
@@ -141,7 +141,7 @@ where
             .update_wallet(&chain_client)
             .await?;
 
-        tracing::info!(
+        tracing::debug!(
             "Chain followed and added in {} ms",
             start_time.elapsed().as_millis()
         );
@@ -159,7 +159,7 @@ where
     where
         T: DeserializeOwned,
     {
-        tracing::info!("query application ...");
+        tracing::debug!(?chain_id, ?application_id, "query application ...");
         let QueryOutcome {
             response: _,
             operations,
@@ -176,7 +176,7 @@ where
             .await
             .make_chain_client(chain_id)
             .await?;
-        tracing::info!("execute operation ...");
+        tracing::debug!(?chain_id, ?application_id, "execute operation ...");
         let hash = loop {
             let timeout = match client
                 .execute_operations(operations.clone(), vec![])
