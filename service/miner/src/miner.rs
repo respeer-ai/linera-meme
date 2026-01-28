@@ -2,9 +2,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use futures::{lock::Mutex, FutureExt as _};
 use linera_base::identifiers::{ApplicationId, ChainId};
-use linera_client::chain_listener::{ChainListener, ChainListenerConfig, ClientContext};
+use linera_client::chain_listener::{
+    ChainListener, ChainListenerConfig, ClientContext, ListenerCommand,
+};
 use tokio::{
-    sync::{Notify, RwLock},
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        Notify, RwLock,
+    },
     time::{sleep, Duration},
 };
 use tokio_util::sync::CancellationToken;
@@ -26,6 +31,9 @@ where
 
     new_block_notifier: Arc<Notify>,
     pub chain_listener_config: ChainListenerConfig,
+
+    command_sender: UnboundedSender<ListenerCommand>,
+    command_receiver: Arc<Mutex<UnboundedReceiver<ListenerCommand>>>,
 }
 
 impl<C> MemeMiner<C>
@@ -46,6 +54,7 @@ where
 
         // We don't need to process message
         chain_listener_config.skip_process_inbox = true;
+        let (command_sender, command_receiver) = mpsc::unbounded_channel();
 
         Self {
             context,
@@ -55,6 +64,8 @@ where
             miners: Mutex::new(HashMap::default()),
             new_block_notifier: Arc::new(Notify::new()),
             chain_listener_config: chain_listener_config.clone(),
+            command_receiver: Arc::new(Mutex::new(command_receiver)),
+            command_sender,
         }
     }
 
@@ -97,6 +108,13 @@ where
                         }
 
                         self.wallet.initialize_chain(chain.chain_id).await?;
+                        if let Err(err) = self
+                            .command_sender
+                                .send(ListenerCommand::Listen(vec![(chain.chain_id, None)].into_iter().collect()))
+                        {
+                            tracing::error!(%err, "error sending a command to chain listener");
+                            continue;
+                        }
 
                         let chain_miner = Arc::new(RwLock::new(ChainMiner::new(chain.clone(), Arc::clone(&self.wallet)).await));
                         guard.insert(chain.chain_id, Arc::clone(&chain_miner));
@@ -139,7 +157,7 @@ where
             self.context.clone(),
             self.storage.clone(),
             cancellation_token.clone(),
-            Arc::new(Mutex::new(tokio::sync::mpsc::unbounded_channel().1)),
+            self.command_receiver.clone(),
             true,
         );
 
