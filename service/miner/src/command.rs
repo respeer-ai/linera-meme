@@ -10,10 +10,6 @@ use linera_client::chain_listener::ChainListenerConfig;
 const TESTNET_CONWAY_PROXY_APPLICATION_ID: &str =
     "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
 
-// Swap application ID of testnet conway
-const TESTNET_CONWAY_SWAP_APPLICATION_ID: &str =
-    "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
-
 #[derive(Clone, clap::Subcommand)]
 pub enum ClientCommand {
     /// Miner for meme tokens
@@ -29,19 +25,6 @@ pub enum ClientCommand {
         /// Configuration for the faucet chain listener.
         #[command(flatten)]
         config: ChainListenerConfig,
-
-        /// Run a auto maker with miner
-        /// Due to each operation will be run with a Mine, thus miner is a proper place to implement maker
-        #[arg(long)]
-        with_maker: bool,
-
-        /// Swap application id
-        #[arg(
-            long,
-            default_value = TESTNET_CONWAY_SWAP_APPLICATION_ID,
-            help = "Testnet conway swap application id"
-        )]
-        swap_application_id: Option<ApplicationId>,
     },
 
     /// Run a benchmark for minier

@@ -62,8 +62,6 @@ impl Runnable for Job {
             Run {
                 proxy_application_id,
                 config,
-                with_maker,
-                swap_application_id,
             } => {
                 assert!(
                     signer.keys().len() > 0,
@@ -72,8 +70,6 @@ impl Runnable for Job {
 
                 let proxy_application_id = *proxy_application_id;
                 let mut config = config.clone();
-                let with_maker = *with_maker;
-                let swap_application_id = swap_application_id.clone();
 
                 let context = options
                     .create_client_context(storage, wallet, signer.into_value())
@@ -81,15 +77,7 @@ impl Runnable for Job {
                 let default_chain = context.default_chain();
 
                 let _miner = Arc::new(
-                    MemeMiner::new(
-                        proxy_application_id,
-                        context,
-                        &mut config,
-                        default_chain,
-                        with_maker,
-                        swap_application_id,
-                    )
-                    .await,
+                    MemeMiner::new(proxy_application_id, context, &mut config, default_chain).await,
                 );
 
                 let cancellation_token = CancellationToken::new();

@@ -26,9 +26,6 @@ where
 
     new_block_notifier: Arc<Notify>,
     pub chain_listener_config: ChainListenerConfig,
-
-    with_maker: bool,
-    swap_application_id: Option<ApplicationId>,
 }
 
 impl<C> MemeMiner<C>
@@ -40,8 +37,6 @@ where
         context: C,
         chain_listener_config: &mut ChainListenerConfig,
         default_chain: ChainId,
-        with_maker: bool,
-        swap_application_id: Option<ApplicationId>,
     ) -> Self {
         let storage = context.storage().clone();
 
@@ -60,8 +55,6 @@ where
             miners: Mutex::new(HashMap::default()),
             new_block_notifier: Arc::new(Notify::new()),
             chain_listener_config: chain_listener_config.clone(),
-            with_maker,
-            swap_application_id,
         }
     }
 
@@ -105,7 +98,7 @@ where
 
                         self.wallet.initialize_chain(chain.chain_id).await?;
 
-                        let chain_miner = Arc::new(RwLock::new(ChainMiner::new(chain.clone(), Arc::clone(&self.wallet), self.with_maker, self.swap_application_id).await));
+                        let chain_miner = Arc::new(RwLock::new(ChainMiner::new(chain.clone(), Arc::clone(&self.wallet)).await));
                         guard.insert(chain.chain_id, Arc::clone(&chain_miner));
 
                         let _cancellation_token = cancellation_token.clone();

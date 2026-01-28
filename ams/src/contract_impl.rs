@@ -19,7 +19,7 @@ impl AmsContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::info!("DEBUG OP:AMS: processing {:?}", op);
+        log::debug!("DEBUG OP:AMS: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
@@ -32,10 +32,10 @@ impl AmsContract {
                 Err(err) => panic!("Failed OP: {:?}: {err}", op),
             };
 
-        log::info!("DEBUG OP:AMS: processed {:?}", op);
+        log::debug!("DEBUG OP:AMS: processed {:?}", op);
 
         while let Some(message) = outcome.messages.pop() {
-            log::info!("DEBUG OP:AMS: sending message {:?} ", message);
+            log::debug!("DEBUG OP:AMS: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
@@ -53,7 +53,7 @@ impl AmsContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::info!("DEBUG MSG:AMS: processing {:?}", msg);
+        log::debug!("DEBUG MSG:AMS: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
@@ -66,7 +66,7 @@ impl AmsContract {
                 Err(err) => panic!("Failed MSG {:?}: {err}", msg),
             };
 
-        log::info!("DEBUG MSG:AMS: processed {:?}", msg);
+        log::debug!("DEBUG MSG:AMS: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
             runtime_context

@@ -8,7 +8,6 @@ use abi::{
 use linera_base::{
     crypto::CryptoHash,
     data_types::{Amount, BlockHeight},
-    identifiers::ApplicationId,
 };
 use linera_client::chain_listener::ClientContext;
 use tokio::{
@@ -17,7 +16,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{errors::MemeMinerError, maker::Maker, meme_api::MemeApi, wallet_api::WalletApi};
+use crate::{errors::MemeMinerError, meme_api::MemeApi, wallet_api::WalletApi};
 
 pub struct ChainMiner<C>
 where
@@ -33,30 +32,14 @@ where
     mining_info: Option<MiningInfo>,
     nonce: Option<CryptoHash>,
     mined_height: Option<BlockHeight>,
-
-    maker: Option<Maker>,
 }
 
 impl<C> ChainMiner<C>
 where
     C: ClientContext + 'static,
 {
-    pub async fn new(
-        chain: Chain,
-        wallet: Arc<WalletApi<C>>,
-        with_maker: bool,
-        swap_application_id: Option<ApplicationId>,
-    ) -> Self {
+    pub async fn new(chain: Chain, wallet: Arc<WalletApi<C>>) -> Self {
         let meme = MemeApi::new(chain.clone(), Arc::clone(&wallet));
-
-        let maker = if with_maker {
-            let Some(swap_application_id) = swap_application_id else {
-                panic!("Invalid swap application id");
-            };
-            Some(Maker::new(swap_application_id))
-        } else {
-            None
-        };
 
         Self {
             wallet,
@@ -66,12 +49,10 @@ where
             mining_info: None,
             nonce: None,
             mined_height: None,
-            maker,
         }
     }
 
     async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
-        self.maker.as_ref().map(|maker| maker.create_deal());
         self.meme.mine(nonce).await
     }
 
@@ -129,7 +110,7 @@ where
 
                     let balance = self.balance().await;
 
-                    tracing::info!(
+                    tracing::debug!(
                         ?self.chain.chain_id,
                         mining_info=?self.mining_info.as_ref().unwrap(),
                         nonce=?self.nonce.unwrap(),
@@ -158,7 +139,7 @@ where
                     };
 
                     let elapsed = start_time.elapsed().as_millis();
-                    tracing::info!(
+                    tracing::debug!(
                         ?self.chain.chain_id,
                         ?mining_info,
                         ?hash,
@@ -175,7 +156,7 @@ where
                         Err(err) => tracing::warn!(error=?err, "failed mine"),
                     }
                     let elapsed = submit_time.elapsed().as_millis();
-                    tracing::info!("took {} ms to submit", elapsed);
+                    tracing::info!(?self.chain.chain_id, ?nonce, ?self.mined_height, ?hash, "took {} ms to submit", elapsed);
                 }
                 _ = sleep(Duration::from_secs(1)),
                 if self.chain.token.is_none()
@@ -184,7 +165,7 @@ where
                         || self.mined_height.unwrap() >= self.mining_info.as_ref().unwrap().mining_height
                         || self.nonce.is_none() => {
                     self.new_block_notifier.notify_one();
-                    tracing::info!(?self.chain.chain_id, ?self.mined_height, ?self.mining_info, ?self.nonce, "waiting for new block");
+                    tracing::debug!(?self.chain.chain_id, ?self.mined_height, ?self.mining_info, ?self.nonce, "waiting for new block");
                 }
             }
         }
