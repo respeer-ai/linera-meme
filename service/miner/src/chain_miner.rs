@@ -110,7 +110,7 @@ where
 
                     let balance = self.balance().await;
 
-                    tracing::debug!(
+                    tracing::info!(
                         ?self.chain.chain_id,
                         mining_info=?self.mining_info.as_ref().unwrap(),
                         nonce=?self.nonce.unwrap(),
@@ -138,12 +138,12 @@ where
                         continue;
                     };
 
-                    let elapsed = start_time.elapsed().as_millis();
+                    let hash_elapsed = start_time.elapsed().as_millis();
                     tracing::debug!(
                         ?self.chain.chain_id,
                         ?mining_info,
                         ?hash,
-                        ?elapsed,
+                        ?hash_elapsed,
                         ?nonce,
                         "calculated one hash",
                     );
@@ -153,16 +153,18 @@ where
                         Ok(_) => {
                             self.mined_height = Some(mining_info.mining_height);
                         },
-                        Err(err) => tracing::warn!(error=?err, "failed mine"),
+                        Err(err) => {
+                            self.new_block_notifier.notify_one();
+                            tracing::warn!(error=?err, "failed mine");
+                        }
                     }
                     let elapsed = submit_time.elapsed().as_millis();
-                    tracing::info!(?self.chain.chain_id, ?nonce, ?self.mined_height, ?hash, "took {} ms to submit", elapsed);
+                    tracing::info!(?self.chain.chain_id, ?nonce, ?self.mined_height, ?hash, ?hash_elapsed, "took {} ms to submit", elapsed);
                 }
                 _ = sleep(Duration::from_secs(1)),
                 if self.chain.token.is_none()
                     || self.mining_info.is_none()
-                        || self.mined_height.is_none()
-                        || self.mined_height.unwrap() >= self.mining_info.as_ref().unwrap().mining_height
+                        || self.mined_height.unwrap_or(BlockHeight(0)) >= self.mining_info.as_ref().unwrap().mining_height
                         || self.nonce.is_none() => {
                     self.new_block_notifier.notify_one();
                     tracing::debug!(?self.chain.chain_id, ?self.mined_height, ?self.mining_info, ?self.nonce, "waiting for new block");
