@@ -24,14 +24,14 @@ spec:
         - -c
         - |
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX ]; then
+          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/MINER_WALLET_CHAIN_OWNER.$POD_INDEX ]; then
             echo "No wallet found, creating..."
             now=$(date -u | sed 's/ //g')
             mkdir -p /wallet/backup/$now
             mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
             rm -rf /wallet/client.db
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} > /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} > /shared-app-data/MINER_WALLET_CHAIN_OWNER.$POD_INDEX
           else
             echo "Wallet already exists, skipping init."
           fi
@@ -44,8 +44,12 @@ spec:
       - name: meme-miner-service
         image: npool/linera-meme-miner:latest
         imagePullPolicy: Always
-        command: ["/bin/sh", "-c", "./miner-entrypoint.sh"]
-        # command: ["/bin/sh", "-c", "sleep 100000"]
+        command:
+        - /bin/sh
+        - -c
+        - |
+          PROXY_APPLICATION_ID=$(cat /shared-app-data/PROXY_APPLICATION_ID)
+          PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID ./miner-entrypoint.sh
         env:
         - name: RUST_LOG
           value: info

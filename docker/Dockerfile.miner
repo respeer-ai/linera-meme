@@ -8,5 +8,5 @@ ENV PROXY_APPLICATION_ID=${proxy_application_id}
 COPY service/miner/target/release/miner /usr/bin/miner
 
 COPY --chmod=755 \
-  docker/funder-entrypoint.sh \
+  docker/miner-entrypoint.sh \
   ./
