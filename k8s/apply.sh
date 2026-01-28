@@ -4,6 +4,7 @@ export FAUCET_URL=${FAUCET_URL:-https://faucet.testnet-conway.linera.net}
 # export FAUCET_URL=http://local-genesis-service:8080
 export REPLICAS=${REPLICAS:-5}
 export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
+export MEME_MINER_REPLICAS=${MEME_MINER_REPLICAS:-1}
 export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
 export SHARED_APP_DATA_STORAGE_CLASS=${SHARED_APP_DATA_STORAGE_CLASS:-efs-storage-class}
 
@@ -123,6 +124,10 @@ envsubst '$FAUCET_URL $REPLICAS' < maker/02-deployment.yaml | kubectl delete -f 
 wait_pods maker-service 0 ""
 wait_pods maker-wallet-service 0 ""
 
+envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl delete -f -
+
+wait_pods meme-miner-service 0 ""
+
 envsubst '$SHARED_APP_DATA_STORAGE_CLASS' < 00-shared-app-data-pvc.yaml | kubectl apply -f -
 
 for service in $SERVICES; do
@@ -159,6 +164,10 @@ envsubst '$FAUCET_URL' < maker/03-ingress.yaml | kubectl apply -f -
 
 wait_pods maker-service $MAKER_REPLICAS Running
 wait_pods maker-wallet-service $MAKER_REPLICAS Running
+
+envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl apply -f -
+
+wait_pods meme-miner-service $MEME_MINER_REPLICAS Running
 
 ####
 ## Replace CHAIN_ID and APPLICATION_ID in webui
