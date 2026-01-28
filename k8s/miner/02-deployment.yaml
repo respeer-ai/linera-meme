@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meme-miner-service
+  namespace: kube-system
+spec:
+  serviceName: meme-miner-service
+  replicas: ${MEME_MINER_REPLICAS}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: meme-miner-service
+  template:
+    metadata:
+      labels:
+        app: meme-miner-service
+    spec:
+      initContainers:
+      - name: init-wallet
+        image: npool/linera-meme-miner:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ ! -f /wallet/wallet.json -o ! -f /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX ]; then
+            echo "No wallet found, creating..."
+            now=$(date -u | sed 's/ //g')
+            mkdir -p /wallet/backup/$now
+            mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now
+            rm -rf /wallet/client.db
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL} > /shared-app-data/MAKER_WALLET_CHAIN_OWNER.$POD_INDEX
+          else
+            echo "Wallet already exists, skipping init."
+          fi
+        volumeMounts:
+        - name: meme-miner-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      containers:
+      - name: meme-miner-service
+        image: npool/linera-meme-miner:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c", "./miner-entrypoint.sh"]
+        # command: ["/bin/sh", "-c", "sleep 100000"]
+        env:
+        - name: RUST_LOG
+          value: info
+        volumeMounts:
+        - name: meme-miner-pvc
+          mountPath: /wallet
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "384Mi"
+          limits:
+            cpu: "100m"
+            memory: "512Mi"
+      volumes:
+      - name: shared-app-data
+        persistentVolumeClaim:
+          claimName: shared-app-data
+  volumeClaimTemplates:
+    - metadata:
+        name: meme-miner-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
