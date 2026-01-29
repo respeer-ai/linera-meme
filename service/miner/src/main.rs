@@ -30,7 +30,8 @@ use anyhow::Error;
 use async_trait::async_trait;
 use linera_base::listen_for_shutdown_signals;
 use linera_meme_miner::{
-    benchmark::Benchmark as MinerBenchmark, list_balances::ListBalances as ListMemeBalances,
+    benchmark::Benchmark as MinerBenchmark,
+    list_balances::{print_balances, ListBalances as ListMemeBalances},
     miner::MemeMiner,
 };
 #[cfg(with_metrics)]
@@ -98,7 +99,7 @@ impl Runnable for Job {
                     .await
                     .exec()
                     .await?;
-                ListMemeBalances::print_balances(balances);
+                print_balances(&balances);
             }
             Redeem { token, amount } => {
                 tracing::info!("Not implemented");

@@ -67,20 +67,20 @@ where
 
         Ok(balances)
     }
+}
 
-    pub fn print_balances(balances: &HashMap<ApplicationId, HashMap<Account, Amount>>) {
-        for (token, _balances) in balances {
-            println!("\n=== Application: {} ===", token);
+pub fn print_balances(balances: &HashMap<ApplicationId, HashMap<Account, Amount>>) {
+    for (token, _balances) in balances {
+        println!("\n=== Application: {} ===", token);
 
-            let rows: Vec<Row> = _balances
-                .iter()
-                .map(|(a, v)| Row {
-                    account: a.to_string(),
-                    amount: v.to_string(),
-                })
-                .collect();
+        let rows: Vec<Row> = _balances
+            .iter()
+            .map(|(a, v)| Row {
+                account: a.to_string(),
+                amount: v.to_string(),
+            })
+            .collect();
 
-            println!("{}", Table::new(rows));
-        }
+        println!("{}", Table::new(rows));
     }
 }
