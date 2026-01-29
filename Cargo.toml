@@ -26,8 +26,8 @@ async-trait = "0.1.77"
 # We have to use respeer fork for application creator chain id in service
 linera-sdk = { version = "0.15.8" }
 linera-views = { version = "0.15.8", default-features = false }
-# linera-sdk = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "f850cbef" }
-# linera-views = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "f850cbef" }
+# linera-sdk = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "3243a71f" }
+# linera-views = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "3243a71f" }
 futures = { version = "0.3.24" }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = { version = "1.0.93" }
@@ -48,7 +48,6 @@ num-bigint = "0.4"
 num-traits = "0.2"
 time = "=0.3.41"
 time-core = "=0.1.4"
-home = "=0.5.11"
 
 abi = { path = "./abi" }
 meme = { path = "./meme" }
@@ -71,4 +70,4 @@ strip = 'debuginfo'
 ## In the unit test we need to get the block for the created chain ID
 [patch.crates-io.linera-sdk]
 git = "https://github.com/respeer-ai/linera-protocol.git"
-rev = "f850cbef"
+rev = "3243a71f"

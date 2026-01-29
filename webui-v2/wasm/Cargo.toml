@@ -37,7 +37,6 @@ web-time = "1.1.0"
 tracing = "0.1.40"
 time = "=0.3.41"
 time-core = "=0.1.4"
-home = "=0.5.11"
 
 [dependencies.bip39]
 git = "https://github.com/rust-bitcoin/rust-bip39.git"
@@ -46,55 +45,55 @@ features = [ "rand" ]
 
 [dependencies.linera-base]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web"]
 
 [dependencies.linera-chain]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web"]
 
 [dependencies.linera-client]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 default-features = false
 features = ["web"]
 
 [dependencies.linera-core]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web", "wasmer"]
 
 [dependencies.linera-execution]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web", "wasmer"]
 
 [dependencies.linera-faucet-client]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 
 [dependencies.linera-rpc]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web"]
 
 [dependencies.linera-storage]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web", "wasmer"]
 
 [dependencies.linera-views]
 # git = "https://github.com/respeer-ai/linera-protocol.git"
-# rev = "f850cbef"
+# rev = "3243a71f"
 version = "0.15.8"
 features = ["web", "indexeddb"]
 
