@@ -224,4 +224,8 @@ where
     pub fn owner(&self) -> AccountOwner {
         self.owner.owner
     }
+
+    pub fn account(&self) -> Account {
+        self.owner
+    }
 }

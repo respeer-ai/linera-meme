@@ -42,36 +42,41 @@ where
         Self { wallet, proxy }
     }
 
-    pub async fn exec(
-        &self,
-    ) -> Result<HashMap<ApplicationId, HashMap<Account, Amount>>, MemeMinerError> {
+    pub async fn exec(&self) -> Result<HashMap<String, HashMap<Account, Amount>>, MemeMinerError> {
         let chains = self.proxy.meme_chains().await?;
         let mut balances = HashMap::default();
 
-        // TODO: follow ams chain to get meme name
+        // TODO: sync proxy chain
 
         for chain in chains {
             let Some(token) = chain.token else {
                 continue;
             };
 
-            let mut _balances: HashMap<Account, Amount> =
-                balances.get(&token).unwrap_or(&HashMap::default()).clone();
-
             let meme = MemeApi::new(chain.clone(), Arc::clone(&self.wallet));
-            let balance = meme.balance(None).await?;
+            let _meme = meme.meme().await?;
 
-            _balances.insert(meme.account(), balance);
-            balances.insert(token, _balances);
+            // TODO: sync meme chain
+            let redeemable_balance = meme.balance(None).await?;
+            let redeemed_balance = meme.balance(Some(self.wallet.account())).await?;
+            let creator_chain_id = self.wallet.application_creator_chain_id(token).await?;
+
+            let key = format!("{}: {}:{}", _meme.ticker, creator_chain_id, token);
+            let mut _balances: HashMap<Account, Amount> =
+                balances.get(&key).unwrap_or(&HashMap::default()).clone();
+
+            _balances.insert(meme.account(), redeemable_balance);
+            _balances.insert(self.wallet.account(), redeemed_balance);
+            balances.insert(key, _balances);
         }
 
         Ok(balances)
     }
 }
 
-pub fn print_balances(balances: &HashMap<ApplicationId, HashMap<Account, Amount>>) {
-    for (token, _balances) in balances {
-        println!("\n=== Application: {} ===", token);
+pub fn print_balances(balances: &HashMap<String, HashMap<Account, Amount>>) {
+    for (meme, _balances) in balances {
+        println!("\n=== {} ===", meme);
 
         let rows: Vec<Row> = _balances
             .iter()

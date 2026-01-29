@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use abi::{meme::MiningInfo, proxy::Chain};
+use abi::{
+    meme::{Meme, MiningInfo},
+    proxy::Chain,
+};
 use async_graphql::{Request, Variables};
 use linera_base::{crypto::CryptoHash, data_types::Amount, identifiers::Account};
 use linera_client::chain_listener::ClientContext;
@@ -24,6 +27,11 @@ struct BalanceOfResponse {
 struct MiningInfoResponse {
     #[serde(alias = "miningInfo")]
     mining_info: Option<MiningInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MemeResponse {
+    meme: Meme,
 }
 
 pub struct MemeApi<C>
@@ -134,5 +142,44 @@ where
             )
             .await?;
         Ok(outcome.response.data.mining_info)
+    }
+
+    pub async fn meme(&self) -> Result<Meme, MemeMinerError> {
+        let request = Request::new(
+            r#"
+            query meme {
+                meme {
+                    initialSupply
+                    totalSupply
+                    name
+                    ticker
+                    decimals
+                    metadata {
+                        logoStoreType
+                        logo
+                        description
+                        twitter
+                        telegram
+                        discord
+                        website
+                        github
+                        liveStream
+                    }
+                    virtualInitialLiquidity
+                    initialLiquidity
+                }
+            }
+            "#,
+        );
+
+        let outcome = self
+            .wallet
+            .query_user_application::<MemeResponse>(
+                self.chain.token.unwrap(),
+                self.chain.chain_id,
+                request,
+            )
+            .await?;
+        Ok(outcome.response.data.meme)
     }
 }
