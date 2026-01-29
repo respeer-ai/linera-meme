@@ -67,12 +67,16 @@ where
         Ok(())
     }
 
-    pub async fn balance(&self) -> Result<Amount, MemeMinerError> {
-        // Mining reward is on meme chain, user need to redeem to their own chain
-        let account = Account {
+    pub fn account(&self) -> Account {
+        Account {
             chain_id: self.chain.chain_id,
             owner: self.wallet.owner(),
-        };
+        }
+    }
+
+    pub async fn balance(&self, owner: Option<Account>) -> Result<Amount, MemeMinerError> {
+        // Mining reward is on meme chain, user need to redeem to their own chain
+        let account = owner.unwrap_or(self.account());
         let mut request = Request::new(
             r#"
             query balanceOf($owner: String!) {

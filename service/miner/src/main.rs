@@ -29,14 +29,17 @@ use std::{process, sync::Arc};
 use anyhow::Error;
 use async_trait::async_trait;
 use linera_base::listen_for_shutdown_signals;
-use linera_meme_miner::{benchmark::Benchmark as MinerBenchmark, miner::MemeMiner};
+use linera_meme_miner::{
+    benchmark::Benchmark as MinerBenchmark, list_balances::ListBalances as ListMemeBalances,
+    miner::MemeMiner,
+};
 #[cfg(with_metrics)]
 use linera_metrics::monitoring_server;
 use linera_persistent::Persist;
 use linera_storage::Storage;
 
 use linera_meme_miner::{
-    command::ClientCommand::{Benchmark, List, Redeem, Run},
+    command::ClientCommand::{Benchmark, ListBalances, Redeem, Run},
     options::Options,
 };
 
@@ -58,23 +61,23 @@ impl Runnable for Job {
         let wallet = options.wallet()?;
         let signer = options.signer()?;
 
+        assert!(
+            signer.keys().len() > 0,
+            "run `linera wallet init` and `linera wallet request-chain` to initialize wallet."
+        );
+
+        let context = options
+            .create_client_context(storage, wallet, signer.into_value())
+            .await?;
+        let default_chain = context.default_chain();
+
         match &mut options.command {
             Run {
                 proxy_application_id,
                 config,
             } => {
-                assert!(
-                    signer.keys().len() > 0,
-                    "run `linera wallet init` and `linera wallet request-chain` to initialize wallet."
-                );
-
                 let proxy_application_id = *proxy_application_id;
                 let mut config = config.clone();
-
-                let context = options
-                    .create_client_context(storage, wallet, signer.into_value())
-                    .await?;
-                let default_chain = context.default_chain();
 
                 let _miner = Arc::new(
                     MemeMiner::new(proxy_application_id, context, &mut config, default_chain).await,
@@ -87,8 +90,15 @@ impl Runnable for Job {
             Benchmark => {
                 MinerBenchmark::benchmark();
             }
-            List => {
-                tracing::info!("Not implemented");
+            ListBalances {
+                proxy_application_id,
+            } => {
+                let proxy_application_id = *proxy_application_id;
+                let balances = ListMemeBalances::new(proxy_application_id, context, default_chain)
+                    .await
+                    .exec()
+                    .await?;
+                ListMemeBalances::print_balances(balances);
             }
             Redeem { token, amount } => {
                 tracing::info!("Not implemented");

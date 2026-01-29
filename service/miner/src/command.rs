@@ -31,7 +31,15 @@ pub enum ClientCommand {
     Benchmark,
 
     /// List all chains with balance
-    List,
+    ListBalances {
+        /// Meme proxy application id
+        #[arg(
+            long,
+            default_value = TESTNET_CONWAY_PROXY_APPLICATION_ID,
+            help = "Testnet conway proxy application id"
+        )]
+        proxy_application_id: ApplicationId,
+    },
 
     /// Redeem mining reward from meme chain to wallet chain
     Redeem {
@@ -46,7 +54,7 @@ impl ClientCommand {
         match self {
             ClientCommand::Run { .. } => "miner".into(),
             ClientCommand::Benchmark => "benchmark".into(),
-            ClientCommand::List => "list".into(),
+            ClientCommand::ListBalances { .. } => "list_balances".into(),
             ClientCommand::Redeem { .. } => "redeem".into(),
         }
     }

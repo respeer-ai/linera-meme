@@ -63,6 +63,7 @@ tikv-jemallocator = { version = "0.6.0", features = [
     "unprefixed_malloc_on_supported_platforms",
 ], optional = true }
 prometheus = { version = "0.13.3", optional = true }
+tabled = "0.20.0"
 
 [build-dependencies]
 cfg_aliases = "0.2.1"

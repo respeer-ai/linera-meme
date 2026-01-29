@@ -57,7 +57,7 @@ where
     }
 
     async fn balance(&self) -> Result<Amount, MemeMinerError> {
-        self.meme.balance().await
+        self.meme.balance(None).await
     }
 
     async fn mining_info(&self) -> Result<Option<MiningInfo>, MemeMinerError> {
@@ -108,7 +108,7 @@ where
                     }
                     self.nonce = Some(self.mining_info.as_ref().unwrap().previous_nonce);
 
-                    let balance = self.balance().await;
+                    let balance = self.balance().await?;
 
                     tracing::info!(
                         ?self.chain.chain_id,
