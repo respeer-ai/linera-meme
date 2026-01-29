@@ -5,10 +5,10 @@
 
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-use abi::meme::{Meme, MemeAbi, MemeOperation};
+use abi::meme::{Meme, MemeAbi, MemeOperation, MiningInfo};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ChainId, WithServiceAbi},
+    linera_base_types::{Account, Amount, ChainId, CryptoHash, WithServiceAbi},
     views::View,
     Service, ServiceRuntime,
 };
@@ -113,6 +113,18 @@ impl QueryRoot {
     async fn meme(&self) -> Meme {
         self.state.meme.get().as_ref().unwrap().clone()
     }
+
+    async fn mining_info(&self) -> Option<MiningInfo> {
+        // Next block height in service is block height in contract
+        let height = self.runtime.next_block_height();
+        match self.state.mining_info.get() {
+            Some(mining_info) => Some(MiningInfo {
+                mining_height: height,
+                ..mining_info.clone()
+            }),
+            None => None,
+        }
+    }
 }
 
 struct MutationRoot {
@@ -124,6 +136,12 @@ impl MutationRoot {
     async fn mint(&self, to: Account, amount: Amount) -> [u8; 0] {
         self.runtime
             .schedule_operation(&MemeOperation::Mint { to, amount });
+        []
+    }
+
+    async fn mine(&self, nonce: CryptoHash) -> [u8; 0] {
+        self.runtime
+            .schedule_operation(&MemeOperation::Mine { nonce });
         []
     }
 }

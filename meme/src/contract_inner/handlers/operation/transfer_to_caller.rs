@@ -13,7 +13,7 @@ pub struct TransferToCallerHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     amount: Amount,
 }
@@ -21,7 +21,7 @@ pub struct TransferToCallerHandler<
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
     TransferToCallerHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::TransferToCaller { amount } = op else {
             panic!("Invalid operation");
         };
@@ -48,7 +48,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         let from = self.runtime.borrow_mut().message_signer_account();
         let mut outcome = HandlerOutcome::new();
 
-        match self.state.transfer_ensure(from, caller, self.amount).await {
+        match self
+            .state
+            .borrow_mut()
+            .transfer_ensure(from, caller, self.amount)
+            .await
+        {
             Ok(_) => {}
             Err(err) => {
                 outcome.with_response(MemeResponse::Fail(err.to_string()));

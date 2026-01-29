@@ -5,7 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::{meme::MemeAbi, policy::open_chain_fee_budget, swap::pool::PoolAbi};
+use abi::{meme::MemeAbi, policy::open_chain_fee_budget, proxy::Miner, swap::pool::PoolAbi};
 use linera_sdk::{
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription},
     test::{ActiveChain, QueryOutcome},
@@ -66,16 +66,25 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners }",
+            "query { genesisMiners { owner registeredAt } }",
         )
         .await;
 
-    let expected = [proxy_owner, meme_miner_owner];
-    let response: Vec<Account> = response["genesisMiners"]
+    let expected = [
+        Miner {
+            owner: proxy_owner,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: meme_miner_owner,
+            registered_at: 0.into(),
+        },
+    ];
+    let response: Vec<Miner> = response["genesisMiners"]
         .as_array()
         .unwrap()
         .into_iter()
-        .map(|owner| serde_json::from_value::<Account>(owner.clone()).unwrap())
+        .map(|miner| serde_json::from_value::<Miner>(miner.clone()).unwrap())
         .collect();
     assert_eq!(response.len(), 2);
 

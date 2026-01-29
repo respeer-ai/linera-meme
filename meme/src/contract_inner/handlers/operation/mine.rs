@@ -1,12 +1,11 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
+    hash::hash_cmp,
     meme::{MemeMessage, MemeOperation, MemeResponse, MiningBase},
-    proxy::{Miner, ProxyAbi, ProxyOperation, ProxyResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::CryptoHash;
-use num_bigint::BigUint;
+use linera_sdk::linera_base_types::{BlockHeight, CryptoHash};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -17,20 +16,9 @@ pub struct MineHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: S,
+    state: Rc<RefCell<S>>,
 
     nonce: CryptoHash,
-}
-
-fn hash_to_u256(hash: CryptoHash) -> BigUint {
-    BigUint::from_bytes_be(&hash.as_bytes().0)
-}
-
-fn hash_cmp(hash1: CryptoHash, hash2: CryptoHash) -> Ordering {
-    let hash1_bigint = hash_to_u256(hash1);
-    let hash2_bigint = hash_to_u256(hash2);
-
-    hash1_bigint.cmp(&hash2_bigint)
 }
 
 impl<
@@ -38,7 +26,7 @@ impl<
         S: StateInterface,
     > MineHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &MemeOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, state: Rc<RefCell<S>>, op: &MemeOperation) -> Self {
         let MemeOperation::Mine { nonce } = op else {
             panic!("Invalid operation");
         };
@@ -53,13 +41,22 @@ impl<
 
     fn verify(&mut self) -> Result<(), HandlerError> {
         let height = self.runtime.borrow_mut().block_height();
-        let mined_height = self.state.mining_height();
+        let mined_height = self.state.borrow().mining_height();
 
-        assert!(height > mined_height, "Stale block height");
+        assert!(
+            height >= mined_height,
+            "Stale block height, expected {}, mined {}",
+            height,
+            mined_height,
+        );
 
         let chain_id = self.runtime.borrow_mut().chain_id();
-        let signer = self.runtime.borrow_mut().authenticated_signer().unwrap();
-        let previous_nonce = self.state.previous_nonce();
+        let signer = self
+            .runtime
+            .borrow_mut()
+            .authenticated_signer()
+            .expect("Invalid signer");
+        let previous_nonce = self.state.borrow().previous_nonce();
 
         let mining_base = MiningBase {
             height,
@@ -69,8 +66,10 @@ impl<
             previous_nonce,
         };
 
+        log::info!("mined {:?}", mining_base);
+
         let hash = CryptoHash::new(&mining_base);
-        let mining_target = self.state.mining_target();
+        let mining_target = self.state.borrow().mining_target();
 
         match hash_cmp(hash, mining_target) {
             Ordering::Less => {}
@@ -78,12 +77,12 @@ impl<
             Ordering::Greater => return Err(HandlerError::ProcessError("Invalid nonce".into())),
         }
 
-        let mut mining_info = self.state.mining_info();
+        let mut mining_info = self.state.borrow().mining_info();
 
-        mining_info.mining_height = height;
+        mining_info.mining_height = height.saturating_add(BlockHeight(1));
         mining_info.previous_nonce = self.nonce;
 
-        self.state.update_mining_info(mining_info);
+        self.state.borrow_mut().update_mining_info(mining_info);
 
         Ok(())
     }
@@ -111,25 +110,11 @@ impl<
 
         self.verify()?;
 
-        let call = ProxyOperation::GetMinerWithAuthenticatedSigner;
-        let proxy_application = self
-            .state
-            .proxy_application_id()
-            .expect("Invalid proxy application")
-            .with_abi::<ProxyAbi>();
-
-        let ProxyResponse::Miner(miner) = self
-            .runtime
-            .borrow_mut()
-            .call_application(proxy_application, &call)
-        else {
-            return Err(HandlerError::InvalidApplicationResponse);
-        };
-
-        let Miner { owner } = miner;
+        let owner = self.runtime.borrow_mut().authenticated_account();
         let now = self.runtime.borrow_mut().system_time();
 
         self.state
+            .borrow_mut()
             .mining_reward(owner, now)
             .await
             .map_err(Into::into)?;

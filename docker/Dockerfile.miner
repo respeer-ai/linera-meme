@@ -1,0 +1,12 @@
+FROM linera-respeer
+
+ARG proxy_application_id
+ARG all_proxy
+
+ENV PROXY_APPLICATION_ID=${proxy_application_id}
+
+COPY service/miner/target/release/miner /usr/bin/miner
+
+COPY --chmod=755 \
+  docker/miner-entrypoint.sh \
+  ./

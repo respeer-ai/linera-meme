@@ -6,8 +6,9 @@
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
-CHAIN_OWNER_COUNT=4
+CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
+COMPILE=0
 
 options="f:z:C:"
 
@@ -15,6 +16,7 @@ while getopts $options opt; do
   case ${opt} in
     f) FAUCET_URL=${OPTARG} ;;
     z) CLUSTER=${OPTARG} ;;
+    C) COMPILE=${OPTARG} ;;
   esac
 done
 
@@ -53,7 +55,7 @@ WALLET_IMAGE_NAME=linera-respeer
 
 IMAGE_NAME=linera-respeer
 REPO_NAME=linera-protocol-respeer
-REPO_BRANCH=respeer-maas-testnet_conway-32c047f7-2025-12-17
+REPO_BRANCH=respeer-maas-testnet_conway-d411bd6c-2026-01-18
 REPO_URL=https://github.com/respeer-ai/linera-protocol.git
 
 # IMAGE_NAME=linera
@@ -74,8 +76,8 @@ if [ "x$COPY_TARGET" = "x1" ]; then
     rm linera-protocol-respeer -rf
     git clone https://github.com/respeer-ai/linera-protocol.git linera-protocol-respeer
     cd linera-protocol-respeer
-    git checkout respeer-maas-testnet_conway-32c047f7-2025-12-17
-    git pull origin respeer-maas-testnet_conway-32c047f7-2025-12-17
+    git checkout respeer-maas-testnet_conway-d411bd6c-2026-01-18
+    git pull origin respeer-maas-testnet_conway-d411bd6c-2026-01-18
     cp -v docker/* $SOURCE_DIR/$REPO_NAME/docker -rf
     cp -v configuration/* $SOURCE_DIR/$REPO_NAME/configuration -rf
     cd $SOURCE_DIR/$REPO_NAME
@@ -93,7 +95,7 @@ LATEST_COMMIT=`git rev-parse HEAD`
 LATEST_COMMIT=${LATEST_COMMIT:0:10}
 INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}' | awk '{print $1}'`
 
-if [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" ]; then
+if [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" -a $COMPILE -eq 1 ]; then
     cargo build --release --features disable-native-rpc,enable-wallet-rpc,storage-service -j 2
     mv $PWD/target/release/linera $BIN_DIR
 fi
@@ -219,6 +221,17 @@ function assign_chain_to_owner() {
            assign --owner $owner --chain-id $chain_id
 }
 
+function to_json_list() {
+    local input=()
+    if [ $# -eq 1 ] && [[ "$1" == *" "* ]]; then
+        read -ra input <<< "$1"
+    else
+        input=("$@")
+    fi
+
+    jq -n '$ARGS.positional' --args "${input[@]}"
+}
+
 function open_multi_owner_chain() {
     wallet_name=$1
     shift 1
@@ -226,12 +239,14 @@ function open_multi_owner_chain() {
     owners=("$@")
     chain_id=$(wallet_chain_id $wallet_name creator)
 
+    owners_json=$(to_json_list "${owners[@]}")
+
     chain_id=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
-           --owners ${owners[@]} \
+           --owners "$owners_json" \
            --multi-leader-rounds 100 \
            --initial-balance "20."))
 
@@ -337,12 +352,14 @@ function change_multi_owner_chain_single_leader() {
     shift 2
 
     owners=("$@")
+    owners_json=$(to_json_list "${owners[@]}")
+
     linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
         --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
         --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
         change-ownership \
         --chain-id $chain_id \
-        --owners ${owners[@]} \
+        --owners "$owners_json" \
         --multi-leader-rounds 0
 }
 

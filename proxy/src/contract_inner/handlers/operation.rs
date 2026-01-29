@@ -4,7 +4,6 @@ pub mod approve_ban_operator;
 pub mod approve_remove_genesis_miner;
 pub mod create_meme;
 pub mod deregister_miner;
-pub mod get_miner_with_authenticated_signer;
 pub mod propose_add_genesis_miner;
 pub mod propose_add_operator;
 pub mod propose_ban_operator;

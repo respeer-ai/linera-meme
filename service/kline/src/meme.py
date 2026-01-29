@@ -21,6 +21,18 @@ class Meme:
             return None
         return resp.json()['data']['balanceOf']
 
+    async def mining_started(self, chain_id, token):
+        json = {
+            'query': 'query {\n miningInfo { miningStarted } \n}'
+        }
+
+        url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
+        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
+        if resp.ok is not True:
+            print(f'{url}, {json} -> {resp.reason}')
+            return None
+        return resp.json()['data']['miningInfo']['miningStarted']
+
     # chain_id: wallet chain id
     # token: token application id
     async def creator_chain_id(self, chain_id, token):

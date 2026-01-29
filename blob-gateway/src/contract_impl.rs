@@ -13,7 +13,7 @@ impl BlobGatewayContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::info!("DEBUG OP:BLOB GATEWAY: processing {:?}", op);
+        log::debug!("DEBUG OP:BLOB GATEWAY: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
@@ -26,10 +26,10 @@ impl BlobGatewayContract {
                 Err(err) => panic!("Failed OP: {:?}: {err}", op),
             };
 
-        log::info!("DEBUG OP:BLOB GATEWAY: processed {:?}", op);
+        log::debug!("DEBUG OP:BLOB GATEWAY: processed {:?}", op);
 
         while let Some(message) = outcome.messages.pop() {
-            log::info!("DEBUG OP:BLOB GATEWAY: sending message {:?} ", message);
+            log::debug!("DEBUG OP:BLOB GATEWAY: sending message {:?} ", message);
 
             runtime_context
                 .borrow_mut()
@@ -47,7 +47,7 @@ impl BlobGatewayContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::info!("DEBUG MSG:BLOB GATEWAY: processing {:?}", msg);
+        log::debug!("DEBUG MSG:BLOB GATEWAY: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
@@ -60,7 +60,7 @@ impl BlobGatewayContract {
                 Err(err) => panic!("Failed MSG {:?}: {err}", msg),
             };
 
-        log::info!("DEBUG MSG:BLOB GATEWAY: processed {:?}", msg);
+        log::debug!("DEBUG MSG:BLOB GATEWAY: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
             runtime_context

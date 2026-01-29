@@ -119,7 +119,13 @@ pub trait StateInterface {
 
     fn mining_info(&self) -> MiningInfo;
 
+    fn maybe_mining_info(&self) -> Option<MiningInfo>;
+
     fn update_mining_info(&mut self, info: MiningInfo);
+
+    fn is_mining_started(&self) -> bool;
+
+    fn start_mining(&mut self);
 
     async fn mining_reward(&mut self, owner: Account, now: Timestamp) -> Result<(), Self::Error>;
 }

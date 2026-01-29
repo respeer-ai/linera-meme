@@ -7,6 +7,7 @@ use linera_sdk::{
         ContractAbi, CryptoHash, ServiceAbi, TimeDelta, Timestamp,
     },
 };
+use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -71,12 +72,15 @@ pub struct MiningBase {
 impl BcsSignable<'_> for MiningBase {}
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, SimpleObject)]
+#[serde(rename_all = "camelCase")]
 pub struct MiningInfo {
     /// Mining hash = sha256sum(block_height, nonce, chain_id, signer, previous_nonce)
     /// Mine opeartion must be the last operation of the block
     /// new_target = target * (block_duration / target_block_duration)
     /// difficulty = initial_target / new_target
-    /// From bitcoin: 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+    /// Bitcoin: 0x00000000FFFF0000000000000000000000000000000000000000000000000000 (about 10 min / per sha256 hash)
+    /// MicroMeme: 0x00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF (about 5 sec / per keccak hash)
+    /// The baseline miner is device with 200000 hashes / sec
     pub initial_target: CryptoHash,
     pub target: CryptoHash,
     pub new_target: CryptoHash,
@@ -104,12 +108,16 @@ pub struct MiningInfo {
     // But we still need this block hash to avoid Time-based Side-Channel Attack
     // So we use previous nonce for that, it should be also unpredictable
     pub previous_nonce: CryptoHash,
+
+    // If mining not started, owners still can propose block without Mine operation
+    // After that, every block proposal must contain Mine operation as the first operation of the operations vec
+    pub mining_started: bool,
 }
 
 impl MiningInfo {
     pub fn new(mining_supply: Amount, now: Timestamp) -> Self {
         let initial_target = CryptoHash::from_str(
-            "00000000FFFF0000000000000000000000000000000000000000000000000000",
+            "00000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
         )
         .unwrap();
         let block_interval_seconds = 5;
@@ -124,10 +132,14 @@ impl MiningInfo {
 
         let initial_nonce = CryptoHash::new(&Nonce("Initial mining nonce".to_string()));
 
-        let supply_scale = mining_supply.saturating_div(Amount::from_tokens(21000000).into());
-        let initial_reward_amount = Amount::from_str("1.7")
-            .unwrap()
-            .saturating_mul(supply_scale.into());
+        let initial_reward_amount = Amount::from_attos(
+            U256::from(u128::from(Amount::from_str("1.7").unwrap()))
+                .checked_mul(U256::from(u128::from(mining_supply)))
+                .unwrap()
+                .checked_div(U256::from(u128::from(Amount::from_tokens(21000000))))
+                .unwrap()
+                .as_u128(),
+        );
 
         MiningInfo {
             initial_target,
@@ -144,6 +156,7 @@ impl MiningInfo {
             mining_height: BlockHeight(0),
             mining_executions: 0,
             previous_nonce: initial_nonce,
+            mining_started: false,
         }
     }
 
@@ -224,6 +237,10 @@ pub enum MemeOperation {
         to: Account,
         amount: Amount,
     },
+    // Redeem owner balance on meme chain
+    Redeem {
+        amount: Option<Amount>,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -264,6 +281,10 @@ pub enum MemeMessage {
     Mint {
         to: Account,
         amount: Amount,
+    },
+    Redeem {
+        owner: Account,
+        amount: Option<Amount>,
     },
 }
 

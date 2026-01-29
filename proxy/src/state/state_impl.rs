@@ -76,13 +76,16 @@ impl StateInterface for ProxyState {
         Ok(self.genesis_miners.insert(&owner, miner)?)
     }
 
-    async fn genesis_miners(&self) -> Result<Vec<Account>, StateError> {
+    async fn genesis_miners(&self) -> Result<Vec<Miner>, StateError> {
         let mut miners = Vec::new();
         self.genesis_miners
             .for_each_index_value(|owner, miner| {
                 let approval = miner.into_owned().approval;
                 if approval.approved() {
-                    miners.push(owner);
+                    miners.push(Miner {
+                        owner,
+                        registered_at: 0.into(),
+                    });
                 }
                 Ok(())
             })
@@ -99,18 +102,20 @@ impl StateInterface for ProxyState {
             .genesis_miners()
             .await?
             .into_iter()
-            .map(|owner| owner.owner)
+            .map(|miner| miner.owner.owner)
             .collect())
     }
 
-    async fn miners(&self) -> Result<Vec<Account>, StateError> {
+    async fn miners(&self) -> Result<Vec<Miner>, StateError> {
+        let genesis_miners = self.genesis_miners().await?;
+
         Ok(self
             .miners
-            .indices()
+            .index_values()
             .await?
-            .iter()
-            .chain(self.genesis_miners().await?.iter())
-            .cloned()
+            .into_iter()
+            .map(|(_, miner)| miner)
+            .chain(genesis_miners.into_iter())
             .collect())
     }
 
@@ -119,7 +124,7 @@ impl StateInterface for ProxyState {
             .miners()
             .await?
             .into_iter()
-            .map(|owner| owner.owner)
+            .map(|miner| miner.owner.owner)
             .collect())
     }
 
@@ -239,18 +244,24 @@ impl StateInterface for ProxyState {
         Ok(self.chains.insert(&chain_id, chain)?)
     }
 
-    async fn register_miner(&mut self, owner: Account) -> Result<(), StateError> {
+    async fn register_miner(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {
         assert!(
             self.miners()
                 .await?
                 .iter()
-                .filter(|miner| miner.owner == owner.owner)
+                .filter(|miner| miner.owner.owner == owner.owner)
                 .collect::<Vec<_>>()
                 .len()
                 == 0,
             "Already registered"
         );
-        Ok(self.miners.insert(&owner, Miner { owner })?)
+        Ok(self.miners.insert(
+            &owner,
+            Miner {
+                owner,
+                registered_at: now,
+            },
+        )?)
     }
 
     fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
@@ -258,14 +269,16 @@ impl StateInterface for ProxyState {
     }
 
     async fn get_miner_with_account_owner(&self, owner: AccountOwner) -> Result<Miner, StateError> {
+        log::info!("Miners {:?}, owner {}", self.miners().await?, owner);
+
         match self
             .miners()
             .await?
             .iter()
-            .filter(|miner| miner.owner == owner)
+            .filter(|miner| miner.owner.owner == owner)
             .next()
         {
-            Some(owner) => Ok(Miner { owner: *owner }),
+            Some(miner) => Ok(miner.clone()),
             _ => Err(StateError::NotExists),
         }
     }

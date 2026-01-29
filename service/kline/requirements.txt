@@ -11,3 +11,5 @@ websocket-client
 numpy
 aiohttp
 asyncio
+gql[websockets]
+websockets

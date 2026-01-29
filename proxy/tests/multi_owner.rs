@@ -5,7 +5,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use abi::policy::open_chain_fee_budget;
+use abi::{policy::open_chain_fee_budget, proxy::Miner};
 use linera_sdk::{
     linera_base_types::{Account, AccountOwner, AccountSecretKey, ApplicationId, Ed25519SecretKey},
     test::{ActiveChain, QueryOutcome},
@@ -91,15 +91,32 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_disable_mining_tes
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners }",
+            "query { genesisMiners { owner registeredAt } }",
         )
         .await;
-    let expected = [proxy_user_1, proxy_user_2, proxy_user_3, meme_miner_owner];
-    let response: Vec<Account> = response["genesisMiners"]
+    let expected = [
+        Miner {
+            owner: proxy_user_1,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: proxy_user_2,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: proxy_user_3,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: meme_miner_owner,
+            registered_at: 0.into(),
+        },
+    ];
+    let response: Vec<Miner> = response["genesisMiners"]
         .as_array()
         .unwrap()
         .into_iter()
-        .map(|owner| serde_json::from_value::<Account>(owner.clone()).unwrap())
+        .map(|miner| serde_json::from_value::<Miner>(miner.clone()).unwrap())
         .collect();
     assert_eq!(response.len(), 4);
 
@@ -244,15 +261,32 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_enable_mining_test
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners }",
+            "query { genesisMiners { owner registeredAt } }",
         )
         .await;
-    let expected = [proxy_user_1, proxy_user_2, proxy_user_3, meme_miner_owner];
-    let response: Vec<Account> = response["genesisMiners"]
+    let expected = [
+        Miner {
+            owner: proxy_user_1,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: proxy_user_2,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: proxy_user_3,
+            registered_at: 0.into(),
+        },
+        Miner {
+            owner: meme_miner_owner,
+            registered_at: 0.into(),
+        },
+    ];
+    let response: Vec<Miner> = response["genesisMiners"]
         .as_array()
         .unwrap()
         .into_iter()
-        .map(|owner| serde_json::from_value::<Account>(owner.clone()).unwrap())
+        .map(|miner| serde_json::from_value::<Miner>(miner.clone()).unwrap())
         .collect();
     assert_eq!(response.len(), 4);
 

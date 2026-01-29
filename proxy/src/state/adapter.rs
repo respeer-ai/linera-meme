@@ -53,7 +53,7 @@ impl StateInterface for StateAdapter {
             .await
     }
 
-    async fn genesis_miners(&self) -> Result<Vec<Account>, StateError> {
+    async fn genesis_miners(&self) -> Result<Vec<Miner>, StateError> {
         self.state.borrow().genesis_miners().await
     }
 
@@ -65,7 +65,7 @@ impl StateInterface for StateAdapter {
         self.state.borrow().genesis_miner_owners().await
     }
 
-    async fn miners(&self) -> Result<Vec<Account>, StateError> {
+    async fn miners(&self) -> Result<Vec<Miner>, StateError> {
         self.state.borrow().miners().await
     }
 
@@ -147,8 +147,8 @@ impl StateInterface for StateAdapter {
             .await
     }
 
-    async fn register_miner(&mut self, owner: Account) -> Result<(), StateError> {
-        self.state.borrow_mut().register_miner(owner).await
+    async fn register_miner(&mut self, owner: Account, now: Timestamp) -> Result<(), StateError> {
+        self.state.borrow_mut().register_miner(owner, now).await
     }
 
     fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
