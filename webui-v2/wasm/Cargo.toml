@@ -35,6 +35,9 @@ async-graphql = "=7.0.17"
 wasmtimer = "0.4.1"
 web-time = "1.1.0"
 tracing = "0.1.40"
+time = "=0.3.41"
+time-core = "=0.1.4"
+home = "=0.5.11"
 
 [dependencies.bip39]
 git = "https://github.com/rust-bitcoin/rust-bip39.git"
