@@ -3,6 +3,7 @@ import time
 import traceback
 import asyncio
 import math
+import os
 
 
 class MarketState:
@@ -159,7 +160,8 @@ class Trader:
         tasks = [self._trade_in_pool(pool) for pool in pools]
         await asyncio.gather(*tasks)
 
-        return random.uniform(5, 10)
+        interval = os.getenv("TRADE_INTERVAL_SECS")
+        return float(interval) if interval is not None else random.uniform(5, 10)
 
     async def run(self):
         while True:

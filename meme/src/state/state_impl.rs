@@ -205,7 +205,7 @@ impl StateInterface for MemeState {
 
         let from_balance = self.balances.get(&from).await?.unwrap();
 
-        log::info!(
+        log::debug!(
             "Transfer {} tokens from {} balance {} to {}",
             amount,
             from,
