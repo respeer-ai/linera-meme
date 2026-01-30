@@ -88,11 +88,18 @@ impl<
         );
 
         let origin = self.runtime.borrow_mut().authenticated_account();
+        let token_0 = self.runtime.borrow_mut().token_0();
+
+        log::info!(
+            "Swapping token_0 {} origin {} amount 0 {:?} amount 1 {:?}",
+            token_0,
+            origin,
+            self.amount_0_in,
+            self.amount_1_in,
+        );
 
         if let Some(amount_0_in) = self.amount_0_in {
             assert!(amount_0_in > Amount::ZERO, "Invalid amount");
-
-            let token_0 = self.runtime.borrow_mut().token_0();
 
             let fund_request = FundRequest {
                 from: origin,

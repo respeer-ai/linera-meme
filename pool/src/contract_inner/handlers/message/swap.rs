@@ -174,12 +174,6 @@ impl<
         }
 
         // 2: Check liquidity
-        log::info!(
-            "DEBUG POOL: calculating adjusted amount pair ... amount 0 {}, amount 1 {}",
-            amount_0_out,
-            amount_1_out
-        );
-
         let amount_pair = self
             .state
             .borrow()
@@ -190,7 +184,7 @@ impl<
                 self.refund_amount_in(origin, amount_0_in, amount_1_in)
                     .await;
                 log::warn!(
-                    "DEBUG POOL: Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
+                    "Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
                     amount_0_out,
                     amount_1_out
                 );
@@ -204,36 +198,17 @@ impl<
             AccountOwner::from(self.runtime.borrow_mut().application_id().forget_abi());
         let token_0 = self.runtime.borrow_mut().token_0();
 
-        log::info!(
-            "DEBUG POOL: transferring tokens ... amount 0 {}, amount 1 {}",
-            amount_0_out,
-            amount_1_out
-        );
-
         if amount_1_out > Amount::ZERO {
             let token_1 = self.runtime.borrow_mut().token_1();
             if let Some(token_1) = token_1 {
-                log::info!(
-                    "DEBUG POOL: transferring ... token {}, amount {}",
-                    token_1,
-                    amount_1_out
-                );
                 self.transfer_meme(token_1, to, amount_1_out).await;
             } else {
                 let balance = self.runtime.borrow_mut().owner_balance(application);
-
-                log::info!(
-                    "DEBUG POOL: transferring ... token {:?}, amount {}, balance {}",
-                    self.runtime.borrow_mut().token_1(),
-                    amount_1_out,
-                    balance
-                );
-
                 if balance < amount_1_out {
                     self.refund_amount_in(origin, amount_0_in, amount_1_in)
                         .await;
                     log::warn!(
-                        "DEBUG POOL: Application balance {} less than amount 1 out {}",
+                        "Application balance {} less than amount 1 out {}",
                         balance,
                         amount_1_out
                     );
@@ -246,16 +221,10 @@ impl<
         }
         // Transfer native firstly due to meme transfer is a message
         if amount_0_out > Amount::ZERO {
-            log::info!(
-                "DEBUG POOL: transferring ... token {}, amount {}",
-                token_0,
-                amount_0_out
-            );
             self.transfer_meme(token_0, to, amount_0_out).await;
         }
 
         // 4: Liquid
-
         let balance_0 = self
             .state
             .borrow()
@@ -274,11 +243,6 @@ impl<
             .unwrap();
         let timestamp = self.runtime.borrow_mut().system_time();
 
-        log::info!(
-            "DEBUG POOL: liquiding ... balance 0 {}, balance 1 {}",
-            balance_0,
-            balance_1
-        );
         self.state
             .borrow_mut()
             .liquid(balance_0, balance_1, timestamp);
@@ -303,6 +267,16 @@ impl<
         // We already on creator chain
         let destination = self.runtime.borrow_mut().chain_id();
         let mut outcome = HandlerOutcome::new();
+
+        log::info!(
+            "Swapped token_0 {} to {} amount 0 {:?}/{} amount 1 {:?}/{}",
+            token_0,
+            to,
+            amount_0_in,
+            amount_0_out,
+            amount_1_in,
+            amount_1_out
+        );
 
         outcome.with_message(destination, PoolMessage::NewTransaction { transaction });
 
