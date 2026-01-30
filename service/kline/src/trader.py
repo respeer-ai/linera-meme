@@ -2,6 +2,18 @@ import random
 import time
 import traceback
 import asyncio
+import math
+
+
+class MarketState:
+    drift: float
+    r0: float
+    f1: float
+
+    def __init__(self, drift, r0, r1):
+        self.drift = drift
+        self.r0 = r0
+        self.r1 = r1
 
 
 class Trader:
@@ -12,7 +24,12 @@ class Trader:
         self.proxy = proxy
         self.semaphore = asyncio.Semaphore(5)
 
-    def trade_amounts(self, pool, buy_token_0, token_0_balance, token_1_balance):
+        self.shadow_reserve_0 = None
+        self.shadow_reserve_1 = None
+        self.market_drift = random.gauss(0, 0.0007)
+        self.market_states = {}
+
+    def trade_amounts(self, pool, token_0_balance, token_1_balance):
         reserve_0 = float(pool.reserve_0)
         reserve_1 = float(pool.reserve_1)
         token_0_balance = float(token_0_balance)
@@ -20,20 +37,79 @@ class Trader:
         token_0_price = float(pool.token_0_price)
         token_1_price = float(pool.token_1_price)
 
-        if buy_token_0 is True and token_1_balance <= 0:
-            return (None, None)
-        if buy_token_0 is False and token_0_balance <= 0:
+        if pool.pool_id not in self.market_states:
+            self.market_states[pool.pool_id] = MarketState(
+                drift=random.gauss(0, 0.0007),
+                r0=reserve_0,
+                r1=reserve_1,
+            )
+
+        state = self.market_states[pool.pool_id]
+
+        if random.random() < 0.02:
+            state.drift = random.gauss(0, 0.0015)
+        else:
+            state.drift *= 0.995
+            state.drift += random.gauss(0, 0.00015)
+
+        r0 = state.r0
+        r1 = state.r1
+        price = r1 / r0
+        sigma = 0.012
+
+        target_price = price * math.exp(state.drift + random.gauss(0, sigma))
+        deviation = (target_price - price) / price
+
+        if abs(deviation) < 0.0015:
             return (None, None)
 
-        if buy_token_0 is True:
-            return (None, min(min(max(min(token_1_balance / token_0_price / 10, reserve_0 / 100), 1) * token_0_price, token_1_balance / 10), token_0_price * random.uniform(10, 30)))
-        if buy_token_0 is False:
-            return (min(min(max(min(token_0_balance / token_1_price / 10, reserve_1 / 100), 1) * token_1_price, token_0_balance / 10), random.uniform(10, 30)), None)
+        buy_token_0 = deviation > 0
+
+        size = random.lognormvariate(-0.35, 0.9)
+        size = min(size, r1 * 0.015)
+
+        # We don't care about fee right now
+        fee = 0.000
+        k = r0 * r1
+
+        if buy_token_0:
+            if token_1_balance <= 0.01:
+                return (None, None)
+
+            amount_1 = min(size, token_1_balance * 0.15)
+            if amount_1 < 1e-6:
+                return (None, None)
+
+            effective = amount_1 * (1 - fee)
+            new_r1 = r1 + effective
+            new_r0 = k / new_r1
+
+            amount_0 = None
+        else:
+            if token_0_balance <= 0:
+                return (None, None)
+
+            amount_0 = min(size / price, token_0_balance * 0.15)
+            if amount_0 < 1e-6:
+                return (None, None)
+
+            effective = amount_0 * (1 - fee)
+            new_r0 = r0 + effective
+            new_r1 = k / new_r0
+
+            amount_1 = None
+
+        new_price = new_r1 / new_r0
+        if abs(new_price - price) / price > 0.04:
+            return (None, None)
+
+        state.r0 = new_r0
+        state.r1 = new_r1
+
+        return (amount_0, amount_1)
+
 
     async def trade_in_pool(self, pool):
-        # Generate trade direction
-        buy_token_0 = True if random.random() > 0.5 else False
-
         wallet_chain = self.wallet._chain()
         account = self.wallet.account()
 
@@ -47,15 +123,7 @@ class Trader:
             print('Maker wallet balance is not enough for gas, please fund it')
             return
 
-        if pool.token_1 is None and token_1_balance < 0.01:
-            if token_0_balance < 10:
-                print('Cannot exchange any more, please fund maker wallet')
-                return
-            buy_token_0 = False
-        if token_0_balance < 10:
-            buy_token_0 = True
-
-        (amount_0, amount_1) = self.trade_amounts(pool, buy_token_0, token_0_balance, token_1_balance)
+        (amount_0, amount_1) = self.trade_amounts(pool, token_0_balance, token_1_balance)
 
         print('    Swap in pool ---------------------------------')
         print(f'      Chain                  {pool.pool_application.chain_id}')
@@ -70,7 +138,7 @@ class Trader:
         print(f'      Amount1                {amount_1}')
         print(f'      Token0Price            {pool.token_0_price}')
         print(f'      Token1Price            {pool.token_1_price}')
-        print(f'      BuyToken0              {buy_token_0}')
+        print(f'      BuyToken0              {not amount_0}')
         print(f'      DateTime               {time.time()}')
 
         if amount_0 is None and amount_1 is None:
