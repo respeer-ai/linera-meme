@@ -3,26 +3,26 @@
 </template>
 
 <script setup lang='ts'>
-import { ams } from 'src/stores/export'
+import { blob } from 'src/stores/export'
 import { computed, onMounted, watch } from 'vue'
 import { throttle } from 'lodash-es'
 
-const blockHash = computed(() => ams.Ams.blockHash())
+const blockHash = computed(() => blob.Blob.blockHash())
 
-const getApplications = throttle(() => {
-  ams.Ams.getApplications()
+const getBlobsList = throttle(() => {
+  blob.Blob.getBlobsList()
 }, 10000, {
   leading: false, 
   trailing: true
 })
 
 watch(blockHash, () => {
-  getApplications()
+  getBlobsList()
 })
 
 onMounted(() => {
-  ams.Ams.getApplications()
-  ams.Ams.initialize()
+  blob.Blob.getBlobsList()
+  blob.Blob.initialize()
 })
 
 </script>

@@ -27,4 +27,8 @@ export class Blob {
   }
 
   static blobPath = (blobData: BlobData) => blob.blobPath(blobData)
+
+  static blockHash = () => blob.blockHash
+
+  static initialize = () => blob.initializeBlobGateway()
 }

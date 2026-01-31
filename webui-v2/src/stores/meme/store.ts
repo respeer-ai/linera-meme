@@ -7,10 +7,32 @@ import { BALANCE_OF, BALANCES_OF_MEME } from 'src/graphql'
 import { graphqlResult } from 'src/utils'
 import { _Account, type Account } from '../account'
 import { constants } from 'src/constant'
+import { Subscription } from 'src/subscription'
 
 export const useMemeStore = defineStore('meme', {
-  state: () => ({}),
+  state: () => ({
+    subscriptions: new Map<string, Subscription>(),
+    blockHashs: new Map<string, string>(),
+  }),
   actions: {
+    initializeMeme(chainId: string) {
+      this.subscriptions.set(
+        chainId,
+        new Subscription(
+          constants.PROXY_URL,
+          constants.PROXY_WS_URL,
+          chainId,
+          (height: number, hash: string) => {
+            console.log(`New block height ${height} hash ${hash} on meme chain ${chainId}`)
+            this.blockHashs.set(chainId, hash)
+          },
+        ),
+      )
+    },
+    finalizeMeme(chainId: string) {
+      this.subscriptions.get(chainId)?.unsubscribe()
+      this.subscriptions.delete(chainId)
+    },
     balanceOf(
       req: BalanceOfRequest,
       memeApplication: Account,

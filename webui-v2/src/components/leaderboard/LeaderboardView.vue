@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { account, ams, meme, proxy, swap } from 'src/stores/export'
 import { Chain } from 'src/__generated__/graphql/proxy/graphql'
 import { constants } from 'src/constant'
@@ -68,6 +68,8 @@ const sortedBalances = computed(() =>
   })).filter((el) => Number(el.amount) > 0).sort((a, b) => Number(b.amount) - Number(a.amount))
 )
 
+const blockHash = computed(() => meme.MemeWrapper.blockHash(tokenApplication.value?.chain_id))
+
 const position = (balance: { account: account.Account, amount: string }) => {
   return sortedBalances.value.filter((el) => !applicationHolder(el.account) && !poolHolder(el.account)).findIndex((el) => el.account.owner === balance.account.owner)
 }
@@ -76,7 +78,27 @@ const tokenValue = (balance: { account: account.Account, amount: string }) => {
   return (Number(balance.amount) * Number(memePrice.value)).toFixed(4)
 }
 
-watch(tokenApplication, () => {
+watch(
+  tokenApplication,
+  (newApp, oldApp) => {
+    if (oldApp) {
+      meme.MemeWrapper.finalizeMeme(oldApp.chain_id)
+    }
+
+    if (newApp) {
+      meme.MemeWrapper.initializeMeme(newApp.chain_id)
+
+      meme.MemeWrapper.balancesOfMeme(
+        newApp,
+        (_balances: Record<string, string>) => {
+          balances.value = _balances
+        }
+      )
+    }
+  }
+)
+
+watch(blockHash, () => {
   meme.MemeWrapper.balancesOfMeme(tokenApplication.value, (_balances: Record<string, string>) => {
     balances.value = _balances
   })
@@ -87,6 +109,13 @@ onMounted(() => {
     meme.MemeWrapper.balancesOfMeme(tokenApplication.value, (_balances: Record<string, string>) => {
       balances.value = _balances
     })
+    meme.MemeWrapper.initializeMeme(tokenApplication.value.chain_id)
+  }
+})
+
+onUnmounted(() => {
+  if (tokenApplication.value) {
+    meme.MemeWrapper.finalizeMeme(tokenApplication.value.chain_id)
   }
 })
 

@@ -2,8 +2,8 @@ import { cheCkoPng, metaMaskSvg } from 'src/assets'
 import * as domain from './domain'
 
 export const formalizeSchema = (url: string) => {
-  url = url.replace('http://', process.env.NODE_ENV === 'production' ? 'https://' : 'http://')
-  url = url.replace('ws://', process.env.NODE_ENV === 'production' ? 'wss://' : 'ws://')
+  url = url.replace('http://', process.env.NODE_ENV === 'production' ? 'https://' : 'https://')
+  url = url.replace('ws://', process.env.NODE_ENV === 'production' ? 'wss://' : 'wss://')
   return url
 }
 
@@ -22,6 +22,8 @@ const URLS = [
   `http://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams`,
   `ws://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/ws`,
   `ws://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap/ws`,
+  `http://api.${domain.SUB_DOMAIN}blobgateway.com/api/blobs`,
+  `ws://api.${domain.SUB_DOMAIN}blobgateway.com/api/blobs/ws`,
 ]
 
 export const APPLICATION_URLS = {
@@ -41,6 +43,8 @@ export const PROXY_URL = formalizeSchema(URLS[9] as string)
 export const PROXY_WS_URL = formalizeSchema(URLS[10] as string)
 export const AMS_URL = formalizeSchema(URLS[11] as string)
 export const AMS_WS_URL = formalizeSchema(URLS[12] as string)
+export const BLOB_GATEWAY_URL = formalizeSchema(URLS[14] as string)
+export const BLOB_GATEWAY_WS_URL = formalizeSchema(URLS[15] as string)
 
 export const applicationId = (url: string) => {
   return url.split('/').at(-1)

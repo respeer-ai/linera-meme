@@ -3,6 +3,7 @@
     <pools-view />
     <applications-view />
     <memes-view />
+    <blobs-view />
     <wallet-view />
   </div>
 </template>
@@ -12,6 +13,7 @@
 import PoolsView from './PoolsView.vue'
 import ApplicationsView from './ApplicationsView.vue'
 import MemesView from './MemesView.vue'
+import BlobsView from './BlobsView.vue'
 import WalletView from './WalletView.vue'
 
 </script>

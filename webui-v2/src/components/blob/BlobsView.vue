@@ -1,14 +1,19 @@
 <template>
   <div>
     <section-title-view icon='photo' title='Blobs' />
-    <div class='border-dark-secondary radius-8 bg-dark-secondary q-pa-md q-mt-md'>
-      <BlobView
+    <div
+      class='border-dark-secondary radius-8 bg-dark-secondary q-pa-md q-mt-md row items-stretch q-col-gutter-md'
+    >
+      <div
         v-for='(_blob, index) in blobs'
         :key='index'
-        :blob='_blob'
-        style='width: 20%;'
-        :class='[ index === 0 ? "" : "q-ml-md", blobs.length > 4 ? "q-mb-md" : "" ]'
-      />
+        class='col-2 q-mb-md'
+      >
+        <BlobView
+          :blob='_blob'
+          class='full-height'
+        />
+      </div>
     </div>
   </div>
 </template>

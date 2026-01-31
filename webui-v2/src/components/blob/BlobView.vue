@@ -1,5 +1,5 @@
 <template>
-  <q-img :src='url' class='text-neutral radius-8 cursor-pointer'>
+  <q-img :src='url' class='text-neutral radius-8 cursor-pointer' fit='contain'>
     <div class='absolute-bottom text-bold full-width text-center line-height-10'>{{ ticker }}</div>
   </q-img>
 </template>

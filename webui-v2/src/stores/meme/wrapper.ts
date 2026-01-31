@@ -66,4 +66,9 @@ export class MemeWrapper {
   static applicationUrl = (tokenApplication: Account) => {
     return _Account.applicationUrl(constants.PROXY_URL, tokenApplication)
   }
+
+  static initializeMeme = (chainId: string) => _meme.initializeMeme(chainId)
+  static finalizeMeme = (chainId: string) => _meme.finalizeMeme(chainId)
+
+  static blockHash = (chainId: string) => _meme.blockHashs.get(chainId)
 }
