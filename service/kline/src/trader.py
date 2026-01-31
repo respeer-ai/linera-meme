@@ -3,6 +3,7 @@ import time
 import traceback
 import asyncio
 import math
+import os
 
 
 class MarketState:
@@ -12,6 +13,7 @@ class MarketState:
 
     def __init__(self, drift, r0, r1):
         self.drift = drift
+        self.fair_price = float(r1 / r0)
         self.r0 = r0
         self.r1 = r1
 
@@ -52,18 +54,26 @@ class Trader:
             state.drift *= 0.995
             state.drift += random.gauss(0, 0.00015)
 
+        state.fair_price *= math.exp(random.gauss(0, 0.0015))
         r0 = state.r0
         r1 = state.r1
         price = r1 / r0
         sigma = 0.012
 
-        target_price = price * math.exp(state.drift + random.gauss(0, sigma))
+        reversion = math.log(state.fair_price / price) * 0.35
+        target_price = price * math.exp(state.drift + reversion + random.gauss(0, sigma))
         deviation = (target_price - price) / price
 
-        if abs(deviation) < 0.0015:
-            return (None, None)
+        SELL_THRESHOLD = 0.0015
+        BUY_THRESHOLD  = 0.0015
+        SELL_BIAS = 1.4
 
-        buy_token_0 = deviation > 0
+        if deviation > BUY_THRESHOLD:
+            buy_token_0 = True
+        elif deviation < -SELL_THRESHOLD * SELL_BIAS:
+            buy_token_0 = False
+        else:
+            return (None, None)
 
         size = random.lognormvariate(-0.35, 0.9)
         size = min(size, r1 * 0.015)
@@ -159,7 +169,8 @@ class Trader:
         tasks = [self._trade_in_pool(pool) for pool in pools]
         await asyncio.gather(*tasks)
 
-        return random.uniform(5, 10)
+        interval = os.getenv("TRADE_INTERVAL_SECS")
+        return float(interval) if interval is not None else random.uniform(5, 10)
 
     async def run(self):
         while True:

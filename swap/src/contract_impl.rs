@@ -19,7 +19,7 @@ impl SwapContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::debug!("DEBUG OP:SWAP: processing {:?}", op);
+        log::info!("DEBUG OP:SWAP: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
@@ -53,7 +53,7 @@ impl SwapContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::debug!("DEBUG MSG:SWAP: processing {:?}", msg);
+        log::info!("DEBUG MSG:SWAP: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))

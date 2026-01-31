@@ -42,7 +42,7 @@ impl MemeContract {
 
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::debug!("DEBUG OP:MEME: processing {:?}", op);
+        log::info!("DEBUG OP:MEME: processing {:?}", op);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, Some(op), None)
@@ -76,7 +76,7 @@ impl MemeContract {
         )));
         let state_adapter = StateAdapter::new(self.state.clone());
 
-        log::debug!("DEBUG MSG:MEME: processing {:?}", msg);
+        log::info!("DEBUG MSG:MEME: processing {:?}", msg);
 
         let mut outcome =
             match HandlerFactory::new(runtime_context.clone(), state_adapter, None, Some(msg))
