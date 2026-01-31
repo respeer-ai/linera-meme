@@ -64,10 +64,16 @@ class Trader:
         target_price = price * math.exp(state.drift + reversion + random.gauss(0, sigma))
         deviation = (target_price - price) / price
 
-        if abs(deviation) < 0.0015:
-            return (None, None)
+        SELL_THRESHOLD = 0.0015
+        BUY_THRESHOLD  = 0.0015
+        SELL_BIAS = 1.4
 
-        buy_token_0 = deviation > 0
+        if deviation > BUY_THRESHOLD:
+            buy_token_0 = True
+        elif deviation < -SELL_THRESHOLD * SELL_BIAS:
+            buy_token_0 = False
+        else:
+            return (None, None)
 
         size = random.lognormvariate(-0.35, 0.9)
         size = min(size, r1 * 0.015)
