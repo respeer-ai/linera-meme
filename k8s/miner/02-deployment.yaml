@@ -49,7 +49,7 @@ spec:
         - -c
         - |
           PROXY_APPLICATION_ID=$(cat /shared-app-data/PROXY_APPLICATION_ID)
-          PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID ./miner-entrypoint.sh
+          MAX_PENDING_MESSAGE_BUNDLES=30 PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID ./miner-entrypoint.sh
         env:
         - name: RUST_LOG
           value: info

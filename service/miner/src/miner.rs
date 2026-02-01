@@ -125,6 +125,8 @@ where
                         tokio::spawn(async move {
                             let mut chain_miner = chain_miner.write().await;
 
+                            tracing::info!(?chain.chain_id, "running chain miner");
+
                             if let Err(err) = chain_miner.run(_cancellation_token).await {
                                 tracing::error!(?chain.chain_id, error = ?err, "mine chain failed");
                             }

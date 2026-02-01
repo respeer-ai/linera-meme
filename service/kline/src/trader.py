@@ -4,18 +4,33 @@ import traceback
 import asyncio
 import math
 import os
+from enum import Enum
+
+
+class MarketRegime(Enum):
+    RANGE = "range"
+    TREND = "trend"
+
+
+class TrendDirection(Enum):
+    UP = 1
+    DOWN = -1
+    NONE = 0
 
 
 class MarketState:
-    drift: float
-    r0: float
-    f1: float
+    def __init__(self, reserve_0, reserve_1):
+        self.reserve_0 = reserve_0
+        self.reserve_1 = reserve_1
 
-    def __init__(self, drift, r0, r1):
-        self.drift = drift
-        self.fair_price = float(r1 / r0)
-        self.r0 = r0
-        self.r1 = r1
+        self.last_price = reserve_1 / reserve_0
+        self.fair_price = self.last_price
+
+        self.regime = MarketRegime.RANGE
+        self.trend_direction = TrendDirection.NONE
+
+        # how confident the market is that we are trending
+        self.trend_strength = 0.0
 
 
 class Trader:
@@ -32,69 +47,141 @@ class Trader:
         self.market_states = {}
 
     def trade_amounts(self, pool, token_0_balance, token_1_balance):
+        MIN_PRICE = 1e-12
+
         reserve_0 = float(pool.reserve_0)
         reserve_1 = float(pool.reserve_1)
+
+        if reserve_0 <= 0 or reserve_1 <= 0:
+            return (None, None)
+
+        price = reserve_1 / reserve_0
+        price = max(price, MIN_PRICE)
+
         token_0_balance = float(token_0_balance)
         token_1_balance = float(token_1_balance)
-        token_0_price = float(pool.token_0_price)
-        token_1_price = float(pool.token_1_price)
 
+        # -------------------------------------------------
+        # Initialize market state if needed
+        # -------------------------------------------------
         if pool.pool_id not in self.market_states:
             self.market_states[pool.pool_id] = MarketState(
-                drift=random.gauss(0, 0.0007),
-                r0=reserve_0,
-                r1=reserve_1,
+                reserve_0=reserve_0,
+                reserve_1=reserve_1,
             )
 
         state = self.market_states[pool.pool_id]
 
-        if random.random() < 0.02:
-            state.drift = random.gauss(0, 0.0015)
+        # -------------------------------------------------
+        # 1. Update market regime (slow, macro signal)
+        # -------------------------------------------------
+        if state.last_price <= 0 or not math.isfinite(state.last_price):
+            log_return = 0.0
         else:
-            state.drift *= 0.995
-            state.drift += random.gauss(0, 0.00015)
+            ratio = price / state.last_price
+            log_return = math.log(ratio) if ratio > 0 and math.isfinite(ratio) else 0.0
 
-        state.fair_price *= math.exp(random.gauss(0, 0.0015))
-        r0 = state.r0
-        r1 = state.r1
-        price = r1 / r0
-        sigma = 0.012
+        # decay old belief, accumulate new evidence
+        state.trend_strength *= 0.97
+        state.trend_strength += abs(log_return)
 
-        reversion = math.log(state.fair_price / price) * 0.35
-        target_price = price * math.exp(state.drift + reversion + random.gauss(0, sigma))
-        deviation = (target_price - price) / price
+        if state.regime == MarketRegime.RANGE:
+            if state.trend_strength > 0.012:
+                state.regime = MarketRegime.TREND
+                state.trend_direction = (
+                    TrendDirection.UP if log_return > 0 else TrendDirection.DOWN
+                )
 
-        SELL_THRESHOLD = 0.0015
-        BUY_THRESHOLD  = 0.0015
-        SELL_BIAS = 1.4
+        elif state.regime == MarketRegime.TREND:
+            if state.trend_strength < 0.004:
+                state.regime = MarketRegime.RANGE
+                state.trend_direction = TrendDirection.NONE
 
-        if deviation > BUY_THRESHOLD:
+        state.last_price = price
+
+        # -------------------------------------------------
+        # 2. Anchor fair price to observed market (SAFE)
+        # -------------------------------------------------
+        if state.fair_price <= 0 or not math.isfinite(state.fair_price):
+            # market memory corrupted → hard re-anchor
+            state.fair_price = price
+        else:
+            ratio = price / state.fair_price
+            if ratio > 0 and math.isfinite(ratio):
+                state.fair_price += math.log(ratio) * 0.08
+            else:
+                state.fair_price = price
+
+        # -------------------------------------------------
+        # 3. Perceived mispricing (SAFE)
+        # -------------------------------------------------
+        ratio = state.fair_price / price
+        mispricing = math.log(ratio) if ratio > 0 and math.isfinite(ratio) else 0.0
+
+        # -------------------------------------------------
+        # 4. Emotional bias depending on regime
+        # -------------------------------------------------
+        if state.regime == MarketRegime.RANGE:
+            buy_score = mispricing
+            sell_score = -mispricing
+        else:
+            trend_bias = 0.002 * state.trend_direction.value
+            buy_score = mispricing + trend_bias
+            sell_score = -mispricing - trend_bias
+
+        # -------------------------------------------------
+        # 5. Convert bias into probabilities
+        # -------------------------------------------------
+        def probability(score):
+            return 1.0 / (1.0 + math.exp(-score / 0.0015))
+
+        buy_probability = probability(buy_score)
+        sell_probability = probability(sell_score)
+
+        roll = random.random()
+        if roll < buy_probability:
             buy_token_0 = True
-        elif deviation < -SELL_THRESHOLD * SELL_BIAS:
+        elif roll < buy_probability + sell_probability:
             buy_token_0 = False
         else:
             return (None, None)
 
-        size = random.lognormvariate(-0.35, 0.9)
-        size = min(size, r1 * 0.015)
+        # -------------------------------------------------
+        # 6. Trade size (trend affects intensity, not direction)
+        # -------------------------------------------------
+        base_size = random.lognormvariate(-0.4, 0.8)
 
-        # We don't care about fee right now
-        fee = 0.000
-        k = r0 * r1
+        if state.regime == MarketRegime.TREND:
+            is_trend_aligned = (
+                (buy_token_0 and state.trend_direction == TrendDirection.UP) or
+                (not buy_token_0 and state.trend_direction == TrendDirection.DOWN)
+            )
+            size = base_size * (1.2 if is_trend_aligned else 0.7)
+        else:
+            size = base_size
+
+        size = min(size, reserve_1 * 0.015)
+
+        # -------------------------------------------------
+        # 7. AMM execution (constant product)
+        # -------------------------------------------------
+        k = reserve_0 * reserve_1
+        fee = 0.0
 
         if buy_token_0:
-            if token_1_balance <= 0.01:
+            if token_1_balance <= 0:
                 return (None, None)
 
             amount_1 = min(size, token_1_balance * 0.15)
             if amount_1 < 1e-6:
                 return (None, None)
 
-            effective = amount_1 * (1 - fee)
-            new_r1 = r1 + effective
-            new_r0 = k / new_r1
+            effective_in = amount_1 * (1 - fee)
+            new_reserve_1 = reserve_1 + effective_in
+            new_reserve_0 = k / new_reserve_1
 
             amount_0 = None
+
         else:
             if token_0_balance <= 0:
                 return (None, None)
@@ -103,21 +190,24 @@ class Trader:
             if amount_0 < 1e-6:
                 return (None, None)
 
-            effective = amount_0 * (1 - fee)
-            new_r0 = r0 + effective
-            new_r1 = k / new_r0
+            effective_in = amount_0 * (1 - fee)
+            new_reserve_0 = reserve_0 + effective_in
+            new_reserve_1 = k / new_reserve_0
 
             amount_1 = None
 
-        new_price = new_r1 / new_r0
+        # sanity check: avoid extreme price jumps
+        new_price = new_reserve_1 / new_reserve_0
         if abs(new_price - price) / price > 0.04:
             return (None, None)
 
-        state.r0 = new_r0
-        state.r1 = new_r1
+        # -------------------------------------------------
+        # 8. Commit new reserves to macro state
+        # -------------------------------------------------
+        state.reserve_0 = new_reserve_0
+        state.reserve_1 = new_reserve_1
 
         return (amount_0, amount_1)
-
 
     async def trade_in_pool(self, pool):
         wallet_chain = self.wallet._chain()
