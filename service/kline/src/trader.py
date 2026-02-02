@@ -73,7 +73,7 @@ class Trader:
         state = self.market_states[pool.pool_id]
 
         # -------------------------------------------------
-        # 1. Update market regime (slow, macro signal)
+        # 1. Update market regime (macro trend)
         # -------------------------------------------------
         if state.last_price <= 0 or not math.isfinite(state.last_price):
             log_return = 0.0
@@ -81,7 +81,6 @@ class Trader:
             ratio = price / state.last_price
             log_return = math.log(ratio) if ratio > 0 and math.isfinite(ratio) else 0.0
 
-        # decay old belief, accumulate new evidence
         state.trend_strength *= 0.97
         state.trend_strength += abs(log_return)
 
@@ -93,61 +92,76 @@ class Trader:
                 )
 
         elif state.regime == MarketRegime.TREND:
-            if state.trend_strength < 0.004:
+            # ⭐ 趋势疲劳：时间越久，越容易回到震荡
+            state.trend_strength *= 0.995
+            if state.trend_strength < 0.006:
                 state.regime = MarketRegime.RANGE
                 state.trend_direction = TrendDirection.NONE
 
         state.last_price = price
 
         # -------------------------------------------------
-        # 2. Anchor fair price to observed market (SAFE)
+        # 2. Fair price update (LOG SPACE, SAFE)
         # -------------------------------------------------
         if state.fair_price <= 0 or not math.isfinite(state.fair_price):
-            # market memory corrupted → hard re-anchor
             state.fair_price = price
         else:
             ratio = price / state.fair_price
             if ratio > 0 and math.isfinite(ratio):
-                state.fair_price += math.log(ratio) * 0.08
+                adjust = math.log(ratio) * 0.08
+                state.fair_price *= math.exp(adjust)   # ⭐ 修正：log space 更新
             else:
                 state.fair_price = price
 
+        state.fair_price = max(state.fair_price, MIN_PRICE)
+
         # -------------------------------------------------
-        # 3. Perceived mispricing (SAFE)
+        # 3. Mispricing (log deviation)
         # -------------------------------------------------
         ratio = state.fair_price / price
         mispricing = math.log(ratio) if ratio > 0 and math.isfinite(ratio) else 0.0
 
         # -------------------------------------------------
-        # 4. Emotional bias depending on regime
+        # 4. Bias depending on regime (trend damped by deviation)
         # -------------------------------------------------
         if state.regime == MarketRegime.RANGE:
             buy_score = mispricing
             sell_score = -mispricing
         else:
-            trend_bias = 0.002 * state.trend_direction.value
+            # ⭐ 偏离 fair 越大，趋势权重越弱（防单边）
+            dev = abs(mispricing)
+            dev_damp = math.exp(-dev / 0.02)
+
+            trend_bias = 0.002 * state.trend_direction.value * dev_damp
+
             buy_score = mispricing + trend_bias
             sell_score = -mispricing - trend_bias
 
         # -------------------------------------------------
-        # 5. Convert bias into probabilities
+        # 5. Convert bias into probabilities (normalized)
         # -------------------------------------------------
         def probability(score):
             return 1.0 / (1.0 + math.exp(-score / 0.0015))
 
-        buy_probability = probability(buy_score)
-        sell_probability = probability(sell_score)
+        buy_p = probability(buy_score)
+        sell_p = probability(sell_score)
+
+        # ⭐ 防止 buy + sell > 1 的隐性偏置
+        total = buy_p + sell_p
+        if total > 1.0:
+            buy_p /= total
+            sell_p /= total
 
         roll = random.random()
-        if roll < buy_probability:
+        if roll < buy_p:
             buy_token_0 = True
-        elif roll < buy_probability + sell_probability:
+        elif roll < buy_p + sell_p:
             buy_token_0 = False
         else:
             return (None, None)
 
         # -------------------------------------------------
-        # 6. Trade size (trend affects intensity, not direction)
+        # 6. Trade size (trend affects intensity only)
         # -------------------------------------------------
         base_size = random.lognormvariate(-0.4, 0.8)
 
@@ -160,6 +174,7 @@ class Trader:
         else:
             size = base_size
 
+        # ⭐ 按池子“价值”限制，而不是方向偏置
         size = min(size, reserve_1 * 0.015)
 
         # -------------------------------------------------
@@ -196,13 +211,18 @@ class Trader:
 
             amount_1 = None
 
-        # sanity check: avoid extreme price jumps
+        # -------------------------------------------------
+        # 8. Slippage sanity check
+        # -------------------------------------------------
+        if price <= 0 or not math.isfinite(price):
+            return (None, None)
+
         new_price = new_reserve_1 / new_reserve_0
         if abs(new_price - price) / price > 0.04:
             return (None, None)
 
         # -------------------------------------------------
-        # 8. Commit new reserves to macro state
+        # 9. Commit macro reserves (optional state memory)
         # -------------------------------------------------
         state.reserve_0 = new_reserve_0
         state.reserve_1 = new_reserve_1
