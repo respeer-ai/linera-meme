@@ -8,7 +8,7 @@ use linera_client::chain_listener::ChainListenerConfig;
 
 // Proxy application ID of testnet conway
 const TESTNET_CONWAY_PROXY_APPLICATION_ID: &str =
-    "8d71c99af30539105874815b989b1ee71ddd89250f71e352b14d1390cfbd1172";
+    "de63f511b1d3aaf20d4903739ef44000ed1b2ca5e16370de84eb1ad5719f2876";
 
 #[derive(Clone, clap::Subcommand)]
 pub enum ClientCommand {
