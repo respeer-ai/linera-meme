@@ -83,7 +83,6 @@ pub struct MiningInfo {
     /// The baseline miner is device with 200000 hashes / sec
     pub initial_target: CryptoHash,
     pub target: CryptoHash,
-    pub new_target: CryptoHash,
     /// Actual 2160 block duration (for target adjustment)
     pub block_duration: TimeDelta,
     /// 2160 * 5 seconds = 3 hours
@@ -92,6 +91,10 @@ pub struct MiningInfo {
     pub target_adjustment_blocks: u16,
     /// If the block only have Mine operation, then it'll get only part of reward
     pub empty_block_reward_percent: u8,
+    /// Cumulative blocks in adjustment interval
+    pub cumulative_blocks: u16,
+    /// Last target adjust timestamp
+    pub last_target_adjusted_at: Timestamp,
 
     /// 1.7 for 21000000 supply and will be mined in 6 years, other amount will be calculated with ratio
     pub initial_reward_amount: Amount,
@@ -144,11 +147,12 @@ impl MiningInfo {
         MiningInfo {
             initial_target,
             target: initial_target,
-            new_target: initial_target,
             block_duration: target_block_duration,
             target_block_duration,
             target_adjustment_blocks,
             empty_block_reward_percent: 100,
+            cumulative_blocks: 0,
+            last_target_adjusted_at: now,
             initial_reward_amount,
             next_halving_at: now.saturating_add(halving_cycle),
             reward_amount: initial_reward_amount,
@@ -167,6 +171,54 @@ impl MiningInfo {
 
         self.reward_amount = self.reward_amount.saturating_div(2);
         self.next_halving_at = self.next_halving_at.saturating_add(self.halving_cycle);
+    }
+
+    /// Try adjust mining difficulty when reaching target_adjustment_blocks
+    pub fn try_adjust_target(&mut self, now: Timestamp) {
+        if self.cumulative_blocks < self.target_adjustment_blocks {
+            return;
+        }
+
+        let elapsed = now.duration_since(self.last_target_adjusted_at);
+        let elapsed_secs = elapsed.as_secs();
+        let target_secs = self.target_block_duration.as_duration().as_secs();
+
+        if elapsed_secs == 0 || target_secs == 0 {
+            return;
+        }
+
+        // --------------------------------------------------
+        // Clamp elapsed time to avoid overflow / DoS
+        // Bitcoin-style: [1/4, 4] window
+        // --------------------------------------------------
+        let min_elapsed = target_secs / 4;
+        let max_elapsed = target_secs * 4;
+
+        let clamped_elapsed_secs = elapsed_secs.max(min_elapsed).min(max_elapsed);
+
+        // --------------------------------------------------
+        // new_target = target * (clamped_elapsed / target_block_duration)
+        // --------------------------------------------------
+        let target_bytes: [u8; 32] = self.target.into();
+        let current_target = U256::from_big_endian(&target_bytes);
+
+        let new_target_hash = match current_target.checked_mul(U256::from(clamped_elapsed_secs)) {
+            Some(target) => CryptoHash::from(
+                target
+                    .checked_div(U256::from(target_secs))
+                    .unwrap()
+                    .to_big_endian(),
+            ),
+            None => self.initial_target,
+        };
+
+        // --------------------------------------------------
+        // Commit adjustment
+        // --------------------------------------------------
+        self.target = new_target_hash;
+        self.block_duration = TimeDelta::from_duration(elapsed);
+        self.cumulative_blocks = 0;
+        self.last_target_adjusted_at = now;
     }
 }
 

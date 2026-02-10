@@ -415,6 +415,9 @@ impl StateInterface for MemeState {
         // Update mining info
         let mut mining_info = self.mining_info();
         mining_info.try_half(now);
+        mining_info.cumulative_blocks += 1;
+        mining_info.try_adjust_target(now);
+
         self.update_mining_info(mining_info);
 
         Ok(())
