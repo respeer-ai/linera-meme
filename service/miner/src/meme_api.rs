@@ -120,6 +120,8 @@ where
                     targetBlockDuration
                     targetAdjustmentBlocks
                     emptyBlockRewardPercent
+                    cumulativeBlocks
+                    lastTargetAdjustedAt
                     initialRewardAmount
                     halvingCycle
                     nextHalvingAt
