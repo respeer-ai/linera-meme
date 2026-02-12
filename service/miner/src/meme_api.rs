@@ -190,8 +190,8 @@ where
         Ok(outcome.response.data.meme)
     }
 
-    pub async fn redeem(&self, amount: Amount) -> Result<(), MemeMinerError> {
-        let request = Request::new(
+    pub async fn redeem(&self, amount: Option<Amount>) -> Result<(), MemeMinerError> {
+        let mut request = Request::new(
             r#"
             mutation redeem($amount: Amount) {
                 redeem(amount: $amount)

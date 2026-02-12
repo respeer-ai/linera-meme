@@ -43,7 +43,18 @@ pub enum ClientCommand {
 
     /// Redeem mining reward from meme chain to wallet chain
     Redeem {
+        /// Meme proxy application id
+        #[arg(
+            long,
+            default_value = TESTNET_CONWAY_PROXY_APPLICATION_ID,
+            help = "Testnet conway proxy application id"
+        )]
+        proxy_application_id: ApplicationId,
+        /// Token to be redeemed
+        #[arg(long)]
         token: ApplicationId,
+        /// Amount to be redeemed
+        #[arg(long)]
         amount: Option<Amount>,
     },
 }

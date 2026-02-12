@@ -1,12 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use futures::lock::Mutex;
 use linera_base::{
     data_types::Amount,
-    identifiers::{Account, ApplicationId, ChainId},
+    identifiers::{ApplicationId, ChainId},
 };
 use linera_client::chain_listener::ClientContext;
-use tabled::{Table, Tabled};
 
 use crate::{
     errors::MemeMinerError, meme_api::MemeApi, proxy_api::ProxyApi, wallet_api::WalletApi,
@@ -19,13 +18,7 @@ where
     wallet: Arc<WalletApi<C>>,
     proxy: ProxyApi<C>,
     token: ApplicationId,
-    amount: Amount,
-}
-
-#[derive(Tabled)]
-struct Row {
-    account: String,
-    amount: String,
+    amount: Option<Amount>,
 }
 
 impl<C> Redeem<C>
@@ -37,7 +30,7 @@ where
         context: C,
         default_chain: ChainId,
         token: ApplicationId,
-        amount: Amount,
+        amount: Option<Amount>,
     ) -> Self {
         let context = Arc::new(Mutex::new(context));
         let wallet = Arc::new(WalletApi::new(Arc::clone(&context), default_chain).await);
@@ -52,19 +45,23 @@ where
     }
 
     pub async fn exec(&self) -> Result<(), MemeMinerError> {
-        let chain = self.proxy.meme_chain(self.token).await?;
-        let Some(token) = chain.token else {
+        let Some(chain) = self.proxy.meme_chain(self.token).await? else {
             tracing::warn!(?self.token, "not ready");
-            return;
+            return Ok(());
+        };
+
+        if chain.token.is_none() {
+            tracing::warn!(?self.token, "not ready");
+            return Ok(());
         };
 
         let meme = MemeApi::new(chain.clone(), Arc::clone(&self.wallet));
         let _meme = meme.meme().await?;
 
         let redeemable_balance = meme.balance(None).await?;
-        if balance < self.amount {
+        if redeemable_balance < self.amount.unwrap_or(Amount::ZERO) {
             tracing::error!(?self.token, ?redeemable_balance, ?self.amount, "insufficient balance");
-            return;
+            return Ok(());
         }
 
         meme.redeem(self.amount).await?;

@@ -33,6 +33,7 @@ use linera_meme_miner::{
     benchmark::Benchmark as MinerBenchmark,
     list_balances::{print_balances, ListBalances as ListMemeBalances},
     miner::MemeMiner,
+    redeem::Redeem as RedeemMeme,
 };
 #[cfg(with_metrics)]
 use linera_metrics::monitoring_server;
@@ -101,8 +102,18 @@ impl Runnable for Job {
                     .await?;
                 print_balances(&balances);
             }
-            Redeem { token, amount } => {
-                tracing::info!("Not implemented");
+            Redeem {
+                proxy_application_id,
+                token,
+                amount,
+            } => {
+                let proxy_application_id = *proxy_application_id;
+                let token = *token;
+                let amount = *amount;
+                RedeemMeme::new(proxy_application_id, context, default_chain, token, amount)
+                    .await
+                    .exec()
+                    .await?;
             }
         }
         Ok(())
