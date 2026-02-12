@@ -153,6 +153,17 @@ impl QueryRoot {
             .collect()
     }
 
+    async fn meme_chain(&self, token: ApplicationId) -> Option<Chain> {
+        self.state
+            .chains
+            .index_values()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|(_, chain)| chain.token.as_ref() == Some(&token))
+            .map(|(_, chain)| chain)
+    }
+
     async fn meme_applications(&self) -> Vec<Chain> {
         self.state
             .chains

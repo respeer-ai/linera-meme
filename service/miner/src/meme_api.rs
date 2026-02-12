@@ -34,6 +34,12 @@ struct MemeResponse {
     meme: Meme,
 }
 
+#[derive(Debug, Deserialize)]
+struct RedeemResponse {
+    #[allow(dead_code)]
+    redeem: Vec<u8>,
+}
+
 pub struct MemeApi<C>
 where
     C: ClientContext,
@@ -182,5 +188,29 @@ where
             )
             .await?;
         Ok(outcome.response.data.meme)
+    }
+
+    pub async fn redeem(&self, amount: Amount) -> Result<(), MemeMinerError> {
+        let request = Request::new(
+            r#"
+            mutation redeem($amount: Amount) {
+                redeem(amount: $amount)
+            }
+            "#,
+        );
+
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "amount": amount,
+        })));
+        let hash = self
+            .wallet
+            .execute_operation::<RedeemResponse>(
+                self.chain.token.unwrap(),
+                self.wallet.default_chain(),
+                request,
+            )
+            .await?;
+        tracing::debug!("Hash {:?}", hash);
+        Ok(())
     }
 }

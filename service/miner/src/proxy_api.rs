@@ -33,6 +33,12 @@ struct MemeChainsResponse {
     meme_chains: Vec<Chain>,
 }
 
+#[derive(Debug, Deserialize)]
+struct MemeChainResponse {
+    #[serde(alias = "memeChain")]
+    meme_chain: Option<Chain>,
+}
+
 pub struct ProxyApi<C>
 where
     C: ClientContext,
@@ -167,5 +173,35 @@ where
             )
             .await?;
         Ok(outcome.response.data.meme_chains)
+    }
+
+    pub async fn meme_chain(&self, token: ApplicationId) -> Result<Option<Chain>, MemeMinerError> {
+        let creator_chain_id = self.creator_chain_id().await?;
+
+        let mut request = Request::new(
+            r#"
+            query memeChain($token: ApplicationId!) {
+                memeChain(token: $token) {
+                    chainId
+                    createdAt
+                    token
+                }
+            }
+            "#,
+        );
+
+        request = request.variables(Variables::from_json(serde_json::json!({
+            "token": token,
+        })));
+
+        let outcome = self
+            .wallet
+            .query_user_application::<MemeChainResponse>(
+                self.application_id,
+                creator_chain_id,
+                request,
+            )
+            .await?;
+        Ok(outcome.response.data.meme_chain)
     }
 }

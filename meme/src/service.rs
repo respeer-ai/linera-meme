@@ -144,6 +144,12 @@ impl MutationRoot {
             .schedule_operation(&MemeOperation::Mine { nonce });
         []
     }
+
+    async fn redeem(&self, amount: Option<Amount>) -> [u8; 0] {
+        self.runtime
+            .schedule_operation(&MemeOperation::Redeem { amount });
+        []
+    }
 }
 
 #[cfg(test)]
