@@ -115,7 +115,6 @@ where
                 miningInfo {
                     initialTarget
                     target
-                    newTarget
                     blockDuration
                     targetBlockDuration
                     targetAdjustmentBlocks
