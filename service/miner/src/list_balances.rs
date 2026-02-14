@@ -46,7 +46,7 @@ where
         let chains = self.proxy.meme_chains().await?;
         let mut balances = HashMap::default();
 
-        // TODO: sync proxy chain
+        self.proxy.follow_chain().await?;
 
         for chain in chains {
             let Some(token) = chain.token else {
@@ -56,10 +56,11 @@ where
             let meme = MemeApi::new(chain.clone(), Arc::clone(&self.wallet));
             let _meme = meme.meme().await?;
 
-            // TODO: sync meme chain
+            meme.follow_chain().await?;
+
+            let creator_chain_id = meme.creator_chain_id().await?;
             let redeemable_balance = meme.balance(None).await?;
             let redeemed_balance = meme.balance(Some(self.wallet.account())).await?;
-            let creator_chain_id = self.wallet.application_creator_chain_id(token).await?;
 
             let key = format!("{}: {}:{}", _meme.ticker, creator_chain_id, token);
             let mut _balances: HashMap<Account, Amount> =

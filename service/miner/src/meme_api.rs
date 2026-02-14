@@ -5,7 +5,11 @@ use abi::{
     proxy::Chain,
 };
 use async_graphql::{Request, Variables};
-use linera_base::{crypto::CryptoHash, data_types::Amount, identifiers::Account};
+use linera_base::{
+    crypto::CryptoHash,
+    data_types::Amount,
+    identifiers::{Account, ChainId},
+};
 use linera_client::chain_listener::ClientContext;
 use serde::Deserialize;
 
@@ -55,6 +59,17 @@ where
 {
     pub fn new(chain: Chain, wallet: Arc<WalletApi<C>>) -> Self {
         Self { chain, wallet }
+    }
+
+    pub async fn creator_chain_id(&self) -> Result<ChainId, MemeMinerError> {
+        self.wallet
+            .application_creator_chain_id(self.chain.token.unwrap())
+            .await
+    }
+
+    pub async fn follow_chain(&self) -> Result<(), MemeMinerError> {
+        let creator_chain_id = self.creator_chain_id().await?;
+        self.wallet.follow_chain(creator_chain_id).await
     }
 
     pub async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
