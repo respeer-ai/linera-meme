@@ -45,6 +45,8 @@ where
     }
 
     pub async fn exec(&self) -> Result<(), MemeMinerError> {
+        self.proxy.follow_chain().await?;
+
         let Some(chain) = self.proxy.meme_chain(self.token).await? else {
             tracing::warn!(?self.token, "not ready");
             return Ok(());
@@ -57,6 +59,8 @@ where
 
         let meme = MemeApi::new(chain.clone(), Arc::clone(&self.wallet));
         let _meme = meme.meme().await?;
+
+        meme.follow_chain().await?;
 
         let redeemable_balance = meme.balance(None).await?;
         if redeemable_balance < self.amount.unwrap_or(Amount::ZERO) {
