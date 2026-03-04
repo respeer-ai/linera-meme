@@ -108,7 +108,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -248,7 +248,7 @@ impl TestSuite {
                 );
             })
             .await;
-        let certificate = self.swap_chain.handle_received_messages_ext().await;
+        let certificate = self.swap_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
@@ -268,7 +268,7 @@ impl TestSuite {
 
         assert!(certificate.is_some());
 
-        let certificate = certificate.unwrap();
+        let (certificate, _) = certificate.unwrap();
         let block = certificate.inner().block();
         block
             .created_blobs()
@@ -340,11 +340,17 @@ async fn meme_native_create_pool_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
-                creator
+                creator {
+                    chainId
+                    owner
+                }
                 poolId
                 token0
                 token1
-                poolApplication
+                poolApplication {
+                    chainId
+                    owner
+                }
                 createdAt
             } }",
         )

@@ -91,7 +91,12 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_disable_mining_tes
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners { owner registeredAt } }",
+            "query { genesisMiners { owner {
+                    chainId
+                    owner
+                }
+                registeredAt }
+            }",
         )
         .await;
     let expected = [
@@ -261,7 +266,12 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_enable_mining_test
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners { owner registeredAt } }",
+            "query { genesisMiners { owner {
+                    chainId
+                    owner
+                }
+                registeredAt }
+            }",
         )
         .await;
     let expected = [

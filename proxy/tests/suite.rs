@@ -113,7 +113,7 @@ impl TestSuite {
     }
 
     pub async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -148,7 +148,7 @@ impl TestSuite {
     }
 
     pub async fn propose_add_genesis_miner(&self, chain: &ActiveChain, owner: Account) {
-        let certificate = chain
+        let (certificate, _) = chain
             .add_block(|block| {
                 block.with_operation(
                     self.proxy_application_id.unwrap(),
@@ -164,7 +164,7 @@ impl TestSuite {
     }
 
     pub async fn approve_add_genesis_miner(&self, chain: &ActiveChain, owner: Account) {
-        let certificate = chain
+        let (certificate, _) = chain
             .add_block(|block| {
                 block.with_operation(
                     self.proxy_application_id.unwrap(),
@@ -186,7 +186,7 @@ impl TestSuite {
         enable_mining: bool,
         mining_supply: Option<Amount>,
     ) -> ChainDescription {
-        let certificate = chain
+        let (certificate, _) = chain
             .add_block(|block| {
                 block.with_operation(
                     self.proxy_application_id.unwrap(),
@@ -237,7 +237,7 @@ impl TestSuite {
                 );
             })
             .await;
-        let certificate = self
+        let (certificate, _) = self
             .proxy_chain
             .add_block(move |block| {
                 block.with_messages_from_by_action(&certificate, MessageAction::Accept);
@@ -261,7 +261,12 @@ impl TestSuite {
             .add_block(move |block| {
                 block.with_owner_change(
                     Vec::new(),
-                    owners.into_iter().map(|owner| (owner, 100)).collect(),
+                    owners
+                        .clone()
+                        .into_iter()
+                        .map(|owner| (owner, 100))
+                        .collect(),
+                    Some(owners[0]),
                     20,
                     false,
                     TimeoutConfig::default(),

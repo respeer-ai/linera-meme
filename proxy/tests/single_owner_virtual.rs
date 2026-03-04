@@ -63,7 +63,12 @@ async fn proxy_create_meme_virtual_initial_liquidity_single_owner_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners { owner, registeredAt } }",
+            "query { genesisMiners { owner {
+                    chainId
+                    owner
+                }
+                registeredAt }
+            }",
         )
         .await;
 

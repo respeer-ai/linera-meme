@@ -82,7 +82,7 @@ fn create_and_instantiate_proxy() -> ProxyContract {
             .with_abi::<ProxyAbi>();
     let runtime = ContractRuntime::new()
         .with_application_parameters(())
-        .with_authenticated_signer(owner)
+        .with_authenticated_owner(owner)
         .with_chain_id(chain_id)
         .with_application_creator_chain_id(chain_id)
         .with_chain_ownership(ChainOwnership::single(owner))

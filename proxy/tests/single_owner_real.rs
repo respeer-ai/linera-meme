@@ -66,7 +66,12 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let QueryOutcome { response, .. } = proxy_chain
         .graphql_query(
             suite.proxy_application_id.unwrap(),
-            "query { genesisMiners { owner registeredAt } }",
+            "query { genesisMiners { owner {
+                    chainId
+                    owner
+                }
+                registeredAt }
+            }",
         )
         .await;
 
@@ -167,7 +172,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     );
 
     proxy_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
     proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
@@ -178,7 +183,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()
@@ -212,7 +217,10 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(
             suite.swap_application_id.unwrap(),
-            "query { pools { poolApplication } }",
+            "query { pools { poolApplication {
+                chainId
+                owner
+            }} }",
         )
         .await;
     assert_eq!(response["pools"].as_array().unwrap().len(), 1);

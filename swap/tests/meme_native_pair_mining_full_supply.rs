@@ -112,7 +112,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -249,11 +249,11 @@ async fn meme_native_pair_mining_full_supply_virtual_liquidity_test() {
     suite.create_meme_application(true).await;
 
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
 
     // When total supply is for mining, don't create pool
@@ -311,11 +311,17 @@ async fn meme_native_pair_mining_full_supply_virtual_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
-                creator
+                creator {
+                    chainId
+                    owner
+                }
                 poolId
                 token0
                 token1
-                poolApplication
+                poolApplication {
+                    chainId
+                    owner
+                }
                 createdAt
             }}",
         )
@@ -387,11 +393,11 @@ async fn meme_native_pair_mining_full_supply_real_liquidity_test() {
     suite.create_meme_application(false).await;
 
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
 
     // When total supply is for mining, don't create pool
@@ -475,11 +481,17 @@ async fn meme_native_pair_mining_full_supply_real_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
-                creator
+                creator {
+                    chainId
+                    owner
+                }
                 poolId
                 token0
                 token1
-                poolApplication
+                poolApplication {
+                    chainId
+                    owner
+                }
                 createdAt
             }}",
         )

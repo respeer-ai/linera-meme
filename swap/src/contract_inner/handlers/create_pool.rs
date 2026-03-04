@@ -83,11 +83,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             application_ids.push(token_1);
         }
 
+        // TODO: if pool is minable, manadatory pool application
+
         let permissions = ApplicationPermissions {
             execute_operations: Some(application_ids),
             mandatory_applications: vec![],
-            close_chain: vec![router_application_id],
-            change_application_permissions: vec![router_application_id],
+            manage_chain: vec![router_application_id],
             call_service_as_oracle: Some(vec![router_application_id]),
             make_http_requests: Some(vec![router_application_id]),
         };

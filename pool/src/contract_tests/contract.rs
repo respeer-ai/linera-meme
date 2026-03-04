@@ -303,7 +303,7 @@ async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolCon
         .with_call_application_handler(mock_application_call)
         .with_application_creator_chain_id(chain_id)
         .with_system_time(0.into())
-        .with_authenticated_signer(owner);
+        .with_authenticated_owner(owner);
 
     runtime.set_message_origin_chain_id(chain_id);
 

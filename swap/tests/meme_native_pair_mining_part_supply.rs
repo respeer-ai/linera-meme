@@ -110,7 +110,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -235,8 +235,7 @@ async fn meme_native_pair_mining_part_supply_virtual_liquidity_test() {
         execute_operations: None,
         // Don't mandatory any application
         mandatory_applications: vec![],
-        close_chain: vec![proxy_application_id, swap_application_id],
-        change_application_permissions: vec![proxy_application_id, swap_application_id],
+        manage_chain: vec![proxy_application_id, swap_application_id],
         call_service_as_oracle: Some(vec![proxy_application_id, swap_application_id]),
         make_http_requests: Some(vec![proxy_application_id, swap_application_id]),
     };
@@ -264,12 +263,7 @@ async fn meme_native_pair_mining_part_supply_virtual_liquidity_test() {
         execute_operations: None,
         // Don't mandatory any application
         mandatory_applications: vec![],
-        close_chain: vec![
-            proxy_application_id,
-            swap_application_id,
-            meme_application_id,
-        ],
-        change_application_permissions: vec![
+        manage_chain: vec![
             proxy_application_id,
             swap_application_id,
             meme_application_id,
@@ -294,11 +288,11 @@ async fn meme_native_pair_mining_part_supply_virtual_liquidity_test() {
     meme_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()
@@ -346,11 +340,17 @@ async fn meme_native_pair_mining_part_supply_virtual_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
-                creator
+                creator {
+                    chainId
+                    owner
+                }
                 poolId
                 token0
                 token1
-                poolApplication
+                poolApplication {
+                    chainId
+                    owner
+                }
                 createdAt
             }}",
         )
@@ -410,8 +410,7 @@ async fn meme_native_pair_mining_part_supply_real_liquidity_test() {
         execute_operations: None,
         // Don't mandatory any application
         mandatory_applications: vec![],
-        close_chain: vec![proxy_application_id, swap_application_id],
-        change_application_permissions: vec![proxy_application_id, swap_application_id],
+        manage_chain: vec![proxy_application_id, swap_application_id],
         call_service_as_oracle: Some(vec![proxy_application_id, swap_application_id]),
         make_http_requests: Some(vec![proxy_application_id, swap_application_id]),
     };
@@ -447,12 +446,7 @@ async fn meme_native_pair_mining_part_supply_real_liquidity_test() {
         execute_operations: None,
         // Don't mandatory any application
         mandatory_applications: vec![],
-        close_chain: vec![
-            proxy_application_id,
-            swap_application_id,
-            meme_application_id,
-        ],
-        change_application_permissions: vec![
+        manage_chain: vec![
             proxy_application_id,
             swap_application_id,
             meme_application_id,
@@ -475,11 +469,11 @@ async fn meme_native_pair_mining_part_supply_real_liquidity_test() {
         .await;
 
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()
@@ -549,11 +543,17 @@ async fn meme_native_pair_mining_part_supply_real_liquidity_test() {
         .graphql_query(
             suite.swap_application_id.unwrap(),
             "query { pools {
-                creator
+                creator {
+                    chainId
+                    owner
+                }
                 poolId
                 token0
                 token1
-                poolApplication
+                poolApplication {
+                    chainId
+                    owner
+                }
                 createdAt
             }}",
         )

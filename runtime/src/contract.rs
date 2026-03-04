@@ -10,8 +10,7 @@ use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, BlockHeight, ChainId,
-        ChainOwnership, ChangeApplicationPermissionsError, ChangeOwnershipError, ModuleId,
-        Timestamp,
+        ChainOwnership, ManageChainError, ModuleId, Timestamp,
     },
     Contract, ContractRuntime,
 };
@@ -96,20 +95,20 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
         let owner = self
             .runtime
             .borrow_mut()
-            .authenticated_signer()
+            .authenticated_owner()
             .unwrap_or(AccountOwner::CHAIN);
 
         Account { chain_id, owner }
     }
 
     fn authenticated_signer(&mut self) -> Option<AccountOwner> {
-        self.runtime.borrow_mut().authenticated_signer()
+        self.runtime.borrow_mut().authenticated_owner()
     }
 
     fn require_authenticated_signer(&mut self) -> Result<AccountOwner, RuntimeError> {
         self.runtime
             .borrow_mut()
-            .authenticated_signer()
+            .authenticated_owner()
             .ok_or(RuntimeError::InvalidAuthenticatedSigner)
     }
 
@@ -161,8 +160,8 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
                 .message_origin_chain_id()
                 .expect("Invalid message origin chain"),
             owner: runtime
-                .authenticated_signer()
-                .expect("Invalid authenticated signer"),
+                .authenticated_owner()
+                .expect("Invalid authenticated owner"),
         }
     }
 
@@ -219,7 +218,7 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
         destination: Account,
         amount: Amount,
     ) {
-        let owner = source.unwrap_or(self.runtime.borrow_mut().authenticated_signer().unwrap());
+        let owner = source.unwrap_or(self.runtime.borrow_mut().authenticated_owner().unwrap());
 
         let owner_balance = self.runtime.borrow_mut().owner_balance(owner);
         let chain_balance = self.runtime.borrow_mut().chain_balance();
@@ -267,14 +266,14 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
         self.runtime.borrow_mut().chain_ownership()
     }
 
-    fn change_ownership(&mut self, ownership: ChainOwnership) -> Result<(), ChangeOwnershipError> {
+    fn change_ownership(&mut self, ownership: ChainOwnership) -> Result<(), ManageChainError> {
         self.runtime.borrow_mut().change_ownership(ownership)
     }
 
     fn change_application_permissions(
         &mut self,
         application_permissions: ApplicationPermissions,
-    ) -> Result<(), ChangeApplicationPermissionsError> {
+    ) -> Result<(), ManageChainError> {
         self.runtime
             .borrow_mut()
             .change_application_permissions(application_permissions)

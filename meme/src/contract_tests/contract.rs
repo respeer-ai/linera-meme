@@ -628,7 +628,7 @@ async fn create_and_instantiate_meme(
         mining_supply,
     };
     let runtime = ContractRuntime::new()
-        .with_can_change_application_permissions(true)
+        .with_can_manage_chain(true)
         .with_chain_id(chain_id)
         .with_application_id(application_id)
         .with_chain_ownership(ChainOwnership::single(operator))
@@ -645,7 +645,7 @@ async fn create_and_instantiate_meme(
         .with_application_parameters(parameters.clone())
         .with_system_time(Timestamp::now())
         .with_block_height(BlockHeight(0))
-        .with_authenticated_signer(operator);
+        .with_authenticated_owner(operator);
     let mut contract = MemeContract {
         state: Rc::new(RefCell::new(
             MemeState::load(runtime.root_view_storage_context())

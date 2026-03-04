@@ -3,7 +3,7 @@ use linera_sdk::{
     abi::ContractAbi,
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, ApplicationPermissions, ChainId,
-        ChainOwnership, ChangeApplicationPermissionsError, ChangeOwnershipError, ModuleId,
+        ChainOwnership, ManageChainError, ModuleId,
     },
 };
 use serde::Serialize;
@@ -58,11 +58,11 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
         balance: Amount,
     ) -> ChainId;
     fn chain_ownership(&mut self) -> ChainOwnership;
-    fn change_ownership(&mut self, ownership: ChainOwnership) -> Result<(), ChangeOwnershipError>;
+    fn change_ownership(&mut self, ownership: ChainOwnership) -> Result<(), ManageChainError>;
 
     fn change_application_permissions(
         &mut self,
         application_permissions: ApplicationPermissions,
-    ) -> Result<(), ChangeApplicationPermissionsError>;
+    ) -> Result<(), ManageChainError>;
     fn application_permissions(&mut self) -> ApplicationPermissions;
 }

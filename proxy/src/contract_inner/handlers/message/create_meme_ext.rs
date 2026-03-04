@@ -66,12 +66,13 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
         let application_id =
             self.create_meme_application(bytecode_id, instantiation_argument, parameters);
 
+        // TODO: if it's minable, mandatory meme application on this chain
+
         let permissions = ApplicationPermissions {
             execute_operations: Some(vec![application_id]),
             // Don't mandatory any application
             mandatory_applications: vec![],
-            close_chain: vec![application_id],
-            change_application_permissions: vec![application_id],
+            manage_chain: vec![application_id],
             call_service_as_oracle: Some(vec![application_id]),
             make_http_requests: Some(vec![application_id]),
         };

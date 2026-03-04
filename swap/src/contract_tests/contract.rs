@@ -116,7 +116,7 @@ fn create_and_instantiate_swap() -> SwapContract {
     let mut runtime = ContractRuntime::new()
         .with_application_parameters(SwapParameters {})
         .with_application_id(application_id)
-        .with_authenticated_signer(owner)
+        .with_authenticated_owner(owner)
         .with_authenticated_caller_id(meme_1)
         .with_chain_id(meme_1_chain_id)
         .with_application_creator_chain_id(chain_id)
@@ -132,8 +132,7 @@ fn create_and_instantiate_swap() -> SwapContract {
     let permissions = ApplicationPermissions {
         execute_operations: Some(vec![meme_1, application_id.forget_abi()]),
         mandatory_applications: vec![],
-        close_chain: vec![application_id.forget_abi()],
-        change_application_permissions: vec![application_id.forget_abi()],
+        manage_chain: vec![application_id.forget_abi()],
         call_service_as_oracle: Some(vec![application_id.forget_abi()]),
         make_http_requests: Some(vec![application_id.forget_abi()]),
     };
