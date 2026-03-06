@@ -49,6 +49,7 @@ async def post(url, data=None, json=None, headers=None, timeout=None, **kwargs):
                 print(f'SUCCESS Request {url}, {json} took {elapsed:.3f} seconds')
 
                 text = await resp.text()
+                print(f'SUCCESS Request {url}, {json} took {elapsed:.3f} seconds, resp {text}')
                 return AsyncResponse(
                     status=resp.status,
                     headers=dict(resp.headers),

@@ -4,7 +4,7 @@ from environment import running_in_k8s
 
 class Account:
     def __init__(self, _dict):
-        self.chain_id = _dict['chain_id']
+        self.chain_id = _dict['chainId']
         self.owner = _dict['owner']
         self.short_owner = self.owner[2:]
 
@@ -110,7 +110,37 @@ class Swap:
 
     async def get_pools(self) -> list[Pool]:
         json = {
-            'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
+            "query": """
+            query {
+                pools {
+                    poolId
+                    token0
+                    token1
+                    poolApplication {
+                        chainId
+                        owner
+                    }
+                    latestTransaction {
+                        transactionId
+                        transactionType
+                        from {
+                            chainId
+                            owner
+                        }
+                        amount0In
+                        amount0Out
+                        amount1In
+                        amount1Out
+                        liquidity
+                        createdAt
+                    }
+                    token0Price
+                    token1Price
+                    reserve0
+                    reserve1
+                }
+            }
+            """
         }
         try:
             resp = await async_request.post(url=self.application_url(), json=json, timeout=(3, 10))
@@ -121,16 +151,37 @@ class Swap:
             return []
         return [Pool(v, self.wallet) for v in resp.json()['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]
 
-    async def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
-        json = {
-            'query': f'query {{\n latestTransactions(startId:{start_id}) \n}}'
-        } if start_id is not None else {
-            'query': 'query {\n latestTransactions \n}'
+    async def get_pool_transactions(self, pool: Pool, start_id: int | None = None) -> list[Transaction]:
+        query = """
+        query ($startId: Int) {
+            latestTransactions(startId: $startId) {
+                transactionId
+                transactionType
+                from {
+                    chainId
+                    owner
+                }
+                amount0In
+                amount0Out
+                amount1In
+                amount1Out
+                liquidity
+                createdAt
+            }
         }
-        url = f'{self.base_url}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}'
-        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
+        """
 
-        return [Transaction(v) for v in resp.json()['data']['latestTransactions']]
+        payload = {
+            "query": query,
+            "variables": {"startId": start_id},
+        }
+
+        url = f"{self.base_url}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}"
+
+        resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
+
+        data = resp.json()["data"]["latestTransactions"]
+        return [Transaction(v) for v in data]
 
     async def get_swap_chain(self):
         json = {

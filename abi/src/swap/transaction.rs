@@ -1,4 +1,4 @@
-use async_graphql::scalar;
+use async_graphql::{scalar, SimpleObject, InputObject};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
 use serde::{Deserialize, Serialize};
 
@@ -13,8 +13,8 @@ pub enum TransactionType {
 
 scalar!(TransactionType);
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Eq, PartialEq, InputObject, SimpleObject)]
+#[graphql(input_name = "TransactionInput")]
 pub struct Transaction {
     pub transaction_id: Option<u32>,
     pub transaction_type: TransactionType,
@@ -26,5 +26,3 @@ pub struct Transaction {
     pub liquidity: Option<Amount>,
     pub created_at: Timestamp,
 }
-
-scalar!(Transaction);
