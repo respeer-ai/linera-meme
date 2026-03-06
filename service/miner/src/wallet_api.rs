@@ -179,6 +179,10 @@ where
             .make_chain_client(chain_id)
             .await?;
         tracing::debug!(?chain_id, ?application_id, "execute operation ...");
+
+        let ownership = client.query_chain_ownership().await?;
+        tracing::info!(?chain_id, ?ownership, "chain ownership");
+
         let hash = loop {
             let timeout = match client
                 .execute_operations(operations.clone(), vec![])
@@ -218,7 +222,7 @@ where
         self.context
             .lock()
             .await
-            .assign_new_chain_to_key(chain_id, self.owner.owner)
+            .assign_new_chain_to_key(chain_id, self.owner.owner, true)
             .await?;
 
         Ok(())

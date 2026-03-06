@@ -105,7 +105,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
         // It'll be changed to open_multi_leader_rounds in meme application on meme chain
         let ownership = ChainOwnership::multiple(
             self.meme_chain_owner_weights().await?,
-            0,
+            u32::MAX,
             TimeoutConfig::default(),
         );
 
