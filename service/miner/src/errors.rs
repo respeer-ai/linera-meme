@@ -1,4 +1,4 @@
-use linera_core::client::ChainClientError;
+use linera_core::client::chain_client::Error as ChainClientError;
 use thiserror::Error;
 
 /// An error that can occur during the contract execution.

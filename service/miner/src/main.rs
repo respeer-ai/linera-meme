@@ -123,8 +123,11 @@ impl Runnable for Job {
 #[cfg(not(target_arch = "wasm32"))]
 fn init_tracing(
     options: &Options,
-) -> anyhow::Result<Option<linera_base::tracing_opentelemetry::ChromeTraceGuard>> {
-    linera_base::tracing::init(&options.command.log_file_name());
+) -> anyhow::Result<Option<linera_service::tracing::chrome::ChromeTraceGuard>> {
+    linera_service::tracing::opentelemetry::init(
+        &options.command.log_file_name(),
+        options.otlp_exporter_endpoint.as_deref(),
+    );
     Ok(None)
 }
 

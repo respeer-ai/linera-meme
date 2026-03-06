@@ -110,6 +110,8 @@ impl Options {
             &self.client_options,
             default_chain,
             genesis_config,
+            5000,
+            10000,
         )
         .await?)
     }

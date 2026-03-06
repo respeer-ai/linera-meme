@@ -7,7 +7,9 @@ use linera_base::{
     identifiers::{Account, AccountOwner, ApplicationId, ChainId},
 };
 use linera_client::chain_listener::ClientContext;
-use linera_core::{data_types::ClientOutcome, Wallet};
+use linera_core::{
+    client::chain_client::Error as ChainClientError, data_types::ClientOutcome, Wallet,
+};
 use linera_execution::{Query, QueryOutcome, QueryResponse};
 use linera_service::util;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -184,6 +186,11 @@ where
             {
                 ClientOutcome::Committed(certificate) => break certificate.hash(),
                 ClientOutcome::WaitForTimeout(timeout) => timeout,
+                ClientOutcome::Conflict(certificate) => {
+                    return Err(MemeMinerError::ChainClientError(
+                        ChainClientError::Conflict(certificate.hash()),
+                    ))
+                }
             };
             let mut stream = client.subscribe()?;
             util::wait_for_next_round(&mut stream, timeout).await;
