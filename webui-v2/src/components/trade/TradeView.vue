@@ -17,15 +17,6 @@
           </div>
           <token-input-view :action='TokenAction.Buy' style='margin-top: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' :disable='!walletConnected' />
         </div>
-        <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
-          <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
-          <q-space />
-          <q-icon name='local_gas_station' size='18px' />
-          <div class='q-ml-xs'>0.00000001234</div>
-          <div class='q-ml-xs'>
-            <q-icon name='keyboard_arrow_down' size='18px' />
-          </div>
-        </div>
         <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' :disabled='btnActions[btnStep]?.disable' @click='onSwapClick'>
           <template #loading>
             <q-spinner-hourglass class="on-left" />
@@ -33,12 +24,44 @@
           </template>
           {{ btnActions[btnStep]?.label }}
         </q-btn>
+        <div class='row q-mt-md font-size-14 text-neutral'>
+          <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
+          <q-space />
+          <div class='bg-accent q-px-sm radius-8 text-bold border-secondary-25 cursor-pointer hover-primary' @click='onSetSlippageClick'>
+            <div class='text-neutral'>
+              {{ slippage }}%
+            </div>
+          </div>
+          <div class='row q-ml-xs cursor-pointer hover-primary'>
+            <div>
+              <q-icon name='local_gas_station' size='18px' />
+            </div>
+            <div class='q-ml-xs text-neutral'>0.00000001234</div>
+            <div class='q-ml-xs'>
+              <q-icon name='keyboard_arrow_down' size='18px' />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
   <q-dialog v-model='reviewing' persistent>
     <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
-      <trade-info-view :buy-token='buyToken' :sell-token='sellToken' :buy-amount='buyAmount' :sell-amount='sellAmount' :sell-price='sellPrice' @done='onSwapDone' @error='onSwapError' />
+      <trade-info-view
+        :buy-token='buyToken'
+        :sell-token='sellToken'
+        :buy-amount='buyAmount'
+        :sell-amount='sellAmount'
+        :sell-price='sellPrice'
+        @done='onSwapDone'
+        @error='onSwapError'
+        @cancel='onSwapCanceled'
+      />
+    </div>
+  </q-dialog>
+  <q-dialog v-model='settingSlippage'>
+    <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
+      <set-slippage-view @done='onSetSlippageDone' @cancel='onSetSlippageCanceled' v-model='slippage' />
     </div>
   </q-dialog>
 </template>
@@ -53,6 +76,8 @@ import { constants } from 'src/constant'
 import TokenInputView from './TokenInputView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
 import TradeInfoView from './TradeInfoView.vue'
+import SetSlippageView from './SetSlippageView.vue'
+import { defaultSlippage } from './Slippages'
 
 const walletConnected = computed(() => user.User.walletConnected())
 
@@ -82,6 +107,8 @@ watch(buyTokenId, () => {
 })
 
 const reviewing = ref(false)
+const settingSlippage = ref(false)
+const slippage = ref(defaultSlippage)
 
 watch(tokens, () => {
   if (buyToken.value === undefined && sellToken.value === undefined) {
@@ -188,6 +215,24 @@ const onSwapError = (e: string) => {
     Popup: true,
     Type: notify.NotifyType.Error
   })
+}
+
+const onSwapCanceled = () => {
+  reviewing.value = false
+}
+
+const onSetSlippageClick = () => {
+  settingSlippage.value = true
+}
+
+const onSetSlippageDone = (_slippage: number) => {
+  settingSlippage.value = false
+  console.log(_slippage, 111)
+  slippage.value = _slippage
+}
+
+const onSetSlippageCanceled = () => {
+  settingSlippage.value = false
 }
 
 onMounted(() => {

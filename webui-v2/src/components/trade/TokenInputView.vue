@@ -1,7 +1,7 @@
 <template>
   <div class='border-dark-secondary radius-8 bg-dark-secondary q-pa-md'>
     <div class='row'>
-      <div class='font-size-16 text-bold'>{{ action }}</div>
+      <div class='font-size-16 text-bold text-neutral'>{{ action }}</div>
       <q-space />
       <q-select
         :options='_tokens'

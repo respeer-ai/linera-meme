@@ -409,7 +409,7 @@ onMounted(() => {
   object-fit: contain
 
 :deep(.q-item, .q-item--dense)
-    padding: 0 !important
+  padding: 0 !important
 
 .error-message
   color: red
