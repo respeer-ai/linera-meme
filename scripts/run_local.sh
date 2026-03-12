@@ -466,7 +466,7 @@ function run_service() {
     linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-           service --port $port &
+           service --port $port > ${wallet_name}_service_$port.log 2>&1 &
 }
 
 function run_services() {
