@@ -246,7 +246,7 @@ const initialLiquidity = ref({
 
 const parameters = ref({
   virtualInitialLiquidity: true,
-  enableMining: true,
+  enableMining: false,
   miningSupply: (Number(argument.value.meme.initialSupply) - 100 - Number(initialLiquidity.value.fungibleAmount)).toString()
 } as unknown as meme.MemeParameters)
 
