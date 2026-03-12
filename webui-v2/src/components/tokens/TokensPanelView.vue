@@ -1,7 +1,7 @@
 <template>
   <div>
     <q-tabs
-      v-model='tab'
+      v-model='_tab'
       indicator-color='transparent'
       align='left'
     >
@@ -9,7 +9,7 @@
       <q-tab :name='Tab.Pools' :label='Tab.Pools' />
       <q-tab :name='Tab.Transactions' :label='Tab.Transactions' />
       <q-space />
-      <div v-if='tab === Tab.Tokens' class='narrow-btn q-mr-md'>
+      <div v-if='_tab === Tab.Tokens' class='narrow-btn q-mr-md'>
         <q-btn dense no-caps rounded flat class='text-white bg-primary'>
           Join mining
         </q-btn>
@@ -23,14 +23,14 @@
           </q-tooltip>
         </q-icon>
       </div>
-      <div v-else-if='tab === Tab.Pools' class='narrow-btn q-mr-md'>
+      <div v-else-if='_tab === Tab.Pools' class='narrow-btn q-mr-md'>
         <q-btn dense no-caps rounded flat class='text-white bg-primary'>
           Add liquidity
         </q-btn>
       </div>
     </q-tabs>
     <q-tab-panels
-      v-model='tab'
+      v-model='_tab'
       animated
       swipeable
       transition-prev='jump-left'
@@ -50,20 +50,21 @@
 </template>
 
 <script setup lang='ts'>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, toRef } from 'vue'
 import { ams, swap } from 'src/stores/export'
+import { Tab } from './Tab'
 
 import TokensListView from './TokensListView.vue'
 import PoolsListView from './PoolsListView.vue'
 import TransactionsListView from './TransactionsListView.vue'
 
-enum Tab {
-  Tokens = 'Tokens',
-  Pools = 'Pools',
-  Transactions = 'Transactions'
+interface Props {
+  tab: Tab
 }
+const props = defineProps<Props>()
+const tab = toRef(props, 'tab')
 
-const tab = ref(Tab.Tokens)
+const _tab = ref(tab.value)
 
 onMounted(() => {
   ams.Ams.getApplications()
