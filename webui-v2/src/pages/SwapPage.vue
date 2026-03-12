@@ -1,7 +1,7 @@
 <template>
   <q-page class='row justify-center'>
     <div class='page-width'>
-      <div class='q-mt-lg'>
+      <div class='q-my-xl'>
         <trade-view />
       </div>
     </div>
