@@ -53,6 +53,7 @@
         :buy-amount='buyAmount'
         :sell-amount='sellAmount'
         :sell-price='sellPrice'
+        :slippage='slippage'
         @done='onSwapDone'
         @error='onSwapError'
         @cancel='onSwapCanceled'

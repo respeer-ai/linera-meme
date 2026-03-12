@@ -84,6 +84,7 @@ interface Props {
   buyToken: Token
   buyAmount: string
   sellPrice: string
+  slippage: number
 }
 const props = defineProps<Props>()
 const sellToken = toRef(props, 'sellToken')
@@ -91,6 +92,8 @@ const buyToken = toRef(props, 'buyToken')
 const sellAmount = toRef(props, 'sellAmount')
 const buyAmount = toRef(props, 'buyAmount')
 const sellPrice = toRef(props, 'buyAmount')
+const slippage = toRef(props, 'slippage')
+const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
 
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
 const buyTokenTicker = computed(() => buyToken.value?.meme?.ticker || constants.LINERA_TICKER)
@@ -113,7 +116,7 @@ const onExpandClick = () => {
 const onSwapClick = async () => {
   swapping.value = true
 
-  await Wallet.swap(sellToken.value, buyToken.value, sellAmount.value, () => {
+  await Wallet.swap(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, () => {
     emit('done')
     swapping.value = false
   }, (e) => {

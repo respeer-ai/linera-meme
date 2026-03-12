@@ -9,7 +9,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'swap', component: () => import('pages/SwapPage.vue') },
       { path: 'tokens', component: () => import('pages/TokensPage.vue') },
       { path: 'liquidity', component: () => import('pages/LiquidityPage.vue') },
-      { path: 'trending', component: () => import('pages/TrendingPage.vue') }
+      { path: 'trending', component: () => import('pages/TrendingPage.vue') },
     ],
   },
 
