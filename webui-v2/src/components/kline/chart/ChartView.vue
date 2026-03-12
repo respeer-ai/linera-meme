@@ -129,7 +129,7 @@ const initChart = () => {
     priceScaleId: 'price'
   })
   candleSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 }
+    scaleMargins: { top: 0, bottom: 0.3 }
   })
 
   volumeSeries = chart.addSeries(HistogramSeries, {
@@ -155,7 +155,7 @@ const initChart = () => {
     }
   })
   ma5MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 }
+    scaleMargins: { top: 0, bottom: 0.3 }
   })
 
   ma10MinSeries = chart.addSeries(LineSeries, {
@@ -169,7 +169,7 @@ const initChart = () => {
     }
   })
   ma10MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 }
+    scaleMargins: { top: 0, bottom: 0.3 }
   })
 
   ma30MinSeries = chart.addSeries(LineSeries, {
@@ -183,7 +183,7 @@ const initChart = () => {
     }
   })
   ma30MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.2 }
+    scaleMargins: { top: 0, bottom: 0.3 }
   })
 
   chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)

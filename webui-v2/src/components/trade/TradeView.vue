@@ -2,7 +2,7 @@
   <div>
     <div class='row'>
       <q-card flat class='radius-8' style='overflow: hidden; min-width: 600px; width: calc(100% - 427px - 16px);'>
-        <price-chart-view height='440px' />
+        <price-chart-view height='640px' />
       </q-card>
       <q-space />
       <div>
