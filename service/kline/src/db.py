@@ -365,16 +365,21 @@ class Db:
             start_at = 0
         else:
             start_at = now - intervals[interval]
+
         end_at = now
+
+        start_at *= 1000
+        end_at *= 1000
+        token_reversed = False
 
         query = f'''
             SELECT
                 p.pool_id,
-                p.token0,
-                p.token1,
+                p.token_0,
+                p.token_1,
                 MAX(t.price) AS high,
                 MIN(t.price) AS low,
-                SUM(t.volume) AS volume,
+                SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
                 COUNT(*) AS tx_count,
                 SUBSTRING_INDEX(
                     GROUP_CONCAT(t.price ORDER BY t.created_at DESC),
@@ -388,13 +393,15 @@ class Db:
             JOIN pools p
               ON t.pool_id = p.pool_id
             WHERE
-                p.token1 = 'TLINERA'
+                p.token_1 = 'TLINERA'
                 AND t.created_at >= {start_at}
                 AND t.created_at <= {end_at}
+                AND t.token_reversed = {token_reversed}
+                AND t.transaction_type IN ('BuyToken0', 'SellToken0')
             GROUP BY
                 p.pool_id,
-                p.token0,
-                p.token1
+                p.token_0,
+                p.token_1
             ORDER BY
                 volume DESC;
         '''
