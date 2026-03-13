@@ -34,7 +34,7 @@
               {{ props.row.meme.ticker }}
             </div>
           </td>
-          <td :props='props' class='text-center'>0 TLINERA</td>
+          <td :props='props' class='text-center'>{{ tokenPrice(props.row.applicationId) }} TLINERA</td>
           <td :props='props' class='text-center'>
             <q-icon name='arrow_drop_down' color='red-4' size='16px' />
             1.23%
@@ -43,7 +43,7 @@
             <q-icon name='arrow_drop_down' color='red-4' size='16px' />
             2.34%
           </td>
-          <td :props='props' class='text-center'>$10.23B</td>
+          <td :props='props' class='text-center'>{{ tokenFDV(props.row) }} TLINERA</td>
           <td :props='props' class='text-center'>$1.23B</td>
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ams, meme } from 'src/stores/export'
+import { ams, meme, swap } from 'src/stores/export'
 import { computed, ref } from 'vue'
 import { Token } from '../trade/Token'
 
@@ -154,6 +154,16 @@ const pagination = ref({
   rowsPerPage: 10
 })
 const totalPages = computed(() => Math.ceil(tokens.value.length / pagination.value.rowsPerPage))
+
+const tokenPrice = (tokenId: string) => {
+  return swap.Swap.tokenPrice(tokenId)
+}
+
+const tokenFDV = (token: Token) => {
+  const price = Number(tokenPrice(token.applicationId))
+  const totalSupply = Number(token.meme.totalSupply)
+  return (price * totalSupply).toFixed(4)
+}
 
 </script>
 
