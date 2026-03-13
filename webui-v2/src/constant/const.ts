@@ -1,4 +1,4 @@
-import { cheCkoPng, metaMaskSvg } from 'src/assets'
+import { cheCkoPng, laughPng, metaMaskSvg } from 'src/assets'
 import * as domain from './domain'
 
 export const formalizeSchema = (url: string) => {
@@ -68,3 +68,4 @@ export const TELEGRAM_LOGO =
 
 export const METAMASK_LOGO = `${metaMaskSvg}`
 export const CHECKO_LOGO = `${cheCkoPng}`
+export const MICROMEME_LOGO = `${laughPng}`

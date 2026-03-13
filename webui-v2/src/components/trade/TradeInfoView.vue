@@ -40,22 +40,16 @@
     </div>
 
     <div class='q-mt-lg'>
-      <token-info-line-view label='Fee (0.25%)' value='0.00001245 TLINERA ($ 0.007)' value-color='light' :value-bold='false' :underline='false' />
-      <div class='q-mt-sm'>
-        <token-info-line-view label='Network Fee' value='0.0001234 TLINERA ($ 0.0008)' value-color='light' :value-bold='false' :underline='false' />
-      </div>
-      <div v-if='expanded' class='q-mt-sm'>
-        <token-info-line-view label='Price' :value='`1 ${sellTokenTicker} = ${sellPrice} ${buyTokenTicker}`' value-color='light' :value-bold='false' :underline='false' />
-      </div>
-      <div v-if='expanded'  class='q-mt-sm'>
-        <token-info-line-view label='Slippage' value='0.55% (Automatically)' value-color='neutral' :value-bold='false' :underline='false' />
-      </div>
-      <div v-if='expanded'  class='q-mt-sm'>
-        <token-info-line-view label='Order Router' value='MicroMeme Proxy' value-color='light' :value-bold='false' :underline='false' />
-      </div>
-      <div v-if='expanded' class='q-mt-sm'>
-        <token-info-line-view label='Price Impact' value='-0.05%' value-color='neutral' :value-bold='false' :underline='false' />
-      </div>
+      <trade-detail-view
+        :buy-token='buyToken'
+        :sell-token='sellToken'
+        :buy-amount='buyAmount'
+        :sell-amount='sellAmount'
+        :sell-price='sellPrice'
+        :slippage='slippage'
+        :price-impact='priceImpact'
+        :expanded='expanded'
+      />
     </div>
 
     <div class='q-mt-lg'>
@@ -74,9 +68,9 @@ import { computed, ref, toRef } from 'vue'
 import { Token } from './Token'
 import { constants } from 'src/constant'
 import { ams } from 'src/stores/export'
-
-import TokenInfoLineView from './TokenInfoLineView.vue'
 import { Wallet } from 'src/wallet'
+
+import TradeDetailView from './TradeDetailView.vue'
 
 interface Props {
   sellToken: Token
@@ -85,6 +79,7 @@ interface Props {
   buyAmount: string
   sellPrice: string
   slippage: number
+  priceImpact: string
 }
 const props = defineProps<Props>()
 const sellToken = toRef(props, 'sellToken')
@@ -93,6 +88,7 @@ const sellAmount = toRef(props, 'sellAmount')
 const buyAmount = toRef(props, 'buyAmount')
 const sellPrice = toRef(props, 'buyAmount')
 const slippage = toRef(props, 'slippage')
+const priceImpact = toRef(props, 'priceImpact')
 const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
 
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)

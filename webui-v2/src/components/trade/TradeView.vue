@@ -1,11 +1,11 @@
 <template>
   <div>
     <div class='row'>
-      <q-card flat class='radius-8' style='overflow: hidden; min-width: 600px; width: calc(100% - 427px - 16px);'>
+      <q-card flat class='radius-8' style='overflow: hidden; min-width: 560px; width: calc(100% - 480px - 16px);'>
         <price-chart-view height='640px' />
       </q-card>
       <q-space />
-      <div>
+      <div style='width: 480px;'>
         <div class='items-center'>
           <token-input-view :action='TokenAction.Sell' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' :disable='!walletConnected' />
           <div class='row'>
@@ -32,7 +32,7 @@
               {{ slippage }}%
             </div>
           </div>
-          <div class='row q-ml-xs cursor-pointer hover-primary'>
+          <div class='row q-ml-xs cursor-pointer hover-primary' @click='onShowTradeInfoClick'>
             <div>
               <q-icon name='local_gas_station' size='18px' />
             </div>
@@ -40,6 +40,18 @@
             <div class='q-ml-xs'>
               <q-icon name='keyboard_arrow_down' size='18px' />
             </div>
+          </div>
+          <div v-if='showingTradeInfo' class='q-mt-lg full-width'>
+            <trade-detail-view
+              :buy-token='buyToken'
+              :sell-token='sellToken'
+              :buy-amount='buyAmount'
+              :sell-amount='sellAmount'
+              :sell-price='sellPrice'
+              :slippage='slippage'
+              :price-impact='priceImpact'
+              :expanded='true'
+            />
           </div>
         </div>
       </div>
@@ -54,6 +66,7 @@
         :sell-amount='sellAmount'
         :sell-price='sellPrice'
         :slippage='slippage'
+        :price-impact='priceImpact'
         @done='onSwapDone'
         @error='onSwapError'
         @cancel='onSwapCanceled'
@@ -73,12 +86,13 @@ import { Token } from './Token'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ams, meme, swap, user, notify } from 'src/stores/export'
 import { constants } from 'src/constant'
+import { defaultSlippage } from './Slippages'
 
 import TokenInputView from './TokenInputView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
 import TradeInfoView from './TradeInfoView.vue'
 import SetSlippageView from './SetSlippageView.vue'
-import { defaultSlippage } from './Slippages'
+import TradeDetailView from './TradeDetailView.vue'
 
 const walletConnected = computed(() => user.User.walletConnected())
 
@@ -110,6 +124,7 @@ watch(buyTokenId, () => {
 const reviewing = ref(false)
 const settingSlippage = ref(false)
 const slippage = ref(defaultSlippage)
+const showingTradeInfo = ref(false)
 
 watch(tokens, () => {
   if (buyToken.value === undefined && sellToken.value === undefined) {
@@ -137,6 +152,7 @@ watch(sellTokenId, () => {
 const pool = computed(() => swap.Swap.selectedPool())
 const fullPrecisionSellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0))
 const sellPrice = computed(() => fullPrecisionSellPrice.value.toFixed(6))
+const priceImpact = computed(() => swap.Swap.calculatePriceImpact(buyTokenId.value, sellTokenId.value, sellAmount.value))
 
 watch(sellAmount, () => {
   const price = Number((sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
@@ -234,6 +250,10 @@ const onSetSlippageDone = (_slippage: number) => {
 
 const onSetSlippageCanceled = () => {
   settingSlippage.value = false
+}
+
+const onShowTradeInfoClick = () => {
+  showingTradeInfo.value = !showingTradeInfo.value
 }
 
 onMounted(() => {
