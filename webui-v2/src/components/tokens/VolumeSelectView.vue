@@ -8,7 +8,7 @@
     map-options
     borderless
     popup-content-class='text-white radius-12 shadow-2'
-    class='bg-transparent text-white radius-12 q-px-sm hover-primary border-neutral-25'
+    class='bg-transparent text-white radius-12 q-px-sm border-neutral-25'
   />
 </template>
 

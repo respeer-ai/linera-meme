@@ -1,8 +1,8 @@
 <template>
   <div
-    class='row items-center radius-12 q-px-sm hover-primary border-neutral-25'
+    class='row items-center radius-12 q-px-sm border-neutral-25'
     :style='{
-      width: expanded ? "220px" : "40px",
+      width: expanded ? "180px" : "40px",
       height: "40px",
       overflow: "hidden",
       transition: "width .25s"
@@ -20,7 +20,7 @@
       dense
       filled
       borderless
-      placeholder='Search tokens or liquidity pools'
+      placeholder='Search tokens'
       v-model='searchText'
       class='q-ml-sm col'
       @keyup.enter='onSearch'

@@ -51,15 +51,6 @@
               <q-btn dense no-caps rounded flat class='text-secondary' disable>
                 Join mining
               </q-btn>
-              <q-icon name='help' size='16px' class='cursor-pointer'>
-                <q-tooltip
-                  class='font-size-14 bg-grey-10'
-                  anchor='bottom end'
-                  self='top end'
-                >
-                  Sorry, you cannot join mining of exists tokens right now. Stay tunned!
-                </q-tooltip>
-              </q-icon>
             </div>
           </td>
         </q-tr>

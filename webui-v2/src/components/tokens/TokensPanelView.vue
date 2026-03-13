@@ -13,19 +13,10 @@
         <q-btn v-if='false' dense no-caps rounded flat class='text-white bg-primary'>
           Join mining
         </q-btn>
-        <q-icon v-if='false'  name='help' size='20px' class='q-ml-xs cursor-pointer'>
-          <q-tooltip
-            class='font-size-14 bg-grey-10'
-            anchor='bottom end'
-            self='top end'
-          >
-            Join mining of new created tokens.
-          </q-tooltip>
-        </q-icon>
         <volume-select-view />
       </div>
-      <div v-else-if='_tab === Tab.Pools' class='narrow-btn q-mr-md'>
-        <q-btn dense no-caps rounded flat class='text-white bg-primary'>
+      <div v-else-if='_tab === Tab.Pools' class='medium-btn q-mr-sm'>
+        <q-btn dense no-caps flat class='text-white bg-primary radius-12'>
           Add liquidity
         </q-btn>
       </div>
