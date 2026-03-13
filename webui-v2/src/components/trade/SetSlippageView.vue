@@ -13,7 +13,7 @@
         {{ _slippage }}%
       </div>
       <q-space />
-      <div class='row'>
+      <div class='row' style='max-width: 128px;'>
         <q-input filled v-model='slippage' class='font-size-16 text-neutral text-bold' input-class='text-right' suffix='%' />
       </div>
     </div>

@@ -2,9 +2,6 @@
   <q-page class='row justify-center'>
     <div class='page-width'>
       <div class='q-mt-lg'>
-        <search-view />
-      </div>
-      <div class='q-mt-lg'>
         <protocol-info-view />
       </div>
       <div class='q-mt-lg'>
@@ -17,7 +14,6 @@
 <script setup lang='ts'>
 import { Tab } from 'src/components/tokens/Tab'
 
-import SearchView from 'src/components/search/SearchView.vue'
 import ProtocolInfoView from 'src/components/protocol/ProtocolInfoView.vue'
 import TokensPanelView from 'src/components/tokens/TokensPanelView.vue'
 

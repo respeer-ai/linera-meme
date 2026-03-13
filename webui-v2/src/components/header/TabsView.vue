@@ -4,8 +4,7 @@
     indicator-color='transparent'
   >
     <q-tab :name='Tab.Swap' :label='Tab.Swap' @click='onUpdateTab(Tab.Swap)' />
-    <q-tab :name='Tab.Tokens' :label='Tab.Tokens' @click='onUpdateTab(Tab.Tokens)' />
-    <q-tab :name='Tab.Liquidity' :label='Tab.Liquidity' @click='onUpdateTab(Tab.Liquidity)' />
+    <q-tab :name='Tab.Explore' :label='Tab.Explore' @click='onUpdateTab(Tab.Explore)' />
     <q-tab :name='Tab.Trending' :label='Tab.Trending' @click='onUpdateTab(Tab.Trending)' />
     <q-tab :name='Tab.Docs' :label='Tab.Docs' @click='onUpdateTab(Tab.Docs)' />
   </q-tabs>
@@ -17,8 +16,7 @@ import { useRouter } from 'vue-router'
 
 enum Tab {
   Swap = 'Swap',
-  Tokens = 'Tokens',
-  Liquidity = 'Liquidity',
+  Explore = 'Explore',
   Trending = 'Trending',
   Docs = 'Docs'
 }
@@ -27,8 +25,7 @@ const tab = ref(Tab.Swap)
 
 const routers = ref<Record<string, string>>({
   [Tab.Swap]: '/swap',
-  [Tab.Tokens]: '/tokens',
-  [Tab.Liquidity]: '/liquidity',
+  [Tab.Explore]: '/explore',
   [Tab.Trending]: '/trending',
   [Tab.Docs]: '/docs'
 })
