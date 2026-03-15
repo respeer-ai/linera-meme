@@ -13,18 +13,19 @@
 </template>
 
 <script setup lang='ts'>
-import { ref } from 'vue'
+import { kline } from 'src/stores/export';
+
 
 const options = [
-  { label: '1H volume', value: '1h' },
-  { label: '1D volume', value: '1d' },
-  { label: '1W volume', value: '1w' },
-  { label: '1M volume', value: '1m' },
-  { label: '1Y volume', value: '1y' },
-  { label: 'All time volume', value: 'all' }
+  { label: '1H volume', value: kline.TickerInterval.OneHour },
+  { label: '1D volume', value: kline.TickerInterval.OneDay },
+  { label: '1W volume', value: kline.TickerInterval.OneWeek },
+  { label: '1M volume', value: kline.TickerInterval.OneMonth },
+  { label: '1Y volume', value: kline.TickerInterval.OneYear },
+  { label: 'All time volume', value: kline.TickerInterval.All }
 ]
 
-const model = ref('1d')
+const model = defineModel({ default: kline.TickerInterval.OneDay })
 </script>
 
 <style scoped lang="sass">

@@ -1,4 +1,4 @@
-import { type Interval, useKlineStore, type Point } from './store'
+import { type Interval, useKlineStore, type Point, type TickerInterval } from './store'
 
 const kline = useKlineStore()
 
@@ -17,5 +17,13 @@ export class Kline {
     return token0 && token1
       ? await kline.getTransactionsInformation(token0, token1)
       : await kline.getCombinedTransactionsInformation()
+  }
+
+  static getTickers = async (interval: TickerInterval) => {
+    return await kline.getTickers(interval)
+  }
+
+  static tokenStat = (tokenId: string, interval: TickerInterval) => {
+    return kline.tokenStat(tokenId, interval)
   }
 }

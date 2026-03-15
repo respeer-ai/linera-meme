@@ -13,7 +13,7 @@
         <q-btn v-if='false' dense no-caps rounded flat class='text-white bg-primary'>
           Join mining
         </q-btn>
-        <volume-select-view />
+        <volume-select-view v-model='volumeInterval' />
       </div>
       <div v-else-if='_tab === Tab.Pools' class='medium-btn q-mr-sm'>
         <q-btn dense no-caps flat class='text-white bg-primary radius-12'>
@@ -32,7 +32,7 @@
       transition-next='jump-left'
     >
       <q-tab-panel :name='Tab.Tokens'>
-        <tokens-list-view />
+        <tokens-list-view :volume-interval='volumeInterval' />
       </q-tab-panel>
       <q-tab-panel :name='Tab.Pools'>
         <pools-list-view />
@@ -46,7 +46,7 @@
 
 <script setup lang='ts'>
 import { onMounted, ref, toRef } from 'vue'
-import { ams, swap } from 'src/stores/export'
+import { ams, kline, swap } from 'src/stores/export'
 import { Tab } from './Tab'
 
 import TokensListView from './TokensListView.vue'
@@ -62,6 +62,7 @@ const props = defineProps<Props>()
 const tab = toRef(props, 'tab')
 
 const _tab = ref(tab.value)
+const volumeInterval = ref(kline.TickerInterval.OneDay)
 
 onMounted(() => {
   ams.Ams.getApplications()

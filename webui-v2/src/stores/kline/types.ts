@@ -1,4 +1,5 @@
 import { type TransactionExt } from '../transaction'
+import { type TickerInterval } from './const'
 
 export interface Point {
   id?: number
@@ -35,4 +36,21 @@ export interface TransactionsInformation {
   count: number
   timestamp_begin: number
   timestamp_end: number
+}
+
+export interface TickerStat {
+  pool_id: number
+  token_0: string
+  token_1: string
+  high: string
+  low: string
+  volume: string
+  tx_count: number
+  price_now: string
+  price_start: string
+}
+
+export interface Tickers {
+  interval: TickerInterval
+  stats: TickerStat[]
 }

@@ -5,12 +5,14 @@ import {
   type Transactions,
   type KlineInformation,
   type TransactionsInformation,
+  type Tickers,
+  type TickerStat,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
 import { type TransactionExt } from '../transaction'
 import { klineWorker } from 'src/worker'
-import { type Interval } from './const'
+import { type TickerInterval, type Interval } from './const'
 import axios from 'axios'
 
 export const useKlineStore = defineStore('kline', {
@@ -19,6 +21,7 @@ export const useKlineStore = defineStore('kline', {
     websocket: undefined as unknown as _WebSocket,
     latestPoints: new Map<Interval, Points[]>(),
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
+    tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
   }),
   actions: {
     initializeKline() {
@@ -97,6 +100,21 @@ export const useKlineStore = defineStore('kline', {
         console.log('Failed get transactions information', e)
       }
     },
+    async getTickers(interval: TickerInterval) {
+      const url = constants.formalizeSchema(
+        `${constants.KLINE_HTTP_URL}/ticker/interval/${interval}`,
+      )
+      try {
+        const res = await axios.get(url)
+        this.tickers.set(
+          interval,
+          new Map<string, TickerStat>((res.data as Tickers).stats.map((s) => [s.token_0, s])),
+        )
+        return res.data as Tickers
+      } catch (e) {
+        console.log('Failed get tickers', e)
+      }
+    },
   },
   getters: {
     latestTimestamp(): (key: Interval, token0: string, token1: string) => number {
@@ -126,6 +144,11 @@ export const useKlineStore = defineStore('kline', {
             ?.sort((a, b) => a.created_at - b.created_at)
             ?.filter((el) => el.token_reversed === tokenReversed) || []
         )
+      }
+    },
+    tokenStat(): (token: string, interval: TickerInterval) => TickerStat | undefined {
+      return (token: string, interval: TickerInterval) => {
+        return this.tickers.get(interval)?.get(token)
       }
     },
   },
