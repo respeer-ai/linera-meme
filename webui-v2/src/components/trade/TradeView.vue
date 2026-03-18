@@ -36,7 +36,7 @@
             <div>
               <q-icon name='local_gas_station' size='18px' />
             </div>
-            <div class='q-ml-xs text-neutral'>0.00000001234</div>
+            <div class='q-ml-xs text-neutral'>{{ swapGasAmount }}</div>
             <div class='q-ml-xs'>
               <q-icon name='keyboard_arrow_down' size='18px' />
             </div>
@@ -83,7 +83,7 @@
 <script setup lang='ts'>
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ams, meme, swap, user, notify } from 'src/stores/export'
 import { constants } from 'src/constant'
 import { defaultSlippage } from './Slippages'
@@ -93,6 +93,7 @@ import PriceChartView from '../kline/PriceChartView.vue'
 import TradeInfoView from './TradeInfoView.vue'
 import SetSlippageView from './SetSlippageView.vue'
 import TradeDetailView from './TradeDetailView.vue'
+import { Wallet } from 'src/wallet'
 
 const walletConnected = computed(() => user.User.walletConnected())
 
@@ -256,9 +257,28 @@ const onShowTradeInfoClick = () => {
   showingTradeInfo.value = !showingTradeInfo.value
 }
 
-onMounted(() => {
+const gasTicker = ref(-1)
+const swapGasAmount = ref('0')
+const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
+
+onMounted(async () => {
   buyToken.value = tokens.value[0] as Token
   sellToken.value = undefined as unknown as Token
+
+  await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
+    swapGasAmount.value = gasAmount
+  })
+  gasTicker.value = window.setInterval(async () => {
+    await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
+      swapGasAmount.value = gasAmount
+    })
+  }, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (gasTicker.value >= 0) {
+    window.clearInterval(gasTicker.value)
+  }
 })
 
 </script>

@@ -64,7 +64,7 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, ref, toRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, toRef } from 'vue'
 import { Token } from './Token'
 import { constants } from 'src/constant'
 import { ams } from 'src/stores/export'
