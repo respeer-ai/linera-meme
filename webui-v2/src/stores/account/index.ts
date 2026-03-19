@@ -14,8 +14,8 @@ export class _Account {
   }
 
   static accountDescription = (account: Account) => {
-    let description = account.chain_id
-    if (account.owner) description += ':' + account.owner
+    let description = account.owner || _Account.CHAIN
+    if (account.owner) description += '@' + account.chain_id
     return description
   }
 

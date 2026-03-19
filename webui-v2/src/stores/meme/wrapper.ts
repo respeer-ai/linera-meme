@@ -15,11 +15,10 @@ export class MemeWrapper {
   ) => {
     const owner = await _user.account()
     if (!owner.owner || !tokenApplication.owner || !tokenApplication.chain_id) return error?.()
-    const owenrDescription = _Account.accountDescription(owner)
 
     _meme.balanceOf(
       {
-        owner: owenrDescription,
+        owner,
         Message: {
           Error: {
             Title: 'Balance of meme',
