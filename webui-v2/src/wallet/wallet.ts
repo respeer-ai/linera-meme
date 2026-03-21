@@ -70,7 +70,12 @@ export class Wallet {
     CheCko.unsubscribe(subscriptionId)
   }
 
-  static _swap = async (sellToken: ams.Application, buyToken: ams.Application, amount: string) => {
+  static _swap = async (
+    sellToken: ams.Application,
+    buyToken: ams.Application,
+    amountIn: string,
+    amountOutMin: string,
+  ) => {
     const pools = swap.Swap.pools()
     const sellTokenId = sellToken?.applicationId || constants.LINERA_NATIVE_ID
     const buyTokenId = buyToken?.applicationId || constants.LINERA_NATIVE_ID
@@ -86,10 +91,10 @@ export class Wallet {
     }
 
     const variables = {
-      amount0In: sellTokenId === pool.token0 ? amount : undefined,
-      amount1In: sellTokenId === pool.token1 ? amount : undefined,
-      amount0OutMin: undefined,
-      amount1OutMin: undefined,
+      amount0In: sellTokenId === pool.token0 ? amountIn : undefined,
+      amount1In: sellTokenId === pool.token1 ? amountIn : undefined,
+      amount0OutMin: sellTokenId === pool.token1 ? amountOutMin : undefined,
+      amount1OutMin: sellTokenId === pool.token0 ? amountOutMin : undefined,
       to: undefined,
       blockTimestamp: undefined,
     }
@@ -110,12 +115,13 @@ export class Wallet {
   static swap = async (
     sellToken: ams.Application,
     buyToken: ams.Application,
-    amount: string,
+    amountIn: string,
+    amountOutMin: string,
     done?: () => void,
     error?: (e: string) => void,
   ) => {
     try {
-      await Wallet._swap(sellToken, buyToken, amount)
+      await Wallet._swap(sellToken, buyToken, amountIn, amountOutMin)
       done?.()
     } catch (e) {
       error?.(JSON.stringify(e))
@@ -158,5 +164,63 @@ export class Wallet {
         return await LineraWebClient.createMeme(argument, parameters, variables)
     }
     return Promise.reject(new Error('Invalid wallet type'))
+  }
+
+  static _estimateSwapGas = async (
+    sellToken: ams.Application,
+    buyToken: ams.Application,
+    amountIn: string,
+    amountOutMin: string,
+  ) => {
+    const pools = swap.Swap.pools()
+    const sellTokenId = sellToken?.applicationId || constants.LINERA_NATIVE_ID
+    const buyTokenId = buyToken?.applicationId || constants.LINERA_NATIVE_ID
+
+    const pool = pools.find((el) => {
+      return (
+        (el.token0 === buyTokenId && el.token1 === sellTokenId) ||
+        (el.token1 === buyTokenId && el.token0 === sellTokenId)
+      )
+    })
+    if (!pool) {
+      throw new Error('Invalid pool')
+    }
+
+    const variables = {
+      amount0In: sellTokenId === pool.token0 ? amountIn : undefined,
+      amount1In: sellTokenId === pool.token1 ? amountIn : undefined,
+      amount0OutMin: sellTokenId === pool.token1 ? amountOutMin : undefined,
+      amount1OutMin: sellTokenId === pool.token0 ? amountOutMin : undefined,
+      to: undefined,
+      blockTimestamp: undefined,
+    }
+
+    const walletType = user.User.walletConnectedType()
+    const poolApplicationId = account._Account.accountApplication(
+      pool.poolApplication as account.Account,
+    ) as string
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.estimateSwapGas(poolApplicationId, variables)
+      case user.WalletType.Metamask:
+        return 'N/A'
+    }
+  }
+
+  static estimateSwapGas = async (
+    sellToken: ams.Application,
+    buyToken: ams.Application,
+    amountIn: string,
+    amountOutMin: string,
+    done?: (gas: string) => void,
+    error?: (e: string) => void,
+  ) => {
+    try {
+      const gas = await Wallet._estimateSwapGas(sellToken, buyToken, amountIn, amountOutMin)
+      done?.(gas as string)
+    } catch (e) {
+      error?.(JSON.stringify(e))
+    }
   }
 }

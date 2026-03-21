@@ -3,7 +3,7 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use abi::swap::{
     pool::{Pool, PoolAbi, PoolOperation, PoolParameters},
@@ -94,15 +94,14 @@ impl QueryRoot {
             .collect()
     }
 
-    // async fn liquidity(&self, owner: Account) -> Amount {
-    async fn liquidity(&self, owner: String) -> LiquidityAmount {
+    async fn liquidity(&self, owner: Account) -> LiquidityAmount {
         // TODO: we have to access state directly instead of liquidity() right now due to `Send`
         let liquidity = self
             .service
             .state
             .as_ref()
             .shares
-            .get(&Account::from_str(&owner).unwrap())
+            .get(&owner)
             .await
             .expect("Failed: liquidity")
             .unwrap_or(Amount::ZERO);

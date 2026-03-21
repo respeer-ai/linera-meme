@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket
+from fastapi.responses import JSONResponse
 import asyncio
 import uvicorn
 import argparse
@@ -83,6 +84,22 @@ async def on_get_combined_transactions_information():
         return _db.get_transactions_information(token_0=None, token_1=None)
     except Exception as e:
         print(f'Failed get transactions information: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/ticker/interval/{interval}')
+async def on_get_ticker(interval: str):
+    try:
+        stats =  _db.get_ticker(interval=interval)
+        return {
+            'interval': interval,
+            'stats': stats,
+        }
+    except Exception as e:
+        print(f'Failed get ticker: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

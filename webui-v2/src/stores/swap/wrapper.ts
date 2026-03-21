@@ -2,6 +2,7 @@ import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { NotifyType } from '../notify'
 import { useSwapStore } from './store'
 import { type Account } from '../account'
+import { constants } from 'src/constant'
 
 const swap = useSwapStore()
 
@@ -62,4 +63,38 @@ export class Swap {
 
   static setBuyToken = (buyToken: string) => (swap.buyToken = buyToken)
   static setSellToken = (sellToken: string) => (swap.sellToken = sellToken)
+
+  static calculatePriceImpact = (buyToken: string, sellToken: string, _amountIn: string) => {
+    const pool = swap.getPool(buyToken, sellToken)
+    if (!pool) return '0'
+
+    const reserveIn = Number(sellToken === pool.token0 ? pool.reserve0 : pool.reserve1)
+    const reserveOut = Number(buyToken === pool.token0 ? pool.reserve0 : pool.reserve1)
+
+    const midPrice = reserveOut / reserveIn
+    const amountIn = Number(_amountIn)
+
+    // TODO: use fee of the pool
+    const amountInWithFee = amountIn * (1 - 0.003)
+
+    const idealOutput = amountInWithFee * midPrice
+
+    const k = reserveIn * reserveOut
+
+    const newReserveIn = reserveIn + amountInWithFee
+    const newReserveOut = k / newReserveIn
+
+    const actualOutput = reserveOut - newReserveOut
+
+    return Number((idealOutput - actualOutput) / idealOutput)
+      .toFixed(8)
+      .toString()
+  }
+
+  static tokenPrice = (token: string) => {
+    const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
+    if (!pool) return '0'
+
+    return (Number(pool.reserve1) / Number(pool.reserve0)).toFixed(8)
+  }
 }

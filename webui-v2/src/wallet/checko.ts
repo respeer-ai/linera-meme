@@ -91,26 +91,32 @@ export class CheCko {
     await CheCko.getProviderState()
   }
 
-  static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+  static swapOperation = async (poolApplicationId: string, variables: Record<string, unknown>) => {
     const publicKey = user.User.publicKey()
     const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(
       SWAP.loc?.source?.body as string,
       stringify(variables) as string,
     )
+    return {
+      applicationId: poolApplicationId,
+      publicKey,
+      query: {
+        query: SWAP.loc?.source?.body,
+        variables,
+        applicationOperationBytes: queryBytes,
+      },
+      operationName: 'swap',
+    }
+  }
+
+  static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const operationParams = await CheCko.swapOperation(poolApplicationId, variables)
+
     return new Promise((resolve, reject) => {
       window.linera
         .request({
           method: 'linera_graphqlMutation',
-          params: {
-            applicationId: poolApplicationId,
-            publicKey,
-            query: {
-              query: SWAP.loc?.source?.body,
-              variables,
-              applicationOperationBytes: queryBytes,
-            },
-            operationName: 'createMeme',
-          },
+          params: operationParams,
         })
         .then((hash) => {
           resolve(hash as string)
@@ -185,6 +191,22 @@ export class CheCko {
         },
         operationName: 'createMeme',
       },
+    })) as string
+  }
+
+  static estimateSwapGas = async (
+    poolApplicationId: string,
+    variables: Record<string, unknown>,
+  ) => {
+    return await CheCko.estimateGas(await CheCko.swapOperation(poolApplicationId, variables))
+  }
+
+  static estimateGas = async (params: Record<string, unknown>) => {
+    params.operationName = 'estimateGas'
+
+    return (await window.linera.request({
+      method: 'eth_estimateGas',
+      params,
     })) as string
   }
 }

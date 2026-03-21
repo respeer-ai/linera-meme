@@ -47,7 +47,7 @@ export interface MemeParameters {
 }
 
 export interface BalanceOfRequest extends BaseRequest {
-  owner: string // 1231321321213:User:1231431321321321321
+  owner: Account
 }
 
 export type BalancesRequest = BaseRequest

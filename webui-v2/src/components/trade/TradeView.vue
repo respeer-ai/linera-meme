@@ -1,41 +1,81 @@
 <template>
-  <div class='row content-start wrap'>
-    <div class='trade-action'>
-      <div class='row items-center'>
-        <token-input-view :action='TokenAction.Sell' style='width: calc(50% - 4px);' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' :disable='!walletConnected' />
-        <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-left: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
-          <q-icon name='arrow_forward' size='32px' />
-        </div>
-        <token-input-view :action='TokenAction.Buy' style='width: calc(50% - 4px); margin-left: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' :disable='!walletConnected' />
-      </div>
-      <div class='row q-mt-sm font-size-12 text-neutral cursor-pointer'>
-        <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
-        <q-space />
-        <q-icon name='local_gas_station' size='18px' />
-        <div class='q-ml-xs'>0.00000001234</div>
-        <div class='q-ml-xs'>
-          <q-icon name='keyboard_arrow_down' size='18px' />
-        </div>
-      </div>
-      <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' :disabled='btnActions[btnStep]?.disable' @click='onSwapClick'>
-        <template #loading>
-          <q-spinner-hourglass class="on-left" />
-          {{ btnActions[btnStep]?.label }}
-        </template>
-        {{ btnActions[btnStep]?.label }}
-      </q-btn>
-      <q-card flat class='q-mt-md radius-8' style='overflow: hidden;'>
-        <price-chart-view height='440px' />
+  <div>
+    <div class='row'>
+      <q-card flat class='radius-8' style='overflow: hidden; min-width: 560px; width: calc(100% - 480px - 16px);'>
+        <price-chart-view height='640px' />
       </q-card>
+      <q-space />
+      <div style='width: 480px;'>
+        <div class='items-center'>
+          <token-input-view :action='TokenAction.Sell' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' :disable='!walletConnected' />
+          <div class='row'>
+            <q-space />
+            <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-top: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
+              <q-icon name='arrow_downward' size='32px' />
+            </div>
+            <q-space />
+          </div>
+          <token-input-view :action='TokenAction.Buy' style='margin-top: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' :disable='!walletConnected' />
+        </div>
+        <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' :disabled='btnActions[btnStep]?.disable' @click='onSwapClick'>
+          <template #loading>
+            <q-spinner-hourglass class="on-left" />
+            {{ btnActions[btnStep]?.label }}
+          </template>
+          {{ btnActions[btnStep]?.label }}
+        </q-btn>
+        <div class='row q-mt-md font-size-14 text-neutral'>
+          <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
+          <q-space />
+          <div class='bg-accent q-px-sm radius-8 text-bold border-secondary-25 cursor-pointer hover-primary' @click='onSetSlippageClick'>
+            <div class='text-neutral'>
+              {{ slippage }}%
+            </div>
+          </div>
+          <div class='row q-ml-xs cursor-pointer hover-primary' @click='onShowTradeInfoClick'>
+            <div>
+              <q-icon name='local_gas_station' size='18px' />
+            </div>
+            <div class='q-ml-xs text-neutral'>{{ swapGasAmount }}</div>
+            <div class='q-ml-xs'>
+              <q-icon name='keyboard_arrow_down' size='18px' />
+            </div>
+          </div>
+          <div v-if='showingTradeInfo' class='q-mt-lg full-width'>
+            <trade-detail-view
+              :buy-token='buyToken'
+              :sell-token='sellToken'
+              :buy-amount='buyAmount'
+              :sell-amount='sellAmount'
+              :sell-price='sellPrice'
+              :slippage='slippage'
+              :price-impact='priceImpact'
+              :expanded='true'
+            />
+          </div>
+        </div>
+      </div>
     </div>
-
-    <q-card flat class='flex-grow selected-token-info border-dark-secondary radius-8 bg-dark-secondary'>
-      <TokenInfoView :token='buyToken' />
-    </q-card>
   </div>
   <q-dialog v-model='reviewing' persistent>
     <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
-      <trade-info-view :buy-token='buyToken' :sell-token='sellToken' :buy-amount='buyAmount' :sell-amount='sellAmount' :sell-price='sellPrice' @done='onSwapDone' @error='onSwapError' />
+      <trade-info-view
+        :buy-token='buyToken'
+        :sell-token='sellToken'
+        :buy-amount='buyAmount'
+        :sell-amount='sellAmount'
+        :sell-price='sellPrice'
+        :slippage='slippage'
+        :price-impact='priceImpact'
+        @done='onSwapDone'
+        @error='onSwapError'
+        @cancel='onSwapCanceled'
+      />
+    </div>
+  </q-dialog>
+  <q-dialog v-model='settingSlippage'>
+    <div class='bg-dark-secondary q-py-lg radius-16 border-bottom-primary-twelve' style='min-width: 400px;'>
+      <set-slippage-view @done='onSetSlippageDone' @cancel='onSetSlippageCanceled' v-model='slippage' />
     </div>
   </q-dialog>
 </template>
@@ -43,14 +83,17 @@
 <script setup lang='ts'>
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ams, meme, swap, user, notify } from 'src/stores/export'
 import { constants } from 'src/constant'
+import { defaultSlippage } from './Slippages'
 
 import TokenInputView from './TokenInputView.vue'
-import TokenInfoView from './TokenInfoView.vue'
 import PriceChartView from '../kline/PriceChartView.vue'
 import TradeInfoView from './TradeInfoView.vue'
+import SetSlippageView from './SetSlippageView.vue'
+import TradeDetailView from './TradeDetailView.vue'
+import { Wallet } from 'src/wallet'
 
 const walletConnected = computed(() => user.User.walletConnected())
 
@@ -80,6 +123,9 @@ watch(buyTokenId, () => {
 })
 
 const reviewing = ref(false)
+const settingSlippage = ref(false)
+const slippage = ref(defaultSlippage)
+const showingTradeInfo = ref(false)
 
 watch(tokens, () => {
   if (buyToken.value === undefined && sellToken.value === undefined) {
@@ -107,6 +153,7 @@ watch(sellTokenId, () => {
 const pool = computed(() => swap.Swap.selectedPool())
 const fullPrecisionSellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0))
 const sellPrice = computed(() => fullPrecisionSellPrice.value.toFixed(6))
+const priceImpact = computed(() => swap.Swap.calculatePriceImpact(buyTokenId.value, sellTokenId.value, sellAmount.value))
 
 watch(sellAmount, () => {
   const price = Number((sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) as string)
@@ -188,21 +235,55 @@ const onSwapError = (e: string) => {
   })
 }
 
-onMounted(() => {
+const onSwapCanceled = () => {
+  reviewing.value = false
+}
+
+const onSetSlippageClick = () => {
+  settingSlippage.value = true
+}
+
+const onSetSlippageDone = (_slippage: number) => {
+  settingSlippage.value = false
+  console.log(_slippage, 111)
+  slippage.value = _slippage
+}
+
+const onSetSlippageCanceled = () => {
+  settingSlippage.value = false
+}
+
+const onShowTradeInfoClick = () => {
+  showingTradeInfo.value = !showingTradeInfo.value
+}
+
+const gasTicker = ref(-1)
+const swapGasAmount = ref('0')
+const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
+
+onMounted(async () => {
   buyToken.value = tokens.value[0] as Token
   sellToken.value = undefined as unknown as Token
+
+  await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
+    swapGasAmount.value = gasAmount
+  })
+  gasTicker.value = window.setInterval(async () => {
+    await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
+      swapGasAmount.value = gasAmount
+    })
+  }, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (gasTicker.value >= 0) {
+    window.clearInterval(gasTicker.value)
+  }
 })
 
 </script>
 
 <style scoped lang='sass'>
-.trade-action
-  width: 840px
-
-.selected-token-info
-  width: calc(100% - 840px - 16px)
-  margin-left: 16px
-
 @media (max-width: 960px)
   .trade-action
     width: 100%

@@ -21,6 +21,7 @@ use abi::{
         },
     },
 };
+use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, ChainId,
@@ -28,6 +29,7 @@ use linera_sdk::{
     },
     test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
+use serde_json::json;
 use std::{collections::HashMap, str::FromStr};
 
 #[derive(Clone)]
@@ -131,7 +133,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -363,7 +365,7 @@ impl TestSuite {
                 );
             })
             .await;
-        let certificate = self.swap_chain.handle_received_messages_ext().await;
+        let certificate = self.swap_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         chain.handle_received_messages().await;
@@ -372,7 +374,7 @@ impl TestSuite {
 
         assert!(certificate.is_some());
 
-        let certificate = certificate.unwrap();
+        let (certificate, _) = certificate.unwrap();
         let block = certificate.inner().block();
         block
             .created_blobs()
@@ -424,11 +426,11 @@ async fn meme_meme_pair_test() {
     // Check initial swap pool
     meme_chain_0.handle_received_messages().await;
     meme_chain_1.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let descriptions: Vec<ChainDescription> = block
         .created_blobs()
@@ -500,9 +502,21 @@ async fn meme_meme_pair_test() {
         .await;
 
     let user_account = suite.chain_owner_account(user_chain);
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_0.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
@@ -519,6 +533,19 @@ async fn meme_meme_pair_test() {
         )
         .await;
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_1
         .graphql_query(suite.meme_application_id_1.unwrap(), query)
         .await;
@@ -626,20 +653,42 @@ async fn meme_meme_pair_test() {
     assert_eq!(Amount::ONE, pool.reserve_0);
     assert_eq!(Amount::ONE, pool.reserve_1);
 
-    let query = format!(
-        "query {{ balanceOf(owner: \"{}\")}}",
-        pool_application_account
-    );
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_0.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::ONE,
     );
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_1
-        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_1.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
@@ -665,34 +714,85 @@ async fn meme_meme_pair_test() {
     pool_chain_user.handle_received_messages().await;
     user_chain.handle_received_messages().await;
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_0.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_str("0.8").unwrap(),
     );
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_1
-        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_1.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_str("1.2").unwrap(),
     );
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
 
     let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_0.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_attos(857999200000000000000000),
     );
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_1
-        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_1.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
@@ -709,39 +809,86 @@ async fn meme_meme_pair_test() {
         )
         .await;
 
-    let query = format!(
-        "query {{ balanceOf(owner: \"{}\")}}",
-        pool_application_account
-    );
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
 
     let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_0.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_str("2.0").unwrap(),
     );
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_1
-        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_1.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_tokens(3),
     );
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
 
     let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_0.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_attos(857998000000000000000000),
     );
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain_1
-        .graphql_query(suite.meme_application_id_1.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id_1.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),

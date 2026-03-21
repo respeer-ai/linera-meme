@@ -346,6 +346,68 @@ class Db:
 
         return  (token_0, token_1, start_at, end_at, interval, points)
 
+    def get_ticker(self, interval: str):
+        intervals = {
+            "1h": 3600,
+            "1d": 86400,
+            "1w": 86400 * 7,
+            "1m": 86400 * 30,
+            "1y": 86400 * 365,
+            "all": None
+        }
+
+        if interval not in intervals:
+            raise Exception('Unsupported interval')
+
+        now = int(time.time())
+
+        if interval == "all":
+            start_at = 0
+        else:
+            start_at = now - intervals[interval]
+
+        end_at = now
+
+        start_at *= 1000
+        end_at *= 1000
+        token_reversed = False
+
+        query = f'''
+            SELECT
+                p.pool_id,
+                p.token_0,
+                p.token_1,
+                MAX(t.price) AS high,
+                MIN(t.price) AS low,
+                SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
+                COUNT(*) AS tx_count,
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(t.price ORDER BY t.created_at DESC),
+                    ',', 1
+                ) AS price_now,
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(t.price ORDER BY t.created_at ASC),
+                    ',', 1
+                ) AS price_start
+            FROM transactions t
+            JOIN pools p
+              ON t.pool_id = p.pool_id
+            WHERE
+                p.token_1 = 'TLINERA'
+                AND t.created_at >= {start_at}
+                AND t.created_at <= {end_at}
+                AND t.token_reversed = {token_reversed}
+                AND t.transaction_type IN ('BuyToken0', 'SellToken0')
+            GROUP BY
+                p.pool_id,
+                p.token_0,
+                p.token_1
+            ORDER BY
+                volume DESC;
+        '''
+        self.cursor_dict.execute(query)
+        return self.cursor_dict.fetchall()
+
     def close(self):
         self.cursor.close()
         self.cursor_dict.close()

@@ -23,6 +23,7 @@ use abi::{
         },
     },
 };
+use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, ChainId,
@@ -31,6 +32,7 @@ use linera_sdk::{
     test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
 use pool::LiquidityAmount;
+use serde_json::json;
 use std::str::FromStr;
 
 #[derive(Clone)]
@@ -109,7 +111,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -286,11 +288,11 @@ async fn meme_native_virtual_initial_liquidity_test() {
 
     // Check initial swap pool
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()
@@ -347,10 +349,19 @@ async fn meme_native_virtual_initial_liquidity_test() {
         pool_chain.id(),
         suite.pool_application_id.unwrap().forget_abi(),
     );
-    let query = format!(
-        "query {{ balanceOf(owner: \"{}\")}}",
-        pool_application_account,
-    );
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -394,7 +405,19 @@ async fn meme_native_virtual_initial_liquidity_test() {
     assert_eq!(Amount::from_attos(220000000000000000000000), pool.reserve_0);
 
     let user_account = suite.chain_owner_account(&user_chain);
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -403,12 +426,21 @@ async fn meme_native_virtual_initial_liquidity_test() {
         Amount::from_attos(10780000000000000000000000),
     );
 
-    let query = format!(
-        "query {{ balanceOf(owner: \"{}\")}}",
-        pool_application_account,
-    );
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
-        .graphql_query(suite.meme_application_id.unwrap(), query.clone())
+        .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
@@ -436,6 +468,19 @@ async fn meme_native_virtual_initial_liquidity_test() {
         user_chain.owner_balance(&user_account.owner).await.unwrap()
     );
 
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     // Here meme balance should already add to pool application
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
@@ -455,7 +500,19 @@ async fn meme_native_virtual_initial_liquidity_test() {
     assert_eq!(Amount::from_attos(19897714379699202921), pool.reserve_1);
     assert_eq!(Amount::from_attos(221085715329991143570652), pool.reserve_0);
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -464,14 +521,23 @@ async fn meme_native_virtual_initial_liquidity_test() {
         Amount::from_attos(10778914284670008856429348),
     );
 
-    let query = format!(
-        "query {{ liquidity(owner: \"{}\") {{
-        liquidity
-        amount0
-        amount1
-    }} }}",
-        user_account
-    );
+    let query = Request::new(
+        r#"
+        query Liquidity($owner: Account!) {
+            liquidity(owner: $owner) {
+                liquidity
+                amount0
+                amount1
+            }
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), query)
         .await;
@@ -506,11 +572,11 @@ async fn meme_native_real_initial_liquidity_test() {
 
     // Check initial swap pool
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()
@@ -577,10 +643,19 @@ async fn meme_native_real_initial_liquidity_test() {
         pool_chain.id(),
         suite.pool_application_id.unwrap().forget_abi(),
     );
-    let query = format!(
-        "query {{ balanceOf(owner: \"{}\")}}",
-        pool_application_account,
-    );
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": pool_application_account.chain_id.to_string(),
+            "owner": pool_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;

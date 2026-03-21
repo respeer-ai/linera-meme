@@ -3,7 +3,7 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use abi::meme::{Meme, MemeAbi, MemeOperation, MiningInfo};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
@@ -65,11 +65,10 @@ impl QueryRoot {
         self.state.meme.get().as_ref().unwrap().total_supply
     }
 
-    // async fn balance_of(&self, owner: Account) -> Amount {
-    async fn balance_of(&self, owner: String) -> Amount {
+    async fn balance_of(&self, owner: Account) -> Amount {
         self.state
             .balances
-            .get(&Account::from_str(&owner).unwrap())
+            .get(&owner)
             .await
             .unwrap()
             .unwrap_or(Amount::ZERO)
@@ -85,16 +84,9 @@ impl QueryRoot {
             .collect()
     }
 
-    // async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
-    async fn allowance_of(&self, owner: String, spender: String) -> Amount {
-        match self
-            .state
-            .allowances
-            .get(&Account::from_str(&owner).unwrap())
-            .await
-            .unwrap()
-        {
-            Some(allowances) => match allowances.get(&Account::from_str(&spender).unwrap()) {
+    async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
+        match self.state.allowances.get(&owner).await.unwrap() {
+            Some(allowances) => match allowances.get(&spender) {
                 Some(&amount) => amount,
                 _ => Amount::ZERO,
             },

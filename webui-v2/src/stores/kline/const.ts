@@ -6,3 +6,12 @@ export enum Interval {
   ONE_DAY = '1d',
   ONE_MONTH = '1ME',
 }
+
+export enum TickerInterval {
+  OneHour = '1h',
+  OneDay = '1d',
+  OneWeek = '1w',
+  OneMonth = '1m',
+  OneYear = '1y',
+  All = 'all',
+}

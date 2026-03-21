@@ -7,6 +7,11 @@
     </q-header>
 
     <q-page-container class='bg-glass bg-dark'>
+      <div class='flex items-center justify-center'>
+        <div v-if='!walletConnected' class='q-mt-lg page-width'>
+          <wallet-tip-view />
+        </div>
+      </div>
       <router-view />
     </q-page-container>
 
@@ -23,15 +28,18 @@
 <script setup lang='ts'>
 import initWasm from '../../dist/wasm/linera_wasm'
 import wasmModuleUrl from '../../dist/wasm/linera_wasm_bg.wasm?url'
-import { onMounted } from 'vue'
-import { notify } from 'src/stores/export'
+import { computed, onMounted } from 'vue'
+import { notify, user } from 'src/stores/export'
 
 import HeaderView from 'src/components/header/HeaderView.vue'
 import FooterView from 'src/components/footer/FooterView.vue'
+import WalletTipView from 'src/components/wallet/WalletTipView.vue'
 
 onMounted(async () => {
   await initWasm(await fetch(wasmModuleUrl))
   notify.Notify.subscribe()
 })
+
+const walletConnected = computed(() => user.User.walletConnected())
 
 </script>

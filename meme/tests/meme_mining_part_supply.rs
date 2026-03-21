@@ -9,7 +9,9 @@ mod test_suite;
 use test_suite::TestSuite;
 
 use abi::policy::open_chain_fee_budget;
+use async_graphql::{Request, Variables};
 use linera_sdk::{linera_base_types::Amount, test::QueryOutcome};
+use serde_json::json;
 use std::str::FromStr;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -57,10 +59,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
     let initial_owner_balance =
         Amount::from_str(response["initialOwnerBalance"].as_str().unwrap()).unwrap();
 
-    let query = format!(
-        "query {{ balanceOf(owner: \"{}\")}}",
-        meme_application_account,
-    );
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_application_account.chain_id.to_string(),
+            "owner": meme_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -74,7 +85,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
             .unwrap(),
     );
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_owner_account.chain_id.to_string(),
+            "owner": meme_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -83,10 +106,23 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
         initial_owner_balance,
     );
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        meme_application_account, swap_application_account,
-    );
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_application_account.chain_id.to_string(),
+            "owner": meme_application_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": swap_application_account.chain_id.to_string(),
+            "owner": swap_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -104,7 +140,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
         .transfer(&meme_chain, user_owner_account, amount)
         .await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_owner_account.chain_id.to_string(),
+            "owner": user_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -115,7 +163,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
 
     suite.approve(&meme_chain, user_owner_account, amount).await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_owner_account.chain_id.to_string(),
+            "owner": meme_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -128,10 +188,23 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
             .unwrap(),
     );
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        meme_owner_account, user_owner_account,
-    );
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_owner_account.chain_id.to_string(),
+            "owner": meme_owner_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": user_owner_account.chain_id.to_string(),
+            "owner": user_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -144,7 +217,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
         .transfer_from(&user_chain, meme_owner_account, user_owner_account, amount)
         .await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_owner_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_owner_account.chain_id.to_string(),
+            "owner": meme_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -157,7 +242,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
             .unwrap(),
     );
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_owner_account.chain_id.to_string(),
+            "owner": user_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -166,10 +263,23 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
         amount.try_mul(2).unwrap(),
     );
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        meme_owner_account, user_owner_account,
-    );
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_owner_account.chain_id.to_string(),
+            "owner": meme_owner_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": user_owner_account.chain_id.to_string(),
+            "owner": user_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -187,7 +297,19 @@ async fn meme_work_flow_enable_mining_part_supply_test() {
 
     suite.mint(&meme_chain, user_owner_account, amount).await;
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", user_owner_account);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_owner_account.chain_id.to_string(),
+            "owner": user_owner_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;

@@ -1,7 +1,7 @@
 <template>
   <div :style='{ height: height }'>
     <chart-view
-      style='width:100%;'
+      style='width: 100%;'
       :data='klinePoints'
       @load-new-data='onLoadNewData'
       @load-old-data='onLoadOldData'

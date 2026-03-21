@@ -34,32 +34,33 @@
               {{ props.row.meme.ticker }}
             </div>
           </td>
-          <td :props='props' class='text-center'>0 TLINERA</td>
+          <td :props='props' class='text-center'>{{ tokenPrice(props.row.applicationId) }} TLINERA</td>
           <td :props='props' class='text-center'>
-            <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            1.23%
+            <q-icon
+              v-if='shouldDisplayDirectionIcon(oneHourPriceDirection(props.row.applicationId))'
+              :name='directionIcon(oneHourPriceDirection(props.row.applicationId))'
+              :color='directionIconColor(oneHourPriceDirection(props.row.applicationId))'
+              size='16px'
+            />
+            {{ oneHourPriceChange(props.row.applicationId) }}%
           </td>
           <td :props='props' class='text-center'>
-            <q-icon name='arrow_drop_down' color='red-4' size='16px' />
-            2.34%
+            <q-icon
+              v-if='shouldDisplayDirectionIcon(oneDayPriceDirection(props.row.applicationId))'
+              :name='directionIcon(oneDayPriceDirection(props.row.applicationId))'
+              :color='directionIconColor(oneDayPriceDirection(props.row.applicationId))'
+              size='16px' 
+            />
+            {{ oneDayPriceChange(props.row.applicationId) }}%
           </td>
-          <td :props='props' class='text-center'>$10.23B</td>
-          <td :props='props' class='text-center'>$1.23B</td>
+          <td :props='props' class='text-center'>{{ tokenFDV(props.row) }} TLINERA</td>
+          <td :props='props' class='text-center'>{{ tokenVolume(props.row.applicationId) }} TLINERA</td>
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
             <div class='narrow-btn'>
               <q-btn dense no-caps rounded flat class='text-secondary' disable>
                 Join mining
               </q-btn>
-              <q-icon name='help' size='16px' class='cursor-pointer'>
-                <q-tooltip
-                  class='font-size-14 bg-grey-10'
-                  anchor='bottom end'
-                  self='top end'
-                >
-                  Sorry, you cannot join mining of exists tokens right now. Stay tunned!
-                </q-tooltip>
-              </q-icon>
             </div>
           </td>
         </q-tr>
@@ -81,9 +82,15 @@
 </template>
 
 <script setup lang='ts'>
-import { ams, meme } from 'src/stores/export'
-import { computed, ref } from 'vue'
+import { ams, kline, meme, swap } from 'src/stores/export'
+import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { Token } from '../trade/Token'
+
+interface Props {
+  volumeInterval: kline.TickerInterval
+}
+const props = defineProps<Props>()
+const volumeInterval = toRef(props, 'volumeInterval')
 
 const tokens = computed(() => ams.Ams.applications().map((el) => {
   return {
@@ -154,6 +161,71 @@ const pagination = ref({
   rowsPerPage: 10
 })
 const totalPages = computed(() => Math.ceil(tokens.value.length / pagination.value.rowsPerPage))
+
+const tokenPrice = (tokenId: string) => {
+  return swap.Swap.tokenPrice(tokenId)
+}
+
+const tokenFDV = (token: Token) => {
+  const price = Number(tokenPrice(token.applicationId))
+  const totalSupply = Number(token.meme.totalSupply)
+  return (price * totalSupply).toFixed(4)
+}
+
+const tokenVolume = (token: string) => {
+  return Number(kline.Kline.tokenStat(token, volumeInterval.value)?.volume)?.toFixed(4) || 0
+}
+
+const oneHourPriceChange = (token: string) => {
+  const stat = kline.Kline.tokenStat(token, kline.TickerInterval.OneHour)
+  if (!stat) return 0
+  return (((Number(stat.price_now) - Number(stat.price_start)) / Number(stat.price_start)) * 100).toFixed(4)
+}
+
+enum PriceDirection {
+  UP = 'Up',
+  DOWN = 'Down',
+  SAME = 'Same'
+}
+
+const oneHourPriceDirection = (token: string) => {
+  const stat = kline.Kline.tokenStat(token, kline.TickerInterval.OneHour)
+  if (!stat) return PriceDirection.SAME
+  return Number(stat.price_now) > Number(stat.price_start) ? PriceDirection.UP : Number(stat.price_now) < Number(stat.price_start) ? PriceDirection.DOWN : PriceDirection.SAME
+}
+
+const oneDayPriceDirection = (token: string) => {
+  const stat = kline.Kline.tokenStat(token, kline.TickerInterval.OneDay)
+  if (!stat) return PriceDirection.SAME
+  return Number(stat.price_now) > Number(stat.price_start) ? PriceDirection.UP : Number(stat.price_now) < Number(stat.price_start) ? PriceDirection.DOWN : PriceDirection.SAME
+}
+
+const shouldDisplayDirectionIcon = (direction: PriceDirection) => {
+  return PriceDirection.SAME === direction ? false : true
+}
+
+const directionIcon = (direction: PriceDirection) => {
+  return direction ===  PriceDirection.UP ? 'arrow_drop_up' : direction ===  PriceDirection.DOWN ? 'arrow_drop_down' : ''
+}
+
+const directionIconColor = (direction: PriceDirection) => {
+  return direction ===  PriceDirection.UP ? 'green-4' : direction ===  PriceDirection.DOWN ? 'red-4' : 'blue-4'
+}
+
+const oneDayPriceChange = (token: string) => {
+  const stat = kline.Kline.tokenStat(token, kline.TickerInterval.OneDay)
+  if (!stat) return 0
+  return (((Number(stat.price_now) - Number(stat.price_start)) / Number(stat.price_start)) * 100).toFixed(4)
+}
+
+watch(volumeInterval, async () => {
+  await kline.Kline.getTickers(volumeInterval.value)
+})
+
+onMounted(async () => {
+  await kline.Kline.getTickers(volumeInterval.value)
+  await kline.Kline.getTickers(kline.TickerInterval.OneHour)
+})
 
 </script>
 

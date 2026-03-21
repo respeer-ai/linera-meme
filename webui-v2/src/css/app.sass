@@ -238,6 +238,13 @@ body.body--dark
     height: 32px
     padding: 0 16px
 
+.medium-btn
+  .q-btn
+    min-height: 40px
+    line-height: 40px
+    height: 40px
+    padding: 0 16px
+
 $radius-list: 4, 6, 8, 12, 16, 20, 24
 
 @each $r in $radius-list
@@ -284,6 +291,8 @@ $line-clamp-list: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
     border-radius: 8px 
   &.q-tab--active
     color: var(--q-primary)
+  .q-tab__label
+    font-size: 16px
 
 .q-select,
 .q-input
@@ -359,3 +368,6 @@ input[type="number"]
     transform: translateY(-4px)
     background: var(--q-dark)
     box-shadow: 0 2px 4px var(--q-primary-twelve)
+
+.right-dialog
+  margin-right: 32px
