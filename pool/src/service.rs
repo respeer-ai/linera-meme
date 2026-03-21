@@ -3,7 +3,7 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use abi::swap::{
     pool::{Pool, PoolAbi, PoolOperation, PoolParameters},

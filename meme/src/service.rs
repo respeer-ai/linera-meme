@@ -3,7 +3,7 @@
 
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use abi::meme::{Meme, MemeAbi, MemeOperation, MiningInfo};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
@@ -85,13 +85,7 @@ impl QueryRoot {
     }
 
     async fn allowance_of(&self, owner: Account, spender: Account) -> Amount {
-        match self
-            .state
-            .allowances
-            .get(&owner)
-            .await
-            .unwrap()
-        {
+        match self.state.allowances.get(&owner).await.unwrap() {
             Some(allowances) => match allowances.get(&spender) {
                 Some(&amount) => amount,
                 _ => Amount::ZERO,

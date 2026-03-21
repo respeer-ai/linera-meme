@@ -20,6 +20,7 @@ use abi::{
         InstantiationArgument as SwapInstantiationArgument, Pool, SwapAbi, SwapParameters,
     },
 };
+use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{
         Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription, ChainId,
@@ -27,6 +28,7 @@ use linera_sdk::{
     },
     test::{ActiveChain, MessageAction, QueryOutcome, TestValidator},
 };
+use serde_json::json;
 use std::str::FromStr;
 
 #[derive(Clone)]
@@ -112,7 +114,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -249,11 +251,11 @@ async fn meme_native_pair_mining_full_supply_virtual_liquidity_test() {
     suite.create_meme_application(true).await;
 
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
 
     // When total supply is for mining, don't create pool
@@ -267,17 +269,32 @@ async fn meme_native_pair_mining_full_supply_virtual_liquidity_test() {
     //     .next()
     //     .unwrap();
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(
-            meme_chain.id(),
-            suite.meme_application_id.unwrap().forget_abi()
-        ),
-        suite.application_account(
-            swap_chain.id(),
-            suite.swap_application_id.unwrap().forget_abi()
-        ),
+    let meme_application_account = suite.application_account(
+        meme_chain.id(),
+        suite.meme_application_id.unwrap().forget_abi(),
     );
+    let swap_application_account = suite.application_account(
+        swap_chain.id(),
+        suite.swap_application_id.unwrap().forget_abi(),
+    );
+
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_application_account.chain_id.to_string(),
+            "owner": meme_application_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": swap_application_account.chain_id.to_string(),
+            "owner": swap_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -325,17 +342,23 @@ async fn meme_native_pair_mining_full_supply_virtual_liquidity_test() {
     // let pool: Pool =
     //     serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(
-            meme_chain.id(),
-            suite.meme_application_id.unwrap().forget_abi()
-        ),
-        suite.application_account(
-            swap_chain.id(),
-            suite.swap_application_id.unwrap().forget_abi()
-        ),
-    );
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_application_account.chain_id.to_string(),
+            "owner": meme_application_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": swap_application_account.chain_id.to_string(),
+            "owner": swap_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -387,11 +410,11 @@ async fn meme_native_pair_mining_full_supply_real_liquidity_test() {
     suite.create_meme_application(false).await;
 
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
 
     // When total supply is for mining, don't create pool
@@ -405,17 +428,32 @@ async fn meme_native_pair_mining_full_supply_real_liquidity_test() {
     //     .next()
     //     .unwrap();
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(
-            meme_chain.id(),
-            suite.meme_application_id.unwrap().forget_abi()
-        ),
-        suite.application_account(
-            swap_chain.id(),
-            suite.swap_application_id.unwrap().forget_abi()
-        ),
+    let meme_application_account = suite.application_account(
+        meme_chain.id(),
+        suite.meme_application_id.unwrap().forget_abi(),
     );
+    let swap_application_account = suite.application_account(
+        swap_chain.id(),
+        suite.swap_application_id.unwrap().forget_abi(),
+    );
+
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_application_account.chain_id.to_string(),
+            "owner": meme_application_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": swap_application_account.chain_id.to_string(),
+            "owner": swap_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;
@@ -504,17 +542,23 @@ async fn meme_native_pair_mining_full_supply_real_liquidity_test() {
     //     Some(suite.initial_native)
     // );
 
-    let query = format!(
-        "query {{ allowanceOf(owner: \"{}\", spender: \"{}\") }}",
-        suite.application_account(
-            meme_chain.id(),
-            suite.meme_application_id.unwrap().forget_abi()
-        ),
-        suite.application_account(
-            swap_chain.id(),
-            suite.swap_application_id.unwrap().forget_abi()
-        ),
-    );
+    let query = Request::new(
+        r#"
+        query Allowance($owner: Account!, $spender: Account!) {
+            allowanceOf(owner: $owner, spender: $spender)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_application_account.chain_id.to_string(),
+            "owner": meme_application_account.owner.to_string(),
+        },
+        "spender": {
+            "chain_id": swap_application_account.chain_id.to_string(),
+            "owner": swap_application_account.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(suite.meme_application_id.unwrap(), query)
         .await;

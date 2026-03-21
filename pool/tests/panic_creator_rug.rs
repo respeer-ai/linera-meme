@@ -97,7 +97,7 @@ impl TestSuite {
     }
 
     async fn fund_chain(&self, chain: &ActiveChain, amount: Amount) {
-        let certificate = self
+        let (certificate, _) = self
             .admin_chain
             .add_block(|block| {
                 block.with_native_token_transfer(
@@ -248,11 +248,11 @@ async fn meme_panic_sell_meme_virtual_initial_liquidity_test() {
 
     // Check initial swap pool
     meme_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()

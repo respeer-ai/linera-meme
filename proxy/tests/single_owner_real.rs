@@ -6,6 +6,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{meme::MemeAbi, policy::open_chain_fee_budget, proxy::Miner, swap::pool::PoolAbi};
+use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{Account, AccountOwner, Amount, ApplicationId, BlobType, ChainDescription},
     test::{ActiveChain, QueryOutcome},
@@ -157,7 +158,19 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let initial_owner_balance =
         Amount::from_str(response["initialOwnerBalance"].as_str().unwrap()).unwrap();
 
-    let query = format!("query {{ balanceOf(owner: \"{}\")}}", meme_user_owner);
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_user_owner.chain_id.to_string(),
+            "owner": meme_user_owner.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = meme_chain
         .graphql_query(meme_application.unwrap().with_abi::<MemeAbi>(), query)
         .await;
@@ -167,7 +180,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     );
 
     proxy_chain.handle_received_messages().await;
-    let certificate = swap_chain.handle_received_messages_ext().await;
+    let certificate = swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
     proxy_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
@@ -178,7 +191,7 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
 
     assert!(certificate.is_some());
 
-    let certificate = certificate.unwrap();
+    let (certificate, _) = certificate.unwrap();
     let block = certificate.inner().block();
     let description = block
         .created_blobs()
@@ -226,10 +239,23 @@ async fn proxy_create_meme_real_initial_liquidity_single_owner_test() {
     let pool_application_id = ApplicationId::new(application_description_hash);
     let pool_application_id = pool_application_id.with_abi::<PoolAbi>();
 
-    let query = format!(
-        "query {{ liquidity(owner:\"{}\") {{ liquidity amount0 amount1 }} }}",
-        meme_user_owner
-    );
+    let query = Request::new(
+        r#"
+        query Liquidity($owner: Account!) {
+            liquidity(owner: $owner) {
+                liquidity
+                amount0
+                amount1
+            }
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": meme_user_owner.chain_id.to_string(),
+            "owner": meme_user_owner.owner.to_string(),
+        }
+    })));
     let QueryOutcome { response, .. } = pool_chain.graphql_query(pool_application_id, query).await;
     let liquidity: LiquidityAmount = serde_json::from_value(response["liquidity"].clone()).unwrap();
 
