@@ -8,6 +8,14 @@ authors = ["ResPeer <contact@respeer.ai>"]
 edition = "2021"
 
 [dependencies]
+alloy = { version = "=1.0.42", default-features = false }
+alloy-primitives = { version = "=1.4.1", default-features = false, features = [
+    "serde",
+    "k256",
+] }
+alloy-rlp = "=0.3.12"
+alloy-sol-types = "=1.4.1"
+alloy-trie = { version = "=0.9.0", default-features = false }
 anyhow = "1.0.80"
 async-graphql = { version = "=7.0.17", default-features = false }
 async-graphql-value = { version = "=7.0.17", default-features = false }
@@ -64,6 +72,8 @@ tikv-jemallocator = { version = "0.6.0", features = [
 ], optional = true }
 prometheus = { version = "0.13.3", optional = true }
 tabled = "0.20.0"
+time = "=0.3.41"
+time-core = "=0.1.4"
 
 [build-dependencies]
 cfg_aliases = "0.2.1"

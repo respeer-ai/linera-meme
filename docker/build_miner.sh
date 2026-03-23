@@ -10,7 +10,7 @@ MINER_DIR=$ROOT_DIR/service/miner
 
 cd $MINER_DIR
 
-cargo build --release
+cargo build --release -j 1 --locked
 
 cd $ROOT_DIR
 
