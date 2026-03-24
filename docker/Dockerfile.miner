@@ -15,7 +15,7 @@ RUN all_proxy=$all_proxy \
     clang \
     make
 
-RUN all_proxy=${all_proxy} cargo build --release --bin miner -j 1
+RUN CARGO_NET_GIT_FETCH_WITH_CLI=true all_proxy=${all_proxy} cargo build --release --bin miner -j 1
 
 FROM linera-respeer
 
