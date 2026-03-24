@@ -97,7 +97,7 @@ INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}' | awk '
 
 if [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" -o $COMPILE -eq 1 ]; then
     cargo build --release --features disable-native-rpc,enable-wallet-rpc,storage-service -j 2
-    echo mv $PWD/target/release/linera $BIN_DIR
+    mv $PWD/target/release/linera $BIN_DIR
 fi
 
 # Build linera docker image. If we have, just use it
@@ -232,6 +232,13 @@ function to_json_list() {
     jq -n '$ARGS.positional' --args "${input[@]}"
 }
 
+to_map() {
+    jq -n '
+        reduce $ARGS.positional[] as $k ({}; .[$k] = 100)
+    ' --args "$@"
+}
+
+
 function open_multi_owner_chain() {
     wallet_name=$1
     shift 1
@@ -239,7 +246,7 @@ function open_multi_owner_chain() {
     owners=("$@")
     chain_id=$(wallet_chain_id $wallet_name creator)
 
-    owners_json=$(to_json_list "${owners[@]}")
+    owners_json=$(to_map "${owners[@]}")
 
     chain_id=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
@@ -352,7 +359,7 @@ function change_multi_owner_chain_single_leader() {
     shift 2
 
     owners=("$@")
-    owners_json=$(to_json_list "${owners[@]}")
+    owners_json=$(to_map "${owners[@]}")
 
     linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
         --keystore $WALLET_DIR/$wallet_name/0/keystore.json \

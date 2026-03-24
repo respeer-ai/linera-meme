@@ -80,10 +80,10 @@ where
             .make_chain_client(chain_id)
             .await?;
 
-        let QueryOutcome {
+        let (QueryOutcome {
             response,
             operations,
-        } = client.query_application(query, None).await?;
+        }, _) = client.query_application(query, None).await?;
 
         let QueryResponse::User(payload) = response else {
             unreachable!("cannot get a system response for a user query");
