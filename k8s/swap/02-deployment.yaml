@@ -127,20 +127,25 @@ spec:
             sleep 10
           done
 
-          OWNERS='['
+          OWNERS='{'
           is_first_owner=1
 
+          shopt -s nullglob
           for f in /shared-app-data/SWAP_WALLET_OWNER.*; do
             OWNER=$(tr -d '\n' < "$f")
+
+            [ -z "$OWNER" ] && continue
+
             if [ "$is_first_owner" -eq 1 ]; then
               is_first_owner=0
             else
               OWNERS="${OWNERS},"
             fi
-            OWNERS="${OWNERS}\"${OWNER}\""
+
+            OWNERS="${OWNERS}\"${OWNER}\":100"
           done
 
-          OWNERS="${OWNERS}]"
+          OWNERS="${OWNERS}}"
 
           if [ -f /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID ]; then
             MULTI_OWNER_CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
@@ -262,20 +267,25 @@ spec:
           POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
           CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
 
-          OWNERS='['
+          OWNERS='{'
           is_first_owner=1
 
+          shopt -s nullglob
           for f in /shared-app-data/SWAP_WALLET_OWNER.*; do
             OWNER=$(tr -d '\n' < "$f")
+
+            [ -z "$OWNER" ] && continue
+
             if [ "$is_first_owner" -eq 1 ]; then
               is_first_owner=0
             else
               OWNERS="${OWNERS},"
             fi
-            OWNERS="${OWNERS}\"${OWNER}\""
+
+            OWNERS="${OWNERS}\"${OWNER}\":100"
           done
 
-          OWNERS="${OWNERS}]"
+          OWNERS="${OWNERS}}"
 
           if [ $POD_INDEX -eq 0 ]; then
             echo "Change multi owners chain to single leader..."
