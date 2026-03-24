@@ -374,7 +374,6 @@ class Db:
 
         query = f'''
             SELECT
-                p.pool_id,
                 p.token_0,
                 p.token_1,
                 MAX(t.price) AS high,
@@ -397,6 +396,77 @@ class Db:
                 AND t.created_at >= {start_at}
                 AND t.created_at <= {end_at}
                 AND t.token_reversed = {token_reversed}
+                AND t.transaction_type IN ('BuyToken0', 'SellToken0')
+            GROUP BY
+                p.token_0,
+                p.token_1
+            ORDER BY
+                volume DESC;
+        '''
+        self.cursor_dict.execute(query)
+        return self.cursor_dict.fetchall()
+
+    def get_pool_stats(self, interval: str):
+        intervals = {
+            "1h": 3600,
+            "1d": 86400,
+            "1w": 86400 * 7,
+            "1m": 86400 * 30,
+            "1y": 86400 * 365,
+            "all": None
+        }
+
+        if interval not in intervals:
+            raise Exception('Unsupported interval')
+
+        now = int(time.time())
+
+        if interval == "all":
+            start_at = 0
+        else:
+            start_at = now - intervals[interval]
+
+        end_at = now
+
+        start_at *= 1000
+        end_at *= 1000
+        token_reversed = False
+
+        query = f'''
+            SELECT
+                p.pool_id,
+                p.token_0,
+                p.token_1,
+                MAX(t.price) AS high,
+                MIN(t.price) AS low,
+                SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
+                COUNT(*) AS tx_count,
+                (
+                    SELECT t2.price
+                    FROM transactions t2
+                    WHERE t2.pool_id = p.pool_id
+                      AND t2.created_at >= {start_at}
+                      AND t2.created_at <= {end_at}
+                      AND t2.transaction_type IN ('BuyToken0', 'SellToken0')
+                    ORDER BY t2.created_at DESC
+                    LIMIT 1
+                ) AS price_now,
+                (
+                    SELECT t3.price
+                    FROM transactions t3
+                    WHERE t3.pool_id = p.pool_id
+                      AND t3.created_at >= {start_at}
+                      AND t3.created_at <= {end_at}
+                      AND t3.transaction_type IN ('BuyToken0', 'SellToken0')
+                    ORDER BY t3.created_at ASC
+                    LIMIT 1
+                ) AS price_start
+            FROM transactions t
+            JOIN pools p
+              ON t.pool_id = p.pool_id
+            WHERE
+                t.created_at >= {start_at}
+                AND t.created_at <= {end_at}
                 AND t.transaction_type IN ('BuyToken0', 'SellToken0')
             GROUP BY
                 p.pool_id,

@@ -105,6 +105,21 @@ async def on_get_ticker(interval: str):
             content={"error": str(e)}
         )
 
+@app.get('/poolstats/interval/{interval}')
+async def on_get_pool_stats(interval: str):
+    try:
+        stats =  _db.get_pool_stats(interval=interval)
+        return {
+            'interval': interval,
+            'stats': stats,
+        }
+    except Exception as e:
+        print(f'Failed get ticker: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
 
 @app.websocket('/ws')
 async def on_subscribe(websocket: WebSocket):
