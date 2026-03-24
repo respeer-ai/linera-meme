@@ -15,7 +15,10 @@ class Wallet:
         self.wallet_index = 0
 
     def account(self):
-        return f'{self.chain}:{self.owner}'
+        return f'''{{
+            chain_id: "{self.chain}",
+            owner: "{self.owner}"
+        }}'''
 
     def _chain(self):
         return self.chain

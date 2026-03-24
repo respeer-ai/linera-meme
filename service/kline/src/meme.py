@@ -11,7 +11,7 @@ class Meme:
     # token: token application id
     async def balance(self, owner, chain_id, token):
         json = {
-            'query': f'query {{\n balanceOf(\n owner: "{owner}") \n}}'
+            'query': f'query {{\n balanceOf(\n owner: {owner}) \n}}'
         }
 
         url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
