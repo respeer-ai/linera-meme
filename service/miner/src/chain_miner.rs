@@ -52,7 +52,7 @@ where
         }
     }
 
-    async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
+    async fn mine(&self, nonce: CryptoHash) -> Result<Option<CryptoHash>, MemeMinerError> {
         self.meme.mine(nonce).await
     }
 
@@ -150,9 +150,13 @@ where
 
                     let submit_time = Instant::now();
                     match self.mine(nonce).await {
-                        Ok(_) => {
+                        Ok(Some(_)) => {
                             self.mined_height = Some(mining_info.mining_height);
                         },
+                        Ok(None) => {
+                            self.new_block_notifier.notify_one();
+                            tracing::warn!("conflict block");
+                        }
                         Err(err) => {
                             self.new_block_notifier.notify_one();
                             tracing::warn!(error=?err, "failed mine");

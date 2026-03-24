@@ -72,7 +72,7 @@ where
         self.wallet.follow_chain(creator_chain_id).await
     }
 
-    pub async fn mine(&self, nonce: CryptoHash) -> Result<(), MemeMinerError> {
+    pub async fn mine(&self, nonce: CryptoHash) -> Result<Option<CryptoHash>, MemeMinerError> {
         let mut request = Request::new(
             r#"
             mutation mine($nonce: CryptoHash!) {
@@ -84,16 +84,14 @@ where
         request = request.variables(Variables::from_json(serde_json::json!({
             "nonce": nonce,
         })));
-        let hash = self
+        Ok(self
             .wallet
             .execute_operation::<MineResponse>(
                 self.chain.token.unwrap(),
                 self.chain.chain_id,
                 request,
             )
-            .await?;
-        tracing::debug!("Hash {:?}", hash);
-        Ok(())
+            .await?)
     }
 
     pub fn account(&self) -> Account {

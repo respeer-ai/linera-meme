@@ -155,7 +155,7 @@ where
         application_id: ApplicationId,
         chain_id: ChainId,
         request: Request,
-    ) -> Result<CryptoHash, MemeMinerError>
+    ) -> Result<Option<CryptoHash>, MemeMinerError>
     where
         T: DeserializeOwned,
     {
@@ -182,8 +182,9 @@ where
                 .execute_operations(operations.clone(), vec![])
                 .await?
             {
-                ClientOutcome::Committed(certificate) => break certificate.hash(),
+                ClientOutcome::Committed(certificate) => break Some(certificate.hash()),
                 ClientOutcome::WaitForTimeout(timeout) => timeout,
+                ClientOutcome::Conflict(_) =>  break None,
             };
             let mut stream = client.subscribe()?;
             util::wait_for_next_round(&mut stream, timeout).await;
