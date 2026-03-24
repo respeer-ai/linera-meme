@@ -33,9 +33,9 @@
               pool-name-font-size='14px'
             />
           </td>
-          <td :props='props' class='text-center'>0.15%</td>
+          <td :props='props' class='text-center'>0.3%</td>
           <td :props='props' class='text-center'>
-            $ 10.23B
+            TLINERA {{ swap.Swap.tvl(props.row.token0) }}
           </td>
           <td :props='props' class='text-center'>
             2.34%

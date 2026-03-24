@@ -97,4 +97,12 @@ export class Swap {
 
     return (Number(pool.reserve1) / Number(pool.reserve0)).toFixed(8)
   }
+
+  static tvl = (token: string) => {
+    const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
+    if (!pool) return '0'
+
+    const price = Number(Swap.tokenPrice(token))
+    return (Number(pool.reserve1) + Number(pool.reserve0) * price).toFixed(8)
+  }
 }
