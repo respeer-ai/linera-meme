@@ -3,7 +3,7 @@
     <!-- TODO: use fee ratio from pool -->
     <token-info-line-view label='Fee (0.3%)' :logo='sellTokenLogo' :value='fee + " ($ 0)"' value-color='light' :value-bold='false' :underline='false' />
     <div class='q-mt-sm'>
-      <token-info-line-view label='Network Fee' :logo='constants.LINERA_LOGO' value='0.0001234 ($ 0)' value-color='light' :value-bold='false' :underline='false' />
+      <token-info-line-view label='Network Fee' :logo='constants.LINERA_LOGO' :value='networkFeeAmount + " ($ 0)"' value-color='light' :value-bold='false' :underline='false' />
     </div>
     <div v-if='expanded' class='q-mt-sm'>
       <token-info-line-view label='Price' :value='`1 ${sellTokenTicker} = ${sellPrice} ${buyTokenTicker}`' value-color='light' :value-bold='false' :underline='false' />
@@ -37,6 +37,7 @@ interface Props {
   slippage: number
   priceImpact: string
   expanded: boolean
+  networkFeeAmount: string
 }
 const props = defineProps<Props>()
 const sellToken = toRef(props, 'sellToken')
@@ -46,6 +47,7 @@ const sellPrice = toRef(props, 'sellPrice')
 const expanded = toRef(props, 'expanded')
 const slippage = toRef(props, 'slippage')
 const priceImpact = toRef(props, 'priceImpact')
+const networkFeeAmount = toRef(props, 'networkFeeAmount')
 
 const priceImpactPercent = computed(() => (Number(priceImpact.value) * 100).toFixed(4))
 const fee = computed(() => Number(sellAmount.value) * 0.003)

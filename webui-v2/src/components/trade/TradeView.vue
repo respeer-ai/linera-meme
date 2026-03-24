@@ -51,6 +51,7 @@
               :slippage='slippage'
               :price-impact='priceImpact'
               :expanded='true'
+              :network-fee-amount='swapGasAmount'
             />
           </div>
         </div>
@@ -67,6 +68,7 @@
         :sell-price='sellPrice'
         :slippage='slippage'
         :price-impact='priceImpact'
+        :network-fee-amount='swapGasAmount'
         @done='onSwapDone'
         @error='onSwapError'
         @cancel='onSwapCanceled'
@@ -266,11 +268,11 @@ onMounted(async () => {
   sellToken.value = undefined as unknown as Token
 
   await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
-    swapGasAmount.value = gasAmount
+    swapGasAmount.value = gasAmount || '0'
   })
   gasTicker.value = window.setInterval(async () => {
     await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
-      swapGasAmount.value = gasAmount
+      swapGasAmount.value = gasAmount || '0'
     })
   }, 30000)
 })

@@ -49,6 +49,7 @@
         :slippage='slippage'
         :price-impact='priceImpact'
         :expanded='expanded'
+        :network-fee-amount='networkFeeAmount'
       />
     </div>
 
@@ -80,6 +81,7 @@ interface Props {
   sellPrice: string
   slippage: number
   priceImpact: string
+  networkFeeAmount: string
 }
 const props = defineProps<Props>()
 const sellToken = toRef(props, 'sellToken')
@@ -90,6 +92,7 @@ const sellPrice = toRef(props, 'buyAmount')
 const slippage = toRef(props, 'slippage')
 const priceImpact = toRef(props, 'priceImpact')
 const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
+const networkFeeAmount = toRef(props, 'networkFeeAmount')
 
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
 const buyTokenTicker = computed(() => buyToken.value?.meme?.ticker || constants.LINERA_TICKER)
