@@ -141,7 +141,8 @@ rev = "e53042bf"
 optional = true
 
 [dependencies.abi]
-path = "../../abi"
+git = "https://github.com/respeer-ai/linera-meme.git"
+rev = "a9d2d757"
 
 [profile.release]
 lto = "thin"

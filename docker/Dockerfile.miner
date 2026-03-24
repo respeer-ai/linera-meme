@@ -1,3 +1,22 @@
+FROM rust:1.86-slim-bookworm AS builder
+
+ARG all_proxy
+
+WORKDIR /app
+COPY miner .
+
+RUN all_proxy=$all_proxy \
+    apt-get update && \
+    all_proxy=$all_proxy \
+    apt-get install -y \
+    git \
+    pkg-config \
+    protobuf-compiler \
+    clang \
+    make
+
+RUN all_proxy=${all_proxy} cargo build --release --bin miner -j 1
+
 FROM linera-respeer
 
 ARG proxy_application_id
@@ -5,8 +24,8 @@ ARG all_proxy
 
 ENV PROXY_APPLICATION_ID=${proxy_application_id}
 
-COPY service/miner/target/release/miner /usr/bin/miner
+COPY --from=builder /app/target/release/miner /usr/bin/miner
 
 COPY --chmod=755 \
-  docker/miner-entrypoint.sh \
+  miner-entrypoint.sh \
   ./
