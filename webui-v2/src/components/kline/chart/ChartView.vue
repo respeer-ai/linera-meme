@@ -220,8 +220,8 @@ const initChart = () => {
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
-      barSpacing: 8,
-      minBarSpacing: 4,
+      barSpacing: 6,
+      minBarSpacing: 3,
       rightOffset: 12
     },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
@@ -282,6 +282,12 @@ const createMainSeries = () => {
   // 根据图表类型创建新系列
   if (props.chartType === ChartType.CANDLESTICK) {
     mainSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
       priceFormat: {
         type: 'price',
         precision: 10,
