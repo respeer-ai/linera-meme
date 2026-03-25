@@ -23,7 +23,15 @@ export class Kline {
     return await kline.getTickers(interval)
   }
 
+  static getPoolStats = async (interval: TickerInterval) => {
+    return await kline.getPoolStats(interval)
+  }
+
   static tokenStat = (tokenId: string, interval: TickerInterval) => {
     return kline.tokenStat(tokenId, interval)
+  }
+
+  static poolStat = (poolId: number, interval: TickerInterval) => {
+    return kline.poolStat(poolId, interval)
   }
 }

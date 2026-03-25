@@ -35,13 +35,13 @@
           </td>
           <td :props='props' class='text-center'>0.3%</td>
           <td :props='props' class='text-center'>
-            TLINERA {{ swap.Swap.tvl(props.row.token0) }}
+            {{ swap.Swap.tvl(props.row.token0) }} TLINERA
           </td>
           <td :props='props' class='text-center'>
             2.34%
           </td>
-          <td :props='props' class='text-center'>$10.23B</td>
-          <td :props='props' class='text-center'>$1.23B</td>
+          <td :props='props' class='text-center'>{{ poolOneDayVolume(props.row.poolId) }} TLINERA</td>
+          <td :props='props' class='text-center'>{{ poolOneMonthVolume(props.row.poolId) }} TLINERA</td>
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
             <div class='narrow-btn'>
@@ -69,8 +69,8 @@
 </template>
 
 <script setup lang='ts'>
-import { ams, meme, swap } from 'src/stores/export'
-import { computed, ref } from 'vue'
+import { ams, meme, swap, kline } from 'src/stores/export'
+import { computed, onMounted, ref } from 'vue'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 
 import PoolLogoView from '../pools/PoolLogoView.vue'
@@ -146,6 +146,19 @@ const pagination = ref({
   rowsPerPage: 10
 })
 const totalPages = computed(() => Math.ceil(tokens.value.length / pagination.value.rowsPerPage))
+
+const poolOneDayVolume = (poolId: number) => {
+  return Number(kline.Kline.poolStat(poolId, kline.TickerInterval.OneDay)?.volume)?.toFixed(4) || 0
+}
+
+const poolOneMonthVolume = (poolId: number) => {
+  return Number(kline.Kline.poolStat(poolId, kline.TickerInterval.OneMonth)?.volume)?.toFixed(4) || 0
+}
+
+onMounted(async () => {
+  await kline.Kline.getPoolStats(kline.TickerInterval.OneDay)
+  await kline.Kline.getPoolStats(kline.TickerInterval.OneMonth)
+})
 
 </script>
 

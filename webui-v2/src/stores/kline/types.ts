@@ -39,7 +39,6 @@ export interface TransactionsInformation {
 }
 
 export interface TickerStat {
-  pool_id: number
   token_0: string
   token_1: string
   high: string
@@ -53,4 +52,21 @@ export interface TickerStat {
 export interface Tickers {
   interval: TickerInterval
   stats: TickerStat[]
+}
+
+export interface PoolStat {
+  pool_id: number
+  token_0: string
+  token_1: string
+  high: string
+  low: string
+  volume: string
+  tx_count: number
+  price_now: string
+  price_start: string
+}
+
+export interface PoolStats {
+  interval: TickerInterval
+  stats: PoolStat[]
 }

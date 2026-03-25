@@ -7,6 +7,8 @@ import {
   type TransactionsInformation,
   type Tickers,
   type TickerStat,
+  type PoolStats,
+  type PoolStat,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
@@ -22,6 +24,7 @@ export const useKlineStore = defineStore('kline', {
     latestPoints: new Map<Interval, Points[]>(),
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
+    poolStats: new Map<TickerInterval, Map<number, TickerStat>>()
   }),
   actions: {
     initializeKline() {
@@ -115,6 +118,21 @@ export const useKlineStore = defineStore('kline', {
         console.log('Failed get tickers', e)
       }
     },
+    async getPoolStats(interval: TickerInterval) {
+      const url = constants.formalizeSchema(
+        `${constants.KLINE_HTTP_URL}/poolstats/interval/${interval}`,
+      )
+      try {
+        const res = await axios.get(url)
+        this.poolStats.set(
+          interval,
+          new Map<number, PoolStat>((res.data as PoolStats).stats.map((s) => [s.pool_id, s])),
+        )
+        return res.data as PoolStats
+      } catch (e) {
+        console.log('Failed get tickers', e)
+      }
+    },
   },
   getters: {
     latestTimestamp(): (key: Interval, token0: string, token1: string) => number {
@@ -149,6 +167,12 @@ export const useKlineStore = defineStore('kline', {
     tokenStat(): (token: string, interval: TickerInterval) => TickerStat | undefined {
       return (token: string, interval: TickerInterval) => {
         return this.tickers.get(interval)?.get(token)
+      }
+    },
+    poolStat(): (poolId: number, interval: TickerInterval) => TickerStat | undefined {
+      return (poolId: number, interval: TickerInterval) => {
+        console.log(poolId, interval, this.poolStats)
+        return this.poolStats.get(interval)?.get(poolId)
       }
     },
   },
