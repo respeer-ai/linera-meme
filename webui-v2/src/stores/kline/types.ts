@@ -69,3 +69,13 @@ export interface PoolStats {
   interval: TickerInterval
   stats: PoolStat[]
 }
+
+export interface ProtocolStat {
+  tvl: string
+  tvl_change: number
+  volume: string
+  volume_change: number
+  fees: number
+  tx_count: number
+  pool_count: number
+}

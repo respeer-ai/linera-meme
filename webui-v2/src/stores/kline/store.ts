@@ -9,6 +9,7 @@ import {
   type TickerStat,
   type PoolStats,
   type PoolStat,
+  type ProtocolStat,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
@@ -24,7 +25,8 @@ export const useKlineStore = defineStore('kline', {
     latestPoints: new Map<Interval, Points[]>(),
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
-    poolStats: new Map<TickerInterval, Map<number, PoolStat>>()
+    poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
+    protocolStat: {} as ProtocolStat
   }),
   actions: {
     initializeKline() {
@@ -131,6 +133,18 @@ export const useKlineStore = defineStore('kline', {
         return res.data as PoolStats
       } catch (e) {
         console.log('Failed get tickers', e)
+      }
+    },
+    async getProtocolStat() {
+      const url = constants.formalizeSchema(
+        `${constants.KLINE_HTTP_URL}/protocol/stats`,
+      )
+      try {
+        const res = await axios.get(url)
+        this.protocolStat = res.data as ProtocolStat
+        return res.data as ProtocolStat
+      } catch (e) {
+        console.log('Failed get protocol stats', e)
       }
     },
   },
