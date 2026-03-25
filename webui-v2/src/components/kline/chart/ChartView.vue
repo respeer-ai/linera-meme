@@ -580,6 +580,9 @@ const updateChartData = () => {
     const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
     ema25Series.setData(ema25Data)
   }
+
+  // 自动调整时间轴以适应数据
+  chart.timeScale().fitContent()
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
