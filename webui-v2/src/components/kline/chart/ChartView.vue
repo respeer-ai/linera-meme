@@ -185,6 +185,9 @@ let ma10MinSeries: ISeriesApi<'Line'> | null = null
 let ma30MinSeries: ISeriesApi<'Line'> | null = null
 let ema7Series: ISeriesApi<'Line'> | null = null
 let ema25Series: ISeriesApi<'Line'> | null = null
+let bollUpperSeries: ISeriesApi<'Line'> | null = null
+let bollMiddleSeries: ISeriesApi<'Line'> | null = null
+let bollLowerSeries: ISeriesApi<'Line'> | null = null
 
 const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLength: number) => {
   const maData = [] as LineData[]
@@ -353,12 +356,18 @@ const createIndicatorSeries = () => {
   if (ma30MinSeries) chart.removeSeries(ma30MinSeries)
   if (ema7Series) chart.removeSeries(ema7Series)
   if (ema25Series) chart.removeSeries(ema25Series)
+  if (bollUpperSeries) chart.removeSeries(bollUpperSeries)
+  if (bollMiddleSeries) chart.removeSeries(bollMiddleSeries)
+  if (bollLowerSeries) chart.removeSeries(bollLowerSeries)
 
   ma5MinSeries = null
   ma10MinSeries = null
   ma30MinSeries = null
   ema7Series = null
   ema25Series = null
+  bollUpperSeries = null
+  bollMiddleSeries = null
+  bollLowerSeries = null
 
   // 创建 MA 指标
   if (props.indicatorConfig.ma.enabled.ma5) {
@@ -438,6 +447,51 @@ const createIndicatorSeries = () => {
       }
     })
     ema25Series.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+  }
+
+  // 创建布林带指标
+  if (props.indicatorConfig.boll) {
+    bollUpperSeries = chart.addSeries(LineSeries, {
+      color: '#9932CC',
+      lineWidth: 1,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    bollUpperSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+
+    bollMiddleSeries = chart.addSeries(LineSeries, {
+      color: '#9932CC',
+      lineWidth: 1,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    bollMiddleSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+
+    bollLowerSeries = chart.addSeries(LineSeries, {
+      color: '#9932CC',
+      lineWidth: 1,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    bollLowerSeries.priceScale().applyOptions({
       scaleMargins: { top: 0, bottom: 0.3 }
     })
   }
@@ -592,6 +646,13 @@ const updateChartData = () => {
     const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
     ema25Series.setData(ema25Data)
   }
+
+  if (bollUpperSeries && bollMiddleSeries && bollLowerSeries && props.indicatorConfig.boll) {
+    const bollData = calculateBollingerBands(candleData, 20, 2)
+    bollUpperSeries.setData(bollData.upper)
+    bollMiddleSeries.setData(bollData.middle)
+    bollLowerSeries.setData(bollData.lower)
+  }
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
@@ -618,6 +679,39 @@ const calculateEMASeriesData = (candleData: CandlestickData[], period: number) =
   }
 
   return emaData
+}
+
+const calculateBollingerBands = (candleData: CandlestickData[], period: number = 20, stdDev: number = 2) => {
+  const upper: LineData[] = []
+  const middle: LineData[] = []
+  const lower: LineData[] = []
+
+  for (let i = 0; i < candleData.length; i++) {
+    if (i < period - 1) {
+      upper.push({ time: candleData[i]?.time } as LineData)
+      middle.push({ time: candleData[i]?.time } as LineData)
+      lower.push({ time: candleData[i]?.time } as LineData)
+    } else {
+      let sum = 0
+      for (let j = 0; j < period; j++) {
+        sum += candleData[i - j]?.close || 0
+      }
+      const sma = sum / period
+
+      let variance = 0
+      for (let j = 0; j < period; j++) {
+        const diff = (candleData[i - j]?.close || 0) - sma
+        variance += diff * diff
+      }
+      const std = Math.sqrt(variance / period)
+
+      middle.push({ time: candleData[i]!.time as Time, value: sma })
+      upper.push({ time: candleData[i]!.time as Time, value: sma + stdDev * std })
+      lower.push({ time: candleData[i]!.time as Time, value: sma - stdDev * std })
+    }
+  }
+
+  return { upper, middle, lower }
 }
 
 watch(() => props.data, updateChartData, { deep: true })
