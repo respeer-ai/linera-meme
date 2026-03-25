@@ -179,6 +179,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 
 const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
+    console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
     klinePoints.value = []
 
     loadKline(0, 100, undefined, undefined, true)
@@ -201,6 +202,8 @@ watch(selectedPool, (newPool, oldPool) => {
 })
 
 watch(selectedInterval, () => {
+  console.log('[PriceChartView] selectedInterval changed to:', selectedInterval.value)
+  loading.value = false
   getStoreKline()
 })
 
@@ -257,10 +260,18 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1, reverse, timestampBegin, timestampEnd } = payload
+  const { token0, token1, reverse, timestampBegin, timestampEnd, interval } = payload
+
+  console.log('[PriceChartView] onLoadedPoints, interval:', interval, 'selectedInterval:', selectedInterval.value, 'points count:', _points.length)
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) {
     loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
+    return
+  }
+
+  // 检查 interval 是否匹配
+  if (interval !== selectedInterval.value) {
+    console.log('[PriceChartView] Interval mismatch, ignoring old data')
     return
   }
 

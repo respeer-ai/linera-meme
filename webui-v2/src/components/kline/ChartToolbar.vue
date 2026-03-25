@@ -91,6 +91,7 @@ const chartSettingsRef = ref<InstanceType<typeof ChartSettings> | null>(null)
 
 // 监听内部状态变化，同步到外部
 watch([selectedInterval, chartType, indicatorConfig], () => {
+  console.log('[ChartToolbar] State changed, interval:', selectedInterval.value)
   emit('update:modelValue', {
     interval: selectedInterval.value,
     chartType: chartType.value,
