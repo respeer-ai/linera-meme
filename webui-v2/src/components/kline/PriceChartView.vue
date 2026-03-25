@@ -74,7 +74,7 @@ const getWindowSize = (interval: kline.Interval): number => {
   }
 }
 
-// 根据时间周期获取最大数据点数
+// 根据时间周期获取最大数据点数（用于内存管理，不影响 IndexedDB 存储）
 const getMaxPoints = (interval: kline.Interval): number => {
   switch (interval) {
     case kline.Interval.ONE_MINUTE:
@@ -233,7 +233,7 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
       } as kline.Point
     }),
     newPoints: _points,
-    keepCount: getMaxPoints(selectedInterval.value),
+    keepCount: -1, // -1 表示不限制，保留所有数据
     reverse,
     reason
   })
@@ -318,12 +318,21 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     return onFetchSorted(reverse, timestamp)
   }
 
+  // 更新数据点
   klinePoints.value = points.map((el) => {
     return {
       ...el,
       time: Math.floor(el.timestamp / 1000)
     }
   })
+
+  // 内存管理：如果数据点过多，只保留最近的数据在内存中
+  const maxMemoryPoints = getMaxPoints(selectedInterval.value)
+  if (klinePoints.value.length > maxMemoryPoints * 1.5) {
+    // 超过限制的 1.5 倍时，裁剪到限制数量
+    console.log('[PriceChartView] Trimming memory, points:', klinePoints.value.length, 'max:', maxMemoryPoints)
+    klinePoints.value = klinePoints.value.slice(-maxMemoryPoints)
+  }
 
   loading.value = false
 }
