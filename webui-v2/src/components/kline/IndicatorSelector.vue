@@ -128,8 +128,12 @@ export interface IndicatorConfig {
   volume: boolean
 }
 
+const props = defineProps<{
+  modelValue?: IndicatorConfig
+}>()
+
 const emit = defineEmits<{
-  (e: 'update:config', config: IndicatorConfig): void
+  (e: 'update:modelValue', config: IndicatorConfig): void
 }>()
 
 const maIndicators = [
@@ -144,18 +148,28 @@ const emaIndicators = [
 ]
 
 const maEnabled = ref({
-  ma5: true,
-  ma10: true,
-  ma30: true
+  ma5: props.modelValue?.ma.enabled.ma5 ?? true,
+  ma10: props.modelValue?.ma.enabled.ma10 ?? true,
+  ma30: props.modelValue?.ma.enabled.ma30 ?? true
 })
 
 const emaEnabled = ref({
-  ema7: false,
-  ema25: false
+  ema7: props.modelValue?.ema.enabled.ema7 ?? false,
+  ema25: props.modelValue?.ema.enabled.ema25 ?? false
 })
 
-const bollEnabled = ref(false)
-const volumeEnabled = ref(true)
+const bollEnabled = ref(props.modelValue?.boll ?? false)
+const volumeEnabled = ref(props.modelValue?.volume ?? true)
+
+// 监听外部变化
+watch(() => props.modelValue, (newVal) => {
+  if (newVal) {
+    maEnabled.value = { ...newVal.ma.enabled }
+    emaEnabled.value = { ...newVal.ema.enabled }
+    bollEnabled.value = newVal.boll
+    volumeEnabled.value = newVal.volume
+  }
+}, { deep: true })
 
 const isMAEnabled = (key: keyof typeof maEnabled.value) => maEnabled.value[key]
 const isEMAEnabled = (key: keyof typeof emaEnabled.value) => emaEnabled.value[key]
@@ -181,14 +195,11 @@ const toggleVolume = () => {
 }
 
 const emitUpdate = () => {
-  emit('update:config', {
+  emit('update:modelValue', {
     ma: { enabled: { ...maEnabled.value } },
     ema: { enabled: { ...emaEnabled.value } },
     boll: bollEnabled.value,
     volume: volumeEnabled.value
   })
 }
-
-// 监听变化并立即发出更新
-watch([maEnabled, emaEnabled, bollEnabled, volumeEnabled], emitUpdate, { deep: true })
 </script>
