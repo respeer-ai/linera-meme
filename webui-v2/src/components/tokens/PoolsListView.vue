@@ -38,7 +38,7 @@
             {{ swap.Swap.tvl(props.row.token0) }} TLINERA
           </td>
           <td :props='props' class='text-center'>
-            2.34%
+            {{ apr(props.row.poolId, props.row.token0) }}%
           </td>
           <td :props='props' class='text-center'>{{ poolOneDayVolume(props.row.poolId) }} TLINERA</td>
           <td :props='props' class='text-center'>{{ poolOneMonthVolume(props.row.poolId) }} TLINERA</td>
@@ -153,6 +153,14 @@ const poolOneDayVolume = (poolId: number) => {
 
 const poolOneMonthVolume = (poolId: number) => {
   return Number(kline.Kline.poolStat(poolId, kline.TickerInterval.OneMonth)?.volume)?.toFixed(4) || 0
+}
+
+const apr = (poolId: number, token0: string) => {
+  // TODO: should get pool pair only
+  const tvl = swap.Swap.tvl(token0)
+  const oneDayVolume = poolOneDayVolume(poolId)
+
+  return ((Number(oneDayVolume) * 0.003 / Number(tvl)) * 365).toFixed(4)
 }
 
 onMounted(async () => {

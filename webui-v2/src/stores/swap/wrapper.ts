@@ -99,6 +99,7 @@ export class Swap {
   }
 
   static tvl = (token: string) => {
+    // TODO: not only native pair
     const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
     if (!pool) return '0'
 
