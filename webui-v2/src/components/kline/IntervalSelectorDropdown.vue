@@ -35,9 +35,10 @@ import { Interval } from 'src/stores/kline/const'
 const intervals = [
   { label: '1分钟', value: Interval.ONE_MINUTE },
   { label: '5分钟', value: Interval.FIVE_MINUTE },
-  { label: '15分钟', value: Interval.TEN_MINUTE },
+  { label: '10分钟', value: Interval.TEN_MINUTE },
+  { label: '15分钟', value: Interval.FIFTEEN_MINUTE },
   { label: '1小时', value: Interval.ONE_HOUR },
-  { label: '4小时', value: '4h' as unknown as Interval },
+  { label: '4小时', value: Interval.FOUR_HOUR },
   { label: '1天', value: Interval.ONE_DAY }
 ]
 

@@ -59,8 +59,12 @@ const getWindowSize = (interval: kline.Interval): number => {
       return 5 * 3600 * 1000 // 5小时
     case kline.Interval.TEN_MINUTE:
       return 10 * 3600 * 1000 // 10小时
+    case kline.Interval.FIFTEEN_MINUTE:
+      return 15 * 3600 * 1000 // 15小时
     case kline.Interval.ONE_HOUR:
       return 24 * 3600 * 1000 // 1天
+    case kline.Interval.FOUR_HOUR:
+      return 4 * 24 * 3600 * 1000 // 4天
     case kline.Interval.ONE_DAY:
       return 30 * 24 * 3600 * 1000 // 30天
     case kline.Interval.ONE_MONTH:
@@ -79,8 +83,12 @@ const getMaxPoints = (interval: kline.Interval): number => {
       return 720 // 60小时
     case kline.Interval.TEN_MINUTE:
       return 720 // 120小时
+    case kline.Interval.FIFTEEN_MINUTE:
+      return 720 // 180小时
     case kline.Interval.ONE_HOUR:
       return 720 // 30天
+    case kline.Interval.FOUR_HOUR:
+      return 720 // 120天
     case kline.Interval.ONE_DAY:
       return 365 // 1年
     case kline.Interval.ONE_MONTH:
@@ -197,9 +205,7 @@ watch(selectedInterval, () => {
 })
 
 watch(() => toolbarConfig.value.interval, (newInterval) => {
-  if (newInterval !== selectedInterval.value) {
-    getStoreKline()
-  }
+  selectedInterval.value = newInterval
 })
 
 enum SortReason {
