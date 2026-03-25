@@ -373,35 +373,88 @@ class Db:
         token_reversed = False
 
         query = f'''
+            WITH expanded AS (
+                SELECT
+                    p.token_0 AS token,
+                    t.created_at,
+                    COALESCE(t.amount_0_in, 0) + COALESCE(t.amount_0_out, 0) AS volume,
+                    t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    t.created_at >= {start_at}
+                    AND t.created_at <= {end_at}
+                    AND t.token_reversed = {token_reversed}
+                    AND t.transaction_type IN ('BuyToken0', 'SellToken0')
+                UNION ALL
+                SELECT
+                    p.token_1 AS token,
+                    t.created_at,
+                    COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0) AS volume,
+                    1 / t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    t.created_at >= {start_at}
+                    AND t.created_at <= {end_at}
+                    AND t.transaction_type IN ('BuyToken0', 'SellToken0')
+            ),
+            token_native_price AS (
+                SELECT
+                    token,
+                    SUBSTRING_INDEX(
+                        GROUP_CONCAT(price ORDER BY created_at DESC),
+                        ',', 1
+                    ) AS price_native
+                FROM (
+                    -- token / TLINERA
+                    SELECT
+                        p.token_0 AS token,
+                        t.created_at,
+                        t.price AS price
+                    FROM transactions t
+                    JOIN pools p ON t.pool_id = p.pool_id
+                    WHERE p.token_1 = 'TLINERA'
+                    UNION ALL
+                    SELECT
+                        p.token_1 AS token,
+                        t.created_at,
+                        1 / t.price AS price
+                    FROM transactions t
+                    JOIN pools p ON t.pool_id = p.pool_id
+                    WHERE p.token_0 = 'TLINERA'
+                ) x
+                GROUP BY token
+            ),
+            final AS (
+                SELECT
+                    e.token,
+                    e.created_at,
+                    e.price,
+                    e.volume,
+                    np.price_native,
+                    e.volume * np.price_native AS volume_native
+                FROM expanded e
+                LEFT JOIN token_native_price np
+                    ON e.token = np.token
+            )
             SELECT
-                p.token_0,
-                p.token_1,
-                MAX(t.price) AS high,
-                MIN(t.price) AS low,
-                SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
+                token,
+                MAX(price) AS high,
+                MIN(price) AS low,
+                SUM(volume_native) AS volume,
                 COUNT(*) AS tx_count,
                 SUBSTRING_INDEX(
-                    GROUP_CONCAT(t.price ORDER BY t.created_at DESC),
+                    GROUP_CONCAT(price ORDER BY created_at DESC),
                     ',', 1
                 ) AS price_now,
                 SUBSTRING_INDEX(
-                    GROUP_CONCAT(t.price ORDER BY t.created_at ASC),
+                    GROUP_CONCAT(price ORDER BY created_at ASC),
                     ',', 1
                 ) AS price_start
-            FROM transactions t
-            JOIN pools p
-              ON t.pool_id = p.pool_id
-            WHERE
-                p.token_1 = 'TLINERA'
-                AND t.created_at >= {start_at}
-                AND t.created_at <= {end_at}
-                AND t.token_reversed = {token_reversed}
-                AND t.transaction_type IN ('BuyToken0', 'SellToken0')
-            GROUP BY
-                p.token_0,
-                p.token_1
-            ORDER BY
-                volume DESC;
+            FROM final
+            GROUP BY token
+            ORDER BY volume DESC;
         '''
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
@@ -467,6 +520,7 @@ class Db:
             WHERE
                 t.created_at >= {start_at}
                 AND t.created_at <= {end_at}
+                AND t.token_reversed = {token_reversed}
                 AND t.transaction_type IN ('BuyToken0', 'SellToken0')
             GROUP BY
                 p.pool_id,
