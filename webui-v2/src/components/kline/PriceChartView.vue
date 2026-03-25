@@ -38,7 +38,7 @@ const chartHeight = computed(() => {
 })
 
 const toolbarConfig = ref({
-  interval: kline.Interval.ONE_MINUTE,
+  interval: kline.Interval.FIVE_MINUTE,
   chartType: ChartType.CANDLESTICK,
   indicatorConfig: {
     ma: { enabled: { ma5: true, ma10: true, ma30: true } },

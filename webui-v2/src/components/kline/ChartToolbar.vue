@@ -77,7 +77,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: typeof props.modelValue): void
 }>()
 
-const selectedInterval = ref<Interval>(props.modelValue?.interval || Interval.ONE_MINUTE)
+const selectedInterval = ref<Interval>(props.modelValue?.interval || Interval.FIVE_MINUTE)
 const chartType = ref<ChartType>(props.modelValue?.chartType || ChartType.CANDLESTICK)
 const indicatorConfig = ref<IndicatorConfig>(props.modelValue?.indicatorConfig || {
   ma: { enabled: { ma5: true, ma10: true, ma30: true } },
