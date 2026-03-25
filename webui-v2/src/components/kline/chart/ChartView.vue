@@ -1,18 +1,71 @@
 <template>
-  <div ref='chartContainer' class='kline-chart' :style='{ height: height, paddingTop: "8px" }' />
-  <div :style='{ marginTop: "-" + height, zIndex: 10, position: "relative" }'>
-    <div class='row text-neutral font-size-12' style='padding: 8px 0 0 8px'>
-      {{ hoveringTime }}
-      OPEN <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.open?.toFixed(10) || 0 }}</span>
-      HIGH <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.high?.toFixed(10) || 0 }}</span>
-      LOW <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.low?.toFixed(10) || 0 }}</span>
-      CLOSE <span :style='{ color: digitsColor }' class='digits'>{{ hoveringCandleStick.close?.toFixed(10) || 0 }}</span>
-      VOL <span :style='{ color: digitsColor }' class='digits'>{{ hoveringVolume.value?.toFixed(4) || 0 }}</span>
-    </div>
-    <div class='row text-grey-7 font-size-12' style='padding: 0 0 0 8px'>
-      MA5 <span style='color: #FFA500' class='digits'>{{ hoveringMA5Min.value?.toFixed(10) || 0 }}</span>
-      MA10 <span style='color: #00BFFF' class='digits'>{{ hoveringMA10Min.value?.toFixed(10) || 0 }}</span>
-      MA30 <span style='color: #32CD32' class='digits'>{{ hoveringMA30Min.value?.toFixed(10) || 0 }}</span>
+  <div class='chart-wrapper' :style='{ height: height, position: "relative" }'>
+    <div ref='chartContainer' class='kline-chart' />
+    <div class='price-info-overlay'>
+      <div class='price-info-panel'>
+        <!-- 时间和OHLC -->
+        <div class='info-line primary'>
+          <span class='time'>{{ hoveringTime }}</span>
+          <span class='ohlc-group'>
+            <span class='ohlc-item'>
+              <span class='ohlc-label'>O</span>
+              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.open) }}</span>
+            </span>
+            <span class='ohlc-item'>
+              <span class='ohlc-label'>H</span>
+              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.high) }}</span>
+            </span>
+            <span class='ohlc-item'>
+              <span class='ohlc-label'>L</span>
+              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.low) }}</span>
+            </span>
+            <span class='ohlc-item'>
+              <span class='ohlc-label'>C</span>
+              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.close) }}</span>
+            </span>
+          </span>
+          <span class='change-badge' :class='priceChangeClass' v-if='priceChangePercent !== null'>
+            {{ priceChangePercent >= 0 ? '+' : '' }}{{ priceChangePercent.toFixed(2) }}%
+          </span>
+          <span class='volume-item'>
+            <span class='volume-label'>Vol</span>
+            <span class='volume-value'>{{ formatVolume(hoveringVolume.value) }}</span>
+          </span>
+        </div>
+        <!-- 指标信息 -->
+        <div class='info-line indicators' v-if='hasVisibleIndicators'>
+          <template v-if='props.indicatorConfig.ma.enabled.ma5'>
+            <span class='indicator-item'>
+              <span class='indicator-name' style='color: #FFA500'>MA5</span>
+              <span class='indicator-val' style='color: #FFA500'>{{ formatPrice(hoveringMA5Min.value) }}</span>
+            </span>
+          </template>
+          <template v-if='props.indicatorConfig.ma.enabled.ma10'>
+            <span class='indicator-item'>
+              <span class='indicator-name' style='color: #00BFFF'>MA10</span>
+              <span class='indicator-val' style='color: #00BFFF'>{{ formatPrice(hoveringMA10Min.value) }}</span>
+            </span>
+          </template>
+          <template v-if='props.indicatorConfig.ma.enabled.ma30'>
+            <span class='indicator-item'>
+              <span class='indicator-name' style='color: #32CD32'>MA30</span>
+              <span class='indicator-val' style='color: #32CD32'>{{ formatPrice(hoveringMA30Min.value) }}</span>
+            </span>
+          </template>
+          <template v-if='props.indicatorConfig.ema.enabled.ema7'>
+            <span class='indicator-item'>
+              <span class='indicator-name' style='color: #FF69B4'>EMA7</span>
+              <span class='indicator-val' style='color: #FF69B4'>{{ formatPrice(hoveringEMA7.value) }}</span>
+            </span>
+          </template>
+          <template v-if='props.indicatorConfig.ema.enabled.ema25'>
+            <span class='indicator-item'>
+              <span class='indicator-name' style='color: #9370DB'>EMA25</span>
+              <span class='indicator-val' style='color: #9370DB'>{{ formatPrice(hoveringEMA25.value) }}</span>
+            </span>
+          </template>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -79,10 +132,44 @@ const hoveringTime = ref((() => {
 })())
 const hoveringCandleStick = ref({} as CandlestickData)
 const hoveringVolume = ref({} as HistogramData)
-const digitsColor = computed(() => hoveringCandleStick.value.open > hoveringCandleStick.value.close ? 'red' : hoveringCandleStick.value.open === hoveringCandleStick.value.close ? 'gray' : 'green')
 const hoveringMA5Min = ref({} as LineData)
 const hoveringMA10Min = ref({} as LineData)
 const hoveringMA30Min = ref({} as LineData)
+const hoveringEMA7 = ref({} as LineData)
+const hoveringEMA25 = ref({} as LineData)
+
+const priceChangeClass = computed(() => {
+  if (!hoveringCandleStick.value.open || !hoveringCandleStick.value.close) return 'neutral'
+  return hoveringCandleStick.value.close > hoveringCandleStick.value.open ? 'up' :
+         hoveringCandleStick.value.close < hoveringCandleStick.value.open ? 'down' : 'neutral'
+})
+
+const priceChangePercent = computed(() => {
+  if (!hoveringCandleStick.value.open || !hoveringCandleStick.value.close) return null
+  const change = ((hoveringCandleStick.value.close - hoveringCandleStick.value.open) / hoveringCandleStick.value.open) * 100
+  return change
+})
+
+const hasVisibleIndicators = computed(() => {
+  return props.indicatorConfig.ma.enabled.ma5 ||
+         props.indicatorConfig.ma.enabled.ma10 ||
+         props.indicatorConfig.ma.enabled.ma30 ||
+         props.indicatorConfig.ema.enabled.ema7 ||
+         props.indicatorConfig.ema.enabled.ema25
+})
+
+const formatPrice = (price: number | undefined) => {
+  if (!price) return '--'
+  return price.toFixed(props.pricePrecision)
+}
+
+const formatVolume = (volume: number | undefined) => {
+  if (!volume) return '--'
+  if (volume >= 1e9) return (volume / 1e9).toFixed(2) + 'B'
+  if (volume >= 1e6) return (volume / 1e6).toFixed(2) + 'M'
+  if (volume >= 1e3) return (volume / 1e3).toFixed(2) + 'K'
+  return volume.toFixed(props.volumePrecision)
+}
 
 const emit = defineEmits<{
   (e: 'load-old-data', time: number): void
@@ -138,16 +225,23 @@ const initChart = () => {
   chart.applyOptions({
     timeScale: {
       timeVisible: true,
-      secondsVisible: true,
+      secondsVisible: false,
+      borderColor: '#2B2B43',
       tickMarkFormatter: (time: Time) => {
         const date = new Date(time as number * 1000)
-        return date.toLocaleTimeString()
+        const hours = date.getHours().toString().padStart(2, '0')
+        const minutes = date.getMinutes().toString().padStart(2, '0')
+        return `${hours}:${minutes}`
       }
     },
     localization: {
       timeFormatter: (time: number) => {
         const date = new Date(time * 1000)
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+        const month = (date.getMonth() + 1).toString().padStart(2, '0')
+        const day = date.getDate().toString().padStart(2, '0')
+        const hours = date.getHours().toString().padStart(2, '0')
+        const minutes = date.getMinutes().toString().padStart(2, '0')
+        return `${month}-${day} ${hours}:${minutes}`
       }
     }
   })
@@ -160,12 +254,14 @@ const initChart = () => {
 
   chart.priceScale('price').applyOptions({
     visible: true,
-    borderColor: '#555'
+    borderColor: '#2B2B43',
+    scaleMargins: { top: 0.1, bottom: 0.3 }
   })
 
   chart.priceScale('volume').applyOptions({
     visible: true,
-    borderColor: '#555'
+    borderColor: '#2B2B43',
+    scaleMargins: { top: 0.7, bottom: 0 }
   })
 
   chart.subscribeCrosshairMove(handleCrosshairMove)
@@ -339,7 +435,13 @@ const handleCrosshairMove = (param: MouseEventParams) => {
   if (!param.time) return
 
   const date = new Date(param.time as number * 1000)
-  hoveringTime.value = (date.toLocaleDateString() + ' ' + date.toLocaleTimeString()) as Time
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  const seconds = date.getSeconds().toString().padStart(2, '0')
+  hoveringTime.value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}` as Time
 
   if (volumeSeries) {
     const vol = param.seriesData.get(volumeSeries) as HistogramData
@@ -383,6 +485,20 @@ const handleCrosshairMove = (param: MouseEventParams) => {
     const point3 = param.seriesData.get(ma30MinSeries) as LineData
     if (point3 !== undefined) {
       hoveringMA30Min.value = point3
+    }
+  }
+
+  if (ema7Series) {
+    const ema7Point = param.seriesData.get(ema7Series) as LineData
+    if (ema7Point !== undefined) {
+      hoveringEMA7.value = ema7Point
+    }
+  }
+
+  if (ema25Series) {
+    const ema25Point = param.seriesData.get(ema25Series) as LineData
+    if (ema25Point !== undefined) {
+      hoveringEMA25.value = ema25Point
     }
   }
 }
@@ -521,9 +637,125 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped lang='sass'>
+.chart-wrapper
+  width: 100%
+  position: relative
+  background-color: #131722
+
 .kline-chart
   width: 100%
-  background-color: #131722
+  height: 100%
+
+.price-info-overlay
+  position: absolute
+  top: 0
+  left: 0
+  right: 0
+  pointer-events: none
+  z-index: 10
+
+.price-info-panel
+  padding: 10px 12px
+  pointer-events: none
+
+.info-line
+  display: flex
+  align-items: center
+  gap: 12px
+  margin-bottom: 6px
+  font-size: 12px
+  line-height: 1.4
+
+  &.primary
+    margin-bottom: 4px
+
+  &.indicators
+    margin-bottom: 0
+
+.time
+  color: #b2b5be
+  font-weight: 500
+  font-size: 12px
+  margin-right: 4px
+
+.ohlc-group
+  display: flex
+  align-items: center
+  gap: 10px
+
+.ohlc-item
+  display: flex
+  align-items: center
+  gap: 4px
+
+.ohlc-label
+  color: #787b86
+  font-size: 11px
+  font-weight: 500
+
+.ohlc-value
+  font-size: 12px
+  font-weight: 600
+  font-family: 'Roboto Mono', monospace
+
+  &.up
+    color: #26a69a
+
+  &.down
+    color: #ef5350
+
+  &.neutral
+    color: #b2b5be
+
+.change-badge
+  padding: 2px 8px
+  border-radius: 4px
+  font-size: 11px
+  font-weight: 700
+  font-family: 'Roboto Mono', monospace
+
+  &.up
+    color: #26a69a
+    background-color: rgba(38, 166, 154, 0.15)
+
+  &.down
+    color: #ef5350
+    background-color: rgba(239, 83, 80, 0.15)
+
+  &.neutral
+    color: #787b86
+    background-color: rgba(120, 123, 134, 0.1)
+
+.volume-item
+  display: flex
+  align-items: center
+  gap: 4px
+  margin-left: 4px
+
+.volume-label
+  color: #787b86
+  font-size: 11px
+  font-weight: 500
+
+.volume-value
+  color: #b2b5be
+  font-size: 12px
+  font-weight: 600
+  font-family: 'Roboto Mono', monospace
+
+.indicator-item
+  display: flex
+  align-items: center
+  gap: 4px
+
+.indicator-name
+  font-size: 11px
+  font-weight: 700
+
+.indicator-val
+  font-size: 11px
+  font-weight: 600
+  font-family: 'Roboto Mono', monospace
 
 .digits
   margin: 0 4px
