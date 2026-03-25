@@ -1,11 +1,14 @@
 <template>
   <div :style='{ height: height }'>
+    <chart-toolbar v-model='toolbarConfig' />
     <chart-view
       style='width: 100%;'
       :data='klinePoints'
+      :chart-type='toolbarConfig.chartType'
+      :indicator-config='toolbarConfig.indicatorConfig'
       @load-new-data='onLoadNewData'
       @load-old-data='onLoadOldData'
-      :height='height'
+      :height='chartHeight'
     />
   </div>
 </template>
@@ -18,18 +21,81 @@ import { klineWorker } from 'src/worker'
 import { KLineData } from './chart/KlineData'
 
 import ChartView from './chart/ChartView.vue'
+import ChartToolbar from './ChartToolbar.vue'
+import { ChartType } from './ChartType'
+import type { IndicatorConfig } from './IndicatorSelector.vue'
 
 const props = defineProps({
   height: { type: String, default: '550px' }
 })
 const height = toRef(props, 'height')
 
+// 计算图表高度（总高度 - 工具栏高度）
+const chartHeight = computed(() => {
+  const totalHeight = parseInt(height.value)
+  const toolbarHeight = 50 // 工具栏实际高度约 44-48px，留一些余量
+  return `${totalHeight - toolbarHeight}px`
+})
+
+const toolbarConfig = ref({
+  interval: kline.Interval.ONE_MINUTE,
+  chartType: ChartType.CANDLESTICK,
+  indicatorConfig: {
+    ma: { enabled: { ma5: true, ma10: true, ma30: true } },
+    ema: { enabled: { ema7: false, ema25: false } },
+    boll: false,
+    volume: true
+  } as IndicatorConfig
+})
+
+const selectedInterval = computed(() => toolbarConfig.value.interval)
+
+// 根据时间周期获取数据加载窗口大小（毫秒）
+const getWindowSize = (interval: kline.Interval): number => {
+  switch (interval) {
+    case kline.Interval.ONE_MINUTE:
+      return 1 * 3600 * 1000 // 1小时
+    case kline.Interval.FIVE_MINUTE:
+      return 5 * 3600 * 1000 // 5小时
+    case kline.Interval.TEN_MINUTE:
+      return 10 * 3600 * 1000 // 10小时
+    case kline.Interval.ONE_HOUR:
+      return 24 * 3600 * 1000 // 1天
+    case kline.Interval.ONE_DAY:
+      return 30 * 24 * 3600 * 1000 // 30天
+    case kline.Interval.ONE_MONTH:
+      return 365 * 24 * 3600 * 1000 // 1年
+    default:
+      return 1 * 3600 * 1000
+  }
+}
+
+// 根据时间周期获取最大数据点数
+const getMaxPoints = (interval: kline.Interval): number => {
+  switch (interval) {
+    case kline.Interval.ONE_MINUTE:
+      return 1800 // 30小时
+    case kline.Interval.FIVE_MINUTE:
+      return 720 // 60小时
+    case kline.Interval.TEN_MINUTE:
+      return 720 // 120小时
+    case kline.Interval.ONE_HOUR:
+      return 720 // 30天
+    case kline.Interval.ONE_DAY:
+      return 365 // 1年
+    case kline.Interval.ONE_MONTH:
+      return 120 // 10年
+    default:
+      return 1800
+  }
+}
+
 const buyToken = computed(() => swap.Swap.buyToken())
 const sellToken = computed(() => swap.Swap.sellToken())
 const selectedPool = computed(() => swap.Swap.selectedPool())
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000) || 0)
 
-const _latestPoints = computed(() => kline.Kline.latestPoints(kline.Interval.ONE_MINUTE, buyToken.value, sellToken.value).map((el) => {
+const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.value, buyToken.value, sellToken.value).map((el) => {
   return {
     ...el,
     time: Math.floor(el.timestamp / 1000)
@@ -69,15 +135,16 @@ const getKline = (timestamp: number, reverse: boolean) => {
   if (!buyToken.value || !sellToken.value) return
   if (buyToken.value === sellToken.value) return
 
-  const startAt = reverse ? (timestamp - 1 * 3600 * 1000) : timestamp + 1
-  const endAt = reverse ? timestamp - 1 : (timestamp + 1 * 3600 * 1000)
+  const windowSize = getWindowSize(selectedInterval.value)
+  const startAt = reverse ? (timestamp - windowSize) : timestamp + 1
+  const endAt = reverse ? timestamp - 1 : (timestamp + windowSize)
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_POINTS, {
     token0: buyToken.value,
     token1: sellToken.value,
     startAt,
     endAt,
-    interval: kline.Interval.ONE_MINUTE,
+    interval: selectedInterval.value,
     reverse
   })
 }
@@ -93,7 +160,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
     token1: sellToken.value,
     offset: offset || 0,
     limit: limit || 100,
-    interval: kline.Interval.ONE_MINUTE,
+    interval: selectedInterval.value,
     reverse,
     timestampBegin: timestampBegin || 0,
     timestampEnd: timestampEnd || 0
@@ -125,7 +192,15 @@ watch(selectedPool, (newPool, oldPool) => {
   getStoreKline()
 })
 
-const MAX_POINTS = 1800
+watch(selectedInterval, () => {
+  getStoreKline()
+})
+
+watch(() => toolbarConfig.value.interval, (newInterval) => {
+  if (newInterval !== selectedInterval.value) {
+    getStoreKline()
+  }
+})
 
 enum SortReason {
   FETCH = 'Fetch',
@@ -153,7 +228,7 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
       } as kline.Point
     }),
     newPoints: _points,
-    keepCount: MAX_POINTS,
+    keepCount: getMaxPoints(selectedInterval.value),
     reverse,
     reason
   })
@@ -165,8 +240,9 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) return
 
-  const startAt = reverse ? _points.start_at - 1 * 3600 * 1000 : _points.end_at + 1
-  const endAt = reverse ? _points.start_at - 1 : _points.end_at + 1 * 3600 * 1000
+  const windowSize = getWindowSize(selectedInterval.value)
+  const startAt = reverse ? _points.start_at - windowSize : _points.end_at + 1
+  const endAt = reverse ? _points.start_at - 1 : _points.end_at + windowSize
 
   updatePoints(_points.points, {
     reason: SortReason.FETCH,
@@ -186,8 +262,9 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     return
   }
 
-  const startAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - 1 * 3600 * 1000 : (timestampEnd ?? maxPointTimestamp.value) + 1
-  const endAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - 1 : (timestampEnd ?? maxPointTimestamp.value) + 1 * 3600 * 1000
+  const windowSize = getWindowSize(selectedInterval.value)
+  const startAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - windowSize : (timestampEnd ?? maxPointTimestamp.value) + 1
+  const endAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - 1 : (timestampEnd ?? maxPointTimestamp.value) + windowSize
 
   const reason = {
     reason: SortReason.LOAD,
@@ -205,8 +282,9 @@ const onFetchSorted = (reverse: boolean, timestamp: number) => {
 }
 
 const onLoadSorted = (reverse: boolean, timestamp: number) => {
-  const timestampBegin = reverse ? (timestamp - 1 * 3600 * 1000) : timestamp + 1
-  const timestampEnd = reverse ? timestamp - 1 : (timestamp + 1 * 3600 * 1000)
+  const windowSize = getWindowSize(selectedInterval.value)
+  const timestampBegin = reverse ? (timestamp - windowSize) : timestamp + 1
+  const timestampEnd = reverse ? timestamp - 1 : (timestamp + windowSize)
 
   loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
 }

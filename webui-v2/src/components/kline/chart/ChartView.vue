@@ -32,15 +32,45 @@ import {
   LineSeries,
   LineData,
   LineType,
-  MouseEventParams
+  MouseEventParams,
+  AreaSeries
 } from 'lightweight-charts'
 import { KLineData } from './KlineData'
+import { ChartType } from '../ChartType'
+
+export interface IndicatorConfig {
+  ma: {
+    enabled: {
+      ma5: boolean
+      ma10: boolean
+      ma30: boolean
+    }
+  }
+  ema: {
+    enabled: {
+      ema7: boolean
+      ema25: boolean
+    }
+  }
+  boll: boolean
+  volume: boolean
+}
 
 const props = defineProps({
   data: { type: Array as () => KLineData[], required: true, default: () => [] },
   pricePrecision: { type: Number, default: 10 },
   volumePrecision: { type: Number, default: 4 },
-  height: { type: String, default: '550px' }
+  height: { type: String, default: '550px' },
+  chartType: { type: String as () => ChartType, default: ChartType.CANDLESTICK },
+  indicatorConfig: {
+    type: Object as () => IndicatorConfig,
+    default: () => ({
+      ma: { enabled: { ma5: true, ma10: true, ma30: true } },
+      ema: { enabled: { ema7: false, ema25: false } },
+      boll: false,
+      volume: true
+    })
+  }
 })
 
 const hoveringTime = ref((() => {
@@ -61,11 +91,13 @@ const emit = defineEmits<{
 
 const chartContainer = ref<HTMLDivElement | null>(null)
 let chart: IChartApi
-let candleSeries: ISeriesApi<'Candlestick'>
+let mainSeries: ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Area'>
 let volumeSeries: ISeriesApi<'Histogram'>
-let ma5MinSeries: ISeriesApi<'Line'>
-let ma10MinSeries: ISeriesApi<'Line'>
-let ma30MinSeries: ISeriesApi<'Line'>
+let ma5MinSeries: ISeriesApi<'Line'> | null = null
+let ma10MinSeries: ISeriesApi<'Line'> | null = null
+let ma30MinSeries: ISeriesApi<'Line'> | null = null
+let ema7Series: ISeriesApi<'Line'> | null = null
+let ema25Series: ISeriesApi<'Line'> | null = null
 
 const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLength: number) => {
   const maData = [] as LineData[]
@@ -120,71 +152,9 @@ const initChart = () => {
     }
   })
 
-  candleSeries = chart.addSeries(CandlestickSeries, {
-    priceFormat: {
-      type: 'price',
-      precision: 10,
-      minMove: 0.0000000001
-    },
-    priceScaleId: 'price'
-  })
-  candleSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.3 }
-  })
-
-  volumeSeries = chart.addSeries(HistogramSeries, {
-    priceFormat: {
-      type: 'volume',
-      precision: 4,
-      minMove: 0.0001
-    },
-    priceScaleId: 'volume'
-  })
-  volumeSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0.7, bottom: 0 }
-  })
-
-  ma5MinSeries = chart.addSeries(LineSeries, {
-    color: '#FFA500',
-    lineWidth: 2,
-    lineType: LineType.Curved,
-    priceFormat: {
-      type: 'price',
-      precision: 10,
-      minMove: 0.0000000001
-    }
-  })
-  ma5MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.3 }
-  })
-
-  ma10MinSeries = chart.addSeries(LineSeries, {
-    color: '#00BFFF',
-    lineWidth: 2,
-    lineType: LineType.Curved,
-    priceFormat: {
-      type: 'price',
-      precision: 10,
-      minMove: 0.0000000001
-    }
-  })
-  ma10MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.3 }
-  })
-
-  ma30MinSeries = chart.addSeries(LineSeries, {
-    color: '#32CD32',
-    lineWidth: 2,
-    lineType: LineType.Curved,
-    priceFormat: {
-      type: 'price',
-      precision: 10,
-      minMove: 0.0000000001
-    }
-  })
-  ma30MinSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.3 }
-  })
+  createMainSeries()
+  createVolumeSeries()
+  createIndicatorSeries()
 
   chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
 
@@ -198,37 +168,223 @@ const initChart = () => {
     borderColor: '#555'
   })
 
-  chart.subscribeCrosshairMove((param: MouseEventParams) => {
-    if (!param.time) return
+  chart.subscribeCrosshairMove(handleCrosshairMove)
+}
 
-    const date = new Date(param.time as number * 1000)
-    hoveringTime.value = (date.toLocaleDateString() + ' ' + date.toLocaleTimeString()) as Time
+const createMainSeries = () => {
+  // 移除旧的主图系列
+  if (mainSeries) {
+    chart.removeSeries(mainSeries)
+  }
 
+  // 根据图表类型创建新系列
+  if (props.chartType === ChartType.CANDLESTICK) {
+    mainSeries = chart.addSeries(CandlestickSeries, {
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      },
+      priceScaleId: 'price'
+    })
+  } else if (props.chartType === ChartType.LINE) {
+    mainSeries = chart.addSeries(LineSeries, {
+      color: '#2962FF',
+      lineWidth: 2,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      },
+      priceScaleId: 'price'
+    })
+  } else if (props.chartType === ChartType.AREA) {
+    mainSeries = chart.addSeries(AreaSeries, {
+      lineColor: '#2962FF',
+      topColor: 'rgba(41, 98, 255, 0.4)',
+      bottomColor: 'rgba(41, 98, 255, 0.0)',
+      lineWidth: 2,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      },
+      priceScaleId: 'price'
+    })
+  }
+
+  mainSeries.priceScale().applyOptions({
+    scaleMargins: { top: 0, bottom: 0.3 }
+  })
+}
+
+const createVolumeSeries = () => {
+  if (!props.indicatorConfig.volume) return
+
+  if (volumeSeries) {
+    chart.removeSeries(volumeSeries)
+  }
+
+  volumeSeries = chart.addSeries(HistogramSeries, {
+    priceFormat: {
+      type: 'volume',
+      precision: 4,
+      minMove: 0.0001
+    },
+    priceScaleId: 'volume'
+  })
+  volumeSeries.priceScale().applyOptions({
+    scaleMargins: { top: 0.7, bottom: 0 }
+  })
+}
+
+const createIndicatorSeries = () => {
+  // 清除旧的指标系列
+  if (ma5MinSeries) chart.removeSeries(ma5MinSeries)
+  if (ma10MinSeries) chart.removeSeries(ma10MinSeries)
+  if (ma30MinSeries) chart.removeSeries(ma30MinSeries)
+  if (ema7Series) chart.removeSeries(ema7Series)
+  if (ema25Series) chart.removeSeries(ema25Series)
+
+  ma5MinSeries = null
+  ma10MinSeries = null
+  ma30MinSeries = null
+  ema7Series = null
+  ema25Series = null
+
+  // 创建 MA 指标
+  if (props.indicatorConfig.ma.enabled.ma5) {
+    ma5MinSeries = chart.addSeries(LineSeries, {
+      color: '#FFA500',
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    ma5MinSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+  }
+
+  if (props.indicatorConfig.ma.enabled.ma10) {
+    ma10MinSeries = chart.addSeries(LineSeries, {
+      color: '#00BFFF',
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    ma10MinSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+  }
+
+  if (props.indicatorConfig.ma.enabled.ma30) {
+    ma30MinSeries = chart.addSeries(LineSeries, {
+      color: '#32CD32',
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    ma30MinSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+  }
+
+  // 创建 EMA 指标
+  if (props.indicatorConfig.ema.enabled.ema7) {
+    ema7Series = chart.addSeries(LineSeries, {
+      color: '#FF69B4',
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    ema7Series.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+  }
+
+  if (props.indicatorConfig.ema.enabled.ema25) {
+    ema25Series = chart.addSeries(LineSeries, {
+      color: '#9370DB',
+      lineWidth: 2,
+      lineType: LineType.Curved,
+      priceFormat: {
+        type: 'price',
+        precision: 10,
+        minMove: 0.0000000001
+      }
+    })
+    ema25Series.priceScale().applyOptions({
+      scaleMargins: { top: 0, bottom: 0.3 }
+    })
+  }
+}
+
+const handleCrosshairMove = (param: MouseEventParams) => {
+  if (!param.time) return
+
+  const date = new Date(param.time as number * 1000)
+  hoveringTime.value = (date.toLocaleDateString() + ' ' + date.toLocaleTimeString()) as Time
+
+  if (volumeSeries) {
     const vol = param.seriesData.get(volumeSeries) as HistogramData
     if (vol !== undefined) {
       hoveringVolume.value = vol
     }
+  }
 
-    const stick = param.seriesData.get(candleSeries) as CandlestickData
-    if (stick !== undefined) {
-      hoveringCandleStick.value = stick
+  const mainData = param.seriesData.get(mainSeries)
+  if (mainData !== undefined) {
+    if (props.chartType === ChartType.CANDLESTICK) {
+      hoveringCandleStick.value = mainData as CandlestickData
+    } else {
+      // 折线图和面积图只有收盘价
+      const lineData = mainData as LineData
+      hoveringCandleStick.value = {
+        time: lineData.time,
+        open: lineData.value || 0,
+        high: lineData.value || 0,
+        low: lineData.value || 0,
+        close: lineData.value || 0
+      } as CandlestickData
     }
+  }
 
+  if (ma5MinSeries) {
     const point1 = param.seriesData.get(ma5MinSeries) as LineData
     if (point1 !== undefined) {
       hoveringMA5Min.value = point1
     }
+  }
 
+  if (ma10MinSeries) {
     const point2 = param.seriesData.get(ma10MinSeries) as LineData
     if (point2 !== undefined) {
       hoveringMA10Min.value = point2
     }
+  }
 
+  if (ma30MinSeries) {
     const point3 = param.seriesData.get(ma30MinSeries) as LineData
     if (point3 !== undefined) {
       hoveringMA30Min.value = point3
     }
-  })
+  }
 }
 
 const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | null) => {
@@ -251,8 +407,9 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 }
 
 const updateChartData = () => {
-  if (!candleSeries || !volumeSeries) return
+  if (!mainSeries || !volumeSeries) return
 
+  // 处理主图数据
   const candleData: CandlestickData[] = props.data.map(d => ({
     time: d.time as Time,
     open: d.open,
@@ -261,30 +418,99 @@ const updateChartData = () => {
     close: d.close
   }))
 
-  const volumeData: HistogramData[] = props.data.map(d => ({
+  const lineData: LineData[] = props.data.map(d => ({
     time: d.time as Time,
-    value: d.volume,
-    color: d.close >= d.open ? '#26a69a' : '#ef5350'
+    value: d.close
   }))
 
-  const ma5MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 5)
-  const ma10MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 10)
-  const ma30MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 30)
+  if (props.chartType === ChartType.CANDLESTICK) {
+    (mainSeries as ISeriesApi<'Candlestick'>).setData(candleData)
+  } else if (props.chartType === ChartType.LINE || props.chartType === ChartType.AREA) {
+    (mainSeries as ISeriesApi<'Line'>).setData(lineData)
+  }
 
-  candleSeries.setData(candleData)
-  volumeSeries.setData(volumeData)
+  // 处理成交量
+  if (props.indicatorConfig.volume) {
+    const volumeData: HistogramData[] = props.data.map(d => ({
+      time: d.time as Time,
+      value: d.volume,
+      color: d.close >= d.open ? '#26a69a' : '#ef5350'
+    }))
+    volumeSeries.setData(volumeData)
+  }
 
-  ma5MinSeries.setData(ma5MinData)
-  ma10MinSeries.setData(ma10MinData)
-  ma30MinSeries.setData(ma30MinData)
+  // 处理 MA 指标
+  if (ma5MinSeries && props.indicatorConfig.ma.enabled.ma5) {
+    const ma5MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 5)
+    ma5MinSeries.setData(ma5MinData)
+  }
+
+  if (ma10MinSeries && props.indicatorConfig.ma.enabled.ma10) {
+    const ma10MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 10)
+    ma10MinSeries.setData(ma10MinData)
+  }
+
+  if (ma30MinSeries && props.indicatorConfig.ma.enabled.ma30) {
+    const ma30MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 30)
+    ma30MinSeries.setData(ma30MinData)
+  }
+
+  if (ema7Series && props.indicatorConfig.ema.enabled.ema7) {
+    const ema7Data: LineData[] = calculateEMASeriesData(candleData, 7)
+    ema7Series.setData(ema7Data)
+  }
+
+  if (ema25Series && props.indicatorConfig.ema.enabled.ema25) {
+    const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
+    ema25Series.setData(ema25Data)
+  }
+}
+
+const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
+  const emaData: LineData[] = []
+  const multiplier = 2 / (period + 1)
+
+  for (let i = 0; i < candleData.length; i++) {
+    if (i < period - 1) {
+      emaData.push({ time: candleData[i]?.time } as LineData)
+    } else if (i === period - 1) {
+      // SMA 作为初始 EMA
+      let sum = 0
+      for (let j = 0; j < period; j++) {
+        sum += candleData[i - j]?.close || 0
+      }
+      emaData.push({ time: candleData[i]!.time as Time, value: sum / period })
+    } else {
+      // EMA = (Close - EMA(prev)) * multiplier + EMA(prev)
+      const prevEMA = emaData[i - 1]!.value || 0
+      const close = candleData[i]?.close || 0
+      const emaValue = (close - prevEMA) * multiplier + prevEMA
+      emaData.push({ time: candleData[i]!.time as Time, value: emaValue })
+    }
+  }
+
+  return emaData
 }
 
 watch(() => props.data, updateChartData, { deep: true })
+watch(() => props.chartType, () => {
+  createMainSeries()
+  updateChartData()
+})
+watch(() => props.indicatorConfig, () => {
+  createIndicatorSeries()
+  createVolumeSeries()
+  updateChartData()
+}, { deep: true })
 watch(() => props.pricePrecision, () => {
-  candleSeries.applyOptions({ priceFormat: { precision: props.pricePrecision, type: 'price', minMove: 1 / Math.pow(10, props.pricePrecision) } })
+  if (mainSeries) {
+    mainSeries.applyOptions({ priceFormat: { precision: props.pricePrecision, type: 'price', minMove: 1 / Math.pow(10, props.pricePrecision) } })
+  }
 })
 watch(() => props.volumePrecision, () => {
-  volumeSeries.applyOptions({ priceFormat: { type: 'volume', precision: props.volumePrecision } })
+  if (volumeSeries) {
+    volumeSeries.applyOptions({ priceFormat: { type: 'volume', precision: props.volumePrecision } })
+  }
 })
 
 onMounted(initChart)
