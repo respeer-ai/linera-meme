@@ -586,22 +586,6 @@ const updateChartData = () => {
     const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
     ema25Series.setData(ema25Data)
   }
-
-  // 智能调整视图：限制可见数据点数量
-  const dataLength = props.data.length
-  if (dataLength > 0) {
-    const maxVisibleBars = 120
-    if (dataLength <= maxVisibleBars) {
-      // 数据点少，自动适应
-      chart.timeScale().fitContent()
-    } else {
-      // 数据点多，只显示最近的 maxVisibleBars 个
-      chart.timeScale().setVisibleLogicalRange({
-        from: Math.max(0, dataLength - maxVisibleBars),
-        to: dataLength - 1
-      })
-    }
-  }
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
