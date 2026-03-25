@@ -397,6 +397,7 @@ class Db:
                 WHERE
                     t.created_at >= {start_at}
                     AND t.created_at <= {end_at}
+                    AND t.token_reversed = {token_reversed}
                     AND t.transaction_type IN ('BuyToken0', 'SellToken0')
             ),
             token_native_price AS (
@@ -407,14 +408,15 @@ class Db:
                         ',', 1
                     ) AS price_native
                 FROM (
-                    -- token / TLINERA
                     SELECT
                         p.token_0 AS token,
                         t.created_at,
                         t.price AS price
                     FROM transactions t
                     JOIN pools p ON t.pool_id = p.pool_id
-                    WHERE p.token_1 = 'TLINERA'
+                    WHERE
+                        p.token_1 = 'TLINERA'
+                        AND t.token_reversed = {token_reversed}
                     UNION ALL
                     SELECT
                         p.token_1 AS token,
@@ -422,7 +424,9 @@ class Db:
                         1 / t.price AS price
                     FROM transactions t
                     JOIN pools p ON t.pool_id = p.pool_id
-                    WHERE p.token_0 = 'TLINERA'
+                    WHERE
+                        p.token_0 = 'TLINERA'
+                        AND t.token_reversed = {token_reversed}
                 ) x
                 GROUP BY token
             ),
