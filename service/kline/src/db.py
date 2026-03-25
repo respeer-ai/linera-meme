@@ -532,6 +532,152 @@ class Db:
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
 
+    def get_protocol_stats(self, pools: list[Pool]):
+        from decimal import Decimal
+        import time
+
+        intervals = {
+            "1h": 3600,
+            "1d": 86400,
+            "1w": 86400 * 7,
+            "1m": 86400 * 30,
+            "1y": 86400 * 365,
+            "all": None
+        }
+
+        interval = '1d'
+        now = int(time.time())
+
+        start_at = now - intervals[interval]
+        end_at = now
+
+        start_at *= 1000
+        end_at *= 1000
+        token_reversed = False
+
+        # ✅ 去掉 tvl，只保留统计 + price
+        query = f'''
+            WITH volume_24h AS (
+                SELECT
+                    SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
+                    COUNT(*) AS tx_count
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    t.created_at >= {start_at}
+                    AND t.token_reversed = {token_reversed}
+            ),
+            token_price AS (
+                SELECT
+                    token,
+                    SUBSTRING_INDEX(
+                        GROUP_CONCAT(price ORDER BY created_at DESC),
+                        ',', 1
+                    ) AS price
+                FROM (
+                    SELECT
+                        p.token_0 AS token,
+                        t.created_at,
+                        t.price AS price
+                    FROM transactions t
+                    JOIN pools p ON t.pool_id = p.pool_id
+                    WHERE
+                        p.token_1 = 'TLINERA'
+                        AND t.token_reversed = {token_reversed}
+
+                    UNION ALL
+
+                    SELECT
+                        p.token_1 AS token,
+                        t.created_at,
+                        CASE
+                            WHEN t.price IS NULL OR t.price = 0 THEN NULL
+                            ELSE 1 / t.price
+                        END AS price
+                    FROM transactions t
+                    JOIN pools p ON t.pool_id = p.pool_id
+                    WHERE
+                        p.token_0 = 'TLINERA'
+                        AND t.token_reversed = {token_reversed}
+                ) x
+                GROUP BY token
+            )
+            SELECT
+                v.volume,
+                v.tx_count,
+                (v.volume * 0.003) AS fees,
+                (SELECT COUNT(*) FROM pools) AS pool_count
+            FROM volume_24h v;
+        '''
+
+        self.cursor_dict.execute(query)
+        stats = self.cursor_dict.fetchone()
+
+        # ✅ 再查 price（也可以合并上面SQL，但拆开更清晰）
+        price_query = f'''
+            SELECT
+                token,
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(price ORDER BY created_at DESC),
+                    ',', 1
+                ) AS price
+            FROM (
+                SELECT
+                    p.token_0 AS token,
+                    t.created_at,
+                    t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    p.token_1 = 'TLINERA'
+                    AND t.token_reversed = {token_reversed}
+
+                UNION ALL
+
+                SELECT
+                    p.token_1 AS token,
+                    t.created_at,
+                    CASE
+                        WHEN t.price IS NULL OR t.price = 0 THEN NULL
+                        ELSE 1 / t.price
+                    END AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    p.token_0 = 'TLINERA'
+                    AND t.token_reversed = {token_reversed}
+            ) x
+            GROUP BY token;
+        '''
+
+        self.cursor_dict.execute(price_query)
+        prices = self.cursor_dict.fetchall()
+
+        # ✅ 构建 price map
+        price_map = {
+            row["token"]: Decimal(row["price"]) if row["price"] is not None else Decimal(0)
+            for row in prices
+        }
+
+        # ✅ Python 计算 TVL（核心）
+        tvl = Decimal(0)
+
+        for p in pools:
+            price0 = price_map.get(p.token_0, Decimal(0))
+            price1 = price_map.get(p.token_1, Decimal(0))
+
+            tvl += Decimal(p.reserve_0) * price0
+            tvl += Decimal(p.reserve_1) * price1
+
+        # ✅ 返回最终结果
+        return {
+            "tvl": float(tvl),
+            "volume": float(stats["volume"] or 0),
+            "tx_count": stats["tx_count"] or 0,
+            "fees": float(stats["fees"] or 0),
+            "pool_count": stats["pool_count"] or 0
+        }
+
     def close(self):
         self.cursor.close()
         self.cursor_dict.close()
