@@ -40,7 +40,7 @@
               v-if='shouldDisplayDirectionIcon(oneHourPriceDirection(props.row.applicationId))'
               :name='directionIcon(oneHourPriceDirection(props.row.applicationId))'
               :color='directionIconColor(oneHourPriceDirection(props.row.applicationId))'
-              size='16px'
+              size='24px'
             />
             {{ oneHourPriceChange(props.row.applicationId) }}%
           </td>
@@ -49,7 +49,7 @@
               v-if='shouldDisplayDirectionIcon(oneDayPriceDirection(props.row.applicationId))'
               :name='directionIcon(oneDayPriceDirection(props.row.applicationId))'
               :color='directionIconColor(oneDayPriceDirection(props.row.applicationId))'
-              size='16px' 
+              size='24px' 
             />
             {{ oneDayPriceChange(props.row.applicationId) }}%
           </td>

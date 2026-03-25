@@ -4,13 +4,13 @@
     <div class='text-center'>
       <div class='text-neutral'>1D Volume</div>
       <div class='font-size-24 text-bold'>{{ (Number(protocolStat?.volume) || 0).toFixed(4) }} TLINERA</div>
-      <div class='row'>
+      <div class='row items-center'>
         <q-space />
         <q-icon
           v-if='shouldDisplayDirectionIcon(volumeDirection())'
           :name='directionIcon(volumeDirection())'
           :color='directionIconColor(volumeDirection())'
-          size='16px' 
+          size='24px' 
         />
         <div>{{ (protocolStat?.volume_change || 0.0).toFixed(2) }}% today</div>
         <q-space />
@@ -20,13 +20,13 @@
     <div class='text-center'>
       <div class='text-neutral'>Protocol TVL</div>
       <div class='font-size-24 text-bold'>{{ (Number(protocolStat?.tvl) || 0).toFixed(4) }} TLINERA</div>
-      <div class='row'>
+      <div class='row items-center'>
         <q-space />
         <q-icon
           v-if='shouldDisplayDirectionIcon(tvlDirection())'
           :name='directionIcon(tvlDirection())'
           :color='directionIconColor(tvlDirection())'
-          size='16px' 
+          size='24px' 
         />
         <div>{{ (protocolStat?.tvl_change || 0.0).toFixed(2) }}% today</div>
         <q-space />
