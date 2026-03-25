@@ -204,10 +204,6 @@ watch(selectedInterval, () => {
   getStoreKline()
 })
 
-watch(() => toolbarConfig.value.interval, (newInterval) => {
-  selectedInterval.value = newInterval
-})
-
 enum SortReason {
   FETCH = 'Fetch',
   LOAD = 'Load'
