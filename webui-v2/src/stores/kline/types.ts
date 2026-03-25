@@ -39,8 +39,7 @@ export interface TransactionsInformation {
 }
 
 export interface TickerStat {
-  token_0: string
-  token_1: string
+  token: string
   high: string
   low: string
   volume: string

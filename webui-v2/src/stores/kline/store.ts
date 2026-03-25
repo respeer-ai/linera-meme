@@ -24,7 +24,7 @@ export const useKlineStore = defineStore('kline', {
     latestPoints: new Map<Interval, Points[]>(),
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
-    poolStats: new Map<TickerInterval, Map<number, TickerStat>>()
+    poolStats: new Map<TickerInterval, Map<number, PoolStat>>()
   }),
   actions: {
     initializeKline() {
@@ -111,7 +111,7 @@ export const useKlineStore = defineStore('kline', {
         const res = await axios.get(url)
         this.tickers.set(
           interval,
-          new Map<string, TickerStat>((res.data as Tickers).stats.map((s) => [s.token_0, s])),
+          new Map<string, TickerStat>((res.data as Tickers).stats.map((s) => [s.token, s])),
         )
         return res.data as Tickers
       } catch (e) {
@@ -169,7 +169,7 @@ export const useKlineStore = defineStore('kline', {
         return this.tickers.get(interval)?.get(token)
       }
     },
-    poolStat(): (poolId: number, interval: TickerInterval) => TickerStat | undefined {
+    poolStat(): (poolId: number, interval: TickerInterval) => PoolStat | undefined {
       return (poolId: number, interval: TickerInterval) => {
         console.log(poolId, interval, this.poolStats)
         return this.poolStats.get(interval)?.get(poolId)
