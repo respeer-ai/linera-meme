@@ -5,6 +5,7 @@
 ### 一、核心功能需求
 
 #### 1. 图表工具栏（Chart Toolbar）
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ [蜡烛图▼] [指标▼] [1m][5m][15m][1h][4h][1d] [🔧] [⚙️] [📷] │
@@ -12,6 +13,7 @@
 ```
 
 **1.1 图表类型切换**
+
 - 蜡烛图（Candlestick）- 默认
 - 折线图（Line）
 - 面积图（Area）
@@ -20,18 +22,21 @@
 - Hollow Candles
 
 **1.2 时间周期（Timeframe）**
+
 - 1m, 3m, 5m, 15m, 30m
 - 1h, 2h, 4h, 6h, 12h
 - 1d, 1w, 1M
 
 **1.3 技术指标（Indicators）**
 主图指标：
+
 - MA（移动平均线）- 可配置周期
 - EMA（指数移动平均）
 - BOLL（布林带）
 - SAR（抛物线转向）
 
 副图指标：
+
 - Volume（成交量）- 默认显示
 - MACD
 - RSI
@@ -39,6 +44,7 @@
 - OBV
 
 **1.4 绘图工具（Drawing Tools）**
+
 - 趋势线
 - 水平线/垂直线
 - 矩形/圆形
@@ -46,6 +52,7 @@
 - 文本标注
 
 **1.5 其他功能**
+
 - 全屏模式
 - 截图保存
 - 设置面板
@@ -91,28 +98,28 @@ components/chart/
 // stores/chart/store.ts
 interface ChartState {
   // 图表配置
-  chartType: ChartType              // 当前图表类型
-  interval: Interval                // 当前时间周期
+  chartType: ChartType // 当前图表类型
+  interval: Interval // 当前时间周期
 
   // 指标配置
   mainIndicators: IndicatorConfig[] // 主图指标（MA, BOLL等）
-  subIndicators: IndicatorConfig[]  // 副图指标（MACD, RSI等）
+  subIndicators: IndicatorConfig[] // 副图指标（MACD, RSI等）
 
   // 数据
-  klineData: KLineData[]            // K线数据
-  loading: boolean                  // 加载状态
+  klineData: KLineData[] // K线数据
+  loading: boolean // 加载状态
 
   // 视图配置
-  showVolume: boolean               // 显示成交量
-  showGrid: boolean                 // 显示网格
-  showCrosshair: boolean            // 显示十字线
+  showVolume: boolean // 显示成交量
+  showGrid: boolean // 显示网格
+  showCrosshair: boolean // 显示十字线
 
   // 主题配置
   theme: 'dark' | 'light'
   colors: ChartColors
 
   // 绘图
-  drawings: Drawing[]               // 用户绘制的图形
+  drawings: Drawing[] // 用户绘制的图形
 }
 ```
 
@@ -135,6 +142,7 @@ interface ChartState {
 #### 3.1 图表库选择
 
 **当前使用：lightweight-charts**
+
 - ✅ 轻量级，性能好
 - ✅ 已集成
 - ❌ 功能相对简单
@@ -143,16 +151,19 @@ interface ChartState {
 **升级方案：**
 
 **方案A：继续使用 lightweight-charts + 自定义扩展**
+
 - 优点：无需重构，渐进式增强
 - 缺点：需要大量自定义开发
 - 适用：中小型项目
 
 **方案B：集成 TradingView Charting Library**
+
 - 优点：功能完整，专业级
 - 缺点：商业授权，体积大
 - 适用：商业项目
 
 **方案C：使用 Kline-Chart**
+
 - 优点：开源，功能丰富，中文文档
 - 缺点：需要重构现有代码
 - 适用：追求功能完整性
@@ -225,7 +236,7 @@ const chartConfig = computed(() => {
     timeFormat: getTimeFormat(interval),
 
     // 价格精度
-    pricePrecision: getPricePrecision(interval)
+    pricePrecision: getPricePrecision(interval),
   }
 })
 
@@ -253,42 +264,42 @@ function getDefaultMAPeriods(interval: Interval) {
 
 ```vue
 <template>
-  <div class='chart-toolbar row items-center q-px-md q-py-xs bg-dark-secondary'>
+  <div class="chart-toolbar row items-center q-px-md q-py-xs bg-dark-secondary">
     <!-- 左侧：图表类型 + 指标 -->
-    <div class='row items-center q-gutter-sm'>
-      <chart-type-selector v-model='chartType' />
-      <indicator-selector v-model='indicators' />
+    <div class="row items-center q-gutter-sm">
+      <chart-type-selector v-model="chartType" />
+      <indicator-selector v-model="indicators" />
     </div>
 
     <q-space />
 
     <!-- 中间：时间周期 -->
-    <div class='row items-center q-gutter-xs'>
+    <div class="row items-center q-gutter-xs">
       <q-btn
-        v-for='interval in intervals'
-        :key='interval.value'
-        :label='interval.label'
-        :unelevated='selectedInterval === interval.value'
-        :outline='selectedInterval !== interval.value'
+        v-for="interval in intervals"
+        :key="interval.value"
+        :label="interval.label"
+        :unelevated="selectedInterval === interval.value"
+        :outline="selectedInterval !== interval.value"
         dense
         no-caps
-        size='sm'
-        @click='selectedInterval = interval.value'
+        size="sm"
+        @click="selectedInterval = interval.value"
       />
     </div>
 
     <q-space />
 
     <!-- 右侧：工具 -->
-    <div class='row items-center q-gutter-xs'>
-      <q-btn icon='draw' flat dense round>
+    <div class="row items-center q-gutter-xs">
+      <q-btn icon="draw" flat dense round>
         <q-menu>
           <drawing-tools />
         </q-menu>
       </q-btn>
-      <q-btn icon='settings' flat dense round @click='showSettings = true' />
-      <q-btn icon='fullscreen' flat dense round @click='toggleFullscreen' />
-      <q-btn icon='camera_alt' flat dense round @click='takeScreenshot' />
+      <q-btn icon="settings" flat dense round @click="showSettings = true" />
+      <q-btn icon="fullscreen" flat dense round @click="toggleFullscreen" />
+      <q-btn icon="camera_alt" flat dense round @click="takeScreenshot" />
     </div>
   </div>
 </template>
@@ -328,14 +339,14 @@ const darkTheme = {
   background: '#131722',
   textColor: '#d9d9d9',
   gridColor: 'rgba(42, 46, 57, 0.5)',
-  upColor: '#26a69a',      // 涨
-  downColor: '#ef5350',    // 跌
+  upColor: '#26a69a', // 涨
+  downColor: '#ef5350', // 跌
   volumeUpColor: 'rgba(38, 166, 154, 0.5)',
   volumeDownColor: 'rgba(239, 83, 80, 0.5)',
-  ma5Color: '#FFA500',     // 橙色
-  ma10Color: '#00BFFF',    // 蓝色
-  ma30Color: '#32CD32',    // 绿色
-  crosshairColor: '#758696'
+  ma5Color: '#FFA500', // 橙色
+  ma10Color: '#00BFFF', // 蓝色
+  ma30Color: '#32CD32', // 绿色
+  crosshairColor: '#758696',
 }
 
 // Light Theme
@@ -354,30 +365,35 @@ const lightTheme = {
 ### 五、实施计划
 
 #### Phase 1: 重构基础架构（2-3天）
+
 - [ ] 创建新的组件结构
 - [ ] 重构状态管理
 - [ ] 实现图表类型切换
 - [ ] 优化时间周期切换逻辑
 
 #### Phase 2: 指标系统（2-3天）
+
 - [ ] 实现指标计算引擎
 - [ ] 添加主图指标（MA, EMA, BOLL）
 - [ ] 添加副图指标（MACD, RSI, KDJ）
 - [ ] 指标配置面板
 
 #### Phase 3: 交互增强（2天）
+
 - [ ] 优化工具栏布局
 - [ ] 改进悬停信息显示
 - [ ] 添加全屏模式
 - [ ] 添加截图功能
 
 #### Phase 4: 高级功能（3-4天）
+
 - [ ] 绘图工具（趋势线、水平线等）
 - [ ] 多时间周期对比
 - [ ] 图表同步
 - [ ] 性能优化
 
 #### Phase 5: 测试与优化（1-2天）
+
 - [ ] 功能测试
 - [ ] 性能测试
 - [ ] 移动端适配
@@ -390,18 +406,21 @@ const lightTheme = {
 ### 六、关键技术点
 
 #### 6.1 性能优化
+
 - 使用 Web Worker 计算指标
 - 虚拟滚动加载历史数据
 - Canvas 渲染优化
 - 数据缓存策略
 
 #### 6.2 数据管理
+
 - IndexedDB 持久化
 - 增量更新机制
 - 数据压缩存储
 - 智能预加载
 
 #### 6.3 扩展性
+
 - 插件化指标系统
 - 可配置的图表主题
 - 自定义绘图工具
@@ -412,11 +431,13 @@ const lightTheme = {
 ### 七、与现有代码的兼容性
 
 **保持兼容：**
+
 - 继续使用 lightweight-charts
 - 保持现有的数据流
 - 渐进式重构，不影响现有功能
 
 **升级路径：**
+
 1. 先完成工具栏和时间周期优化
 2. 逐步添加指标功能
 3. 最后添加绘图工具

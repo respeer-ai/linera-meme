@@ -26,7 +26,7 @@ export const useKlineStore = defineStore('kline', {
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
-    protocolStat: {} as ProtocolStat
+    protocolStat: {} as ProtocolStat,
   }),
   actions: {
     initializeKline() {
@@ -136,9 +136,7 @@ export const useKlineStore = defineStore('kline', {
       }
     },
     async getProtocolStat() {
-      const url = constants.formalizeSchema(
-        `${constants.KLINE_HTTP_URL}/protocol/stats`,
-      )
+      const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/protocol/stats`)
       try {
         const res = await axios.get(url)
         this.protocolStat = res.data as ProtocolStat

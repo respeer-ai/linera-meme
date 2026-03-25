@@ -3,6 +3,7 @@
 ## ✅ 已完成功能
 
 ### 1. 完整的图表工具栏 (ChartToolbar.vue)
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ [📊蜡烛图▼] [📈指标▼] │ 1m 5m 15m 1h 4h 1d │ ⛶ ⚙️ 📷 │
@@ -10,6 +11,7 @@
 ```
 
 **功能：**
+
 - ✅ 图表类型选择器（蜡烛图/折线图/面积图）
 - ✅ 指标选择器（MA/EMA/BOLL/成交量）
 - ✅ 时间周期切换（1m/5m/15m/1h/4h/1d）
@@ -18,11 +20,13 @@
 - ✅ 截图按钮
 
 ### 2. 图表类型支持
+
 - ✅ **蜡烛图 (Candlestick)** - 默认，最常用的价格图表
 - ✅ **折线图 (Line)** - 简洁的收盘价连线
 - ✅ **面积图 (Area)** - 填充的折线图，更直观
 
 ### 3. 可配置指标系统
+
 - ✅ **MA 移动平均线**
   - MA(5) - 橙色
   - MA(10) - 蓝色
@@ -44,6 +48,7 @@
   - 可开启/关闭
 
 ### 4. 设置面板 (ChartSettings.vue)
+
 ```
 ┌─────────────────────────────┐
 │ 图表设置                    ✕│
@@ -70,6 +75,7 @@
 ```
 
 ### 5. 时间周期支持
+
 - ✅ 1m (1分钟)
 - ✅ 5m (5分钟)
 - ✅ 15m (15分钟)
@@ -78,6 +84,7 @@
 - ✅ 1d (1天)
 
 ### 6. 其他功能
+
 - ✅ **全屏模式** - 点击全屏按钮进入浏览器全屏
 - ✅ **截图功能** - 保存图表为 PNG 图片
 - ✅ **响应式设计** - 适配不同屏幕尺寸
@@ -86,6 +93,7 @@
 ## 📁 新增/修改的文件
 
 ### 新增文件
+
 ```
 src/components/kline/
 ├── ChartToolbar.vue           # 完整工具栏组件
@@ -96,6 +104,7 @@ src/components/kline/
 ```
 
 ### 修改文件
+
 ```
 src/components/kline/
 ├── PriceChartView.vue         # 集成新工具栏
@@ -107,26 +116,33 @@ src/components/kline/
 ## 🎨 UI 改进
 
 ### 工具栏改进
+
 **改进前：**
+
 ```
 [1m][5m][15m][1h][1d]  ← 简单的时间周期按钮
 ```
 
 **改进后：**
+
 ```
 [📊蜡烛图▼][📈指标▼] │ 1m 5m 15m 1h 4h 1d │ ⛶ ⚙️ 📷
 ```
+
 - 添加图标
 - 分组布局更清晰
 - 添加更多控制选项
 
 ### 指标显示改进
+
 **改进前：**
+
 - MA 固定显示，不可配置
 - 颜色固定
 - 无法隐藏
 
 **改进后：**
+
 - 可选择显示/隐藏任意指标
 - 可配置 MA 周期
 - 可添加 EMA 指标
@@ -135,6 +151,7 @@ src/components/kline/
 ## 🔧 技术实现
 
 ### 图表类型切换
+
 ```typescript
 // 根据选择的图表类型创建不同的系列
 if (props.chartType === ChartType.CANDLESTICK) {
@@ -147,18 +164,20 @@ if (props.chartType === ChartType.CANDLESTICK) {
 ```
 
 ### 指标系统
+
 ```typescript
 // 动态创建/销毁指标系列
 if (props.indicatorConfig.ma.enabled.ma5) {
   ma5MinSeries = chart.addSeries(LineSeries, {
     color: '#FFA500',
     lineWidth: 2,
-    lineType: LineType.Curved
+    lineType: LineType.Curved,
   })
 }
 ```
 
 ### EMA 计算
+
 ```typescript
 const calculateEMASeriesData = (candleData, period) => {
   const multiplier = 2 / (period + 1)
@@ -170,14 +189,17 @@ const calculateEMASeriesData = (candleData, period) => {
 ## 🎯 使用方法
 
 ### 切换图表类型
+
 1. 点击工具栏左侧的「蜡烛图▼」按钮
 2. 选择：蜡烛图 / 折线图 / 面积图
 
 ### 配置指标
+
 1. 点击工具栏左侧的「指标▼」按钮
 2. 选择要显示的指标（MA/EMA/BOLL/成交量）
 
 ### 详细设置
+
 1. 点击工具栏右侧的「⚙️」设置按钮
 2. 在右侧面板中：
    - 配置 MA/EMA 周期
@@ -185,10 +207,12 @@ const calculateEMASeriesData = (candleData, period) => {
    - 配置显示选项
 
 ### 切换时间周期
+
 1. 点击工具栏中间的时间周期按钮
 2. 选择：1m / 5m / 15m / 1h / 4h / 1d
 
 ### 全屏和截图
+
 - 点击「⛶」进入全屏模式
 - 点击「📷」保存图表截图
 
@@ -202,16 +226,19 @@ const calculateEMASeriesData = (candleData, period) => {
 ## 🚀 后续优化建议
 
 ### 短期优化（1-2天）
+
 1. 添加更多技术指标（MACD、RSI、KDJ）
 2. 优化移动端显示
 3. 添加指标参数的实时预览
 
 ### 中期优化（3-5天）
+
 1. 添加绘图工具（趋势线、水平线）
 2. 添加多指标叠加
 3. 优化图表性能
 
 ### 长期优化（1-2周）
+
 1. 添加自定义指标支持
 2. 添加指标预警
 3. 添加图表模板保存
