@@ -217,7 +217,13 @@ const initChart = () => {
       horzLines: { color: 'rgba(42, 46, 57, 0.5)' }
     },
     crosshair: { mode: CrosshairMode.Normal },
-    timeScale: { timeVisible: true, secondsVisible: false },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: false,
+      barSpacing: 8,
+      minBarSpacing: 4,
+      rightOffset: 12
+    },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
     autoSize: true
   })
@@ -581,8 +587,21 @@ const updateChartData = () => {
     ema25Series.setData(ema25Data)
   }
 
-  // 自动调整时间轴以适应数据
-  chart.timeScale().fitContent()
+  // 智能调整视图：限制可见数据点数量
+  const dataLength = props.data.length
+  if (dataLength > 0) {
+    const maxVisibleBars = 120
+    if (dataLength <= maxVisibleBars) {
+      // 数据点少，自动适应
+      chart.timeScale().fitContent()
+    } else {
+      // 数据点多，只显示最近的 maxVisibleBars 个
+      chart.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, dataLength - maxVisibleBars),
+        to: dataLength - 1
+      })
+    }
+  }
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
