@@ -120,6 +120,18 @@ async def on_get_pool_stats(interval: str):
             content={"error": str(e)}
         )
 
+@app.get('/protocol/stats')
+async def get_protocol_stats() -> dict:
+    try:
+        pools = await _swap.get_pools()
+        stats = _db.get_protocol_stats(pools)
+        return stats
+    except Exception as e:
+        print(f'Failed get protocol stats: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 @app.websocket('/ws')
 async def on_subscribe(websocket: WebSocket):

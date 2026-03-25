@@ -373,35 +373,88 @@ class Db:
         token_reversed = False
 
         query = f'''
+            WITH expanded AS (
+                SELECT
+                    p.token_0 AS token,
+                    t.created_at,
+                    COALESCE(t.amount_0_in, 0) + COALESCE(t.amount_0_out, 0) AS volume,
+                    t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    t.created_at >= {start_at}
+                    AND t.created_at <= {end_at}
+                    AND t.token_reversed = {token_reversed}
+                    AND t.transaction_type IN ('BuyToken0', 'SellToken0')
+                UNION ALL
+                SELECT
+                    p.token_1 AS token,
+                    t.created_at,
+                    COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0) AS volume,
+                    1 / t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    t.created_at >= {start_at}
+                    AND t.created_at <= {end_at}
+                    AND t.transaction_type IN ('BuyToken0', 'SellToken0')
+            ),
+            token_native_price AS (
+                SELECT
+                    token,
+                    SUBSTRING_INDEX(
+                        GROUP_CONCAT(price ORDER BY created_at DESC),
+                        ',', 1
+                    ) AS price_native
+                FROM (
+                    -- token / TLINERA
+                    SELECT
+                        p.token_0 AS token,
+                        t.created_at,
+                        t.price AS price
+                    FROM transactions t
+                    JOIN pools p ON t.pool_id = p.pool_id
+                    WHERE p.token_1 = 'TLINERA'
+                    UNION ALL
+                    SELECT
+                        p.token_1 AS token,
+                        t.created_at,
+                        1 / t.price AS price
+                    FROM transactions t
+                    JOIN pools p ON t.pool_id = p.pool_id
+                    WHERE p.token_0 = 'TLINERA'
+                ) x
+                GROUP BY token
+            ),
+            final AS (
+                SELECT
+                    e.token,
+                    e.created_at,
+                    e.price,
+                    e.volume,
+                    np.price_native,
+                    e.volume * np.price_native AS volume_native
+                FROM expanded e
+                LEFT JOIN token_native_price np
+                    ON e.token = np.token
+            )
             SELECT
-                p.token_0,
-                p.token_1,
-                MAX(t.price) AS high,
-                MIN(t.price) AS low,
-                SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
+                token,
+                MAX(price) AS high,
+                MIN(price) AS low,
+                SUM(volume_native) AS volume,
                 COUNT(*) AS tx_count,
                 SUBSTRING_INDEX(
-                    GROUP_CONCAT(t.price ORDER BY t.created_at DESC),
+                    GROUP_CONCAT(price ORDER BY created_at DESC),
                     ',', 1
                 ) AS price_now,
                 SUBSTRING_INDEX(
-                    GROUP_CONCAT(t.price ORDER BY t.created_at ASC),
+                    GROUP_CONCAT(price ORDER BY created_at ASC),
                     ',', 1
                 ) AS price_start
-            FROM transactions t
-            JOIN pools p
-              ON t.pool_id = p.pool_id
-            WHERE
-                p.token_1 = 'TLINERA'
-                AND t.created_at >= {start_at}
-                AND t.created_at <= {end_at}
-                AND t.token_reversed = {token_reversed}
-                AND t.transaction_type IN ('BuyToken0', 'SellToken0')
-            GROUP BY
-                p.token_0,
-                p.token_1
-            ORDER BY
-                volume DESC;
+            FROM final
+            GROUP BY token
+            ORDER BY volume DESC;
         '''
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
@@ -467,6 +520,7 @@ class Db:
             WHERE
                 t.created_at >= {start_at}
                 AND t.created_at <= {end_at}
+                AND t.token_reversed = {token_reversed}
                 AND t.transaction_type IN ('BuyToken0', 'SellToken0')
             GROUP BY
                 p.pool_id,
@@ -477,6 +531,219 @@ class Db:
         '''
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
+
+    def get_protocol_stats(self, pools: list[Pool]):
+        from decimal import Decimal
+        import time
+
+        intervals = {
+            "1h": 3600,
+            "1d": 86400,
+            "1w": 86400 * 7,
+            "1m": 86400 * 30,
+            "1y": 86400 * 365,
+            "all": None
+        }
+
+        interval = '1d'
+        now = int(time.time())
+
+        interval_sec = intervals[interval]
+
+        start_at = now - interval_sec
+        prev_start_at = start_at - interval_sec
+        end_at = now
+
+        # 转 ms
+        start_at *= 1000
+        prev_start_at *= 1000
+        end_at *= 1000
+
+        token_reversed = False
+
+        # =========================
+        # ✅ volume（当前 + 上一周期）
+        # =========================
+        query = f'''
+            WITH current AS (
+                SELECT
+                    SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
+                    COUNT(*) AS tx_count
+                FROM transactions t
+                WHERE
+                    t.created_at >= {start_at}
+                    AND t.token_reversed = {token_reversed}
+            ),
+            previous AS (
+                SELECT
+                    SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume
+                FROM transactions t
+                WHERE
+                    t.created_at >= {prev_start_at}
+                    AND t.created_at < {start_at}
+                    AND t.token_reversed = {token_reversed}
+            )
+            SELECT
+                c.volume AS current_volume,
+                c.tx_count,
+                p.volume AS previous_volume,
+                (SELECT COUNT(*) FROM pools) AS pool_count
+            FROM current c
+            CROSS JOIN previous p;
+        '''
+
+        self.cursor_dict.execute(query)
+        stats = self.cursor_dict.fetchone()
+
+        current_volume = Decimal(stats["current_volume"] or 0)
+        previous_volume = Decimal(stats["previous_volume"] or 0)
+
+        if previous_volume > 0:
+            volume_change = (current_volume - previous_volume) / previous_volume
+        else:
+            volume_change = Decimal(0)
+
+        fees = current_volume * Decimal("0.003")
+
+        # =========================
+        # ✅ 当前价格
+        # =========================
+        price_query_now = f'''
+            SELECT
+                token,
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(price ORDER BY created_at DESC),
+                    ',', 1
+                ) AS price
+            FROM (
+                SELECT
+                    p.token_0 AS token,
+                    t.created_at,
+                    t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    p.token_1 = 'TLINERA'
+                    AND t.token_reversed = {token_reversed}
+
+                UNION ALL
+
+                SELECT
+                    p.token_1 AS token,
+                    t.created_at,
+                    CASE
+                        WHEN t.price IS NULL OR t.price = 0 THEN NULL
+                        ELSE 1 / t.price
+                    END AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    p.token_0 = 'TLINERA'
+                    AND t.token_reversed = {token_reversed}
+            ) x
+            GROUP BY token;
+        '''
+
+        self.cursor_dict.execute(price_query_now)
+        prices_now = self.cursor_dict.fetchall()
+
+        price_map_now = {
+            row["token"]: Decimal(row["price"]) if row["price"] is not None else Decimal(0)
+            for row in prices_now
+        }
+
+        # =========================
+        # ⚠️ 历史价格（严格限定 24h 前区间）
+        # =========================
+        price_query_prev = f'''
+            SELECT
+                token,
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(price ORDER BY created_at DESC),
+                    ',', 1
+                ) AS price
+            FROM (
+                SELECT
+                    p.token_0 AS token,
+                    t.created_at,
+                    t.price AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    p.token_1 = 'TLINERA'
+                    AND t.created_at >= {prev_start_at}
+                    AND t.created_at < {start_at}
+                    AND t.token_reversed = {token_reversed}
+
+                UNION ALL
+
+                SELECT
+                    p.token_1 AS token,
+                    t.created_at,
+                    CASE
+                        WHEN t.price IS NULL OR t.price = 0 THEN NULL
+                        ELSE 1 / t.price
+                    END AS price
+                FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id
+                WHERE
+                    p.token_0 = 'TLINERA'
+                    AND t.created_at >= {prev_start_at}
+                    AND t.created_at < {start_at}
+                    AND t.token_reversed = {token_reversed}
+            ) x
+            GROUP BY token;
+        '''
+
+        self.cursor_dict.execute(price_query_prev)
+        prices_prev = self.cursor_dict.fetchall()
+
+        price_map_prev = {
+            row["token"]: Decimal(row["price"]) if row["price"] is not None else Decimal(0)
+            for row in prices_prev
+        }
+
+        # =========================
+        # ✅ TVL 当前
+        # =========================
+        tvl_now = Decimal(0)
+        tvl_prev = Decimal(0)
+
+        for p in pools:
+            reserve0 = Decimal(p.reserve_0)
+            reserve1 = Decimal(p.reserve_1)
+
+            price0_now = price_map_now.get(p.token_0, Decimal(0))
+            price1_now = price_map_now.get(p.token_1, Decimal(0))
+
+            price0_prev = price_map_prev.get(p.token_0, Decimal(0))
+            price1_prev = price_map_prev.get(p.token_1, Decimal(0))
+
+            # ✅ 只计算有价格的 token（避免假跌）
+            if price0_now > 0:
+                tvl_now += reserve0 * price0_now
+            if price1_now > 0:
+                tvl_now += reserve1 * price1_now
+
+            if price0_prev > 0:
+                tvl_prev += reserve0 * price0_prev
+            if price1_prev > 0:
+                tvl_prev += reserve1 * price1_prev
+
+        if tvl_prev > 0:
+            tvl_change = (tvl_now - tvl_prev) / tvl_prev
+        else:
+            tvl_change = Decimal(0)
+
+        return {
+            "tvl": float(tvl_now),
+            "tvl_change": float(tvl_change),
+            "volume": float(current_volume),
+            "volume_change": float(volume_change),
+            "tx_count": stats["tx_count"] or 0,
+            "fees": float(fees),
+            "pool_count": stats["pool_count"] or 0
+        }
 
     def close(self):
         self.cursor.close()
