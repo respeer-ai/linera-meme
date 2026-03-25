@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Interval } from 'src/stores/kline/const'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
@@ -83,7 +83,10 @@ const indicatorConfig = ref<IndicatorConfig>(props.modelValue?.indicatorConfig |
   ma: { enabled: { ma5: true, ma10: true, ma30: true } },
   ema: { enabled: { ema7: false, ema25: false } },
   boll: false,
-  volume: true
+  volume: true,
+  showVolume: true,
+  showGrid: true,
+  showCrosshair: true
 })
 
 const isFullscreen = ref(false)
@@ -109,8 +112,12 @@ watch(() => props.modelValue, (newVal) => {
 }, { deep: true })
 
 const toggleFullscreen = () => {
+  // 查找图表容器
+  const chartWrapper = document.querySelector('.chart-wrapper') as HTMLElement
+  if (!chartWrapper) return
+
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen()
+    chartWrapper.requestFullscreen()
     isFullscreen.value = true
   } else {
     document.exitFullscreen()
@@ -119,7 +126,24 @@ const toggleFullscreen = () => {
 }
 
 const openSettings = () => {
-  chartSettingsRef.value?.open()
+  chartSettingsRef.value?.open({
+    ma: {
+      ma5: indicatorConfig.value.ma.enabled.ma5,
+      ma10: indicatorConfig.value.ma.enabled.ma10,
+      ma30: indicatorConfig.value.ma.enabled.ma30
+    },
+    maPeriods: { ma5: 5, ma10: 10, ma30: 30 },
+    ema: {
+      ema7: indicatorConfig.value.ema.enabled.ema7,
+      ema25: indicatorConfig.value.ema.enabled.ema25
+    },
+    emaPeriods: { ema7: 7, ema25: 25 },
+    boll: indicatorConfig.value.boll,
+    bollPeriod: 20,
+    showVolume: indicatorConfig.value.showVolume,
+    showGrid: indicatorConfig.value.showGrid,
+    showCrosshair: indicatorConfig.value.showCrosshair
+  })
 }
 
 const onConfigUpdate = (config: ChartSettingsConfig) => {
@@ -139,7 +163,10 @@ const onConfigUpdate = (config: ChartSettingsConfig) => {
       }
     },
     boll: config.boll,
-    volume: config.showVolume
+    volume: config.showVolume,
+    showVolume: config.showVolume,
+    showGrid: config.showGrid,
+    showCrosshair: config.showCrosshair
   }
   emit('update:modelValue', {
     interval: selectedInterval.value,
@@ -161,6 +188,18 @@ const takeScreenshot = () => {
     link.click()
   }
 }
+
+const handleFullscreenChange = () => {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+})
 </script>
 
 <style scoped lang='sass'>

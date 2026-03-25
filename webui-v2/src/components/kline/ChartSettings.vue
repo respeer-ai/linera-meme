@@ -222,7 +222,10 @@ const resetConfig = () => {
   emitUpdate()
 }
 
-const open = () => {
+const open = (initialConfig?: ChartSettingsConfig) => {
+  if (initialConfig) {
+    config.value = { ...initialConfig }
+  }
   showDialog.value = true
 }
 

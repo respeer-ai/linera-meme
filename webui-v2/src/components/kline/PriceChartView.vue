@@ -44,7 +44,10 @@ const toolbarConfig = ref({
     ma: { enabled: { ma5: true, ma10: true, ma30: true } },
     ema: { enabled: { ema7: false, ema25: false } },
     boll: false,
-    volume: true
+    volume: true,
+    showVolume: true,
+    showGrid: true,
+    showCrosshair: true
   } as IndicatorConfig
 })
 

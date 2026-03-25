@@ -126,6 +126,9 @@ export interface IndicatorConfig {
   }
   boll: boolean
   volume: boolean
+  showVolume: boolean
+  showGrid: boolean
+  showCrosshair: boolean
 }
 
 const props = defineProps<{
@@ -160,6 +163,9 @@ const emaEnabled = ref({
 
 const bollEnabled = ref(props.modelValue?.boll ?? false)
 const volumeEnabled = ref(props.modelValue?.volume ?? true)
+const showVolume = ref(props.modelValue?.showVolume ?? true)
+const showGrid = ref(props.modelValue?.showGrid ?? true)
+const showCrosshair = ref(props.modelValue?.showCrosshair ?? true)
 
 // 监听外部变化
 watch(() => props.modelValue, (newVal) => {
@@ -168,6 +174,9 @@ watch(() => props.modelValue, (newVal) => {
     emaEnabled.value = { ...newVal.ema.enabled }
     bollEnabled.value = newVal.boll
     volumeEnabled.value = newVal.volume
+    showVolume.value = newVal.showVolume
+    showGrid.value = newVal.showGrid
+    showCrosshair.value = newVal.showCrosshair
   }
 }, { deep: true })
 
@@ -199,7 +208,10 @@ const emitUpdate = () => {
     ma: { enabled: { ...maEnabled.value } },
     ema: { enabled: { ...emaEnabled.value } },
     boll: bollEnabled.value,
-    volume: volumeEnabled.value
+    volume: volumeEnabled.value,
+    showVolume: showVolume.value,
+    showGrid: showGrid.value,
+    showCrosshair: showCrosshair.value
   })
 }
 </script>

@@ -107,6 +107,9 @@ export interface IndicatorConfig {
   }
   boll: boolean
   volume: boolean
+  showVolume: boolean
+  showGrid: boolean
+  showCrosshair: boolean
 }
 
 const props = defineProps({
@@ -121,7 +124,10 @@ const props = defineProps({
       ma: { enabled: { ma5: true, ma10: true, ma30: true } },
       ema: { enabled: { ema7: false, ema25: false } },
       boll: false,
-      volume: true
+      volume: true,
+      showVolume: true,
+      showGrid: true,
+      showCrosshair: true
     })
   }
 })
@@ -179,7 +185,7 @@ const emit = defineEmits<{
 const chartContainer = ref<HTMLDivElement | null>(null)
 let chart: IChartApi
 let mainSeries: ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Area'>
-let volumeSeries: ISeriesApi<'Histogram'>
+let volumeSeries: ISeriesApi<'Histogram'> | null = null
 let ma5MinSeries: ISeriesApi<'Line'> | null = null
 let ma10MinSeries: ISeriesApi<'Line'> | null = null
 let ma30MinSeries: ISeriesApi<'Line'> | null = null
@@ -330,7 +336,13 @@ const createMainSeries = () => {
 }
 
 const createVolumeSeries = () => {
-  if (!props.indicatorConfig.volume) return
+  if (!props.indicatorConfig.showVolume) {
+    if (volumeSeries) {
+      chart.removeSeries(volumeSeries)
+      volumeSeries = null
+    }
+    return
+  }
 
   if (volumeSeries) {
     chart.removeSeries(volumeSeries)
@@ -720,6 +732,17 @@ watch(() => props.chartType, () => {
   updateChartData()
 })
 watch(() => props.indicatorConfig, () => {
+  if (chart) {
+    chart.applyOptions({
+      grid: {
+        vertLines: { visible: props.indicatorConfig.showGrid },
+        horzLines: { visible: props.indicatorConfig.showGrid }
+      },
+      crosshair: {
+        mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden
+      }
+    })
+  }
   createIndicatorSeries()
   createVolumeSeries()
   updateChartData()
