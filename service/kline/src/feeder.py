@@ -1,5 +1,5 @@
 from balance import Balance
-import time
+import asyncio
 import traceback
 
 
@@ -47,7 +47,7 @@ class Feeder:
                         funder_chain_id = self.wallet.open_chain_with_cli()
                     except Exception as e:
                         print(f'Failed open chain: {e}')
-                        time.sleep(30)
+                        await asyncio.sleep(30)
                         continue
                 try:
                     self.feed_chain(funder_chain_id, chain_id)
@@ -68,7 +68,7 @@ class Feeder:
                         funder_chain_id = self.wallet.open_chain_with_cli()
                     except Exception as e:
                         print(f'Failed open chain: {e}')
-                        time.sleep(30)
+                        await asyncio.sleep(30)
                         continue
                 try:
                     self.feed_chain(funder_chain_id, chain_id)
@@ -87,7 +87,7 @@ class Feeder:
                             funder_chain_id = self.wallet.open_chain_with_cli()
                         except Exception as e:
                             print(f'Failed open chain: {e}')
-                            time.sleep(30)
+                            await asyncio.sleep(30)
                             continue
                     try:
                         self.feed_chain(funder_chain_id, chain_id)
@@ -103,5 +103,4 @@ class Feeder:
             except Exception as e:
                 print(f'Failed feed: ERROR {e}')
                 traceback.print_exc()
-            time.sleep(30)
-
+            await asyncio.sleep(30)

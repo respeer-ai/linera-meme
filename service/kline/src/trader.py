@@ -45,6 +45,21 @@ class Trader:
         self.shadow_reserve_1 = None
         self.market_drift = random.gauss(0, 0.0007)
         self.market_states = {}
+        self.pending_quote_notional = {}
+        self.execution_window_secs = float(os.getenv("TRADE_EXECUTION_WINDOW_SECS", "15"))
+        self.sell_delay_compensation = float(os.getenv("SELL_DELAY_COMPENSATION", "1.12"))
+        self.max_pending_notional_ratio = float(os.getenv("MAX_PENDING_NOTIONAL_RATIO", "0.03"))
+        self.window_started_at = time.monotonic()
+
+    def _pool_price(self, pool):
+        reserve_0 = float(pool.reserve_0)
+        reserve_1 = float(pool.reserve_1)
+        if reserve_0 <= 0 or reserve_1 <= 0:
+            return 0.0
+        return reserve_1 / reserve_0
+
+    def _pending_notional(self, pool):
+        return self.pending_quote_notional.get(pool.pool_id, 0.0)
 
     def trade_amounts(self, pool, token_0_balance, token_1_balance):
         MIN_PRICE = 1e-12
@@ -60,6 +75,8 @@ class Trader:
 
         token_0_balance = float(token_0_balance)
         token_1_balance = float(token_1_balance)
+        pending_notional = self._pending_notional(pool)
+        max_pending_notional = reserve_1 * self.max_pending_notional_ratio
 
         # -------------------------------------------------
         # Initialize market state if needed
@@ -174,8 +191,16 @@ class Trader:
         else:
             size = base_size
 
+        if not buy_token_0:
+            size *= self.sell_delay_compensation
+
         # ⭐ 按池子“价值”限制，而不是方向偏置
         size = min(size, reserve_1 * 0.015)
+
+        if buy_token_0 and pending_notional > max_pending_notional:
+            return (None, None)
+        if not buy_token_0 and pending_notional < -max_pending_notional:
+            return (None, None)
 
         # -------------------------------------------------
         # 7. AMM execution (constant product)
@@ -229,7 +254,21 @@ class Trader:
 
         return (amount_0, amount_1)
 
-    async def trade_in_pool(self, pool):
+    def queue_trade(self, pool, amount_0, amount_1):
+        if amount_0 is None and amount_1 is None:
+            return
+
+        price = max(self._pool_price(pool), 1e-12)
+        notional = amount_1 if amount_1 is not None else -(amount_0 * price)
+        self.pending_quote_notional[pool.pool_id] = self._pending_notional(pool) + notional
+
+        print('    Queue trade ----------------------------------')
+        print(f'      Pool                   {pool.pool_application.short_owner}')
+        print(f'      PendingQuoteNotional   {self.pending_quote_notional[pool.pool_id]}')
+        print(f'      DeltaQuoteNotional     {notional}')
+        print(f'      DateTime               {time.time()}')
+
+    async def plan_trade_in_pool(self, pool):
         wallet_chain = self.wallet._chain()
         account = self.wallet.account()
 
@@ -264,23 +303,91 @@ class Trader:
         if amount_0 is None and amount_1 is None:
             return
 
+        self.queue_trade(pool, amount_0, amount_1)
+
+    async def execute_pending_in_pool(self, pool, quote_notional):
+        if abs(quote_notional) < 1e-6:
+            return
+
+        wallet_chain = self.wallet._chain()
+        account = self.wallet.account()
+
+        token_0_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_0)
+        token_1_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_1) if pool.token_1 is not None else None
+
+        token_0_balance = float(await self.meme.balance(account, token_0_chain, pool.token_0))
+        token_1_balance = float(await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1))
+
+        if await self.wallet.balance() < 0.001:
+            print('Maker wallet balance is not enough for gas, please fund it')
+            return
+
+        price = max(self._pool_price(pool), 1e-12)
+
+        amount_0 = None
+        amount_1 = None
+        if quote_notional > 0:
+            amount_1 = min(quote_notional, token_1_balance * 0.30)
+            if amount_1 < 1e-6:
+                return
+        else:
+            amount_0 = min(abs(quote_notional) / price, token_0_balance * 0.30)
+            if amount_0 < 1e-6:
+                return
+
+        print('    Flush trade ----------------------------------')
+        print(f'      Pool                   {pool.pool_application.short_owner}')
+        print(f'      QuoteNotional          {quote_notional}')
+        print(f'      Amount0                {amount_0}')
+        print(f'      Amount1                {amount_1}')
+        print(f'      DateTime               {time.time()}')
+
         await pool.swap(amount_0, amount_1)
 
     async def _trade_in_pool(self, pool):
         async with self.semaphore:
             try:
-                await self.trade_in_pool(pool)
+                await self.plan_trade_in_pool(pool)
             except Exception as e:
                 print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
                 traceback.print_exc()
+
+    async def _flush_pool(self, pool, quote_notional):
+        async with self.semaphore:
+            try:
+                await self.execute_pending_in_pool(pool, quote_notional)
+            except Exception as e:
+                print(f'Failed flush token {pool.token_0} at {time.time()}: ERROR {e}')
+                traceback.print_exc()
+
+    async def flush_pending_trades(self, pools):
+        if not self.pending_quote_notional:
+            return
+
+        pool_map = {pool.pool_id: pool for pool in pools}
+        tasks = []
+        for pool_id, quote_notional in list(self.pending_quote_notional.items()):
+            pool = pool_map.get(pool_id)
+            if pool is None or abs(quote_notional) < 1e-6:
+                continue
+            tasks.append(self._flush_pool(pool, quote_notional))
+
+        if tasks:
+            await asyncio.gather(*tasks)
+
+        self.pending_quote_notional.clear()
+        self.window_started_at = time.monotonic()
 
     async def trade(self) -> float:
         pools = await self.swap.get_pools()
         tasks = [self._trade_in_pool(pool) for pool in pools]
         await asyncio.gather(*tasks)
 
+        if self.execution_window_secs <= 0 or time.monotonic() - self.window_started_at >= self.execution_window_secs:
+            await self.flush_pending_trades(pools)
+
         interval = os.getenv("TRADE_INTERVAL_SECS")
-        return float(interval) if interval is not None else random.uniform(5, 10)
+        return float(interval) if interval is not None else random.uniform(2, 4)
 
     async def run(self):
         while True:
@@ -288,5 +395,4 @@ class Trader:
             timeout = await self.trade()
             elapsed = time.time() - start_at
             print(f'Trade pools took {elapsed} seconds')
-            time.sleep(timeout)
-
+            await asyncio.sleep(timeout)
