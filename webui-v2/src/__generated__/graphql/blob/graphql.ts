@@ -43,8 +43,15 @@ export enum BlobDataType {
 
 export type QueryRoot = {
   __typename?: 'QueryRoot';
+  blob?: Maybe<BlobData>;
+  blobs: Array<BlobData>;
   fetch: Array<Scalars['Int']['output']>;
   list: Array<BlobData>;
+};
+
+
+export type QueryRootBlobArgs = {
+  blobHash: Scalars['CryptoHash']['input'];
 };
 
 

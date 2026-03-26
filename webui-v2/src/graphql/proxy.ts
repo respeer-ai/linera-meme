@@ -12,6 +12,9 @@ export const MEME_APPLICATIONS = gql`
 
 export const GENESIS_MINERS = gql`
   query genesisMiners {
-    genesisMiners
+    genesisMiners {
+      owner
+      registeredAt
+    }
   }
 `

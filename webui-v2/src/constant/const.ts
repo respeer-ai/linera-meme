@@ -1,4 +1,4 @@
-import { cheCkoPng, laughPng, metaMaskSvg } from 'src/assets'
+import { cheCkoPng, laughPng, metaMaskSvg } from '../assets'
 import * as domain from './domain'
 
 export const formalizeSchema = (url: string) => {

@@ -16,6 +16,8 @@ export type Scalars = {
   Float: { input: number; output: number; }
   /** An account */
   Account: { input: any; output: any; }
+  /** A unique identifier for a user or an application. */
+  AccountOwner: { input: any; output: any; }
   /** A unique identifier for a user application */
   ApplicationId: { input: any; output: any; }
   /** The unique identifier (UID) of a chain. This is currently computed as the hash value of a ChainDescription. */
@@ -33,15 +35,50 @@ export type Chain = {
   token?: Maybe<Scalars['ApplicationId']['output']>;
 };
 
+/** We don't set any chain for owner because it may be stored on-chain in future */
+export type Miner = {
+  __typename?: 'Miner';
+  owner: Scalars['Account']['output'];
+  registeredAt: Scalars['Timestamp']['output'];
+};
+
+export type MutationRoot = {
+  __typename?: 'MutationRoot';
+  registerMiner: Array<Scalars['Int']['output']>;
+};
+
 export type QueryRoot = {
   __typename?: 'QueryRoot';
   creatorChainId: Scalars['ChainId']['output'];
-  genesisMiners: Array<Scalars['Account']['output']>;
+  genesisMiners: Array<Miner>;
   memeApplicationIds: Array<Maybe<Scalars['ApplicationId']['output']>>;
   memeApplications: Array<Chain>;
   memeBytecodeId: Scalars['ModuleId']['output'];
+  memeChain?: Maybe<Chain>;
   memeChains: Array<Chain>;
-  miners: Array<Scalars['Account']['output']>;
+  miner?: Maybe<Miner>;
+  minerRegistered: Scalars['Boolean']['output'];
+  miners: Array<Miner>;
+};
+
+
+export type QueryRootMemeChainArgs = {
+  token: Scalars['ApplicationId']['input'];
+};
+
+
+export type QueryRootMemeChainsArgs = {
+  createdAfter?: InputMaybe<Scalars['Timestamp']['input']>;
+};
+
+
+export type QueryRootMinerArgs = {
+  owner: Scalars['AccountOwner']['input'];
+};
+
+
+export type QueryRootMinerRegisteredArgs = {
+  owner: Scalars['AccountOwner']['input'];
 };
 
 export type MemeApplicationsQueryVariables = Exact<{ [key: string]: never; }>;
@@ -52,8 +89,8 @@ export type MemeApplicationsQuery = { __typename?: 'QueryRoot', memeApplications
 export type GenesisMinersQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type GenesisMinersQuery = { __typename?: 'QueryRoot', genesisMiners: Array<any> };
+export type GenesisMinersQuery = { __typename?: 'QueryRoot', genesisMiners: Array<{ __typename?: 'Miner', owner: any, registeredAt: any }> };
 
 
 export const MemeApplicationsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"memeApplications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"memeApplications"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"chainId"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"token"}}]}}]}}]} as unknown as DocumentNode<MemeApplicationsQuery, MemeApplicationsQueryVariables>;
-export const GenesisMinersDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"genesisMiners"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"genesisMiners"}}]}}]} as unknown as DocumentNode<GenesisMinersQuery, GenesisMinersQueryVariables>;
+export const GenesisMinersDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"genesisMiners"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"genesisMiners"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"owner"}},{"kind":"Field","name":{"kind":"Name","value":"registeredAt"}}]}}]}}]} as unknown as DocumentNode<GenesisMinersQuery, GenesisMinersQueryVariables>;
