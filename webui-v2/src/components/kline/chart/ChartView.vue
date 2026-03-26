@@ -91,6 +91,7 @@ import {
   MouseEventParams,
   AreaSeries
 } from 'lightweight-charts'
+import { useQuasar } from 'quasar'
 import { KLineData } from './KlineData'
 import { ChartType } from '../ChartType'
 
@@ -147,11 +148,53 @@ const hoveringMA10Min = ref({} as LineData)
 const hoveringMA30Min = ref({} as LineData)
 const hoveringEMA7 = ref({} as LineData)
 const hoveringEMA25 = ref({} as LineData)
+const $q = useQuasar()
+
 const PRICE_COLORS = {
   up: '#26a69a',
   down: '#ef5350',
-  neutral: '#b2b5be'
+  neutral: '#8A94A6'
 } as const
+
+const readThemeVar = (name: string, fallback: string) => {
+  if (typeof window === 'undefined') return fallback
+  const value = getComputedStyle(document.body).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '').trim()
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized
+
+  if (full.length !== 6) return `rgba(138, 148, 166, ${alpha})`
+
+  const r = Number.parseInt(full.slice(0, 2), 16)
+  const g = Number.parseInt(full.slice(2, 4), 16)
+  const b = Number.parseInt(full.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const getThemePalette = () => {
+  const isDark = $q.dark.isActive
+  const background = readThemeVar('--q-dark', isDark ? '#131722' : '#F6F8FB')
+  const text = readThemeVar('--q-light', isDark ? '#d9d9d9' : '#0A0E17')
+  const muted = readThemeVar('--q-neutral', '#8A94A6')
+  const border = readThemeVar('--q-neutral-twenty-five', isDark ? '#2B2B43' : '#D7DCE5')
+
+  return {
+    background,
+    text,
+    muted,
+    border,
+    grid: isDark ? 'rgba(42, 46, 57, 0.5)' : hexToRgba(muted, 0.22),
+    currentPriceLabelText: isDark ? '#ffffff' : '#F6F8FB',
+    line: '#2962FF',
+    areaTop: hexToRgba('#2962FF', isDark ? 0.4 : 0.24),
+    areaBottom: hexToRgba('#2962FF', isDark ? 0 : 0.03)
+  }
+}
 
 const priceChangeClass = computed(() => {
   if (!hoveringCandleStick.value.open || !hoveringCandleStick.value.close) return 'neutral'
@@ -245,10 +288,11 @@ const getMainScaleMargins = () => (
 
 const applyPriceScaleLayout = () => {
   if (!chart) return
+  const palette = getThemePalette()
 
   chart.priceScale('price').applyOptions({
     visible: true,
-    borderColor: '#2B2B43',
+    borderColor: palette.border,
     scaleMargins: props.indicatorConfig.showVolume
       ? { top: 0.2, bottom: 0.28 }
       : { top: 0.16, bottom: 0.08 },
@@ -259,7 +303,7 @@ const applyPriceScaleLayout = () => {
 
   chart.priceScale('volume').applyOptions({
     visible: props.indicatorConfig.showVolume,
-    borderColor: '#2B2B43',
+    borderColor: palette.border,
     scaleMargins: { top: 0.76, bottom: 0.02 },
     entireTextOnly: true,
     minimumWidth: props.indicatorConfig.showVolume ? 72 : 0,
@@ -288,6 +332,7 @@ const applyMainSeriesVisualState = () => {
   if (!mainSeries) return
   const latest = props.data[props.data.length - 1]
   const latestColor = getLatestPriceDirectionColor()
+  const palette = getThemePalette()
 
   mainSeries.applyOptions({
     lastValueVisible: false,
@@ -310,8 +355,39 @@ const applyMainSeriesVisualState = () => {
     title: '',
     lineVisible: true,
     axisLabelColor: latestColor,
-    axisLabelTextColor: '#ffffff'
+    axisLabelTextColor: palette.currentPriceLabelText
   })
+}
+
+const applyThemeOptions = () => {
+  if (!chart) return
+  const palette = getThemePalette()
+
+  chart.applyOptions({
+    layout: {
+      background: { color: palette.background },
+      textColor: palette.text
+    },
+    grid: {
+      vertLines: {
+        color: palette.grid,
+        visible: props.indicatorConfig.showGrid
+      },
+      horzLines: {
+        color: palette.grid,
+        visible: props.indicatorConfig.showGrid
+      }
+    },
+    crosshair: {
+      mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden
+    },
+    timeScale: {
+      borderColor: palette.border
+    }
+  })
+
+  applyPriceScaleLayout()
+  applyMainSeriesVisualState()
 }
 
 const getChartHeight = () => {
@@ -400,16 +476,19 @@ const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLengt
 
 const initChart = () => {
   if (!chartContainer.value) return
+  const palette = getThemePalette()
 
   chart = createChart(chartContainer.value, {
     width: chartContainer.value.clientWidth,
     height: chartContainer.value.clientHeight || getChartHeight(),
-    layout: { background: { color: '#131722' }, textColor: '#d9d9d9' },
+    layout: { background: { color: palette.background }, textColor: palette.text },
     grid: {
-      vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
-      horzLines: { color: 'rgba(42, 46, 57, 0.5)' }
+      vertLines: { color: palette.grid, visible: props.indicatorConfig.showGrid },
+      horzLines: { color: palette.grid, visible: props.indicatorConfig.showGrid }
     },
-    crosshair: { mode: CrosshairMode.Normal },
+    crosshair: {
+      mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden
+    },
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
@@ -425,7 +504,7 @@ const initChart = () => {
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
-      borderColor: '#2B2B43',
+      borderColor: palette.border,
       tickMarkFormatter: (time: Time) => {
         const date = new Date(time as number * 1000)
         const hours = date.getHours().toString().padStart(2, '0')
@@ -486,16 +565,17 @@ const createMainSeries = () => {
     })
   } else if (props.chartType === ChartType.LINE) {
     mainSeries = chart.addSeries(LineSeries, {
-      color: '#2962FF',
+      color: getThemePalette().line,
       lineWidth: 2,
       priceFormat: getPriceSeriesFormat(),
       priceScaleId: 'price'
     })
   } else if (props.chartType === ChartType.AREA) {
+    const palette = getThemePalette()
     mainSeries = chart.addSeries(AreaSeries, {
-      lineColor: '#2962FF',
-      topColor: 'rgba(41, 98, 255, 0.4)',
-      bottomColor: 'rgba(41, 98, 255, 0.0)',
+      lineColor: palette.line,
+      topColor: palette.areaTop,
+      bottomColor: palette.areaBottom,
       lineWidth: 2,
       priceFormat: getPriceSeriesFormat(),
       priceScaleId: 'price'
@@ -932,18 +1012,7 @@ watch(() => props.chartType, () => {
   updateChartData()
 })
 watch(() => props.indicatorConfig, () => {
-  if (chart) {
-    chart.applyOptions({
-      grid: {
-        vertLines: { visible: props.indicatorConfig.showGrid },
-        horzLines: { visible: props.indicatorConfig.showGrid }
-      },
-      crosshair: {
-        mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden
-      }
-    })
-  }
-  applyPriceScaleLayout()
+  applyThemeOptions()
   createMainSeries()
   createIndicatorSeries()
   createVolumeSeries()
@@ -971,6 +1040,14 @@ watch(() => props.volumePrecision, () => {
 watch(() => props.height, () => {
   syncChartSize()
 })
+watch(() => $q.dark.isActive, () => {
+  if (!chart) return
+  applyThemeOptions()
+  createMainSeries()
+  createIndicatorSeries()
+  createVolumeSeries()
+  updateChartData()
+})
 
 onMounted(initChart)
 onBeforeUnmount(() => {
@@ -990,7 +1067,8 @@ onBeforeUnmount(() => {
 .chart-wrapper
   width: 100%
   position: relative
-  background-color: #131722
+  background-color: var(--q-dark)
+  color: var(--q-light)
 
 .kline-chart
   width: 100%
@@ -1006,6 +1084,7 @@ onBeforeUnmount(() => {
 .price-info-panel
   padding: 10px 12px
   pointer-events: none
+  color: var(--q-light)
 
 .info-line
   display: flex
@@ -1022,7 +1101,7 @@ onBeforeUnmount(() => {
     margin-bottom: 0
 
 .time
-  color: #b2b5be
+  color: var(--q-neutral)
   font-weight: 500
   font-size: 12px
   margin-right: 4px
@@ -1038,7 +1117,7 @@ onBeforeUnmount(() => {
   gap: 4px
 
 .ohlc-label
-  color: #787b86
+  color: var(--q-neutral-light)
   font-size: 11px
   font-weight: 500
 
@@ -1054,7 +1133,7 @@ onBeforeUnmount(() => {
     color: #ef5350
 
   &.neutral
-    color: #b2b5be
+    color: var(--q-neutral-light)
 
 .change-badge
   padding: 2px 8px
@@ -1072,8 +1151,8 @@ onBeforeUnmount(() => {
     background-color: rgba(239, 83, 80, 0.15)
 
   &.neutral
-    color: #787b86
-    background-color: rgba(120, 123, 134, 0.1)
+    color: var(--q-neutral-light)
+    background-color: var(--q-neutral-twenty-five)
 
 .volume-item
   display: flex
@@ -1082,12 +1161,12 @@ onBeforeUnmount(() => {
   margin-left: 4px
 
 .volume-label
-  color: #787b86
+  color: var(--q-neutral-light)
   font-size: 11px
   font-weight: 500
 
 .volume-value
-  color: #b2b5be
+  color: var(--q-light)
   font-size: 12px
   font-weight: 600
   font-family: 'Roboto Mono', monospace

@@ -9,7 +9,7 @@
 
       <q-card-section class='q-pt-sm'>
         <!-- MA 设置 -->
-        <div class='text-subtitle2 text-grey-5 q-mb-sm'>移动平均线 (MA)</div>
+        <div class='text-subtitle2 text-neutral-light q-mb-sm'>移动平均线 (MA)</div>
         <div class='row q-gutter-sm q-mb-md'>
           <div class='col-12'>
             <div class='row items-center q-gutter-sm'>
@@ -21,7 +21,6 @@
                 type='number'
                 dense
                 outlined
-                dark
                 style='width: 80px;'
                 @update:model-value='emitUpdate'
               />
@@ -37,7 +36,6 @@
                 type='number'
                 dense
                 outlined
-                dark
                 style='width: 80px;'
                 @update:model-value='emitUpdate'
               />
@@ -53,7 +51,6 @@
                 type='number'
                 dense
                 outlined
-                dark
                 style='width: 80px;'
                 @update:model-value='emitUpdate'
               />
@@ -62,7 +59,7 @@
         </div>
 
         <!-- EMA 设置 -->
-        <div class='text-subtitle2 text-grey-5 q-mb-sm'>指数移动平均线 (EMA)</div>
+        <div class='text-subtitle2 text-neutral-light q-mb-sm'>指数移动平均线 (EMA)</div>
         <div class='row q-gutter-sm q-mb-md'>
           <div class='col-12'>
             <div class='row items-center q-gutter-sm'>
@@ -74,7 +71,6 @@
                 type='number'
                 dense
                 outlined
-                dark
                 style='width: 80px;'
                 @update:model-value='emitUpdate'
               />
@@ -90,7 +86,6 @@
                 type='number'
                 dense
                 outlined
-                dark
                 style='width: 80px;'
                 @update:model-value='emitUpdate'
               />
@@ -99,19 +94,18 @@
         </div>
 
         <!-- BOLL 设置 -->
-        <div class='text-subtitle2 text-grey-5 q-mb-sm'>布林带 (BOLL)</div>
+        <div class='text-subtitle2 text-neutral-light q-mb-sm'>布林带 (BOLL)</div>
         <div class='row q-gutter-sm q-mb-md items-center'>
           <q-toggle v-model='config.boll' color='purple' dense />
           <span class='text-neutral'>显示布林带</span>
           <q-space />
           <div class='row items-center q-gutter-xs'>
-            <span class='text-grey-6'>周期</span>
+            <span class='text-neutral'>周期</span>
             <q-input
               v-model.number='config.bollPeriod'
               type='number'
               dense
               outlined
-              dark
               style='width: 60px;'
               @update:model-value='emitUpdate'
             />
@@ -120,7 +114,7 @@
 
         <!-- 显示设置 -->
         <q-separator class='q-my-md' />
-        <div class='text-subtitle2 text-grey-5 q-mb-sm'>显示设置</div>
+        <div class='text-subtitle2 text-neutral-light q-mb-sm'>显示设置</div>
         <div class='column q-gutter-sm'>
           <div class='row items-center q-gutter-sm'>
             <q-toggle v-model='config.showVolume' color='primary' dense />

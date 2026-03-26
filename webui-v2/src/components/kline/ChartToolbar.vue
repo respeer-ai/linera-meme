@@ -1,5 +1,5 @@
 <template>
-  <div class='chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary' style='border-bottom: 1px solid rgba(255,255,255,0.1);'>
+  <div class='chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary'>
     <!-- 左侧：Token信息 + 图表类型 + 指标 + 时间周期 -->
     <div class='row items-center q-gutter-sm'>
       <pool-logo-view
@@ -227,9 +227,10 @@ onBeforeUnmount(() => {
 
 <style scoped lang='sass'>
 .chart-toolbar
+  border-bottom: 1px solid var(--q-neutral-twenty-five)
   min-height: 44px
 
 :deep(.q-btn)
   &.outline
-    border: 1px solid rgba(255, 255, 255, 0.12)
+    border: 1px solid var(--q-neutral-twenty-five)
 </style>
