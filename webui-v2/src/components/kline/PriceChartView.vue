@@ -1,6 +1,10 @@
 <template>
   <div :style='{ height: height }'>
-    <chart-toolbar v-model='toolbarConfig' />
+    <chart-toolbar
+      v-model='toolbarConfig'
+      :token0='token0App'
+      :token1='token1App'
+    />
     <chart-view
       style='width: 100%;'
       :data='klinePoints'
@@ -15,7 +19,7 @@
 
 <script setup lang='ts'>
 import { ref, onMounted, onBeforeUnmount, computed, watch, onBeforeMount, toRef } from 'vue'
-import { kline, swap } from 'src/stores/export'
+import { kline, swap, ams } from 'src/stores/export'
 // import { useRouter } from 'vue-router'
 import { klineWorker } from 'src/worker'
 import { KLineData } from './chart/KlineData'
@@ -25,19 +29,15 @@ import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
 
+const STORAGE_KEY = 'kline_chart_settings'
+
 const props = defineProps({
   height: { type: String, default: '550px' }
 })
 const height = toRef(props, 'height')
 
-// 计算图表高度（总高度 - 工具栏高度）
-const chartHeight = computed(() => {
-  const totalHeight = parseInt(height.value)
-  const toolbarHeight = 50 // 工具栏实际高度约 44-48px，留一些余量
-  return `${totalHeight - toolbarHeight}px`
-})
-
-const toolbarConfig = ref({
+// 默认配置
+const defaultToolbarConfig = {
   interval: kline.Interval.FIVE_MINUTE,
   chartType: ChartType.CANDLESTICK,
   indicatorConfig: {
@@ -49,7 +49,44 @@ const toolbarConfig = ref({
     showGrid: true,
     showCrosshair: true
   } as IndicatorConfig
+}
+
+// 从localStorage读取保存的设置
+const loadSettings = () => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      return { ...defaultToolbarConfig, ...parsed }
+    }
+  } catch (e) {
+    console.error('Failed to load chart settings:', e)
+  }
+  return defaultToolbarConfig
+}
+
+// 保存设置到localStorage
+const saveSettings = (config: typeof toolbarConfig.value) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+  } catch (e) {
+    console.error('Failed to save chart settings:', e)
+  }
+}
+
+// 计算图表高度（总高度 - 工具栏高度）
+const chartHeight = computed(() => {
+  const totalHeight = parseInt(height.value)
+  const toolbarHeight = 50 // 工具栏实际高度约 44-48px，留一些余量
+  return `${totalHeight - toolbarHeight}px`
 })
+
+const toolbarConfig = ref(loadSettings())
+
+// 监听设置变化，自动保存
+watch(toolbarConfig, (newConfig) => {
+  saveSettings(newConfig)
+}, { deep: true })
 
 const selectedInterval = computed(() => toolbarConfig.value.interval)
 
@@ -105,6 +142,24 @@ const buyToken = computed(() => swap.Swap.buyToken())
 const sellToken = computed(() => swap.Swap.sellToken())
 const selectedPool = computed(() => swap.Swap.selectedPool())
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000) || 0)
+
+// 创建默认的Application对象用于显示placeholder
+const defaultApp = {} as ams.Application
+
+// Sell在前，Buy在后（与交易面板一致）
+const token0App = computed(() => {
+  if (!sellToken.value) return defaultApp
+  // 依赖applications数组长度使其响应式更新
+  ams.Ams.applications()
+  return ams.Ams.application(sellToken.value) || defaultApp
+})
+
+const token1App = computed(() => {
+  if (!buyToken.value) return defaultApp
+  // 依赖applications数组长度使其响应式更新
+  ams.Ams.applications()
+  return ams.Ams.application(buyToken.value) || defaultApp
+})
 
 const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.value, buyToken.value, sellToken.value).map((el) => {
   return {

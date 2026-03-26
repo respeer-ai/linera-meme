@@ -1,7 +1,15 @@
 <template>
   <div class='chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary' style='border-bottom: 1px solid rgba(255,255,255,0.1);'>
-    <!-- 左侧：图表类型 + 指标 + 时间周期 -->
+    <!-- 左侧：Token信息 + 图表类型 + 指标 + 时间周期 -->
     <div class='row items-center q-gutter-sm'>
+      <pool-logo-view
+        :token0-application='(token0ForLogo as ams.Application)'
+        :token1-application='(token1ForLogo as ams.Application)'
+        avatar-size='36px'
+        :show-chips='false'
+        pool-name-font-size='14px'
+      />
+      <q-separator vertical class='q-mx-sm' />
       <chart-type-selector v-model='chartType' />
       <indicator-selector v-model='indicatorConfig' />
       <interval-selector-dropdown v-model='selectedInterval' />
@@ -52,7 +60,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { Interval } from 'src/stores/kline/const'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
@@ -61,6 +69,8 @@ import ChartTypeSelector from './ChartTypeSelector.vue'
 import IndicatorSelector from './IndicatorSelector.vue'
 import IntervalSelectorDropdown from './IntervalSelectorDropdown.vue'
 import ChartSettings from './ChartSettings.vue'
+import PoolLogoView from '../pools/PoolLogoView.vue'
+import { ams } from 'src/stores/export'
 
 const props = defineProps({
   modelValue: {
@@ -70,7 +80,9 @@ const props = defineProps({
       indicatorConfig: IndicatorConfig
     },
     required: true
-  }
+  },
+  token0: { type: Object as () => ams.Application | undefined, default: undefined },
+  token1: { type: Object as () => ams.Application | undefined, default: undefined }
 })
 
 const emit = defineEmits<{
@@ -91,6 +103,17 @@ const indicatorConfig = ref<IndicatorConfig>(props.modelValue?.indicatorConfig |
 
 const isFullscreen = ref(false)
 const chartSettingsRef = ref<InstanceType<typeof ChartSettings> | null>(null)
+
+// 获取token的Application用于显示logo
+const token0ForLogo = computed(() => {
+  ams.Ams.applications() // 依赖响应式
+  return props.token0
+})
+
+const token1ForLogo = computed(() => {
+  ams.Ams.applications() // 依赖响应式
+  return props.token1
+})
 
 // 监听内部状态变化，同步到外部
 watch([selectedInterval, chartType, indicatorConfig], () => {

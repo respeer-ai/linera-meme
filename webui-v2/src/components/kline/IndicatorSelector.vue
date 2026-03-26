@@ -72,15 +72,23 @@
       <q-item clickable @click='toggleBOLL'>
         <q-item-section side>
           <q-toggle
-            v-model='bollEnabled'
+            :model-value='bollEnabled'
             color='primary'
             dense
+            @update:model-value='setBOLL'
           />
         </q-item-section>
         <q-item-section>
           <q-item-label>
             布林带 (BOLL)
-            <span class='text-grey-6 q-ml-sm' style='color: #9932CC'>━━</span>
+            <span
+              v-for='boll in bollIndicators'
+              :key='boll.key'
+              class='text-grey-6 q-ml-sm'
+              :style='{ color: boll.color }'
+            >
+              {{ boll.label }}
+            </span>
           </q-item-label>
         </q-item-section>
       </q-item>
@@ -94,9 +102,10 @@
       <q-item clickable @click='toggleVolume'>
         <q-item-section side>
           <q-toggle
-            v-model='volumeEnabled'
+            :model-value='volumeEnabled'
             color='primary'
             dense
+            @update:model-value='setVolume'
           />
         </q-item-section>
         <q-item-section>
@@ -150,6 +159,12 @@ const emaIndicators = [
   { key: 'ema25' as const, period: 25, color: '#9370DB' }
 ]
 
+const bollIndicators = [
+  { key: 'upper' as const, label: 'UP', color: '#B455FF' },
+  { key: 'middle' as const, label: 'MID', color: '#F4C542' },
+  { key: 'lower' as const, label: 'LOW', color: '#4DD4FF' }
+]
+
 const maEnabled = ref({
   ma5: props.modelValue?.ma.enabled.ma5 ?? true,
   ma10: props.modelValue?.ma.enabled.ma10 ?? true,
@@ -198,8 +213,20 @@ const toggleBOLL = () => {
   emitUpdate()
 }
 
+const setBOLL = (value: boolean) => {
+  bollEnabled.value = value
+  emitUpdate()
+}
+
 const toggleVolume = () => {
   volumeEnabled.value = !volumeEnabled.value
+  showVolume.value = !showVolume.value
+  emitUpdate()
+}
+
+const setVolume = (value: boolean) => {
+  volumeEnabled.value = value
+  showVolume.value = value
   emitUpdate()
 }
 

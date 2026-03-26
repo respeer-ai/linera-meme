@@ -1,6 +1,7 @@
 <template>
   <div class='chart-wrapper' :style='{ height: height, position: "relative" }'>
     <div ref='chartContainer' class='kline-chart' />
+    <!-- 右侧：交易信息 -->
     <div class='price-info-overlay'>
       <div class='price-info-panel'>
         <!-- 时间和OHLC -->
@@ -76,6 +77,7 @@ import {
   createChart,
   CrosshairMode,
   IChartApi,
+  IPriceLine,
   ISeriesApi,
   CandlestickData,
   HistogramData,
@@ -85,6 +87,7 @@ import {
   LineSeries,
   LineData,
   LineType,
+  LineStyle,
   MouseEventParams,
   AreaSeries
 } from 'lightweight-charts'
@@ -137,12 +140,18 @@ const hoveringTime = ref((() => {
   return (now.toLocaleDateString() + ' ' + now.toLocaleTimeString()) as Time
 })())
 const hoveringCandleStick = ref({} as CandlestickData)
+const isHovering = ref(false)
 const hoveringVolume = ref({} as HistogramData)
 const hoveringMA5Min = ref({} as LineData)
 const hoveringMA10Min = ref({} as LineData)
 const hoveringMA30Min = ref({} as LineData)
 const hoveringEMA7 = ref({} as LineData)
 const hoveringEMA25 = ref({} as LineData)
+const PRICE_COLORS = {
+  up: '#26a69a',
+  down: '#ef5350',
+  neutral: '#b2b5be'
+} as const
 
 const priceChangeClass = computed(() => {
   if (!hoveringCandleStick.value.open || !hoveringCandleStick.value.close) return 'neutral'
@@ -164,17 +173,150 @@ const hasVisibleIndicators = computed(() => {
          props.indicatorConfig.ema.enabled.ema25
 })
 
+const trimTrailingZeros = (value: string) => value.replace(/\.?0+$/, '')
+
+const formatCompactNumber = (value: number, fractionDigits = 2) => {
+  const abs = Math.abs(value)
+  if (abs >= 1e12) return trimTrailingZeros((value / 1e12).toFixed(fractionDigits)) + 'T'
+  if (abs >= 1e9) return trimTrailingZeros((value / 1e9).toFixed(fractionDigits)) + 'B'
+  if (abs >= 1e6) return trimTrailingZeros((value / 1e6).toFixed(fractionDigits)) + 'M'
+  if (abs >= 1e3) return trimTrailingZeros((value / 1e3).toFixed(fractionDigits)) + 'K'
+  return null
+}
+
+const getAxisPriceDecimals = (value: number) => {
+  const abs = Math.abs(value)
+  if (abs >= 100) return 2
+  if (abs >= 1) return 4
+  if (abs >= 0.01) return 4
+  if (abs >= 0.0001) return 6
+  if (abs >= 0.000001) return 8
+  return Math.min(Math.max(props.pricePrecision, 8), 10)
+}
+
+const formatAxisPrice = (price: number) => {
+  if (!Number.isFinite(price)) return '--'
+  if (price === 0) return '0'
+
+  const compact = formatCompactNumber(price, 2)
+  if (compact) return compact
+
+  return trimTrailingZeros(price.toFixed(getAxisPriceDecimals(price)))
+}
+
+const formatAxisVolume = (volume: number) => {
+  if (!Number.isFinite(volume)) return '--'
+  if (volume === 0) return '0'
+
+  const compact = formatCompactNumber(volume, 2)
+  if (compact) return compact
+
+  const decimals = Math.min(props.volumePrecision, Math.abs(volume) >= 100 ? 0 : 2)
+  return trimTrailingZeros(volume.toFixed(decimals))
+}
+
 const formatPrice = (price: number | undefined) => {
-  if (!price) return '--'
-  return price.toFixed(props.pricePrecision)
+  if (price === undefined || !Number.isFinite(price)) return '--'
+  return formatAxisPrice(price)
 }
 
 const formatVolume = (volume: number | undefined) => {
-  if (!volume) return '--'
-  if (volume >= 1e9) return (volume / 1e9).toFixed(2) + 'B'
-  if (volume >= 1e6) return (volume / 1e6).toFixed(2) + 'M'
-  if (volume >= 1e3) return (volume / 1e3).toFixed(2) + 'K'
-  return volume.toFixed(props.volumePrecision)
+  if (volume === undefined || !Number.isFinite(volume)) return '--'
+  return formatAxisVolume(volume)
+}
+
+const getPriceSeriesFormat = () => ({
+  type: 'custom' as const,
+  minMove: 1 / Math.pow(10, props.pricePrecision),
+  formatter: formatAxisPrice
+})
+
+const getVolumeSeriesFormat = () => ({
+  type: 'custom' as const,
+  minMove: 1 / Math.pow(10, props.volumePrecision),
+  formatter: formatAxisVolume
+})
+
+const getMainScaleMargins = () => (
+  props.indicatorConfig.showVolume
+    ? { top: 0.15, bottom: 0.3 }
+    : { top: 0.12, bottom: 0.08 }
+)
+
+const applyPriceScaleLayout = () => {
+  if (!chart) return
+
+  chart.priceScale('price').applyOptions({
+    visible: true,
+    borderColor: '#2B2B43',
+    scaleMargins: props.indicatorConfig.showVolume
+      ? { top: 0.2, bottom: 0.28 }
+      : { top: 0.16, bottom: 0.08 },
+    entireTextOnly: true,
+    minimumWidth: 86,
+    alignLabels: true
+  })
+
+  chart.priceScale('volume').applyOptions({
+    visible: props.indicatorConfig.showVolume,
+    borderColor: '#2B2B43',
+    scaleMargins: { top: 0.76, bottom: 0.02 },
+    entireTextOnly: true,
+    minimumWidth: props.indicatorConfig.showVolume ? 72 : 0,
+    alignLabels: true
+  })
+}
+
+const getLatestPriceDirectionColor = () => {
+  const latest = props.data[props.data.length - 1]
+  if (!latest) return PRICE_COLORS.neutral
+
+  if (props.chartType === ChartType.CANDLESTICK) {
+    if (latest.close > latest.open) return PRICE_COLORS.up
+    if (latest.close < latest.open) return PRICE_COLORS.down
+    return PRICE_COLORS.neutral
+  }
+
+  const previous = props.data[props.data.length - 2]
+  if (!previous) return PRICE_COLORS.neutral
+  if (latest.close > previous.close) return PRICE_COLORS.up
+  if (latest.close < previous.close) return PRICE_COLORS.down
+  return PRICE_COLORS.neutral
+}
+
+const applyMainSeriesVisualState = () => {
+  if (!mainSeries) return
+  const latest = props.data[props.data.length - 1]
+  const latestColor = getLatestPriceDirectionColor()
+
+  mainSeries.applyOptions({
+    lastValueVisible: false,
+    priceLineVisible: false
+  })
+
+  if (latestPriceLine) {
+    mainSeries.removePriceLine(latestPriceLine)
+    latestPriceLine = null
+  }
+
+  if (!latest) return
+
+  latestPriceLine = mainSeries.createPriceLine({
+    price: latest.close,
+    color: latestColor,
+    lineWidth: 1,
+    lineStyle: LineStyle.Dashed,
+    axisLabelVisible: true,
+    title: '',
+    lineVisible: true,
+    axisLabelColor: latestColor,
+    axisLabelTextColor: '#ffffff'
+  })
+}
+
+const getChartHeight = () => {
+  const parsedHeight = Number.parseInt(props.height, 10)
+  return Number.isFinite(parsedHeight) ? parsedHeight : 550
 }
 
 const emit = defineEmits<{
@@ -194,6 +336,48 @@ let ema25Series: ISeriesApi<'Line'> | null = null
 let bollUpperSeries: ISeriesApi<'Line'> | null = null
 let bollMiddleSeries: ISeriesApi<'Line'> | null = null
 let bollLowerSeries: ISeriesApi<'Line'> | null = null
+let latestPriceLine: IPriceLine | null = null
+let resizeObserver: ResizeObserver | null = null
+
+const syncChartSize = () => {
+  if (!chart || !chartContainer.value) return
+
+  chart.applyOptions({
+    width: chartContainer.value.clientWidth,
+    height: chartContainer.value.clientHeight || getChartHeight()
+  })
+}
+
+const resetHoverToLatest = () => {
+  isHovering.value = false
+  const latestData = props.data[props.data.length - 1]
+  if (!latestData) return
+
+  const date = new Date(latestData.time * 1000)
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  const seconds = date.getSeconds().toString().padStart(2, '0')
+  hoveringTime.value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}` as Time
+  hoveringCandleStick.value = {
+    time: latestData.time as Time,
+    open: latestData.open,
+    high: latestData.high,
+    low: latestData.low,
+    close: latestData.close
+  }
+  hoveringVolume.value = {
+    time: latestData.time as Time,
+    value: latestData.volume,
+    color: latestData.close >= latestData.open ? PRICE_COLORS.up : PRICE_COLORS.down
+  }
+}
+
+const handleMouseLeave = () => {
+  resetHoverToLatest()
+}
 
 const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLength: number) => {
   const maData = [] as LineData[]
@@ -219,7 +403,7 @@ const initChart = () => {
 
   chart = createChart(chartContainer.value, {
     width: chartContainer.value.clientWidth,
-    height: 600,
+    height: chartContainer.value.clientHeight || getChartHeight(),
     layout: { background: { color: '#131722' }, textColor: '#d9d9d9' },
     grid: {
       vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
@@ -229,12 +413,12 @@ const initChart = () => {
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
-      barSpacing: 6,
-      minBarSpacing: 3,
+      barSpacing: 9,
+      minBarSpacing: 5,
       rightOffset: 12
     },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
-    autoSize: true
+    autoSize: false
   })
 
   chart.applyOptions({
@@ -267,24 +451,24 @@ const initChart = () => {
 
   chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
 
-  chart.priceScale('price').applyOptions({
-    visible: true,
-    borderColor: '#2B2B43',
-    scaleMargins: { top: 0.1, bottom: 0.3 }
-  })
-
-  chart.priceScale('volume').applyOptions({
-    visible: true,
-    borderColor: '#2B2B43',
-    scaleMargins: { top: 0.7, bottom: 0 }
-  })
+  applyPriceScaleLayout()
 
   chart.subscribeCrosshairMove(handleCrosshairMove)
+
+  chartContainer.value.addEventListener('mouseleave', handleMouseLeave)
+
+  resizeObserver = new ResizeObserver(() => {
+    syncChartSize()
+  })
+  resizeObserver.observe(chartContainer.value)
+
+  resetHoverToLatest()
 }
 
 const createMainSeries = () => {
   // 移除旧的主图系列
   if (mainSeries) {
+    latestPriceLine = null
     chart.removeSeries(mainSeries)
   }
 
@@ -297,22 +481,14 @@ const createMainSeries = () => {
       borderDownColor: '#ef5350',
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      },
+      priceFormat: getPriceSeriesFormat(),
       priceScaleId: 'price'
     })
   } else if (props.chartType === ChartType.LINE) {
     mainSeries = chart.addSeries(LineSeries, {
       color: '#2962FF',
       lineWidth: 2,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      },
+      priceFormat: getPriceSeriesFormat(),
       priceScaleId: 'price'
     })
   } else if (props.chartType === ChartType.AREA) {
@@ -321,18 +497,16 @@ const createMainSeries = () => {
       topColor: 'rgba(41, 98, 255, 0.4)',
       bottomColor: 'rgba(41, 98, 255, 0.0)',
       lineWidth: 2,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      },
+      priceFormat: getPriceSeriesFormat(),
       priceScaleId: 'price'
     })
   }
 
   mainSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0, bottom: 0.3 }
+    scaleMargins: getMainScaleMargins()
   })
+
+  applyMainSeriesVisualState()
 }
 
 const createVolumeSeries = () => {
@@ -341,6 +515,7 @@ const createVolumeSeries = () => {
       chart.removeSeries(volumeSeries)
       volumeSeries = null
     }
+    applyPriceScaleLayout()
     return
   }
 
@@ -349,16 +524,13 @@ const createVolumeSeries = () => {
   }
 
   volumeSeries = chart.addSeries(HistogramSeries, {
-    priceFormat: {
-      type: 'volume',
-      precision: 4,
-      minMove: 0.0001
-    },
+    priceFormat: getVolumeSeriesFormat(),
     priceScaleId: 'volume'
   })
   volumeSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0.7, bottom: 0 }
+    scaleMargins: { top: 0.85, bottom: 0 }
   })
+  applyPriceScaleLayout()
 }
 
 const createIndicatorSeries = () => {
@@ -371,7 +543,6 @@ const createIndicatorSeries = () => {
   if (bollUpperSeries) chart.removeSeries(bollUpperSeries)
   if (bollMiddleSeries) chart.removeSeries(bollMiddleSeries)
   if (bollLowerSeries) chart.removeSeries(bollLowerSeries)
-
   ma5MinSeries = null
   ma10MinSeries = null
   ma30MinSeries = null
@@ -387,14 +558,10 @@ const createIndicatorSeries = () => {
       color: '#FFA500',
       lineWidth: 2,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
+      priceFormat: getPriceSeriesFormat()
     })
     ma5MinSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      scaleMargins: getMainScaleMargins()
     })
   }
 
@@ -403,14 +570,10 @@ const createIndicatorSeries = () => {
       color: '#00BFFF',
       lineWidth: 2,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
+      priceFormat: getPriceSeriesFormat()
     })
     ma10MinSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      scaleMargins: getMainScaleMargins()
     })
   }
 
@@ -419,14 +582,10 @@ const createIndicatorSeries = () => {
       color: '#32CD32',
       lineWidth: 2,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
+      priceFormat: getPriceSeriesFormat()
     })
     ma30MinSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      scaleMargins: getMainScaleMargins()
     })
   }
 
@@ -436,14 +595,10 @@ const createIndicatorSeries = () => {
       color: '#FF69B4',
       lineWidth: 2,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
+      priceFormat: getPriceSeriesFormat()
     })
     ema7Series.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      scaleMargins: getMainScaleMargins()
     })
   }
 
@@ -452,65 +607,45 @@ const createIndicatorSeries = () => {
       color: '#9370DB',
       lineWidth: 2,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
+      priceFormat: getPriceSeriesFormat()
     })
     ema25Series.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      scaleMargins: getMainScaleMargins()
     })
   }
 
   // 创建布林带指标
   if (props.indicatorConfig.boll) {
     bollUpperSeries = chart.addSeries(LineSeries, {
-      color: '#9932CC',
+      color: 'rgba(180, 85, 255, 0.72)',
       lineWidth: 1,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
-    })
-    bollUpperSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      priceFormat: getPriceSeriesFormat()
     })
 
     bollMiddleSeries = chart.addSeries(LineSeries, {
-      color: '#9932CC',
+      color: 'rgba(244, 197, 66, 0.82)',
       lineWidth: 1,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
-    })
-    bollMiddleSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      priceFormat: getPriceSeriesFormat()
     })
 
     bollLowerSeries = chart.addSeries(LineSeries, {
-      color: '#9932CC',
+      color: 'rgba(77, 212, 255, 0.72)',
       lineWidth: 1,
       lineType: LineType.Curved,
-      priceFormat: {
-        type: 'price',
-        precision: 10,
-        minMove: 0.0000000001
-      }
-    })
-    bollLowerSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0, bottom: 0.3 }
+      priceFormat: getPriceSeriesFormat()
     })
   }
 }
 
 const handleCrosshairMove = (param: MouseEventParams) => {
-  if (!param.time) return
+  if (!param.time) {
+    isHovering.value = false
+    return
+  }
+
+  isHovering.value = true
 
   const date = new Date(param.time as number * 1000)
   const year = date.getFullYear()
@@ -579,6 +714,7 @@ const handleCrosshairMove = (param: MouseEventParams) => {
       hoveringEMA25.value = ema25Point
     }
   }
+
 }
 
 const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | null) => {
@@ -601,7 +737,7 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 }
 
 const updateChartData = () => {
-  if (!mainSeries || !volumeSeries) return
+  if (!mainSeries) return
 
   // 处理主图数据
   const candleData: CandlestickData[] = props.data.map(d => ({
@@ -623,40 +759,104 @@ const updateChartData = () => {
     (mainSeries as ISeriesApi<'Line'>).setData(lineData)
   }
 
+  applyMainSeriesVisualState()
+
+  // 如果没有悬停，显示最新一根K线的数据
+  if (!isHovering.value) {
+    const latestData = props.data[props.data.length - 1]
+    if (latestData) {
+      const date = new Date(latestData.time * 1000)
+      const year = date.getFullYear()
+      const month = (date.getMonth() + 1).toString().padStart(2, '0')
+      const day = date.getDate().toString().padStart(2, '0')
+      const hours = date.getHours().toString().padStart(2, '0')
+      const minutes = date.getMinutes().toString().padStart(2, '0')
+      const seconds = date.getSeconds().toString().padStart(2, '0')
+      hoveringTime.value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}` as Time
+      hoveringCandleStick.value = {
+        time: latestData.time as Time,
+        open: latestData.open,
+        high: latestData.high,
+        low: latestData.low,
+        close: latestData.close
+      }
+      hoveringVolume.value = {
+        time: latestData.time as Time,
+        value: latestData.volume,
+        color: latestData.close >= latestData.open ? '#26a69a' : '#ef5350'
+      }
+    }
+  }
+
   // 处理成交量
-  if (props.indicatorConfig.volume) {
+  if (props.indicatorConfig.showVolume) {
     const volumeData: HistogramData[] = props.data.map(d => ({
       time: d.time as Time,
       value: d.volume,
       color: d.close >= d.open ? '#26a69a' : '#ef5350'
     }))
-    volumeSeries.setData(volumeData)
+    volumeSeries?.setData(volumeData)
   }
 
   // 处理 MA 指标
   if (ma5MinSeries && props.indicatorConfig.ma.enabled.ma5) {
     const ma5MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 5)
     ma5MinSeries.setData(ma5MinData)
+    // 如果没有悬停，显示最新的MA值
+    if (!isHovering.value && ma5MinData.length > 0) {
+      const latestMA = ma5MinData[ma5MinData.length - 1]
+      if (latestMA?.value !== undefined) {
+        hoveringMA5Min.value = latestMA
+      }
+    }
   }
 
   if (ma10MinSeries && props.indicatorConfig.ma.enabled.ma10) {
     const ma10MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 10)
     ma10MinSeries.setData(ma10MinData)
+    // 如果没有悬停，显示最新的MA值
+    if (!isHovering.value && ma10MinData.length > 0) {
+      const latestMA = ma10MinData[ma10MinData.length - 1]
+      if (latestMA?.value !== undefined) {
+        hoveringMA10Min.value = latestMA
+      }
+    }
   }
 
   if (ma30MinSeries && props.indicatorConfig.ma.enabled.ma30) {
     const ma30MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 30)
     ma30MinSeries.setData(ma30MinData)
+    // 如果没有悬停，显示最新的MA值
+    if (!isHovering.value && ma30MinData.length > 0) {
+      const latestMA = ma30MinData[ma30MinData.length - 1]
+      if (latestMA?.value !== undefined) {
+        hoveringMA30Min.value = latestMA
+      }
+    }
   }
 
   if (ema7Series && props.indicatorConfig.ema.enabled.ema7) {
     const ema7Data: LineData[] = calculateEMASeriesData(candleData, 7)
     ema7Series.setData(ema7Data)
+    // 如果没有悬停，显示最新的EMA值
+    if (!isHovering.value && ema7Data.length > 0) {
+      const latestEMA = ema7Data[ema7Data.length - 1]
+      if (latestEMA?.value !== undefined) {
+        hoveringEMA7.value = latestEMA
+      }
+    }
   }
 
   if (ema25Series && props.indicatorConfig.ema.enabled.ema25) {
     const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
     ema25Series.setData(ema25Data)
+    // 如果没有悬停，显示最新的EMA值
+    if (!isHovering.value && ema25Data.length > 0) {
+      const latestEMA = ema25Data[ema25Data.length - 1]
+      if (latestEMA?.value !== undefined) {
+        hoveringEMA25.value = latestEMA
+      }
+    }
   }
 
   if (bollUpperSeries && bollMiddleSeries && bollLowerSeries && props.indicatorConfig.boll) {
@@ -743,23 +943,44 @@ watch(() => props.indicatorConfig, () => {
       }
     })
   }
+  applyPriceScaleLayout()
+  createMainSeries()
   createIndicatorSeries()
   createVolumeSeries()
   updateChartData()
 }, { deep: true })
 watch(() => props.pricePrecision, () => {
   if (mainSeries) {
-    mainSeries.applyOptions({ priceFormat: { precision: props.pricePrecision, type: 'price', minMove: 1 / Math.pow(10, props.pricePrecision) } })
+    mainSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
   }
+  if (ma5MinSeries) ma5MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (ma10MinSeries) ma10MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (ma30MinSeries) ma30MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (ema7Series) ema7Series.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (ema25Series) ema25Series.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (bollUpperSeries) bollUpperSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (bollMiddleSeries) bollMiddleSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  if (bollLowerSeries) bollLowerSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+  applyPriceScaleLayout()
 })
 watch(() => props.volumePrecision, () => {
   if (volumeSeries) {
-    volumeSeries.applyOptions({ priceFormat: { type: 'volume', precision: props.volumePrecision } })
+    volumeSeries.applyOptions({ priceFormat: getVolumeSeriesFormat() })
   }
+})
+watch(() => props.height, () => {
+  syncChartSize()
 })
 
 onMounted(initChart)
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  if (chartContainer.value) {
+    chartContainer.value.removeEventListener('mouseleave', handleMouseLeave)
+  }
+  if (mainSeries && latestPriceLine) {
+    mainSeries.removePriceLine(latestPriceLine)
+  }
   chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange)
   chart.remove()
 })
@@ -779,7 +1000,6 @@ onBeforeUnmount(() => {
   position: absolute
   top: 0
   left: 0
-  right: 0
   pointer-events: none
   z-index: 10
 
