@@ -35,7 +35,7 @@ pub struct Miner {
     pub registered_at: Timestamp,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, SimpleObject)]
 pub struct GenesisMiner {
     pub owner: Account,
     pub approval: Approval,

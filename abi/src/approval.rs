@@ -1,8 +1,9 @@
+use async_graphql::SimpleObject;
 use linera_sdk::linera_base_types::Account;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Default, Clone, SimpleObject)]
 pub struct Approval {
     approvers: HashMap<Account, bool>,
     least_approvals: usize,
