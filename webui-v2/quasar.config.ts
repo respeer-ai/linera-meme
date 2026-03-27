@@ -62,6 +62,7 @@ export default defineConfig((ctx) => {
         VITE_PACKAGE_NAME: packageJson.name,
         VITE_PRODUCT_NAME: packageJson.productName,
         VITE_APP_VERSION: packageJson.version,
+        VITE_SITE_URL: process.env.VITE_SITE_URL || 'https://testnet-conway.linerameme.fun',
       },
       // rawDefine: {}
       // ignorePublicFolder: true,
@@ -77,6 +78,9 @@ export default defineConfig((ctx) => {
             packageJson.productName || packageJson.name,
           ),
           'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
+          'import.meta.env.VITE_SITE_URL': JSON.stringify(
+            process.env.VITE_SITE_URL || 'https://testnet-conway.linerameme.fun',
+          ),
         }
 
         viteConf.optimizeDeps = viteConf.optimizeDeps || {}

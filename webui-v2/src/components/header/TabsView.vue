@@ -24,7 +24,7 @@ enum Tab {
 const tab = ref(Tab.Swap)
 
 const routers = ref<Record<string, string>>({
-  [Tab.Swap]: '/swap',
+  [Tab.Swap]: '/',
   [Tab.Explore]: '/explore',
   [Tab.Trending]: '/trending',
   [Tab.Docs]: '/docs'

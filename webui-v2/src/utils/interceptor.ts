@@ -1,7 +1,13 @@
 import { type NavigationGuardNext, type RouteLocationNormalized } from 'vue-router'
 
 interface RouteMetaImpl {
-  NeedLogined: boolean
+  NeedLogined?: boolean
+  seo?: {
+    title: string
+    description: string
+    path: string
+    keywords?: string[]
+  }
 }
 
 declare module 'vue-router' {
