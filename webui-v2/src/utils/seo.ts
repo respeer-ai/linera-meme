@@ -1,15 +1,14 @@
 import { useMeta } from 'quasar'
 
 const fallbackSiteUrl = 'https://testnet-conway.linerameme.fun'
-const siteName = 'Linera Meme'
+const siteName = 'MicroMeme'
 const defaultKeywords = [
+  'MicroMeme',
   'Linera Meme',
   'Linera Meme Swap',
-  'Linera DEX',
-  'Linera token',
-  'Linera mining',
-  'Linera microchain',
-  'Linera realtime trading',
+  'Linera meme token trading',
+  'Minable Meme',
+  'Microchain Meme',
 ]
 
 export interface SeoInput {

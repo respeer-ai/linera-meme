@@ -11,11 +11,18 @@ const routes: RouteRecordRaw[] = [
         meta: {
           NeedLogined: false,
           seo: {
-            title: 'Linera Meme Swap - Realtime Meme Token Trading on Linera',
+            title: 'MicroMeme | Linera Meme Swap for Minable Meme and Microchain Meme Trading',
             description:
-              'Trade meme tokens on Linera with realtime pricing, microchain-based execution, live charts, and low-latency swap flows.',
+              'MicroMeme is a Linera Meme Swap for discovering, trending, and trading minable meme and microchain meme tokens on Linera.',
             path: '/',
-            keywords: ['Linera Meme Swap', 'Linera Swap', 'Linera DEX', 'realtime token trading'],
+            keywords: [
+              'MicroMeme',
+              'Linera Meme',
+              'Linera Meme Swap',
+              'Linera meme token trading',
+              'Minable Meme',
+              'Microchain Meme',
+            ],
           },
         },
       },
@@ -29,11 +36,17 @@ const routes: RouteRecordRaw[] = [
         meta: {
           NeedLogined: false,
           seo: {
-            title: 'Explore Linera Meme Tokens, Pools, and Microchain Markets',
+            title: 'Explore Linera Meme Tokens | MicroMeme',
             description:
-              'Explore Linera meme tokens, liquidity pools, token stats, and microchain market activity in one realtime dashboard.',
+              'Explore Linera meme tokens, liquidity pools, and microchain market activity on MicroMeme, a Linera Meme trading app.',
             path: '/explore',
-            keywords: ['Linera Meme tokens', 'Linera token explorer', 'Linera microchain markets'],
+            keywords: [
+              'MicroMeme',
+              'Linera Meme',
+              'Linera Meme tokens',
+              'Linera meme token trading',
+              'Microchain Meme',
+            ],
           },
         },
       },
@@ -43,11 +56,17 @@ const routes: RouteRecordRaw[] = [
         meta: {
           NeedLogined: false,
           seo: {
-            title: 'Trending Linera Meme Tokens - Realtime Movers, Volume, and New Launches',
+            title: 'Trending Linera Meme Tokens | MicroMeme',
             description:
-              'Track trending Linera meme tokens with realtime gainers, volume leaders, and new token launches across the Linera ecosystem.',
+              'Track trending Linera meme tokens, volume leaders, minable meme launches, and microchain meme activity on MicroMeme.',
             path: '/trending',
-            keywords: ['trending Linera tokens', 'Linera Meme trending', 'Linera realtime volume'],
+            keywords: [
+              'MicroMeme',
+              'Linera Meme',
+              'Linera Meme Swap',
+              'Minable Meme',
+              'Microchain Meme',
+            ],
           },
         },
       },

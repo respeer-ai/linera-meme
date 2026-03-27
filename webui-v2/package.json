@@ -1,7 +1,7 @@
 {
   "name": "linera-meme-webui",
   "version": "0.0.1",
-  "description": "Trading/Creating creative minable Meme tokens with Linera",
+  "description": "MicroMeme is a Linera Meme Swap for discovering, trending, and trading minable meme and microchain meme tokens on Linera.",
   "productName": "MicroMeme",
   "author": "Zhao KK <kikakkz@hotmail.com>",
   "type": "module",
