@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang='ts'>
+import { useMeta } from 'quasar'
 import { useRoute } from 'vue-router'
 import TradeView from 'src/components/trade/TradeView.vue'
 import { usePageSeo } from 'src/utils/seo'
@@ -94,6 +95,26 @@ const faqItems = [
       'You can usually track earnings through wallet balances, token positions, trading history, pool participation, and any mining or reward views exposed by the token or application. Over time, these earnings can also be surfaced in more dedicated dashboards.',
   },
 ]
+
+useMeta(() => ({
+  script: {
+    faqStructuredData: {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqItems.map((item) => ({
+          '@type': 'Question',
+          name: item.question,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: item.answer,
+          },
+        })),
+      }),
+    },
+  },
+}))
 
 usePageSeo(() => ({
   title: route.meta.seo?.title || 'Linera Meme Swap - Realtime Meme Token Trading on Linera',
