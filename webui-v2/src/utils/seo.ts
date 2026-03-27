@@ -2,6 +2,7 @@ import { useMeta } from 'quasar'
 
 const fallbackSiteUrl = 'https://testnet-conway.linerameme.fun'
 const siteName = 'MicroMeme'
+const defaultOgImage = '/og-image-v3.png'
 const defaultKeywords = [
   'MicroMeme',
   'Linera Meme',
@@ -104,7 +105,11 @@ export const usePageSeo = (input: SeoSource) => {
         },
         ogImage: {
           property: 'og:image',
-          content: absoluteUrl('/favicon.png'),
+          content: absoluteUrl(defaultOgImage),
+        },
+        ogImageAlt: {
+          property: 'og:image:alt',
+          content: `${siteName} - Linera Meme Swap`,
         },
         twitterCard: {
           name: 'twitter:card',
@@ -120,7 +125,7 @@ export const usePageSeo = (input: SeoSource) => {
         },
         twitterImage: {
           name: 'twitter:image',
-          content: absoluteUrl('/favicon.png'),
+          content: absoluteUrl(defaultOgImage),
         },
       },
       link: {

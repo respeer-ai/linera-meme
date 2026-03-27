@@ -1,6 +1,13 @@
 <template>
   <q-page class='row justify-center'>
     <main class='page-width' aria-label='Linera Meme Swap trading page'>
+      <header class='seo-intro' aria-hidden='false'>
+        <h1 class='seo-only q-ma-none'>MicroMeme: Linera Meme Swap</h1>
+        <p class='seo-only q-ma-none'>
+          Trade and discover Linera meme tokens with realtime charts, trending markets, minable meme
+          launches, and fast microchain-based execution.
+        </p>
+      </header>
       <div class='q-my-xl' role='region' aria-label='Meme token swap interface'>
         <trade-view />
       </div>
@@ -133,6 +140,21 @@ usePageSeo(() => ({
 </script>
 
 <style scoped lang='sass'>
+.seo-intro
+  height: 0
+  overflow: hidden
+
+.seo-only
+  position: absolute
+  width: 1px
+  height: 1px
+  padding: 0
+  margin: -1px
+  overflow: hidden
+  clip: rect(0, 0, 0, 0)
+  white-space: nowrap
+  border: 0
+
 .faq-kicker
   letter-spacing: 0.12em
   text-transform: uppercase
