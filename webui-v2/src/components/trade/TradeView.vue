@@ -1,38 +1,71 @@
 <template>
   <div>
     <div class='row'>
-      <q-card flat class='radius-8' style='overflow: hidden; min-width: 560px; width: calc(100% - 480px - 16px);'>
+      <section
+        aria-label='Realtime meme token price chart'
+        style='min-width: 560px; width: calc(100% - 480px - 16px);'
+      >
+        <q-card flat class='radius-8' style='overflow: hidden;'>
         <price-chart-view height='640px' />
-      </q-card>
+        </q-card>
+      </section>
       <q-space />
-      <div style='width: 480px;'>
-        <div class='items-center'>
+      <section aria-label='Swap controls' style='width: 480px;'>
+        <div class='items-center' role='form' aria-label='Token swap form'>
           <token-input-view :action='TokenAction.Sell' v-model='sellToken' :tokens='sellTokens' v-model:amount='sellAmount' :disable='!walletConnected' />
           <div class='row'>
             <q-space />
-            <div class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary' style='height: 48px; width: 48px; margin-top: -20px; z-index: 1000;' @click='onSwitchTokenClick'>
+            <div
+              class='radius-24 bg-accent q-pa-sm cursor-pointer hover-primary'
+              style='height: 48px; width: 48px; margin-top: -20px; z-index: 1000;'
+              role='button'
+              tabindex='0'
+              aria-label='Switch sell token and buy token'
+              @click='onSwitchTokenClick'
+            >
               <q-icon name='arrow_downward' size='32px' />
             </div>
             <q-space />
           </div>
           <token-input-view :action='TokenAction.Buy' style='margin-top: -20px;' :auto-focus='false' v-model='buyToken' :tokens='buyTokens' v-model:amount='buyAmount' :disable='!walletConnected' />
         </div>
-        <q-btn no-caps rounded class='fill-parent-width bg-primary q-mt-sm font-size-20' :disabled='btnActions[btnStep]?.disable' @click='onSwapClick'>
+        <q-btn
+          no-caps
+          rounded
+          class='fill-parent-width bg-primary q-mt-sm font-size-20'
+          :disabled='btnActions[btnStep]?.disable'
+          :aria-label='btnActions[btnStep]?.label || "Swap token"'
+          @click='onSwapClick'
+        >
           <template #loading>
             <q-spinner-hourglass class="on-left" />
             {{ btnActions[btnStep]?.label }}
           </template>
           {{ btnActions[btnStep]?.label }}
         </q-btn>
-        <div class='row q-mt-md font-size-14 text-neutral'>
-          <div>1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}</div>
+        <div class='row q-mt-md font-size-14 text-neutral' aria-label='Swap rate and trade settings'>
+          <output :aria-label='`Exchange rate: 1 ${sellTokenTicker} equals ${sellPrice} ${buyTokenTicker}`'>
+            1 {{ sellTokenTicker }} = {{ sellPrice }} {{ buyTokenTicker }}
+          </output>
           <q-space />
-          <div class='bg-accent q-px-sm radius-8 text-bold border-secondary-25 cursor-pointer hover-primary' @click='onSetSlippageClick'>
+          <div
+            class='bg-accent q-px-sm radius-8 text-bold border-secondary-25 cursor-pointer hover-primary'
+            role='button'
+            tabindex='0'
+            aria-label='Set swap slippage tolerance'
+            @click='onSetSlippageClick'
+          >
             <div class='text-neutral'>
               {{ slippage }}%
             </div>
           </div>
-          <div class='row q-ml-xs cursor-pointer hover-primary' @click='onShowTradeInfoClick'>
+          <div
+            class='row q-ml-xs cursor-pointer hover-primary'
+            role='button'
+            tabindex='0'
+            :aria-label='showingTradeInfo ? "Hide trade details" : "Show trade details"'
+            @click='onShowTradeInfoClick'
+          >
             <div>
               <q-icon name='local_gas_station' size='18px' />
             </div>
@@ -55,7 +88,7 @@
             />
           </div>
         </div>
-      </div>
+      </section>
     </div>
   </div>
   <q-dialog v-model='reviewing' persistent>

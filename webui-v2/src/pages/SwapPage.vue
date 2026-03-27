@@ -1,13 +1,13 @@
 <template>
   <q-page class='row justify-center'>
-    <div class='page-width'>
-      <div class='q-my-xl'>
+    <main class='page-width' aria-label='Linera Meme Swap trading page'>
+      <div class='q-my-xl' role='region' aria-label='Meme token swap interface'>
         <trade-view />
       </div>
-      <section class='swap-faq q-mb-xl'>
+      <section class='swap-faq q-mb-xl' aria-labelledby='swap-faq-title' aria-describedby='swap-faq-intro'>
         <div class='faq-kicker text-primary text-weight-medium'>About Linera Meme Swap</div>
-        <h2 class='faq-title q-mt-sm q-mb-sm'>Trading FAQ</h2>
-        <p class='q-ma-none text-neutral faq-intro'>
+        <h2 id='swap-faq-title' class='faq-title q-mt-sm q-mb-sm'>Trading FAQ</h2>
+        <p id='swap-faq-intro' class='q-ma-none text-neutral faq-intro'>
           A concise guide to Linera, microchains, meme mining, and realtime token activity on the swap page.
         </p>
         <div class='q-mt-lg'>
@@ -17,6 +17,7 @@
             class='faq-row'
             expand-icon-class='text-neutral'
             expand-separator
+            :aria-label='item.question'
           >
             <template #header>
               <div class='faq-header row items-center full-width'>
@@ -31,7 +32,7 @@
           </q-expansion-item>
         </div>
       </section>
-    </div>
+    </main>
   </q-page>
 </template>
 
