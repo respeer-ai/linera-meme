@@ -1,11 +1,22 @@
 import { account, user } from 'src/stores/export'
 import { Provider } from './provider'
 import { dbModel, rpcModel } from 'src/model'
-import { BALANCES, CREATE_MEME, PUBLISH_DATA_BLOB, SWAP } from 'src/graphql'
+import {
+  BALANCES,
+  BLOCK_MATERIAL_WITH_DEFAULT_CHAIN,
+  CREATE_MEME,
+  ESTIMATE_GAS,
+  PUBLISH_DATA_BLOB,
+  SWAP,
+} from 'src/graphql'
+import { ApolloClient } from '@apollo/client/core'
+import axios from 'axios'
 import { Web3 } from 'web3'
 import * as lineraWasm from '../../dist/wasm/linera_wasm'
-import { stringify } from 'lossless-json'
+import { parse, stringify } from 'lossless-json'
+import { getClientOptions } from 'src/apollo'
 import { constants } from 'src/constant'
+import { graphqlResult } from 'src/utils'
 
 export class CheCko {
   static subscribe = (
@@ -202,7 +213,17 @@ export class CheCko {
   }
 
   static blockMaterialWithDefaultChain = async () => {
-    
+    const apolloClient = new ApolloClient(getClientOptions(constants.RPC_URL))
+    const { data } = await apolloClient.query({
+      query: BLOCK_MATERIAL_WITH_DEFAULT_CHAIN,
+      variables: {
+        chainId: user.User.chainId(),
+        maxPendingMessages: 2,
+      },
+      fetchPolicy: 'network-only',
+    })
+
+    return data.blockMaterialWithDefaultChain
   }
 
   static estimateGas = async (params: Record<string, unknown>) => {
@@ -212,5 +233,45 @@ export class CheCko {
       method: 'eth_estimateGas',
       params,
     })) as string
+  }
+
+  static estimateGasWithRpc = async (params: Record<string, unknown>) => {
+    const query = params.query as Record<string, unknown>
+    const candidate = await CheCko.blockMaterialWithDefaultChain()
+    const operation = {
+      User: {
+        applicationId: params.applicationId,
+        bytes: JSON.parse(query.applicationOperationBytes as string) as number[],
+      },
+    }
+
+    const res = await axios.post(
+      constants.RPC_URL,
+      stringify({
+        query: ESTIMATE_GAS.loc?.source?.body,
+        variables: {
+          chainId: user.User.chainId(),
+          blockMaterial: {
+            operations: [operation],
+            blobBytes: [],
+            candidate,
+          },
+        },
+        operationName: 'estimateGas',
+      }),
+      {
+        responseType: 'text',
+        transformResponse: [(data) => data as string],
+      },
+    )
+
+    const dataString = graphqlResult.rootData(res) as string
+    const data = parse(dataString) as Record<string, unknown>
+    const errors = data.errors as unknown[] | undefined
+    if (errors?.length) {
+      return Promise.reject(new Error(stringify(errors)))
+    }
+
+    return ((data.data as Record<string, unknown>)?.estimateGas || '') as string
   }
 }

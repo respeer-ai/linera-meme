@@ -201,6 +201,10 @@ export class Wallet {
     ) as string
 
     switch (walletType) {
+      case user.WalletType.NotConnected:
+        return await CheCko.estimateGasWithRpc(
+          await CheCko.swapOperation(poolApplicationId, variables),
+        )
       case user.WalletType.CheCko:
         return await CheCko.estimateSwapGas(poolApplicationId, variables)
       case user.WalletType.Metamask:
@@ -218,7 +222,7 @@ export class Wallet {
   ) => {
     try {
       const gas = await Wallet._estimateSwapGas(sellToken, buyToken, amountIn, amountOutMin)
-      done?.(gas as string)
+      done?.(gas)
     } catch (e) {
       error?.(JSON.stringify(e))
     }

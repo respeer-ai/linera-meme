@@ -12,7 +12,7 @@ export const NOTIFICATIONS = gql`
   }
 `
 
-export const BLOCK_MATERIAL_WITH_DEFAULT = gql`
+export const BLOCK_MATERIAL_WITH_DEFAULT_CHAIN = gql`
   query blockMaterialWithDefaultChain($chainId: ChainId, $maxPendingMessages: Int!) {
     blockMaterialWithDefaultChain(chainId: $chainId, maxPendingMessages: $maxPendingMessages) {
       incomingBundles {
