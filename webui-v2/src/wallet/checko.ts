@@ -201,6 +201,10 @@ export class CheCko {
     return await CheCko.estimateGas(await CheCko.swapOperation(poolApplicationId, variables))
   }
 
+  static blockMaterialWithDefaultChain = async () => {
+    
+  }
+
   static estimateGas = async (params: Record<string, unknown>) => {
     params.operationName = 'estimateGas'
 
