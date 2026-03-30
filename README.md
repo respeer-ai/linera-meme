@@ -1,4 +1,4 @@
-![image](webui/src/assets/LineraMeme.svg)
+![MicroMeme logo](webui-v2/src/assets/Laugh.png)
 
 # MicroMeme
 
