@@ -6,7 +6,7 @@
       </div>
     </td>
     <td valign="middle">
-      <div style="font-size: 2rem; font-weight: 700; line-height: 1.1;">MicroMeme</div>
+      <h1 style="margin: 0; line-height: 1.05;">MicroMeme</h1>
       <div style="font-size: 0.95rem; line-height: 1.2; padding-top: 4px;">Creating . Trading . Mining Meme on Linera</div>
     </td>
   </tr>
