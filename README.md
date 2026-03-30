@@ -42,11 +42,11 @@ This repository already contains the foundations for:
 
 ## Documents
 
-Planning and architecture documents live under [documents/](/home/kk/linera-project/linera-meme/documents):
+Planning and architecture documents live under [documents/](documents/):
 
-- [MICROMEME_PRODUCT_PLAN.md](/home/kk/linera-project/linera-meme/documents/MICROMEME_PRODUCT_PLAN.md)
-- [MICROMEME_TECHNICAL_ROADMAP.md](/home/kk/linera-project/linera-meme/documents/MICROMEME_TECHNICAL_ROADMAP.md)
-- [ARCHITECTURE.md](/home/kk/linera-project/linera-meme/documents/ARCHITECTURE.md)
+- [MICROMEME_PRODUCT_PLAN.md](documents/MICROMEME_PRODUCT_PLAN.md)
+- [MICROMEME_TECHNICAL_ROADMAP.md](documents/MICROMEME_TECHNICAL_ROADMAP.md)
+- [ARCHITECTURE.md](documents/ARCHITECTURE.md)
 
 ## Repository Layout
 
