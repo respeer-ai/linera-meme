@@ -1,6 +1,14 @@
-![MicroMeme logo](webui-v2/src/assets/Laugh.png)
-
-# MicroMeme
+<table>
+  <tr>
+    <td width="72" valign="middle">
+      <img src="webui-v2/src/assets/Laugh.png" alt="MicroMeme logo" width="48" height="48" />
+    </td>
+    <td valign="middle">
+      <h1>MicroMeme</h1>
+      <div>Creating . Trading . Mining Meme on Linera</div>
+    </td>
+  </tr>
+</table>
 
 [![Test](https://github.com/respeer-ai/linera-meme/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/respeer-ai/linera-meme/actions/workflows/test.yml)
 
