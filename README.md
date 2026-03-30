@@ -1,11 +1,13 @@
 <table>
   <tr>
-    <td width="72" valign="middle">
-      <img src="webui-v2/src/assets/Laugh.png" alt="MicroMeme logo" width="48" height="48" />
+    <td valign="middle" style="padding-right: 14px;">
+      <div style="width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+        <img src="webui-v2/src/assets/Laugh.png" alt="MicroMeme logo" width="52" height="52" />
+      </div>
     </td>
     <td valign="middle">
-      <h1>MicroMeme</h1>
-      <div>Creating . Trading . Mining Meme on Linera</div>
+      <div style="font-size: 2rem; font-weight: 700; line-height: 1.1;">MicroMeme</div>
+      <div style="font-size: 0.95rem; line-height: 1.2; padding-top: 4px;">Creating . Trading . Mining Meme on Linera</div>
     </td>
   </tr>
 </table>
