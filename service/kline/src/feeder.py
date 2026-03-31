@@ -104,7 +104,7 @@ class Feeder:
             funded_chains,
             funder_chain_id,
         )
-        await self.feed_wallets(
+        funded_chains, funder_chain_id = await self.feed_wallets(
             self.miner_wallets,
             funded_chains,
             funder_chain_id,
