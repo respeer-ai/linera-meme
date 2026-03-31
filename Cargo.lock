@@ -4604,6 +4604,7 @@ dependencies = [
  "env_logger",
  "futures",
  "getrandom 0.2.17",
+ "linera-chain",
  "linera-sdk",
  "log",
  "runtime",

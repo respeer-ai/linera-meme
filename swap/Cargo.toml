@@ -22,6 +22,7 @@ bcs.workspace = true
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 linera-sdk = { workspace = true, features = ["test", "wasmer"] }
 tokio = { workspace = true, features = ["rt", "sync"] }
+linera-chain = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "e53042bf" }
 
 [dev-dependencies]
 assert_matches.workspace = true
@@ -35,4 +36,3 @@ path = "src/contract.rs"
 [[bin]]
 name = "swap_service"
 path = "src/service.rs"
-

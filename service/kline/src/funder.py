@@ -18,6 +18,7 @@ async def main():
     parser.add_argument('--maker-wallet-host', type=str, default='maker-wallet-service:8080', help='Host of maker wallet')
     parser.add_argument('--maker-wallet-chain-id', type=str, default='', help='Maker wallet chain ID')
     parser.add_argument('--maker-wallets', type=str, default='', help='Wallets of maker in $CHAIN_ID@$HOST:$PORT', nargs='+')
+    parser.add_argument('--miner-wallets', type=str, default='', help='Wallets of miner in $CHAIN_ID@$HOST:$PORT', nargs='+')
     parser.add_argument('--wallet-host', type=str, default='localhost:30081', help='Host of wallet service')
     parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
     parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
@@ -35,17 +36,24 @@ async def main():
     await _proxy.get_proxy_chain()
     await _proxy.get_proxy_application()
 
+    def parse_wallets(wallets):
+        parsed_wallets = []
+        for wallet in (wallets or []):
+            host_chain_id = wallet.strip().split('@')
+            if len(host_chain_id) != 2 or not host_chain_id[0] or not host_chain_id[1]:
+                print(f'Invalid host chain id: {host_chain_id}')
+                continue
+            parsed_wallets.append(MakerWallet(host_chain_id[1], host_chain_id[0]))
+        return parsed_wallets
+
     maker_wallets = []
     if args.maker_wallet_host and args.maker_wallet_chain_id:
         maker_wallets.append(MakerWallet(args.maker_wallet_host, args.maker_wallet_chain_id))
-    for maker_wallet in (args.maker_wallets or []):
-        host_chain_id = maker_wallet.strip().split('@')
-        if len(host_chain_id) != 2 or not host_chain_id[0] or not host_chain_id[1]:
-            print(f'Invalid host chain id: {host_chain_id}')
-            continue
-        maker_wallets.append(MakerWallet(host_chain_id[1], host_chain_id[0]))
+    maker_wallets.extend(parse_wallets(args.maker_wallets))
 
-    _feeder = Feeder(_swap, _proxy, maker_wallets, _wallet)
+    miner_wallets = parse_wallets(args.miner_wallets)
+
+    _feeder = Feeder(_swap, _proxy, maker_wallets, miner_wallets, _wallet)
     await _feeder.run()
 
 if __name__ == '__main__':

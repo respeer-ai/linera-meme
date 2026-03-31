@@ -29,7 +29,16 @@ spec:
             index="${wallet##*.}"
             MAKER_WALLETS="$MAKER_WALLETS $CHAIN_ID@maker-wallet-service-$index.maker-wallet-service:8080"
           done
-          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 MAKER_WALLETS="$MAKER_WALLETS" ./funder-entrypoint.sh
+          for wallet in /shared-app-data/MINER_WALLET_CHAIN_OWNER.*; do
+            [ -e "$wallet" ] || continue
+            CHAIN_ID=$(cat $wallet | head -n 1)
+            if [ -z "$CHAIN_ID" ]; then
+              continue
+            fi
+            index="${wallet##*.}"
+            MINER_WALLETS="$MINER_WALLETS $CHAIN_ID@meme-miner-service-$index.meme-miner-service:8080"
+          done
+          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=swap-service:8080 PROXY_HOST=proxy-service:8080 MAKER_WALLETS="$MAKER_WALLETS" MINER_WALLETS="$MINER_WALLETS" ./funder-entrypoint.sh
         env:
         - name: RUST_LOG
           value: warn
@@ -40,4 +49,3 @@ spec:
       - name: shared-app-data
         persistentVolumeClaim:
           claimName: shared-app-data
-

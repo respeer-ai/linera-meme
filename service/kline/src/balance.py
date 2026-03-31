@@ -23,14 +23,21 @@ class Balance:
             print(f'{self.rpc_endpoint}, {payload} -> {resp.reason}')
             return {}
 
-        if 'data' not in resp.json():
+        body = resp.json()
+        if 'errors' in body:
+            print(f'{self.rpc_endpoint}, {payload} -> {body["errors"]}')
+            return {}
+        if 'data' not in body or body['data'] is None:
+            print(f'{self.rpc_endpoint}, {payload} -> invalid response {body}')
+            return {}
+        if 'balances' not in body['data'] or body['data']['balances'] is None:
+            print(f'{self.rpc_endpoint}, {payload} -> missing balances {body}')
             return {}
 
-        balances = resp.json()['data']['balances']
+        balances = body['data']['balances']
         _balances = {}
 
         for chain_id in chain_ids:
             _balances[chain_id] = float(balances[chain_id]['chainBalance']) if chain_id in balances and 'chainBalance' in balances[chain_id] else 0
 
         return _balances
-

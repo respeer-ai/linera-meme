@@ -9,10 +9,11 @@ class MakerWallet:
         self.chain_id = chain_id
 
 class Feeder:
-    def __init__(self, swap, proxy, maker_wallets, wallet):
+    def __init__(self, swap, proxy, maker_wallets, miner_wallets, wallet):
         self.swap = swap
         self.proxy = proxy
         self.maker_wallets = maker_wallets
+        self.miner_wallets = miner_wallets
         self.wallet = wallet
         self.threshold = 10
 
@@ -24,6 +25,27 @@ class Feeder:
         except Exception as e:
             print(f'Failed feed {chain_id}')
             raise e
+
+    async def feed_wallets(self, wallets, funded_chains, funder_chain_id):
+        for target_wallet in wallets:
+            balances = await Balance(target_wallet.host).chain_balances([target_wallet.chain_id])
+            for chain_id, balance in balances.items():
+                if balance < self.threshold:
+                    if funded_chains % 5 == 0:
+                        try:
+                            funder_chain_id = self.wallet.open_chain_with_cli()
+                        except Exception as e:
+                            print(f'Failed open chain: {e}')
+                            await asyncio.sleep(30)
+                            continue
+                    try:
+                        self.feed_chain(funder_chain_id, chain_id)
+                        funded_chains += 1
+                    except Exception as e:
+                        print(f'Failed feed chain {chain_id}: ERROR {e}')
+                        continue
+
+        return funded_chains, funder_chain_id
 
     async def feed(self):
         # Get pools
@@ -77,24 +99,16 @@ class Feeder:
                     print(f'Failed feed chain {chain_id}: ERROR {e}')
                     continue
 
-        for maker_wallet in self.maker_wallets:
-            balances = await Balance(maker_wallet.host).chain_balances([maker_wallet.chain_id])
-            for chain_id, balance in balances.items():
-                if balance < self.threshold:
-                    if funded_chains % 5 == 0:
-                        # Claim new chain
-                        try:
-                            funder_chain_id = self.wallet.open_chain_with_cli()
-                        except Exception as e:
-                            print(f'Failed open chain: {e}')
-                            await asyncio.sleep(30)
-                            continue
-                    try:
-                        self.feed_chain(funder_chain_id, chain_id)
-                        funded_chains += 1
-                    except Exception as e:
-                        print(f'Failed feed chain {chain_id}: ERROR {e}')
-                        continue
+        funded_chains, funder_chain_id = await self.feed_wallets(
+            self.maker_wallets,
+            funded_chains,
+            funder_chain_id,
+        )
+        await self.feed_wallets(
+            self.miner_wallets,
+            funded_chains,
+            funder_chain_id,
+        )
 
     async def run(self):
         while True:
