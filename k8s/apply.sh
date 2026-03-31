@@ -154,6 +154,10 @@ envsubst '$FAUCET_URL $REPLICAS' < kline/03-ingress.yaml | kubectl apply -f -
 
 wait_pods kline-service 1 Running
 
+envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl apply -f -
+
+wait_pods meme-miner-service $MEME_MINER_REPLICAS Running
+
 envsubst '$FAUCET_URL $REPLICAS' < funder/02-deployment.yaml | kubectl apply -f -
 
 wait_pods funder-service 1 Running
@@ -164,10 +168,6 @@ envsubst '$FAUCET_URL' < maker/03-ingress.yaml | kubectl apply -f -
 
 wait_pods maker-service $MAKER_REPLICAS Running
 wait_pods maker-wallet-service $MAKER_REPLICAS Running
-
-envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl apply -f -
-
-wait_pods meme-miner-service $MEME_MINER_REPLICAS Running
 
 ####
 ## Replace CHAIN_ID and APPLICATION_ID in webui
