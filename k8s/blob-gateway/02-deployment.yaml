@@ -133,8 +133,8 @@ spec:
           OWNERS='{'
           is_first_owner=1
 
-          shopt -s nullglob
           for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
+            [ -e "$f" ] || continue
             OWNER=$(tr -d '\n' < "$f")
 
             [ -z "$OWNER" ] && continue
@@ -271,8 +271,8 @@ spec:
           OWNERS='{'
           is_first_owner=1
 
-          shopt -s nullglob
           for f in /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.*; do
+            [ -e "$f" ] || continue
             OWNER=$(tr -d '\n' < "$f")
 
             [ -z "$OWNER" ] && continue
