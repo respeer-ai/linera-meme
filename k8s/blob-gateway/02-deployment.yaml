@@ -273,7 +273,7 @@ spec:
         volumeMounts:
         - name: blob-gateway-pvc
           mountPath: /wallet
-      - name: sync-query-service
+      - name: import-query-service
         image: npool/linera-respeer:latest
         imagePullPolicy: Always
         command:
@@ -281,13 +281,15 @@ spec:
         - -c
         - |
           CHAIN_ID=$(cat /shared-app-data/BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID)
+          OWNER=$(cat /shared-app-data/BLOB_GATEWAY_WALLET_OWNER.0)
+          DUMMY_SIGNATURE='{"Ed25519":{"signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","publicKey":"0000000000000000000000000000000000000000000000000000000000000000"}}'
           while true; do
-            RESP=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation { sync(chainId: \\\"$CHAIN_ID\\\") }\"}")
+            RESP=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!, \$signature: AccountSignature!, \$creatorChainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId, signature: \$signature, creatorChainId: \$creatorChainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\",\"signature\":$DUMMY_SIGNATURE,\"creatorChainId\":\"$CHAIN_ID\"}}")
             if ! echo "$RESP" | grep -q '"errors"'; then
-              echo "Synced blob chain $CHAIN_ID to query-service"
+              echo "Imported blob chain $CHAIN_ID to query-service"
               exit 0
             fi
-            echo "Failed sync blob chain $CHAIN_ID to query-service: $RESP"
+            echo "Failed import blob chain $CHAIN_ID to query-service: $RESP"
             sleep 5
           done
         volumeMounts:
