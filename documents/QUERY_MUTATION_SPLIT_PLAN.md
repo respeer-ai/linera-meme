@@ -1,222 +1,273 @@
-# Query and Mutation Split Plan
+# Shared Query Service Deployment Plan
 
 ## Goal
 
-This document defines the first-stage plan for separating query traffic from mutation traffic in MicroMeme's Linera-facing services.
+This document defines the deployment structure for separating query traffic from mutation traffic in MicroMeme.
 
-The immediate objective is:
+The primary objective is:
 
 - isolate long-running mutations from public read traffic,
 - reduce `linera client` lock contention,
 - keep query latency stable under write pressure,
-- and validate the pattern first on `blob-gateway` before applying it to other services.
+- and centralize all read traffic into one shared query service that can later scale horizontally.
 
 ## Problem Statement
 
-Today, services such as `swap`, `proxy`, and `blob-gateway` run a single Linera service process per pod and expose one public GraphQL endpoint for both reads and writes.
+Today, product-facing services such as `blob-gateway`, `swap`, and `proxy` use the same backend pool for both GraphQL queries and GraphQL mutations.
 
 Current pattern:
 
-- one `StatefulSet`,
-- one `Service`,
-- one public `Ingress`,
-- one local `wallet.json` and `client.db`,
-- both GraphQL queries and GraphQL mutations hit the same backend pool.
+- one product service deployment,
+- one product service ingress,
+- one product service wallet pool,
+- one product service `client.db`,
+- both query and mutation traffic hitting the same service pods.
 
-This means long-running mutations can hold the Linera client and degrade query responsiveness for all users and internal services.
+This means long-running mutations can block or degrade query responsiveness.
 
-## Core Design Principle
+## Final Direction
 
-Path-based routing is only the public API shape.
+The target architecture is:
 
-It is not the actual isolation boundary.
+- one shared `query-service`,
+- one mutation service per product,
+- all product chains synced into the shared `query-service`,
+- all product read traffic routed to the shared `query-service`,
+- all product write traffic routed to the corresponding mutation service.
 
-Real isolation requires:
+The shared `query-service` should start with:
 
-- a dedicated shared query backend pool,
-- a dedicated mutation backend per product service,
-- separate wallet directories,
-- separate `client.db` files,
-- and no shared PVC between query and mutation pods.
+- `1` replica,
+- one wallet,
+- one `client.db`,
+- and the ability to sync multiple product chains into the same query node.
 
-If `/query` and `/mutation` still point to the same pods or the same `client.db`, the lock problem remains.
+Later, this service can scale horizontally for load balancing after the chain onboarding model is proven stable.
 
-## Public API Shape
+## Core Rules
 
-The external API should keep the current product prefixes and add query or mutation after the product path.
+### Query Service Rules
 
-Recommended public paths:
+- The shared `query-service` is not responsible for `request-chain`.
+- The shared `query-service` does not create product applications.
+- The shared `query-service` only initializes its own wallet and syncs product chains into its local state.
+- The shared `query-service` should run with `--listener-skip-process-inbox`.
+- The shared `query-service` does not need to be read-only at the service capability level.
+- Query and mutation separation is enforced by caller routing, not by disabling mutation APIs in the query service.
 
-- `swap` query: `/api/swap/query`
-- `swap` mutation: `/api/swap/mutation`
-- `proxy` query: `/api/proxy/query`
-- `proxy` mutation: `/api/proxy/mutation`
-- `blob-gateway` query: `/api/blob-gateway/query`
-- `blob-gateway` mutation: `/api/blob-gateway/mutation`
+### Mutation Service Rules
 
-Compatibility paths:
+- Each mutation service owns chain creation for its product.
+- Each mutation service owns application creation for its product.
+- Each mutation service owns all product write flows.
+- Each mutation service may still answer queries, but repository code must not use it as the normal read path.
 
-- `/api/swap`
-- `/api/proxy`
-- `/api/blob-gateway`
+### Storage Rules
 
-Compatibility paths should temporarily point to mutation backends.
+- The shared `query-service` must use its own wallet and its own `client.db`.
+- Mutation services must use separate wallets and separate `client.db` files.
+- Query and mutation services must never share the same PVC for Linera client state.
 
-Reason:
+## Shared Query Service Lifecycle
 
-- mutation backends already support both query and mutation semantics,
-- compatibility traffic can continue to work during migration,
-- but repository code must stop depending on compatibility paths and must explicitly choose `/query` or `/mutation`.
+The shared `query-service` has two responsibilities:
 
-## Service Topology
+1. initialize its own query wallet,
+2. keep a queryable local view of all product chains that have been onboarded.
 
-The target topology should be:
+Recommended behavior:
 
-- one shared query service for all products,
-- one mutation service per product.
+1. initialize wallet once,
+2. keep the service running continuously,
+3. sync new product chains into that wallet during product onboarding,
+4. rely on normal block synchronization afterward.
+
+Important clarification:
+
+- the query service should not process inbox automatically,
+- but it can still sync and track new blocks after the chain has been introduced.
+
+## Product Chain Onboarding Model
+
+Every product should follow the same onboarding flow into the shared `query-service`.
+
+### Standard Onboarding Steps
+
+1. the product mutation service initializes its own wallet,
+2. the product mutation service requests or opens its product chain,
+3. the product mutation service creates the product application if needed,
+4. the product mutation service writes the chain ID and application ID into `shared-app-data`,
+5. the shared `query-service` waits for that metadata,
+6. the shared `query-service` syncs the product chain into its local wallet,
+7. the chain becomes available for query routing through the shared `query-service`.
+
+### Standard Metadata Required
+
+Each product should publish at least:
+
+- `<PRODUCT>_MULTI_OWNER_CHAIN_ID`
+- `<PRODUCT>_APPLICATION_ID`
 
 Examples:
 
-- `query-service`
-- `blob-gateway-mutation-service`
-- `swap-mutation-service`
-- `proxy-mutation-service`
+- `BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID`
+- `BLOB_GATEWAY_APPLICATION_ID`
+- `SWAP_MULTI_OWNER_CHAIN_ID`
+- `SWAP_APPLICATION_ID`
+- `PROXY_MULTI_OWNER_CHAIN_ID`
+- `PROXY_APPLICATION_ID`
 
-Recommended backend ownership:
+## Query Service Chain Registry
 
-- each mutation service owns chain creation, application creation, and all write flows for its product,
-- the shared query service owns read traffic only and maintains a local queryable view of all imported product chains.
+To keep the deployment structure clear, the shared `query-service` should be documented as a chain registry plus query gateway.
 
-Initial deployment target for the shared query service:
+Its internal onboarding list should eventually include:
 
-- one replica only.
+- `blob-gateway`
+- `swap`
+- `proxy`
+- potentially `ams` later if needed
 
-Later evolution:
+This means the deployment structure should be thought of as:
 
-- horizontal scale-out for load balancing after the import and sync model is proven stable.
+- one query service,
+- many imported product chains,
+- one public query ingress surface per product path,
+- but all of them landing on the same backend service.
 
-## Chain Initialization Model
+## Public Routing Shape
 
-The initialization rule is:
+Public paths should stay under the current product prefixes.
 
-- request or open chains only in the mutation service,
-- import or sync those chains into the shared query service.
+### Blob Gateway
 
-The shared query service must not create product chains.
+- query: `/api/blobs/query`
+- mutation: `/api/blobs/mutation`
+- compatibility: `/api/blobs`
 
-Recommended init flow:
+### Swap
 
-1. mutation service initializes its wallet,
-2. mutation service requests or opens the chain,
-3. mutation service creates the application if needed,
-4. mutation service writes chain and application metadata into `shared-app-data`,
-5. the shared query service initializes its own wallet,
-6. the shared query service imports or syncs the chain created by the mutation service,
-7. the shared query service updates its local queryable state,
-8. the shared query service starts or keeps running its own `linera service`.
+- query: `/api/swap/query`
+- mutation: `/api/swap/mutation`
+- compatibility: `/api/swap`
 
-Important rules:
+### Proxy
 
-- query and mutation wallets must be separate,
-- query and mutation `client.db` must be separate,
-- the shared query service must never reuse mutation `wallet.json` or `keystore.json`,
-- shared state should only pass chain IDs, application IDs, and other metadata.
+- query: `/api/proxy/query`
+- mutation: `/api/proxy/mutation`
+- compatibility: `/api/proxy`
 
-## `sync` vs `import-chain`
+## Compatibility Path Rule
 
-Preferred order:
+Compatibility paths should temporarily point to mutation services.
 
-1. use `sync` if it reliably makes the chain queryable in the query service,
-2. fall back to `import-chain` if `sync` is insufficient.
+Examples:
 
-The decision should be based on real validation in the target environment.
-
-## Ingress Routing Rules
-
-Each public query path should be routed to the shared query service, and each public mutation path should be routed to the corresponding mutation service. Product prefixes should be stripped before forwarding.
-
-Example for `blob-gateway`:
-
-- `/api/blob-gateway/query` -> `query-service`
-- `/api/blob-gateway/mutation` -> `blob-gateway-mutation-service`
-- `/api/blob-gateway` -> `blob-gateway-mutation-service`
-
-The backend should still receive the request at `/`.
-
-This keeps Linera service behavior unchanged while allowing path-based traffic separation at the edge.
-
-## Blob Gateway Pilot
-
-`blob-gateway` should be used as the first pilot service.
+- `/api/blobs` -> `blob-gateway-mutation-service`
+- `/api/swap` -> `swap-mutation-service`
+- `/api/proxy` -> `proxy-mutation-service`
 
 Reason:
 
-- it uses the same single-pool deployment pattern as `swap` and `proxy`,
-- it lets us validate the deployment pattern before touching trading-critical services,
-- and failure impact is lower than changing the trading path first.
-
-### Current `blob-gateway` State
-
-Today `blob-gateway` is deployed as:
-
-- one `StatefulSet`,
-- one `Service`,
-- one public `Ingress`,
-- one wallet per pod,
-- one public GraphQL surface.
-
-Relevant manifests:
-
-- [k8s/blob-gateway/02-deployment.yaml](/home/kk/linera-project/linera-meme/k8s/blob-gateway/02-deployment.yaml)
-- [k8s/blob-gateway/03-ingress.yaml](/home/kk/linera-project/linera-meme/k8s/blob-gateway/03-ingress.yaml)
-
-### Blob Gateway Pilot Target
-
-Create:
-
-- `blob-gateway-mutation-service`
-- `query-service`
-
-Public routes:
-
-- `/api/blob-gateway/query`
-- `/api/blob-gateway/mutation`
-- `/api/blob-gateway`
-
-Route ownership:
-
-- `/api/blob-gateway/query` -> shared query backend
-- `/api/blob-gateway/mutation` -> mutation backend
-- `/api/blob-gateway` -> mutation backend during migration
-
-### Blob Gateway Pilot Steps
-
-1. Split the existing `blob-gateway` deployment into a mutation deployment and a shared query deployment.
-2. Keep all chain creation and application creation logic only in the `blob-gateway` mutation deployment.
-3. Make the shared query deployment wait for mutation-side chain and application metadata in `shared-app-data`.
-4. Initialize a separate query wallet and separate query `client.db`.
-5. Import or sync the mutation-created `blob-gateway` chain into the shared query deployment.
-6. Expose the shared query Service, the `blob-gateway` mutation Service, and one updated Ingress with path-based routing.
-7. Validate that long mutations no longer degrade query latency.
-
-### Blob Gateway Validation Checklist
-
-- query requests stay responsive while mutation requests are running,
-- the shared query pod and mutation pods do not share the same PVC,
-- the shared query backend can serve current application state after import or sync,
-- compatibility path `/api/blob-gateway` still works during migration through the mutation backend,
-- internal callers can explicitly choose query or mutation paths.
-
-## Client and Service Changes Required After the Pilot
-
-Infrastructure changes alone are not enough.
-
-All callers must be upgraded to distinguish read endpoints from write endpoints.
+- mutation services already support both query and mutation semantics,
+- compatibility traffic can continue to work during migration,
+- but repository code must stop depending on compatibility paths.
 
 Repository rule:
 
-- code in this repository must not call compatibility paths such as `/api/blob-gateway`, `/api/swap`, or `/api/proxy`,
-- code must explicitly call either the query path or the mutation path.
+- code in this repository must never call `/api/blobs`, `/api/swap`, or `/api/proxy` as the normal product API,
+- code must explicitly call either `/query` or `/mutation`.
+
+## Ingress Structure
+
+Ingress routing should follow this pattern:
+
+### Blob Gateway
+
+- `/api/blobs/query` -> `query-service`
+- `/api/blobs/mutation` -> `blob-gateway-mutation-service`
+- `/api/blobs` -> `blob-gateway-mutation-service`
+
+### Swap
+
+- `/api/swap/query` -> `query-service`
+- `/api/swap/mutation` -> `swap-mutation-service`
+- `/api/swap` -> `swap-mutation-service`
+
+### Proxy
+
+- `/api/proxy/query` -> `query-service`
+- `/api/proxy/mutation` -> `proxy-mutation-service`
+- `/api/proxy` -> `proxy-mutation-service`
+
+Prefix stripping should still make the backend receive `/`.
+
+## Query Service Deployment Structure
+
+The shared `query-service` should be treated as an infrastructure component, not as a product service.
+
+Recommended deployment components:
+
+- `k8s/query/02-deployment.yaml`
+- `k8s/query/03-ingress.yaml` if it also has its own direct public route
+
+For the current product split, it is acceptable for product ingresses to forward query traffic to the shared `query-service` directly without exposing a separate standalone query hostname.
+
+Recommended runtime shape:
+
+- one Deployment,
+- one Service,
+- one PVC,
+- one wallet,
+- one `client.db`,
+- command based on the Linera RPC-style entrypoint with `--listener-skip-process-inbox`.
+
+## Blob Gateway Phase 1
+
+`blob-gateway` remains the first migration target.
+
+### Blob Gateway Mutation Service Responsibilities
+
+- initialize blob mutation wallets,
+- request or open blob chain,
+- create blob application,
+- publish blob chain metadata into `shared-app-data`.
+
+### Blob Gateway Query Onboarding Responsibilities
+
+- wait for `BLOB_GATEWAY_MULTI_OWNER_CHAIN_ID`,
+- sync blob chain into the shared `query-service`,
+- route blob reads through `/api/blobs/query`.
+
+### Blob Gateway Validation Goals
+
+- query traffic keeps responding while blob mutations are running,
+- `query-service` and blob mutation service do not share the same PVC,
+- blob data becomes queryable through the shared `query-service`,
+- compatibility path `/api/blobs` still works through the mutation service,
+- repository code can stop calling the compatibility path.
+
+## Next Products After Blob Gateway
+
+After `blob-gateway` is validated, the same onboarding pattern should be repeated for `swap` and then `proxy`.
+
+### Swap Onboarding
+
+The shared `query-service` should later sync:
+
+- `SWAP_MULTI_OWNER_CHAIN_ID`
+- and any other swap chains that must be queryable through the shared query backend.
+
+### Proxy Onboarding
+
+The shared `query-service` should later sync:
+
+- `PROXY_MULTI_OWNER_CHAIN_ID`
+- and any proxy-related chains required by the frontend and internal services.
+
+## Caller Configuration Model
+
+All callers must be upgraded to distinguish read endpoints from write endpoints.
 
 Recommended config model:
 
@@ -227,65 +278,50 @@ Recommended config model:
 - `PROXY_QUERY_HOST`
 - `PROXY_MUTATION_HOST`
 
-This is preferable to continuing with a single `*_HOST` value for mixed traffic.
+This is preferable to continuing with a single mixed `*_HOST`.
 
 ## Frontend Changes
 
-Frontend GraphQL clients must route by operation type:
+Frontend GraphQL and HTTP clients must route by intent:
 
-- GraphQL `query` -> query endpoint,
-- GraphQL `mutation` -> mutation endpoint.
+- all blob reads should go to `/api/blobs/query`,
+- all swap reads should go to `/api/swap/query`,
+- all proxy reads should go to `/api/proxy/query`,
+- all writes should explicitly go to the mutation path.
 
-For the web UI, this should be implemented in the shared GraphQL client layer rather than scattered across pages or stores.
+Blob-specific note:
 
-## Python Service Changes
+- current blob-facing code uses `/api/blobs`,
+- this must be migrated to explicit query or mutation paths.
 
-Services under `service/kline` and related automation clients must also be split by operation type.
+## Python and Service Changes
 
-Typical examples:
-
-- state reads, balances, creator chain lookups, pool reads, and transaction reads -> query endpoint,
-- swaps, claims, funding actions, and other state-changing operations -> mutation endpoint.
-
-## Miner Changes
-
-`miner` must also distinguish between reads and writes.
+Services under `service/` must also distinguish read and write endpoints.
 
 Typical direction:
 
-- mining info, balances, meme metadata, and registration status -> query endpoint,
-- `mine`, `redeem`, `registerMiner`, and other write operations -> mutation endpoint.
+- balances, pool reads, latest transactions, creator chain lookups, mining status -> query path,
+- swaps, claims, funding actions, registration, mine, redeem, and other state-changing actions -> mutation path.
 
 ## Rollout Order
 
-The rollout should remain incremental.
+Recommended rollout order:
 
-Recommended order:
+1. introduce the shared deployment structure for `query-service`,
+2. migrate `blob-gateway` into `blob-gateway-mutation-service`,
+3. onboard blob chain into the shared `query-service`,
+4. migrate blob callers to explicit query and mutation paths,
+5. validate in the real environment,
+6. onboard `swap` chains into the shared `query-service`,
+7. migrate swap callers,
+8. onboard `proxy` chains into the shared `query-service`,
+9. migrate proxy callers.
 
-1. document and validate the pattern on `blob-gateway`,
-2. introduce the shared `query-service` with one replica,
-3. update internal client configuration model to support separate query and mutation endpoints,
-4. migrate `blob-gateway`,
-5. validate behavior in the real environment,
-6. import `swap` chains into the shared query service and migrate `swap` writes to its mutation service,
-7. import `proxy` chains into the shared query service and migrate `proxy` writes to its mutation service,
-8. then update remaining services that still assume a single mixed endpoint.
+## What This Phase Must Prove
 
-## Non-Goals for the Pilot
-
-The `blob-gateway` pilot should not try to solve every cross-service routing issue at once.
-
-Specifically out of scope for the first step:
-
-- full migration of `swap`,
-- full migration of `proxy`,
-- full frontend rollout,
-- protocol changes inside Linera,
-- or broader product-level traffic redesign.
-
-The pilot only needs to prove that:
+This phase only needs to prove:
 
 - split backends reduce lock contention,
-- path-based external routing is workable,
-- a single shared query backend can safely serve imported chains from multiple products,
-- and mutation-created chains can be safely consumed by that shared query backend.
+- one shared `query-service` can safely hold multiple imported product chains,
+- product mutation services can onboard their chains into the shared query backend,
+- and callers can be migrated away from compatibility paths without breaking product behavior.
