@@ -3,6 +3,7 @@
 export FAUCET_URL=${FAUCET_URL:-https://faucet.testnet-conway.linera.net}
 # export FAUCET_URL=http://local-genesis-service:8080
 export REPLICAS=${REPLICAS:-5}
+export QUERY_REPLICAS=${QUERY_REPLICAS:-1}
 export MAKER_REPLICAS=${MAKER_REPLICAS:-3}
 export MEME_MINER_REPLICAS=${MEME_MINER_REPLICAS:-1}
 export DEPLOY_MYSQL=${DEPLOY_MYSQL:-1}
@@ -103,6 +104,8 @@ for service in $SERVICES; do
   envsubst '$FAUCET_URL $REPLICAS' < $service/03-ingress.yaml | kubectl delete -f -
 done
 
+envsubst '$FAUCET_URL $QUERY_REPLICAS' < query/02-deployment.yaml | kubectl delete -f -
+
 
 if [ $DEPLOY_MYSQL -eq 1 ]; then
   envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl delete -f -
@@ -124,11 +127,17 @@ envsubst '$FAUCET_URL $REPLICAS' < maker/02-deployment.yaml | kubectl delete -f 
 wait_pods maker-service 0 ""
 wait_pods maker-wallet-service 0 ""
 
+wait_pods query-service 0 ""
+
 envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl delete -f -
 
 wait_pods meme-miner-service 0 ""
 
 envsubst '$SHARED_APP_DATA_STORAGE_CLASS' < 00-shared-app-data-pvc.yaml | kubectl apply -f -
+
+envsubst '$FAUCET_URL $QUERY_REPLICAS' < query/02-deployment.yaml | kubectl apply -f -
+
+wait_pods query-service $QUERY_REPLICAS Running
 
 for service in $SERVICES; do
   wait_pods ${service}-service 0 ""

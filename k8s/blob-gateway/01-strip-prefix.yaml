@@ -6,4 +6,6 @@ metadata:
 spec:
   stripPrefix:
     prefixes:
+      - /api/blobs/query
+      - /api/blobs/mutation
       - /api/blobs

@@ -24,7 +24,21 @@ spec:
     - host: api.testnet-conway.blobgateway.com
       http: &http_rules
         paths:
-          - path: /
+          - path: /api/blobs/query
+            pathType: Prefix
+            backend:
+              service:
+                name: query-service
+                port:
+                  number: 30080
+          - path: /api/blobs/mutation
+            pathType: Prefix
+            backend:
+              service:
+                name: blob-gateway-service
+                port:
+                  number: 8080
+          - path: /api/blobs
             pathType: Prefix
             backend:
               service:

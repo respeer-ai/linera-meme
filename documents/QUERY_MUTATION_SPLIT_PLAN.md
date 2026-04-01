@@ -48,7 +48,7 @@ Later, this service can scale horizontally for load balancing after the chain on
 
 ### Query Service Rules
 
-- The shared `query-service` is not responsible for `request-chain`.
+- The shared `query-service` should request one default infrastructure chain for its own wallet.
 - The shared `query-service` does not create product applications.
 - The shared `query-service` only initializes its own wallet and syncs product chains into its local state.
 - The shared `query-service` should run with `--listener-skip-process-inbox`.
@@ -77,7 +77,7 @@ The shared `query-service` has two responsibilities:
 
 Recommended behavior:
 
-1. initialize wallet once,
+1. initialize wallet and request one default chain once,
 2. keep the service running continuously,
 3. sync new product chains into that wallet during product onboarding,
 4. rely on normal block synchronization afterward.
@@ -163,9 +163,9 @@ Compatibility paths should temporarily point to mutation services.
 
 Examples:
 
-- `/api/blobs` -> `blob-gateway-mutation-service`
-- `/api/swap` -> `swap-mutation-service`
-- `/api/proxy` -> `proxy-mutation-service`
+- `/api/blobs` -> `blob-gateway-service`
+- `/api/swap` -> `swap-service`
+- `/api/proxy` -> `proxy-service`
 
 Reason:
 
@@ -185,20 +185,20 @@ Ingress routing should follow this pattern:
 ### Blob Gateway
 
 - `/api/blobs/query` -> `query-service`
-- `/api/blobs/mutation` -> `blob-gateway-mutation-service`
-- `/api/blobs` -> `blob-gateway-mutation-service`
+- `/api/blobs/mutation` -> `blob-gateway-service`
+- `/api/blobs` -> `blob-gateway-service`
 
 ### Swap
 
 - `/api/swap/query` -> `query-service`
-- `/api/swap/mutation` -> `swap-mutation-service`
-- `/api/swap` -> `swap-mutation-service`
+- `/api/swap/mutation` -> `swap-service`
+- `/api/swap` -> `swap-service`
 
 ### Proxy
 
 - `/api/proxy/query` -> `query-service`
-- `/api/proxy/mutation` -> `proxy-mutation-service`
-- `/api/proxy` -> `proxy-mutation-service`
+- `/api/proxy/mutation` -> `proxy-service`
+- `/api/proxy` -> `proxy-service`
 
 Prefix stripping should still make the backend receive `/`.
 
@@ -308,7 +308,7 @@ Typical direction:
 Recommended rollout order:
 
 1. introduce the shared deployment structure for `query-service`,
-2. migrate `blob-gateway` into `blob-gateway-mutation-service`,
+2. keep `blob-gateway` on `blob-gateway-service` as the mutation-side service and add explicit query routing,
 3. onboard blob chain into the shared `query-service`,
 4. migrate blob callers to explicit query and mutation paths,
 5. validate in the real environment,

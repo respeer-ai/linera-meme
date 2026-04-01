@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: query-service
+  namespace: kube-system
+spec:
+  serviceName: query-service
+  replicas: ${QUERY_REPLICAS}
+  podManagementPolicy: OrderedReady
+  selector:
+    matchLabels:
+      app: query-service
+  template:
+    metadata:
+      labels:
+        app: query-service
+    spec:
+      initContainers:
+      - name: init-wallet
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          chains=0
+          default_chain=
+          if [ -f /wallet/wallet.json ]; then
+            chains=$(jq '.chains | length' /wallet/wallet.json 2>/dev/null || echo 0)
+            default_chain=$(jq -r '.default // empty' /wallet/wallet.json 2>/dev/null || true)
+          fi
+          if [ "$chains" -eq 0 -o -z "$default_chain" ]; then
+            echo "No query wallet found, creating..."
+            rm -rf /wallet/wallet.json /wallet/keystore.json /wallet/client.db
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL}
+          else
+            echo "Query wallet already exists, skipping init."
+          fi
+        volumeMounts:
+        - name: query-pvc
+          mountPath: /wallet
+      containers:
+      - name: query-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c", "./rpc-entrypoint.sh"]
+        env:
+        - name: RUST_LOG
+          value: info
+        volumeMounts:
+        - name: query-pvc
+          mountPath: /wallet
+        resources:
+          requests:
+            cpu: "300m"
+            memory: "1024Mi"
+          limits:
+            cpu: "600m"
+            memory: "2048Mi"
+  volumeClaimTemplates:
+    - metadata:
+        name: query-pvc
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: query-service
+      port: 30080
+      targetPort: 30080
+    - name: query-metrics
+      port: 30082
+      targetPort: 30082
+  selector:
+    app: query-service
