@@ -6,4 +6,6 @@ metadata:
 spec:
   stripPrefix:
     prefixes:
+      - /api/proxy/query
+      - /api/proxy/mutation
       - /api/proxy

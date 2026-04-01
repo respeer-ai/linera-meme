@@ -24,7 +24,21 @@ spec:
     - host: api.testnet-conway.linerameme.fun
       http:
         paths:
-          - path: /
+          - path: /api/proxy/query
+            pathType: Prefix
+            backend:
+              service:
+                name: query-service
+                port:
+                  number: 30080
+          - path: /api/proxy/mutation
+            pathType: Prefix
+            backend:
+              service:
+                name: proxy-service
+                port:
+                  number: 8080
+          - path: /api/proxy
             pathType: Prefix
             backend:
               service:

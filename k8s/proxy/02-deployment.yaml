@@ -285,6 +285,26 @@ spec:
         volumeMounts:
         - name: proxy-pvc
           mountPath: /wallet
+      - name: sync-query-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
+          while true; do
+            RESP=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation { sync(chainId: \\\"$CHAIN_ID\\\") }\"}")
+            if ! echo "$RESP" | grep -q '"errors"'; then
+              echo "Synced proxy chain $CHAIN_ID to query-service"
+              exit 0
+            fi
+            echo "Failed sync proxy chain $CHAIN_ID to query-service: $RESP"
+            sleep 5
+          done
+        volumeMounts:
+        - name: shared-app-data
+          mountPath: /shared-app-data
       - name: change-multi-owners-chain-single-leader
         image: npool/linera-respeer:latest
         imagePullPolicy: Always

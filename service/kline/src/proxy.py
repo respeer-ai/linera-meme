@@ -15,13 +15,19 @@ class Proxy:
         self.chain = None
 
     def application_url(self) -> str:
-        return f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
+        prefix = '' if running_in_k8s() else '/query'
+        return f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
+
+    def mutation_application_url(self) -> str:
+        prefix = '' if running_in_k8s() else '/mutation'
+        return f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
 
     async def get_proxy_chain(self):
         json = {
             'query': 'query {\n chains {\n default\n }\n}'
         }
-        resp = await async_request.post(url=self.base_url, json=json, timeout=(3, 10))
+        url = self.base_url if running_in_k8s() else f'{self.base_url}/query'
+        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
         self.chain = resp.json()['data']['chains']['default']
         print('---------------------------------------------------------------------------------------------------------')
         print(f'       Proxy chain: {self.chain}')
@@ -31,7 +37,8 @@ class Proxy:
         json = {
             'query': 'query {\n memeBytecodeId\n}'
         }
-        url = f'{self.base_url}/chains/{self.chain}/applications/{application_id}'
+        prefix = '' if running_in_k8s() else '/query'
+        url = f'{self.base_url}{prefix}/chains/{self.chain}/applications/{application_id}'
         try:
             resp = await async_request.post(url=url, json=json, timeout=(3, 10))
             return 'errors' not in resp.json()
@@ -43,7 +50,8 @@ class Proxy:
         json = {
             'query': f'query {{\n applications(chainId:"{self.chain}") {{\n id\n }}\n}}'
         }
-        resp = await async_request.post(url=self.base_url, json=json, timeout=(3, 10))
+        url = self.base_url if running_in_k8s() else f'{self.base_url}/query'
+        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
 
         application_ids = [v['id'] for v in resp.json()['data']['applications']]
         for application_id in application_ids:
@@ -60,7 +68,8 @@ class Proxy:
         json = {
             'query': 'query {\n memeApplications { chainId token } \n}'
         }
-        url = f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
+        prefix = '' if running_in_k8s() else '/query'
+        url = f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
         try:
             resp = await async_request.post(url=url, json=json, timeout=(3, 10))
             if 'errors' in resp.json():
@@ -75,8 +84,9 @@ class Proxy:
         json = {
             'query': f'mutation {{\n forgetChain(chainId: "{chain_id}") \n}}'
         }
+        url = self.mutation_application_url()
         try:
-            resp = await async_request.post(url=self.application_url(), json=json, timeout=(3, 10))
+            resp = await async_request.post(url=url, json=json, timeout=(3, 10))
             if 'errors' in resp.json():
                 print(f'Failed proxy: {resp.text}')
                 return chain_id
@@ -84,4 +94,3 @@ class Proxy:
         except Exception as e:
             print(f'{url}, {json} -> ERROR {e}')
             return chain_id
-

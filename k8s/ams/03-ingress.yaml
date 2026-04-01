@@ -24,7 +24,21 @@ spec:
     - host: api.testnet-conway.ams.respeer.ai
       http:
         paths:
-          - path: /
+          - path: /api/ams/query
+            pathType: Prefix
+            backend:
+              service:
+                name: query-service
+                port:
+                  number: 30080
+          - path: /api/ams/mutation
+            pathType: Prefix
+            backend:
+              service:
+                name: ams-service
+                port:
+                  number: 8080
+          - path: /api/ams
             pathType: Prefix
             backend:
               service:

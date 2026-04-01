@@ -100,6 +100,14 @@ module.exports = configure(function (ctx) {
           secure: false,
           changeOrigin: true
         },
+        '/api/proxy': {
+          target: 'https://testnet-archimedes.linerameme.fun',
+          pathRewrite: {
+            '^/api/proxy': '/api/proxy'
+          },
+          secure: false,
+          changeOrigin: true
+        },
         '/api/swap': {
           target: 'https://testnet-archimedes.lineraswap.fun',
           pathRewrite: {
