@@ -96,13 +96,11 @@ class Pool:
 
 
 class Swap:
-    def __init__(self, host: str, application_id: str, wallet):
+    def __init__(self, host: str, chain_id: str, application_id: str, wallet):
         self.host = host
-        self.chain_id = None
-        self.application_id = None
         self.base_url = f'http://{host}' + ('/api/swap' if not running_in_k8s() else '')
-        self.chain = None
-        self.application = application_id if len(application_id) > 0 else None
+        self.chain = chain_id
+        self.application = application_id
         self.wallet = wallet
 
     def application_url(self) -> str:
@@ -133,45 +131,3 @@ class Swap:
         resp = await async_request.post(url=url, json=json, timeout=(3, 10))
 
         return [Transaction(v) for v in resp.json()['data']['latestTransactions']]
-
-    async def get_swap_chain(self):
-        json = {
-            'query': 'query {\n chains {\n default\n }\n}'
-        }
-        url = self.base_url if running_in_k8s() else f'{self.base_url}/query'
-        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
-        self.chain = resp.json()['data']['chains']['default']
-        print('---------------------------------------------------------------------------------------------------------')
-        print(f'       Swap chain: {self.chain}')
-        print('---------------------------------------------------------------------------------------------------------')
-
-    async def check_swap_application(self, application_id: str) -> bool:
-        json = {
-            'query': 'query {\n poolId\n}'
-        }
-        prefix = '' if running_in_k8s() else '/query'
-        url = f'{self.base_url}{prefix}/chains/{self.chain}/applications/{application_id}'
-        try:
-            resp = await async_request.post(url=url, json=json, timeout=(3, 10))
-            return 'errors' not in resp.json()
-        except Exception as e:
-            print(f'{url}, {json} -> ERROR: {e}')
-            return False
-
-    async def get_swap_application(self):
-        json = {
-            'query': f'query {{\n applications(chainId:"{self.chain}") {{\n id\n }}\n}}'
-        }
-        url = self.base_url if running_in_k8s() else f'{self.base_url}/query'
-        resp = await async_request.post(url=url, json=json, timeout=(3, 10))
-
-        application_ids = [v['id'] for v in resp.json()['data']['applications']]
-        for application_id in application_ids:
-            if await self.check_swap_application(application_id) is True:
-                self.application = application_id
-                break
-        print('---------------------------------------------------------------------------------------------------------')
-        print(f'       Swap application: {self.application}')
-        print('---------------------------------------------------------------------------------------------------------')
-        if self.application is None:
-            raise Exception('Invalid swap application')

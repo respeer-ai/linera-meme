@@ -12,8 +12,10 @@ async def main():
     parser = argparse.ArgumentParser(description='Linera Market Maker')
 
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
+    parser.add_argument('--swap-chain-id', type=str, required=True, help='Swap chain id')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--proxy-host', type=str, default='api.linerameme.fun', help='Host of proxy service')
+    parser.add_argument('--proxy-chain-id', type=str, required=True, help='Proxy chain id')
     parser.add_argument('--proxy-application-id', type=str, default='', help='Proxy application id')
     parser.add_argument('--maker-wallet-host', type=str, default='maker-wallet-service:8080', help='Host of maker wallet')
     parser.add_argument('--maker-wallet-chain-id', type=str, default='', help='Maker wallet chain ID')
@@ -28,13 +30,9 @@ async def main():
 
     _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url)
 
-    _swap = Swap(args.swap_host, args.swap_application_id, _wallet)
-    await _swap.get_swap_chain()
-    await _swap.get_swap_application()
+    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, _wallet)
 
-    _proxy = Proxy(args.proxy_host, args.proxy_application_id)
-    await _proxy.get_proxy_chain()
-    await _proxy.get_proxy_application()
+    _proxy = Proxy(args.proxy_host, args.proxy_chain_id, args.proxy_application_id)
 
     def parse_wallets(wallets):
         parsed_wallets = []

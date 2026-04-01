@@ -526,6 +526,7 @@ function run_kline() {
     $PIP3 install websocket-client
 
     all_proxy= $PYTHON3 -u src/kline.py \
+        --swap-chain-id "$SWAP_CHAIN_ID" \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --database-host "$DATABASE_HOST" \
         --database-port "$DATABASE_PORT" \
@@ -549,12 +550,15 @@ function run_maker() {
     sleep 20
 
     all_proxy= $PYTHON3 -u src/maker.py \
+        --swap-chain-id "$SWAP_CHAIN_ID" \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --wallet-host "localhost:50080" \
         --wallet-owner "$owner" \
         --wallet-chain "$chain" \
         --swap-host "$SWAP_HOST" \
-        --proxy-host "$PROXY_HOST"
+        --proxy-host "$PROXY_HOST" \
+        --proxy-chain-id "$PROXY_CHAIN_ID" \
+        --proxy-application-id "$PROXY_APPLICATION_ID"
 }
 
 run_kline

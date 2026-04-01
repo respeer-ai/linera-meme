@@ -21,7 +21,9 @@ spec:
         - /bin/sh
         - -c
         - |
+          SWAP_CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
           SWAP_APPLICATION_ID=$(cat /shared-app-data/SWAP_APPLICATION_ID)
+          PROXY_CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
           PROXY_APPLICATION_ID=$(cat /shared-app-data/PROXY_APPLICATION_ID)
           MAKER_WALLET_CHAIN_ID=$(cat /shared-app-data/MAKER_WALLET_CHAIN_OWNER | head -n 1)
           for wallet in /shared-app-data/MAKER_WALLET_CHAIN_OWNER.*; do
@@ -37,7 +39,7 @@ spec:
             fi
             MINER_WALLETS="$MINER_WALLETS $CHAIN_ID@rpc-service:30080"
           done
-          SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=query-service:30080 PROXY_HOST=query-service:30080 MAKER_WALLETS="$MAKER_WALLETS" MINER_WALLETS="$MINER_WALLETS" ./funder-entrypoint.sh
+          SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID SWAP_HOST=query-service:30080 PROXY_HOST=query-service:30080 MAKER_WALLETS="$MAKER_WALLETS" MINER_WALLETS="$MINER_WALLETS" ./funder-entrypoint.sh
         env:
         - name: RUST_LOG
           value: warn
