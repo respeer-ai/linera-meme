@@ -281,6 +281,11 @@ spec:
         - /bin/sh
         - -c
         - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ "$POD_INDEX" -ne 0 ]; then
+            echo "Skipping query-service import for swap on pod $POD_INDEX"
+            exit 0
+          fi
           CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
           OWNER=$(cat /shared-app-data/SWAP_WALLET_OWNER.0)
           DUMMY_SIGNATURE='{"Ed25519":{"signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","public_key":"0000000000000000000000000000000000000000000000000000000000000000"}}'
