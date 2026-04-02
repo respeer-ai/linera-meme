@@ -274,35 +274,6 @@ spec:
         volumeMounts:
         - name: swap-pvc
           mountPath: /wallet
-      - name: import-query-service
-        image: npool/linera-respeer:latest
-        imagePullPolicy: Always
-        command:
-        - /bin/sh
-        - -c
-        - |
-          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
-          if [ "$POD_INDEX" -ne 0 ]; then
-            echo "Skipping query-service import for swap on pod $POD_INDEX"
-            exit 0
-          fi
-          CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
-          OWNER=$(cat /shared-app-data/SWAP_WALLET_OWNER.0)
-          DUMMY_SIGNATURE='{"Ed25519":{"signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","public_key":"0000000000000000000000000000000000000000000000000000000000000000"}}'
-          echo "Starting query-service import for swap chain $CHAIN_ID owner $OWNER"
-          while true; do
-            echo "Attempting query-service import for swap chain $CHAIN_ID"
-            RESP=$(curl -sS --connect-timeout 5 --max-time 20 http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!, \$signature: AccountSignature!, \$creatorChainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId, signature: \$signature, creatorChainId: \$creatorChainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\",\"signature\":$DUMMY_SIGNATURE,\"creatorChainId\":\"$CHAIN_ID\"}}" 2>&1)
-            if ! echo "$RESP" | grep -q '"errors"'; then
-              echo "Imported swap chain $CHAIN_ID to query-service"
-              exit 0
-            fi
-            echo "Failed import swap chain $CHAIN_ID to query-service: $RESP"
-            sleep 5
-          done
-        volumeMounts:
-        - name: shared-app-data
-          mountPath: /shared-app-data
       - name: change-multi-owners-chain-single-leader
         image: npool/linera-respeer:latest
         imagePullPolicy: Always
@@ -425,6 +396,40 @@ spec:
         volumeMounts:
         - name: swap-pvc
           mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: import-query-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ "$POD_INDEX" -ne 0 ]; then
+            echo "Skipping query-service import for swap on pod $POD_INDEX"
+            exit 0
+          fi
+          CHAIN_ID=$(cat /shared-app-data/SWAP_MULTI_OWNER_CHAIN_ID)
+          OWNER=$(cat /shared-app-data/SWAP_WALLET_OWNER.0)
+          DUMMY_SIGNATURE='{"Ed25519":{"signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","public_key":"0000000000000000000000000000000000000000000000000000000000000000"}}'
+          echo "Starting query-service import for swap chain $CHAIN_ID owner $OWNER"
+          while true; do
+            echo "Attempting query-service import for swap chain $CHAIN_ID"
+            RESP=$(curl -sS --connect-timeout 5 --max-time 20 http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!, \$signature: AccountSignature!, \$creatorChainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId, signature: \$signature, creatorChainId: \$creatorChainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\",\"signature\":$DUMMY_SIGNATURE,\"creatorChainId\":\"$CHAIN_ID\"}}" 2>&1)
+            if ! echo "$RESP" | grep -q '"errors"'; then
+              VERIFY=$(curl -sS --connect-timeout 5 --max-time 20 http://query-service:30080 -H 'Content-Type: application/json' --data '{"query":"query Chains { chains { list } }"}' 2>&1)
+              if ! echo "$VERIFY" | grep -q '"errors"' && echo "$VERIFY" | grep -q "$CHAIN_ID"; then
+                echo "Imported swap chain $CHAIN_ID to query-service"
+                exit 0
+              fi
+              echo "Swap chain $CHAIN_ID import mutation succeeded but query-service has not listed it yet: $VERIFY"
+            else
+              echo "Failed import swap chain $CHAIN_ID to query-service: $RESP"
+            fi
+            sleep 5
+          done
+        volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data
       containers:

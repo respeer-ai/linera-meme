@@ -288,10 +288,15 @@ spec:
             echo "Attempting query-service import for ams chain $CHAIN_ID"
             RESP=$(curl -sS --connect-timeout 5 --max-time 20 http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!, \$signature: AccountSignature!, \$creatorChainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId, signature: \$signature, creatorChainId: \$creatorChainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\",\"signature\":$DUMMY_SIGNATURE,\"creatorChainId\":\"$CHAIN_ID\"}}" 2>&1)
             if ! echo "$RESP" | grep -q '"errors"'; then
-              echo "Imported ams chain $CHAIN_ID to query-service"
-              exit 0
+              VERIFY=$(curl -sS --connect-timeout 5 --max-time 20 http://query-service:30080 -H 'Content-Type: application/json' --data '{"query":"query Chains { chains { list } }"}' 2>&1)
+              if ! echo "$VERIFY" | grep -q '"errors"' && echo "$VERIFY" | grep -q "$CHAIN_ID"; then
+                echo "Imported ams chain $CHAIN_ID to query-service"
+                exit 0
+              fi
+              echo "Ams chain $CHAIN_ID import mutation succeeded but query-service has not listed it yet: $VERIFY"
+            else
+              echo "Failed import ams chain $CHAIN_ID to query-service: $RESP"
             fi
-            echo "Failed import ams chain $CHAIN_ID to query-service: $RESP"
             sleep 5
           done
         volumeMounts:
