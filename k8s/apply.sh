@@ -100,36 +100,37 @@ if [ $RE_GENERATE -eq 1 ]; then
 fi
 
 for service in $SERVICES; do
-  envsubst '$FAUCET_URL $REPLICAS' < $service/02-deployment.yaml | kubectl delete -f -
-  envsubst '$FAUCET_URL $REPLICAS' < $service/03-ingress.yaml | kubectl delete -f -
+  envsubst '$FAUCET_URL $REPLICAS' < $service/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
+  envsubst '$FAUCET_URL $REPLICAS' < $service/03-ingress.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 done
 
-envsubst '$FAUCET_URL $QUERY_REPLICAS' < query/02-deployment.yaml | kubectl delete -f -
+kubectl scale statefulset query-service -n kube-system --replicas=0 >/dev/null 2>&1 || true
+envsubst '$FAUCET_URL $QUERY_REPLICAS' < query/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 
 
 if [ $DEPLOY_MYSQL -eq 1 ]; then
-  envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl delete -f -
+  envsubst '$FAUCET_URL $REPLICAS' < mysql/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 
   wait_pods mysql 0 ""
 fi
 
-envsubst '$FAUCET_URL $REPLICAS' < kline/02-deployment.yaml | kubectl delete -f -
-envsubst '$FAUCET_URL $REPLICAS' < kline/03-ingress.yaml | kubectl delete -f -
+envsubst '$FAUCET_URL $REPLICAS' < kline/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
+envsubst '$FAUCET_URL $REPLICAS' < kline/03-ingress.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 
 wait_pods kline-service 0 ""
 
-envsubst '$FAUCET_URL $REPLICAS' < funder/02-deployment.yaml | kubectl delete -f -
+envsubst '$FAUCET_URL $REPLICAS' < funder/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 
 wait_pods funder-service 0 ""
 
-envsubst '$FAUCET_URL $REPLICAS' < maker/02-deployment.yaml | kubectl delete -f -
+envsubst '$FAUCET_URL $REPLICAS' < maker/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 
 wait_pods maker-service 0 ""
 wait_pods maker-wallet-service 0 ""
 
 wait_pods query-service 0 ""
 
-envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl delete -f -
+envsubst '$FAUCET_URL $MEME_MINER_REPLICAS' < miner/02-deployment.yaml | kubectl delete --ignore-not-found=true --wait=false -f -
 
 wait_pods meme-miner-service 0 ""
 
