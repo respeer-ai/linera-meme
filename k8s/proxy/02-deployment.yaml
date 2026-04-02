@@ -299,11 +299,10 @@ spec:
           fi
           CHAIN_ID=$(cat /shared-app-data/PROXY_MULTI_OWNER_CHAIN_ID)
           OWNER=$(cat /shared-app-data/PROXY_WALLET_OWNER.0)
-          DUMMY_SIGNATURE='{"Ed25519":{"signature":"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","public_key":"0000000000000000000000000000000000000000000000000000000000000000"}}'
           echo "Starting query-service import for proxy chain $CHAIN_ID owner $OWNER"
           while true; do
             echo "Attempting query-service import for proxy chain $CHAIN_ID"
-            RESP=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!, \$signature: AccountSignature!, \$creatorChainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId, signature: \$signature, creatorChainId: \$creatorChainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\",\"signature\":$DUMMY_SIGNATURE,\"creatorChainId\":\"$CHAIN_ID\"}}" 2>&1)
+            RESP=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\"}}" 2>&1)
             if ! echo "$RESP" | grep -q '"errors"'; then
               VERIFY=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data '{"query":"query Chains { chains { list } }"}' 2>&1)
               if ! echo "$VERIFY" | grep -q '"errors"' && echo "$VERIFY" | grep -q "$CHAIN_ID"; then
