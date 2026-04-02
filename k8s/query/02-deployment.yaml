@@ -23,27 +23,17 @@ spec:
         - /bin/sh
         - -c
         - |
-          chains=0
-          default_chain=
-          if [ -f /wallet/wallet.json ]; then
-            chains=$(jq '.chains | length' /wallet/wallet.json 2>/dev/null || echo 0)
-            default_chain=$(jq -r '.default // empty' /wallet/wallet.json 2>/dev/null || true)
+          echo "Reinitializing query wallet..."
+          if [ -f /wallet/wallet.json -o -f /wallet/keystore.json -o -e /wallet/client.db ]; then
+            backup_dir="/wallet/backup-$(date +%Y%m%d%H%M%S)"
+            mkdir -p "$backup_dir"
+            [ -f /wallet/wallet.json ] && mv /wallet/wallet.json "$backup_dir"/
+            [ -f /wallet/keystore.json ] && mv /wallet/keystore.json "$backup_dir"/
+            [ -e /wallet/client.db ] && mv /wallet/client.db "$backup_dir"/
+            echo "Backed up existing query wallet to $backup_dir"
           fi
-          if [ "$chains" -eq 0 -o -z "$default_chain" ]; then
-            echo "No query wallet found, creating..."
-            if [ -f /wallet/wallet.json -o -f /wallet/keystore.json -o -e /wallet/client.db ]; then
-              backup_dir="/wallet/backup-$(date +%Y%m%d%H%M%S)"
-              mkdir -p "$backup_dir"
-              [ -f /wallet/wallet.json ] && mv /wallet/wallet.json "$backup_dir"/
-              [ -f /wallet/keystore.json ] && mv /wallet/keystore.json "$backup_dir"/
-              [ -e /wallet/client.db ] && mv /wallet/client.db "$backup_dir"/
-              echo "Backed up existing query wallet to $backup_dir"
-            fi
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL}
-          else
-            echo "Query wallet already exists, skipping init."
-          fi
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
+          ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet request-chain --faucet ${FAUCET_URL}
         volumeMounts:
         - name: query-pvc
           mountPath: /wallet
