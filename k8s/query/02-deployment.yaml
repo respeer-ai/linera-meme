@@ -54,11 +54,11 @@ spec:
           mountPath: /wallet
         resources:
           requests:
-            cpu: "300m"
-            memory: "1024Mi"
-          limits:
-            cpu: "600m"
+            cpu: "800m"
             memory: "2048Mi"
+          limits:
+            cpu: "1000m"
+            memory: "4096Mi"
   volumeClaimTemplates:
     - metadata:
         name: query-pvc
