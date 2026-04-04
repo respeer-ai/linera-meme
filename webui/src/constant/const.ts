@@ -13,20 +13,20 @@ export const formalizeSchema = (url: string) => {
 }
 
 const URLS = [
-  `http://api.${domain.SUB_DOMAIN}blobgateway.com/api/blobs/chains/${domain.BLOB_GATEWAY_CHAIN_ID}/applications/${domain.BLOB_GATEWAY_APPLICATION_ID}`,
-  `http://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/chains/${domain.AMS_CHAIN_ID}/applications/${domain.AMS_APPLICATION_ID}`,
-  `http://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/chains/${domain.PROXY_CHAIN_ID}/applications/${domain.PROXY_APPLICATION_ID}`,
-  `http://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap/chains/${domain.SWAP_CHAIN_ID}/applications/${domain.SWAP_APPLICATION_ID}`,
+  `http://api.${domain.SUB_DOMAIN}blobgateway.com/api/blobs/query/chains/${domain.BLOB_GATEWAY_CHAIN_ID}/applications/${domain.BLOB_GATEWAY_APPLICATION_ID}`,
+  `http://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/query/chains/${domain.AMS_CHAIN_ID}/applications/${domain.AMS_APPLICATION_ID}`,
+  `http://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/query/chains/${domain.PROXY_CHAIN_ID}/applications/${domain.PROXY_APPLICATION_ID}`,
+  `http://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap/query/chains/${domain.SWAP_CHAIN_ID}/applications/${domain.SWAP_APPLICATION_ID}`,
   `http://api.${domain.SUB_DOMAIN}rpc.respeer.ai/api/rpc`,
   `ws://api.${domain.SUB_DOMAIN}rpc.respeer.ai/api/rpc/ws`,
   `http://api.${domain.SUB_DOMAIN}kline.lineraswap.fun/api/kline`,
   `ws://api.${domain.SUB_DOMAIN}kline.lineraswap.fun/api/kline/ws`,
-  `http://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap`,
-  `http://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy`,
-  `ws://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/ws`,
-  `http://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams`,
-  `ws://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/ws`,
-  `ws://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap/ws`
+  `http://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap/query`,
+  `http://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/query`,
+  `ws://api.${domain.SUB_DOMAIN}linerameme.fun/api/proxy/query/ws`,
+  `http://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/query`,
+  `ws://api.${domain.SUB_DOMAIN}ams.respeer.ai/api/ams/query/ws`,
+  `ws://api.${domain.SUB_DOMAIN}lineraswap.fun/api/swap/query/ws`
 ]
 
 export const APPLICATION_URLS = {

@@ -40,8 +40,10 @@ spec:
             mkdir -p /wallet/backup/$now
             mv /wallet/wallet.json /wallet/keystore.json /wallet/backup/$now || true
             rm -rf /wallet/client.db
-            rm -rf /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
-            rm -rf /shared-app-data/AMS_APPLICATION_ID
+            if [ $POD_INDEX -eq 0 ]; then
+              rm -rf /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID
+              rm -rf /shared-app-data/AMS_APPLICATION_ID
+            fi
             ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db wallet init --faucet ${FAUCET_URL}
             OWNER=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db keygen)
             echo $OWNER > /shared-app-data/AMS_WALLET_OWNER.$POD_INDEX
@@ -117,32 +119,43 @@ spec:
             sleep 10
           done
           while true; do
-            count=$(ls /shared-app-data/AMS_WALLET_OWNER.* -l | wc -l)
-            if [ $count -eq ${REPLICAS} ]; then
+            OWNERS='{'
+            is_first_owner=1
+            UNIQUE_OWNERS=""
+            UNIQUE_COUNT=0
+            valid=1
+            index=0
+            while [ $index -lt ${REPLICAS} ]; do
+              owner_file="/shared-app-data/AMS_WALLET_OWNER.$index"
+              if [ ! -f "$owner_file" ]; then
+                valid=0
+                break
+              fi
+              OWNER=$(tr -d '\n' < "$owner_file")
+              if [ -z "$OWNER" ]; then
+                valid=0
+                break
+              fi
+              if printf '%s\n' "$UNIQUE_OWNERS" | grep -Fxq "$OWNER"; then
+                valid=0
+                break
+              fi
+              UNIQUE_OWNERS=$(printf '%s\n%s' "$UNIQUE_OWNERS" "$OWNER")
+              UNIQUE_COUNT=$((UNIQUE_COUNT + 1))
+              if [ "$is_first_owner" -eq 1 ]; then
+                is_first_owner=0
+              else
+                OWNERS="${OWNERS},"
+              fi
+              OWNERS="${OWNERS}\"${OWNER}\":100"
+              index=$((index + 1))
+            done
+            OWNERS="${OWNERS}}"
+            if [ "$valid" -eq 1 ] && [ "$UNIQUE_COUNT" -eq ${REPLICAS} ]; then
               break
             fi
             sleep 10
           done
-
-          OWNERS='{'
-          is_first_owner=1
-
-          shopt -s nullglob
-          for f in /shared-app-data/AMS_WALLET_OWNER.*; do
-            OWNER=$(tr -d '\n' < "$f")
-
-            [ -z "$OWNER" ] && continue
-
-            if [ "$is_first_owner" -eq 1 ]; then
-              is_first_owner=0
-            else
-              OWNERS="${OWNERS},"
-            fi
-
-            OWNERS="${OWNERS}\"${OWNER}\":100"
-          done
-
-          OWNERS="${OWNERS}}"
 
           if [ -f /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID ]; then
             MULTI_OWNER_CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
@@ -223,16 +236,18 @@ spec:
             MODULE_ID=$(cat /shared-app-data/AMS_MODULE_ID)
             sleep 10
           done
-          if [ $POD_INDEX -eq 0 ]; then
-            if [ -f /shared-app-data/AMS_APPLICATION_ID ]; then
-              APPLICATION_ID=$(cat /shared-app-data/AMS_APPLICATION_ID)
-            fi
-            if [ ! -f /shared-app-data/AMS_APPLICATION_ID -o -z $APPLICATION_ID ]; then
-              echo "Creating application..."
-              APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application --json-argument '{}' $MODULE_ID $CHAIN_ID)
-              echo $APPLICATION_ID > /shared-app-data/AMS_APPLICATION_ID
-            fi
+          if [ -f /shared-app-data/AMS_APPLICATION_ID ]; then
+            APPLICATION_ID=$(cat /shared-app-data/AMS_APPLICATION_ID)
           fi
+          if [ $POD_INDEX -eq 0 ] && [ ! -f /shared-app-data/AMS_APPLICATION_ID -o -z "$APPLICATION_ID" ]; then
+            echo "Creating application..."
+            APPLICATION_ID=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db create-application --json-argument '{}' $MODULE_ID $CHAIN_ID)
+            echo $APPLICATION_ID > /shared-app-data/AMS_APPLICATION_ID
+          fi
+          while [ ! -f /shared-app-data/AMS_APPLICATION_ID -o -z "$APPLICATION_ID" ]; do
+            APPLICATION_ID=$(cat /shared-app-data/AMS_APPLICATION_ID 2>/dev/null || true)
+            sleep 10
+          done
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
@@ -253,6 +268,39 @@ spec:
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet
+      - name: import-query-service
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          POD_INDEX=$(hostname | awk -F '-' '{print $NF}')
+          if [ "$POD_INDEX" -ne 0 ]; then
+            echo "Skipping query-service import for ams on pod $POD_INDEX"
+            exit 0
+          fi
+          CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
+          OWNER=$(cat /shared-app-data/AMS_WALLET_OWNER.0)
+          echo "Starting query-service import for ams chain $CHAIN_ID owner $OWNER"
+          while true; do
+            echo "Attempting query-service import for ams chain $CHAIN_ID"
+            RESP=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation ImportChain(\$owner: AccountOwner!, \$chainId: ChainId!) { importChain(owner: \$owner, chainId: \$chainId) }\",\"variables\":{\"owner\":\"$OWNER\",\"chainId\":\"$CHAIN_ID\"}}" 2>&1)
+            if ! echo "$RESP" | grep -q '"errors"'; then
+              VERIFY=$(curl -sS http://query-service:30080 -H 'Content-Type: application/json' --data '{"query":"query Chains { chains { list } }"}' 2>&1)
+              if ! echo "$VERIFY" | grep -q '"errors"' && echo "$VERIFY" | grep -q "$CHAIN_ID"; then
+                echo "Imported ams chain $CHAIN_ID to query-service"
+                exit 0
+              fi
+              echo "Ams chain $CHAIN_ID import mutation succeeded but query-service has not listed it yet: $VERIFY"
+            else
+              echo "Failed import ams chain $CHAIN_ID to query-service: $RESP"
+            fi
+            sleep 5
+          done
+        volumeMounts:
+        - name: shared-app-data
+          mountPath: /shared-app-data
       - name: change-multi-owners-chain-single-leader
         image: npool/linera-respeer:latest
         imagePullPolicy: Always
@@ -265,28 +313,113 @@ spec:
 
           OWNERS='{'
           is_first_owner=1
-
-          shopt -s nullglob
-          for f in /shared-app-data/AMS_WALLET_OWNER.*; do
-            OWNER=$(tr -d '\n' < "$f")
-
-            [ -z "$OWNER" ] && continue
-
+          UNIQUE_OWNERS=""
+          UNIQUE_COUNT=0
+          index=0
+          while [ $index -lt ${REPLICAS} ]; do
+            owner_file="/shared-app-data/AMS_WALLET_OWNER.$index"
+            if [ ! -f "$owner_file" ]; then
+              echo "Missing owner file: $owner_file"
+              exit 1
+            fi
+            OWNER=$(tr -d '\n' < "$owner_file")
+            if [ -z "$OWNER" ]; then
+              echo "Empty owner file: $owner_file"
+              exit 1
+            fi
+            if printf '%s\n' "$UNIQUE_OWNERS" | grep -Fxq "$OWNER"; then
+              echo "Duplicate owner detected: $OWNER"
+              exit 1
+            fi
+            UNIQUE_OWNERS=$(printf '%s\n%s' "$UNIQUE_OWNERS" "$OWNER")
+            UNIQUE_COUNT=$((UNIQUE_COUNT + 1))
             if [ "$is_first_owner" -eq 1 ]; then
               is_first_owner=0
             else
               OWNERS="${OWNERS},"
             fi
-
             OWNERS="${OWNERS}\"${OWNER}\":100"
+            index=$((index + 1))
           done
-
           OWNERS="${OWNERS}}"
+          if [ "$UNIQUE_COUNT" -ne ${REPLICAS} ]; then
+            echo "Owner validation failed"
+            exit 1
+          fi
 
           if [ $POD_INDEX -eq 0 ]; then
+            CURRENT=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db show-ownership --chain-id $CHAIN_ID)
+            EXPECTED=$(printf '%s' "$OWNERS" | jq -cS .)
+            CURRENT_OWNERS=$(printf '%s\n' "$CURRENT" | jq -cS '.owners')
+            CURRENT_MULTI_LEADER_ROUNDS=$(printf '%s\n' "$CURRENT" | jq -r '.multi_leader_rounds')
+            if [ "$CURRENT_OWNERS" = "$EXPECTED" ] && [ "$CURRENT_MULTI_LEADER_ROUNDS" = "0" ]; then
+              echo "Chain ownership already converged."
+              exit 0
+            fi
             echo "Change multi owners chain to single leader..."
-            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID --owners $OWNERS --multi-leader-rounds 0
+            ./linera --wait-for-outgoing-messages --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db change-ownership --chain-id $CHAIN_ID --owners "$OWNERS" --multi-leader-rounds 0
           fi
+        volumeMounts:
+        - name: ams-pvc
+          mountPath: /wallet
+        - name: shared-app-data
+          mountPath: /shared-app-data
+      - name: wait-single-leader-converged
+        image: npool/linera-respeer:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          CHAIN_ID=$(cat /shared-app-data/AMS_MULTI_OWNER_CHAIN_ID)
+          OWNERS='{'
+          is_first_owner=1
+          UNIQUE_OWNERS=""
+          UNIQUE_COUNT=0
+          index=0
+          while [ $index -lt ${REPLICAS} ]; do
+            owner_file="/shared-app-data/AMS_WALLET_OWNER.$index"
+            if [ ! -f "$owner_file" ]; then
+              echo "Missing owner file: $owner_file"
+              exit 1
+            fi
+            OWNER=$(tr -d '\n' < "$owner_file")
+            if [ -z "$OWNER" ]; then
+              echo "Empty owner file: $owner_file"
+              exit 1
+            fi
+            if printf '%s\n' "$UNIQUE_OWNERS" | grep -Fxq "$OWNER"; then
+              echo "Duplicate owner detected: $OWNER"
+              exit 1
+            fi
+            UNIQUE_OWNERS=$(printf '%s\n%s' "$UNIQUE_OWNERS" "$OWNER")
+            UNIQUE_COUNT=$((UNIQUE_COUNT + 1))
+            if [ "$is_first_owner" -eq 1 ]; then
+              is_first_owner=0
+            else
+              OWNERS="${OWNERS},"
+            fi
+            OWNERS="${OWNERS}\"${OWNER}\":100"
+            index=$((index + 1))
+          done
+          OWNERS="${OWNERS}}"
+          if [ "$UNIQUE_COUNT" -ne ${REPLICAS} ]; then
+            echo "Owner validation failed"
+            exit 1
+          fi
+
+          EXPECTED=$(printf '%s' "$OWNERS" | jq -cS .)
+          while true; do
+            CURRENT=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db show-ownership --chain-id $CHAIN_ID 2>/dev/null || true)
+            if [ -n "$CURRENT" ]; then
+              CURRENT_OWNERS=$(printf '%s\n' "$CURRENT" | jq -cS '.owners' 2>/dev/null || true)
+              CURRENT_MULTI_LEADER_ROUNDS=$(printf '%s\n' "$CURRENT" | jq -r '.multi_leader_rounds' 2>/dev/null || true)
+              if [ "$CURRENT_OWNERS" = "$EXPECTED" ] && [ "$CURRENT_MULTI_LEADER_ROUNDS" = "0" ]; then
+                break
+              fi
+            fi
+            sleep 10
+          done
         volumeMounts:
         - name: ams-pvc
           mountPath: /wallet

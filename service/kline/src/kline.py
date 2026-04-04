@@ -163,6 +163,7 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default='0.0.0.0', help='Listened ip')
     parser.add_argument('--port', type=int, default=25080, help='Listened port')
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
+    parser.add_argument('--swap-chain-id', type=str, required=True, help='Swap chain id')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--database-host', type=str, default='localhost', help='Kline database host')
     parser.add_argument('--database-port', type=str, default='3306', help='Kline database port')
@@ -173,12 +174,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    _swap = Swap(args.swap_host, args.swap_application_id, None)
-    async def _init_swap():
-        await _swap.get_swap_chain()
-        await _swap.get_swap_application()
-
-    asyncio.run(_init_swap())
+    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None)
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     manager = WebSocketManager(_swap, _db)

@@ -436,10 +436,10 @@ echo -e "   http://graphiql.blobgateway.com"
 echo -e "   http://graphiql.ams.respeer.ai"
 echo -e "   http://graphiql.linerameme.fun"
 echo -e "   http://graphiql.lineraswap.fun"
-echo -e "   http://${SUB_DOMAIN}blobgateway.com/api/blobs/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
-echo -e "   http://${SUB_DOMAIN}ams.respeer.ai/api/ams/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
-echo -e "   http://${SUB_DOMAIN}linerameme.fun/api/proxy/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
-echo -e "   http://${SUB_DOMAIN}lineraswap.fun/api/swap/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID\n\n"
+echo -e "   http://${SUB_DOMAIN}blobgateway.com/api/blobs/query/chains/$BLOB_GATEWAY_CHAIN_ID/applications/$BLOB_GATEWAY_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}ams.respeer.ai/api/ams/query/chains/$AMS_CHAIN_ID/applications/$AMS_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}linerameme.fun/api/proxy/query/chains/$PROXY_CHAIN_ID/applications/$PROXY_APPLICATION_ID"
+echo -e "   http://${SUB_DOMAIN}lineraswap.fun/api/swap/query/chains/$SWAP_CHAIN_ID/applications/$SWAP_APPLICATION_ID\n\n"
 
 cat <<EOF > $DOMAIN_FILE
 export const SUB_DOMAIN = '$CLUSTER.'
@@ -533,9 +533,9 @@ function run_kline() {
     docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
 
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
-      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
       SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
@@ -550,8 +550,8 @@ function run_funder() {
         docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
     fi
 
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
-      PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
       MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$(wallet_chain_id maker 0) \
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
@@ -567,4 +567,3 @@ run_funder
 # Let maker to get wallet owner and chain firstly
 cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
 LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
-

@@ -14,7 +14,8 @@ class Meme:
             'query': f'query {{\n balanceOf(\n owner: {owner}) \n}}'
         }
 
-        url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
+        prefix = '' if running_in_k8s() else '/query'
+        url = f'{self.base_url}{prefix}/chains/{chain_id}/applications/{token}'
         resp = await async_request.post(url=url, json=json, timeout=(3, 10))
         if resp.ok is not True:
             print(f'{url}, {json} -> {resp.reason}')
@@ -26,7 +27,8 @@ class Meme:
             'query': 'query {\n miningInfo { miningStarted } \n}'
         }
 
-        url = f'{self.base_url}/chains/{chain_id}/applications/{token}'
+        prefix = '' if running_in_k8s() else '/query'
+        url = f'{self.base_url}{prefix}/chains/{chain_id}/applications/{token}'
         resp = await async_request.post(url=url, json=json, timeout=(3, 10))
         if resp.ok is not True:
             print(f'{url}, {json} -> {resp.reason}')

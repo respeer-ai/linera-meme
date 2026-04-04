@@ -192,7 +192,7 @@ impl<
             }
         }
 
-        // 3: Transfer token
+        // 3: Validate output dispatch prerequisites
         let to = to.unwrap_or(origin);
         let application =
             AccountOwner::from(self.runtime.borrow_mut().application_id().forget_abi());
@@ -200,9 +200,7 @@ impl<
 
         if amount_1_out > Amount::ZERO {
             let token_1 = self.runtime.borrow_mut().token_1();
-            if let Some(token_1) = token_1 {
-                self.transfer_meme(token_1, to, amount_1_out).await;
-            } else {
+            if token_1.is_none() {
                 let balance = self.runtime.borrow_mut().owner_balance(application);
                 if balance < amount_1_out {
                     self.refund_amount_in(origin, amount_0_in, amount_1_in)
@@ -214,17 +212,16 @@ impl<
                     );
                     return Err(HandlerError::InsufficientFunds);
                 }
-                self.runtime
-                    .borrow_mut()
-                    .transfer(application, to, amount_1_out);
             }
         }
-        // Transfer native firstly due to meme transfer is a message
-        if amount_0_out > Amount::ZERO {
-            self.transfer_meme(token_0, to, amount_0_out).await;
-        }
 
-        // 4: Liquid
+        // 4: Commit the swap before dispatching outputs.
+        //
+        // This gives BuyToken0 and SellToken0 the same transaction semantics:
+        // the input asset has already been locked to the pool, the output amounts
+        // are final, and the reserves have been updated. Output delivery may still
+        // happen via a follow-up message for meme assets, but the transaction itself
+        // is already economically settled at this point.
         let balance_0 = self
             .state
             .borrow()
@@ -279,6 +276,21 @@ impl<
         );
 
         outcome.with_message(destination, PoolMessage::NewTransaction { transaction });
+
+        // 5: Dispatch outputs after the transaction has been fixed.
+        if amount_1_out > Amount::ZERO {
+            let token_1 = self.runtime.borrow_mut().token_1();
+            if let Some(token_1) = token_1 {
+                self.transfer_meme(token_1, to, amount_1_out).await;
+            } else {
+                self.runtime
+                    .borrow_mut()
+                    .transfer(application, to, amount_1_out);
+            }
+        }
+        if amount_0_out > Amount::ZERO {
+            self.transfer_meme(token_0, to, amount_0_out).await;
+        }
 
         Ok(outcome)
     }

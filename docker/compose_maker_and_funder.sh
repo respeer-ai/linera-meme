@@ -74,7 +74,9 @@ DATABASE_PORT=3306
 SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
 PROXY_HOST=${SUB_DOMAIN}linerameme.fun
 
+SWAP_CHAIN_ID=$( cat $DOMAIN_FILE | grep 'SWAP_CHAIN_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
 SWAP_APPLICATION_ID=$( cat $DOMAIN_FILE | grep 'SWAP_APPLICATION_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
+PROXY_CHAIN_ID=$( cat $DOMAIN_FILE | grep 'PROXY_CHAIN_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
 PROXY_APPLICATION_ID=$( cat $DOMAIN_FILE | grep 'PROXY_APPLICATION_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
 
 # Build kline and maker
@@ -86,9 +88,9 @@ function run_kline() {
     docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
 
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
-      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
       SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
@@ -103,8 +105,8 @@ function run_funder() {
         docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
     fi
 
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
-      PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
       MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$(wallet_chain_id maker 0) \
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
@@ -119,4 +121,3 @@ docker tag kline:latest docker.io/npool/kline:latest
 docker tag funder:latest docker.io/npool/funder:latest
 docker push docker.io/npool/kline:latest
 docker push docker.io/npool/funder:latest
-

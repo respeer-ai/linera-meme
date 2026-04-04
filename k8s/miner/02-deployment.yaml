@@ -35,6 +35,13 @@ spec:
           else
             echo "Wallet already exists, skipping init."
           fi
+          CHAIN_ID=$(head -n 1 /shared-app-data/MINER_WALLET_CHAIN_OWNER.$POD_INDEX | tr -d '\r\n')
+          while true; do
+            RESP=$(curl -sS http://rpc-service:30080 -H 'Content-Type: application/json' --data "{\"query\":\"mutation { sync(chainId: \\\"$CHAIN_ID\\\") }\"}")
+            echo "$RESP" | grep -q '"sync"' && break
+            echo "Failed sync miner chain $CHAIN_ID to rpc-service:30080: $RESP"
+            sleep 5
+          done
         volumeMounts:
         - name: meme-miner-pvc
           mountPath: /wallet

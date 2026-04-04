@@ -24,7 +24,21 @@ spec:
     - host: api.testnet-conway.lineraswap.fun
       http:
         paths:
-          - path: /
+          - path: /api/swap/query
+            pathType: Prefix
+            backend:
+              service:
+                name: query-service
+                port:
+                  number: 30080
+          - path: /api/swap/mutation
+            pathType: Prefix
+            backend:
+              service:
+                name: swap-service
+                port:
+                  number: 8080
+          - path: /api/swap
             pathType: Prefix
             backend:
               service:

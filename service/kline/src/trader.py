@@ -25,6 +25,7 @@ class MarketState:
 
         self.last_price = reserve_1 / reserve_0
         self.fair_price = self.last_price
+        self.anchor_price = self.last_price
 
         self.regime = MarketRegime.RANGE
         self.trend_direction = TrendDirection.NONE
@@ -45,10 +46,19 @@ class Trader:
         self.shadow_reserve_1 = None
         self.market_drift = random.gauss(0, 0.0007)
         self.market_states = {}
-        self.pending_quote_notional = {}
+        self.pending_buy_quote_notional = {}
+        self.pending_sell_quote_notional = {}
+        self.long_term_quote_bias = {}
         self.execution_window_secs = float(os.getenv("TRADE_EXECUTION_WINDOW_SECS", "15"))
         self.sell_delay_compensation = float(os.getenv("SELL_DELAY_COMPENSATION", "1.12"))
         self.max_pending_notional_ratio = float(os.getenv("MAX_PENDING_NOTIONAL_RATIO", "0.03"))
+        self.fair_price_adjustment = float(os.getenv("FAIR_PRICE_ADJUSTMENT", "0.08"))
+        self.trend_bias_strength = float(os.getenv("TREND_BIAS_STRENGTH", "0.002"))
+        self.anchor_price_adjustment = float(os.getenv("ANCHOR_PRICE_ADJUSTMENT", "0.01"))
+        self.pending_bias_penalty = float(os.getenv("PENDING_BIAS_PENALTY", "0.9"))
+        self.long_term_bias_penalty = float(os.getenv("LONG_TERM_BIAS_PENALTY", "1.3"))
+        self.anchor_bias_penalty = float(os.getenv("ANCHOR_BIAS_PENALTY", "0.7"))
+        self.long_term_bias_decay = float(os.getenv("LONG_TERM_BIAS_DECAY", "0.92"))
         self.window_started_at = time.monotonic()
 
     def _pool_price(self, pool):
@@ -58,8 +68,17 @@ class Trader:
             return 0.0
         return reserve_1 / reserve_0
 
-    def _pending_notional(self, pool):
-        return self.pending_quote_notional.get(pool.pool_id, 0.0)
+    def _pending_buy_notional(self, pool):
+        return self.pending_buy_quote_notional.get(pool.pool_id, 0.0)
+
+    def _pending_sell_notional(self, pool):
+        return self.pending_sell_quote_notional.get(pool.pool_id, 0.0)
+
+    def _pending_imbalance(self, pool):
+        return self._pending_buy_notional(pool) - self._pending_sell_notional(pool)
+
+    def _long_term_quote_bias(self, pool):
+        return self.long_term_quote_bias.get(pool.pool_id, 0.0)
 
     def trade_amounts(self, pool, token_0_balance, token_1_balance):
         MIN_PRICE = 1e-12
@@ -75,7 +94,7 @@ class Trader:
 
         token_0_balance = float(token_0_balance)
         token_1_balance = float(token_1_balance)
-        pending_notional = self._pending_notional(pool)
+        pending_notional = self._pending_imbalance(pool)
         max_pending_notional = reserve_1 * self.max_pending_notional_ratio
 
         # -------------------------------------------------
@@ -125,18 +144,39 @@ class Trader:
         else:
             ratio = price / state.fair_price
             if ratio > 0 and math.isfinite(ratio):
-                adjust = math.log(ratio) * 0.08
-                state.fair_price *= math.exp(adjust)   # ⭐ 修正：log space 更新
+                adjust = math.log(ratio) * self.fair_price_adjustment
+                state.fair_price *= math.exp(adjust)
             else:
                 state.fair_price = price
 
         state.fair_price = max(state.fair_price, MIN_PRICE)
+        if state.anchor_price <= 0 or not math.isfinite(state.anchor_price):
+            state.anchor_price = price
+        else:
+            ratio = price / state.anchor_price
+            if ratio > 0 and math.isfinite(ratio):
+                adjust = math.log(ratio) * self.anchor_price_adjustment
+                state.anchor_price *= math.exp(adjust)
+            else:
+                state.anchor_price = price
+        state.anchor_price = max(state.anchor_price, MIN_PRICE)
 
         # -------------------------------------------------
         # 3. Mispricing (log deviation)
         # -------------------------------------------------
         ratio = state.fair_price / price
         mispricing = math.log(ratio) if ratio > 0 and math.isfinite(ratio) else 0.0
+        anchor_ratio = price / state.anchor_price
+        anchor_bias = (
+            math.log(anchor_ratio) if anchor_ratio > 0 and math.isfinite(anchor_ratio) else 0.0
+        )
+        normalized_pending_bias = pending_notional / max(reserve_1, MIN_PRICE)
+        normalized_long_term_bias = self._long_term_quote_bias(pool) / max(reserve_1, MIN_PRICE)
+        long_term_bias = (
+            self.pending_bias_penalty * normalized_pending_bias
+            + self.long_term_bias_penalty * normalized_long_term_bias
+            + self.anchor_bias_penalty * anchor_bias
+        )
 
         # -------------------------------------------------
         # 4. Bias depending on regime (trend damped by deviation)
@@ -145,14 +185,16 @@ class Trader:
             buy_score = mispricing
             sell_score = -mispricing
         else:
-            # ⭐ 偏离 fair 越大，趋势权重越弱（防单边）
             dev = abs(mispricing)
             dev_damp = math.exp(-dev / 0.02)
 
-            trend_bias = 0.002 * state.trend_direction.value * dev_damp
+            trend_bias = self.trend_bias_strength * state.trend_direction.value * dev_damp
 
             buy_score = mispricing + trend_bias
             sell_score = -mispricing - trend_bias
+
+        buy_score -= long_term_bias
+        sell_score += long_term_bias
 
         # -------------------------------------------------
         # 5. Convert bias into probabilities (normalized)
@@ -163,7 +205,6 @@ class Trader:
         buy_p = probability(buy_score)
         sell_p = probability(sell_score)
 
-        # ⭐ 防止 buy + sell > 1 的隐性偏置
         total = buy_p + sell_p
         if total > 1.0:
             buy_p /= total
@@ -182,19 +223,11 @@ class Trader:
         # -------------------------------------------------
         base_size = random.lognormvariate(-0.4, 0.8)
 
-        if state.regime == MarketRegime.TREND:
-            is_trend_aligned = (
-                (buy_token_0 and state.trend_direction == TrendDirection.UP) or
-                (not buy_token_0 and state.trend_direction == TrendDirection.DOWN)
-            )
-            size = base_size * (1.2 if is_trend_aligned else 0.7)
-        else:
-            size = base_size
+        size = base_size
 
         if not buy_token_0:
             size *= self.sell_delay_compensation
 
-        # ⭐ 按池子“价值”限制，而不是方向偏置
         size = min(size, reserve_1 * 0.015)
 
         if buy_token_0 and pending_notional > max_pending_notional:
@@ -259,13 +292,27 @@ class Trader:
             return
 
         price = max(self._pool_price(pool), 1e-12)
-        notional = amount_1 if amount_1 is not None else -(amount_0 * price)
-        self.pending_quote_notional[pool.pool_id] = self._pending_notional(pool) + notional
+        if amount_1 is not None:
+            delta_buy = amount_1
+            delta_sell = 0.0
+            self.pending_buy_quote_notional[pool.pool_id] = (
+                self._pending_buy_notional(pool) + delta_buy
+            )
+        else:
+            delta_buy = 0.0
+            delta_sell = amount_0 * price
+            self.pending_sell_quote_notional[pool.pool_id] = (
+                self._pending_sell_notional(pool) + delta_sell
+            )
+        net_notional = self._pending_imbalance(pool)
 
         print('    Queue trade ----------------------------------')
         print(f'      Pool                   {pool.pool_application.short_owner}')
-        print(f'      PendingQuoteNotional   {self.pending_quote_notional[pool.pool_id]}')
-        print(f'      DeltaQuoteNotional     {notional}')
+        print(f'      PendingBuyQuote        {self._pending_buy_notional(pool)}')
+        print(f'      PendingSellQuote       {self._pending_sell_notional(pool)}')
+        print(f'      PendingNetQuote        {net_notional}')
+        print(f'      DeltaBuyQuote          {delta_buy}')
+        print(f'      DeltaSellQuote         {delta_sell}')
         print(f'      DateTime               {time.time()}')
 
     async def plan_trade_in_pool(self, pool):
@@ -307,7 +354,7 @@ class Trader:
 
     async def execute_pending_in_pool(self, pool, quote_notional):
         if abs(quote_notional) < 1e-6:
-            return
+            return 0.0
 
         wallet_chain = self.wallet._chain()
         account = self.wallet.account()
@@ -320,7 +367,7 @@ class Trader:
 
         if await self.wallet.balance() < 0.001:
             print('Maker wallet balance is not enough for gas, please fund it')
-            return
+            return 0.0
 
         price = max(self._pool_price(pool), 1e-12)
 
@@ -329,11 +376,11 @@ class Trader:
         if quote_notional > 0:
             amount_1 = min(quote_notional, token_1_balance * 0.30)
             if amount_1 < 1e-6:
-                return
+                return 0.0
         else:
             amount_0 = min(abs(quote_notional) / price, token_0_balance * 0.30)
             if amount_0 < 1e-6:
-                return
+                return 0.0
 
         print('    Flush trade ----------------------------------')
         print(f'      Pool                   {pool.pool_application.short_owner}')
@@ -343,6 +390,9 @@ class Trader:
         print(f'      DateTime               {time.time()}')
 
         await pool.swap(amount_0, amount_1)
+        if amount_1 is not None:
+            return amount_1
+        return -(amount_0 * price)
 
     async def _trade_in_pool(self, pool):
         async with self.semaphore:
@@ -355,27 +405,46 @@ class Trader:
     async def _flush_pool(self, pool, quote_notional):
         async with self.semaphore:
             try:
-                await self.execute_pending_in_pool(pool, quote_notional)
+                return await self.execute_pending_in_pool(pool, quote_notional)
             except Exception as e:
                 print(f'Failed flush token {pool.token_0} at {time.time()}: ERROR {e}')
                 traceback.print_exc()
+                return 0.0
 
     async def flush_pending_trades(self, pools):
-        if not self.pending_quote_notional:
-            return
-
         pool_map = {pool.pool_id: pool for pool in pools}
         tasks = []
-        for pool_id, quote_notional in list(self.pending_quote_notional.items()):
+        next_long_term_quote_bias = {}
+        pool_ids = (
+            set(self.pending_buy_quote_notional)
+            | set(self.pending_sell_quote_notional)
+            | set(self.long_term_quote_bias)
+        )
+        for pool_id in pool_ids:
             pool = pool_map.get(pool_id)
+            decayed_bias = self.long_term_quote_bias.get(pool_id, 0.0) * self.long_term_bias_decay
+            if abs(decayed_bias) >= 1e-9:
+                next_long_term_quote_bias[pool_id] = decayed_bias
+            quote_notional = (
+                self.pending_buy_quote_notional.get(pool_id, 0.0)
+                - self.pending_sell_quote_notional.get(pool_id, 0.0)
+            )
             if pool is None or abs(quote_notional) < 1e-6:
                 continue
-            tasks.append(self._flush_pool(pool, quote_notional))
+            tasks.append((pool_id, pool, self._flush_pool(pool, quote_notional)))
 
         if tasks:
-            await asyncio.gather(*tasks)
+            results = await asyncio.gather(*(task for _, _, task in tasks))
+            for (pool_id, pool, _), executed_quote_notional in zip(tasks, results):
+                updated_bias = next_long_term_quote_bias.get(pool_id, 0.0) + executed_quote_notional
+                if abs(updated_bias) >= 1e-9:
+                    next_long_term_quote_bias[pool_id] = updated_bias
+                else:
+                    next_long_term_quote_bias.pop(pool_id, None)
 
-        self.pending_quote_notional.clear()
+        self.long_term_quote_bias = next_long_term_quote_bias
+        self.pending_buy_quote_notional.clear()
+        self.pending_sell_quote_notional.clear()
         self.window_started_at = time.monotonic()
 
     async def trade(self) -> float:

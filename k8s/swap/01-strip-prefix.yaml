@@ -6,4 +6,6 @@ metadata:
 spec:
   stripPrefix:
     prefixes:
+      - /api/swap/query
+      - /api/swap/mutation
       - /api/swap
