@@ -352,6 +352,7 @@ Execution rule:
 | KSO-20 | Phase 8 | Narrow WebSocket subscription scope | Make subscription pair-aware and interval-aware instead of broadcasting broad updates | KSO-19 | Add subscription tests for pair filtering, interval filtering, and irrelevant-update suppression | Backend | TODO |
 | KSO-21 | Phase 8 | Push incremental candle updates | Send only changed candles where feasible to reduce frontend churn and IndexedDB writes | KSO-20 | Add websocket payload tests and frontend-consumer regression tests for incremental update application | Backend | TODO |
 | KSO-22 | Cross-phase | Define completion gate for "feels instant" milestone | Confirm Phase 1 + 2 + 3 + 6 satisfy warm-cache `<300ms` and usable uncached first screen `<1s` targets | KSO-03, KSO-08, KSO-16 | Add milestone verification suite covering target startup timings, readiness states, and representative backend latency thresholds | Frontend + Backend | TODO |
+| KSO-23 | Cross-phase | Enforce strict financial candle semantics | Align HTTP `/points` and WebSocket candle generation to strict financial semantics: interval-boundary alignment, closed-vs-forming candle semantics, consistent volume for the same closed bucket, and explicit metadata when the latest candle is still forming | KSO-16, KSO-19, KSO-21 | Add backend and frontend regression tests covering identical closed-bucket OHLCV across HTTP and WebSocket, boundary alignment for `1min/5min/10min/1h`, and explicit handling of forming candles | Frontend + Backend | TODO |
 
 Recommended first execution slice:
 
