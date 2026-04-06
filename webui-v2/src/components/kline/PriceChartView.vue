@@ -13,6 +13,7 @@
       :background-history-status='backgroundHistoryStatus'
       @load-new-data='onLoadNewData'
       @load-old-data='onLoadOldData'
+      @indicators-ready='onIndicatorsReady'
       :height='chartHeight'
     />
   </div>
@@ -159,6 +160,7 @@ const backgroundHistoryQueued = ref(false)
 const loadingDirection = ref(null as LoadDirection | null)
 const pendingLoadDirections = ref([] as LoadDirection[])
 const currentRequestId = ref(0)
+const indicatorsReady = ref(false)
 const startupBaselineRecorder = createStartupBaselineRecorder()
 const startupInstrumentation = createStartupInstrumentation({
   emit: (event) => {
@@ -271,6 +273,7 @@ const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
     currentRequestId.value += 1
+    indicatorsReady.value = false
     startupInstrumentation.begin({
       requestId: currentRequestId.value,
       interval: selectedInterval.value,
@@ -485,7 +488,24 @@ const finishLoading = (requestId: number) => {
       requestId,
       pointCount: klinePoints.value.length
     })
+    if (indicatorsReady.value) {
+      startupInstrumentation.markIndicatorsReady({
+        requestId,
+        pointCount: klinePoints.value.length
+      })
+    }
     flushPendingLoad()
+  })
+}
+
+const onIndicatorsReady = () => {
+  indicatorsReady.value = true
+
+  if (!firstScreenReady.value) return
+
+  startupInstrumentation.markIndicatorsReady({
+    requestId: currentRequestId.value,
+    pointCount: klinePoints.value.length
   })
 }
 

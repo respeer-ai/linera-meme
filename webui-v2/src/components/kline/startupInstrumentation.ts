@@ -4,6 +4,7 @@ type StartupEventName =
   | 'network_fetched'
   | 'points_merged'
   | 'first_render'
+  | 'indicators_ready'
 
 type StartupContext = {
   requestId: number
@@ -30,6 +31,7 @@ export type StartupInstrumentationEvent = StartupContext & {
   networkFetchMs?: number
   mergeMs?: number
   firstRenderMs?: number
+  indicatorReadyMs?: number
 }
 
 type StartupRun = StartupContext & {
@@ -38,6 +40,7 @@ type StartupRun = StartupContext & {
   networkFetchedAt?: number
   mergedAt?: number
   firstRenderAt?: number
+  indicatorReadyAt?: number
 }
 
 type StartupInstrumentationOptions = {
@@ -85,6 +88,9 @@ export const createStartupInstrumentation = ({
     if (run.firstRenderAt !== undefined) {
       baseEvent.firstRenderMs = run.firstRenderAt - run.startedAt
     }
+    if (run.indicatorReadyAt !== undefined) {
+      baseEvent.indicatorReadyMs = run.indicatorReadyAt - run.startedAt
+    }
 
     return baseEvent
   }
@@ -127,11 +133,19 @@ export const createStartupInstrumentation = ({
     emit(buildEvent(currentRun, 'first_render', { pointCount }))
   }
 
+  const markIndicatorsReady = ({ requestId, pointCount }: StartupMilestoneArgs) => {
+    if (!currentRun || !isCurrentRequest(requestId) || currentRun.indicatorReadyAt !== undefined) return
+
+    currentRun.indicatorReadyAt = now()
+    emit(buildEvent(currentRun, 'indicators_ready', { pointCount }))
+  }
+
   return {
     begin,
     markCacheLoaded,
     markNetworkFetched,
     markPointsMerged,
     markFirstRender,
+    markIndicatorsReady,
   }
 }

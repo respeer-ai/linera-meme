@@ -60,6 +60,14 @@ describe('startupBaseline', () => {
           firstRenderMs: 60,
           pointCount: 80,
         }),
+        createEvent('indicators_ready', {
+          requestId: 7,
+          interval: '1min',
+          cacheLoadMs: 20,
+          firstRenderMs: 60,
+          indicatorReadyMs: 95,
+          pointCount: 80,
+        }),
       ],
     }
 
@@ -72,6 +80,7 @@ describe('startupBaseline', () => {
       networkFetchMs: undefined,
       mergeMs: undefined,
       firstRenderMs: 60,
+      indicatorReadyMs: 95,
       finalPointCount: 80,
     })
   })
@@ -91,6 +100,7 @@ describe('startupBaseline', () => {
     recorder.record(createEvent('startup_begin'))
     recorder.record(createEvent('first_render', {
       firstRenderMs: 45,
+      indicatorReadyMs: 70,
       pointCount: 99,
     }))
 
@@ -100,6 +110,7 @@ describe('startupBaseline', () => {
     expect(sample?.interval).toBe('5min')
     expect(sample?.cacheMode).toBe('warm')
     expect(sample?.firstRenderMs).toBe(45)
+    expect(sample?.indicatorReadyMs).toBe(70)
     expect(sample?.finalPointCount).toBe(99)
     expect(sample?.note).toBe('first pass')
     expect(typeof sample?.capturedAt).toBe('string')
@@ -118,10 +129,11 @@ describe('startupBaseline', () => {
       networkFetchMs: 250,
       mergeMs: 280,
       firstRenderMs: 310,
+      indicatorReadyMs: 420,
       finalPointCount: 60,
       note: 'empty cache',
     })
 
-    expect(row).toBe('| `1min` | cold | `12` | `250` | `280` | `310` | `60` | `empty cache` |')
+    expect(row).toBe('| `1min` | cold | `12` | `250` | `280` | `310` | `420` | `60` | `empty cache` |')
   })
 })

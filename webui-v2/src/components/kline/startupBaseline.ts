@@ -17,6 +17,7 @@ export type StartupBaselineSummary = {
   networkFetchMs?: number
   mergeMs?: number
   firstRenderMs?: number
+  indicatorReadyMs?: number
   finalPointCount?: number
 }
 
@@ -65,7 +66,7 @@ export const createStartupBaselineStore = (): StartupBaselineStore => ({
 
 export const formatStartupBaselineSampleAsMarkdownRow = (
   sample: StartupBaselineSample,
-): string => `| \`${sample.interval}\` | ${sample.cacheMode} | \`${sample.cacheLoadMs ?? 'TBD'}\` | \`${sample.networkFetchMs ?? 'TBD'}\` | \`${sample.mergeMs ?? 'TBD'}\` | \`${sample.firstRenderMs ?? 'TBD'}\` | \`${sample.finalPointCount ?? 'TBD'}\` | \`${sample.note ?? ''}\` |`
+): string => `| \`${sample.interval}\` | ${sample.cacheMode} | \`${sample.cacheLoadMs ?? 'TBD'}\` | \`${sample.networkFetchMs ?? 'TBD'}\` | \`${sample.mergeMs ?? 'TBD'}\` | \`${sample.firstRenderMs ?? 'TBD'}\` | \`${sample.indicatorReadyMs ?? 'TBD'}\` | \`${sample.finalPointCount ?? 'TBD'}\` | \`${sample.note ?? ''}\` |`
 
 export const summarizeStartupRun = (run: StartupBaselineRun): StartupBaselineSummary => {
   const lastEvent = run.events[run.events.length - 1]
@@ -88,6 +89,9 @@ export const summarizeStartupRun = (run: StartupBaselineRun): StartupBaselineSum
   }
   if (lastEvent?.firstRenderMs !== undefined) {
     summary.firstRenderMs = lastEvent.firstRenderMs
+  }
+  if (lastEvent?.indicatorReadyMs !== undefined) {
+    summary.indicatorReadyMs = lastEvent.indicatorReadyMs
   }
   if (lastEvent?.pointCount !== undefined) {
     summary.finalPointCount = lastEvent.pointCount

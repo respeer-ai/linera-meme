@@ -450,6 +450,7 @@ const getChartHeight = () => {
 const emit = defineEmits<{
   (e: 'load-old-data', time: number): void
   (e: 'load-new-data', time: number): void
+  (e: 'indicators-ready'): void
 }>()
 
 const chartContainer = ref<HTMLDivElement | null>(null)
@@ -606,6 +607,7 @@ const renderIndicatorsForCurrentData = () => {
     ema7Data,
     ema25Data,
   })
+  emit('indicators-ready')
 }
 
 const syncChartSize = () => {
@@ -1117,6 +1119,7 @@ const updateChartData = () => {
   if (!hasDeferredIndicators.value) {
     indicatorRenderScheduler.clear()
     clearIndicatorSeries()
+    emit('indicators-ready')
   } else if (hasIndicatorSeries) {
     indicatorRenderScheduler.request(indicatorRenderSignature.value)
   }
