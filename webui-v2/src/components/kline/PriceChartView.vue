@@ -29,7 +29,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, SortReason, type Reason } from './priceChartStartup'
+import { resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, SortReason, type Reason } from './priceChartStartup'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -230,6 +230,23 @@ const getKline = (timestamp: number, reverse: boolean) => {
   })
 }
 
+const fetchKlineRange = (startAt: number, endAt: number, reverse: boolean) => {
+  if (!buyToken.value || !sellToken.value) return false
+  if (buyToken.value === sellToken.value) return false
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_POINTS, {
+    token0: buyToken.value,
+    token1: sellToken.value,
+    startAt,
+    endAt,
+    interval: selectedInterval.value,
+    reverse,
+    requestId: currentRequestId.value,
+  })
+
+  return true
+}
+
 const loadKline = (offset: number | undefined, limit: number | undefined, timestampBegin: number | undefined, timestampEnd: number | undefined, reverse: boolean) => {
   if (!buyToken.value || !sellToken.value) return false
   if (buyToken.value === sellToken.value) return false
@@ -272,8 +289,24 @@ const getStoreKline = () => {
       token1: sellToken.value
     })
     klinePoints.value = []
+    const startupPlan = resolveStartupRequestPlan({
+      nowMs: Date.now(),
+      windowSize: getWindowSize(selectedInterval.value),
+      poolCreatedAt: poolCreatedAt.value
+    })
 
-    loadKline(0, 100, undefined, undefined, true)
+    loadKline(
+      startupPlan.load.offset,
+      startupPlan.load.limit,
+      startupPlan.load.timestampBegin,
+      startupPlan.load.timestampEnd,
+      startupPlan.load.reverse
+    )
+    fetchKlineRange(
+      startupPlan.fetchLatest.startAt,
+      startupPlan.fetchLatest.endAt,
+      startupPlan.fetchLatest.reverse
+    )
   }
 }
 

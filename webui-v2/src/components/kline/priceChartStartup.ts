@@ -34,6 +34,27 @@ export type LoadRange = {
   timestampEnd: number | undefined
 }
 
+export type StartupFetchRequest = {
+  reverse: boolean
+  startAt: number
+  endAt: number
+}
+
+type StartupRequestPlanInput = {
+  nowMs: number
+  windowSize: number
+  poolCreatedAt: number
+}
+
+export type StartupRequestPlan = {
+  load: LoadRange & {
+    reverse: boolean
+    offset: number
+    limit: number
+  }
+  fetchLatest: StartupFetchRequest
+}
+
 type NextFetchDecisionInput = {
   reverse: boolean
   reason: Reason
@@ -76,3 +97,26 @@ export const resolveLoadRange = ({
   timestampBegin,
   timestampEnd,
 })
+
+export const resolveStartupRequestPlan = ({
+  nowMs,
+  windowSize,
+  poolCreatedAt,
+}: StartupRequestPlanInput): StartupRequestPlan => {
+  const latestWindowStart = Math.max(poolCreatedAt, nowMs - windowSize)
+
+  return {
+    load: {
+      offset: 0,
+      limit: 100,
+      reverse: true,
+      timestampBegin: undefined,
+      timestampEnd: undefined,
+    },
+    fetchLatest: {
+      reverse: false,
+      startAt: latestWindowStart,
+      endAt: nowMs,
+    },
+  }
+}

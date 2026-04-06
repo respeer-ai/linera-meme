@@ -4,6 +4,7 @@ import {
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
+  resolveStartupRequestPlan,
   SortReason,
   type Reason
 } from './priceChartStartup'
@@ -73,6 +74,39 @@ describe('resolveNextFetchTimestamp', () => {
     })).toEqual({
       timestampBegin: undefined,
       timestampEnd: undefined,
+    })
+  })
+
+  test('builds a parallel startup plan with full cache load and latest-window fetch', () => {
+    expect(resolveStartupRequestPlan({
+      nowMs: 1_000_000,
+      windowSize: 300_000,
+      poolCreatedAt: 100_000,
+    })).toEqual({
+      load: {
+        offset: 0,
+        limit: 100,
+        reverse: true,
+        timestampBegin: undefined,
+        timestampEnd: undefined,
+      },
+      fetchLatest: {
+        reverse: false,
+        startAt: 700_000,
+        endAt: 1_000_000,
+      },
+    })
+  })
+
+  test('clamps the startup latest-window fetch to pool creation time', () => {
+    expect(resolveStartupRequestPlan({
+      nowMs: 1_000_000,
+      windowSize: 300_000,
+      poolCreatedAt: 900_000,
+    }).fetchLatest).toEqual({
+      reverse: false,
+      startAt: 900_000,
+      endAt: 1_000_000,
     })
   })
 })
