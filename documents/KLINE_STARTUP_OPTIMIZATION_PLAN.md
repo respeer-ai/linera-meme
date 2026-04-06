@@ -368,6 +368,39 @@ Recommended first execution slice:
 
 This slice creates the minimum measurement loop needed to decide whether frontend parallelization alone is enough or whether backend path work must move forward immediately.
 
+## Baseline Capture Procedure
+
+KSO-03 should use the built-in startup baseline recorder in development builds.
+
+Development helpers:
+
+- `window.__klineStartupBaseline.summaries()` returns captured startup summaries by request,
+- `window.__klineStartupBaseline.clear()` clears previously captured summaries,
+- `window.__klineStartupCache.clearKlineCache()` clears IndexedDB K-line cache for cold-cache measurement.
+
+Recommended measurement flow:
+
+1. Open the target market and target interval.
+2. Run `window.__klineStartupBaseline.clear()`.
+3. For warm-cache measurement, refresh directly after the chart has fully loaded once.
+4. For cold-cache measurement, run `await window.__klineStartupCache.clearKlineCache()` and then refresh.
+5. After each refresh, read `window.__klineStartupBaseline.summaries()` and record:
+   `cacheLoadMs`, `networkFetchMs`, `mergeMs`, `firstRenderMs`, and `finalPointCount`.
+6. Repeat for at least `1min`, `5min`, and `10min`.
+
+Baseline record format:
+
+- environment: browser, commit hash, backend target
+- pair: token0/token1
+- interval: `1min` / `5min` / `10min`
+- cache mode: warm / cold
+- cacheLoadMs
+- networkFetchMs
+- mergeMs
+- firstRenderMs
+- finalPointCount
+- notes: anomalies, empty fetches, stale websocket effects, or partial-history behavior
+
 ## Fastest Path to "Feels Instant"
 
 If the goal is the fastest visible improvement with minimal surface area, do this subset first:

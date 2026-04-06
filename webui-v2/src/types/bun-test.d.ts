@@ -4,5 +4,6 @@ declare module 'bun:test' {
   export const expect: (value: unknown) => {
     toBe: (expected: unknown) => void
     toEqual: (expected: unknown) => void
+    toHaveLength: (expected: number) => void
   }
 }

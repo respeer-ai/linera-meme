@@ -20,6 +20,7 @@
 <script setup lang='ts'>
 import { ref, onMounted, onBeforeUnmount, computed, watch, onBeforeMount, toRef, nextTick } from 'vue'
 import { kline, swap, ams } from 'src/stores/export'
+import { dbKline } from 'src/controller'
 // import { useRouter } from 'vue-router'
 import { klineWorker } from 'src/worker'
 import { KLineData } from './chart/KlineData'
@@ -30,6 +31,7 @@ import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
 import { resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, SortReason, type Reason } from './priceChartStartup'
 import { createStartupInstrumentation } from './startupInstrumentation'
+import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
 
 const STORAGE_KEY = 'kline_chart_settings'
@@ -175,8 +177,10 @@ const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
 const pendingLoadDirections = ref([] as LoadDirection[])
 const currentRequestId = ref(0)
+const startupBaselineRecorder = createStartupBaselineRecorder()
 const startupInstrumentation = createStartupInstrumentation({
   emit: (event) => {
+    startupBaselineRecorder.record(event)
     console.info('[PriceChartStartup]', JSON.stringify(event))
   }
 })
@@ -490,6 +494,9 @@ onBeforeMount(() => {
 
 onMounted(() => {
   kline.Kline.initialize()
+  installStartupBaselineDebug(startupBaselineRecorder, async () => {
+    await dbKline.klinePoints.clear()
+  })
 
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
