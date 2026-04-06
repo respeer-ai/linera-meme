@@ -16,7 +16,20 @@ swap_stub.Pool = object
 swap_stub.Transaction = object
 sys.modules.setdefault('swap', swap_stub)
 
+mysql_stub = types.ModuleType('mysql')
+mysql_connector_stub = types.ModuleType('mysql.connector')
+mysql_connector_stub.connect = None
+mysql_stub.connector = mysql_connector_stub
+sys.modules.setdefault('mysql', mysql_stub)
+sys.modules.setdefault('mysql.connector', mysql_connector_stub)
+
+pandas_stub = types.ModuleType('pandas')
+numpy_stub = types.ModuleType('numpy')
+sys.modules.setdefault('pandas', pandas_stub)
+sys.modules.setdefault('numpy', numpy_stub)
+
 from ticker import Ticker  # noqa: E402
+from db import build_candle_point_payload  # noqa: E402
 
 
 class FakeDb:
@@ -46,7 +59,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
             'close': 0.33,
             'volume': 32.0,
         }
-        ticker = Ticker(manager=None, swap=None, db=db)
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
         pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
 
         payload = ticker.build_incremental_kline_payload(
@@ -80,7 +93,12 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
                 'interval': '5min',
                 'start_at': 1_800_000_000_000,
                 'end_at': 1_800_000_299_999,
-                'points': [db.points[(7, False, '5min', 1_800_000_000_000)]],
+                'points': [{
+                    **db.points[(7, False, '5min', 1_800_000_000_000)],
+                    'bucket_start_ms': 1_800_000_000_000,
+                    'bucket_end_ms': 1_800_000_299_999,
+                    'is_final': False,
+                }],
             },
             {
                 'token_0': 'BBB',
@@ -88,7 +106,12 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
                 'interval': '5min',
                 'start_at': 1_800_000_000_000,
                 'end_at': 1_800_000_299_999,
-                'points': [db.points[(7, True, '5min', 1_800_000_000_000)]],
+                'points': [{
+                    **db.points[(7, True, '5min', 1_800_000_000_000)],
+                    'bucket_start_ms': 1_800_000_000_000,
+                    'bucket_end_ms': 1_800_000_299_999,
+                    'is_final': False,
+                }],
             },
         ])
 
@@ -109,6 +132,38 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         )
 
         self.assertEqual(payload, {})
+
+    def test_http_and_websocket_use_identical_closed_bucket_payload(self):
+        db = FakeDb()
+        db.points[(7, False, '1min', 1_800_000_000_000)] = {
+            'timestamp': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 2.0,
+            'close': 3.0,
+            'volume': 14.0,
+        }
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+
+        websocket_payload = ticker.build_incremental_kline_payload(
+            pool,
+            [{
+                'transaction_id': 10,
+                'transaction_type': 'BuyToken0',
+                'token_reversed': False,
+                'created_at': 1_800_000_001_000,
+            }],
+        )['1min'][0]['points'][0]
+
+        http_payload = build_candle_point_payload(
+            interval='1min',
+            bucket_start_ms=1_800_000_000_000,
+            point=db.points[(7, False, '1min', 1_800_000_000_000)],
+            now_ms=1_800_000_120_000,
+        )
+
+        self.assertEqual(websocket_payload, http_payload)
 
 
 if __name__ == '__main__':

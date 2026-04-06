@@ -352,6 +352,12 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertIn('AND created_at <= 2000000', query)
         self.assertIn('ORDER BY created_at ASC', query)
 
+    def test_build_expected_bucket_count_aligns_to_interval_boundaries(self):
+        from db import build_expected_bucket_count
+
+        self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_000_000, 60_000), 1)
+        self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_120_000, 60_000), 3)
+
 
 class DbCandleIngestTest(unittest.TestCase):
     def setUp(self):
@@ -538,17 +544,21 @@ class DbCandleQueryTest(unittest.TestCase):
             'last_trade_at_ms': 1_800_000_030_000,
         }
 
-        token_0, token_1, points = db.get_kline(
-            token_0='AAA',
-            token_1='BBB',
-            start_at=1_800_000_000_000,
-            end_at=1_800_000_000_000,
-            interval='1min',
-        )
+        with patch.object(db, 'now_ms', return_value=1_800_000_200_000):
+            token_0, token_1, points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_000_000,
+                interval='1min',
+            )
 
         self.assertEqual((token_0, token_1), ('AAA', 'BBB'))
         self.assertEqual(points, [{
             'timestamp': 1_800_000_000_000,
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': True,
             'open': 2.0,
             'high': 3.0,
             'low': 1.5,
@@ -592,17 +602,21 @@ class DbCandleQueryTest(unittest.TestCase):
             'last_trade_at_ms': 1_800_000_121_000,
         }
 
-        _, _, points = db.get_kline(
-            token_0='AAA',
-            token_1='BBB',
-            start_at=1_800_000_000_000,
-            end_at=1_800_000_120_000,
-            interval='1min',
-        )
+        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
+            _, _, points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_120_000,
+                interval='1min',
+            )
 
         self.assertEqual(points, [
             {
                 'timestamp': 1_800_000_000_000,
+                'bucket_start_ms': 1_800_000_000_000,
+                'bucket_end_ms': 1_800_000_059_999,
+                'is_final': True,
                 'open': 2.0,
                 'high': 3.0,
                 'low': 1.5,
@@ -611,6 +625,9 @@ class DbCandleQueryTest(unittest.TestCase):
             },
             {
                 'timestamp': 1_800_000_060_000,
+                'bucket_start_ms': 1_800_000_060_000,
+                'bucket_end_ms': 1_800_000_119_999,
+                'is_final': True,
                 'open': 2.5,
                 'high': 2.5,
                 'low': 2.5,
@@ -619,6 +636,9 @@ class DbCandleQueryTest(unittest.TestCase):
             },
             {
                 'timestamp': 1_800_000_120_000,
+                'bucket_start_ms': 1_800_000_120_000,
+                'bucket_end_ms': 1_800_000_179_999,
+                'is_final': True,
                 'open': 2.5,
                 'high': 2.8,
                 'low': 2.4,
@@ -693,3 +713,35 @@ class DbCandleQueryTest(unittest.TestCase):
         transaction_mock.assert_called_once()
         self.assertEqual(points[0]['timestamp'], 1_800_000_000_000)
         self.assertEqual(len(points), 4)
+
+    def test_get_kline_marks_latest_forming_bucket_explicitly(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.candle_rows[(7, False, '5min', 1_800_000_000_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '5min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 1.5,
+            'close': 2.5,
+            'volume': 10.0,
+            'trade_count': 2,
+            'first_trade_id': 10,
+            'last_trade_id': 11,
+            'first_trade_at_ms': 1_800_000_001_000,
+            'last_trade_at_ms': 1_800_000_030_000,
+        }
+
+        with patch.object(db, 'now_ms', return_value=1_800_000_120_000):
+            _, _, points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_000_000,
+                interval='5min',
+            )
+
+        self.assertEqual(points[0]['bucket_end_ms'], 1_800_000_299_999)
+        self.assertEqual(points[0]['is_final'], False)

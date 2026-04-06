@@ -44,6 +44,23 @@ def build_expected_bucket_count(start_at: int, end_at: int, interval_ms: int) ->
     return (end_at - start_at) // interval_ms + 1
 
 
+def build_candle_point_payload(interval: str, bucket_start_ms: int, point: dict, now_ms: int):
+    bucket_ms = get_interval_bucket_ms(interval)
+    bucket_end_ms = bucket_start_ms + bucket_ms - 1
+
+    return {
+        'timestamp': bucket_start_ms,
+        'bucket_start_ms': bucket_start_ms,
+        'bucket_end_ms': bucket_end_ms,
+        'is_final': now_ms > bucket_end_ms,
+        'open': float(point['open']),
+        'high': float(point['high']),
+        'low': float(point['low']),
+        'close': float(point['close']),
+        'volume': float(point['volume']),
+    }
+
+
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
 
@@ -150,6 +167,9 @@ class Db:
         self.ensure_transactions_indexes()
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
+
+    def now_ms(self):
+        return int(time.time() * 1000)
 
     def ensure_transactions_indexes(self):
         self.cursor.execute(f'SHOW INDEX FROM {self.transactions_table}')
@@ -600,29 +620,32 @@ class Db:
         json_data = []
         last_close = None
         bucket_start_ms = query_start_at
+        now_ms = self.now_ms()
         while bucket_start_ms <= query_end_at:
             row = rows_by_bucket.get(bucket_start_ms)
             if row is None:
                 if last_close is not None:
-                    json_data.append({
-                        'timestamp': bucket_start_ms,
-                        'open': last_close,
-                        'high': last_close,
-                        'low': last_close,
-                        'close': last_close,
-                        'volume': 0.0,
-                    })
+                    json_data.append(build_candle_point_payload(
+                        interval=interval,
+                        bucket_start_ms=bucket_start_ms,
+                        point={
+                            'open': last_close,
+                            'high': last_close,
+                            'low': last_close,
+                            'close': last_close,
+                            'volume': 0.0,
+                        },
+                        now_ms=now_ms,
+                    ))
             else:
-                close = float(row['close'])
-                json_data.append({
-                    'timestamp': bucket_start_ms,
-                    'open': float(row['open']),
-                    'high': float(row['high']),
-                    'low': float(row['low']),
-                    'close': close,
-                    'volume': float(row['volume']),
-                })
-                last_close = close
+                point = build_candle_point_payload(
+                    interval=interval,
+                    bucket_start_ms=bucket_start_ms,
+                    point=row,
+                    now_ms=now_ms,
+                )
+                json_data.append(point)
+                last_close = point['close']
             bucket_start_ms += bucket_ms
 
         return json_data
@@ -667,14 +690,12 @@ class Db:
 
         json_data = []
         for index, row in df_interval.iterrows():
-            json_data.append({
-                'timestamp': int(index.timestamp() * 1000),
-                'open': row['open'],
-                'high': row['high'],
-                'low': row['low'],
-                'close': row['close'],
-                'volume': row['volume'],
-            })
+            json_data.append(build_candle_point_payload(
+                interval=interval,
+                bucket_start_ms=int(index.timestamp() * 1000),
+                point=row,
+                now_ms=self.now_ms(),
+            ))
 
         return json_data
 

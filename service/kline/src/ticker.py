@@ -1,15 +1,17 @@
 import asyncio
 from swap import Pool, Transaction
 from candle_schema import INTERVAL_BUCKET_MS, build_candle_bucket_key
+from db import build_candle_point_payload
 
 
 class Ticker:
-    def __init__(self, manager, swap, db):
+    def __init__(self, manager, swap, db, now_ms=None):
         self.interval = 10 # seconds
         self.manager = manager
         self.swap = swap
         self.db = db
         self._running = True
+        self._now_ms = now_ms if now_ms is not None else lambda: int(__import__('time').time() * 1000)
 
     async def get_pools(self) -> list[Pool]:
         return await self.swap.get_pools()
@@ -57,7 +59,12 @@ class Ticker:
                     'interval': interval,
                     'start_at': bucket_key.bucket_start_ms,
                     'end_at': bucket_key.bucket_start_ms + bucket_ms - 1,
-                    'points': [point],
+                    'points': [build_candle_point_payload(
+                        interval=interval,
+                        bucket_start_ms=bucket_key.bucket_start_ms,
+                        point=point,
+                        now_ms=self._now_ms(),
+                    )],
                 })
                 payload[interval] = interval_points
 
