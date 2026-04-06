@@ -9,7 +9,7 @@ import traceback
 from swap import Swap
 from subscription import WebSocketManager
 from ticker import Ticker
-from db import Db
+from db import Db, align_timestamp_to_minute_ms
 
 
 app = FastAPI()
@@ -26,8 +26,8 @@ async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, int
     points = []
 
     # TODO: align to needed interval
-    start_at = start_at // 60 * 60
-    end_at = end_at // 60 * 60
+    start_at = align_timestamp_to_minute_ms(start_at)
+    end_at = align_timestamp_to_minute_ms(end_at)
 
     try:
         (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)

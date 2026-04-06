@@ -3,6 +3,9 @@ import { type TickerInterval } from './const'
 
 export interface Point {
   id?: number
+  bucket_start_ms?: number
+  bucket_end_ms?: number
+  is_final?: boolean
   open: number
   high: number
   low: number

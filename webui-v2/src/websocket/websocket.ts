@@ -4,6 +4,7 @@ export interface Notification {
 }
 
 export class _WebSocket {
+  private onOpenCb: (() => void) | undefined
   private onMessageCb: (message: Notification) => void = undefined as unknown as (
     message: Notification,
   ) => void
@@ -41,6 +42,11 @@ export class _WebSocket {
 
   onOpen() {
     console.log('Websocket opened')
+    this.onOpenCb?.()
+  }
+
+  withOnOpen(cb: () => void) {
+    this.onOpenCb = cb
   }
 
   withOnMessage(cb: (message: Notification) => void) {
@@ -61,6 +67,13 @@ export class _WebSocket {
 
   withOnError(cb: (e: Event) => void) {
     this.onErrorCb = cb
+  }
+
+  sendJson(payload: unknown) {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false
+
+    this.socket.send(JSON.stringify(payload))
+    return true
   }
 
   onError(e: Event) {

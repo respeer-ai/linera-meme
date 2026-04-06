@@ -1,6 +1,13 @@
 <template>
   <div class='chart-wrapper' :style='{ height: height, position: "relative" }'>
     <div ref='chartContainer' class='kline-chart' />
+    <div
+      v-if='backgroundHistoryLabel'
+      class='background-history-status'
+      :class='`status-${props.backgroundHistoryStatus}`'
+    >
+      {{ backgroundHistoryLabel }}
+    </div>
     <!-- 右侧：交易信息 -->
     <div class='price-info-overlay'>
       <div class='price-info-panel'>
@@ -94,6 +101,16 @@ import {
 import { useQuasar } from 'quasar'
 import { KLineData } from './KlineData'
 import { ChartType } from '../ChartType'
+import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
+import {
+  getChartDataRenderSignal,
+  resolveVisibleLogicalRangeRestore,
+  resolvePrimarySeriesRenderPlan,
+  toCandlestickPoint,
+  toLinePoint,
+  toVolumePoint,
+} from './chartDataUpdate'
+import { createIndicatorRenderScheduler } from './indicatorRenderScheduler'
 
 export interface IndicatorConfig {
   ma: {
@@ -116,6 +133,8 @@ export interface IndicatorConfig {
   showCrosshair: boolean
 }
 
+type BackgroundHistoryStatus = 'idle' | 'queued' | 'loading' | 'complete'
+
 const props = defineProps({
   data: { type: Array as () => KLineData[], required: true, default: () => [] },
   pricePrecision: { type: Number, default: 10 },
@@ -133,7 +152,11 @@ const props = defineProps({
       showGrid: true,
       showCrosshair: true
     })
-  }
+  },
+  backgroundHistoryStatus: {
+    type: String as () => BackgroundHistoryStatus,
+    default: 'idle',
+  },
 })
 
 const hoveringTime = ref((() => {
@@ -215,6 +238,35 @@ const hasVisibleIndicators = computed(() => {
          props.indicatorConfig.ema.enabled.ema7 ||
          props.indicatorConfig.ema.enabled.ema25
 })
+
+const backgroundHistoryLabel = computed(() => {
+  switch (props.backgroundHistoryStatus) {
+    case 'queued':
+      return 'History queued'
+    case 'loading':
+      return 'Loading history'
+    case 'complete':
+      return 'History ready'
+    default:
+      return ''
+  }
+})
+
+const chartDataRenderSignal = computed(() => getChartDataRenderSignal(props.data))
+const hasDeferredIndicators = computed(() => (
+  props.indicatorConfig.ma.enabled.ma5 ||
+  props.indicatorConfig.ma.enabled.ma10 ||
+  props.indicatorConfig.ma.enabled.ma30 ||
+  props.indicatorConfig.ema.enabled.ema7 ||
+  props.indicatorConfig.ema.enabled.ema25 ||
+  props.indicatorConfig.boll
+))
+const indicatorRenderSignature = computed(() => JSON.stringify({
+  data: chartDataRenderSignal.value,
+  ma: props.indicatorConfig.ma.enabled,
+  ema: props.indicatorConfig.ema.enabled,
+  boll: props.indicatorConfig.boll,
+}))
 
 const trimTrailingZeros = (value: string) => value.replace(/\.?0+$/, '')
 
@@ -398,6 +450,7 @@ const getChartHeight = () => {
 const emit = defineEmits<{
   (e: 'load-old-data', time: number): void
   (e: 'load-new-data', time: number): void
+  (e: 'indicators-ready'): void
 }>()
 
 const chartContainer = ref<HTMLDivElement | null>(null)
@@ -414,6 +467,148 @@ let bollMiddleSeries: ISeriesApi<'Line'> | null = null
 let bollLowerSeries: ISeriesApi<'Line'> | null = null
 let latestPriceLine: IPriceLine | null = null
 let resizeObserver: ResizeObserver | null = null
+let lastRenderedPrimarySeriesData: KLineData[] = []
+const indicatorRenderScheduler = createIndicatorRenderScheduler({
+  schedule: (run) => window.setTimeout(run, 0),
+  cancel: (handle) => window.clearTimeout(handle),
+  run: (signature) => {
+    if (signature !== indicatorRenderSignature.value) return
+    renderIndicatorsForCurrentData()
+  },
+})
+
+const getVisibleLogicalRange = () => chart?.timeScale().getVisibleLogicalRange() || null
+
+const restoreVisibleLogicalRange = (range: { from: number; to: number } | null) => {
+  if (!chart || !range) return
+  chart.timeScale().setVisibleLogicalRange(range)
+}
+
+const rebuildSeriesPreservingVisibleRange = (rebuild: () => void) => {
+  const previousVisibleLogicalRange = getVisibleLogicalRange()
+  const previousData = lastRenderedPrimarySeriesData.map((point) => ({ ...point }))
+
+  rebuild()
+  updateChartData()
+
+  restoreVisibleLogicalRange(resolveVisibleLogicalRangeRestore({
+    previousData,
+    nextData: props.data,
+    previousRange: previousVisibleLogicalRange,
+  }))
+}
+
+const clearIndicatorSeries = () => {
+  ma5MinSeries?.setData([])
+  ma10MinSeries?.setData([])
+  ma30MinSeries?.setData([])
+  ema7Series?.setData([])
+  ema25Series?.setData([])
+  bollUpperSeries?.setData([])
+  bollMiddleSeries?.setData([])
+  bollLowerSeries?.setData([])
+}
+
+const updateLatestIndicatorHoverState = ({
+  ma5MinData,
+  ma10MinData,
+  ma30MinData,
+  ema7Data,
+  ema25Data,
+}: {
+  ma5MinData: LineData[] | undefined
+  ma10MinData: LineData[] | undefined
+  ma30MinData: LineData[] | undefined
+  ema7Data: LineData[] | undefined
+  ema25Data: LineData[] | undefined
+}) => {
+  if (isHovering.value) return
+
+  const latestMA5 = ma5MinData?.[ma5MinData.length - 1]
+  if (latestMA5?.value !== undefined) hoveringMA5Min.value = latestMA5
+
+  const latestMA10 = ma10MinData?.[ma10MinData.length - 1]
+  if (latestMA10?.value !== undefined) hoveringMA10Min.value = latestMA10
+
+  const latestMA30 = ma30MinData?.[ma30MinData.length - 1]
+  if (latestMA30?.value !== undefined) hoveringMA30Min.value = latestMA30
+
+  const latestEMA7 = ema7Data?.[ema7Data.length - 1]
+  if (latestEMA7?.value !== undefined) hoveringEMA7.value = latestEMA7
+
+  const latestEMA25 = ema25Data?.[ema25Data.length - 1]
+  if (latestEMA25?.value !== undefined) hoveringEMA25.value = latestEMA25
+}
+
+const renderIndicatorsForCurrentData = () => {
+  if (!props.data.length || !hasDeferredIndicators.value) {
+    clearIndicatorSeries()
+    return
+  }
+
+  const candleData = props.data.map(toCandlestickPoint)
+
+  let ma5MinData: LineData[] | undefined
+  let ma10MinData: LineData[] | undefined
+  let ma30MinData: LineData[] | undefined
+  let ema7Data: LineData[] | undefined
+  let ema25Data: LineData[] | undefined
+
+  if (ma5MinSeries && props.indicatorConfig.ma.enabled.ma5) {
+    ma5MinData = calculateMovingAverageSeriesData(candleData, 5)
+    ma5MinSeries.setData(ma5MinData)
+  } else {
+    ma5MinSeries?.setData([])
+  }
+
+  if (ma10MinSeries && props.indicatorConfig.ma.enabled.ma10) {
+    ma10MinData = calculateMovingAverageSeriesData(candleData, 10)
+    ma10MinSeries.setData(ma10MinData)
+  } else {
+    ma10MinSeries?.setData([])
+  }
+
+  if (ma30MinSeries && props.indicatorConfig.ma.enabled.ma30) {
+    ma30MinData = calculateMovingAverageSeriesData(candleData, 30)
+    ma30MinSeries.setData(ma30MinData)
+  } else {
+    ma30MinSeries?.setData([])
+  }
+
+  if (ema7Series && props.indicatorConfig.ema.enabled.ema7) {
+    ema7Data = calculateEMASeriesData(candleData, 7)
+    ema7Series.setData(ema7Data)
+  } else {
+    ema7Series?.setData([])
+  }
+
+  if (ema25Series && props.indicatorConfig.ema.enabled.ema25) {
+    ema25Data = calculateEMASeriesData(candleData, 25)
+    ema25Series.setData(ema25Data)
+  } else {
+    ema25Series?.setData([])
+  }
+
+  if (bollUpperSeries && bollMiddleSeries && bollLowerSeries && props.indicatorConfig.boll) {
+    const bollData = calculateBollingerBands(candleData, 20, 2)
+    bollUpperSeries.setData(bollData.upper)
+    bollMiddleSeries.setData(bollData.middle)
+    bollLowerSeries.setData(bollData.lower)
+  } else {
+    bollUpperSeries?.setData([])
+    bollMiddleSeries?.setData([])
+    bollLowerSeries?.setData([])
+  }
+
+  updateLatestIndicatorHoverState({
+    ma5MinData,
+    ma10MinData,
+    ma30MinData,
+    ema7Data,
+    ema25Data,
+  })
+  emit('indicators-ready')
+}
 
 const syncChartSize = () => {
   if (!chart || !chartContainer.value) return
@@ -587,6 +782,7 @@ const createMainSeries = () => {
   })
 
   applyMainSeriesVisualState()
+  lastRenderedPrimarySeriesData = []
 }
 
 const createVolumeSeries = () => {
@@ -803,40 +999,80 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 
   const fromIndex = Math.max(Math.floor(logicalRange.from), 0)
   const toIndex = Math.min(Math.ceil(logicalRange.to), props.data.length - 1)
+  const loadDecision = resolveVisibleRangeLoadDecision({
+    range: logicalRange,
+    dataLength: props.data.length
+  })
 
   const firstVisibleTime = props.data[fromIndex]?.time || 0
   const lastVisibleTime = props.data[toIndex]?.time || 0
 
-  if (props.data[0] && firstVisibleTime && firstVisibleTime <= props.data[0].time) {
-    emit('load-old-data', props.data[0]?.time)
-  }
   const lastIndex = props.data.length - 1
-  if (props.data[lastIndex] && lastVisibleTime && lastVisibleTime >= props.data[lastIndex].time) {
-    emit('load-new-data', props.data[lastIndex]?.time)
+  for (const direction of loadDecision.loadOrder) {
+    if (direction === 'new' && props.data[lastIndex] && lastVisibleTime && lastVisibleTime >= props.data[lastIndex].time) {
+      emit('load-new-data', props.data[lastIndex]?.time)
+    }
+    if (direction === 'old' && props.data[0] && firstVisibleTime && firstVisibleTime <= props.data[0].time) {
+      emit('load-old-data', props.data[0]?.time)
+    }
   }
 }
 
 const updateChartData = () => {
   if (!mainSeries) return
 
-  // 处理主图数据
-  const candleData: CandlestickData[] = props.data.map(d => ({
-    time: d.time as Time,
-    open: d.open,
-    high: d.high,
-    low: d.low,
-    close: d.close
-  }))
+  if (!props.data.length) {
+    ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
+    volumeSeries?.setData([])
+    ma5MinSeries?.setData([])
+    ma10MinSeries?.setData([])
+    ma30MinSeries?.setData([])
+    ema7Series?.setData([])
+    ema25Series?.setData([])
+    bollUpperSeries?.setData([])
+    bollMiddleSeries?.setData([])
+    bollLowerSeries?.setData([])
+    lastRenderedPrimarySeriesData = []
+    applyMainSeriesVisualState()
+    return
+  }
 
-  const lineData: LineData[] = props.data.map(d => ({
-    time: d.time as Time,
-    value: d.close
-  }))
+  const primaryRenderPlan = resolvePrimarySeriesRenderPlan({
+    previous: lastRenderedPrimarySeriesData,
+    next: props.data,
+  })
+
+  const hasIndicatorSeries = Boolean(
+    ma5MinSeries ||
+    ma10MinSeries ||
+    ma30MinSeries ||
+    ema7Series ||
+    ema25Series ||
+    bollUpperSeries ||
+    bollMiddleSeries ||
+    bollLowerSeries,
+  )
+
+  let candleData: CandlestickData[] | null = null
 
   if (props.chartType === ChartType.CANDLESTICK) {
-    (mainSeries as ISeriesApi<'Candlestick'>).setData(candleData)
+    if (primaryRenderPlan.mode === 'full') {
+      candleData = props.data.map(toCandlestickPoint)
+      ;(mainSeries as ISeriesApi<'Candlestick'>).setData(candleData)
+    } else if (primaryRenderPlan.mode === 'incremental') {
+      for (const point of primaryRenderPlan.changedPoints) {
+        ;(mainSeries as ISeriesApi<'Candlestick'>).update(toCandlestickPoint(point))
+      }
+    }
   } else if (props.chartType === ChartType.LINE || props.chartType === ChartType.AREA) {
-    (mainSeries as ISeriesApi<'Line'>).setData(lineData)
+    if (primaryRenderPlan.mode === 'full') {
+      const lineData = props.data.map(toLinePoint)
+      ;(mainSeries as ISeriesApi<'Line'>).setData(lineData)
+    } else if (primaryRenderPlan.mode === 'incremental') {
+      for (const point of primaryRenderPlan.changedPoints) {
+        ;(mainSeries as ISeriesApi<'Line'>).update(toLinePoint(point))
+      }
+    }
   }
 
   applyMainSeriesVisualState()
@@ -870,81 +1106,25 @@ const updateChartData = () => {
 
   // 处理成交量
   if (props.indicatorConfig.showVolume) {
-    const volumeData: HistogramData[] = props.data.map(d => ({
-      time: d.time as Time,
-      value: d.volume,
-      color: d.close >= d.open ? '#26a69a' : '#ef5350'
-    }))
-    volumeSeries?.setData(volumeData)
-  }
-
-  // 处理 MA 指标
-  if (ma5MinSeries && props.indicatorConfig.ma.enabled.ma5) {
-    const ma5MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 5)
-    ma5MinSeries.setData(ma5MinData)
-    // 如果没有悬停，显示最新的MA值
-    if (!isHovering.value && ma5MinData.length > 0) {
-      const latestMA = ma5MinData[ma5MinData.length - 1]
-      if (latestMA?.value !== undefined) {
-        hoveringMA5Min.value = latestMA
+    if (primaryRenderPlan.mode === 'full') {
+      const volumeData: HistogramData[] = props.data.map(toVolumePoint)
+      volumeSeries?.setData(volumeData)
+    } else if (primaryRenderPlan.mode === 'incremental') {
+      for (const point of primaryRenderPlan.changedPoints) {
+        volumeSeries?.update(toVolumePoint(point))
       }
     }
   }
 
-  if (ma10MinSeries && props.indicatorConfig.ma.enabled.ma10) {
-    const ma10MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 10)
-    ma10MinSeries.setData(ma10MinData)
-    // 如果没有悬停，显示最新的MA值
-    if (!isHovering.value && ma10MinData.length > 0) {
-      const latestMA = ma10MinData[ma10MinData.length - 1]
-      if (latestMA?.value !== undefined) {
-        hoveringMA10Min.value = latestMA
-      }
-    }
+  if (!hasDeferredIndicators.value) {
+    indicatorRenderScheduler.clear()
+    clearIndicatorSeries()
+    emit('indicators-ready')
+  } else if (hasIndicatorSeries) {
+    indicatorRenderScheduler.request(indicatorRenderSignature.value)
   }
 
-  if (ma30MinSeries && props.indicatorConfig.ma.enabled.ma30) {
-    const ma30MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 30)
-    ma30MinSeries.setData(ma30MinData)
-    // 如果没有悬停，显示最新的MA值
-    if (!isHovering.value && ma30MinData.length > 0) {
-      const latestMA = ma30MinData[ma30MinData.length - 1]
-      if (latestMA?.value !== undefined) {
-        hoveringMA30Min.value = latestMA
-      }
-    }
-  }
-
-  if (ema7Series && props.indicatorConfig.ema.enabled.ema7) {
-    const ema7Data: LineData[] = calculateEMASeriesData(candleData, 7)
-    ema7Series.setData(ema7Data)
-    // 如果没有悬停，显示最新的EMA值
-    if (!isHovering.value && ema7Data.length > 0) {
-      const latestEMA = ema7Data[ema7Data.length - 1]
-      if (latestEMA?.value !== undefined) {
-        hoveringEMA7.value = latestEMA
-      }
-    }
-  }
-
-  if (ema25Series && props.indicatorConfig.ema.enabled.ema25) {
-    const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
-    ema25Series.setData(ema25Data)
-    // 如果没有悬停，显示最新的EMA值
-    if (!isHovering.value && ema25Data.length > 0) {
-      const latestEMA = ema25Data[ema25Data.length - 1]
-      if (latestEMA?.value !== undefined) {
-        hoveringEMA25.value = latestEMA
-      }
-    }
-  }
-
-  if (bollUpperSeries && bollMiddleSeries && bollLowerSeries && props.indicatorConfig.boll) {
-    const bollData = calculateBollingerBands(candleData, 20, 2)
-    bollUpperSeries.setData(bollData.upper)
-    bollMiddleSeries.setData(bollData.middle)
-    bollLowerSeries.setData(bollData.lower)
-  }
+  lastRenderedPrimarySeriesData = props.data.map((point) => ({ ...point }))
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
@@ -1006,17 +1186,19 @@ const calculateBollingerBands = (candleData: CandlestickData[], period: number =
   return { upper, middle, lower }
 }
 
-watch(() => props.data, updateChartData, { deep: true })
+watch([() => props.data, chartDataRenderSignal], updateChartData)
 watch(() => props.chartType, () => {
-  createMainSeries()
-  updateChartData()
+  rebuildSeriesPreservingVisibleRange(() => {
+    createMainSeries()
+  })
 })
 watch(() => props.indicatorConfig, () => {
-  applyThemeOptions()
-  createMainSeries()
-  createIndicatorSeries()
-  createVolumeSeries()
-  updateChartData()
+  rebuildSeriesPreservingVisibleRange(() => {
+    applyThemeOptions()
+    createMainSeries()
+    createIndicatorSeries()
+    createVolumeSeries()
+  })
 }, { deep: true })
 watch(() => props.pricePrecision, () => {
   if (mainSeries) {
@@ -1042,15 +1224,17 @@ watch(() => props.height, () => {
 })
 watch(() => $q.dark.isActive, () => {
   if (!chart) return
-  applyThemeOptions()
-  createMainSeries()
-  createIndicatorSeries()
-  createVolumeSeries()
-  updateChartData()
+  rebuildSeriesPreservingVisibleRange(() => {
+    applyThemeOptions()
+    createMainSeries()
+    createIndicatorSeries()
+    createVolumeSeries()
+  })
 })
 
 onMounted(initChart)
 onBeforeUnmount(() => {
+  indicatorRenderScheduler.clear()
   resizeObserver?.disconnect()
   if (chartContainer.value) {
     chartContainer.value.removeEventListener('mouseleave', handleMouseLeave)
@@ -1073,6 +1257,30 @@ onBeforeUnmount(() => {
 .kline-chart
   width: 100%
   height: 100%
+
+.background-history-status
+  position: absolute
+  left: 14px
+  top: 12px
+  z-index: 4
+  padding: 4px 10px
+  border-radius: 999px
+  font-size: 11px
+  font-weight: 600
+  letter-spacing: 0.02em
+  backdrop-filter: blur(10px)
+  border: 1px solid rgba(138, 148, 166, 0.28)
+  background: rgba(10, 14, 23, 0.58)
+  color: #f6f8fb
+
+.status-queued
+  background: rgba(41, 98, 255, 0.18)
+
+.status-loading
+  background: rgba(255, 165, 0, 0.18)
+
+.status-complete
+  background: rgba(38, 166, 154, 0.18)
 
 .price-info-overlay
   position: absolute
