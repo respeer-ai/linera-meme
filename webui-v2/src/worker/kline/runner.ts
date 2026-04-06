@@ -4,6 +4,7 @@ import axios from 'axios'
 import { type Point, type Points, type Transactions } from 'src/stores/kline/types'
 import { type TransactionExt } from 'src/stores/transaction/types'
 import { dbBridge } from 'src/bridge'
+import { mergeKlinePoints } from './pointMerge'
 
 export enum KlineEventType {
   FETCH_POINTS = 'FetchPoints',
@@ -349,17 +350,11 @@ export class KlineRunner {
   static handleSortPoints = (payload: SortPointsPayload) => {
     const { token0, token1, originPoints, newPoints, reason, keepCount, reverse, requestId } = payload
 
-    newPoints.forEach((point) => {
-      const index = originPoints.findIndex((el) => el.timestamp === point.timestamp)
-      return index >= 0 ? (originPoints[index] = point) : originPoints.push(point)
+    const _points = mergeKlinePoints({
+      originPoints,
+      newPoints,
+      reason: reason as { reason?: string },
     })
-
-    const points = originPoints
-    const _points = points.sort(
-      (p1, p2) =>
-        // reverse ? p2.timestamp - p1.timestamp : p1.timestamp - p2.timestamp
-        p1.timestamp - p2.timestamp,
-    )
     const _keepCount = keepCount < 0 ? _points.length : keepCount
 
     self.postMessage({
