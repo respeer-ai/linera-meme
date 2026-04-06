@@ -272,6 +272,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
+    kline.Kline.subscribe(buyToken.value, sellToken.value, selectedInterval.value)
     currentRequestId.value += 1
     indicatorsReady.value = false
     startupInstrumentation.begin({

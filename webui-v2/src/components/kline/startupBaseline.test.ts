@@ -3,7 +3,9 @@ import { describe, expect, test } from 'bun:test'
 import {
   createStartupBaselineRecorder,
   createStartupBaselineStore,
+  evaluateStartupMilestone,
   formatStartupBaselineSampleAsMarkdownRow,
+  formatStartupMilestoneReport,
   summarizeStartupRun,
 } from './startupBaseline'
 import type { StartupInstrumentationEvent } from './startupInstrumentation'
@@ -135,5 +137,163 @@ describe('startupBaseline', () => {
     })
 
     expect(row).toBe('| `1min` | cold | `12` | `250` | `280` | `310` | `420` | `60` | `empty cache` |')
+  })
+
+  test('evaluates the feels-instant milestone against warm and cold thresholds', () => {
+    const evaluation = evaluateStartupMilestone([
+      {
+        requestId: 1,
+        interval: '1min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:00:00.000Z',
+        firstRenderMs: 220,
+        finalPointCount: 120,
+      },
+      {
+        requestId: 2,
+        interval: '1min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'cold',
+        capturedAt: '2026-04-07T00:01:00.000Z',
+        firstRenderMs: 820,
+        finalPointCount: 110,
+      },
+      {
+        requestId: 3,
+        interval: '5min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:02:00.000Z',
+        firstRenderMs: 260,
+        finalPointCount: 90,
+      },
+      {
+        requestId: 4,
+        interval: '5min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'cold',
+        capturedAt: '2026-04-07T00:03:00.000Z',
+        firstRenderMs: 930,
+        finalPointCount: 88,
+      },
+      {
+        requestId: 5,
+        interval: '10min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:04:00.000Z',
+        firstRenderMs: 280,
+        finalPointCount: 72,
+      },
+      {
+        requestId: 6,
+        interval: '10min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'cold',
+        capturedAt: '2026-04-07T00:05:00.000Z',
+        firstRenderMs: 980,
+        finalPointCount: 70,
+      },
+    ])
+
+    expect(evaluation.passed).toBe(true)
+    expect(evaluation.results).toHaveLength(6)
+    expect(evaluation.failures).toEqual([])
+  })
+
+  test('reports missing or slow samples as milestone failures', () => {
+    const evaluation = evaluateStartupMilestone([
+      {
+        requestId: 1,
+        interval: '1min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:00:00.000Z',
+        firstRenderMs: 420,
+        finalPointCount: 120,
+      },
+    ])
+
+    expect(evaluation.passed).toBe(false)
+    expect(evaluation.failures.includes('warm 1min firstRenderMs 420ms exceeds target 300ms')).toBe(true)
+    expect(evaluation.failures.includes('missing cold sample for 1min')).toBe(true)
+    expect(evaluation.failures.includes('missing warm sample for 5min')).toBe(true)
+  })
+
+  test('formats a stable milestone report for the task board or notes', () => {
+    const report = formatStartupMilestoneReport(evaluateStartupMilestone([
+      {
+        requestId: 1,
+        interval: '1min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:00:00.000Z',
+        firstRenderMs: 220,
+        finalPointCount: 120,
+      },
+      {
+        requestId: 2,
+        interval: '1min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'cold',
+        capturedAt: '2026-04-07T00:01:00.000Z',
+        firstRenderMs: 820,
+        finalPointCount: 110,
+      },
+      {
+        requestId: 3,
+        interval: '5min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:02:00.000Z',
+        firstRenderMs: 260,
+        finalPointCount: 90,
+      },
+      {
+        requestId: 4,
+        interval: '5min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'cold',
+        capturedAt: '2026-04-07T00:03:00.000Z',
+        firstRenderMs: 930,
+        finalPointCount: 88,
+      },
+      {
+        requestId: 5,
+        interval: '10min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'warm',
+        capturedAt: '2026-04-07T00:04:00.000Z',
+        firstRenderMs: 280,
+        finalPointCount: 72,
+      },
+      {
+        requestId: 6,
+        interval: '10min',
+        token0: 'buy',
+        token1: 'sell',
+        cacheMode: 'cold',
+        capturedAt: '2026-04-07T00:05:00.000Z',
+        firstRenderMs: 980,
+        finalPointCount: 70,
+      },
+    ]))
+
+    expect(report.includes('Milestone: PASS')).toBe(true)
+    expect(report.includes('| `1min` | warm | pass | `220 / 300` |')).toBe(true)
+    expect(report.includes('| `10min` | cold | pass | `980 / 1000` |')).toBe(true)
   })
 })

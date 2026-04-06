@@ -17,12 +17,16 @@ import { type TransactionExt } from '../transaction'
 import { klineWorker } from 'src/worker'
 import { type TickerInterval, type Interval } from './const'
 import axios from 'axios'
+import { buildKlineSubscriptionMessage, mergeLatestPointMaps } from './liveUpdate'
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
     latestTimestamps: new Map<string, Map<string, Map<Interval, number>>>(),
     websocket: undefined as unknown as _WebSocket,
     latestPoints: new Map<Interval, Points[]>(),
+    activeSubscription: undefined as
+      | { token0: string; token1: string; interval: Interval }
+      | undefined,
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
@@ -31,8 +35,17 @@ export const useKlineStore = defineStore('kline', {
   actions: {
     initializeKline() {
       this.websocket = new _WebSocket(constants.KLINE_WS_URL)
+      this.websocket.withOnOpen(() => this.onOpen())
       this.websocket.withOnMessage((notification) => this.onMessage(notification))
       this.websocket.withOnError((e) => this.onError(e))
+    },
+    onOpen() {
+      const subscription = this.activeSubscription
+      if (!subscription) return
+
+      this.websocket.sendJson(
+        buildKlineSubscriptionMessage(subscription.token0, subscription.token1, subscription.interval),
+      )
     },
     onMessage(notification: Notification) {
       if (notification.notification === 'kline') {
@@ -46,9 +59,17 @@ export const useKlineStore = defineStore('kline', {
         this.onTransactions(notification.value as Transactions[])
       }
     },
+    subscribeKline(token0: string, token1: string, interval: Interval) {
+      if (!token0 || !token1 || token0 === token1) return
+
+      this.activeSubscription = { token0, token1, interval }
+      this.websocket?.sendJson(buildKlineSubscriptionMessage(token0, token1, interval))
+    },
     onKline(points: Map<Interval, Points[]>) {
       points.forEach((_points, interval) => {
         _points.forEach((__points) => {
+          if (!__points.points.length) return
+
           const _latestTimestamps =
             this.latestTimestamps.get(__points.token_0) || new Map<string, Map<Interval, number>>()
           const __latestTimestamps =
@@ -60,7 +81,7 @@ export const useKlineStore = defineStore('kline', {
         })
       })
       klineWorker.KlineWorker.send(klineWorker.KlineEventType.NEW_POINTS, points)
-      this.latestPoints = points
+      this.latestPoints = mergeLatestPointMaps(this.latestPoints, points)
     },
     onError(e: Event) {
       console.log(`Kline error: ${JSON.stringify(e)}`)

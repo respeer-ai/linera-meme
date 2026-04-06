@@ -29,6 +29,29 @@ export type StartupBaselineSample = StartupBaselineSummary & {
   note?: string
 }
 
+export type StartupMilestoneThresholds = {
+  warmFirstRenderMs: number
+  coldFirstRenderMs: number
+  requiredIntervals: string[]
+}
+
+export type StartupMilestoneResult = {
+  interval: string
+  cacheMode: StartupBaselineCacheMode
+  status: 'pass' | 'fail' | 'missing'
+  measuredFirstRenderMs?: number
+  targetFirstRenderMs: number
+  sample?: StartupBaselineSample
+  reason: string
+}
+
+export type StartupMilestoneEvaluation = {
+  passed: boolean
+  thresholds: StartupMilestoneThresholds
+  results: StartupMilestoneResult[]
+  failures: string[]
+}
+
 export type StartupBaselineStore = {
   runs: StartupBaselineRun[]
   samples: StartupBaselineSample[]
@@ -46,6 +69,8 @@ type KlineStartupDebugGlobal = {
   clearSamples: () => void
   captureLatestSample: (cacheMode: StartupBaselineCacheMode, note?: string) => StartupBaselineSample | null
   exportMarkdownRows: () => string
+  evaluateMilestone: () => StartupMilestoneEvaluation
+  exportMilestoneReport: () => string
 }
 
 type KlineStartupCacheDebugGlobal = {
@@ -64,9 +89,120 @@ export const createStartupBaselineStore = (): StartupBaselineStore => ({
   samples: [],
 })
 
+export const DEFAULT_STARTUP_MILESTONE_THRESHOLDS: StartupMilestoneThresholds = {
+  warmFirstRenderMs: 300,
+  coldFirstRenderMs: 1000,
+  requiredIntervals: ['1min', '5min', '10min'],
+}
+
 export const formatStartupBaselineSampleAsMarkdownRow = (
   sample: StartupBaselineSample,
 ): string => `| \`${sample.interval}\` | ${sample.cacheMode} | \`${sample.cacheLoadMs ?? 'TBD'}\` | \`${sample.networkFetchMs ?? 'TBD'}\` | \`${sample.mergeMs ?? 'TBD'}\` | \`${sample.firstRenderMs ?? 'TBD'}\` | \`${sample.indicatorReadyMs ?? 'TBD'}\` | \`${sample.finalPointCount ?? 'TBD'}\` | \`${sample.note ?? ''}\` |`
+
+const milestoneTargetForCacheMode = (
+  thresholds: StartupMilestoneThresholds,
+  cacheMode: StartupBaselineCacheMode,
+) => cacheMode === 'warm' ? thresholds.warmFirstRenderMs : thresholds.coldFirstRenderMs
+
+export const evaluateStartupMilestone = (
+  samples: StartupBaselineSample[],
+  thresholds: StartupMilestoneThresholds = DEFAULT_STARTUP_MILESTONE_THRESHOLDS,
+): StartupMilestoneEvaluation => {
+  const results: StartupMilestoneResult[] = []
+  const failures: string[] = []
+
+  thresholds.requiredIntervals.forEach((interval) => {
+    ;(['warm', 'cold'] as StartupBaselineCacheMode[]).forEach((cacheMode) => {
+      const targetFirstRenderMs = milestoneTargetForCacheMode(thresholds, cacheMode)
+      const sample = samples
+        .filter((candidate) => candidate.interval === interval && candidate.cacheMode === cacheMode)
+        .at(-1)
+
+      if (!sample) {
+        const reason = `missing ${cacheMode} sample for ${interval}`
+        results.push({
+          interval,
+          cacheMode,
+          status: 'missing',
+          targetFirstRenderMs,
+          reason,
+        })
+        failures.push(reason)
+        return
+      }
+
+      if (sample.firstRenderMs === undefined) {
+        const reason = `${cacheMode} ${interval} sample is missing firstRenderMs`
+        results.push({
+          interval,
+          cacheMode,
+          status: 'fail',
+          targetFirstRenderMs,
+          sample,
+          reason,
+        })
+        failures.push(reason)
+        return
+      }
+
+      if (sample.firstRenderMs > targetFirstRenderMs) {
+        const reason = `${cacheMode} ${interval} firstRenderMs ${sample.firstRenderMs}ms exceeds target ${targetFirstRenderMs}ms`
+        results.push({
+          interval,
+          cacheMode,
+          status: 'fail',
+          measuredFirstRenderMs: sample.firstRenderMs,
+          targetFirstRenderMs,
+          sample,
+          reason,
+        })
+        failures.push(reason)
+        return
+      }
+
+      results.push({
+        interval,
+        cacheMode,
+        status: 'pass',
+        measuredFirstRenderMs: sample.firstRenderMs,
+        targetFirstRenderMs,
+        sample,
+        reason: `${cacheMode} ${interval} firstRenderMs ${sample.firstRenderMs}ms meets target ${targetFirstRenderMs}ms`,
+      })
+    })
+  })
+
+  return {
+    passed: failures.length === 0,
+    thresholds,
+    results,
+    failures,
+  }
+}
+
+export const formatStartupMilestoneReport = (
+  evaluation: StartupMilestoneEvaluation,
+): string => {
+  const lines = [
+    `Milestone: ${evaluation.passed ? 'PASS' : 'FAIL'}`,
+    '',
+    '| Interval | Cache | Status | First Render | Points | Captured At |',
+    '| --- | --- | --- | --- | --- | --- |',
+  ]
+
+  evaluation.results.forEach((result) => {
+    lines.push(
+      `| \`${result.interval}\` | ${result.cacheMode} | ${result.status} | \`${result.measuredFirstRenderMs ?? 'TBD'} / ${result.targetFirstRenderMs}\` | \`${result.sample?.finalPointCount ?? 'TBD'}\` | \`${result.sample?.capturedAt ?? 'TBD'}\` |`,
+    )
+  })
+
+  if (evaluation.failures.length > 0) {
+    lines.push('', 'Failures:')
+    evaluation.failures.forEach((failure) => lines.push(`- ${failure}`))
+  }
+
+  return lines.join('\n')
+}
 
 export const summarizeStartupRun = (run: StartupBaselineRun): StartupBaselineSummary => {
   const lastEvent = run.events[run.events.length - 1]
@@ -157,6 +293,10 @@ export const createStartupBaselineRecorder = ({
     .map(formatStartupBaselineSampleAsMarkdownRow)
     .join('\n')
 
+  const evaluateMilestone = () => evaluateStartupMilestone(store.samples)
+
+  const exportMilestoneReport = () => formatStartupMilestoneReport(evaluateMilestone())
+
   return {
     store,
     record,
@@ -166,6 +306,8 @@ export const createStartupBaselineRecorder = ({
     clearSamples,
     captureLatestSample,
     exportMarkdownRows,
+    evaluateMilestone,
+    exportMilestoneReport,
   }
 }
 
@@ -183,6 +325,8 @@ export const installStartupBaselineDebug = (
     clearSamples: recorder.clearSamples,
     captureLatestSample: recorder.captureLatestSample,
     exportMarkdownRows: recorder.exportMarkdownRows,
+    evaluateMilestone: recorder.evaluateMilestone,
+    exportMilestoneReport: recorder.exportMilestoneReport,
   }
 
   if (clearKlineCache) {

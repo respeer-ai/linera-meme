@@ -5,6 +5,14 @@ import pandas as pd
 import time
 import warnings
 import numpy as np
+from candle_schema import (
+    INTERVAL_BUCKET_MS,
+    CandleState,
+    CandleUpdate,
+    apply_candle_update,
+    build_candle_bucket_key,
+    get_interval_bucket_ms,
+)
 
 
 def align_timestamp_to_minute_ms(timestamp: int) -> int:
@@ -28,6 +36,12 @@ def build_kline_points_query(
         AND transaction_type != 'RemoveLiquidity'
         ORDER BY created_at ASC
     '''
+
+
+def build_expected_bucket_count(start_at: int, end_at: int, interval_ms: int) -> int:
+    if end_at < start_at:
+        return 0
+    return (end_at - start_at) // interval_ms + 1
 
 
 class Db:
@@ -55,6 +69,7 @@ class Db:
 
         self.transactions_table = 'transactions'
         self.pools_table = 'pools'
+        self.candles_table = 'candles'
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -110,6 +125,28 @@ class Db:
             ''')
             self.connection.commit()
 
+        if self.candles_table not in tables:
+            self.cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.candles_table} (
+                    pool_id INT UNSIGNED,
+                    token_reversed TINYINT,
+                    interval_name VARCHAR(16),
+                    bucket_start_ms BIGINT UNSIGNED,
+                    open DECIMAL(30, 18),
+                    high DECIMAL(30, 18),
+                    low DECIMAL(30, 18),
+                    close DECIMAL(30, 18),
+                    volume DECIMAL(30, 18),
+                    trade_count INT UNSIGNED,
+                    first_trade_id INT UNSIGNED,
+                    last_trade_id INT UNSIGNED,
+                    first_trade_at_ms BIGINT UNSIGNED,
+                    last_trade_at_ms BIGINT UNSIGNED,
+                    PRIMARY KEY (pool_id, token_reversed, interval_name, bucket_start_ms)
+                )
+            ''')
+            self.connection.commit()
+
         self.ensure_transactions_indexes()
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
@@ -149,6 +186,7 @@ class Db:
         direction = transaction.direction(token_reversed)
         volume = transaction.volume(token_reversed)
         price = transaction.price(token_reversed)
+        created_at_ms = transaction.created_at // 1000
 
         self.cursor.execute(
             f'''
@@ -181,7 +219,16 @@ class Db:
              volume,
              direction,
              token_reversed,
-             transaction.created_at // 1000)
+             created_at_ms)
+        )
+
+        self.update_candles_for_transaction(
+            pool_id=pool_id,
+            transaction=transaction,
+            token_reversed=token_reversed,
+            created_at_ms=created_at_ms,
+            price=price,
+            volume=volume,
         )
 
         return {
@@ -198,7 +245,7 @@ class Db:
             'volume': volume,
             'direction': direction,
             'token_reversed': token_reversed,
-            'created_at': transaction.created_at // 1000,
+            'created_at': created_at_ms,
         }
 
     def new_transactions(self, pool_id: int, transactions: list[Transaction]):
@@ -213,6 +260,153 @@ class Db:
         self.connection.commit()
 
         return _transactions
+
+    def load_candle(self, pool_id: int, token_reversed: bool, interval: str, bucket_start_ms: int):
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    trade_count,
+                    first_trade_id,
+                    last_trade_id,
+                    first_trade_at_ms,
+                    last_trade_at_ms
+                FROM {self.candles_table}
+                WHERE pool_id = %s
+                AND token_reversed = %s
+                AND interval_name = %s
+                AND bucket_start_ms = %s
+            ''',
+            (pool_id, token_reversed, interval, bucket_start_ms),
+        )
+        row = self.cursor_dict.fetchone()
+
+        if row is None:
+            return None
+
+        return CandleState(
+            open=float(row['open']),
+            high=float(row['high']),
+            low=float(row['low']),
+            close=float(row['close']),
+            volume=float(row['volume']),
+            trade_count=int(row['trade_count']),
+            first_trade_id=int(row['first_trade_id']),
+            last_trade_id=int(row['last_trade_id']),
+            first_trade_at_ms=int(row['first_trade_at_ms']),
+            last_trade_at_ms=int(row['last_trade_at_ms']),
+        )
+
+    def save_candle(self, bucket_key, candle: CandleState):
+        self.cursor.execute(
+            f'''
+                INSERT INTO {self.candles_table}
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
+                ON DUPLICATE KEY UPDATE
+                open = alias.open,
+                high = alias.high,
+                low = alias.low,
+                close = alias.close,
+                volume = alias.volume,
+                trade_count = alias.trade_count,
+                first_trade_id = alias.first_trade_id,
+                last_trade_id = alias.last_trade_id,
+                first_trade_at_ms = alias.first_trade_at_ms,
+                last_trade_at_ms = alias.last_trade_at_ms
+            ''',
+            (
+                bucket_key.pool_id,
+                bucket_key.token_reversed,
+                bucket_key.interval,
+                bucket_key.bucket_start_ms,
+                candle.open,
+                candle.high,
+                candle.low,
+                candle.close,
+                candle.volume,
+                candle.trade_count,
+                candle.first_trade_id,
+                candle.last_trade_id,
+                candle.first_trade_at_ms,
+                candle.last_trade_at_ms,
+            ),
+        )
+
+    def get_candle_point(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        interval: str,
+        bucket_start_ms: int,
+    ):
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    bucket_start_ms,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume
+                FROM {self.candles_table}
+                WHERE pool_id = %s
+                AND token_reversed = %s
+                AND interval_name = %s
+                AND bucket_start_ms = %s
+            ''',
+            (pool_id, token_reversed, interval, bucket_start_ms),
+        )
+        row = self.cursor_dict.fetchone()
+        if row is None:
+            return None
+
+        return {
+            'timestamp': int(row['bucket_start_ms']),
+            'open': float(row['open']),
+            'high': float(row['high']),
+            'low': float(row['low']),
+            'close': float(row['close']),
+            'volume': float(row['volume']),
+        }
+
+    def update_candles_for_transaction(
+        self,
+        pool_id: int,
+        transaction: Transaction,
+        token_reversed: bool,
+        created_at_ms: int,
+        price: float,
+        volume: float,
+    ):
+        if transaction.transaction_type not in ['BuyToken0', 'SellToken0']:
+            return
+
+        update = CandleUpdate(
+            transaction_id=transaction.transaction_id,
+            created_at_ms=created_at_ms,
+            price=float(price),
+            volume=float(volume),
+        )
+
+        for interval in INTERVAL_BUCKET_MS.keys():
+            bucket_key = build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=created_at_ms,
+            )
+            existing = self.load_candle(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                bucket_start_ms=bucket_key.bucket_start_ms,
+            )
+            candle = apply_candle_update(existing=existing, update=update)
+            self.save_candle(bucket_key, candle)
 
     def get_pool_id(self, token_0: str, token_1: str) -> (int, str, str, bool):
         token_1 = token_1 if token_1 is not None else 'TLINERA'
@@ -318,7 +512,129 @@ class Db:
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        points = self.get_kline_from_candles(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            token_0=token_0,
+            token_1=token_1,
+            start_at=start_at,
+            end_at=end_at,
+            interval=interval,
+        )
 
+        if self.candles_cover_requested_range(points=points, start_at=start_at, end_at=end_at, interval=interval):
+            return (token_0, token_1, points)
+
+        points = self.get_kline_from_transactions(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            start_at=start_at,
+            end_at=end_at,
+            interval=interval,
+        )
+
+        return (token_0, token_1, points)
+
+    def candles_cover_requested_range(self, points, start_at: int, end_at: int, interval: str) -> bool:
+        interval_ms = get_interval_bucket_ms(interval if interval is not None else '1min')
+        expected_count = build_expected_bucket_count(start_at, end_at, interval_ms)
+
+        if expected_count == 0:
+            return True
+
+        return len(points) >= expected_count
+
+    def get_kline_from_candles(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        token_0: str,
+        token_1: str,
+        start_at: int,
+        end_at: int,
+        interval: str,
+    ):
+        interval = interval if interval is not None else '1min'
+        bucket_ms = get_interval_bucket_ms(interval)
+        query_start_at = build_candle_bucket_key(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            created_at_ms=start_at,
+        ).bucket_start_ms
+        query_end_at = build_candle_bucket_key(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            created_at_ms=end_at,
+        ).bucket_start_ms
+
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    bucket_start_ms,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume
+                FROM {self.candles_table}
+                WHERE pool_id = %s
+                AND token_reversed = %s
+                AND interval_name = %s
+                AND bucket_start_ms >= %s
+                AND bucket_start_ms <= %s
+                ORDER BY bucket_start_ms ASC
+            ''',
+            (pool_id, token_reversed, interval, query_start_at, query_end_at),
+        )
+        rows = self.cursor_dict.fetchall()
+        if len(rows) == 0:
+            return []
+
+        rows_by_bucket = {
+            int(row['bucket_start_ms']): row
+            for row in rows
+        }
+
+        json_data = []
+        last_close = None
+        bucket_start_ms = query_start_at
+        while bucket_start_ms <= query_end_at:
+            row = rows_by_bucket.get(bucket_start_ms)
+            if row is None:
+                if last_close is not None:
+                    json_data.append({
+                        'timestamp': bucket_start_ms,
+                        'open': last_close,
+                        'high': last_close,
+                        'low': last_close,
+                        'close': last_close,
+                        'volume': 0.0,
+                    })
+            else:
+                close = float(row['close'])
+                json_data.append({
+                    'timestamp': bucket_start_ms,
+                    'open': float(row['open']),
+                    'high': float(row['high']),
+                    'low': float(row['low']),
+                    'close': close,
+                    'volume': float(row['volume']),
+                })
+                last_close = close
+            bucket_start_ms += bucket_ms
+
+        return json_data
+
+    def get_kline_from_transactions(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        start_at: int,
+        end_at: int,
+        interval: str,
+    ):
         query = build_kline_points_query(
             table_name=self.transactions_table,
             pool_id=pool_id,
@@ -330,7 +646,6 @@ class Db:
         df['created_at'] = pd.to_datetime(df['created_at'], unit='ms')
         df.set_index('created_at', inplace=True)
 
-        # 1 minute in default
         interval = interval if interval is not None else '1T'
         df_interval = df.resample(interval).agg({
             'price': ['first', 'max', 'min', 'last'],
@@ -339,7 +654,6 @@ class Db:
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
         df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
 
-        # 处理 OHLC 与 volume
         last_close = None
         for idx, row in df_interval.iterrows():
             if row['volume'] == 0 and last_close is not None:
@@ -362,7 +676,7 @@ class Db:
                 'volume': row['volume'],
             })
 
-        return (token_0, token_1, json_data)
+        return json_data
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         # Only use full minutes data. Only for minute currently

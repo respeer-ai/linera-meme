@@ -5,6 +5,9 @@ const kline = useKlineStore()
 export class Kline {
   static initialize = () => kline.initializeKline()
 
+  static subscribe = (token0: string, token1: string, interval: Interval) =>
+    kline.subscribeKline(token0, token1, interval)
+
   static latestPoints = (key: Interval, token0: string, token1: string): Point[] => {
     return kline._latestPoints(key, token0, token1)
   }
