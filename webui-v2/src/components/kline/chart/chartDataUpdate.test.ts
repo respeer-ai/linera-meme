@@ -223,6 +223,28 @@ describe('resolveVisibleLogicalRangeRestore', () => {
       previousRange: null,
     })).toBe(null)
   })
+
+  test('returns null when there is no previous rendered data to align against', () => {
+    expect(resolveVisibleLogicalRangeRestore({
+      previousData: [],
+      nextData: [point(60, 1, 2, 0.5, 1.5, 10)],
+      previousRange: { from: -0.5, to: 0.5 },
+    })).toBe(null)
+  })
+
+  test('returns null when the new dataset no longer aligns with the previous timestamps', () => {
+    expect(resolveVisibleLogicalRangeRestore({
+      previousData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      nextData: [
+        point(90, 1.2, 2.2, 0.7, 1.7, 11),
+        point(150, 1.7, 2.7, 1.2, 2.2, 13),
+      ],
+      previousRange: { from: 10, to: 30 },
+    })).toBe(null)
+  })
 })
 
 describe('chart point conversion helpers', () => {

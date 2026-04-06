@@ -460,6 +460,20 @@ const restoreVisibleLogicalRange = (range: { from: number; to: number } | null) 
   chart.timeScale().setVisibleLogicalRange(range)
 }
 
+const rebuildSeriesPreservingVisibleRange = (rebuild: () => void) => {
+  const previousVisibleLogicalRange = getVisibleLogicalRange()
+  const previousData = lastRenderedPrimarySeriesData.map((point) => ({ ...point }))
+
+  rebuild()
+  updateChartData()
+
+  restoreVisibleLogicalRange(resolveVisibleLogicalRangeRestore({
+    previousData,
+    nextData: props.data,
+    previousRange: previousVisibleLogicalRange,
+  }))
+}
+
 const syncChartSize = () => {
   if (!chart || !chartContainer.value) return
 
@@ -871,9 +885,6 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 const updateChartData = () => {
   if (!mainSeries) return
 
-  const previousData = lastRenderedPrimarySeriesData
-  const previousVisibleLogicalRange = getVisibleLogicalRange()
-
   if (!props.data.length) {
     ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
     volumeSeries?.setData([])
@@ -887,7 +898,6 @@ const updateChartData = () => {
     bollLowerSeries?.setData([])
     lastRenderedPrimarySeriesData = []
     applyMainSeriesVisualState()
-    restoreVisibleLogicalRange(previousVisibleLogicalRange)
     return
   }
 
@@ -1043,13 +1053,6 @@ const updateChartData = () => {
   }
 
   lastRenderedPrimarySeriesData = props.data.map((point) => ({ ...point }))
-  if (primaryRenderPlan.mode === 'full') {
-    restoreVisibleLogicalRange(resolveVisibleLogicalRangeRestore({
-      previousData,
-      nextData: props.data,
-      previousRange: previousVisibleLogicalRange,
-    }))
-  }
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
@@ -1113,15 +1116,17 @@ const calculateBollingerBands = (candleData: CandlestickData[], period: number =
 
 watch([() => props.data, chartDataRenderSignal], updateChartData)
 watch(() => props.chartType, () => {
-  createMainSeries()
-  updateChartData()
+  rebuildSeriesPreservingVisibleRange(() => {
+    createMainSeries()
+  })
 })
 watch(() => props.indicatorConfig, () => {
-  applyThemeOptions()
-  createMainSeries()
-  createIndicatorSeries()
-  createVolumeSeries()
-  updateChartData()
+  rebuildSeriesPreservingVisibleRange(() => {
+    applyThemeOptions()
+    createMainSeries()
+    createIndicatorSeries()
+    createVolumeSeries()
+  })
 }, { deep: true })
 watch(() => props.pricePrecision, () => {
   if (mainSeries) {
@@ -1147,11 +1152,12 @@ watch(() => props.height, () => {
 })
 watch(() => $q.dark.isActive, () => {
   if (!chart) return
-  applyThemeOptions()
-  createMainSeries()
-  createIndicatorSeries()
-  createVolumeSeries()
-  updateChartData()
+  rebuildSeriesPreservingVisibleRange(() => {
+    applyThemeOptions()
+    createMainSeries()
+    createIndicatorSeries()
+    createVolumeSeries()
+  })
 })
 
 onMounted(initChart)

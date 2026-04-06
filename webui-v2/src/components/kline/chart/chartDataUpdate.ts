@@ -164,16 +164,14 @@ export const resolveVisibleLogicalRangeRestore = ({
   nextData: KLineData[]
   previousRange: LogicalRange | null
 }): LogicalRange | null => {
-  if (!previousRange) return null
+  if (!previousRange || !previousData.length) return null
 
   const dataOffset = resolveDataOffset({
     previousData,
     nextData,
   })
 
-  if (dataOffset === null) {
-    return previousRange
-  }
+  if (dataOffset === null) return null
 
   return {
     from: previousRange.from + dataOffset,
