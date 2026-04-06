@@ -102,6 +102,12 @@ import { useQuasar } from 'quasar'
 import { KLineData } from './KlineData'
 import { ChartType } from '../ChartType'
 import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
+import {
+  resolvePrimarySeriesRenderPlan,
+  toCandlestickPoint,
+  toLinePoint,
+  toVolumePoint,
+} from './chartDataUpdate'
 
 export interface IndicatorConfig {
   ma: {
@@ -441,6 +447,7 @@ let bollMiddleSeries: ISeriesApi<'Line'> | null = null
 let bollLowerSeries: ISeriesApi<'Line'> | null = null
 let latestPriceLine: IPriceLine | null = null
 let resizeObserver: ResizeObserver | null = null
+let lastRenderedPrimarySeriesData: KLineData[] = []
 
 const syncChartSize = () => {
   if (!chart || !chartContainer.value) return
@@ -614,6 +621,7 @@ const createMainSeries = () => {
   })
 
   applyMainSeriesVisualState()
+  lastRenderedPrimarySeriesData = []
 }
 
 const createVolumeSeries = () => {
@@ -852,24 +860,58 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 const updateChartData = () => {
   if (!mainSeries) return
 
-  // 处理主图数据
-  const candleData: CandlestickData[] = props.data.map(d => ({
-    time: d.time as Time,
-    open: d.open,
-    high: d.high,
-    low: d.low,
-    close: d.close
-  }))
+  if (!props.data.length) {
+    ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
+    volumeSeries?.setData([])
+    ma5MinSeries?.setData([])
+    ma10MinSeries?.setData([])
+    ma30MinSeries?.setData([])
+    ema7Series?.setData([])
+    ema25Series?.setData([])
+    bollUpperSeries?.setData([])
+    bollMiddleSeries?.setData([])
+    bollLowerSeries?.setData([])
+    lastRenderedPrimarySeriesData = []
+    applyMainSeriesVisualState()
+    return
+  }
 
-  const lineData: LineData[] = props.data.map(d => ({
-    time: d.time as Time,
-    value: d.close
-  }))
+  const primaryRenderPlan = resolvePrimarySeriesRenderPlan({
+    previous: lastRenderedPrimarySeriesData,
+    next: props.data,
+  })
+
+  const hasIndicatorSeries = Boolean(
+    ma5MinSeries ||
+    ma10MinSeries ||
+    ma30MinSeries ||
+    ema7Series ||
+    ema25Series ||
+    bollUpperSeries ||
+    bollMiddleSeries ||
+    bollLowerSeries,
+  )
+
+  let candleData: CandlestickData[] | null = null
 
   if (props.chartType === ChartType.CANDLESTICK) {
-    (mainSeries as ISeriesApi<'Candlestick'>).setData(candleData)
+    if (primaryRenderPlan.mode === 'full') {
+      candleData = props.data.map(toCandlestickPoint)
+      ;(mainSeries as ISeriesApi<'Candlestick'>).setData(candleData)
+    } else if (primaryRenderPlan.mode === 'incremental') {
+      for (const point of primaryRenderPlan.changedPoints) {
+        ;(mainSeries as ISeriesApi<'Candlestick'>).update(toCandlestickPoint(point))
+      }
+    }
   } else if (props.chartType === ChartType.LINE || props.chartType === ChartType.AREA) {
-    (mainSeries as ISeriesApi<'Line'>).setData(lineData)
+    if (primaryRenderPlan.mode === 'full') {
+      const lineData = props.data.map(toLinePoint)
+      ;(mainSeries as ISeriesApi<'Line'>).setData(lineData)
+    } else if (primaryRenderPlan.mode === 'incremental') {
+      for (const point of primaryRenderPlan.changedPoints) {
+        ;(mainSeries as ISeriesApi<'Line'>).update(toLinePoint(point))
+      }
+    }
   }
 
   applyMainSeriesVisualState()
@@ -903,17 +945,23 @@ const updateChartData = () => {
 
   // 处理成交量
   if (props.indicatorConfig.showVolume) {
-    const volumeData: HistogramData[] = props.data.map(d => ({
-      time: d.time as Time,
-      value: d.volume,
-      color: d.close >= d.open ? '#26a69a' : '#ef5350'
-    }))
-    volumeSeries?.setData(volumeData)
+    if (primaryRenderPlan.mode === 'full') {
+      const volumeData: HistogramData[] = props.data.map(toVolumePoint)
+      volumeSeries?.setData(volumeData)
+    } else if (primaryRenderPlan.mode === 'incremental') {
+      for (const point of primaryRenderPlan.changedPoints) {
+        volumeSeries?.update(toVolumePoint(point))
+      }
+    }
+  }
+
+  if (!candleData && hasIndicatorSeries) {
+    candleData = props.data.map(toCandlestickPoint)
   }
 
   // 处理 MA 指标
   if (ma5MinSeries && props.indicatorConfig.ma.enabled.ma5) {
-    const ma5MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 5)
+    const ma5MinData: LineData[] = calculateMovingAverageSeriesData(candleData || [], 5)
     ma5MinSeries.setData(ma5MinData)
     // 如果没有悬停，显示最新的MA值
     if (!isHovering.value && ma5MinData.length > 0) {
@@ -925,7 +973,7 @@ const updateChartData = () => {
   }
 
   if (ma10MinSeries && props.indicatorConfig.ma.enabled.ma10) {
-    const ma10MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 10)
+    const ma10MinData: LineData[] = calculateMovingAverageSeriesData(candleData || [], 10)
     ma10MinSeries.setData(ma10MinData)
     // 如果没有悬停，显示最新的MA值
     if (!isHovering.value && ma10MinData.length > 0) {
@@ -937,7 +985,7 @@ const updateChartData = () => {
   }
 
   if (ma30MinSeries && props.indicatorConfig.ma.enabled.ma30) {
-    const ma30MinData: LineData[] = calculateMovingAverageSeriesData(candleData, 30)
+    const ma30MinData: LineData[] = calculateMovingAverageSeriesData(candleData || [], 30)
     ma30MinSeries.setData(ma30MinData)
     // 如果没有悬停，显示最新的MA值
     if (!isHovering.value && ma30MinData.length > 0) {
@@ -949,7 +997,7 @@ const updateChartData = () => {
   }
 
   if (ema7Series && props.indicatorConfig.ema.enabled.ema7) {
-    const ema7Data: LineData[] = calculateEMASeriesData(candleData, 7)
+    const ema7Data: LineData[] = calculateEMASeriesData(candleData || [], 7)
     ema7Series.setData(ema7Data)
     // 如果没有悬停，显示最新的EMA值
     if (!isHovering.value && ema7Data.length > 0) {
@@ -961,7 +1009,7 @@ const updateChartData = () => {
   }
 
   if (ema25Series && props.indicatorConfig.ema.enabled.ema25) {
-    const ema25Data: LineData[] = calculateEMASeriesData(candleData, 25)
+    const ema25Data: LineData[] = calculateEMASeriesData(candleData || [], 25)
     ema25Series.setData(ema25Data)
     // 如果没有悬停，显示最新的EMA值
     if (!isHovering.value && ema25Data.length > 0) {
@@ -973,11 +1021,13 @@ const updateChartData = () => {
   }
 
   if (bollUpperSeries && bollMiddleSeries && bollLowerSeries && props.indicatorConfig.boll) {
-    const bollData = calculateBollingerBands(candleData, 20, 2)
+    const bollData = calculateBollingerBands(candleData || [], 20, 2)
     bollUpperSeries.setData(bollData.upper)
     bollMiddleSeries.setData(bollData.middle)
     bollLowerSeries.setData(bollData.lower)
   }
+
+  lastRenderedPrimarySeriesData = props.data.map((point) => ({ ...point }))
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
