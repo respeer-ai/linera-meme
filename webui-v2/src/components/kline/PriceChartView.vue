@@ -10,6 +10,7 @@
       :data='klinePoints'
       :chart-type='toolbarConfig.chartType'
       :indicator-config='toolbarConfig.indicatorConfig'
+      :background-history-status='backgroundHistoryStatus'
       @load-new-data='onLoadNewData'
       @load-old-data='onLoadOldData'
       :height='chartHeight'
@@ -29,7 +30,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason } from './priceChartStartup'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -155,6 +156,7 @@ const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
 const firstScreenReady = ref(false)
 const backgroundHistoryQueued = ref(false)
+const loadingDirection = ref(null as LoadDirection | null)
 const pendingLoadDirections = ref([] as LoadDirection[])
 const currentRequestId = ref(0)
 const startupBaselineRecorder = createStartupBaselineRecorder()
@@ -172,6 +174,13 @@ const minPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.
   item.time < max.time ? item : max
 ).time * 1000 : poolCreatedAt.value)
 const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timestamp > maxPointTimestamp.value - 300000))
+const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
+  firstScreenReady: firstScreenReady.value,
+  backgroundHistoryQueued: backgroundHistoryQueued.value,
+  loadingDirection: loadingDirection.value,
+  minPointTimestamp: minPointTimestamp.value,
+  poolCreatedAt: poolCreatedAt.value
+}))
 
 watch(latestPoints, () => {
   if (!_latestPoints.value.length || !latestPoints.value.length) return
@@ -425,12 +434,15 @@ const requestEdgeLoad = (direction: LoadDirection, timestamp: number) => {
   if (direction === 'new') {
     if (timestamp * 1000 < maxPointTimestamp.value) return
     loading.value = true
+    loadingDirection.value = 'new'
     onLoadSorted(false, timestamp * 1000)
     return
   }
 
   if (timestamp * 1000 > minPointTimestamp.value) return
   loading.value = true
+  loadingDirection.value = 'old'
+  backgroundHistoryQueued.value = false
   onLoadSorted(true, timestamp * 1000)
 }
 
@@ -463,6 +475,7 @@ const queueBackgroundHistoryBackfill = () => {
 
 const finishLoading = (requestId: number) => {
   loading.value = false
+  loadingDirection.value = null
   void nextTick(() => {
     if (!firstScreenReady.value) {
       firstScreenReady.value = true

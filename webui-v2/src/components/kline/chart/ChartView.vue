@@ -1,6 +1,13 @@
 <template>
   <div class='chart-wrapper' :style='{ height: height, position: "relative" }'>
     <div ref='chartContainer' class='kline-chart' />
+    <div
+      v-if='backgroundHistoryLabel'
+      class='background-history-status'
+      :class='`status-${props.backgroundHistoryStatus}`'
+    >
+      {{ backgroundHistoryLabel }}
+    </div>
     <!-- 右侧：交易信息 -->
     <div class='price-info-overlay'>
       <div class='price-info-panel'>
@@ -117,6 +124,8 @@ export interface IndicatorConfig {
   showCrosshair: boolean
 }
 
+type BackgroundHistoryStatus = 'idle' | 'queued' | 'loading' | 'complete'
+
 const props = defineProps({
   data: { type: Array as () => KLineData[], required: true, default: () => [] },
   pricePrecision: { type: Number, default: 10 },
@@ -134,7 +143,11 @@ const props = defineProps({
       showGrid: true,
       showCrosshair: true
     })
-  }
+  },
+  backgroundHistoryStatus: {
+    type: String as () => BackgroundHistoryStatus,
+    default: 'idle',
+  },
 })
 
 const hoveringTime = ref((() => {
@@ -215,6 +228,19 @@ const hasVisibleIndicators = computed(() => {
          props.indicatorConfig.ma.enabled.ma30 ||
          props.indicatorConfig.ema.enabled.ema7 ||
          props.indicatorConfig.ema.enabled.ema25
+})
+
+const backgroundHistoryLabel = computed(() => {
+  switch (props.backgroundHistoryStatus) {
+    case 'queued':
+      return 'History queued'
+    case 'loading':
+      return 'Loading history'
+    case 'complete':
+      return 'History ready'
+    default:
+      return ''
+  }
 })
 
 const trimTrailingZeros = (value: string) => value.replace(/\.?0+$/, '')
@@ -1080,6 +1106,30 @@ onBeforeUnmount(() => {
 .kline-chart
   width: 100%
   height: 100%
+
+.background-history-status
+  position: absolute
+  left: 14px
+  top: 12px
+  z-index: 4
+  padding: 4px 10px
+  border-radius: 999px
+  font-size: 11px
+  font-weight: 600
+  letter-spacing: 0.02em
+  backdrop-filter: blur(10px)
+  border: 1px solid rgba(138, 148, 166, 0.28)
+  background: rgba(10, 14, 23, 0.58)
+  color: #f6f8fb
+
+.status-queued
+  background: rgba(41, 98, 255, 0.18)
+
+.status-loading
+  background: rgba(255, 165, 0, 0.18)
+
+.status-complete
+  background: rgba(38, 166, 154, 0.18)
 
 .price-info-overlay
   position: absolute

@@ -69,6 +69,16 @@ type BackgroundHistoryScheduleInput = {
   poolCreatedAt: number
 }
 
+type BackgroundHistoryStatusInput = {
+  firstScreenReady: boolean
+  backgroundHistoryQueued: boolean
+  loadingDirection: 'new' | 'old' | null
+  minPointTimestamp: number
+  poolCreatedAt: number
+}
+
+export type BackgroundHistoryStatus = 'idle' | 'queued' | 'loading' | 'complete'
+
 export const getFirstScreenFetchWindowSize = (interval: Interval): number => {
   switch (interval) {
     case Interval.ONE_MINUTE:
@@ -106,6 +116,20 @@ export const shouldScheduleBackgroundHistoryBackfill = ({
   firstScreenReady &&
   !backgroundHistoryQueued &&
   minPointTimestamp > poolCreatedAt
+
+export const resolveBackgroundHistoryStatus = ({
+  firstScreenReady,
+  backgroundHistoryQueued,
+  loadingDirection,
+  minPointTimestamp,
+  poolCreatedAt,
+}: BackgroundHistoryStatusInput): BackgroundHistoryStatus => {
+  if (!firstScreenReady) return 'idle'
+  if (loadingDirection === 'old') return 'loading'
+  if (backgroundHistoryQueued) return 'queued'
+  if (minPointTimestamp <= poolCreatedAt) return 'complete'
+  return 'idle'
+}
 
 type NextFetchDecisionInput = {
   reverse: boolean

@@ -6,6 +6,7 @@ import {
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
+  resolveBackgroundHistoryStatus,
   resolveStartupRequestPlan,
   shouldDeferHistoryLoadUntilFirstPaint,
   shouldScheduleBackgroundHistoryBackfill,
@@ -154,5 +155,39 @@ describe('resolveNextFetchTimestamp', () => {
       minPointTimestamp: 2_000,
       poolCreatedAt: 1_000,
     })).toBe(false)
+  })
+
+  test('derives explicit background-history status for the chart', () => {
+    expect(resolveBackgroundHistoryStatus({
+      firstScreenReady: false,
+      backgroundHistoryQueued: false,
+      loadingDirection: null,
+      minPointTimestamp: 2_000,
+      poolCreatedAt: 1_000,
+    })).toBe('idle')
+
+    expect(resolveBackgroundHistoryStatus({
+      firstScreenReady: true,
+      backgroundHistoryQueued: true,
+      loadingDirection: null,
+      minPointTimestamp: 2_000,
+      poolCreatedAt: 1_000,
+    })).toBe('queued')
+
+    expect(resolveBackgroundHistoryStatus({
+      firstScreenReady: true,
+      backgroundHistoryQueued: false,
+      loadingDirection: 'old',
+      minPointTimestamp: 2_000,
+      poolCreatedAt: 1_000,
+    })).toBe('loading')
+
+    expect(resolveBackgroundHistoryStatus({
+      firstScreenReady: true,
+      backgroundHistoryQueued: false,
+      loadingDirection: null,
+      minPointTimestamp: 1_000,
+      poolCreatedAt: 1_000,
+    })).toBe('complete')
   })
 })
