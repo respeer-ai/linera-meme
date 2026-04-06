@@ -61,11 +61,11 @@ Primary files involved:
 
 ## Measured Reality
 
-Measured live backend response times for a recent active market on `2026-04-06`:
+Measured live backend response times for a recent active market on `2026-04-06 10:03:06 UTC`:
 
-- `1min`, 1-hour window: about `0.62s`
-- `5min`, 5-hour window: about `1.35s`
-- `10min`, 10-hour window: about `4.13s`
+- `1min`, 1-hour window: about `1.59s - 6.80s` across repeated live samples
+- `5min`, 5-hour window: about `4.63s - 12.18s` across repeated live samples
+- `10min`, 10-hour window: about `5.21s - 11.57s` across repeated live samples
 
 This means frontend optimization alone is not sufficient. The backend points path is already slow enough to block perceived startup quality.
 
@@ -345,7 +345,7 @@ Execution rule:
 | KSO-13 | Phase 5 | Measure indicator impact separately | Confirm first useful paint and indicator-ready timings are independently visible | KSO-12 | Add tests for separate timing emission and stable measurement naming for indicator phases | Frontend | DONE |
 | KSO-14 | Phase 6 | Add query-serving index for points access | Add index aligned to `(pool_id, token_reversed, created_at)` access pattern and validate query plan improvement | None | Add backend tests for indexed points access behavior and query-plan or execution-path verification where practical | Backend | DONE |
 | KSO-15 | Phase 6 | Remove obvious backend range-scan waste | Normalize time handling and reduce unnecessary full-range processing without changing API semantics | KSO-14 | Add backend integration tests for time-range correctness, unchanged API responses, and reduced redundant scanning behavior | Backend | DONE |
-| KSO-16 | Phase 6 | Re-measure live `/points` latency | Capture latency after index/query cleanup for `1min`, `5min`, and `10min` representative windows | KSO-15 | Add or update repeatable measurement harness coverage so latency collection remains reproducible | Backend | TODO |
+| KSO-16 | Phase 6 | Re-measure live `/points` latency | Capture latency after index/query cleanup for `1min`, `5min`, and `10min` representative windows | KSO-15 | Add or update repeatable measurement harness coverage so latency collection remains reproducible | Backend | DONE |
 | KSO-17 | Phase 7 | Design pre-aggregated candle storage model | Define schema keyed by pool, reverse flag, interval, and bucket start; document write/update semantics | KSO-16 | Add schema-level and aggregation-contract tests for bucket keying, interval correctness, and idempotent writes | Backend | TODO |
 | KSO-18 | Phase 7 | Implement incremental candle maintenance | Update candle storage on transaction ingest rather than rebuilding on read | KSO-17 | Add ingest-path tests for candle creation, update, bucket rollover, replay/idempotency, and reverse-token handling | Backend | TODO |
 | KSO-19 | Phase 7 | Switch `/points` to candle storage reads | Serve points from pre-aggregated candles and preserve current API behavior | KSO-18 | Add end-to-end query tests proving `/points` matches previous semantics while using candle storage | Backend | TODO |
