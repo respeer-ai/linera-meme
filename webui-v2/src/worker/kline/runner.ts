@@ -40,6 +40,7 @@ export interface FetchPointsPayload extends BasePayload {
   endAt: number
   interval: Interval
   reverse: boolean
+  requestId: number
 }
 export interface FetchTransactionsPayload extends BasePayload {
   startAt: number
@@ -47,7 +48,9 @@ export interface FetchTransactionsPayload extends BasePayload {
 }
 export interface FetchedPointsPayload extends BasePayload {
   points: Points
+  interval: Interval
   reverse: boolean
+  requestId: number
 }
 export interface FetchedTransactionsPayload extends BasePayload {
   startAt: number
@@ -61,6 +64,7 @@ export interface LoadPointsPayload extends BasePayload {
   reverse: boolean
   timestampBegin?: number
   timestampEnd?: number
+  requestId: number
 }
 export interface LoadTransactionsPayload extends BasePayload {
   tokenReversed: boolean
@@ -76,6 +80,7 @@ export interface LoadedPointsPayload extends BasePayload {
   reverse: boolean
   timestampBegin?: number
   timestampEnd?: number
+  requestId: number
 }
 export interface LoadedTransactionsPayload extends BasePayload {
   timestampBegin?: number
@@ -90,11 +95,13 @@ export interface SortPointsPayload extends BasePayload {
   keepCount: number
   reverse: boolean
   reason: unknown
+  requestId: number
 }
 export interface SortedPointsPayload extends BasePayload {
   points: Point[]
   reverse: boolean
   reason: unknown
+  requestId: number
 }
 export interface SortTransactionsPayload extends BasePayload {
   tokenReversed: boolean
@@ -156,7 +163,7 @@ export class KlineRunner {
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
-    const { token0, token1, startAt, endAt, interval, reverse } = payload
+    const { token0, token1, startAt, endAt, interval, reverse, requestId } = payload
 
     const url = constants.formalizeSchema(
       `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`,
@@ -176,7 +183,9 @@ export class KlineRunner {
           token0,
           token1,
           points,
+          interval,
           reverse,
+          requestId,
         },
       })
     } catch (e) {
@@ -245,7 +254,7 @@ export class KlineRunner {
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd } =
+    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd, requestId } =
       payload
 
     try {
@@ -272,6 +281,7 @@ export class KlineRunner {
           reverse,
           timestampBegin,
           timestampEnd,
+          requestId,
         },
       })
     } catch (e) {
@@ -337,7 +347,7 @@ export class KlineRunner {
   }
 
   static handleSortPoints = (payload: SortPointsPayload) => {
-    const { token0, token1, originPoints, newPoints, reason, keepCount, reverse } = payload
+    const { token0, token1, originPoints, newPoints, reason, keepCount, reverse, requestId } = payload
 
     newPoints.forEach((point) => {
       const index = originPoints.findIndex((el) => el.timestamp === point.timestamp)
@@ -363,6 +373,7 @@ export class KlineRunner {
         ),
         reverse,
         reason,
+        requestId,
       },
     })
   }

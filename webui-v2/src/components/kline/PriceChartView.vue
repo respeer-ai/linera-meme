@@ -170,6 +170,7 @@ const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.v
 
 const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
+const currentRequestId = ref(0)
 
 const maxPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
   item.time > max.time ? item : max
@@ -211,7 +212,8 @@ const getKline = (timestamp: number, reverse: boolean) => {
     startAt,
     endAt,
     interval: selectedInterval.value,
-    reverse
+    reverse,
+    requestId: currentRequestId.value,
   })
 }
 
@@ -229,7 +231,8 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
     interval: selectedInterval.value,
     reverse,
     timestampBegin: timestampBegin || 0,
-    timestampEnd: timestampEnd || 0
+    timestampEnd: timestampEnd || 0,
+    requestId: currentRequestId.value,
   })
 
   return true
@@ -238,6 +241,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
+    currentRequestId.value += 1
     klinePoints.value = []
 
     loadKline(0, 100, undefined, undefined, true)
@@ -293,15 +297,18 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
     newPoints: _points,
     keepCount: -1, // -1 表示不限制，保留所有数据
     reverse,
-    reason
+    reason,
+    requestId: currentRequestId.value,
   })
 }
 
 const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1, reverse } = payload
+  const { token0, token1, interval, reverse, requestId } = payload
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) return
+  if (requestId !== currentRequestId.value) return
+  if (interval !== selectedInterval.value) return
 
   const windowSize = getWindowSize(selectedInterval.value)
   const startAt = reverse ? _points.start_at - windowSize : _points.end_at + 1
@@ -318,7 +325,7 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1, reverse, timestampBegin, timestampEnd, interval } = payload
+  const { token0, token1, reverse, timestampBegin, timestampEnd, interval, requestId } = payload
 
   console.log('[PriceChartView] onLoadedPoints, interval:', interval, 'selectedInterval:', selectedInterval.value, 'points count:', _points.length)
 
@@ -326,6 +333,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
     return
   }
+  if (requestId !== currentRequestId.value) return
 
   // 检查 interval 是否匹配
   if (interval !== selectedInterval.value) {
@@ -361,10 +369,11 @@ const onLoadSorted = (reverse: boolean, timestamp: number) => {
 }
 
 const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
-  const { points, token0, token1, reverse, reason } = payload
+  const { points, token0, token1, reverse, reason, requestId } = payload
   const _reason = reason as Reason
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) return
+  if (requestId !== currentRequestId.value) return
 
   if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {
     let timestamp = reverse ? maxPointTimestamp.value : minPointTimestamp.value
