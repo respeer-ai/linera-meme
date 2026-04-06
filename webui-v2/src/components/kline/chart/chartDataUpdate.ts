@@ -19,6 +19,11 @@ export type PrimarySeriesRenderPlan =
       changedPoints: KLineData[]
     }
 
+export type LogicalRange = {
+  from: number
+  to: number
+}
+
 const DEFAULT_RENDER_SIGNAL_TAIL_SIZE = 8
 
 const pointsEqual = (left: KLineData, right: KLineData) => (
@@ -29,6 +34,33 @@ const pointsEqual = (left: KLineData, right: KLineData) => (
   left.close === right.close &&
   left.volume === right.volume
 )
+
+const resolveDataOffset = ({
+  previousData,
+  nextData,
+}: {
+  previousData: KLineData[]
+  nextData: KLineData[]
+}) => {
+  if (!previousData.length || nextData.length < previousData.length) return null
+
+  const maxOffset = nextData.length - previousData.length
+
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    let matches = true
+
+    for (let index = 0; index < previousData.length; index += 1) {
+      if (previousData[index]?.time !== nextData[index + offset]?.time) {
+        matches = false
+        break
+      }
+    }
+
+    if (matches) return offset
+  }
+
+  return null
+}
 
 export const resolvePrimarySeriesRenderPlan = ({
   previous,
@@ -121,6 +153,32 @@ export const getChartDataRenderSignal = (
     .join('|')
 
   return `${data.length}#${firstTime}#${tailSignature}`
+}
+
+export const resolveVisibleLogicalRangeRestore = ({
+  previousData,
+  nextData,
+  previousRange,
+}: {
+  previousData: KLineData[]
+  nextData: KLineData[]
+  previousRange: LogicalRange | null
+}): LogicalRange | null => {
+  if (!previousRange) return null
+
+  const dataOffset = resolveDataOffset({
+    previousData,
+    nextData,
+  })
+
+  if (dataOffset === null) {
+    return previousRange
+  }
+
+  return {
+    from: previousRange.from + dataOffset,
+    to: previousRange.to + dataOffset,
+  }
 }
 
 export const toCandlestickPoint = (data: KLineData): CandlestickData => ({

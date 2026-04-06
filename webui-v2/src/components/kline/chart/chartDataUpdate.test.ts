@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import type { KLineData } from './KlineData'
 import {
   getChartDataRenderSignal,
+  resolveVisibleLogicalRangeRestore,
   resolvePrimarySeriesRenderPlan,
   toCandlestickPoint,
   toLinePoint,
@@ -160,6 +161,67 @@ describe('getChartDataRenderSignal', () => {
       : item)
 
     expect(getChartDataRenderSignal(next)).toBe(getChartDataRenderSignal(previous))
+  })
+})
+
+describe('resolveVisibleLogicalRangeRestore', () => {
+  test('keeps the same logical range for append-only updates', () => {
+    const previous = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      point(120, 1.5, 2.5, 1, 2, 12),
+    ]
+    const next = [
+      ...previous,
+      point(180, 2, 3, 1.8, 2.6, 15),
+    ]
+
+    expect(resolveVisibleLogicalRangeRestore({
+      previousData: previous,
+      nextData: next,
+      previousRange: { from: 10, to: 30 },
+    })).toEqual({ from: 10, to: 30 })
+  })
+
+  test('shifts the logical range right when historical bars are prepended', () => {
+    const previous = [
+      point(120, 1.5, 2.5, 1, 2, 12),
+      point(180, 2, 3, 1.8, 2.6, 15),
+    ]
+    const next = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      ...previous,
+    ]
+
+    expect(resolveVisibleLogicalRangeRestore({
+      previousData: previous,
+      nextData: next,
+      previousRange: { from: 10, to: 30 },
+    })).toEqual({ from: 11, to: 31 })
+  })
+
+  test('keeps the same logical range when the latest tail bar is overwritten', () => {
+    const previous = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      point(120, 1.5, 2.5, 1, 2, 12),
+    ]
+    const next = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      point(120, 1.5, 2.8, 1, 2.3, 18),
+    ]
+
+    expect(resolveVisibleLogicalRangeRestore({
+      previousData: previous,
+      nextData: next,
+      previousRange: { from: 10, to: 30 },
+    })).toEqual({ from: 10, to: 30 })
+  })
+
+  test('returns null when there is no previous logical range', () => {
+    expect(resolveVisibleLogicalRangeRestore({
+      previousData: [point(60, 1, 2, 0.5, 1.5, 10)],
+      nextData: [point(60, 1, 2, 0.5, 1.5, 10)],
+      previousRange: null,
+    })).toBe(null)
   })
 })
 

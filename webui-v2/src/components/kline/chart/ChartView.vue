@@ -104,6 +104,7 @@ import { ChartType } from '../ChartType'
 import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 import {
   getChartDataRenderSignal,
+  resolveVisibleLogicalRangeRestore,
   resolvePrimarySeriesRenderPlan,
   toCandlestickPoint,
   toLinePoint,
@@ -451,6 +452,13 @@ let bollLowerSeries: ISeriesApi<'Line'> | null = null
 let latestPriceLine: IPriceLine | null = null
 let resizeObserver: ResizeObserver | null = null
 let lastRenderedPrimarySeriesData: KLineData[] = []
+
+const getVisibleLogicalRange = () => chart?.timeScale().getVisibleLogicalRange() || null
+
+const restoreVisibleLogicalRange = (range: { from: number; to: number } | null) => {
+  if (!chart || !range) return
+  chart.timeScale().setVisibleLogicalRange(range)
+}
 
 const syncChartSize = () => {
   if (!chart || !chartContainer.value) return
@@ -863,6 +871,9 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 const updateChartData = () => {
   if (!mainSeries) return
 
+  const previousData = lastRenderedPrimarySeriesData
+  const previousVisibleLogicalRange = getVisibleLogicalRange()
+
   if (!props.data.length) {
     ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
     volumeSeries?.setData([])
@@ -876,6 +887,7 @@ const updateChartData = () => {
     bollLowerSeries?.setData([])
     lastRenderedPrimarySeriesData = []
     applyMainSeriesVisualState()
+    restoreVisibleLogicalRange(previousVisibleLogicalRange)
     return
   }
 
@@ -1031,6 +1043,13 @@ const updateChartData = () => {
   }
 
   lastRenderedPrimarySeriesData = props.data.map((point) => ({ ...point }))
+  if (primaryRenderPlan.mode === 'full') {
+    restoreVisibleLogicalRange(resolveVisibleLogicalRangeRestore({
+      previousData,
+      nextData: props.data,
+      previousRange: previousVisibleLogicalRange,
+    }))
+  }
 }
 
 const calculateEMASeriesData = (candleData: CandlestickData[], period: number) => {
