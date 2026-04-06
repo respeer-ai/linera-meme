@@ -7,7 +7,32 @@ import warnings
 import numpy as np
 
 
+def align_timestamp_to_minute_ms(timestamp: int) -> int:
+    return timestamp // 60000 * 60000
+
+
+def build_kline_points_query(
+    table_name: str,
+    pool_id: int,
+    token_reversed: bool,
+    start_at: int,
+    end_at: int,
+) -> str:
+    return f'''
+        SELECT created_at, price, volume FROM {table_name}
+        WHERE pool_id = {pool_id}
+        AND token_reversed = {token_reversed}
+        AND created_at >= {start_at}
+        AND created_at <= {end_at}
+        AND transaction_type != 'AddLiquidity'
+        AND transaction_type != 'RemoveLiquidity'
+        ORDER BY created_at ASC
+    '''
+
+
 class Db:
+    TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
+
     def __init__(self, host, port, db_name, username, password, clean_kline):
         self.host = host
         self.db_name = db_name
@@ -85,7 +110,23 @@ class Db:
             ''')
             self.connection.commit()
 
+        self.ensure_transactions_indexes()
+
         self.cursor_dict = self.connection.cursor(dictionary=True)
+
+    def ensure_transactions_indexes(self):
+        self.cursor.execute(f'SHOW INDEX FROM {self.transactions_table}')
+        existing_indexes = {
+            row[2] for row in self.cursor.fetchall()
+            if len(row) > 2 and row[2] is not None
+        }
+
+        if self.TRANSACTIONS_RANGE_INDEX not in existing_indexes:
+            self.cursor.execute(f'''
+                CREATE INDEX {self.TRANSACTIONS_RANGE_INDEX}
+                ON {self.transactions_table} (pool_id, token_reversed, created_at)
+            ''')
+            self.connection.commit()
 
 
     def new_pools(self, pools: list[Pool]):
@@ -237,7 +278,8 @@ class Db:
         if token_0 is None or token_1 is None:
             query = f'''
                 SELECT * FROM {self.transactions_table}
-                WHERE created_at BETWEEN {start_at} AND {end_at}
+                WHERE created_at >= {start_at}
+                AND created_at <= {end_at}
             '''
         else:
             try:
@@ -249,8 +291,9 @@ class Db:
             query = f'''
                 SELECT * FROM {self.transactions_table}
                 WHERE pool_id = {pool_id}
-                AND created_at BETWEEN {start_at} AND {end_at}
                 AND token_reversed = {token_reversed}
+                AND created_at >= {start_at}
+                AND created_at <= {end_at}
             '''
 
         self.cursor_dict.execute(query)
@@ -276,18 +319,16 @@ class Db:
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
 
-        query = f'''
-            SELECT created_at, price, volume FROM {self.transactions_table}
-            WHERE pool_id = {pool_id}
-            AND created_at BETWEEN {start_at} AND {end_at}
-            AND token_reversed = {token_reversed}
-            AND transaction_type != 'AddLiquidity'
-            AND transaction_type != 'RemoveLiquidity'
-        '''
+        query = build_kline_points_query(
+            table_name=self.transactions_table,
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            start_at=start_at,
+            end_at=end_at,
+        )
         df = pd.read_sql(query, self.connection)
         df['created_at'] = pd.to_datetime(df['created_at'], unit='ms')
         df.set_index('created_at', inplace=True)
-        df.sort_index(inplace=True)
 
         # 1 minute in default
         interval = interval if interval is not None else '1T'
@@ -753,4 +794,3 @@ class Db:
         self.cursor.close()
         self.cursor_dict.close()
         self.connection.close()
-
