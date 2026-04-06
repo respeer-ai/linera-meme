@@ -103,6 +103,7 @@ import { KLineData } from './KlineData'
 import { ChartType } from '../ChartType'
 import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 import {
+  getChartDataRenderSignal,
   resolvePrimarySeriesRenderPlan,
   toCandlestickPoint,
   toLinePoint,
@@ -248,6 +249,8 @@ const backgroundHistoryLabel = computed(() => {
       return ''
   }
 })
+
+const chartDataRenderSignal = computed(() => getChartDataRenderSignal(props.data))
 
 const trimTrailingZeros = (value: string) => value.replace(/\.?0+$/, '')
 
@@ -1089,7 +1092,7 @@ const calculateBollingerBands = (candleData: CandlestickData[], period: number =
   return { upper, middle, lower }
 }
 
-watch(() => props.data, updateChartData, { deep: true })
+watch([() => props.data, chartDataRenderSignal], updateChartData)
 watch(() => props.chartType, () => {
   createMainSeries()
   updateChartData()

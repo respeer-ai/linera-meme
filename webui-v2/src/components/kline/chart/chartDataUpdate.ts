@@ -19,6 +19,8 @@ export type PrimarySeriesRenderPlan =
       changedPoints: KLineData[]
     }
 
+const DEFAULT_RENDER_SIGNAL_TAIL_SIZE = 8
+
 const pointsEqual = (left: KLineData, right: KLineData) => (
   left.time === right.time &&
   left.open === right.open &&
@@ -104,6 +106,21 @@ export const resolvePrimarySeriesRenderPlan = ({
     changedFromIndex,
     changedPoints: next.slice(changedFromIndex),
   }
+}
+
+export const getChartDataRenderSignal = (
+  data: KLineData[],
+  tailSize = DEFAULT_RENDER_SIGNAL_TAIL_SIZE,
+) => {
+  if (!data.length) return '0'
+
+  const firstTime = data[0]?.time ?? 0
+  const tail = data.slice(Math.max(data.length - tailSize, 0))
+  const tailSignature = tail
+    .map((point) => [point.time, point.open, point.high, point.low, point.close, point.volume].join(':'))
+    .join('|')
+
+  return `${data.length}#${firstTime}#${tailSignature}`
 }
 
 export const toCandlestickPoint = (data: KLineData): CandlestickData => ({

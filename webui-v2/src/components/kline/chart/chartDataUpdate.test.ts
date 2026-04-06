@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type { KLineData } from './KlineData'
 import {
+  getChartDataRenderSignal,
   resolvePrimarySeriesRenderPlan,
   toCandlestickPoint,
   toLinePoint,
@@ -121,6 +122,44 @@ describe('resolvePrimarySeriesRenderPlan', () => {
       changedFromIndex: 2,
       changedPoints: [],
     })
+  })
+})
+
+describe('getChartDataRenderSignal', () => {
+  test('changes when a new tail bar is appended', () => {
+    const previous = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      point(120, 1.5, 2.5, 1, 2, 12),
+    ]
+    const next = [
+      ...previous,
+      point(180, 2, 3, 1.8, 2.6, 15),
+    ]
+
+    expect(getChartDataRenderSignal(next) === getChartDataRenderSignal(previous)).toBe(false)
+  })
+
+  test('changes when the latest tail bar is overwritten in place', () => {
+    const previous = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      point(120, 1.5, 2.5, 1, 2, 12),
+    ]
+    const next = [
+      point(60, 1, 2, 0.5, 1.5, 10),
+      point(120, 1.5, 2.8, 1, 2.3, 18),
+    ]
+
+    expect(getChartDataRenderSignal(next) === getChartDataRenderSignal(previous)).toBe(false)
+  })
+
+  test('ignores deep mutations outside the tracked trailing window', () => {
+    const previous = Array.from({ length: 12 }, (_, index) =>
+      point((index + 1) * 60, index + 1, index + 2, index + 0.5, index + 1.5, index + 10))
+    const next = previous.map((item, index) => index === 0
+      ? point(item.time, item.open, item.high + 1, item.low, item.close + 1, item.volume + 10)
+      : item)
+
+    expect(getChartDataRenderSignal(next)).toBe(getChartDataRenderSignal(previous))
   })
 })
 
