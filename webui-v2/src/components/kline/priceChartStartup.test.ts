@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
+import { Interval } from 'src/stores/kline/const'
 
 import {
+  getFirstScreenFetchWindowSize,
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
@@ -80,7 +82,7 @@ describe('resolveNextFetchTimestamp', () => {
   test('builds a parallel startup plan with full cache load and latest-window fetch', () => {
     expect(resolveStartupRequestPlan({
       nowMs: 1_000_000,
-      windowSize: 300_000,
+      interval: Interval.FIVE_MINUTE,
       poolCreatedAt: 100_000,
     })).toEqual({
       load: {
@@ -92,7 +94,7 @@ describe('resolveNextFetchTimestamp', () => {
       },
       fetchLatest: {
         reverse: false,
-        startAt: 700_000,
+        startAt: 100_000,
         endAt: 1_000_000,
       },
     })
@@ -101,12 +103,19 @@ describe('resolveNextFetchTimestamp', () => {
   test('clamps the startup latest-window fetch to pool creation time', () => {
     expect(resolveStartupRequestPlan({
       nowMs: 1_000_000,
-      windowSize: 300_000,
+      interval: Interval.ONE_MINUTE,
       poolCreatedAt: 900_000,
     }).fetchLatest).toEqual({
       reverse: false,
       startAt: 900_000,
       endAt: 1_000_000,
     })
+  })
+
+  test('defines an explicit first-screen fetch window per interval', () => {
+    expect(getFirstScreenFetchWindowSize(Interval.ONE_MINUTE)).toBe(1 * 3600 * 1000)
+    expect(getFirstScreenFetchWindowSize(Interval.FIVE_MINUTE)).toBe(5 * 3600 * 1000)
+    expect(getFirstScreenFetchWindowSize(Interval.TEN_MINUTE)).toBe(10 * 3600 * 1000)
+    expect(getFirstScreenFetchWindowSize(Interval.ONE_HOUR)).toBe(24 * 3600 * 1000)
   })
 })

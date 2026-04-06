@@ -1,3 +1,5 @@
+import { Interval } from 'src/stores/kline/const'
+
 export enum SortReason {
   FETCH = 'Fetch',
   LOAD = 'Load',
@@ -42,7 +44,7 @@ export type StartupFetchRequest = {
 
 type StartupRequestPlanInput = {
   nowMs: number
-  windowSize: number
+  interval: Interval
   poolCreatedAt: number
 }
 
@@ -53,6 +55,29 @@ export type StartupRequestPlan = {
     limit: number
   }
   fetchLatest: StartupFetchRequest
+}
+
+export const getFirstScreenFetchWindowSize = (interval: Interval): number => {
+  switch (interval) {
+    case Interval.ONE_MINUTE:
+      return 1 * 3600 * 1000
+    case Interval.FIVE_MINUTE:
+      return 5 * 3600 * 1000
+    case Interval.TEN_MINUTE:
+      return 10 * 3600 * 1000
+    case Interval.FIFTEEN_MINUTE:
+      return 15 * 3600 * 1000
+    case Interval.ONE_HOUR:
+      return 24 * 3600 * 1000
+    case Interval.FOUR_HOUR:
+      return 4 * 24 * 3600 * 1000
+    case Interval.ONE_DAY:
+      return 30 * 24 * 3600 * 1000
+    case Interval.ONE_MONTH:
+      return 365 * 24 * 3600 * 1000
+    default:
+      return 1 * 3600 * 1000
+  }
 }
 
 type NextFetchDecisionInput = {
@@ -100,9 +125,10 @@ export const resolveLoadRange = ({
 
 export const resolveStartupRequestPlan = ({
   nowMs,
-  windowSize,
+  interval,
   poolCreatedAt,
 }: StartupRequestPlanInput): StartupRequestPlan => {
+  const windowSize = getFirstScreenFetchWindowSize(interval)
   const latestWindowStart = Math.max(poolCreatedAt, nowMs - windowSize)
 
   return {

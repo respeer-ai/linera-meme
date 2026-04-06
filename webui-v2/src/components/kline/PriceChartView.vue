@@ -29,7 +29,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, SortReason, type Reason } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, SortReason, type Reason } from './priceChartStartup'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -95,29 +95,7 @@ watch(toolbarConfig, (newConfig) => {
 
 const selectedInterval = computed(() => toolbarConfig.value.interval)
 
-// 根据时间周期获取数据加载窗口大小（毫秒）
-const getWindowSize = (interval: kline.Interval): number => {
-  switch (interval) {
-    case kline.Interval.ONE_MINUTE:
-      return 1 * 3600 * 1000 // 1小时
-    case kline.Interval.FIVE_MINUTE:
-      return 5 * 3600 * 1000 // 5小时
-    case kline.Interval.TEN_MINUTE:
-      return 10 * 3600 * 1000 // 10小时
-    case kline.Interval.FIFTEEN_MINUTE:
-      return 15 * 3600 * 1000 // 15小时
-    case kline.Interval.ONE_HOUR:
-      return 24 * 3600 * 1000 // 1天
-    case kline.Interval.FOUR_HOUR:
-      return 4 * 24 * 3600 * 1000 // 4天
-    case kline.Interval.ONE_DAY:
-      return 30 * 24 * 3600 * 1000 // 30天
-    case kline.Interval.ONE_MONTH:
-      return 365 * 24 * 3600 * 1000 // 1年
-    default:
-      return 1 * 3600 * 1000
-  }
-}
+const getWindowSize = (interval: kline.Interval): number => getFirstScreenFetchWindowSize(interval)
 
 // 根据时间周期获取最大数据点数（用于内存管理，不影响 IndexedDB 存储）
 const getMaxPoints = (interval: kline.Interval): number => {
@@ -291,7 +269,7 @@ const getStoreKline = () => {
     klinePoints.value = []
     const startupPlan = resolveStartupRequestPlan({
       nowMs: Date.now(),
-      windowSize: getWindowSize(selectedInterval.value),
+      interval: selectedInterval.value,
       poolCreatedAt: poolCreatedAt.value
     })
 
