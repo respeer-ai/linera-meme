@@ -7,6 +7,8 @@ import {
   resolveLoadRange,
   resolveNextFetchTimestamp,
   resolveStartupRequestPlan,
+  shouldDeferHistoryLoadUntilFirstPaint,
+  shouldScheduleBackgroundHistoryBackfill,
   SortReason,
   type Reason
 } from './priceChartStartup'
@@ -117,5 +119,40 @@ describe('resolveNextFetchTimestamp', () => {
     expect(getFirstScreenFetchWindowSize(Interval.FIVE_MINUTE)).toBe(5 * 3600 * 1000)
     expect(getFirstScreenFetchWindowSize(Interval.TEN_MINUTE)).toBe(10 * 3600 * 1000)
     expect(getFirstScreenFetchWindowSize(Interval.ONE_HOUR)).toBe(24 * 3600 * 1000)
+  })
+
+  test('defers old-history loads until first paint is ready', () => {
+    expect(shouldDeferHistoryLoadUntilFirstPaint({
+      direction: 'old',
+      firstScreenReady: false,
+    })).toBe(true)
+
+    expect(shouldDeferHistoryLoadUntilFirstPaint({
+      direction: 'new',
+      firstScreenReady: false,
+    })).toBe(false)
+  })
+
+  test('schedules one background history backfill only after first paint', () => {
+    expect(shouldScheduleBackgroundHistoryBackfill({
+      firstScreenReady: true,
+      backgroundHistoryQueued: false,
+      minPointTimestamp: 2_000,
+      poolCreatedAt: 1_000,
+    })).toBe(true)
+
+    expect(shouldScheduleBackgroundHistoryBackfill({
+      firstScreenReady: false,
+      backgroundHistoryQueued: false,
+      minPointTimestamp: 2_000,
+      poolCreatedAt: 1_000,
+    })).toBe(false)
+
+    expect(shouldScheduleBackgroundHistoryBackfill({
+      firstScreenReady: true,
+      backgroundHistoryQueued: true,
+      minPointTimestamp: 2_000,
+      poolCreatedAt: 1_000,
+    })).toBe(false)
   })
 })

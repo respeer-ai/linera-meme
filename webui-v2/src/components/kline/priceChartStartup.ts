@@ -57,6 +57,18 @@ export type StartupRequestPlan = {
   fetchLatest: StartupFetchRequest
 }
 
+type HistoryLoadDeferralInput = {
+  direction: 'new' | 'old'
+  firstScreenReady: boolean
+}
+
+type BackgroundHistoryScheduleInput = {
+  firstScreenReady: boolean
+  backgroundHistoryQueued: boolean
+  minPointTimestamp: number
+  poolCreatedAt: number
+}
+
 export const getFirstScreenFetchWindowSize = (interval: Interval): number => {
   switch (interval) {
     case Interval.ONE_MINUTE:
@@ -79,6 +91,21 @@ export const getFirstScreenFetchWindowSize = (interval: Interval): number => {
       return 1 * 3600 * 1000
   }
 }
+
+export const shouldDeferHistoryLoadUntilFirstPaint = ({
+  direction,
+  firstScreenReady,
+}: HistoryLoadDeferralInput): boolean => direction === 'old' && !firstScreenReady
+
+export const shouldScheduleBackgroundHistoryBackfill = ({
+  firstScreenReady,
+  backgroundHistoryQueued,
+  minPointTimestamp,
+  poolCreatedAt,
+}: BackgroundHistoryScheduleInput): boolean =>
+  firstScreenReady &&
+  !backgroundHistoryQueued &&
+  minPointTimestamp > poolCreatedAt
 
 type NextFetchDecisionInput = {
   reverse: boolean

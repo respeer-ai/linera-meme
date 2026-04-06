@@ -29,7 +29,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, SortReason, type Reason } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason } from './priceChartStartup'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -153,6 +153,8 @@ const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.v
 
 const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
+const firstScreenReady = ref(false)
+const backgroundHistoryQueued = ref(false)
 const pendingLoadDirections = ref([] as LoadDirection[])
 const currentRequestId = ref(0)
 const startupBaselineRecorder = createStartupBaselineRecorder()
@@ -267,6 +269,9 @@ const getStoreKline = () => {
       token1: sellToken.value
     })
     klinePoints.value = []
+    firstScreenReady.value = false
+    backgroundHistoryQueued.value = false
+    pendingLoadDirections.value = []
     const startupPlan = resolveStartupRequestPlan({
       nowMs: Date.now(),
       interval: selectedInterval.value,
@@ -404,6 +409,14 @@ const onLoadSorted = (reverse: boolean, timestamp: number) => {
 }
 
 const requestEdgeLoad = (direction: LoadDirection, timestamp: number) => {
+  if (shouldDeferHistoryLoadUntilFirstPaint({
+    direction,
+    firstScreenReady: firstScreenReady.value
+  })) {
+    pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, direction)
+    return
+  }
+
   if (loading.value) {
     pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, direction)
     return
@@ -436,9 +449,25 @@ const flushPendingLoad = () => {
   requestEdgeLoad(next, anchorTimestamp)
 }
 
+const queueBackgroundHistoryBackfill = () => {
+  if (!shouldScheduleBackgroundHistoryBackfill({
+    firstScreenReady: firstScreenReady.value,
+    backgroundHistoryQueued: backgroundHistoryQueued.value,
+    minPointTimestamp: minPointTimestamp.value,
+    poolCreatedAt: poolCreatedAt.value
+  })) return
+
+  backgroundHistoryQueued.value = true
+  pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, 'old')
+}
+
 const finishLoading = (requestId: number) => {
   loading.value = false
   void nextTick(() => {
+    if (!firstScreenReady.value) {
+      firstScreenReady.value = true
+      queueBackgroundHistoryBackfill()
+    }
     startupInstrumentation.markFirstRender({
       requestId,
       pointCount: klinePoints.value.length
