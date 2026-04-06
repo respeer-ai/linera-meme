@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, onBeforeUnmount, computed, watch, onBeforeMount, toRef } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, onBeforeMount, toRef, nextTick } from 'vue'
 import { kline, swap, ams } from 'src/stores/export'
 // import { useRouter } from 'vue-router'
 import { klineWorker } from 'src/worker'
@@ -28,6 +28,9 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
+import { resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, SortReason, type Reason } from './priceChartStartup'
+import { createStartupInstrumentation } from './startupInstrumentation'
+import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
 
 const STORAGE_KEY = 'kline_chart_settings'
 
@@ -170,7 +173,13 @@ const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.v
 
 const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
+const pendingLoadDirections = ref([] as LoadDirection[])
 const currentRequestId = ref(0)
+const startupInstrumentation = createStartupInstrumentation({
+  emit: (event) => {
+    console.info('[PriceChartStartup]', JSON.stringify(event))
+  }
+})
 
 const maxPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
   item.time > max.time ? item : max
@@ -222,18 +231,28 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
   if (buyToken.value === sellToken.value) return false
 
   loading.value = true
-
-  klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_POINTS, {
+  const loadRange = resolveLoadRange({
+    timestampBegin,
+    timestampEnd
+  })
+  const loadPayload: klineWorker.LoadPointsPayload = {
     token0: buyToken.value,
     token1: sellToken.value,
     offset: offset || 0,
     limit: limit || 100,
     interval: selectedInterval.value,
     reverse,
-    timestampBegin: timestampBegin || 0,
-    timestampEnd: timestampEnd || 0,
     requestId: currentRequestId.value,
-  })
+  }
+
+  if (loadRange.timestampBegin !== undefined) {
+    loadPayload.timestampBegin = loadRange.timestampBegin
+  }
+  if (loadRange.timestampEnd !== undefined) {
+    loadPayload.timestampEnd = loadRange.timestampEnd
+  }
+
+  klineWorker.KlineWorker.send(klineWorker.KlineEventType.LOAD_POINTS, loadPayload)
 
   return true
 }
@@ -242,6 +261,12 @@ const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
     currentRequestId.value += 1
+    startupInstrumentation.begin({
+      requestId: currentRequestId.value,
+      interval: selectedInterval.value,
+      token0: buyToken.value,
+      token1: sellToken.value
+    })
     klinePoints.value = []
 
     loadKline(0, 100, undefined, undefined, true)
@@ -269,21 +294,6 @@ watch(selectedInterval, () => {
   getStoreKline()
 })
 
-enum SortReason {
-  FETCH = 'Fetch',
-  LOAD = 'Load'
-}
-
-type ReasonPayload = {
-  startAt: number,
-  endAt: number,
-}
-
-interface Reason {
-  reason: SortReason
-  payload: ReasonPayload
-}
-
 const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
     token0: buyToken.value,
@@ -310,17 +320,22 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   if (requestId !== currentRequestId.value) return
   if (interval !== selectedInterval.value) return
 
+  startupInstrumentation.markNetworkFetched({
+    requestId,
+    pointCount: _points.points.length
+  })
+
   const windowSize = getWindowSize(selectedInterval.value)
   const startAt = reverse ? _points.start_at - windowSize : _points.end_at + 1
   const endAt = reverse ? _points.start_at - 1 : _points.end_at + windowSize
 
-  updatePoints(_points.points, {
-    reason: SortReason.FETCH,
-    payload: {
-      startAt,
-      endAt
-    }
-  }, true)
+  const fetchSortDecision = resolveFetchSortDecision({
+    reverse,
+    startAt,
+    endAt
+  })
+
+  updatePoints(_points.points, fetchSortDecision.reason, fetchSortDecision.reverse)
 }
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
@@ -340,6 +355,11 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     console.log('[PriceChartView] Interval mismatch, ignoring old data')
     return
   }
+
+  startupInstrumentation.markCacheLoaded({
+    requestId,
+    pointCount: _points.length
+  })
 
   const windowSize = getWindowSize(selectedInterval.value)
   const startAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - windowSize : (timestampEnd ?? maxPointTimestamp.value) + 1
@@ -368,6 +388,50 @@ const onLoadSorted = (reverse: boolean, timestamp: number) => {
   loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
 }
 
+const requestEdgeLoad = (direction: LoadDirection, timestamp: number) => {
+  if (loading.value) {
+    pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, direction)
+    return
+  }
+
+  if (direction === 'new') {
+    if (timestamp * 1000 < maxPointTimestamp.value) return
+    loading.value = true
+    onLoadSorted(false, timestamp * 1000)
+    return
+  }
+
+  if (timestamp * 1000 > minPointTimestamp.value) return
+  loading.value = true
+  onLoadSorted(true, timestamp * 1000)
+}
+
+const flushPendingLoad = () => {
+  if (loading.value) return
+
+  const { next, remaining } = dequeueLoadDirection(pendingLoadDirections.value)
+  pendingLoadDirections.value = remaining
+
+  if (!next) return
+
+  const anchorTimestamp = next === 'new'
+    ? Math.floor(maxPointTimestamp.value / 1000)
+    : Math.floor(minPointTimestamp.value / 1000)
+
+  requestEdgeLoad(next, anchorTimestamp)
+}
+
+const finishLoading = (requestId: number) => {
+  loading.value = false
+  void nextTick(() => {
+    startupInstrumentation.markFirstRender({
+      requestId,
+      pointCount: klinePoints.value.length
+    })
+    flushPendingLoad()
+  })
+}
+
 const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   const { points, token0, token1, reverse, reason, requestId } = payload
   const _reason = reason as Reason
@@ -376,12 +440,14 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   if (requestId !== currentRequestId.value) return
 
   if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {
-    let timestamp = reverse ? maxPointTimestamp.value : minPointTimestamp.value
-    if (_reason.reason === SortReason.FETCH) {
-      timestamp = reverse ? _reason.payload.startAt : _reason.payload.endAt
-    }
-    if (timestamp < poolCreatedAt.value) return
-    if (timestamp > new Date().getTime()) return
+    const timestamp = resolveNextFetchTimestamp({
+      reverse,
+      reason: _reason,
+      minPointTimestamp: minPointTimestamp.value,
+      maxPointTimestamp: maxPointTimestamp.value
+    })
+    if (timestamp < poolCreatedAt.value) return finishLoading(requestId)
+    if (timestamp > new Date().getTime()) return finishLoading(requestId)
     return onFetchSorted(reverse, timestamp)
   }
 
@@ -393,6 +459,12 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     }
   })
 
+  startupInstrumentation.markPointsMerged({
+    requestId,
+    pointCount: points.length,
+    source: _reason.reason === SortReason.LOAD ? 'cache' : 'network'
+  })
+
   // 内存管理：如果数据点过多，只保留最近的数据在内存中
   const maxMemoryPoints = getMaxPoints(selectedInterval.value)
   if (klinePoints.value.length > maxMemoryPoints * 1.5) {
@@ -401,21 +473,15 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     klinePoints.value = klinePoints.value.slice(-maxMemoryPoints)
   }
 
-  loading.value = false
+  finishLoading(requestId)
 }
 
 const onLoadNewData = (timestamp: number) => {
-  if (loading.value) return
-  loading.value = true
-  if (timestamp * 1000 < maxPointTimestamp.value) return
-  onLoadSorted(false, timestamp * 1000)
+  requestEdgeLoad('new', timestamp)
 }
 
 const onLoadOldData = (timestamp: number) => {
-  if (loading.value) return
-  loading.value = true
-  if (timestamp * 1000 > minPointTimestamp.value) return
-  onLoadSorted(true, timestamp * 1000)
+  requestEdgeLoad('old', timestamp)
 }
 
 onBeforeMount(() => {

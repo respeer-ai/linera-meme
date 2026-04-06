@@ -94,6 +94,7 @@ import {
 import { useQuasar } from 'quasar'
 import { KLineData } from './KlineData'
 import { ChartType } from '../ChartType'
+import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 
 export interface IndicatorConfig {
   ma: {
@@ -803,16 +804,22 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 
   const fromIndex = Math.max(Math.floor(logicalRange.from), 0)
   const toIndex = Math.min(Math.ceil(logicalRange.to), props.data.length - 1)
+  const loadDecision = resolveVisibleRangeLoadDecision({
+    range: logicalRange,
+    dataLength: props.data.length
+  })
 
   const firstVisibleTime = props.data[fromIndex]?.time || 0
   const lastVisibleTime = props.data[toIndex]?.time || 0
 
-  if (props.data[0] && firstVisibleTime && firstVisibleTime <= props.data[0].time) {
-    emit('load-old-data', props.data[0]?.time)
-  }
   const lastIndex = props.data.length - 1
-  if (props.data[lastIndex] && lastVisibleTime && lastVisibleTime >= props.data[lastIndex].time) {
-    emit('load-new-data', props.data[lastIndex]?.time)
+  for (const direction of loadDecision.loadOrder) {
+    if (direction === 'new' && props.data[lastIndex] && lastVisibleTime && lastVisibleTime >= props.data[lastIndex].time) {
+      emit('load-new-data', props.data[lastIndex]?.time)
+    }
+    if (direction === 'old' && props.data[0] && firstVisibleTime && firstVisibleTime <= props.data[0].time) {
+      emit('load-old-data', props.data[0]?.time)
+    }
   }
 }
 
