@@ -3,6 +3,9 @@ import { describe, expect, test } from 'bun:test'
 import type { KLineData } from './KlineData'
 import {
   getChartDataRenderSignal,
+  shouldFitContentOnFirstRender,
+  shouldScrollToLatestOnFirstRender,
+  resolveVisibleLogicalRangeAfterPrimaryRender,
   resolveVisibleLogicalRangeRestore,
   resolvePrimarySeriesRenderPlan,
   toCandlestickPoint,
@@ -243,6 +246,134 @@ describe('resolveVisibleLogicalRangeRestore', () => {
         point(150, 1.7, 2.7, 1.2, 2.2, 13),
       ],
       previousRange: { from: 10, to: 30 },
+    })).toBe(null)
+  })
+})
+
+describe('shouldScrollToLatestOnFirstRender', () => {
+  test('does not auto-scroll when the initial dataset is too short to support a latest-edge anchor', () => {
+    expect(shouldScrollToLatestOnFirstRender({
+      previousData: [],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      previousRange: null,
+      minimumDataPointsToAnchor: 14,
+    })).toBe(false)
+  })
+
+  test('anchors the chart to the latest edge on the first full render once enough bars exist', () => {
+    expect(shouldScrollToLatestOnFirstRender({
+      previousData: [],
+      nextData: Array.from({ length: 14 }, (_, index) => point(
+        (index + 1) * 60,
+        index + 1,
+        index + 2,
+        index + 0.5,
+        index + 1.5,
+        index + 10,
+      )),
+      previousRange: null,
+      minimumDataPointsToAnchor: 14,
+    })).toBe(true)
+  })
+
+  test('does not auto-scroll when a previous logical range already exists', () => {
+    expect(shouldScrollToLatestOnFirstRender({
+      previousData: [],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+      ],
+      previousRange: { from: -0.5, to: 0.5 },
+      minimumDataPointsToAnchor: 14,
+    })).toBe(false)
+  })
+
+  test('does not auto-scroll on incremental refreshes once data has already rendered', () => {
+    expect(shouldScrollToLatestOnFirstRender({
+      previousData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+      ],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      previousRange: null,
+      minimumDataPointsToAnchor: 14,
+    })).toBe(false)
+  })
+})
+
+describe('shouldFitContentOnFirstRender', () => {
+  test('fits content when the first render has too few bars for a latest-edge anchor', () => {
+    expect(shouldFitContentOnFirstRender({
+      previousData: [],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      previousRange: null,
+      minimumDataPointsToAnchor: 14,
+    })).toBe(true)
+  })
+
+  test('does not fit content once enough bars exist to anchor the latest edge', () => {
+    expect(shouldFitContentOnFirstRender({
+      previousData: [],
+      nextData: Array.from({ length: 14 }, (_, index) => point(
+        (index + 1) * 60,
+        index + 1,
+        index + 2,
+        index + 0.5,
+        index + 1.5,
+        index + 10,
+      )),
+      previousRange: null,
+      minimumDataPointsToAnchor: 14,
+    })).toBe(false)
+  })
+})
+
+describe('resolveVisibleLogicalRangeAfterPrimaryRender', () => {
+  test('restores the logical range after a full render caused by prepended historical candles', () => {
+    expect(resolveVisibleLogicalRangeAfterPrimaryRender({
+      renderMode: 'full',
+      previousData: [
+        point(120, 1.5, 2.5, 1, 2, 12),
+        point(180, 2, 3, 1.8, 2.6, 15),
+      ],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+        point(180, 2, 3, 1.8, 2.6, 15),
+      ],
+      previousRange: { from: 0, to: 1 },
+    })).toEqual({ from: 1, to: 2 })
+  })
+
+  test('does not restore a logical range for incremental renders', () => {
+    expect(resolveVisibleLogicalRangeAfterPrimaryRender({
+      renderMode: 'incremental',
+      previousData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+      ],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      previousRange: { from: 0, to: 1 },
+    })).toBe(null)
+  })
+
+  test('does not restore a logical range on the first full render', () => {
+    expect(resolveVisibleLogicalRangeAfterPrimaryRender({
+      renderMode: 'full',
+      previousData: [],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+      ],
+      previousRange: null,
     })).toBe(null)
   })
 })

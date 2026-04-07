@@ -39,4 +39,25 @@ describe('mergeKlinePoints', () => {
       point(3_000, 30),
     ])
   })
+
+  test('removes synthetic zero-volume candles anywhere in the merged history', () => {
+    const merged = mergeKlinePoints({
+      originPoints: [
+        { ...point(1_000, 10), volume: 5 },
+        { ...point(2_000, 10), volume: 0 },
+        { ...point(3_000, 10), volume: 0 },
+      ],
+      newPoints: [
+        { ...point(4_000, 12), volume: 7 },
+        { ...point(5_000, 12), volume: 0 },
+        { ...point(6_000, 12), volume: 0 },
+      ],
+      reason: { reason: 'Fetch' },
+    })
+
+    expect(merged).toEqual([
+      { ...point(1_000, 10), volume: 5 },
+      { ...point(4_000, 12), volume: 7 },
+    ])
+  })
 })

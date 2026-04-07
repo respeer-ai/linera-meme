@@ -61,6 +61,10 @@ def build_candle_point_payload(interval: str, bucket_start_ms: int, point: dict,
     }
 
 
+def filter_zero_volume_candles(points: list[dict]):
+    return [point for point in points if float(point['volume']) > 0]
+
+
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
 
@@ -617,38 +621,18 @@ class Db:
             for row in rows
         }
 
-        json_data = []
-        last_close = None
-        bucket_start_ms = query_start_at
         now_ms = self.now_ms()
-        while bucket_start_ms <= query_end_at:
-            row = rows_by_bucket.get(bucket_start_ms)
-            if row is None:
-                if last_close is not None:
-                    json_data.append(build_candle_point_payload(
-                        interval=interval,
-                        bucket_start_ms=bucket_start_ms,
-                        point={
-                            'open': last_close,
-                            'high': last_close,
-                            'low': last_close,
-                            'close': last_close,
-                            'volume': 0.0,
-                        },
-                        now_ms=now_ms,
-                    ))
-            else:
-                point = build_candle_point_payload(
-                    interval=interval,
-                    bucket_start_ms=bucket_start_ms,
-                    point=row,
-                    now_ms=now_ms,
-                )
-                json_data.append(point)
-                last_close = point['close']
-            bucket_start_ms += bucket_ms
+        json_data = [
+            build_candle_point_payload(
+                interval=interval,
+                bucket_start_ms=int(row['bucket_start_ms']),
+                point=row,
+                now_ms=now_ms,
+            )
+            for row in rows
+        ]
 
-        return json_data
+        return filter_zero_volume_candles(json_data)
 
     def get_kline_from_transactions(
         self,
@@ -677,17 +661,6 @@ class Db:
         df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
         df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
 
-        last_close = None
-        for idx, row in df_interval.iterrows():
-            if row['volume'] == 0 and last_close is not None:
-                if last_close is not None:
-                    df_interval.at[idx, 'open'] = last_close
-                    df_interval.at[idx, 'high'] = last_close
-                    df_interval.at[idx, 'low'] = last_close
-                    df_interval.at[idx, 'close'] = last_close
-            else:
-                last_close = row['close']
-
         json_data = []
         for index, row in df_interval.iterrows():
             json_data.append(build_candle_point_payload(
@@ -697,7 +670,7 @@ class Db:
                 now_ms=self.now_ms(),
             ))
 
-        return json_data
+        return filter_zero_volume_candles(json_data)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         # Only use full minutes data. Only for minute currently

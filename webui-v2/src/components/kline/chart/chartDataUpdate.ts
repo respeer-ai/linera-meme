@@ -179,6 +179,59 @@ export const resolveVisibleLogicalRangeRestore = ({
   }
 }
 
+export const shouldScrollToLatestOnFirstRender = ({
+  previousData,
+  nextData,
+  previousRange,
+  minimumDataPointsToAnchor = 1,
+}: {
+  previousData: KLineData[]
+  nextData: KLineData[]
+  previousRange: LogicalRange | null
+  minimumDataPointsToAnchor?: number
+}) => (
+  !previousData.length &&
+  nextData.length >= minimumDataPointsToAnchor &&
+  previousRange === null
+)
+
+export const shouldFitContentOnFirstRender = ({
+  previousData,
+  nextData,
+  previousRange,
+  minimumDataPointsToAnchor = 1,
+}: {
+  previousData: KLineData[]
+  nextData: KLineData[]
+  previousRange: LogicalRange | null
+  minimumDataPointsToAnchor?: number
+}) => (
+  !previousData.length &&
+  nextData.length > 0 &&
+  nextData.length < minimumDataPointsToAnchor &&
+  previousRange === null
+)
+
+export const resolveVisibleLogicalRangeAfterPrimaryRender = ({
+  renderMode,
+  previousData,
+  nextData,
+  previousRange,
+}: {
+  renderMode: PrimarySeriesRenderPlan['mode']
+  previousData: KLineData[]
+  nextData: KLineData[]
+  previousRange: LogicalRange | null
+}) => {
+  if (renderMode !== 'full') return null
+
+  return resolveVisibleLogicalRangeRestore({
+    previousData,
+    nextData,
+    previousRange,
+  })
+}
+
 export const toCandlestickPoint = (data: KLineData): CandlestickData => ({
   time: data.time as Time,
   open: data.open,

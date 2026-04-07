@@ -90,10 +90,13 @@ class WebSocketManager:
             subscriptions = self.kline_subscriptions.get(connection) or set()
             points = {}
 
-            if payload is not None and len(subscriptions) > 0:
-                points = self.filter_incremental_kline_payload(payload, subscriptions)
-                if len(points) == 0:
-                    continue
+            if payload is not None:
+                if len(subscriptions) > 0:
+                    points = self.filter_incremental_kline_payload(payload, subscriptions)
+                    if len(points) == 0:
+                        continue
+                else:
+                    points = payload
             elif len(subscriptions) == 0:
                 for interval in intervals:
                     interval_points = []

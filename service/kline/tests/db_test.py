@@ -566,7 +566,7 @@ class DbCandleQueryTest(unittest.TestCase):
             'volume': 10.0,
         }])
 
-    def test_get_kline_preserves_gap_fill_with_previous_close(self):
+    def test_get_kline_does_not_fill_internal_gaps_with_previous_close(self):
         db = self.create_db()
         connection = self.connections[-1]
         connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
@@ -603,7 +603,9 @@ class DbCandleQueryTest(unittest.TestCase):
         }
 
         with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            _, _, points = db.get_kline(
+            points = db.get_kline_from_candles(
+                pool_id=7,
+                token_reversed=False,
                 token_0='AAA',
                 token_1='BBB',
                 start_at=1_800_000_000_000,
@@ -624,17 +626,6 @@ class DbCandleQueryTest(unittest.TestCase):
                 'volume': 10.0,
             },
             {
-                'timestamp': 1_800_000_060_000,
-                'bucket_start_ms': 1_800_000_060_000,
-                'bucket_end_ms': 1_800_000_119_999,
-                'is_final': True,
-                'open': 2.5,
-                'high': 2.5,
-                'low': 2.5,
-                'close': 2.5,
-                'volume': 0.0,
-            },
-            {
                 'timestamp': 1_800_000_120_000,
                 'bucket_start_ms': 1_800_000_120_000,
                 'bucket_end_ms': 1_800_000_179_999,
@@ -646,6 +637,49 @@ class DbCandleQueryTest(unittest.TestCase):
                 'volume': 6.0,
             },
         ])
+
+    def test_get_kline_does_not_extend_gap_fill_beyond_latest_real_candle(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 1.5,
+            'close': 2.5,
+            'volume': 10.0,
+            'trade_count': 2,
+            'first_trade_id': 10,
+            'last_trade_id': 11,
+            'first_trade_at_ms': 1_800_000_001_000,
+            'last_trade_at_ms': 1_800_000_030_000,
+        }
+
+        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
+            points = db.get_kline_from_candles(
+                pool_id=7,
+                token_reversed=False,
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_180_000,
+                interval='1min',
+            )
+
+        self.assertEqual(points, [{
+            'timestamp': 1_800_000_000_000,
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': True,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 1.5,
+            'close': 2.5,
+            'volume': 10.0,
+        }])
 
     def test_get_kline_falls_back_when_candle_history_is_incomplete(self):
         db = self.create_db()
@@ -677,14 +711,6 @@ class DbCandleQueryTest(unittest.TestCase):
                 'volume': 10.0,
             },
             {
-                'timestamp': 1_800_000_060_000,
-                'open': 2.5,
-                'high': 2.5,
-                'low': 2.5,
-                'close': 2.5,
-                'volume': 0.0,
-            },
-            {
                 'timestamp': 1_800_000_120_000,
                 'open': 2.5,
                 'high': 2.8,
@@ -712,7 +738,7 @@ class DbCandleQueryTest(unittest.TestCase):
         candle_mock.assert_called_once()
         transaction_mock.assert_called_once()
         self.assertEqual(points[0]['timestamp'], 1_800_000_000_000)
-        self.assertEqual(len(points), 4)
+        self.assertEqual(len(points), 3)
 
     def test_get_kline_marks_latest_forming_bucket_explicitly(self):
         db = self.create_db()

@@ -104,6 +104,9 @@ import { ChartType } from '../ChartType'
 import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 import {
   getChartDataRenderSignal,
+  resolveVisibleLogicalRangeAfterPrimaryRender,
+  shouldFitContentOnFirstRender,
+  shouldScrollToLatestOnFirstRender,
   resolveVisibleLogicalRangeRestore,
   resolvePrimarySeriesRenderPlan,
   toCandlestickPoint,
@@ -453,6 +456,9 @@ const emit = defineEmits<{
   (e: 'indicators-ready'): void
 }>()
 
+const INITIAL_TIME_SCALE_RIGHT_OFFSET = 2
+const MIN_DATA_POINTS_TO_ANCHOR_LATEST = INITIAL_TIME_SCALE_RIGHT_OFFSET + 2
+
 const chartContainer = ref<HTMLDivElement | null>(null)
 let chart: IChartApi
 let mainSeries: ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Area'>
@@ -467,6 +473,8 @@ let bollMiddleSeries: ISeriesApi<'Line'> | null = null
 let bollLowerSeries: ISeriesApi<'Line'> | null = null
 let latestPriceLine: IPriceLine | null = null
 let resizeObserver: ResizeObserver | null = null
+let pendingScrollToLatestFrame: number | null = null
+let pendingFitContentFrame: number | null = null
 let lastRenderedPrimarySeriesData: KLineData[] = []
 const indicatorRenderScheduler = createIndicatorRenderScheduler({
   schedule: (run) => window.setTimeout(run, 0),
@@ -482,6 +490,32 @@ const getVisibleLogicalRange = () => chart?.timeScale().getVisibleLogicalRange()
 const restoreVisibleLogicalRange = (range: { from: number; to: number } | null) => {
   if (!chart || !range) return
   chart.timeScale().setVisibleLogicalRange(range)
+}
+
+const scheduleScrollToLatest = () => {
+  if (!chart) return
+
+  if (pendingScrollToLatestFrame !== null) {
+    window.cancelAnimationFrame(pendingScrollToLatestFrame)
+  }
+
+  pendingScrollToLatestFrame = window.requestAnimationFrame(() => {
+    pendingScrollToLatestFrame = null
+    chart?.timeScale().scrollToRealTime()
+  })
+}
+
+const scheduleFitContent = () => {
+  if (!chart) return
+
+  if (pendingFitContentFrame !== null) {
+    window.cancelAnimationFrame(pendingFitContentFrame)
+  }
+
+  pendingFitContentFrame = window.requestAnimationFrame(() => {
+    pendingFitContentFrame = null
+    chart?.timeScale().fitContent()
+  })
 }
 
 const rebuildSeriesPreservingVisibleRange = (rebuild: () => void) => {
@@ -689,7 +723,7 @@ const initChart = () => {
       secondsVisible: false,
       barSpacing: 9,
       minBarSpacing: 5,
-      rightOffset: 12
+      rightOffset: INITIAL_TIME_SCALE_RIGHT_OFFSET
     },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
     autoSize: false
@@ -1021,6 +1055,8 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 const updateChartData = () => {
   if (!mainSeries) return
 
+  const previousVisibleLogicalRange = getVisibleLogicalRange()
+
   if (!props.data.length) {
     ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
     volumeSeries?.setData([])
@@ -1116,6 +1152,29 @@ const updateChartData = () => {
     }
   }
 
+  if (primaryRenderPlan.mode === 'full' && shouldScrollToLatestOnFirstRender({
+    previousData: lastRenderedPrimarySeriesData,
+    nextData: props.data,
+    previousRange: previousVisibleLogicalRange,
+    minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+  })) {
+    scheduleScrollToLatest()
+  } else if (primaryRenderPlan.mode === 'full' && shouldFitContentOnFirstRender({
+    previousData: lastRenderedPrimarySeriesData,
+    nextData: props.data,
+    previousRange: previousVisibleLogicalRange,
+    minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+  })) {
+    scheduleFitContent()
+  } else {
+    restoreVisibleLogicalRange(resolveVisibleLogicalRangeAfterPrimaryRender({
+      renderMode: primaryRenderPlan.mode,
+      previousData: lastRenderedPrimarySeriesData,
+      nextData: props.data,
+      previousRange: previousVisibleLogicalRange,
+    }))
+  }
+
   if (!hasDeferredIndicators.value) {
     indicatorRenderScheduler.clear()
     clearIndicatorSeries()
@@ -1186,7 +1245,7 @@ const calculateBollingerBands = (candleData: CandlestickData[], period: number =
   return { upper, middle, lower }
 }
 
-watch([() => props.data, chartDataRenderSignal], updateChartData)
+watch(chartDataRenderSignal, updateChartData)
 watch(() => props.chartType, () => {
   rebuildSeriesPreservingVisibleRange(() => {
     createMainSeries()
@@ -1235,6 +1294,14 @@ watch(() => $q.dark.isActive, () => {
 onMounted(initChart)
 onBeforeUnmount(() => {
   indicatorRenderScheduler.clear()
+  if (pendingScrollToLatestFrame !== null) {
+    window.cancelAnimationFrame(pendingScrollToLatestFrame)
+    pendingScrollToLatestFrame = null
+  }
+  if (pendingFitContentFrame !== null) {
+    window.cancelAnimationFrame(pendingFitContentFrame)
+    pendingFitContentFrame = null
+  }
   resizeObserver?.disconnect()
   if (chartContainer.value) {
     chartContainer.value.removeEventListener('mouseleave', handleMouseLeave)

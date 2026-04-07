@@ -12,6 +12,17 @@ type MergePointsInput = {
 
 const isFetchReason = (reason: SortReasonLike) => reason.reason === 'Fetch'
 
+const isSyntheticEmptyPoint = (point: Point) => (
+  point.volume === 0 &&
+  point.open === point.high &&
+  point.high === point.low &&
+  point.low === point.close
+)
+
+const filterSyntheticEmptyPoints = (points: Point[]): Point[] => (
+  points.filter((point) => !isSyntheticEmptyPoint(point))
+)
+
 export const mergeKlinePoints = ({
   originPoints,
   newPoints,
@@ -34,5 +45,7 @@ export const mergeKlinePoints = ({
     }
   })
 
-  return merged.sort((p1, p2) => p1.timestamp - p2.timestamp)
+  return filterSyntheticEmptyPoints(
+    merged.sort((p1, p2) => p1.timestamp - p2.timestamp),
+  )
 }

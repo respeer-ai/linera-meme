@@ -175,9 +175,7 @@ impl TestSuite {
                         total_supply: Amount::from_tokens(21000000),
                         metadata: Metadata {
                             logo_store_type: StoreType::S3,
-                            logo: Some(CryptoHash::new(&TestString::new(
-                                "Test Logo".to_string(),
-                            ))),
+                            logo: Some(CryptoHash::new(&TestString::new("Test Logo".to_string()))),
                             description: "Test token description".to_string(),
                             twitter: None,
                             telegram: None,
@@ -243,7 +241,8 @@ impl TestSuite {
             .await
             .expect("pool creation certificate should exist");
         let description = Self::extract_chain_description(&certificate);
-        let pool_chain = ActiveChain::new(swap_chain.key_pair().copy(), description, validator.clone());
+        let pool_chain =
+            ActiveChain::new(swap_chain.key_pair().copy(), description, validator.clone());
         validator.add_chain(pool_chain.clone());
 
         pool_chain.handle_received_messages().await;
@@ -272,10 +271,12 @@ impl TestSuite {
             .await;
         let pool: PoolIndex =
             serde_json::from_value(response["pools"].as_array().unwrap()[0].clone()).unwrap();
-        let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner else {
+        let AccountOwner::Address32(application_description_hash) = pool.pool_application.owner
+        else {
             panic!("invalid pool application");
         };
-        let pool_application_id = ApplicationId::new(application_description_hash).with_abi::<PoolAbi>();
+        let pool_application_id =
+            ApplicationId::new(application_description_hash).with_abi::<PoolAbi>();
 
         let funding_amount = open_chain_fee_budget()
             .try_add(Amount::from_str("20").unwrap())
@@ -411,10 +412,7 @@ impl TestSuite {
         let (certificate, _) = self
             .meme_chain
             .add_block(|block| {
-                block.with_operation(
-                    self.meme_application_id,
-                    MemeOperation::Mine { nonce },
-                );
+                block.with_operation(self.meme_application_id, MemeOperation::Mine { nonce });
                 for certificate in &certificates {
                     block.with_messages_from_by_action(certificate, MessageAction::Accept);
                 }
@@ -562,7 +560,9 @@ impl TestSuite {
         }
         drop(sender);
 
-        let nonce = receiver.recv().expect("parallel nonce search should succeed");
+        let nonce = receiver
+            .recv()
+            .expect("parallel nonce search should succeed");
         found.store(true, AtomicOrdering::Relaxed);
         for handle in handles {
             let _ = handle.join();
@@ -664,7 +664,9 @@ fn is_abnormal(report: &KlineReport) -> bool {
     let dominant = report.buy_count.max(report.sell_count) as f64 / report.trade_count as f64;
     let longest_streak = report.longest_buy_streak.max(report.longest_sell_streak);
 
-    dominant >= 0.98 || longest_streak >= 16 || (longest_streak >= 10 && report.max_same_timestamp_cluster >= 8)
+    dominant >= 0.98
+        || longest_streak >= 16
+        || (longest_streak >= 10 && report.max_same_timestamp_cluster >= 8)
 }
 
 async fn run_kline_scenario(enable_mining: bool) -> KlineReport {

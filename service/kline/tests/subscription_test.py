@@ -178,6 +178,32 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             },
         }])
 
+    async def test_notify_kline_sends_incremental_payload_to_unsubscribed_connection_without_pool_scan(self):
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.kline_subscriptions[websocket] = set()
+
+        payload = {
+            '5min': [
+                {
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'interval': '5min',
+                    'start_at': 1_000,
+                    'end_at': 2_000,
+                    'points': [{'timestamp': 1_000, 'open': 1.0, 'high': 1.0, 'low': 1.0, 'close': 1.0, 'volume': 1.0}],
+                },
+            ],
+        }
+
+        await self.manager.notify_kline(payload)
+
+        self.assertEqual(self.db.calls, [])
+        self.assertEqual(websocket.sent, [{
+            'notification': 'kline',
+            'value': payload,
+        }])
+
 
 if __name__ == '__main__':
     unittest.main()
