@@ -70,6 +70,37 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('SELECT transaction_id, created_at, price, volume FROM transactions'):
+          pool_id = int(normalized.split('WHERE pool_id = ')[1].split(' ')[0])
+          token_reversed = normalized.split('AND token_reversed = ')[1].split(' ')[0] == 'True'
+          start_at = int(normalized.split('AND created_at >= ')[1].split(' ')[0])
+          end_at = int(normalized.split('AND created_at <= ')[1].split(' ')[0])
+          rows = []
+          for row in self.connection.transaction_rows:
+              if row[0] != pool_id:
+                  continue
+              if bool(row[12]) != token_reversed:
+                  continue
+              if row[2] in {'AddLiquidity', 'RemoveLiquidity'}:
+                  continue
+              if row[13] < start_at or row[13] > end_at:
+                  continue
+              rows.append({
+                  'transaction_id': row[1],
+                  'created_at': row[13],
+                  'price': row[9],
+                  'volume': row[10],
+              })
+          rows.sort(key=lambda item: (item['created_at'], item['transaction_id']))
+          if self.dictionary:
+              self._last_result = rows
+          else:
+              self._last_result = [
+                  (row['transaction_id'], row['created_at'], row['price'], row['volume'])
+                  for row in rows
+              ]
+          return
+
         if normalized.startswith('SELECT open, high, low, close, volume, trade_count, first_trade_id, last_trade_id, first_trade_at_ms, last_trade_at_ms FROM candles'):
           key = tuple(params[:4])
           row = self.connection.candle_rows.get(key)
@@ -350,7 +381,8 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertIn('AND token_reversed = True', query)
         self.assertIn('AND created_at >= 1000000', query)
         self.assertIn('AND created_at <= 2000000', query)
-        self.assertIn('ORDER BY created_at ASC', query)
+        self.assertIn('SELECT transaction_id, created_at, price, volume FROM transactions', query)
+        self.assertIn('ORDER BY created_at ASC, transaction_id ASC', query)
 
     def test_build_expected_bucket_count_aligns_to_interval_boundaries(self):
         from db import build_expected_bucket_count
@@ -681,27 +713,10 @@ class DbCandleQueryTest(unittest.TestCase):
             'volume': 10.0,
         }])
 
-    def test_get_kline_falls_back_when_candle_history_is_incomplete(self):
+    def test_get_kline_falls_back_to_transactions_only_when_no_candle_points_exist(self):
         db = self.create_db()
 
-        with patch.object(db, 'get_kline_from_candles', return_value=[
-            {
-                'timestamp': 1_800_000_120_000,
-                'open': 2.5,
-                'high': 2.8,
-                'low': 2.4,
-                'close': 2.6,
-                'volume': 6.0,
-            },
-            {
-                'timestamp': 1_800_000_180_000,
-                'open': 2.6,
-                'high': 2.9,
-                'low': 2.5,
-                'close': 2.7,
-                'volume': 5.0,
-            },
-        ]) as candle_mock, patch.object(db, 'get_kline_from_transactions', return_value=[
+        with patch.object(db, 'get_kline_from_candles', return_value=[]) as candle_mock, patch.object(db, 'get_kline_from_transactions', return_value=[
             {
                 'timestamp': 1_800_000_000_000,
                 'open': 2.0,
@@ -739,6 +754,129 @@ class DbCandleQueryTest(unittest.TestCase):
         transaction_mock.assert_called_once()
         self.assertEqual(points[0]['timestamp'], 1_800_000_000_000)
         self.assertEqual(len(points), 3)
+
+    def test_get_kline_prefers_sparse_candle_history_without_falling_back(self):
+        db = self.create_db()
+        candle_points = [
+            {
+                'timestamp': 1_800_000_120_000,
+                'open': 2.5,
+                'high': 2.8,
+                'low': 2.4,
+                'close': 2.6,
+                'volume': 6.0,
+            },
+            {
+                'timestamp': 1_800_000_180_000,
+                'open': 2.6,
+                'high': 2.9,
+                'low': 2.5,
+                'close': 2.7,
+                'volume': 5.0,
+            },
+        ]
+
+        with patch.object(db, 'get_kline_from_candles', return_value=candle_points) as candle_mock, patch.object(db, 'get_kline_from_transactions') as transaction_mock:
+            _, _, points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_180_000,
+                interval='1min',
+            )
+
+        candle_mock.assert_called_once()
+        transaction_mock.assert_not_called()
+        self.assertEqual(points, candle_points)
+
+    def test_get_kline_from_transactions_materializes_candles_for_historical_backfill(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.transaction_rows.extend([
+            (
+                7, 10, 'BuyToken0', 'chain:owner',
+                0, 0, 0, 0, 0,
+                2.0, 10.0, 'Buy', False, 1_800_000_001_000,
+            ),
+            (
+                7, 11, 'SellToken0', 'chain:owner',
+                0, 0, 0, 0, 0,
+                3.0, 4.0, 'Sell', False, 1_800_000_030_000,
+            ),
+            (
+                7, 12, 'BuyToken0', 'chain:owner',
+                0, 0, 0, 0, 0,
+                5.0, 6.0, 'Buy', False, 1_800_000_061_000,
+            ),
+        ])
+
+        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
+            points = db.get_kline_from_transactions(
+                pool_id=7,
+                token_reversed=False,
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_120_000,
+                interval='1min',
+            )
+
+        self.assertEqual(points, [
+            {
+                'timestamp': 1_800_000_000_000,
+                'bucket_start_ms': 1_800_000_000_000,
+                'bucket_end_ms': 1_800_000_059_999,
+                'is_final': True,
+                'open': 2.0,
+                'high': 3.0,
+                'low': 2.0,
+                'close': 3.0,
+                'volume': 14.0,
+            },
+            {
+                'timestamp': 1_800_000_060_000,
+                'bucket_start_ms': 1_800_000_060_000,
+                'bucket_end_ms': 1_800_000_119_999,
+                'is_final': True,
+                'open': 5.0,
+                'high': 5.0,
+                'low': 5.0,
+                'close': 5.0,
+                'volume': 6.0,
+            },
+        ])
+        self.assertIn((7, False, '1min', 1_800_000_000_000), connection.candle_rows)
+        self.assertIn((7, False, '1min', 1_800_000_060_000), connection.candle_rows)
+
+    def test_get_kline_uses_materialized_candles_after_transaction_backfill(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.transaction_rows.append(
+            (
+                7, 10, 'BuyToken0', 'chain:owner',
+                0, 0, 0, 0, 0,
+                2.0, 10.0, 'Buy', False, 1_800_000_001_000,
+            ),
+        )
+
+        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
+            first_points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_060_000,
+                interval='1min',
+            )[2]
+
+        with patch.object(db, 'get_kline_from_transactions') as transaction_mock, patch.object(db, 'now_ms', return_value=1_800_000_300_000):
+            second_points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_060_000,
+                interval='1min',
+            )[2]
+
+        transaction_mock.assert_not_called()
+        self.assertEqual(second_points, first_points)
 
     def test_get_kline_marks_latest_forming_bucket_explicitly(self):
         db = self.create_db()

@@ -1,10 +1,7 @@
 import mysql.connector
 from swap import Transaction, Pool
-from datetime import datetime
-import pandas as pd
 import time
 import warnings
-import numpy as np
 from candle_schema import (
     INTERVAL_BUCKET_MS,
     CandleState,
@@ -27,14 +24,14 @@ def build_kline_points_query(
     end_at: int,
 ) -> str:
     return f'''
-        SELECT created_at, price, volume FROM {table_name}
+        SELECT transaction_id, created_at, price, volume FROM {table_name}
         WHERE pool_id = {pool_id}
         AND token_reversed = {token_reversed}
         AND created_at >= {start_at}
         AND created_at <= {end_at}
         AND transaction_type != 'AddLiquidity'
         AND transaction_type != 'RemoveLiquidity'
-        ORDER BY created_at ASC
+        ORDER BY created_at ASC, transaction_id ASC
     '''
 
 
@@ -546,7 +543,7 @@ class Db:
             interval=interval,
         )
 
-        if self.candles_cover_requested_range(points=points, start_at=start_at, end_at=end_at, interval=interval):
+        if len(points) > 0:
             return (token_0, token_1, points)
 
         points = self.get_kline_from_transactions(
@@ -558,15 +555,6 @@ class Db:
         )
 
         return (token_0, token_1, points)
-
-    def candles_cover_requested_range(self, points, start_at: int, end_at: int, interval: str) -> bool:
-        interval_ms = get_interval_bucket_ms(interval if interval is not None else '1min')
-        expected_count = build_expected_bucket_count(start_at, end_at, interval_ms)
-
-        if expected_count == 0:
-            return True
-
-        return len(points) >= expected_count
 
     def get_kline_from_candles(
         self,
@@ -649,28 +637,60 @@ class Db:
             start_at=start_at,
             end_at=end_at,
         )
-        df = pd.read_sql(query, self.connection)
-        df['created_at'] = pd.to_datetime(df['created_at'], unit='ms')
-        df.set_index('created_at', inplace=True)
+        self.cursor_dict.execute(query)
+        rows = self.cursor_dict.fetchall()
+        if len(rows) == 0:
+            return []
 
-        interval = interval if interval is not None else '1T'
-        df_interval = df.resample(interval).agg({
-            'price': ['first', 'max', 'min', 'last'],
-            'volume': 'sum'
-        })
-        df_interval.columns = ['open', 'high', 'low', 'close', 'volume']
-        df_interval = df_interval.map(lambda x: np.nan_to_num(x, nan=0.0, posinf=1e308, neginf=01e308))
+        interval = interval if interval is not None else '1min'
+        now_ms = self.now_ms()
+        candle_items = []
+        candles_by_bucket = {}
 
-        json_data = []
-        for index, row in df_interval.iterrows():
-            json_data.append(build_candle_point_payload(
+        for row in rows:
+            created_at_ms = int(row['created_at'])
+            bucket_key = build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
                 interval=interval,
-                bucket_start_ms=int(index.timestamp() * 1000),
-                point=row,
-                now_ms=self.now_ms(),
+                created_at_ms=created_at_ms,
+            )
+            update = CandleUpdate(
+                transaction_id=int(row['transaction_id']),
+                created_at_ms=created_at_ms,
+                price=float(row['price']),
+                volume=float(row['volume']),
+            )
+            candle = apply_candle_update(
+                existing=candles_by_bucket.get(bucket_key.bucket_start_ms),
+                update=update,
+            )
+            candles_by_bucket[bucket_key.bucket_start_ms] = candle
+
+        for bucket_start_ms in sorted(candles_by_bucket.keys()):
+            bucket_key = build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=bucket_start_ms,
+            )
+            candle = candles_by_bucket[bucket_start_ms]
+            self.save_candle(bucket_key, candle)
+            candle_items.append(build_candle_point_payload(
+                interval=interval,
+                bucket_start_ms=bucket_start_ms,
+                point={
+                    'open': candle.open,
+                    'high': candle.high,
+                    'low': candle.low,
+                    'close': candle.close,
+                    'volume': candle.volume,
+                },
+                now_ms=now_ms,
             ))
 
-        return filter_zero_volume_candles(json_data)
+        self.connection.commit()
+        return filter_zero_volume_candles(candle_items)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         # Only use full minutes data. Only for minute currently
