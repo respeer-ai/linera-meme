@@ -40,6 +40,25 @@ Minimum test expectation by change type:
 - backend query or storage change: unit tests, query-path integration tests, and performance-oriented verification on representative windows,
 - websocket scope change: subscription-behavior tests and irrelevant-update suppression tests.
 
+Execution record rule:
+
+- every completed task must leave behind an updated task-board row in this document,
+- every deployment-sensitive backend change must append a production validation checklist before the task is considered operationally complete,
+- if the operational validation is deferred, the task may be `DONE` for implementation but must still carry an explicit pending validation note.
+
+## Current Execution Status
+
+Current task-board summary as of `2026-04-08`:
+
+- KSO-01 through KSO-23 implementation work is complete.
+- The latest completed backend work tightened K-line financial semantics end to end:
+  - explicit `base_volume` and `quote_volume` contract for HTTP and WebSocket points,
+  - startup migration backfill for legacy `transactions.quote_volume`,
+  - legacy candle self-heal for `quote_volume = NULL` buckets before appending new trades,
+  - subscription-path tests updated to the explicit point contract.
+- Frontend local IndexedDB migration for the new point shape is intentionally deferred because deployment will clear local data.
+- Production acceptance for the latest strict-semantics changes remains a required follow-up step after deployment.
+
 ## Current Startup Flow
 
 Current webui-v2 startup path:
@@ -354,6 +373,15 @@ Execution rule:
 | KSO-22 | Cross-phase | Define completion gate for "feels instant" milestone | Confirm Phase 1 + 2 + 3 + 6 satisfy warm-cache `<300ms` and usable uncached first screen `<1s` targets | KSO-03, KSO-08, KSO-16 | Add milestone verification suite covering target startup timings, readiness states, and representative backend latency thresholds | Frontend + Backend | DONE |
 | KSO-23 | Cross-phase | Enforce strict financial candle semantics | Align HTTP `/points` and WebSocket candle generation to strict financial semantics: interval-boundary alignment, closed-vs-forming candle semantics, consistent volume for the same closed bucket, and explicit metadata when the latest candle is still forming | KSO-16, KSO-19, KSO-21 | Add backend and frontend regression tests covering identical closed-bucket OHLCV across HTTP and WebSocket, boundary alignment for `1min/5min/10min/1h`, and explicit handling of forming candles | Frontend + Backend | DONE |
 
+Recent execution notes:
+
+- `2026-04-08`: KSO-23 follow-up closed the remaining semantic ambiguity for candle volume.
+  - HTTP `/points` and WebSocket points now use explicit `base_volume` and `quote_volume`.
+  - subscription regression tests now assert the explicit point payload contract.
+  - legacy `transactions.quote_volume IS NULL` rows are backfilled at service startup.
+  - legacy `candles.quote_volume IS NULL` buckets are rebuilt from transactions before ingest continues.
+  - frontend local-cache schema migration is intentionally not included in this track because deployment will clear browser data.
+
 Recommended first execution slice:
 
 1. KSO-01
@@ -400,6 +428,45 @@ Baseline record format:
 - firstRenderMs
 - finalPointCount
 - notes: anomalies, empty fetches, stale websocket effects, or partial-history behavior
+
+## Production Validation Checklist
+
+The following checklist is required for the latest KSO-23 strict-semantics backend rollout.
+
+Environment prerequisites:
+
+- deploy backend commit containing explicit `base_volume` / `quote_volume` semantics and startup backfill,
+- restart the K-line service so startup migration executes,
+- clear browser local K-line cache before validation if old client-side data might still exist.
+
+Validation steps:
+
+1. Confirm startup migration completed:
+   - inspect service startup logs and verify the process came up cleanly after schema/backfill work,
+   - spot-check the database and confirm no `BuyToken0` or `SellToken0` rows remain with `quote_volume IS NULL`.
+2. Validate HTTP points semantics:
+   - request the same closed `1min` bucket twice and confirm identical `open/high/low/close/base_volume/quote_volume`,
+   - repeat for `5min`,
+   - confirm returned closed buckets carry `is_final = true` and the latest forming bucket carries `is_final = false` when applicable.
+3. Validate WebSocket parity:
+   - subscribe to one pair and one interval,
+   - confirm pushed closed buckets match HTTP payload for the same bucket exactly on `open/high/low/close/base_volume/quote_volume`,
+   - confirm irrelevant pairs and intervals are not delivered to the subscribed client.
+4. Validate chart behavior:
+   - refresh the chart and confirm the latest visible market remains on the right edge instead of jumping to the far left,
+   - confirm a live push updates the current chart without clearing history, flickering, or collapsing to two candles,
+   - confirm candle bodies and volume bars are visible for active buckets.
+5. Validate historical backfill stability:
+   - refresh on a pair with older history available,
+   - confirm historical candles remain visible while newer data arrives,
+   - confirm a slower secondary `/points` response does not clear already rendered candles.
+
+Operational exit criteria:
+
+- all relevant test suites are green,
+- database backfill is complete for trade transactions,
+- HTTP and WebSocket closed-bucket payloads are identical for sampled windows,
+- chart startup, incremental update, and history backfill all behave correctly in production.
 
 ## Fastest Path to "Feels Instant"
 
