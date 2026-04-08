@@ -569,6 +569,38 @@ class DbCandleIngestTest(unittest.TestCase):
         self.assertEqual(candle['first_trade_id'], 10)
         self.assertEqual(candle['last_trade_id'], 11)
 
+    def test_new_transaction_matches_transactions_table_column_count(self):
+        db = self.create_db()
+        self.seed_pool(db)
+
+        transaction = FakeTransaction(
+            transaction_id=10,
+            created_at_ms=1_800_000_001_000,
+        )
+
+        row = db.new_transaction(7, transaction, False)
+
+        runtime_connection = self.connections[-1]
+        inserted = runtime_connection.transaction_rows[-1]
+        self.assertEqual(len(inserted), len(runtime_connection.transaction_columns))
+        self.assertEqual(inserted[11], row['quote_volume'])
+
+    def test_save_candle_matches_candles_table_column_count(self):
+        db = self.create_db()
+        self.seed_pool(db)
+
+        transaction = FakeTransaction(
+            transaction_id=10,
+            created_at_ms=1_800_000_001_000,
+        )
+
+        db.new_transaction(7, transaction, False)
+
+        runtime_connection = self.connections[-1]
+        inserted = runtime_connection.candle_rows[(7, False, '1min', 1_800_000_000_000)]
+        self.assertEqual(len(inserted), len(runtime_connection.candle_columns))
+        self.assertEqual(inserted['quote_volume'], 20.0)
+
     def test_rolls_over_to_next_bucket_when_trade_crosses_interval_boundary(self):
         db = self.create_db()
         self.seed_pool(db)

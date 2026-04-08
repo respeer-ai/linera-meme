@@ -256,7 +256,7 @@ class Db:
         self.cursor.execute(
             f'''
                 INSERT INTO {self.transactions_table}
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
                 ON DUPLICATE KEY UPDATE
                 transaction_type = alias.transaction_type,
                 from_account = alias.from_account,
@@ -427,7 +427,7 @@ class Db:
         self.cursor.execute(
             f'''
                 INSERT INTO {self.candles_table}
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
                 ON DUPLICATE KEY UPDATE
                 open = alias.open,
                 high = alias.high,
