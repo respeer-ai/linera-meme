@@ -13,7 +13,7 @@ type MergePointsInput = {
 const isFetchReason = (reason: SortReasonLike) => reason.reason === 'Fetch'
 
 const isSyntheticEmptyPoint = (point: Point) => (
-  point.volume === 0 &&
+  point.base_volume === 0 &&
   point.open === point.high &&
   point.high === point.low &&
   point.low === point.close

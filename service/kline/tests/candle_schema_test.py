@@ -48,7 +48,8 @@ class CandleSchemaContractTest(unittest.TestCase):
             transaction_id=10,
             created_at_ms=1_775_465_073_302,
             price=0.00703921,
-            volume=8.99,
+            base_volume=8.99,
+            quote_volume=round(8.99 * 0.00703921, 12),
         )
 
         candle = apply_candle_update(existing=None, update=update)
@@ -60,7 +61,8 @@ class CandleSchemaContractTest(unittest.TestCase):
                 high=0.00703921,
                 low=0.00703921,
                 close=0.00703921,
-                volume=8.99,
+                base_volume=8.99,
+                quote_volume=round(8.99 * 0.00703921, 12),
                 trade_count=1,
                 first_trade_id=10,
                 last_trade_id=10,
@@ -75,7 +77,8 @@ class CandleSchemaContractTest(unittest.TestCase):
             high=0.00703921,
             low=0.00703921,
             close=0.00703921,
-            volume=8.99,
+            base_volume=8.99,
+            quote_volume=round(8.99 * 0.00703921, 12),
             trade_count=1,
             first_trade_id=10,
             last_trade_id=10,
@@ -86,7 +89,8 @@ class CandleSchemaContractTest(unittest.TestCase):
             transaction_id=11,
             created_at_ms=1_775_465_085_099,
             price=0.00703925,
-            volume=693.79,
+            base_volume=693.79,
+            quote_volume=round(693.79 * 0.00703925, 12),
         )
 
         candle = apply_candle_update(existing=existing, update=update)
@@ -95,7 +99,8 @@ class CandleSchemaContractTest(unittest.TestCase):
         self.assertEqual(candle.high, 0.00703925)
         self.assertEqual(candle.low, 0.00703921)
         self.assertEqual(candle.close, 0.00703925)
-        self.assertEqual(candle.volume, 702.78)
+        self.assertEqual(candle.base_volume, 702.78)
+        self.assertEqual(candle.quote_volume, round(8.99 * 0.00703921 + 693.79 * 0.00703925, 12))
         self.assertEqual(candle.trade_count, 2)
         self.assertEqual(candle.first_trade_id, 10)
         self.assertEqual(candle.last_trade_id, 11)
@@ -106,7 +111,8 @@ class CandleSchemaContractTest(unittest.TestCase):
             high=0.00703925,
             low=0.00703921,
             close=0.00703925,
-            volume=702.78,
+            base_volume=702.78,
+            quote_volume=round(8.99 * 0.00703921 + 693.79 * 0.00703925, 12),
             trade_count=2,
             first_trade_id=10,
             last_trade_id=11,
@@ -117,12 +123,112 @@ class CandleSchemaContractTest(unittest.TestCase):
             transaction_id=11,
             created_at_ms=1_775_465_085_099,
             price=0.00703925,
-            volume=693.79,
+            base_volume=693.79,
+            quote_volume=round(693.79 * 0.00703925, 12),
         )
 
         candle = apply_candle_update(existing=existing, update=replay)
 
         self.assertEqual(candle, existing)
+
+    def test_updates_open_when_earlier_trade_arrives_out_of_order(self):
+        existing = CandleState(
+            open=0.00703925,
+            high=0.00703925,
+            low=0.00703925,
+            close=0.00703925,
+            base_volume=693.79,
+            quote_volume=round(693.79 * 0.00703925, 12),
+            trade_count=1,
+            first_trade_id=11,
+            last_trade_id=11,
+            first_trade_at_ms=1_775_465_085_099,
+            last_trade_at_ms=1_775_465_085_099,
+        )
+        update = CandleUpdate(
+            transaction_id=12,
+            created_at_ms=1_775_465_073_302,
+            price=0.00703921,
+            base_volume=8.99,
+            quote_volume=round(8.99 * 0.00703921, 12),
+        )
+
+        candle = apply_candle_update(existing=existing, update=update)
+
+        self.assertEqual(candle.open, 0.00703921)
+        self.assertEqual(candle.close, 0.00703925)
+        self.assertEqual(candle.high, 0.00703925)
+        self.assertEqual(candle.low, 0.00703921)
+        self.assertEqual(candle.base_volume, 702.78)
+        self.assertEqual(candle.quote_volume, round(693.79 * 0.00703925 + 8.99 * 0.00703921, 12))
+        self.assertEqual(candle.first_trade_id, 12)
+        self.assertEqual(candle.first_trade_at_ms, 1_775_465_073_302)
+        self.assertEqual(candle.last_trade_id, 11)
+        self.assertEqual(candle.last_trade_at_ms, 1_775_465_085_099)
+
+    def test_updates_close_when_later_trade_has_lower_transaction_id(self):
+        existing = CandleState(
+            open=0.00703921,
+            high=0.00703921,
+            low=0.00703921,
+            close=0.00703921,
+            base_volume=8.99,
+            quote_volume=round(8.99 * 0.00703921, 12),
+            trade_count=1,
+            first_trade_id=10,
+            last_trade_id=10,
+            first_trade_at_ms=1_775_465_073_302,
+            last_trade_at_ms=1_775_465_073_302,
+        )
+        update = CandleUpdate(
+            transaction_id=9,
+            created_at_ms=1_775_465_085_099,
+            price=0.00703925,
+            base_volume=693.79,
+            quote_volume=round(693.79 * 0.00703925, 12),
+        )
+
+        candle = apply_candle_update(existing=existing, update=update)
+
+        self.assertEqual(candle.open, 0.00703921)
+        self.assertEqual(candle.close, 0.00703925)
+        self.assertEqual(candle.high, 0.00703925)
+        self.assertEqual(candle.low, 0.00703921)
+        self.assertEqual(candle.base_volume, 702.78)
+        self.assertEqual(candle.quote_volume, round(8.99 * 0.00703921 + 693.79 * 0.00703925, 12))
+        self.assertEqual(candle.first_trade_id, 10)
+        self.assertEqual(candle.first_trade_at_ms, 1_775_465_073_302)
+        self.assertEqual(candle.last_trade_id, 9)
+        self.assertEqual(candle.last_trade_at_ms, 1_775_465_085_099)
+
+    def test_uses_transaction_id_as_tie_breaker_with_same_timestamp(self):
+        existing = CandleState(
+            open=0.00703921,
+            high=0.00703921,
+            low=0.00703921,
+            close=0.00703921,
+            base_volume=8.99,
+            quote_volume=round(8.99 * 0.00703921, 12),
+            trade_count=1,
+            first_trade_id=10,
+            last_trade_id=10,
+            first_trade_at_ms=1_775_465_073_302,
+            last_trade_at_ms=1_775_465_073_302,
+        )
+        update = CandleUpdate(
+            transaction_id=11,
+            created_at_ms=1_775_465_073_302,
+            price=0.00703925,
+            base_volume=693.79,
+            quote_volume=round(693.79 * 0.00703925, 12),
+        )
+
+        candle = apply_candle_update(existing=existing, update=update)
+
+        self.assertEqual(candle.open, 0.00703921)
+        self.assertEqual(candle.close, 0.00703925)
+        self.assertEqual(candle.last_trade_id, 11)
+        self.assertEqual(candle.last_trade_at_ms, 1_775_465_073_302)
 
 
 if __name__ == '__main__':

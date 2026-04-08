@@ -5,4 +5,6 @@ export interface KLineData {
   low: number
   close: number
   volume: number
+  base_volume?: number
+  quote_volume?: number
 }

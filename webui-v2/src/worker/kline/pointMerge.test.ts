@@ -8,7 +8,8 @@ const point = (timestamp: number, close: number) => ({
   high: close,
   low: close,
   close,
-  volume: close,
+  base_volume: close,
+  quote_volume: close * 2,
 })
 
 describe('mergeKlinePoints', () => {
@@ -43,21 +44,21 @@ describe('mergeKlinePoints', () => {
   test('removes synthetic zero-volume candles anywhere in the merged history', () => {
     const merged = mergeKlinePoints({
       originPoints: [
-        { ...point(1_000, 10), volume: 5 },
-        { ...point(2_000, 10), volume: 0 },
-        { ...point(3_000, 10), volume: 0 },
+        { ...point(1_000, 10), base_volume: 5, quote_volume: 10 },
+        { ...point(2_000, 10), base_volume: 0, quote_volume: 0 },
+        { ...point(3_000, 10), base_volume: 0, quote_volume: 0 },
       ],
       newPoints: [
-        { ...point(4_000, 12), volume: 7 },
-        { ...point(5_000, 12), volume: 0 },
-        { ...point(6_000, 12), volume: 0 },
+        { ...point(4_000, 12), base_volume: 7, quote_volume: 14 },
+        { ...point(5_000, 12), base_volume: 0, quote_volume: 0 },
+        { ...point(6_000, 12), base_volume: 0, quote_volume: 0 },
       ],
       reason: { reason: 'Fetch' },
     })
 
     expect(merged).toEqual([
-      { ...point(1_000, 10), volume: 5 },
-      { ...point(4_000, 12), volume: 7 },
+      { ...point(1_000, 10), base_volume: 5, quote_volume: 10 },
+      { ...point(4_000, 12), base_volume: 7, quote_volume: 14 },
     ])
   })
 })

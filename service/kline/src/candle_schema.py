@@ -27,7 +27,8 @@ class CandleUpdate:
     transaction_id: int
     created_at_ms: int
     price: float
-    volume: float
+    base_volume: float
+    quote_volume: float
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,8 @@ class CandleState:
     high: float
     low: float
     close: float
-    volume: float
+    base_volume: float
+    quote_volume: float
     trade_count: int
     first_trade_id: int
     last_trade_id: int
@@ -71,13 +73,17 @@ def apply_candle_update(
     existing: CandleState | None,
     update: CandleUpdate,
 ) -> CandleState:
+    def trade_order(created_at_ms: int, transaction_id: int):
+        return (created_at_ms, transaction_id)
+
     if existing is None:
         return CandleState(
             open=update.price,
             high=update.price,
             low=update.price,
             close=update.price,
-            volume=round(update.volume, 12),
+            base_volume=round(update.base_volume, 12),
+            quote_volume=round(update.quote_volume, 12),
             trade_count=1,
             first_trade_id=update.transaction_id,
             last_trade_id=update.transaction_id,
@@ -85,18 +91,42 @@ def apply_candle_update(
             last_trade_at_ms=update.created_at_ms,
         )
 
-    if update.transaction_id <= existing.last_trade_id:
+    update_order = trade_order(update.created_at_ms, update.transaction_id)
+    first_order = trade_order(existing.first_trade_at_ms, existing.first_trade_id)
+    last_order = trade_order(existing.last_trade_at_ms, existing.last_trade_id)
+
+    # Exact replay of a boundary trade must be idempotent.
+    if update_order == first_order or update_order == last_order:
         return existing
 
+    if update_order < first_order:
+        open_price = update.price
+        first_trade_id = update.transaction_id
+        first_trade_at_ms = update.created_at_ms
+    else:
+        open_price = existing.open
+        first_trade_id = existing.first_trade_id
+        first_trade_at_ms = existing.first_trade_at_ms
+
+    if update_order > last_order:
+        close_price = update.price
+        last_trade_id = update.transaction_id
+        last_trade_at_ms = update.created_at_ms
+    else:
+        close_price = existing.close
+        last_trade_id = existing.last_trade_id
+        last_trade_at_ms = existing.last_trade_at_ms
+
     return CandleState(
-        open=existing.open,
+        open=open_price,
         high=max(existing.high, update.price),
         low=min(existing.low, update.price),
-        close=update.price,
-        volume=round(existing.volume + update.volume, 12),
+        close=close_price,
+        base_volume=round(existing.base_volume + update.base_volume, 12),
+        quote_volume=round(existing.quote_volume + update.quote_volume, 12),
         trade_count=existing.trade_count + 1,
-        first_trade_id=existing.first_trade_id,
-        last_trade_id=update.transaction_id,
-        first_trade_at_ms=existing.first_trade_at_ms,
-        last_trade_at_ms=update.created_at_ms,
+        first_trade_id=first_trade_id,
+        last_trade_id=last_trade_id,
+        first_trade_at_ms=first_trade_at_ms,
+        last_trade_at_ms=last_trade_at_ms,
     )

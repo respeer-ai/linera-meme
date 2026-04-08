@@ -149,6 +149,7 @@ const token1App = computed(() => {
 const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.value, buyToken.value, sellToken.value).map((el) => {
   return {
     ...el,
+    volume: el.base_volume,
     time: Math.floor(el.timestamp / 1000)
   }
 }))
@@ -339,6 +340,8 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
     originPoints: [...klinePoints.value].map((el) => {
       return {
         ...el,
+        base_volume: el.volume,
+        quote_volume: 'quote_volume' in el && typeof el.quote_volume === 'number' ? el.quote_volume : 0,
         timestamp: el.time * 1000
       } as kline.Point
     }),
@@ -538,6 +541,7 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   klinePoints.value = points.map((el) => {
     return {
       ...el,
+      volume: el.base_volume,
       time: Math.floor(el.timestamp / 1000)
     }
   })

@@ -24,7 +24,7 @@ def build_kline_points_query(
     end_at: int,
 ) -> str:
     return f'''
-        SELECT transaction_id, created_at, price, volume FROM {table_name}
+        SELECT transaction_id, created_at, price, volume, quote_volume FROM {table_name}
         WHERE pool_id = {pool_id}
         AND token_reversed = {token_reversed}
         AND created_at >= {start_at}
@@ -44,6 +44,8 @@ def build_expected_bucket_count(start_at: int, end_at: int, interval_ms: int) ->
 def build_candle_point_payload(interval: str, bucket_start_ms: int, point: dict, now_ms: int):
     bucket_ms = get_interval_bucket_ms(interval)
     bucket_end_ms = bucket_start_ms + bucket_ms - 1
+    base_volume = point['base_volume'] if 'base_volume' in point else point['volume']
+    quote_volume = point['quote_volume']
 
     return {
         'timestamp': bucket_start_ms,
@@ -54,12 +56,13 @@ def build_candle_point_payload(interval: str, bucket_start_ms: int, point: dict,
         'high': float(point['high']),
         'low': float(point['low']),
         'close': float(point['close']),
-        'volume': float(point['volume']),
+        'base_volume': float(base_volume),
+        'quote_volume': float(quote_volume),
     }
 
 
 def filter_zero_volume_candles(points: list[dict]):
-    return [point for point in points if float(point['volume']) > 0]
+    return [point for point in points if float(point['base_volume']) > 0]
 
 
 def build_kline_log_line(event: str, **fields) -> str:
@@ -142,6 +145,7 @@ class Db:
                     liquidity DECIMAL(30, 18),
                     price DECIMAL(30, 18),
                     volume DECIMAL(30, 18),
+                    quote_volume DECIMAL(30, 18),
                     direction VARCHAR(8),
                     token_reversed TINYINT,
                     created_at BIGINT UNSIGNED,
@@ -162,6 +166,7 @@ class Db:
                     low DECIMAL(30, 18),
                     close DECIMAL(30, 18),
                     volume DECIMAL(30, 18),
+                    quote_volume DECIMAL(30, 18),
                     trade_count INT UNSIGNED,
                     first_trade_id INT UNSIGNED,
                     last_trade_id INT UNSIGNED,
@@ -173,6 +178,7 @@ class Db:
             self.connection.commit()
 
         self.ensure_transactions_indexes()
+        self.ensure_kline_columns()
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
 
@@ -196,6 +202,33 @@ class Db:
             ''')
             self.connection.commit()
 
+    def ensure_kline_columns(self):
+        self.cursor.execute(f'SHOW COLUMNS FROM {self.transactions_table}')
+        transaction_columns = {row[0] for row in self.cursor.fetchall()}
+        if 'quote_volume' not in transaction_columns:
+            self.cursor.execute(
+                f'ALTER TABLE {self.transactions_table} ADD COLUMN quote_volume DECIMAL(30, 18) NULL AFTER volume'
+            )
+            self.connection.commit()
+
+        self.cursor.execute(f'SHOW COLUMNS FROM {self.candles_table}')
+        candle_columns = {row[0] for row in self.cursor.fetchall()}
+        if 'quote_volume' not in candle_columns:
+            self.cursor.execute(
+                f'ALTER TABLE {self.candles_table} ADD COLUMN quote_volume DECIMAL(30, 18) NULL AFTER volume'
+            )
+            self.connection.commit()
+
+        self.cursor.execute(
+            f'''
+                UPDATE {self.transactions_table}
+                SET quote_volume = price * volume
+                WHERE quote_volume IS NULL
+                AND transaction_type IN ('BuyToken0', 'SellToken0')
+            '''
+        )
+        self.connection.commit()
+
 
     def new_pools(self, pools: list[Pool]):
         for pool in pools:
@@ -215,7 +248,8 @@ class Db:
 
     def new_transaction(self, pool_id: int, transaction: Transaction, token_reversed: bool):
         direction = transaction.direction(token_reversed)
-        volume = transaction.volume(token_reversed)
+        base_volume = transaction.base_volume(token_reversed)
+        quote_volume = transaction.quote_volume(token_reversed)
         price = transaction.price(token_reversed)
         created_at_ms = transaction.created_at // 1000
 
@@ -233,6 +267,7 @@ class Db:
                 liquidity = alias.liquidity,
                 price = alias.price,
                 volume = alias.volume,
+                quote_volume = alias.quote_volume,
                 direction = alias.direction,
                 token_reversed = alias.token_reversed,
                 created_at = alias.created_at
@@ -247,7 +282,8 @@ class Db:
              transaction.amount_1_out,
              transaction.liquidity,
              price,
-             volume,
+             base_volume,
+             quote_volume,
              direction,
              token_reversed,
              created_at_ms)
@@ -259,7 +295,8 @@ class Db:
             token_reversed=token_reversed,
             created_at_ms=created_at_ms,
             price=price,
-            volume=volume,
+            base_volume=base_volume,
+            quote_volume=quote_volume,
         )
 
         return {
@@ -273,7 +310,8 @@ class Db:
             'amount_1_out': transaction.amount_1_out,
             'liquidity': transaction.liquidity,
             'price': price,
-            'volume': volume,
+            'base_volume': base_volume,
+            'quote_volume': quote_volume,
             'direction': direction,
             'token_reversed': token_reversed,
             'created_at': created_at_ms,
@@ -301,6 +339,7 @@ class Db:
                     low,
                     close,
                     volume,
+                    quote_volume,
                     trade_count,
                     first_trade_id,
                     last_trade_id,
@@ -318,19 +357,71 @@ class Db:
 
         if row is None:
             return None
+        if row['quote_volume'] is None:
+            candle = self.rebuild_candle_from_transactions(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                bucket_start_ms=bucket_start_ms,
+            )
+            if candle is None:
+                return None
+
+            bucket_key = build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=bucket_start_ms,
+            )
+            self.save_candle(bucket_key, candle)
+            return candle
 
         return CandleState(
             open=float(row['open']),
             high=float(row['high']),
             low=float(row['low']),
             close=float(row['close']),
-            volume=float(row['volume']),
+            base_volume=float(row['volume']),
+            quote_volume=float(row['quote_volume'] or 0),
             trade_count=int(row['trade_count']),
             first_trade_id=int(row['first_trade_id']),
             last_trade_id=int(row['last_trade_id']),
             first_trade_at_ms=int(row['first_trade_at_ms']),
             last_trade_at_ms=int(row['last_trade_at_ms']),
         )
+
+    def rebuild_candle_from_transactions(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        interval: str,
+        bucket_start_ms: int,
+    ):
+        bucket_end_ms = bucket_start_ms + get_interval_bucket_ms(interval) - 1
+        query = build_kline_points_query(
+            table_name=self.transactions_table,
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            start_at=bucket_start_ms,
+            end_at=bucket_end_ms,
+        )
+        self.cursor_dict.execute(query)
+        rows = self.cursor_dict.fetchall()
+
+        candle = None
+        for row in rows:
+            candle = apply_candle_update(
+                existing=candle,
+                update=CandleUpdate(
+                    transaction_id=int(row['transaction_id']),
+                    created_at_ms=int(row['created_at']),
+                    price=float(row['price']),
+                    base_volume=float(row['volume']),
+                    quote_volume=float(row['quote_volume']),
+                ),
+            )
+
+        return candle
 
     def save_candle(self, bucket_key, candle: CandleState):
         self.cursor.execute(
@@ -343,6 +434,7 @@ class Db:
                 low = alias.low,
                 close = alias.close,
                 volume = alias.volume,
+                quote_volume = alias.quote_volume,
                 trade_count = alias.trade_count,
                 first_trade_id = alias.first_trade_id,
                 last_trade_id = alias.last_trade_id,
@@ -358,7 +450,8 @@ class Db:
                 candle.high,
                 candle.low,
                 candle.close,
-                candle.volume,
+                candle.base_volume,
+                candle.quote_volume,
                 candle.trade_count,
                 candle.first_trade_id,
                 candle.last_trade_id,
@@ -382,7 +475,8 @@ class Db:
                     high,
                     low,
                     close,
-                    volume
+                    volume,
+                    quote_volume
                 FROM {self.candles_table}
                 WHERE pool_id = %s
                 AND token_reversed = %s
@@ -394,6 +488,8 @@ class Db:
         row = self.cursor_dict.fetchone()
         if row is None:
             return None
+        if row['quote_volume'] is None:
+            return None
 
         return {
             'timestamp': int(row['bucket_start_ms']),
@@ -401,7 +497,8 @@ class Db:
             'high': float(row['high']),
             'low': float(row['low']),
             'close': float(row['close']),
-            'volume': float(row['volume']),
+            'base_volume': float(row['volume']),
+            'quote_volume': float(row['quote_volume']),
         }
 
     def update_candles_for_transaction(
@@ -411,7 +508,8 @@ class Db:
         token_reversed: bool,
         created_at_ms: int,
         price: float,
-        volume: float,
+        base_volume: float,
+        quote_volume: float,
     ):
         if transaction.transaction_type not in ['BuyToken0', 'SellToken0']:
             return
@@ -420,7 +518,8 @@ class Db:
             transaction_id=transaction.transaction_id,
             created_at_ms=created_at_ms,
             price=float(price),
-            volume=float(volume),
+            base_volume=float(base_volume),
+            quote_volume=float(quote_volume),
         )
 
         for interval in INTERVAL_BUCKET_MS.keys():
@@ -647,7 +746,8 @@ class Db:
                     high,
                     low,
                     close,
-                    volume
+                    volume,
+                    quote_volume
                 FROM {self.candles_table}
                 WHERE pool_id = %s
                 AND token_reversed = %s
@@ -671,6 +771,16 @@ class Db:
             token_reversed=token_reversed,
         )
         if len(rows) == 0:
+            return []
+
+        if any(row.get('quote_volume') is None for row in rows):
+            self.log_kline_event(
+                event='candles_missing_quote_volume',
+                interval=interval,
+                pool_id=pool_id,
+                row_count=len(rows),
+                token_reversed=token_reversed,
+            )
             return []
 
         now_ms = self.now_ms()
@@ -736,7 +846,8 @@ class Db:
                 transaction_id=int(row['transaction_id']),
                 created_at_ms=created_at_ms,
                 price=float(row['price']),
-                volume=float(row['volume']),
+                base_volume=float(row['volume']),
+                quote_volume=float(row['quote_volume']),
             )
             candle = apply_candle_update(
                 existing=candles_by_bucket.get(bucket_key.bucket_start_ms),
@@ -763,7 +874,8 @@ class Db:
                     'high': candle.high,
                     'low': candle.low,
                     'close': candle.close,
-                    'volume': candle.volume,
+                    'base_volume': candle.base_volume,
+                    'quote_volume': candle.quote_volume,
                 },
                 now_ms=now_ms,
             ))

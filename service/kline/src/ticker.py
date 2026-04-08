@@ -28,6 +28,13 @@ class Ticker:
     async def build_incremental_kline_payload_async(self, pool: Pool, transactions):
         return await asyncio.to_thread(self.build_incremental_kline_payload, pool, transactions)
 
+    def transaction_watermark(self, transaction):
+        return (
+            int(transaction['created_at']),
+            int(transaction['transaction_id']),
+            1 if bool(transaction['token_reversed']) else 0,
+        )
+
     def build_incremental_kline_payload(self, pool: Pool, transactions):
         payload = {}
         seen = set()
@@ -90,8 +97,11 @@ class Ticker:
             transactions = await self.get_pool_transactions(pool)
             __transactions = await self.persist_transactions(pool.pool_id, transactions)
 
-            last_timestamp = last_timestamps[pool.pool_id] if pool.pool_id in last_timestamps else 0
-            live_transactions = list(filter(lambda transaction: transaction['created_at'] > last_timestamp, __transactions))
+            last_watermark = last_timestamps[pool.pool_id] if pool.pool_id in last_timestamps else (0, 0, -1)
+            live_transactions = list(filter(
+                lambda transaction: self.transaction_watermark(transaction) > last_watermark,
+                __transactions,
+            ))
 
             _transactions.append({
                 'token_0': pool.token_0,
@@ -103,7 +113,9 @@ class Ticker:
                 existing = kline_payload.get(interval, [])
                 existing.extend(interval_points)
                 kline_payload[interval] = existing
-            last_timestamps[pool.pool_id] = max([transaction['created_at'] for transaction in __transactions] + [last_timestamp])
+            last_timestamps[pool.pool_id] = max(
+                [self.transaction_watermark(transaction) for transaction in __transactions] + [last_watermark]
+            )
 
         await self.manager.notify('kline', kline_payload)
         await self.manager.notify('transactions', _transactions)

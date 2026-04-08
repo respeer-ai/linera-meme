@@ -24,7 +24,8 @@ const createPoints = (
     high: index + 1,
     low: index + 1,
     close: index + 1,
-    volume: index + 1,
+    base_volume: index + 1,
+    quote_volume: (index + 1) * 2,
   })),
 })
 
@@ -44,9 +45,9 @@ describe('mergeLatestPointMaps', () => {
     expect(mergedFiveMinutePoints === undefined).toBe(false)
 
     expect(mergedFiveMinutePoints).toEqual([
-      { timestamp: 1000, bucket_start_ms: 1000, bucket_end_ms: 60_999, is_final: true, open: 1, high: 1, low: 1, close: 1, volume: 1 },
-      { timestamp: 2000, bucket_start_ms: 2000, bucket_end_ms: 61_999, is_final: true, open: 1, high: 1, low: 1, close: 1, volume: 1 },
-      { timestamp: 4000, bucket_start_ms: 4000, bucket_end_ms: 63_999, is_final: true, open: 2, high: 2, low: 2, close: 2, volume: 2 },
+      { timestamp: 1000, bucket_start_ms: 1000, bucket_end_ms: 60_999, is_final: true, open: 1, high: 1, low: 1, close: 1, base_volume: 1, quote_volume: 2 },
+      { timestamp: 2000, bucket_start_ms: 2000, bucket_end_ms: 61_999, is_final: true, open: 1, high: 1, low: 1, close: 1, base_volume: 1, quote_volume: 2 },
+      { timestamp: 4000, bucket_start_ms: 4000, bucket_end_ms: 63_999, is_final: true, open: 2, high: 2, low: 2, close: 2, base_volume: 2, quote_volume: 4 },
     ])
     expect(merged.get(Interval.ONE_MINUTE)).toEqual([
       createPoints('CCC', 'DDD', Interval.ONE_MINUTE, [3000]),
@@ -78,7 +79,8 @@ describe('buildKlineSubscriptionMessage', () => {
           high: 1,
           low: 1,
           close: 1,
-          volume: 1,
+          base_volume: 1,
+          quote_volume: 2,
         }],
       }]],
     ])
@@ -94,7 +96,8 @@ describe('buildKlineSubscriptionMessage', () => {
           high: 2,
           low: 2,
           close: 2,
-          volume: 2,
+          base_volume: 2,
+          quote_volume: 4,
         }],
       }]],
     ])
