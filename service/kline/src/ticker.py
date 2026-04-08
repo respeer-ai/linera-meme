@@ -16,8 +16,8 @@ class Ticker:
     async def get_pools(self) -> list[Pool]:
         return await self.swap.get_pools()
 
-    async def get_pool_transactions(self, pool: Pool) -> list[Transaction]:
-        return await self.swap.get_pool_transactions(pool)
+    async def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
+        return await self.swap.get_pool_transactions(pool, start_id)
 
     async def persist_pools(self, pools: list[Pool]):
         await asyncio.to_thread(self.db.new_pools, pools)
@@ -34,6 +34,22 @@ class Ticker:
             int(transaction['transaction_id']),
             1 if bool(transaction['token_reversed']) else 0,
         )
+
+    def resolve_transaction_start_id(self, pool: Pool, last_timestamps):
+        if pool.pool_id in last_timestamps:
+            return int(last_timestamps[pool.pool_id][1])
+
+        latest_transaction = getattr(pool, 'latest_transaction', None)
+        if latest_transaction is None:
+            return None
+
+        latest_transaction_id = getattr(latest_transaction, 'transaction_id', None)
+        if latest_transaction_id is None:
+            return None
+
+        # Use the latest known transaction id as the lower bound so the
+        # upstream query can return the freshest edge instead of an older default window.
+        return max(int(latest_transaction_id) - 1, 0)
 
     def build_incremental_kline_payload(self, pool: Pool, transactions):
         payload = {}
@@ -94,7 +110,8 @@ class Ticker:
         kline_payload = {}
 
         for pool in pools:
-            transactions = await self.get_pool_transactions(pool)
+            start_id = self.resolve_transaction_start_id(pool, last_timestamps)
+            transactions = await self.get_pool_transactions(pool, start_id)
             __transactions = await self.persist_transactions(pool.pool_id, transactions)
 
             last_watermark = last_timestamps[pool.pool_id] if pool.pool_id in last_timestamps else (0, 0, -1)

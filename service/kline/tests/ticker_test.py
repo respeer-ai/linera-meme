@@ -180,6 +180,24 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
 
 
 class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
+    async def test_run_iteration_uses_pool_latest_transaction_to_seed_incremental_fetch(self):
+        db = FakeDb()
+        manager = types.SimpleNamespace(notify=AsyncMock())
+        swap = types.SimpleNamespace()
+        ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
+        pool = types.SimpleNamespace(
+            pool_id=7,
+            token_0='AAA',
+            token_1='BBB',
+            latest_transaction=types.SimpleNamespace(transaction_id=321),
+        )
+        ticker.get_pools = AsyncMock(return_value=[pool])
+        ticker.get_pool_transactions = AsyncMock(return_value=[])
+
+        await ticker.run_iteration({})
+
+        self.assertEqual(ticker.get_pool_transactions.await_args_list[0].args, (pool, 320))
+
     async def test_run_iteration_offloads_persistence_and_notifies_manager(self):
         db = FakeDb()
         db.points[(7, False, '1min', 1_800_000_000_000)] = {
@@ -194,7 +212,12 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
         ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
-        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+        pool = types.SimpleNamespace(
+            pool_id=7,
+            token_0='AAA',
+            token_1='BBB',
+            latest_transaction=types.SimpleNamespace(transaction_id=10),
+        )
         ticker.get_pools = AsyncMock(return_value=[pool])
         ticker.get_pool_transactions = AsyncMock(return_value=[{
             'transaction_id': 10,
@@ -209,6 +232,7 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(db.persisted_pools), 1)
         self.assertEqual(len(db.persisted_transactions), 1)
         self.assertEqual(last_timestamps, {7: (1_800_000_001_000, 10, 0)})
+        self.assertEqual(ticker.get_pool_transactions.await_args_list[0].args, (pool, 9))
         self.assertEqual(manager.notify.await_count, 2)
         self.assertEqual(manager.notify.await_args_list[0].args[0], 'kline')
         self.assertEqual(manager.notify.await_args_list[1].args[0], 'transactions')
@@ -227,7 +251,12 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
         ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
-        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+        pool = types.SimpleNamespace(
+            pool_id=7,
+            token_0='AAA',
+            token_1='BBB',
+            latest_transaction=types.SimpleNamespace(transaction_id=10),
+        )
         ticker.get_pools = AsyncMock(return_value=[pool])
         ticker.get_pool_transactions = AsyncMock(side_effect=[
             [{
@@ -249,6 +278,8 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         await ticker.run_iteration(last_timestamps)
 
         self.assertEqual(last_timestamps, {7: (1_800_000_001_000, 11, 0)})
+        self.assertEqual(ticker.get_pool_transactions.await_args_list[0].args, (pool, 9))
+        self.assertEqual(ticker.get_pool_transactions.await_args_list[1].args, (pool, 10))
         self.assertEqual(manager.notify.await_args_list[0].args[0], 'kline')
         self.assertEqual(manager.notify.await_args_list[2].args[0], 'kline')
         second_kline_payload = manager.notify.await_args_list[2].args[1]
