@@ -136,6 +136,23 @@ export interface KlineEvent {
     | SortedTransactionsPayload
 }
 
+export const buildKlineRequestTraceId = ({
+  token0,
+  token1,
+  interval,
+  startAt,
+  endAt,
+  reverse,
+  requestId,
+}: FetchPointsPayload): string => (
+  `${requestId}:${interval}:${reverse ? 'reverse' : 'forward'}:${startAt}:${endAt}:${token0.slice(0, 8)}:${token1.slice(0, 8)}`
+)
+
+export const appendKlineTraceParams = (url: string, traceId: string, sentAtMs: number): string => {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}request_id=${encodeURIComponent(traceId)}&client_sent_at_ms=${sentAtMs}`
+}
+
 export class KlineRunner {
   static storePoints = async (
     token0: string,
@@ -165,13 +182,22 @@ export class KlineRunner {
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
     const { token0, token1, startAt, endAt, interval, reverse, requestId } = payload
+    const traceId = buildKlineRequestTraceId(payload)
 
     const url = constants.formalizeSchema(
       `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`,
     )
 
     try {
-      const res = await axios.get(url)
+      const sentAtMs = Date.now()
+      const tracedUrl = appendKlineTraceParams(url, traceId, sentAtMs)
+      console.log('[KlineRunner] fetch points start', { traceId, url: tracedUrl, sentAtMs })
+      const res = await axios.get(tracedUrl)
+      console.log('[KlineRunner] fetch points done', {
+        traceId,
+        status: res.status,
+        durationMs: Date.now() - sentAtMs,
+      })
 
       const points = res.data as Points
       points.end_at = endAt

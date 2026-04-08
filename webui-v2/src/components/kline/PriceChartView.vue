@@ -31,7 +31,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason } from './priceChartStartup'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -318,6 +318,11 @@ watch(selectedPool, (newPool, oldPool) => {
   if (loading.value) {
     loading.value = newPool?.poolApplication?.owner === oldPool?.poolApplication?.owner
   }
+  if (!shouldRestartKlineOnSelectedPoolChange({
+    previousPoolId: oldPool?.poolId,
+    nextPoolId: newPool?.poolId,
+  })) return
+
   getStoreKline()
 })
 

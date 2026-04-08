@@ -131,6 +131,14 @@ export const resolveBackgroundHistoryStatus = ({
   return 'idle'
 }
 
+export const shouldRestartKlineOnSelectedPoolChange = ({
+  previousPoolId,
+  nextPoolId,
+}: {
+  previousPoolId: number | undefined
+  nextPoolId: number | undefined
+}) => previousPoolId !== nextPoolId && nextPoolId !== undefined
+
 type NextFetchDecisionInput = {
   reverse: boolean
   reason: Reason

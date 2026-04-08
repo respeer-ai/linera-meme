@@ -8,6 +8,7 @@ import {
   resolveNextFetchTimestamp,
   resolveBackgroundHistoryStatus,
   resolveStartupRequestPlan,
+  shouldRestartKlineOnSelectedPoolChange,
   shouldDeferHistoryLoadUntilFirstPaint,
   shouldScheduleBackgroundHistoryBackfill,
   SortReason,
@@ -189,5 +190,22 @@ describe('resolveNextFetchTimestamp', () => {
       minPointTimestamp: 1_000,
       poolCreatedAt: 1_000,
     })).toBe('complete')
+  })
+
+  test('restarts kline only when the selected pool identity really changes', () => {
+    expect(shouldRestartKlineOnSelectedPoolChange({
+      previousPoolId: undefined,
+      nextPoolId: 1,
+    })).toBe(true)
+
+    expect(shouldRestartKlineOnSelectedPoolChange({
+      previousPoolId: 1,
+      nextPoolId: 1,
+    })).toBe(false)
+
+    expect(shouldRestartKlineOnSelectedPoolChange({
+      previousPoolId: 1,
+      nextPoolId: 2,
+    })).toBe(true)
   })
 })

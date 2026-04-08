@@ -67,11 +67,11 @@ spec:
           mountPath: /shared-app-data
         resources:
           requests:
-            cpu: "200m"
-            memory: "1024Mi"
-          limits:
-            cpu: "400m"
+            cpu: "600m"
             memory: "2048Mi"
+          limits:
+            cpu: "800m"
+            memory: "4096Mi"
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:
