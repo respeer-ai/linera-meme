@@ -19,6 +19,15 @@ class Ticker:
     async def get_pool_transactions(self, pool: Pool) -> list[Transaction]:
         return await self.swap.get_pool_transactions(pool)
 
+    async def persist_pools(self, pools: list[Pool]):
+        await asyncio.to_thread(self.db.new_pools, pools)
+
+    async def persist_transactions(self, pool_id: int, transactions: list[Transaction]):
+        return await asyncio.to_thread(self.db.new_transactions, pool_id, transactions)
+
+    async def build_incremental_kline_payload_async(self, pool: Pool, transactions):
+        return await asyncio.to_thread(self.build_incremental_kline_payload, pool, transactions)
+
     def build_incremental_kline_payload(self, pool: Pool, transactions):
         payload = {}
         seen = set()
@@ -70,38 +79,40 @@ class Ticker:
 
         return payload
 
+    async def run_iteration(self, last_timestamps):
+        pools = await self.get_pools()
+        await self.persist_pools(pools)
+
+        _transactions = []
+        kline_payload = {}
+
+        for pool in pools:
+            transactions = await self.get_pool_transactions(pool)
+            __transactions = await self.persist_transactions(pool.pool_id, transactions)
+
+            last_timestamp = last_timestamps[pool.pool_id] if pool.pool_id in last_timestamps else 0
+            live_transactions = list(filter(lambda transaction: transaction['created_at'] > last_timestamp, __transactions))
+
+            _transactions.append({
+                'token_0': pool.token_0,
+                'token_1': pool.token_1 if pool.token_1 is not None else 'TLINERA',
+                'transactions': live_transactions,
+            })
+            incremental_payload = await self.build_incremental_kline_payload_async(pool, live_transactions)
+            for interval, interval_points in incremental_payload.items():
+                existing = kline_payload.get(interval, [])
+                existing.extend(interval_points)
+                kline_payload[interval] = existing
+            last_timestamps[pool.pool_id] = max([transaction['created_at'] for transaction in __transactions] + [last_timestamp])
+
+        await self.manager.notify('kline', kline_payload)
+        await self.manager.notify('transactions', _transactions)
+
     async def run(self):
-        lastTimestamps = {}
+        last_timestamps = {}
 
         while self._running:
-            pools = await self.get_pools()
-            self.db.new_pools(pools)
-
-            _transactions = []
-            kline_payload = {}
-
-            for pool in pools:
-                transactions = await self.get_pool_transactions(pool)
-                __transactions = self.db.new_transactions(pool.pool_id, transactions)
-
-                lastTimestamp = lastTimestamps[pool.pool_id] if pool.pool_id in lastTimestamps else 0
-                live_transactions = list(filter(lambda transaction: transaction['created_at'] > lastTimestamp, __transactions))
-
-                _transactions.append({
-                    'token_0': pool.token_0,
-                    'token_1': pool.token_1 if pool.token_1 is not None else 'TLINERA',
-                    'transactions': live_transactions,
-                })
-                incremental_payload = self.build_incremental_kline_payload(pool, live_transactions)
-                for interval, interval_points in incremental_payload.items():
-                    existing = kline_payload.get(interval, [])
-                    existing.extend(interval_points)
-                    kline_payload[interval] = existing
-                lastTimestamps[pool.pool_id] = max([transaction['created_at'] for transaction in __transactions] + [lastTimestamp])
-
-            await self.manager.notify('kline', kline_payload)
-            await self.manager.notify('transactions', _transactions)
-
+            await self.run_iteration(last_timestamps)
             await asyncio.sleep(self.interval)
 
     def stop(self):

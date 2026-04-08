@@ -215,7 +215,7 @@ numpy_stub = types.ModuleType('numpy')
 sys.modules.setdefault('pandas', pandas_stub)
 sys.modules.setdefault('numpy', numpy_stub)
 
-from db import Db, align_timestamp_to_minute_ms, build_kline_points_query  # noqa: E402
+from db import Db, align_timestamp_to_minute_ms, build_kline_log_line, build_kline_points_query  # noqa: E402
 
 
 class FakeFromAccount:
@@ -389,6 +389,12 @@ class DbQueryHelperTest(unittest.TestCase):
 
         self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_000_000, 60_000), 1)
         self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_120_000, 60_000), 3)
+
+    def test_build_kline_log_line_orders_fields_for_stable_grep(self):
+        self.assertEqual(
+            build_kline_log_line('request_complete', pool_id=7, source='candles', point_count=15),
+            '[kline] event=request_complete point_count=15 pool_id=7 source=candles',
+        )
 
 
 class DbCandleIngestTest(unittest.TestCase):
@@ -741,7 +747,7 @@ class DbCandleQueryTest(unittest.TestCase):
                 'close': 2.7,
                 'volume': 5.0,
             },
-        ]) as transaction_mock:
+        ]) as transaction_mock, patch.object(db, 'log_kline_event') as log_mock:
             _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
@@ -752,6 +758,10 @@ class DbCandleQueryTest(unittest.TestCase):
 
         candle_mock.assert_called_once()
         transaction_mock.assert_called_once()
+        self.assertEqual(
+            [call.kwargs['event'] for call in log_mock.call_args_list],
+            ['request_start', 'candles_result', 'transactions_fallback_start', 'transactions_result', 'request_complete'],
+        )
         self.assertEqual(points[0]['timestamp'], 1_800_000_000_000)
         self.assertEqual(len(points), 3)
 

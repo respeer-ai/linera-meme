@@ -1,38 +1,68 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import JSONResponse
 import asyncio
 import uvicorn
 import argparse
 import traceback
+import time
 
 
 from swap import Swap
 from subscription import WebSocketManager
 from ticker import Ticker
 from db import Db, align_timestamp_to_minute_ms
+from request_trace import build_api_request_log_line, build_api_trace_context
 
 
 app = FastAPI()
 _swap = None
 manager = None
 _ticker = None
+_ticker_task = None
 _db = None
+_ticker_db = None
+_db_config = None
 
 
 @app.get('/points/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
-async def on_get_kline(token0: str, token1: str, start_at: int, end_at: int, interval: str):
+async def on_get_kline(request: Request, token0: str, token1: str, start_at: int, end_at: int, interval: str):
     token_0 = token0
     token_1 = token1
     points = []
+    raw_start_at = start_at
+    raw_end_at = end_at
+    request_id = request.query_params.get('request_id')
+    trace = build_api_trace_context(request_id, raw_start_at, raw_end_at, interval)
+    handler_started_at = time.perf_counter()
 
     # TODO: align to needed interval
     start_at = align_timestamp_to_minute_ms(start_at)
     end_at = align_timestamp_to_minute_ms(end_at)
+    print(build_api_request_log_line(
+        'received',
+        aligned_end_at=end_at,
+        aligned_start_at=start_at,
+        client_sent_at_ms=request.query_params.get('client_sent_at_ms') or 'missing',
+        interval=interval,
+        raw_end_at=trace['raw_end_at'],
+        raw_start_at=trace['raw_start_at'],
+        received_at_ms=trace['received_at_ms'],
+        request_id=trace['request_id'],
+    ))
 
     try:
         (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
     except Exception as e:
         print(f'Failed get kline: {e}')
+    finally:
+        print(build_api_request_log_line(
+            'completed',
+            aligned_end_at=end_at,
+            aligned_start_at=start_at,
+            duration_ms=int((time.perf_counter() - handler_started_at) * 1000),
+            point_count=len(points),
+            request_id=trace['request_id'],
+        ))
 
     return {
         'token_0': token_0,
@@ -138,15 +168,9 @@ async def on_subscribe(websocket: WebSocket):
     await websocket.accept()
     await manager.connect(websocket)
 
-
-## Must not exposed
-@app.post('/run/ticker')
-async def on_run_ticker():
+async def run_ticker_forever():
     global _ticker
-    if _ticker is not None:
-        return
-    _ticker = Ticker(manager, _swap, _db)
-    while _ticker.running():
+    while _ticker is not None and _ticker.running():
         try:
             await _ticker.run()
         except Exception as e:
@@ -154,8 +178,37 @@ async def on_run_ticker():
             traceback.print_exc()
             await asyncio.sleep(10)
 
-# Http and websocket must be deployed to different pod
 
+@app.on_event('startup')
+async def on_startup():
+    global _ticker, _ticker_task, _ticker_db
+    if _swap is None or manager is None or _db_config is None:
+        return
+    if _ticker_task is not None:
+        return
+
+    _ticker_db = Db(
+        _db_config['host'],
+        _db_config['port'],
+        _db_config['db_name'],
+        _db_config['username'],
+        _db_config['password'],
+        False,
+    )
+    _ticker = Ticker(manager, _swap, _ticker_db)
+    _ticker_task = asyncio.create_task(run_ticker_forever())
+
+
+@app.on_event('shutdown')
+async def on_shutdown():
+    global _ticker_task
+    if _ticker is not None:
+        _ticker.stop()
+    if _ticker_task is not None:
+        await _ticker_task
+        _ticker_task = None
+    if _ticker_db is not None:
+        _ticker_db.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Linera Swap Kline')
@@ -176,6 +229,14 @@ if __name__ == '__main__':
 
     _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None)
 
+    _db_config = {
+        'host': args.database_host,
+        'port': args.database_port,
+        'db_name': args.database_name,
+        'username': args.database_user,
+        'password': args.database_password,
+    }
+
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     manager = WebSocketManager(_swap, _db)
 
@@ -183,5 +244,3 @@ if __name__ == '__main__':
 
     if _db is not None:
         _db.close()
-    if _ticker is not None:
-        _ticker.stop()

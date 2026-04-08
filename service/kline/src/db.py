@@ -62,6 +62,13 @@ def filter_zero_volume_candles(points: list[dict]):
     return [point for point in points if float(point['volume']) > 0]
 
 
+def build_kline_log_line(event: str, **fields) -> str:
+    parts = [f'[kline] event={event}']
+    for key in sorted(fields.keys()):
+        parts.append(f'{key}={fields[key]}')
+    return ' '.join(parts)
+
+
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
 
@@ -171,6 +178,9 @@ class Db:
 
     def now_ms(self):
         return int(time.time() * 1000)
+
+    def log_kline_event(self, event: str, **fields):
+        print(build_kline_log_line(event, **fields))
 
     def ensure_transactions_indexes(self):
         self.cursor.execute(f'SHOW INDEX FROM {self.transactions_table}')
@@ -532,7 +542,17 @@ class Db:
         return self.cursor_dict.fetchone()
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
+        request_started_at = time.perf_counter()
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        interval = interval if interval is not None else '1min'
+        self.log_kline_event(
+            event='request_start',
+            end_at=end_at,
+            interval=interval,
+            pool_id=pool_id,
+            start_at=start_at,
+            token_reversed=token_reversed,
+        )
         points = self.get_kline_from_candles(
             pool_id=pool_id,
             token_reversed=token_reversed,
@@ -542,16 +562,54 @@ class Db:
             end_at=end_at,
             interval=interval,
         )
+        self.log_kline_event(
+            event='candles_result',
+            interval=interval,
+            point_count=len(points),
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+        )
 
         if len(points) > 0:
+            self.log_kline_event(
+                event='request_complete',
+                duration_ms=int((time.perf_counter() - request_started_at) * 1000),
+                interval=interval,
+                point_count=len(points),
+                pool_id=pool_id,
+                source='candles',
+                token_reversed=token_reversed,
+            )
             return (token_0, token_1, points)
 
+        self.log_kline_event(
+            event='transactions_fallback_start',
+            interval=interval,
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+        )
         points = self.get_kline_from_transactions(
             pool_id=pool_id,
             token_reversed=token_reversed,
             start_at=start_at,
             end_at=end_at,
             interval=interval,
+        )
+        self.log_kline_event(
+            event='transactions_result',
+            interval=interval,
+            point_count=len(points),
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+        )
+        self.log_kline_event(
+            event='request_complete',
+            duration_ms=int((time.perf_counter() - request_started_at) * 1000),
+            interval=interval,
+            point_count=len(points),
+            pool_id=pool_id,
+            source='transactions',
+            token_reversed=token_reversed,
         )
 
         return (token_0, token_1, points)
@@ -567,7 +625,6 @@ class Db:
         interval: str,
     ):
         interval = interval if interval is not None else '1min'
-        bucket_ms = get_interval_bucket_ms(interval)
         query_start_at = build_candle_bucket_key(
             pool_id=pool_id,
             token_reversed=token_reversed,
@@ -581,6 +638,7 @@ class Db:
             created_at_ms=end_at,
         ).bucket_start_ms
 
+        query_started_at = time.perf_counter()
         self.cursor_dict.execute(
             f'''
                 SELECT
@@ -601,13 +659,19 @@ class Db:
             (pool_id, token_reversed, interval, query_start_at, query_end_at),
         )
         rows = self.cursor_dict.fetchall()
+        query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
+        self.log_kline_event(
+            event='candles_query',
+            bucket_end_ms=query_end_at,
+            bucket_start_ms=query_start_at,
+            interval=interval,
+            pool_id=pool_id,
+            query_ms=query_duration_ms,
+            row_count=len(rows),
+            token_reversed=token_reversed,
+        )
         if len(rows) == 0:
             return []
-
-        rows_by_bucket = {
-            int(row['bucket_start_ms']): row
-            for row in rows
-        }
 
         now_ms = self.now_ms()
         json_data = [
@@ -637,8 +701,20 @@ class Db:
             start_at=start_at,
             end_at=end_at,
         )
+        query_started_at = time.perf_counter()
         self.cursor_dict.execute(query)
         rows = self.cursor_dict.fetchall()
+        query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
+        self.log_kline_event(
+            event='transactions_query',
+            end_at=end_at,
+            interval=interval if interval is not None else '1min',
+            pool_id=pool_id,
+            query_ms=query_duration_ms,
+            row_count=len(rows),
+            start_at=start_at,
+            token_reversed=token_reversed,
+        )
         if len(rows) == 0:
             return []
 
@@ -647,6 +723,7 @@ class Db:
         candle_items = []
         candles_by_bucket = {}
 
+        aggregate_started_at = time.perf_counter()
         for row in rows:
             created_at_ms = int(row['created_at'])
             bucket_key = build_candle_bucket_key(
@@ -666,7 +743,9 @@ class Db:
                 update=update,
             )
             candles_by_bucket[bucket_key.bucket_start_ms] = candle
+        aggregate_duration_ms = int((time.perf_counter() - aggregate_started_at) * 1000)
 
+        persist_started_at = time.perf_counter()
         for bucket_start_ms in sorted(candles_by_bucket.keys()):
             bucket_key = build_candle_bucket_key(
                 pool_id=pool_id,
@@ -690,6 +769,18 @@ class Db:
             ))
 
         self.connection.commit()
+        persist_duration_ms = int((time.perf_counter() - persist_started_at) * 1000)
+        self.log_kline_event(
+            event='transactions_materialized',
+            aggregate_ms=aggregate_duration_ms,
+            bucket_count=len(candles_by_bucket),
+            interval=interval,
+            persist_ms=persist_duration_ms,
+            point_count=len(candle_items),
+            pool_id=pool_id,
+            row_count=len(rows),
+            token_reversed=token_reversed,
+        )
         return filter_zero_volume_candles(candle_items)
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):

@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+from unittest.mock import AsyncMock
 from pathlib import Path
 
 
@@ -35,9 +36,18 @@ from db import build_candle_point_payload  # noqa: E402
 class FakeDb:
     def __init__(self):
         self.points = {}
+        self.persisted_pools = []
+        self.persisted_transactions = []
 
     def get_candle_point(self, pool_id, token_reversed, interval, bucket_start_ms):
         return self.points.get((pool_id, token_reversed, interval, bucket_start_ms))
+
+    def new_pools(self, pools):
+        self.persisted_pools.append(pools)
+
+    def new_transactions(self, pool_id, transactions):
+        self.persisted_transactions.append((pool_id, transactions))
+        return transactions
 
 
 class TickerIncrementalPayloadTest(unittest.TestCase):
@@ -164,6 +174,40 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         )
 
         self.assertEqual(websocket_payload, http_payload)
+
+
+class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
+    async def test_run_iteration_offloads_persistence_and_notifies_manager(self):
+        db = FakeDb()
+        db.points[(7, False, '1min', 1_800_000_000_000)] = {
+            'timestamp': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 2.0,
+            'close': 3.0,
+            'volume': 14.0,
+        }
+        manager = types.SimpleNamespace(notify=AsyncMock())
+        swap = types.SimpleNamespace()
+        ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
+        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+        ticker.get_pools = AsyncMock(return_value=[pool])
+        ticker.get_pool_transactions = AsyncMock(return_value=[{
+            'transaction_id': 10,
+            'transaction_type': 'BuyToken0',
+            'token_reversed': False,
+            'created_at': 1_800_000_001_000,
+        }])
+
+        last_timestamps = {}
+        await ticker.run_iteration(last_timestamps)
+
+        self.assertEqual(len(db.persisted_pools), 1)
+        self.assertEqual(len(db.persisted_transactions), 1)
+        self.assertEqual(last_timestamps, {7: 1_800_000_001_000})
+        self.assertEqual(manager.notify.await_count, 2)
+        self.assertEqual(manager.notify.await_args_list[0].args[0], 'kline')
+        self.assertEqual(manager.notify.await_args_list[1].args[0], 'transactions')
 
 
 if __name__ == '__main__':
