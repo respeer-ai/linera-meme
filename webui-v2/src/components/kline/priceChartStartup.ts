@@ -42,6 +42,12 @@ export type StartupFetchRequest = {
   endAt: number
 }
 
+export type StartupCatchupFetchRequest = StartupFetchRequest
+
+export type StartupGapBackfillFetchRequest = StartupFetchRequest & {
+  key: string
+}
+
 type StartupRequestPlanInput = {
   nowMs: number
   interval: Interval
@@ -55,6 +61,21 @@ export type StartupRequestPlan = {
     limit: number
   }
   fetchLatest: StartupFetchRequest
+}
+
+type StartupCatchupFetchInput = {
+  cacheLatestTimestamp: number
+  latestWindowStart: number
+  latestWindowEnd: number
+  interval: Interval
+}
+
+type StartupGapBackfillInput = {
+  pointTimestamps: number[]
+  latestWindowStart: number
+  latestWindowEnd: number
+  interval: Interval
+  requestedKeys: Set<string>
 }
 
 type HistoryLoadDeferralInput = {
@@ -99,6 +120,29 @@ export const getFirstScreenFetchWindowSize = (interval: Interval): number => {
       return 365 * 24 * 3600 * 1000
     default:
       return 1 * 3600 * 1000
+  }
+}
+
+export const getIntervalBucketSize = (interval: Interval): number => {
+  switch (interval) {
+    case Interval.ONE_MINUTE:
+      return 60 * 1000
+    case Interval.FIVE_MINUTE:
+      return 5 * 60 * 1000
+    case Interval.TEN_MINUTE:
+      return 10 * 60 * 1000
+    case Interval.FIFTEEN_MINUTE:
+      return 15 * 60 * 1000
+    case Interval.ONE_HOUR:
+      return 60 * 60 * 1000
+    case Interval.FOUR_HOUR:
+      return 4 * 60 * 60 * 1000
+    case Interval.ONE_DAY:
+      return 24 * 60 * 60 * 1000
+    case Interval.ONE_MONTH:
+      return 30 * 24 * 60 * 60 * 1000
+    default:
+      return 60 * 1000
   }
 }
 
@@ -204,4 +248,84 @@ export const resolveStartupRequestPlan = ({
       endAt: nowMs,
     },
   }
+}
+
+export const resolveStartupCatchupFetch = ({
+  cacheLatestTimestamp,
+  latestWindowStart,
+  latestWindowEnd,
+  interval,
+}: StartupCatchupFetchInput): StartupCatchupFetchRequest | null => {
+  const bucketSize = getIntervalBucketSize(interval)
+  const catchupStart = Math.max(cacheLatestTimestamp + 1, latestWindowStart)
+  const catchupEnd = latestWindowEnd
+
+  if (cacheLatestTimestamp >= latestWindowEnd - bucketSize) return null
+  if (catchupEnd < catchupStart) return null
+
+  return {
+    reverse: false,
+    startAt: catchupStart,
+    endAt: catchupEnd,
+  }
+}
+
+export const resolveStartupGapBackfillFetch = ({
+  pointTimestamps,
+  latestWindowStart,
+  latestWindowEnd,
+  interval,
+  requestedKeys,
+}: StartupGapBackfillInput): StartupGapBackfillFetchRequest | null => {
+  if (pointTimestamps.length === 0) return null
+
+  const bucketSize = getIntervalBucketSize(interval)
+  const timestamps = [...pointTimestamps]
+    .filter((timestamp) => timestamp >= latestWindowStart && timestamp <= latestWindowEnd)
+    .sort((left, right) => left - right)
+
+  if (timestamps.length === 0) return null
+
+  const firstTimestamp = timestamps[0]
+  if (firstTimestamp !== undefined && firstTimestamp - latestWindowStart > bucketSize) {
+    const startAt = latestWindowStart
+    const endAt = firstTimestamp - 1
+    const key = `${startAt}:${endAt}`
+    if (!requestedKeys.has(key) && endAt >= startAt) {
+      return { reverse: false, startAt, endAt, key }
+    }
+  }
+
+  for (let index = 1; index < timestamps.length; index += 1) {
+    const previous = timestamps[index - 1]
+    const current = timestamps[index]
+
+    if (previous === undefined || current === undefined) continue
+    if (current - previous <= bucketSize) continue
+
+    const startAt = previous + bucketSize
+    const endAt = current - 1
+    const key = `${startAt}:${endAt}`
+
+    if (requestedKeys.has(key) || endAt < startAt) continue
+
+    return {
+      reverse: false,
+      startAt,
+      endAt,
+      key,
+    }
+  }
+
+  const lastTimestamp = timestamps[timestamps.length - 1]
+  if (lastTimestamp !== undefined && latestWindowEnd - lastTimestamp > bucketSize) {
+    const startAt = lastTimestamp + bucketSize
+    const endAt = latestWindowEnd
+    const key = `${startAt}:${endAt}`
+    if (!requestedKeys.has(key) && endAt >= startAt) {
+      return { reverse: false, startAt, endAt, key }
+    }
+  }
+
+  return null
 }

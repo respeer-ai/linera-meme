@@ -3,10 +3,13 @@ import { Interval } from 'src/stores/kline/const'
 
 import {
   getFirstScreenFetchWindowSize,
+  getIntervalBucketSize,
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
   resolveBackgroundHistoryStatus,
+  resolveStartupCatchupFetch,
+  resolveStartupGapBackfillFetch,
   resolveStartupRequestPlan,
   shouldRestartKlineOnSelectedPoolChange,
   shouldDeferHistoryLoadUntilFirstPaint,
@@ -121,6 +124,97 @@ describe('resolveNextFetchTimestamp', () => {
     expect(getFirstScreenFetchWindowSize(Interval.FIVE_MINUTE)).toBe(5 * 3600 * 1000)
     expect(getFirstScreenFetchWindowSize(Interval.TEN_MINUTE)).toBe(10 * 3600 * 1000)
     expect(getFirstScreenFetchWindowSize(Interval.ONE_HOUR)).toBe(24 * 3600 * 1000)
+  })
+
+  test('exposes exact interval bucket sizes for startup gap recovery', () => {
+    expect(getIntervalBucketSize(Interval.ONE_MINUTE)).toBe(60 * 1000)
+    expect(getIntervalBucketSize(Interval.FIVE_MINUTE)).toBe(5 * 60 * 1000)
+    expect(getIntervalBucketSize(Interval.ONE_DAY)).toBe(24 * 60 * 60 * 1000)
+  })
+
+  test('plans a forward catch-up fetch when cached points end before the latest startup window', () => {
+    expect(resolveStartupCatchupFetch({
+      cacheLatestTimestamp: 9 * 60 * 60 * 1000,
+      latestWindowStart: 10 * 60 * 60 * 1000,
+      latestWindowEnd: 11 * 60 * 60 * 1000,
+      interval: Interval.ONE_MINUTE,
+    })).toEqual({
+      reverse: false,
+      startAt: 10 * 60 * 60 * 1000,
+      endAt: 11 * 60 * 60 * 1000,
+    })
+  })
+
+  test('skips startup catch-up fetch when cache already reaches the latest startup window', () => {
+    expect(resolveStartupCatchupFetch({
+      cacheLatestTimestamp: 100_000,
+      latestWindowStart: 120_000,
+      latestWindowEnd: 160_000,
+      interval: Interval.ONE_MINUTE,
+    })).toBe(null)
+  })
+
+  test('fills the reopen gap from the latest cached candle through now when cache is inside the latest window', () => {
+    expect(resolveStartupCatchupFetch({
+      cacheLatestTimestamp: 9 * 60 * 60 * 1000,
+      latestWindowStart: 0,
+      latestWindowEnd: 10 * 60 * 60 * 1000,
+      interval: Interval.TEN_MINUTE,
+    })).toEqual({
+      reverse: false,
+      startAt: 9 * 60 * 60 * 1000 + 1,
+      endAt: 10 * 60 * 60 * 1000,
+    })
+  })
+
+  test('backfills a missing middle startup gap inside the current latest window', () => {
+    expect(resolveStartupGapBackfillFetch({
+      pointTimestamps: [
+        9 * 60 * 60 * 1000,
+        10 * 60 * 60 * 1000,
+      ],
+      latestWindowStart: 9 * 60 * 60 * 1000,
+      latestWindowEnd: 10 * 60 * 60 * 1000,
+      interval: Interval.TEN_MINUTE,
+      requestedKeys: new Set<string>(),
+    })).toEqual({
+      reverse: false,
+      startAt: 9 * 60 * 60 * 1000 + 10 * 60 * 1000,
+      endAt: 10 * 60 * 60 * 1000 - 1,
+      key: `${9 * 60 * 60 * 1000 + 10 * 60 * 1000}:${10 * 60 * 60 * 1000 - 1}`,
+    })
+  })
+
+  test('backfills a trailing startup gap from the latest rendered candle to now', () => {
+    expect(resolveStartupGapBackfillFetch({
+      pointTimestamps: [
+        9 * 60 * 60 * 1000,
+      ],
+      latestWindowStart: 9 * 60 * 60 * 1000,
+      latestWindowEnd: 10 * 60 * 60 * 1000,
+      interval: Interval.TEN_MINUTE,
+      requestedKeys: new Set<string>(),
+    })).toEqual({
+      reverse: false,
+      startAt: 9 * 60 * 60 * 1000 + 10 * 60 * 1000,
+      endAt: 10 * 60 * 60 * 1000,
+      key: `${9 * 60 * 60 * 1000 + 10 * 60 * 1000}:${10 * 60 * 60 * 1000}`,
+    })
+  })
+
+  test('skips duplicate startup gap backfill requests that were already issued', () => {
+    const key = `${9 * 60 * 60 * 1000 + 10 * 60 * 1000}:${10 * 60 * 60 * 1000 - 1}`
+
+    expect(resolveStartupGapBackfillFetch({
+      pointTimestamps: [
+        9 * 60 * 60 * 1000,
+        10 * 60 * 60 * 1000,
+      ],
+      latestWindowStart: 9 * 60 * 60 * 1000,
+      latestWindowEnd: 10 * 60 * 60 * 1000,
+      interval: Interval.TEN_MINUTE,
+      requestedKeys: new Set<string>([key]),
+    })).toBe(null)
   })
 
   test('defers old-history loads until first paint is ready', () => {

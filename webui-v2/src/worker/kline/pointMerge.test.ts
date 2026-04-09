@@ -41,7 +41,7 @@ describe('mergeKlinePoints', () => {
     ])
   })
 
-  test('removes synthetic zero-volume candles anywhere in the merged history', () => {
+  test('preserves zero-volume flat candles to keep financial time continuity', () => {
     const merged = mergeKlinePoints({
       originPoints: [
         { ...point(1_000, 10), base_volume: 5, quote_volume: 10 },
@@ -58,7 +58,11 @@ describe('mergeKlinePoints', () => {
 
     expect(merged).toEqual([
       { ...point(1_000, 10), base_volume: 5, quote_volume: 10 },
+      { ...point(2_000, 10), base_volume: 0, quote_volume: 0 },
+      { ...point(3_000, 10), base_volume: 0, quote_volume: 0 },
       { ...point(4_000, 12), base_volume: 7, quote_volume: 14 },
+      { ...point(5_000, 12), base_volume: 0, quote_volume: 0 },
+      { ...point(6_000, 12), base_volume: 0, quote_volume: 0 },
     ])
   })
 })

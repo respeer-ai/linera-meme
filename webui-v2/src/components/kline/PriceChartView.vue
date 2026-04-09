@@ -31,7 +31,8 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
+import { mergeSortedPointsIntoChartState } from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -162,6 +163,8 @@ const loadingDirection = ref(null as LoadDirection | null)
 const pendingLoadDirections = ref([] as LoadDirection[])
 const currentRequestId = ref(0)
 const indicatorsReady = ref(false)
+const startupPlanRef = ref<StartupRequestPlan | null>(null)
+const startupGapFetchKeysRef = ref(new Set<string>())
 const startupBaselineRecorder = createStartupBaselineRecorder()
 const startupInstrumentation = createStartupInstrumentation({
   emit: (event) => {
@@ -286,11 +289,13 @@ const getStoreKline = () => {
     firstScreenReady.value = false
     backgroundHistoryQueued.value = false
     pendingLoadDirections.value = []
+    startupGapFetchKeysRef.value = new Set<string>()
     const startupPlan = resolveStartupRequestPlan({
       nowMs: Date.now(),
       interval: selectedInterval.value,
       poolCreatedAt: poolCreatedAt.value
     })
+    startupPlanRef.value = startupPlan
 
     loadKline(
       startupPlan.load.offset,
@@ -401,6 +406,23 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     requestId,
     pointCount: _points.length
   })
+
+  if (reverse && timestampBegin === undefined && timestampEnd === undefined && _points.length > 0) {
+    const startupPlan = startupPlanRef.value
+    const cacheLatestTimestamp = Math.max(..._points.map((point) => point.timestamp))
+    const catchupFetch = startupPlan
+      ? resolveStartupCatchupFetch({
+        cacheLatestTimestamp,
+        latestWindowStart: startupPlan.fetchLatest.startAt,
+        latestWindowEnd: startupPlan.fetchLatest.endAt,
+        interval: selectedInterval.value
+      })
+      : null
+
+    if (catchupFetch) {
+      fetchKlineRange(catchupFetch.startAt, catchupFetch.endAt, catchupFetch.reverse)
+    }
+  }
 
   const windowSize = getWindowSize(selectedInterval.value)
   const startAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - windowSize : (timestampEnd ?? maxPointTimestamp.value) + 1
@@ -538,12 +560,9 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   }
 
   // 更新数据点
-  klinePoints.value = points.map((el) => {
-    return {
-      ...el,
-      volume: el.base_volume,
-      time: Math.floor(el.timestamp / 1000)
-    }
+  klinePoints.value = mergeSortedPointsIntoChartState({
+    currentPoints: klinePoints.value,
+    sortedPoints: points,
   })
 
   startupInstrumentation.markPointsMerged({
@@ -551,6 +570,22 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     pointCount: points.length,
     source: _reason.reason === SortReason.LOAD ? 'cache' : 'network'
   })
+
+  const startupPlan = startupPlanRef.value
+  const gapBackfill = startupPlan
+    ? resolveStartupGapBackfillFetch({
+      pointTimestamps: klinePoints.value.map((point) => point.time * 1000),
+      latestWindowStart: startupPlan.fetchLatest.startAt,
+      latestWindowEnd: startupPlan.fetchLatest.endAt,
+      interval: selectedInterval.value,
+      requestedKeys: startupGapFetchKeysRef.value,
+    })
+    : null
+
+  if (gapBackfill) {
+    startupGapFetchKeysRef.value.add(gapBackfill.key)
+    fetchKlineRange(gapBackfill.startAt, gapBackfill.endAt, gapBackfill.reverse)
+  }
 
   // 内存管理：如果数据点过多，只保留最近的数据在内存中
   const maxMemoryPoints = getMaxPoints(selectedInterval.value)
@@ -589,6 +624,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  startupPlanRef.value = null
+  startupGapFetchKeysRef.value = new Set<string>()
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)

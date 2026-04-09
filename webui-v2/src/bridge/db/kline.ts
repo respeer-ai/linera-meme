@@ -4,6 +4,7 @@ import { type Interval } from 'src/stores/kline/const'
 import { type Point } from 'src/stores/kline/types'
 import { type dbModel } from 'src/model'
 import { type KlinePoint } from 'src/model/db/model'
+import { splitCompatibleKlinePoints } from './klineCacheCompatibility'
 
 export class Kline {
   static bulkPut = async (token0: string, token1: string, interval: Interval, points: Point[]) => {
@@ -72,11 +73,25 @@ export class Kline {
       ? dbKline.klinePoints.where('[token0+token1+interval+timestamp]').between(from, to).reverse()
       : dbKline.klinePoints.where('[token0+token1+interval+timestamp]').between(from, to)
 
-    return (
-      await collection
-        .offset(offset ?? 0)
-        .limit(limit ?? 999999)
-        .toArray()
-    ).sort((a, b) => b.timestamp - a.timestamp)
+    const loadedPoints = await collection
+      .offset(offset ?? 0)
+      .limit(limit ?? 999999)
+      .toArray()
+
+    const { compatible, incompatible } = splitCompatibleKlinePoints(loadedPoints)
+
+    if (incompatible.length > 0) {
+      await dbKline.klinePoints.bulkDelete(
+        incompatible
+          .filter((point) =>
+            typeof point.token0 === 'string' &&
+            typeof point.token1 === 'string' &&
+            typeof point.interval === 'string' &&
+            typeof point.timestamp === 'number')
+          .map((point) => [point.token0, point.token1, point.interval, point.timestamp] as const),
+      )
+    }
+
+    return compatible.sort((a, b) => b.timestamp - a.timestamp)
   }
 }

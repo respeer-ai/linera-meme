@@ -16,6 +16,17 @@ dbKline.version(11).stores({
     '++id, &[token0+token1+transaction_id+token_reversed], &[created_timestamp+token0+token1+token_reversed], &[created_timestamp+token_reversed], transaction_type, from_account, amount_0_in, amount_1_in, amount_0_out, amount_1_out, liquidity, created_at, created_timestamp, price, volume, direction',
 })
 
+dbKline.version(12).stores({
+  klinePoints: null,
+  transactions: null,
+  klinePointsV2:
+    '++id, &[token0+token1+interval+timestamp], open, close, low, high, volume, timestamp',
+  transactionsV3:
+    '++id, &[token0+token1+transaction_id+token_reversed], &[created_timestamp+token0+token1+token_reversed], &[created_timestamp+token_reversed], transaction_type, from_account, amount_0_in, amount_1_in, amount_0_out, amount_1_out, liquidity, created_at, created_timestamp, price, volume, direction',
+}).upgrade(async (tx) => {
+  await tx.table('klinePointsV2').clear()
+})
+
 Object.defineProperty(dbKline, 'transactions', {
   get() {
     return dbKline.table('transactionsV3')

@@ -14,6 +14,20 @@ Phase 1 remains strictly focused on:
 
 Everything below is intentionally deferred.
 
+## Frontend Integration Review Notes
+
+Review snapshot recorded on `2026-04-09`.
+
+These items are implemented visually in the frontend but are not fully wired to real product behavior yet:
+
+- `Create Meme` metadata form maps multiple social/link inputs into `metadata.website` instead of distinct metadata fields.
+- token/pool/transaction search UI emits input events but does not filter any list data yet.
+- trending surface still renders placeholder captions and does not rank by live gainers, volume, or token age.
+- pool APR / TVL / price-impact calculations still rely on incomplete assumptions such as hardcoded fee and native-pair-only TVL.
+- pools tab shows an `Add liquidity` action button without a connected action.
+
+These findings are documented here so they do not get lost while K-line and trading-stability work remains the active priority.
+
 ## Trading Infrastructure TODO
 
 - Quote infrastructure
