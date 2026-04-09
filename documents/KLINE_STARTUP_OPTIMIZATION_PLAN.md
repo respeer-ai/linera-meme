@@ -328,24 +328,13 @@ This order is intentional:
 
 ## Execution Task Board
 
-This board is the execution baseline for follow-up work. Status should be updated in this document as tasks move.
+This section is retained only as a historical execution record.
 
-Status convention:
+Live project status and live task tracking have been consolidated into:
 
-- `TODO`: defined but not ready to start,
-- `READY`: dependencies are clear and the task can start,
-- `IN PROGRESS`: actively being executed,
-- `BLOCKED`: cannot proceed until a dependency is resolved,
-- `DONE`: implemented and verified against the acceptance criteria.
+- [`PHASE1_TODO.md`](./PHASE1_TODO.md)
 
-Execution rule:
-
-- phases remain the sequencing frame,
-- task rows are the actual execution unit,
-- no Phase 4+ work should start until Phase 1-3 instrumentation confirms the startup path being optimized,
-- each task should land with measurable evidence, not only code changes,
-- each task must define its test delta before implementation starts,
-- each task reaches `DONE` only after all related tests are green.
+Do not update task status in this document anymore.
 
 | ID | Phase | Task | Scope / Expected Output | Dependency | Required Test Coverage | Suggested Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
