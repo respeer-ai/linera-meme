@@ -100,10 +100,11 @@ def build_continuous_candle_points(
     bucket_start_ms = start_bucket_ms
     while bucket_start_ms <= end_bucket_ms:
         point = points_by_bucket.get(bucket_start_ms)
+        bucket_end_ms = bucket_start_ms + interval_ms - 1
         if point is not None:
             continuous_points.append(point)
             last_close = float(point['close'])
-        elif last_close is not None:
+        elif last_close is not None and now_ms > bucket_end_ms:
             continuous_points.append(build_empty_candle_point_payload(
                 interval=interval,
                 bucket_start_ms=bucket_start_ms,
@@ -695,6 +696,48 @@ class Db:
 
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchone()
+
+    def get_latest_transaction_watermarks(self):
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    pool_id,
+                    MAX(created_at) AS max_created_at
+                FROM {self.transactions_table}
+                GROUP BY pool_id
+            '''
+        )
+        watermark_rows = self.cursor_dict.fetchall()
+        watermarks = {}
+
+        for row in watermark_rows:
+            pool_id = int(row['pool_id'])
+            created_at = int(row['max_created_at'])
+            self.cursor_dict.execute(
+                f'''
+                    SELECT
+                        transaction_id,
+                        created_at,
+                        token_reversed
+                    FROM {self.transactions_table}
+                    WHERE pool_id = %s
+                    AND created_at = %s
+                    ORDER BY transaction_id DESC, token_reversed DESC
+                    LIMIT 1
+                ''',
+                (pool_id, created_at),
+            )
+            latest_row = self.cursor_dict.fetchone()
+            if latest_row is None:
+                continue
+
+            watermarks[pool_id] = (
+                int(latest_row['created_at']),
+                int(latest_row['transaction_id']),
+                1 if bool(latest_row['token_reversed']) else 0,
+            )
+
+        return watermarks
 
     def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
         if token_0 is None or token_1 is None:

@@ -141,6 +141,43 @@ class FakeCursor:
               ]
           return
 
+        if normalized.startswith('SELECT pool_id, MAX(created_at) AS max_created_at FROM transactions GROUP BY pool_id'):
+          grouped = {}
+          for row in self.connection.transaction_rows:
+              created_at = row[14] if len(row) > 14 else row[13]
+              current = grouped.get(row[0])
+              if current is None or created_at > current:
+                  grouped[row[0]] = created_at
+          rows = [
+              {'pool_id': pool_id, 'max_created_at': max_created_at}
+              for pool_id, max_created_at in grouped.items()
+          ]
+          rows.sort(key=lambda item: item['pool_id'])
+          self._last_result = rows if self.dictionary else [
+              (row['pool_id'], row['max_created_at']) for row in rows
+          ]
+          return
+
+        if normalized.startswith('SELECT transaction_id, created_at, token_reversed FROM transactions WHERE pool_id = %s AND created_at = %s ORDER BY transaction_id DESC, token_reversed DESC LIMIT 1'):
+          pool_id, created_at = params
+          rows = []
+          for row in self.connection.transaction_rows:
+              row_created_at = row[14] if len(row) > 14 else row[13]
+              row_token_reversed = bool(row[13]) if len(row) > 14 else bool(row[12])
+              if row[0] != pool_id or row_created_at != created_at:
+                  continue
+              rows.append({
+                  'transaction_id': row[1],
+                  'created_at': row_created_at,
+                  'token_reversed': row_token_reversed,
+              })
+          rows.sort(key=lambda item: (item['transaction_id'], item['token_reversed']), reverse=True)
+          selected = rows[:1]
+          self._last_result = selected if self.dictionary else [
+              (row['transaction_id'], row['created_at'], row['token_reversed']) for row in selected
+          ]
+          return
+
         if normalized.startswith('SELECT open, high, low, close, volume, quote_volume, trade_count, first_trade_id, last_trade_id, first_trade_at_ms, last_trade_at_ms FROM candles'):
           key = tuple(params[:4])
           row = self.connection.candle_rows.get(key)
@@ -512,6 +549,44 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertEqual(
             build_kline_log_line('request_complete', pool_id=7, source='candles', point_count=15),
             '[kline] event=request_complete point_count=15 pool_id=7 source=candles',
+        )
+
+    @patch('db.mysql.connector.connect')
+    def test_get_latest_transaction_watermarks_reads_latest_persisted_trade_per_pool(self, connect_mock):
+        database_catalog = ['kline']
+        table_catalog = ['pools', 'transactions', 'candles']
+        index_catalog = []
+        connections = []
+
+        def create_connection(**_kwargs):
+            connection = FakeConnection(database_catalog, table_catalog, index_catalog)
+            if len(connections) == 1:
+                connection.transaction_rows = [
+                    (7, 10, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
+                    (7, 11, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_001_000),
+                    (7, 12, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_060_000),
+                    (8, 3, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_020_000),
+                ]
+            connections.append(connection)
+            return connection
+
+        connect_mock.side_effect = create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        self.assertEqual(
+            db.get_latest_transaction_watermarks(),
+            {
+                7: (1_800_000_060_000, 12, 0),
+                8: (1_800_000_020_000, 3, 0),
+            },
         )
 
 
@@ -1311,3 +1386,36 @@ class DbCandleQueryTest(unittest.TestCase):
 
         self.assertEqual(points[0]['bucket_end_ms'], 1_800_000_299_999)
         self.assertEqual(points[0]['is_final'], False)
+
+    def test_get_kline_omits_current_unfinalized_empty_bucket_without_trades(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 1.5,
+            'close': 2.5,
+            'volume': 10.0,
+            'quote_volume': 25.0,
+            'trade_count': 2,
+            'first_trade_id': 10,
+            'last_trade_id': 11,
+            'first_trade_at_ms': 1_800_000_001_000,
+            'last_trade_at_ms': 1_800_000_030_000,
+        }
+
+        with patch.object(db, 'now_ms', return_value=1_800_000_070_000):
+            _, _, points = db.get_kline(
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_060_000,
+                interval='1min',
+            )
+
+        self.assertEqual(len(points), 1)
+        self.assertEqual(points[0]['bucket_start_ms'], 1_800_000_000_000)

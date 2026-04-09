@@ -1,4 +1,5 @@
 import asyncio
+import os
 from swap import Pool, Transaction
 from candle_schema import INTERVAL_BUCKET_MS, build_candle_bucket_key
 from db import build_candle_point_payload
@@ -13,6 +14,8 @@ class Ticker:
         self._running = True
         self._now_ms = now_ms if now_ms is not None else lambda: int(__import__('time').time() * 1000)
         self.last_emitted_bucket_starts = {}
+        self.recent_backfill_transaction_count = int(os.getenv('KLINE_RECENT_BACKFILL_TRANSACTION_COUNT', '5000'))
+        self.backfilled_pools = set()
 
     async def get_pools(self) -> list[Pool]:
         return await self.swap.get_pools()
@@ -29,6 +32,17 @@ class Ticker:
     async def build_incremental_kline_payload_async(self, pool: Pool, transactions):
         return await asyncio.to_thread(self.build_incremental_kline_payload, pool, transactions)
 
+    def log_event(self, event: str, **fields):
+        parts = [f'[ticker] event={event}']
+        for key in sorted(fields.keys()):
+            parts.append(f'{key}={fields[key]}')
+        print(' '.join(parts))
+
+    def transaction_id_value(self, transaction):
+        if isinstance(transaction, dict):
+            return transaction['transaction_id']
+        return transaction.transaction_id
+
     def transaction_watermark(self, transaction):
         return (
             int(transaction['created_at']),
@@ -39,6 +53,11 @@ class Ticker:
     def resolve_transaction_start_id(self, pool: Pool, last_timestamps):
         if pool.pool_id in last_timestamps:
             return int(last_timestamps[pool.pool_id][1])
+        return None
+
+    def resolve_recent_backfill_start_id(self, pool: Pool):
+        if self.recent_backfill_transaction_count <= 0:
+            return None
 
         latest_transaction = getattr(pool, 'latest_transaction', None)
         if latest_transaction is None:
@@ -48,9 +67,7 @@ class Ticker:
         if latest_transaction_id is None:
             return None
 
-        # Use the latest known transaction id as the lower bound so the
-        # upstream query can return the freshest edge instead of an older default window.
-        return max(int(latest_transaction_id) - 1, 0)
+        return max(int(latest_transaction_id) - self.recent_backfill_transaction_count + 1, 0)
 
     def build_incremental_kline_payload(self, pool: Pool, transactions):
         payload = {}
@@ -90,9 +107,36 @@ class Ticker:
                     interval=interval,
                 )[2]
                 if len(points) == 0:
+                    self.log_event(
+                        'incremental_points_empty',
+                        bucket_start_ms=bucket_key.bucket_start_ms,
+                        interval=interval,
+                        pool_id=pool.pool_id,
+                        range_start=range_start,
+                        token_0=token_0,
+                        token_1=token_1,
+                        token_reversed=token_reversed,
+                        transaction_id=transaction['transaction_id'],
+                    )
                     continue
 
                 seen.add(dedupe_key)
+                last_point = points[-1]
+                self.log_event(
+                    'incremental_points_ready',
+                    base_volume=last_point['base_volume'],
+                    bucket_start_ms=last_point['bucket_start_ms'],
+                    close=last_point['close'],
+                    interval=interval,
+                    point_count=len(points),
+                    pool_id=pool.pool_id,
+                    quote_volume=last_point['quote_volume'],
+                    range_start=range_start,
+                    token_0=token_0,
+                    token_1=token_1,
+                    token_reversed=token_reversed,
+                    transaction_id=transaction['transaction_id'],
+                )
                 interval_points = payload.get(interval, [])
                 interval_points.append({
                     'token_0': token_0,
@@ -130,15 +174,17 @@ class Ticker:
                     interval=interval,
                     created_at_ms=now_ms,
                 ).bucket_start_ms
-                if current_bucket_start <= last_emitted_bucket_start:
+                last_finalized_bucket_start = current_bucket_start - bucket_ms
+                if last_finalized_bucket_start <= last_emitted_bucket_start:
                     continue
 
                 range_start = last_emitted_bucket_start + bucket_ms
+                range_end = last_finalized_bucket_start
                 points = self.db.get_kline(
                     token_0=token_0,
                     token_1=token_1,
                     start_at=range_start,
-                    end_at=current_bucket_start,
+                    end_at=range_end,
                     interval=interval,
                 )[2]
                 if len(points) == 0:
@@ -150,7 +196,7 @@ class Ticker:
                     'token_1': token_1,
                     'interval': interval,
                     'start_at': range_start,
-                    'end_at': current_bucket_start + bucket_ms - 1,
+                    'end_at': range_end + bucket_ms - 1,
                     'points': points,
                 })
                 payload[interval] = interval_points
@@ -161,6 +207,25 @@ class Ticker:
 
         return payload
 
+    async def backfill_recent_pool_history(self, pool: Pool, last_timestamps):
+        if pool.pool_id in self.backfilled_pools:
+            return
+
+        start_id = self.resolve_recent_backfill_start_id(pool)
+        if start_id is None:
+            self.backfilled_pools.add(pool.pool_id)
+            return
+
+        transactions = await self.get_pool_transactions(pool, start_id)
+        persisted_transactions = await self.persist_transactions(pool.pool_id, transactions)
+        if len(persisted_transactions) > 0:
+            last_watermark = last_timestamps.get(pool.pool_id, (0, 0, -1))
+            last_timestamps[pool.pool_id] = max(
+                [self.transaction_watermark(transaction) for transaction in persisted_transactions] + [last_watermark]
+            )
+
+        self.backfilled_pools.add(pool.pool_id)
+
     async def run_iteration(self, last_timestamps):
         pools = await self.get_pools()
         await self.persist_pools(pools)
@@ -169,8 +234,18 @@ class Ticker:
         kline_payload = {}
 
         for pool in pools:
+            await self.backfill_recent_pool_history(pool, last_timestamps)
             start_id = self.resolve_transaction_start_id(pool, last_timestamps)
             transactions = await self.get_pool_transactions(pool, start_id)
+            fetched_ids = ','.join(str(self.transaction_id_value(transaction)) for transaction in transactions[:8])
+            self.log_event(
+                'pool_transactions_fetched',
+                fetched_count=len(transactions),
+                fetched_ids=fetched_ids if fetched_ids else 'none',
+                last_known_watermark=last_timestamps.get(pool.pool_id, 'none'),
+                pool_id=pool.pool_id,
+                requested_start_id=start_id if start_id is not None else 'none',
+            )
             __transactions = await self.persist_transactions(pool.pool_id, transactions)
 
             last_watermark = last_timestamps[pool.pool_id] if pool.pool_id in last_timestamps else (0, 0, -1)
@@ -178,6 +253,14 @@ class Ticker:
                 lambda transaction: self.transaction_watermark(transaction) > last_watermark,
                 __transactions,
             ))
+            live_ids = ','.join(str(transaction['transaction_id']) for transaction in live_transactions[:8])
+            self.log_event(
+                'pool_transactions_live',
+                last_watermark=last_watermark,
+                live_count=len(live_transactions),
+                live_ids=live_ids if live_ids else 'none',
+                pool_id=pool.pool_id,
+            )
 
             _transactions.append({
                 'token_0': pool.token_0,
@@ -202,7 +285,7 @@ class Ticker:
         await self.manager.notify('transactions', _transactions)
 
     async def run(self):
-        last_timestamps = {}
+        last_timestamps = await asyncio.to_thread(self.db.get_latest_transaction_watermarks)
 
         while self._running:
             await self.run_iteration(last_timestamps)
