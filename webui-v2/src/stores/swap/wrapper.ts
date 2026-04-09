@@ -3,6 +3,7 @@ import { NotifyType } from '../notify'
 import { useSwapStore } from './store'
 import { type Account } from '../account'
 import { constants } from 'src/constant'
+import { protocol } from 'src/utils'
 
 const swap = useSwapStore()
 
@@ -70,23 +71,8 @@ export class Swap {
 
     const reserveIn = Number(sellToken === pool.token0 ? pool.reserve0 : pool.reserve1)
     const reserveOut = Number(buyToken === pool.token0 ? pool.reserve0 : pool.reserve1)
-
-    const midPrice = reserveOut / reserveIn
     const amountIn = Number(_amountIn)
-
-    // TODO: use fee of the pool
-    const amountInWithFee = amountIn * (1 - 0.003)
-
-    const idealOutput = amountInWithFee * midPrice
-
-    const k = reserveIn * reserveOut
-
-    const newReserveIn = reserveIn + amountInWithFee
-    const newReserveOut = k / newReserveIn
-
-    const actualOutput = reserveOut - newReserveOut
-
-    return Number((idealOutput - actualOutput) / idealOutput)
+    return Number(protocol.calculateConstantProductPriceImpact(reserveIn, reserveOut, amountIn))
       .toFixed(8)
       .toString()
   }
@@ -95,15 +81,14 @@ export class Swap {
     const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
     if (!pool) return '0'
 
-    return (Number(pool.reserve1) / Number(pool.reserve0)).toFixed(8)
+    return (
+      Number(token === pool.token0 ? pool.token0Price : pool.token1Price) || 0
+    ).toFixed(8)
   }
 
-  static tvl = (token: string) => {
-    // TODO: not only native pair
-    const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
-    if (!pool) return '0'
-
-    const price = Number(Swap.tokenPrice(token))
-    return (Number(pool.reserve1) + Number(pool.reserve0) * price).toFixed(8)
+  static poolTvl = (pool: Pool) => {
+    const nativePriceMap = protocol.buildNativePriceMap(swap.pools)
+    const tvl = protocol.calculatePoolTvlInNative(pool, nativePriceMap)
+    return tvl === undefined ? undefined : tvl.toFixed(8)
   }
 }

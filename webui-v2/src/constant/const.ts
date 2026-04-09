@@ -56,6 +56,8 @@ export const chainId = (url: string) => {
 
 export const LINERA_TICKER = 'TLINERA'
 export const LINERA_NATIVE_ID = LINERA_TICKER
+export const PROTOCOL_SWAP_FEE_RATE = 0.003
+export const PROTOCOL_SWAP_FEE_PERCENT_LABEL = `${(PROTOCOL_SWAP_FEE_RATE * 100).toFixed(1)}%`
 export const LINERA_LOGO = 'https://avatars.githubusercontent.com/u/107513858?s=48&v=4'
 export const LINERA_DESCRIPTION = 'Linera Testnet Conway token'
 

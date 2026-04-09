@@ -81,11 +81,11 @@ Review snapshot recorded on `2026-04-09`.
 These are real unfinished frontend integration items:
 
 - `Create Meme` metadata form maps multiple social/link inputs into `metadata.website` instead of distinct metadata fields.
-- token / pool / transaction search UI emits input but does not filter any list data yet.
 - trending surface still renders placeholder captions and does not rank by live gainers, volume, or token age.
 - pool APR / TVL / price-impact calculations still rely on incomplete assumptions such as hardcoded fee and native-pair-only TVL.
 - pools tab shows an `Add liquidity` action button without a connected action.
 - token detail page is missing entirely.
+- token / pool / transaction search still needs a real search architecture and should be solved together with pagination / incremental loading instead of only local frontend filtering.
 
 ## Unified Task Board
 
@@ -110,20 +110,21 @@ Defects must be prioritized ahead of enhancement or expansion work.
 
 | ID | Area | Task | Scope / Expected Output | Dependency | Required Test Coverage | Priority | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| MM-01 | K-line Backend | Enforce strict financial candle continuity | Stop filtering zero-volume buckets, define continuous bucket semantics, and make `/points` consistent with strict financial chart expectations | None | Backend tests for zero-volume bucket retention, bucket continuity, and closed/forming semantics across `1min/5min/10min/1h` | D0 | READY |
-| MM-02 | K-line Backend | Align HTTP and WebSocket candle semantics completely | Verify identical OHLCV for closed buckets and explicit semantics for forming buckets across both transports | MM-01 | Backend + frontend regression tests for identical closed-bucket data across HTTP and WebSocket | D0 | READY |
-| MM-03 | Meme Creation | Fix metadata field wiring | Map website, twitter, telegram, discord and similar fields into distinct metadata keys | None | Form-state and payload regression tests for every metadata field | D1 | READY |
-| MM-04 | Discovery | Wire search UI to real filtering | Make token/pool/transaction search actually filter list data and states | None | Component and store tests for search filtering, empty states, and reset behavior | D1 | READY |
-| MM-05 | Discovery | Replace trending placeholders with real ranking | Drive trending by real gainers / volume / age logic instead of placeholder text | None | Ranking and rendering tests for live sorting and displayed metadata | D1 | READY |
-| MM-06 | Pools | Correct APR / TVL / price-impact semantics | Replace hardcoded and incomplete assumptions with protocol-driven calculations | None | Calculation regression tests and frontend display tests | D1 | READY |
-| MM-07 | Pools | Wire Add Liquidity action | Connect pools tab `Add liquidity` button to the actual liquidity flow | None | Navigation and action wiring tests | D1 | READY |
-| MM-08 | Token Details | Build token detail page foundation | Create routed token detail page with deterministic chain-backed market modules | None | Frontend route/component tests and data-loading tests | D1 | READY |
+| MM-01 | K-line Backend | Enforce strict financial candle continuity | Stop filtering zero-volume buckets, define continuous bucket semantics, and make `/points` consistent with strict financial chart expectations | None | Backend tests for zero-volume bucket retention, bucket continuity, and closed/forming semantics across `1min/5min/10min/1h` | D0 | DONE |
+| MM-02 | K-line Backend | Align HTTP and WebSocket candle semantics completely | Verify identical OHLCV for closed buckets and explicit semantics for forming buckets across both transports | MM-01 | Backend + frontend regression tests for identical closed-bucket data across HTTP and WebSocket | D0 | DONE |
+| MM-03 | Meme Creation | Fix metadata field wiring | Map website, twitter, telegram, discord and similar fields into distinct metadata keys | None | Form-state and payload regression tests for every metadata field | D1 | DONE |
+| MM-04 | Discovery | Replace trending placeholders with real ranking | Drive trending by real gainers / volume / age logic instead of placeholder text | None | Ranking and rendering tests for live sorting and displayed metadata | D1 | DONE |
+| MM-05 | Pools | Correct APR / TVL / price-impact semantics | Replace hardcoded and incomplete assumptions with protocol-driven calculations. Implemented scope: fixed protocol fee single source of truth, shared price-impact math, native-valued pool TVL / volume / APR, and `--` fallback when valuation is unavailable | None | Calculation regression tests and frontend display tests | D1 | DONE |
+| MM-06 | Pools | Wire Add Liquidity action | Connect pools tab `Add liquidity` button to the actual liquidity flow | None | Navigation and action wiring tests | D1 | READY |
+| MM-07 | Token Details | Build token detail page foundation | Create routed token detail page with deterministic chain-backed market modules | None | Frontend route/component tests and data-loading tests | D1 | READY |
 
 ### Enhancements and New Features
 
 | ID | Area | Task | Scope / Expected Output | Dependency | Required Test Coverage | Priority | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| MM-09 | Token Details | Add AI-assisted off-chain enrichment for token details | Define `TokenProfile`, enrich official links/social/narrative/risk hints via structured AI output, and render alongside chain data | MM-08 | Tests for profile parsing, source attribution, fallback behavior, and missing-field handling | F1 | TODO |
+| MM-20 | Frontend Infra | Upgrade `@linera/client` to the latest version | Update the frontend dependency to the latest compatible release, adapt touched call sites if APIs changed, and verify build/runtime compatibility | None | Dependency upgrade regression tests, typecheck, build verification, and targeted integration coverage for touched Linera client flows | F1 | TODO |
+| MM-08 | Discovery | Build real search with pagination-aware loading | Design token/pool/transaction search together with pagination / incremental loading so results are not limited to currently loaded frontend slices | None | Frontend + data-layer tests for search query state, pagination interaction, reset behavior, and partial-result loading semantics | F1 | TODO |
+| MM-09 | Token Details | Add AI-assisted off-chain enrichment for token details | Define `TokenProfile`, enrich official links/social/narrative/risk hints via structured AI output, and render alongside chain data | MM-07 | Tests for profile parsing, source attribution, fallback behavior, and missing-field handling | F1 | TODO |
 | MM-10 | Quote | Build quote infrastructure | Add deterministic quote module/service with fee-aware responses and UI-ready output | None | Quote calculation tests for exact-input semantics, fee handling, and response contract | F1 | TODO |
 | MM-11 | Routing | Add route-aware execution and best-path selection | Support multi-hop routing, best-path search, and route explanation | MM-10 | Routing tests for path search, path scoring, fallback behavior, and route metadata | F1 | TODO |
 | MM-12 | Trading UX | Add exact-output and advanced execution preview | Support exact-output flow, better slippage semantics, and clearer execution preview | MM-10 | Trade preview and failure-mode regression tests | F1 | TODO |
@@ -142,10 +143,10 @@ If execution resumes immediately, the next recommended order is:
 1. `MM-01` strict financial candle continuity
 2. `MM-02` HTTP / WebSocket semantic alignment
 3. `MM-03` metadata field wiring
-4. `MM-04` search wiring
-5. `MM-05` trending ranking
-6. `MM-06` pool metric semantics
-7. `MM-07` add-liquidity action wiring
-8. `MM-08` token detail page foundation
+4. `MM-05` pool metric semantics
+5. `MM-06` add-liquidity action wiring
+6. `MM-07` token detail page foundation
+7. `MM-20` upgrade `@linera/client` to latest version
+8. `MM-08` real search with pagination-aware loading
 
 This sequence keeps current market semantics and core product completeness ahead of larger feature expansion.

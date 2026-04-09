@@ -12,6 +12,7 @@ class Ticker:
         self.db = db
         self._running = True
         self._now_ms = now_ms if now_ms is not None else lambda: int(__import__('time').time() * 1000)
+        self.last_emitted_bucket_starts = {}
 
     async def get_pools(self) -> list[Pool]:
         return await self.swap.get_pools()
@@ -74,13 +75,21 @@ class Ticker:
                 if dedupe_key in seen:
                     continue
 
-                point = self.db.get_candle_point(
-                    pool_id=pool.pool_id,
-                    token_reversed=token_reversed,
-                    interval=interval,
-                    bucket_start_ms=bucket_key.bucket_start_ms,
+                stream_key = (token_0, token_1, interval)
+                last_emitted_bucket_start = self.last_emitted_bucket_starts.get(stream_key)
+                range_start = (
+                    bucket_key.bucket_start_ms
+                    if last_emitted_bucket_start is None or bucket_key.bucket_start_ms <= last_emitted_bucket_start
+                    else last_emitted_bucket_start + bucket_ms
                 )
-                if point is None:
+                points = self.db.get_kline(
+                    token_0=token_0,
+                    token_1=token_1,
+                    start_at=range_start,
+                    end_at=bucket_key.bucket_start_ms,
+                    interval=interval,
+                )[2]
+                if len(points) == 0:
                     continue
 
                 seen.add(dedupe_key)
@@ -89,16 +98,66 @@ class Ticker:
                     'token_0': token_0,
                     'token_1': token_1,
                     'interval': interval,
-                    'start_at': bucket_key.bucket_start_ms,
+                    'start_at': range_start,
                     'end_at': bucket_key.bucket_start_ms + bucket_ms - 1,
-                    'points': [build_candle_point_payload(
-                        interval=interval,
-                        bucket_start_ms=bucket_key.bucket_start_ms,
-                        point=point,
-                        now_ms=self._now_ms(),
-                    )],
+                    'points': points,
                 })
                 payload[interval] = interval_points
+                self.last_emitted_bucket_starts[stream_key] = max(
+                    int(point['bucket_start_ms'])
+                    for point in points
+                )
+
+        return payload
+
+    def build_rollover_kline_payload(self, pool: Pool):
+        payload = {}
+        now_ms = self._now_ms()
+
+        for token_reversed in [False, True]:
+            token_0 = pool.token_1 if token_reversed else pool.token_0
+            token_1 = pool.token_0 if token_reversed else (pool.token_1 if pool.token_1 is not None else 'TLINERA')
+
+            for interval, bucket_ms in INTERVAL_BUCKET_MS.items():
+                stream_key = (token_0, token_1, interval)
+                last_emitted_bucket_start = self.last_emitted_bucket_starts.get(stream_key)
+                if last_emitted_bucket_start is None:
+                    continue
+
+                current_bucket_start = build_candle_bucket_key(
+                    pool_id=pool.pool_id,
+                    token_reversed=token_reversed,
+                    interval=interval,
+                    created_at_ms=now_ms,
+                ).bucket_start_ms
+                if current_bucket_start <= last_emitted_bucket_start:
+                    continue
+
+                range_start = last_emitted_bucket_start + bucket_ms
+                points = self.db.get_kline(
+                    token_0=token_0,
+                    token_1=token_1,
+                    start_at=range_start,
+                    end_at=current_bucket_start,
+                    interval=interval,
+                )[2]
+                if len(points) == 0:
+                    continue
+
+                interval_points = payload.get(interval, [])
+                interval_points.append({
+                    'token_0': token_0,
+                    'token_1': token_1,
+                    'interval': interval,
+                    'start_at': range_start,
+                    'end_at': current_bucket_start + bucket_ms - 1,
+                    'points': points,
+                })
+                payload[interval] = interval_points
+                self.last_emitted_bucket_starts[stream_key] = max(
+                    int(point['bucket_start_ms'])
+                    for point in points
+                )
 
         return payload
 
@@ -127,6 +186,11 @@ class Ticker:
             })
             incremental_payload = await self.build_incremental_kline_payload_async(pool, live_transactions)
             for interval, interval_points in incremental_payload.items():
+                existing = kline_payload.get(interval, [])
+                existing.extend(interval_points)
+                kline_payload[interval] = existing
+            rollover_payload = await asyncio.to_thread(self.build_rollover_kline_payload, pool)
+            for interval, interval_points in rollover_payload.items():
                 existing = kline_payload.get(interval, [])
                 existing.extend(interval_points)
                 kline_payload[interval] = existing

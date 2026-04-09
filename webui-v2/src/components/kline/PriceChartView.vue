@@ -31,7 +31,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
 import { mergeSortedPointsIntoChartState } from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
@@ -211,16 +211,21 @@ const getKline = (timestamp: number, reverse: boolean) => {
   if (buyToken.value === sellToken.value) return
 
   const windowSize = getWindowSize(selectedInterval.value)
-  const startAt = reverse ? (timestamp - windowSize) : timestamp + 1
-  const endAt = reverse ? timestamp - 1 : (timestamp + windowSize)
+  const fetchWindow = resolveEdgeFetchWindow({
+    anchorTimestamp: timestamp,
+    reverse,
+    windowSize,
+    nowMs: Date.now(),
+  })
+  if (!fetchWindow) return
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_POINTS, {
     token0: buyToken.value,
     token1: sellToken.value,
-    startAt,
-    endAt,
+    startAt: fetchWindow.startAt,
+    endAt: fetchWindow.endAt,
     interval: selectedInterval.value,
-    reverse,
+    reverse: fetchWindow.reverse,
     requestId: currentRequestId.value,
   })
 }
@@ -445,10 +450,15 @@ const onFetchSorted = (reverse: boolean, timestamp: number) => {
 
 const onLoadSorted = (reverse: boolean, timestamp: number) => {
   const windowSize = getWindowSize(selectedInterval.value)
-  const timestampBegin = reverse ? (timestamp - windowSize) : timestamp + 1
-  const timestampEnd = reverse ? timestamp - 1 : (timestamp + windowSize)
+  const fetchWindow = resolveEdgeFetchWindow({
+    anchorTimestamp: timestamp,
+    reverse,
+    windowSize,
+    nowMs: Date.now(),
+  })
+  if (!fetchWindow) return
 
-  loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
+  loadKline(undefined, undefined, fetchWindow.startAt, fetchWindow.endAt, fetchWindow.reverse)
 }
 
 const requestEdgeLoad = (direction: LoadDirection, timestamp: number) => {

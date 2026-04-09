@@ -61,8 +61,59 @@ def build_candle_point_payload(interval: str, bucket_start_ms: int, point: dict,
     }
 
 
-def filter_zero_volume_candles(points: list[dict]):
-    return [point for point in points if float(point['base_volume']) > 0]
+def build_empty_candle_point_payload(
+    interval: str,
+    bucket_start_ms: int,
+    close_price: float,
+    now_ms: int,
+):
+    return {
+        'timestamp': bucket_start_ms,
+        'bucket_start_ms': bucket_start_ms,
+        'bucket_end_ms': bucket_start_ms + get_interval_bucket_ms(interval) - 1,
+        'is_final': now_ms > bucket_start_ms + get_interval_bucket_ms(interval) - 1,
+        'open': float(close_price),
+        'high': float(close_price),
+        'low': float(close_price),
+        'close': float(close_price),
+        'base_volume': 0.0,
+        'quote_volume': 0.0,
+    }
+
+
+def build_continuous_candle_points(
+    interval: str,
+    start_bucket_ms: int,
+    end_bucket_ms: int,
+    points: list[dict],
+    previous_close: float | None,
+    now_ms: int,
+):
+    interval_ms = get_interval_bucket_ms(interval)
+    points_by_bucket = {
+        int(point['bucket_start_ms']): point
+        for point in points
+    }
+    continuous_points = []
+    last_close = previous_close
+
+    bucket_start_ms = start_bucket_ms
+    while bucket_start_ms <= end_bucket_ms:
+        point = points_by_bucket.get(bucket_start_ms)
+        if point is not None:
+            continuous_points.append(point)
+            last_close = float(point['close'])
+        elif last_close is not None:
+            continuous_points.append(build_empty_candle_point_payload(
+                interval=interval,
+                bucket_start_ms=bucket_start_ms,
+                close_price=last_close,
+                now_ms=now_ms,
+            ))
+
+        bucket_start_ms += interval_ms
+
+    return continuous_points
 
 
 def build_kline_log_line(event: str, **fields) -> str:
@@ -493,6 +544,9 @@ class Db:
 
         return {
             'timestamp': int(row['bucket_start_ms']),
+            'bucket_start_ms': int(row['bucket_start_ms']),
+            'bucket_end_ms': int(row['bucket_start_ms']) + get_interval_bucket_ms(interval) - 1,
+            'is_final': self.now_ms() > int(row['bucket_start_ms']) + get_interval_bucket_ms(interval) - 1,
             'open': float(row['open']),
             'high': float(row['high']),
             'low': float(row['low']),
@@ -500,6 +554,50 @@ class Db:
             'base_volume': float(row['volume']),
             'quote_volume': float(row['quote_volume']),
         }
+
+    def load_previous_candle(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        interval: str,
+        before_bucket_start_ms: int,
+    ):
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    bucket_start_ms,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    quote_volume,
+                    trade_count,
+                    first_trade_id,
+                    last_trade_id,
+                    first_trade_at_ms,
+                    last_trade_at_ms
+                FROM {self.candles_table}
+                WHERE pool_id = %s
+                AND token_reversed = %s
+                AND interval_name = %s
+                AND bucket_start_ms < %s
+                ORDER BY bucket_start_ms DESC
+                LIMIT 1
+            ''',
+            (pool_id, token_reversed, interval, before_bucket_start_ms),
+        )
+        row = self.cursor_dict.fetchone()
+
+        if row is None:
+            return None
+
+        return self.load_candle(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            bucket_start_ms=int(row['bucket_start_ms']),
+        )
 
     def update_candles_for_transaction(
         self,
@@ -771,7 +869,23 @@ class Db:
             token_reversed=token_reversed,
         )
         if len(rows) == 0:
-            return []
+            previous_candle = self.load_previous_candle(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                before_bucket_start_ms=query_start_at,
+            )
+            if previous_candle is None:
+                return []
+
+            return build_continuous_candle_points(
+                interval=interval,
+                start_bucket_ms=query_start_at,
+                end_bucket_ms=query_end_at,
+                points=[],
+                previous_close=previous_candle.close,
+                now_ms=self.now_ms(),
+            )
 
         if any(row.get('quote_volume') is None for row in rows):
             self.log_kline_event(
@@ -793,8 +907,21 @@ class Db:
             )
             for row in rows
         ]
+        previous_candle = self.load_previous_candle(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            before_bucket_start_ms=query_start_at,
+        )
 
-        return filter_zero_volume_candles(json_data)
+        return build_continuous_candle_points(
+            interval=interval,
+            start_bucket_ms=query_start_at,
+            end_bucket_ms=query_end_at,
+            points=json_data,
+            previous_close=previous_candle.close if previous_candle is not None else None,
+            now_ms=now_ms,
+        )
 
     def get_kline_from_transactions(
         self,
@@ -893,7 +1020,36 @@ class Db:
             row_count=len(rows),
             token_reversed=token_reversed,
         )
-        return filter_zero_volume_candles(candle_items)
+        previous_candle = self.load_previous_candle(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            before_bucket_start_ms=build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=start_at,
+            ).bucket_start_ms,
+        )
+
+        return build_continuous_candle_points(
+            interval=interval,
+            start_bucket_ms=build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=start_at,
+            ).bucket_start_ms,
+            end_bucket_ms=build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=end_at,
+            ).bucket_start_ms,
+            points=candle_items,
+            previous_close=previous_candle.close if previous_candle is not None else None,
+            now_ms=now_ms,
+        )
 
     def get_last_kline(self, token_0: str, token_1: str, interval: str):
         # Only use full minutes data. Only for minute currently

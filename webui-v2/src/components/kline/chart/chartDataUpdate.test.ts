@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import type { KLineData } from './KlineData'
 import {
   getChartDataRenderSignal,
+  shouldAnchorLatestAfterBootstrapExpansion,
   shouldFitContentOnFirstRender,
   shouldScrollToLatestOnFirstRender,
   resolveVisibleLogicalRangeAfterPrimaryRender,
@@ -332,6 +333,28 @@ describe('shouldFitContentOnFirstRender', () => {
       previousRange: null,
       minimumDataPointsToAnchor: 14,
     })).toBe(false)
+  })
+
+  test('anchors latest when startup expands from a provisional tiny render to a full history render', () => {
+    expect(shouldAnchorLatestAfterBootstrapExpansion({
+      previousData: Array.from({ length: 3 }, (_, index) => point(
+        (index + 1) * 60,
+        index + 1,
+        index + 2,
+        index + 0.5,
+        index + 1.5,
+        index + 10,
+      )),
+      nextData: Array.from({ length: 40 }, (_, index) => point(
+        (index + 1) * 60,
+        index + 1,
+        index + 2,
+        index + 0.5,
+        index + 1.5,
+        index + 10,
+      )),
+      minimumDataPointsToAnchor: 4,
+    })).toBe(true)
   })
 })
 

@@ -48,6 +48,13 @@ export type StartupGapBackfillFetchRequest = StartupFetchRequest & {
   key: string
 }
 
+type EdgeFetchWindowInput = {
+  anchorTimestamp: number
+  reverse: boolean
+  windowSize: number
+  nowMs: number
+}
+
 type StartupRequestPlanInput = {
   nowMs: number
   interval: Interval
@@ -247,6 +254,32 @@ export const resolveStartupRequestPlan = ({
       startAt: latestWindowStart,
       endAt: nowMs,
     },
+  }
+}
+
+export const resolveEdgeFetchWindow = ({
+  anchorTimestamp,
+  reverse,
+  windowSize,
+  nowMs,
+}: EdgeFetchWindowInput): StartupFetchRequest | null => {
+  if (reverse) {
+    return {
+      reverse: true,
+      startAt: anchorTimestamp - windowSize,
+      endAt: anchorTimestamp - 1,
+    }
+  }
+
+  const startAt = anchorTimestamp + 1
+  const endAt = Math.min(anchorTimestamp + windowSize, nowMs)
+
+  if (endAt < startAt) return null
+
+  return {
+    reverse: false,
+    startAt,
+    endAt,
   }
 }
 

@@ -1,7 +1,6 @@
 <template>
   <div>
-    <!-- TODO: use fee ratio from pool -->
-    <token-info-line-view label='Fee (0.3%)' :logo='sellTokenLogo' :value='fee + " ($ 0)"' value-color='light' :value-bold='false' :underline='false' />
+    <token-info-line-view :label='`Fee (${constants.PROTOCOL_SWAP_FEE_PERCENT_LABEL})`' :logo='sellTokenLogo' :value='fee + " ($ 0)"' value-color='light' :value-bold='false' :underline='false' />
     <div class='q-mt-sm'>
       <token-info-line-view label='Network Fee' :logo='constants.LINERA_LOGO' :value='networkFeeAmount + " ($ 0)"' value-color='light' :value-bold='false' :underline='false' />
     </div>
@@ -25,6 +24,7 @@ import { computed, toRef } from 'vue'
 import { Token } from './Token'
 import { constants } from 'src/constant'
 import { ams } from 'src/stores/export'
+import { protocol } from 'src/utils'
 
 import TokenInfoLineView from './TokenInfoLineView.vue'
 
@@ -50,7 +50,7 @@ const priceImpact = toRef(props, 'priceImpact')
 const networkFeeAmount = toRef(props, 'networkFeeAmount')
 
 const priceImpactPercent = computed(() => (Number(priceImpact.value) * 100).toFixed(4))
-const fee = computed(() => Number(sellAmount.value) * 0.003)
+const fee = computed(() => protocol.calculateSwapFeeAmount(Number(sellAmount.value)))
 
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
 const buyTokenTicker = computed(() => buyToken.value?.meme?.ticker || constants.LINERA_TICKER)

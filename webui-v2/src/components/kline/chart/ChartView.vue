@@ -105,6 +105,7 @@ import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 import {
   getChartDataRenderSignal,
   resolveVisibleLogicalRangeAfterPrimaryRender,
+  shouldAnchorLatestAfterBootstrapExpansion,
   shouldFitContentOnFirstRender,
   shouldScrollToLatestOnFirstRender,
   resolveVisibleLogicalRangeRestore,
@@ -458,6 +459,7 @@ const emit = defineEmits<{
 
 const INITIAL_TIME_SCALE_RIGHT_OFFSET = 2
 const MIN_DATA_POINTS_TO_ANCHOR_LATEST = INITIAL_TIME_SCALE_RIGHT_OFFSET + 2
+const DEFAULT_TIME_SCALE_BAR_SPACING = 9
 
 const chartContainer = ref<HTMLDivElement | null>(null)
 let chart: IChartApi
@@ -487,9 +489,26 @@ const indicatorRenderScheduler = createIndicatorRenderScheduler({
 
 const getVisibleLogicalRange = () => chart?.timeScale().getVisibleLogicalRange() || null
 
+const logTimeScaleState = (event: string, extra: Record<string, unknown> = {}) => {
+  const range = getVisibleLogicalRange()
+  const timeScale = chart?.timeScale?.()
+  console.info('[ChartView]', JSON.stringify({
+    event,
+    dataLength: props.data.length,
+    visibleRange: range ? { from: range.from, to: range.to } : null,
+    rightOffset: timeScale?.options?.()?.rightOffset ?? null,
+    barSpacing: timeScale?.options?.()?.barSpacing ?? null,
+    firstTime: props.data[0]?.time ?? null,
+    lastTime: props.data[props.data.length - 1]?.time ?? null,
+    ...extra,
+  }))
+}
+
 const restoreVisibleLogicalRange = (range: { from: number; to: number } | null) => {
   if (!chart || !range) return
+  logTimeScaleState('restore_visible_range_before', { targetRange: range })
   chart.timeScale().setVisibleLogicalRange(range)
+  logTimeScaleState('restore_visible_range_after', { targetRange: range })
 }
 
 const scheduleScrollToLatest = () => {
@@ -498,10 +517,20 @@ const scheduleScrollToLatest = () => {
   if (pendingScrollToLatestFrame !== null) {
     window.cancelAnimationFrame(pendingScrollToLatestFrame)
   }
+  if (pendingFitContentFrame !== null) {
+    window.cancelAnimationFrame(pendingFitContentFrame)
+    pendingFitContentFrame = null
+  }
 
   pendingScrollToLatestFrame = window.requestAnimationFrame(() => {
     pendingScrollToLatestFrame = null
+    chart?.timeScale().applyOptions({
+      barSpacing: DEFAULT_TIME_SCALE_BAR_SPACING,
+      rightOffset: INITIAL_TIME_SCALE_RIGHT_OFFSET,
+    })
+    logTimeScaleState('scroll_to_latest_before')
     chart?.timeScale().scrollToRealTime()
+    logTimeScaleState('scroll_to_latest_after')
   })
 }
 
@@ -514,7 +543,9 @@ const scheduleFitContent = () => {
 
   pendingFitContentFrame = window.requestAnimationFrame(() => {
     pendingFitContentFrame = null
+    logTimeScaleState('fit_content_before')
     chart?.timeScale().fitContent()
+    logTimeScaleState('fit_content_after')
   })
 }
 
@@ -1031,6 +1062,10 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
   if (!logicalRange) return
   if (!props.data.length) return
 
+  logTimeScaleState('visible_range_change', {
+    logicalRange,
+  })
+
   const fromIndex = Math.max(Math.floor(logicalRange.from), 0)
   const toIndex = Math.min(Math.ceil(logicalRange.to), props.data.length - 1)
   const loadDecision = resolveVisibleRangeLoadDecision({
@@ -1056,6 +1091,9 @@ const updateChartData = () => {
   if (!mainSeries) return
 
   const previousVisibleLogicalRange = getVisibleLogicalRange()
+  logTimeScaleState('update_chart_data_begin', {
+    previousVisibleLogicalRange,
+  })
 
   if (!props.data.length) {
     ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
@@ -1158,6 +1196,14 @@ const updateChartData = () => {
     previousRange: previousVisibleLogicalRange,
     minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
   })) {
+    logTimeScaleState('update_chart_data_decision', { action: 'scroll_to_latest_first_render', renderMode: primaryRenderPlan.mode })
+    scheduleScrollToLatest()
+  } else if (primaryRenderPlan.mode === 'full' && shouldAnchorLatestAfterBootstrapExpansion({
+    previousData: lastRenderedPrimarySeriesData,
+    nextData: props.data,
+    minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+  })) {
+    logTimeScaleState('update_chart_data_decision', { action: 'scroll_to_latest_bootstrap_expansion', renderMode: primaryRenderPlan.mode })
     scheduleScrollToLatest()
   } else if (primaryRenderPlan.mode === 'full' && shouldFitContentOnFirstRender({
     previousData: lastRenderedPrimarySeriesData,
@@ -1165,8 +1211,10 @@ const updateChartData = () => {
     previousRange: previousVisibleLogicalRange,
     minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
   })) {
+    logTimeScaleState('update_chart_data_decision', { action: 'fit_content_first_render', renderMode: primaryRenderPlan.mode })
     scheduleFitContent()
   } else {
+    logTimeScaleState('update_chart_data_decision', { action: 'restore_visible_range', renderMode: primaryRenderPlan.mode })
     restoreVisibleLogicalRange(resolveVisibleLogicalRangeAfterPrimaryRender({
       renderMode: primaryRenderPlan.mode,
       previousData: lastRenderedPrimarySeriesData,

@@ -33,15 +33,15 @@
               pool-name-font-size='14px'
             />
           </td>
-          <td :props='props' class='text-center'>0.3%</td>
+          <td :props='props' class='text-center'>{{ constants.PROTOCOL_SWAP_FEE_PERCENT_LABEL }}</td>
           <td :props='props' class='text-center'>
-            {{ swap.Swap.tvl(props.row.token0) }} TLINERA
+            {{ poolTvl(props.row) }}
           </td>
           <td :props='props' class='text-center'>
-            {{ apr(props.row.poolId, props.row.token0) }}%
+            {{ apr(props.row) }}
           </td>
-          <td :props='props' class='text-center'>{{ poolOneDayVolume(props.row.poolId) }} TLINERA</td>
-          <td :props='props' class='text-center'>{{ poolOneMonthVolume(props.row.poolId) }} TLINERA</td>
+          <td :props='props' class='text-center'>{{ poolOneDayVolume(props.row) }}</td>
+          <td :props='props' class='text-center'>{{ poolOneMonthVolume(props.row) }}</td>
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
             <div class='narrow-btn'>
@@ -72,6 +72,8 @@
 import { ams, meme, swap, kline } from 'src/stores/export'
 import { computed, onMounted, ref } from 'vue'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
+import { constants } from 'src/constant'
+import { protocol } from 'src/utils'
 
 import PoolLogoView from '../pools/PoolLogoView.vue'
 
@@ -147,20 +149,41 @@ const pagination = ref({
 })
 const totalPages = computed(() => Math.ceil(tokens.value.length / pagination.value.rowsPerPage))
 
-const poolOneDayVolume = (poolId: number) => {
-  return Number(kline.Kline.poolStat(poolId, kline.TickerInterval.OneDay)?.volume)?.toFixed(4) || 0
+const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
+
+const formatNativeAmount = (value: number | undefined) => {
+  return value === undefined ? '--' : `${value.toFixed(4)} TLINERA`
 }
 
-const poolOneMonthVolume = (poolId: number) => {
-  return Number(kline.Kline.poolStat(poolId, kline.TickerInterval.OneMonth)?.volume)?.toFixed(4) || 0
+const poolOneDayVolume = (pool: Pool) => {
+  const volume = protocol.calculatePoolVolumeInNative(
+    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneDay),
+    nativePriceMap.value,
+  )
+  return formatNativeAmount(volume)
 }
 
-const apr = (poolId: number, token0: string) => {
-  // TODO: should get pool pair only
-  const tvl = swap.Swap.tvl(token0)
-  const oneDayVolume = poolOneDayVolume(poolId)
+const poolOneMonthVolume = (pool: Pool) => {
+  const volume = protocol.calculatePoolVolumeInNative(
+    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneMonth),
+    nativePriceMap.value,
+  )
+  return formatNativeAmount(volume)
+}
 
-  return ((Number(oneDayVolume) * 0.003 / Number(tvl)) * 365).toFixed(4)
+const poolTvl = (pool: Pool) => {
+  const tvl = protocol.calculatePoolTvlInNative(pool, nativePriceMap.value)
+  return formatNativeAmount(tvl)
+}
+
+const apr = (pool: Pool) => {
+  const tvl = protocol.calculatePoolTvlInNative(pool, nativePriceMap.value)
+  const oneDayVolume = protocol.calculatePoolVolumeInNative(
+    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneDay),
+    nativePriceMap.value,
+  )
+  if (tvl === undefined || oneDayVolume === undefined) return '--'
+  return `${protocol.calculatePoolAprFromDailyVolume(oneDayVolume, tvl).toFixed(4)}%`
 }
 
 onMounted(async () => {

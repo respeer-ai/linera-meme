@@ -48,6 +48,7 @@ import { useMeta } from 'quasar'
 import { useRoute } from 'vue-router'
 import TradeView from 'src/components/trade/TradeView.vue'
 import { usePageSeo } from 'src/utils/seo'
+import { constants } from 'src/constant'
 
 const route = useRoute()
 const faqItems = [
@@ -89,7 +90,7 @@ const faqItems = [
   {
     question: 'How Are Swap Fees Charged on Linera Meme Swap?',
     answer:
-      'The trading flow includes estimated network gas and a pool trading fee shown in the swap details. In the current interface, the trade detail view displays a 0.3% fee and also estimates network gas before you confirm execution.',
+      `The trading flow includes estimated network gas and a pool trading fee shown in the swap details. In the current interface, the trade detail view displays a ${constants.PROTOCOL_SWAP_FEE_PERCENT_LABEL} fee and also estimates network gas before you confirm execution.`,
   },
   {
     question: 'How Do I Join Meme Mining?',

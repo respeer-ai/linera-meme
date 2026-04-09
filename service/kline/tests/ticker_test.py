@@ -30,7 +30,6 @@ sys.modules.setdefault('pandas', pandas_stub)
 sys.modules.setdefault('numpy', numpy_stub)
 
 from ticker import Ticker  # noqa: E402
-from db import build_candle_point_payload  # noqa: E402
 
 
 class FakeDb:
@@ -39,8 +38,17 @@ class FakeDb:
         self.persisted_pools = []
         self.persisted_transactions = []
 
-    def get_candle_point(self, pool_id, token_reversed, interval, bucket_start_ms):
-        return self.points.get((pool_id, token_reversed, interval, bucket_start_ms))
+    def get_kline(self, token_0, token_1, start_at, end_at, interval):
+        points = [
+            point
+            for (_pool_id, _token_reversed, point_interval, _bucket_start_ms), point in self.points.items()
+            if point_interval == interval
+            and point['token_0'] == token_0
+            and point['token_1'] == token_1
+            and start_at <= point['bucket_start_ms'] <= end_at
+        ]
+        points.sort(key=lambda point: point['bucket_start_ms'])
+        return (token_0, token_1, points)
 
     def new_pools(self, pools):
         self.persisted_pools.append(pools)
@@ -55,6 +63,11 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         db = FakeDb()
         db.points[(7, False, '5min', 1_800_000_000_000)] = {
             'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_299_999,
+            'is_final': False,
             'open': 2.0,
             'high': 3.0,
             'low': 2.0,
@@ -64,6 +77,11 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         }
         db.points[(7, True, '5min', 1_800_000_000_000)] = {
             'timestamp': 1_800_000_000_000,
+            'token_0': 'BBB',
+            'token_1': 'AAA',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_299_999,
+            'is_final': False,
             'open': 0.5,
             'high': 0.5,
             'low': 0.33,
@@ -105,12 +123,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
                 'interval': '5min',
                 'start_at': 1_800_000_000_000,
                 'end_at': 1_800_000_299_999,
-                'points': [{
-                    **db.points[(7, False, '5min', 1_800_000_000_000)],
-                    'bucket_start_ms': 1_800_000_000_000,
-                    'bucket_end_ms': 1_800_000_299_999,
-                    'is_final': False,
-                }],
+                'points': [db.points[(7, False, '5min', 1_800_000_000_000)]],
             },
             {
                 'token_0': 'BBB',
@@ -118,12 +131,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
                 'interval': '5min',
                 'start_at': 1_800_000_000_000,
                 'end_at': 1_800_000_299_999,
-                'points': [{
-                    **db.points[(7, True, '5min', 1_800_000_000_000)],
-                    'bucket_start_ms': 1_800_000_000_000,
-                    'bucket_end_ms': 1_800_000_299_999,
-                    'is_final': False,
-                }],
+                'points': [db.points[(7, True, '5min', 1_800_000_000_000)]],
             },
         ])
 
@@ -149,6 +157,11 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         db = FakeDb()
         db.points[(7, False, '1min', 1_800_000_000_000)] = {
             'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': True,
             'open': 2.0,
             'high': 3.0,
             'low': 2.0,
@@ -168,15 +181,97 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
                 'created_at': 1_800_000_001_000,
             }],
         )['1min'][0]['points'][0]
+        self.assertEqual(websocket_payload, db.points[(7, False, '1min', 1_800_000_000_000)])
 
-        http_payload = build_candle_point_payload(
-            interval='1min',
-            bucket_start_ms=1_800_000_000_000,
-            point=db.points[(7, False, '1min', 1_800_000_000_000)],
-            now_ms=1_800_000_120_000,
+    def test_builds_incremental_payload_with_gap_backfill_points_between_emitted_and_new_bucket(self):
+        db = FakeDb()
+        db.points[(7, False, '10min', 1_800_000_000_000)] = {
+            'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_599_999,
+            'is_final': True,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 2.0,
+            'close': 3.0,
+            'base_volume': 10.0,
+            'quote_volume': 25.0,
+        }
+        db.points[(7, False, '10min', 1_800_000_600_000)] = {
+            'timestamp': 1_800_000_600_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_600_000,
+            'bucket_end_ms': 1_800_001_199_999,
+            'is_final': True,
+            'open': 3.0,
+            'high': 3.0,
+            'low': 3.0,
+            'close': 3.0,
+            'base_volume': 0.0,
+            'quote_volume': 0.0,
+        }
+        db.points[(7, False, '10min', 1_800_001_200_000)] = {
+            'timestamp': 1_800_001_200_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_001_200_000,
+            'bucket_end_ms': 1_800_001_799_999,
+            'is_final': False,
+            'open': 3.0,
+            'high': 4.0,
+            'low': 3.0,
+            'close': 4.0,
+            'base_volume': 5.0,
+            'quote_volume': 20.0,
+        }
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_001_250_000)
+        ticker.last_emitted_bucket_starts[('AAA', 'BBB', '10min')] = 1_800_000_000_000
+        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+
+        payload = ticker.build_incremental_kline_payload(
+            pool,
+            [{
+                'transaction_id': 10,
+                'transaction_type': 'BuyToken0',
+                'token_reversed': False,
+                'created_at': 1_800_001_210_000,
+            }],
         )
 
-        self.assertEqual(websocket_payload, http_payload)
+        self.assertEqual(payload['10min'][0]['start_at'], 1_800_000_600_000)
+        self.assertEqual(
+            [point['bucket_start_ms'] for point in payload['10min'][0]['points']],
+            [1_800_000_600_000, 1_800_001_200_000],
+        )
+
+    def test_builds_rollover_payload_for_zero_volume_bucket_after_time_advance(self):
+        db = FakeDb()
+        db.points[(7, False, '1min', 1_800_000_060_000)] = {
+            'timestamp': 1_800_000_060_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_060_000,
+            'bucket_end_ms': 1_800_000_119_999,
+            'is_final': False,
+            'open': 3.0,
+            'high': 3.0,
+            'low': 3.0,
+            'close': 3.0,
+            'base_volume': 0.0,
+            'quote_volume': 0.0,
+        }
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_070_000)
+        ticker.last_emitted_bucket_starts[('AAA', 'BBB', '1min')] = 1_800_000_000_000
+        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+
+        payload = ticker.build_rollover_kline_payload(pool)
+
+        self.assertEqual(payload['1min'][0]['start_at'], 1_800_000_060_000)
+        self.assertEqual(payload['1min'][0]['points'][0]['base_volume'], 0.0)
+        self.assertEqual(payload['1min'][0]['points'][0]['close'], 3.0)
 
 
 class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
@@ -202,6 +297,11 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         db = FakeDb()
         db.points[(7, False, '1min', 1_800_000_000_000)] = {
             'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': True,
             'open': 2.0,
             'high': 3.0,
             'low': 2.0,
@@ -241,6 +341,11 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         db = FakeDb()
         db.points[(7, False, '1min', 1_800_000_000_000)] = {
             'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': True,
             'open': 2.0,
             'high': 3.0,
             'low': 2.0,

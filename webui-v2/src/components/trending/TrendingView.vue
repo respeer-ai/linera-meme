@@ -15,32 +15,56 @@
 </template>
 
 <script setup lang='ts'>
-import { computed } from 'vue'
-import { ams, meme, swap } from 'src/stores/export'
-import { BulletinItem } from '../bulletin/BulletinItem'
-import { constants } from 'src/constant'
+import { computed, onMounted } from 'vue'
+import { ams, kline, swap } from 'src/stores/export'
+import { TickerInterval } from 'src/stores/kline'
+import { buildTrendingBulletins } from './trendingData'
 
 import BulletinListView from '../bulletin/BulletinListView.vue'
 
-const token2BulletinItem = (application: ams.Application, imageBorderColor: string, valueColor: string, caption: string, captionColor: string) => {
-  const meme = JSON.parse(application.spec) as meme.Meme
-  const pool = swap.Swap.getPool(application.applicationId, constants.LINERA_NATIVE_ID)
-  const price = (Number(application.applicationId === pool?.token0 ? pool?.token0Price : pool?.token1Price) || 0).toFixed(6)
+const applications = computed(() => ams.Ams.applications())
+const poolsByToken = computed(() => {
+  return new Map(
+    swap.Swap.pools()
+      .filter((pool) => pool.token1)
+      .map((pool) => [
+        pool.token0 === 'TLINERA' ? (pool.token1 as string) : pool.token0,
+        pool,
+      ]),
+  )
+})
+const oneDayTickers = computed(() => {
+  const stats = applications.value
+    .map((application) => [
+      application.applicationId,
+      kline.Kline.tokenStat(application.applicationId, TickerInterval.OneDay),
+    ] as const)
+    .filter((entry): entry is readonly [string, kline.TickerStat] => Boolean(entry[1]))
 
-  return {
-    image: ams.Ams.applicationLogo(application),
-    imageBorderColor,
-    label: meme?.ticker,
-    subtitle: meme?.name,
-    value: price,
-    valueColor,
-    caption,
-    captionColor
-  } as BulletinItem
-}
+  return new Map(stats)
+})
 
-const topGainerTokens = computed(() => ams.Ams.applications().map((el) => token2BulletinItem(el, 'primary-twenty-five', 'light', '+ 12.34%', 'secondary')))
-const topVolumeTokens = computed(() => ams.Ams.applications().map((el) => token2BulletinItem(el, 'secondary-twenty-five', 'light', '123,456 TLINERA', 'volume')))
-const newTokens = computed(() => ams.Ams.applications().map((el) => token2BulletinItem(el, 'neutral-twenty-five', 'light', '~ 2H', 'warning')))
+const topGainerTokens = computed(() => buildTrendingBulletins('gainers', {
+  applications: applications.value,
+  tickersByToken: oneDayTickers.value,
+  poolsByToken: poolsByToken.value,
+  applicationLogo: ams.Ams.applicationLogo,
+}))
+const topVolumeTokens = computed(() => buildTrendingBulletins('volume', {
+  applications: applications.value,
+  tickersByToken: oneDayTickers.value,
+  poolsByToken: poolsByToken.value,
+  applicationLogo: ams.Ams.applicationLogo,
+}))
+const newTokens = computed(() => buildTrendingBulletins('new', {
+  applications: applications.value,
+  tickersByToken: oneDayTickers.value,
+  poolsByToken: poolsByToken.value,
+  applicationLogo: ams.Ams.applicationLogo,
+}))
+
+onMounted(async () => {
+  await kline.Kline.getTickers(TickerInterval.OneDay)
+})
 
 </script>

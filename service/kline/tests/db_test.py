@@ -153,32 +153,50 @@ class FakeCursor:
           return
 
         if normalized.startswith('SELECT bucket_start_ms, open, high, low, close, volume, quote_volume FROM candles'):
-          pool_id, token_reversed, interval_name, start_at, end_at = params
-          rows = [
-              row.copy()
-              for key, row in self.connection.candle_rows.items()
-              if key[0] == pool_id
-              and key[1] == token_reversed
-              and key[2] == interval_name
-              and start_at <= key[3] <= end_at
-          ]
-          rows.sort(key=lambda row: row['bucket_start_ms'])
-          if self.dictionary:
-              self._last_result = rows
-          else:
-              self._last_result = [
-                  (
-                      row['bucket_start_ms'],
-                      row['open'],
-                      row['high'],
-                      row['low'],
-                      row['close'],
-                      row['volume'],
-                      row.get('quote_volume'),
-                  )
-                  for row in rows
-              ]
-          return
+            pool_id, token_reversed, interval_name, start_at, end_at = params
+            rows = [
+                row.copy()
+                for key, row in self.connection.candle_rows.items()
+                if key[0] == pool_id
+                and key[1] == token_reversed
+                and key[2] == interval_name
+                and start_at <= key[3] <= end_at
+            ]
+            rows.sort(key=lambda row: row['bucket_start_ms'])
+            if self.dictionary:
+                self._last_result = rows
+            else:
+                self._last_result = [
+                    (
+                        row['bucket_start_ms'],
+                        row['open'],
+                        row['high'],
+                        row['low'],
+                        row['close'],
+                        row['volume'],
+                        row.get('quote_volume'),
+                    )
+                    for row in rows
+                ]
+            return
+
+        if normalized.startswith('SELECT bucket_start_ms, open, high, low, close, volume, quote_volume, trade_count, first_trade_id, last_trade_id, first_trade_at_ms, last_trade_at_ms FROM candles'):
+            pool_id, token_reversed, interval_name, before_bucket_start_ms = params
+            rows = [
+                row.copy()
+                for key, row in self.connection.candle_rows.items()
+                if key[0] == pool_id
+                and key[1] == token_reversed
+                and key[2] == interval_name
+                and key[3] < before_bucket_start_ms
+            ]
+            rows.sort(key=lambda row: row['bucket_start_ms'], reverse=True)
+            selected = rows[:1]
+            if self.dictionary:
+                self._last_result = selected
+            else:
+                self._last_result = [tuple(row.values()) for row in selected]
+            return
 
         if normalized.startswith('INSERT INTO candles VALUES'):
           key = tuple(params[:4])
@@ -797,7 +815,7 @@ class DbCandleQueryTest(unittest.TestCase):
             'quote_volume': 25.0,
         }])
 
-    def test_get_kline_does_not_fill_internal_gaps_with_previous_close(self):
+    def test_get_kline_fills_internal_gaps_with_previous_close(self):
         db = self.create_db()
         connection = self.connections[-1]
         connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
@@ -860,6 +878,18 @@ class DbCandleQueryTest(unittest.TestCase):
                 'quote_volume': 25.0,
             },
             {
+                'timestamp': 1_800_000_060_000,
+                'bucket_start_ms': 1_800_000_060_000,
+                'bucket_end_ms': 1_800_000_119_999,
+                'is_final': True,
+                'open': 2.5,
+                'high': 2.5,
+                'low': 2.5,
+                'close': 2.5,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+            {
                 'timestamp': 1_800_000_120_000,
                 'bucket_start_ms': 1_800_000_120_000,
                 'bucket_end_ms': 1_800_000_179_999,
@@ -873,7 +903,7 @@ class DbCandleQueryTest(unittest.TestCase):
             },
         ])
 
-    def test_get_kline_does_not_extend_gap_fill_beyond_latest_real_candle(self):
+    def test_get_kline_extends_gap_fill_beyond_latest_real_candle_with_zero_volume_buckets(self):
         db = self.create_db()
         connection = self.connections[-1]
         connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
@@ -905,18 +935,127 @@ class DbCandleQueryTest(unittest.TestCase):
                 interval='1min',
             )
 
-        self.assertEqual(points, [{
-            'timestamp': 1_800_000_000_000,
-            'bucket_start_ms': 1_800_000_000_000,
-            'bucket_end_ms': 1_800_000_059_999,
-            'is_final': True,
-            'open': 2.0,
-            'high': 3.0,
-            'low': 1.5,
-            'close': 2.5,
-            'base_volume': 10.0,
-            'quote_volume': 25.0,
-        }])
+        self.assertEqual(points, [
+            {
+                'timestamp': 1_800_000_000_000,
+                'bucket_start_ms': 1_800_000_000_000,
+                'bucket_end_ms': 1_800_000_059_999,
+                'is_final': True,
+                'open': 2.0,
+                'high': 3.0,
+                'low': 1.5,
+                'close': 2.5,
+                'base_volume': 10.0,
+                'quote_volume': 25.0,
+            },
+            {
+                'timestamp': 1_800_000_060_000,
+                'bucket_start_ms': 1_800_000_060_000,
+                'bucket_end_ms': 1_800_000_119_999,
+                'is_final': True,
+                'open': 2.5,
+                'high': 2.5,
+                'low': 2.5,
+                'close': 2.5,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+            {
+                'timestamp': 1_800_000_120_000,
+                'bucket_start_ms': 1_800_000_120_000,
+                'bucket_end_ms': 1_800_000_179_999,
+                'is_final': True,
+                'open': 2.5,
+                'high': 2.5,
+                'low': 2.5,
+                'close': 2.5,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+            {
+                'timestamp': 1_800_000_180_000,
+                'bucket_start_ms': 1_800_000_180_000,
+                'bucket_end_ms': 1_800_000_239_999,
+                'is_final': True,
+                'open': 2.5,
+                'high': 2.5,
+                'low': 2.5,
+                'close': 2.5,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+        ])
+
+    def test_get_kline_fills_leading_empty_buckets_from_previous_close_when_available(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.candle_rows[(7, False, '1min', 1_799_999_940_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_799_999_940_000,
+            'open': 1.8,
+            'high': 2.1,
+            'low': 1.7,
+            'close': 2.0,
+            'volume': 9.0,
+            'quote_volume': 18.0,
+            'trade_count': 2,
+            'first_trade_id': 8,
+            'last_trade_id': 9,
+            'first_trade_at_ms': 1_799_999_941_000,
+            'last_trade_at_ms': 1_799_999_959_000,
+        }
+
+        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
+            points = db.get_kline_from_candles(
+                pool_id=7,
+                token_reversed=False,
+                token_0='AAA',
+                token_1='BBB',
+                start_at=1_800_000_000_000,
+                end_at=1_800_000_120_000,
+                interval='1min',
+            )
+
+        self.assertEqual(points, [
+            {
+                'timestamp': 1_800_000_000_000,
+                'bucket_start_ms': 1_800_000_000_000,
+                'bucket_end_ms': 1_800_000_059_999,
+                'is_final': True,
+                'open': 2.0,
+                'high': 2.0,
+                'low': 2.0,
+                'close': 2.0,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+            {
+                'timestamp': 1_800_000_060_000,
+                'bucket_start_ms': 1_800_000_060_000,
+                'bucket_end_ms': 1_800_000_119_999,
+                'is_final': True,
+                'open': 2.0,
+                'high': 2.0,
+                'low': 2.0,
+                'close': 2.0,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+            {
+                'timestamp': 1_800_000_120_000,
+                'bucket_start_ms': 1_800_000_120_000,
+                'bucket_end_ms': 1_800_000_179_999,
+                'is_final': True,
+                'open': 2.0,
+                'high': 2.0,
+                'low': 2.0,
+                'close': 2.0,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
+            },
+        ])
 
     def test_get_kline_from_candles_rejects_legacy_rows_without_quote_volume(self):
         db = self.create_db()
@@ -1091,6 +1230,18 @@ class DbCandleQueryTest(unittest.TestCase):
                 'close': 5.0,
                 'base_volume': 6.0,
                 'quote_volume': 30.0,
+            },
+            {
+                'timestamp': 1_800_000_120_000,
+                'bucket_start_ms': 1_800_000_120_000,
+                'bucket_end_ms': 1_800_000_179_999,
+                'is_final': True,
+                'open': 5.0,
+                'high': 5.0,
+                'low': 5.0,
+                'close': 5.0,
+                'base_volume': 0.0,
+                'quote_volume': 0.0,
             },
         ])
         self.assertIn((7, False, '1min', 1_800_000_000_000), connection.candle_rows)

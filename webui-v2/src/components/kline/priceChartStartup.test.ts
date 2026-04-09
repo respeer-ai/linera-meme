@@ -4,6 +4,7 @@ import { Interval } from 'src/stores/kline/const'
 import {
   getFirstScreenFetchWindowSize,
   getIntervalBucketSize,
+  resolveEdgeFetchWindow,
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
@@ -301,5 +302,27 @@ describe('resolveNextFetchTimestamp', () => {
       previousPoolId: 1,
       nextPoolId: 2,
     })).toBe(true)
+  })
+
+  test('clamps forward edge fetches to now so the chart does not request future empty candles', () => {
+    expect(resolveEdgeFetchWindow({
+      anchorTimestamp: 1_775_713_500_000,
+      reverse: false,
+      windowSize: 15 * 60 * 60 * 1000,
+      nowMs: 1_775_714_205_279,
+    })).toEqual({
+      reverse: false,
+      startAt: 1_775_713_500_001,
+      endAt: 1_775_714_205_279,
+    })
+  })
+
+  test('skips forward edge fetches once the latest loaded candle is already at or beyond now', () => {
+    expect(resolveEdgeFetchWindow({
+      anchorTimestamp: 1_775_714_205_279,
+      reverse: false,
+      windowSize: 15 * 60 * 60 * 1000,
+      nowMs: 1_775_714_205_279,
+    })).toBe(null)
   })
 })

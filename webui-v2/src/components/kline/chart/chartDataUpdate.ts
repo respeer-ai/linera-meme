@@ -212,6 +212,20 @@ export const shouldFitContentOnFirstRender = ({
   previousRange === null
 )
 
+export const shouldAnchorLatestAfterBootstrapExpansion = ({
+  previousData,
+  nextData,
+  minimumDataPointsToAnchor = 1,
+}: {
+  previousData: KLineData[]
+  nextData: KLineData[]
+  minimumDataPointsToAnchor?: number
+}) => (
+  previousData.length > 0 &&
+  previousData.length < minimumDataPointsToAnchor &&
+  nextData.length >= minimumDataPointsToAnchor
+)
+
 export const resolveVisibleLogicalRangeAfterPrimaryRender = ({
   renderMode,
   previousData,

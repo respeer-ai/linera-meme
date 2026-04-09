@@ -100,33 +100,33 @@
             </q-avatar>
             X
           </div>
-          <q-input filled v-model='argument.meme.metadata.website' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='X handle' :autofocus='true' />
+          <q-input filled v-model='argument.meme.metadata.twitter' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='X handle' :autofocus='true' />
           <div class='q-mt-lg text-neutral font-size-18'>
             <q-avatar size='24px' class='bg-grey-5'>
               <q-img :src='constants.TELEGRAM_LOGO' width='24px' height='24px' />
             </q-avatar>
             Telegram
           </div>
-          <q-input filled v-model='argument.meme.metadata.website' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Telegram link' :autofocus='true' />
+          <q-input filled v-model='argument.meme.metadata.telegram' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Telegram link' :autofocus='true' />
           <div class='q-mt-lg text-neutral font-size-18'>
             <q-avatar size='24px' class='bg-grey-5'>
               <q-img :src='constants.DISCORD_LOGO' width='24px' height='24px' />
             </q-avatar>
             Discord
           </div>
-          <q-input filled v-model='argument.meme.metadata.website' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Discord link' :autofocus='true' />
+          <q-input filled v-model='argument.meme.metadata.discord' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Discord link' :autofocus='true' />
           <div class='q-mt-lg text-neutral font-size-18'>
             <q-avatar size='24px' class='bg-grey-5'>
               <q-img :src='constants.GITHUB_LOGO' width='24px' height='24px' />
             </q-avatar>
             Github
           </div>
-          <q-input filled v-model='argument.meme.metadata.website' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Github link' :autofocus='true' />
+          <q-input filled v-model='argument.meme.metadata.github' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Github link' :autofocus='true' />
           <div class='q-mt-lg text-neutral font-size-18'>
             <q-icon name='live_tv' class='text-secondary q-mr-xs' size='24px' />
             Live Stream
           </div>
-          <q-input filled v-model='argument.meme.metadata.website' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Live stream url (youtube)' :autofocus='true' />
+          <q-input filled v-model='argument.meme.metadata.liveStream' class='font-size-16 text-neutral text-bold full-width q-mt-sm' placeholder='Live stream url (youtube)' :autofocus='true' />
         </div>
       </q-expansion-item>
     </div>
@@ -231,7 +231,13 @@ const argument = ref({
     totalSupply: '21000000',
     decimals: 6,
     metadata: {
-      description: "Creator didn't leave any information about this token. You should know if you interact with malfunction application, you may lose your assets!"
+      description: "Creator didn't leave any information about this token. You should know if you interact with malfunction application, you may lose your assets!",
+      website: '',
+      twitter: '',
+      telegram: '',
+      discord: '',
+      github: '',
+      liveStream: '',
     },
     virtualInitialLiquidity: true
   }
