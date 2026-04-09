@@ -2,8 +2,10 @@ import { account, user } from 'src/stores/export'
 import { Provider } from './provider'
 import { dbModel, rpcModel } from 'src/model'
 import {
+  ADD_LIQUIDITY,
   BALANCES,
   BLOCK_MATERIAL_WITH_DEFAULT_CHAIN,
+  CREATE_POOL,
   CREATE_MEME,
   ESTIMATE_GAS,
   PUBLISH_DATA_BLOB,
@@ -122,6 +124,84 @@ export class CheCko {
 
   static swap = async (poolApplicationId: string, variables: Record<string, unknown>) => {
     const operationParams = await CheCko.swapOperation(poolApplicationId, variables)
+
+    return new Promise((resolve, reject) => {
+      window.linera
+        .request({
+          method: 'linera_graphqlMutation',
+          params: operationParams,
+        })
+        .then((hash) => {
+          resolve(hash as string)
+        })
+        .catch((e) => {
+          reject(new Error(e))
+        })
+    })
+  }
+
+  static createPoolOperation = async (
+    swapApplicationId: string,
+    variables: Record<string, unknown>,
+  ) => {
+    const publicKey = user.User.publicKey()
+    const queryBytes = await lineraWasm.graphql_deserialize_swap_operation(
+      CREATE_POOL.loc?.source?.body as string,
+      stringify(variables) as string,
+    )
+    return {
+      applicationId: swapApplicationId,
+      publicKey,
+      query: {
+        query: CREATE_POOL.loc?.source?.body,
+        variables,
+        applicationOperationBytes: queryBytes,
+      },
+      operationName: 'createPool',
+    }
+  }
+
+  static createPool = async (swapApplicationId: string, variables: Record<string, unknown>) => {
+    const operationParams = await CheCko.createPoolOperation(swapApplicationId, variables)
+
+    return new Promise((resolve, reject) => {
+      window.linera
+        .request({
+          method: 'linera_graphqlMutation',
+          params: operationParams,
+        })
+        .then((hash) => {
+          resolve(hash as string)
+        })
+        .catch((e) => {
+          reject(new Error(e))
+        })
+    })
+  }
+
+  static addLiquidityOperation = async (
+    poolApplicationId: string,
+    variables: Record<string, unknown>,
+  ) => {
+    const publicKey = user.User.publicKey()
+    const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(
+      ADD_LIQUIDITY.loc?.source?.body as string,
+      stringify(variables) as string,
+    )
+    return {
+      applicationId: poolApplicationId,
+      publicKey,
+      query: {
+        query: ADD_LIQUIDITY.loc?.source?.body,
+        variables,
+        applicationOperationBytes: queryBytes,
+      },
+      operationName: 'addLiquidity',
+    }
+  }
+
+  static addLiquidity = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const operationParams = await CheCko.addLiquidityOperation(poolApplicationId, variables)
 
     return new Promise((resolve, reject) => {
       window.linera

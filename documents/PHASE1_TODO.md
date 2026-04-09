@@ -115,7 +115,7 @@ Defects must be prioritized ahead of enhancement or expansion work.
 | MM-03 | Meme Creation | Fix metadata field wiring | Map website, twitter, telegram, discord and similar fields into distinct metadata keys | None | Form-state and payload regression tests for every metadata field | D1 | DONE |
 | MM-04 | Discovery | Replace trending placeholders with real ranking | Drive trending by real gainers / volume / age logic instead of placeholder text | None | Ranking and rendering tests for live sorting and displayed metadata | D1 | DONE |
 | MM-05 | Pools | Correct APR / TVL / price-impact semantics | Replace hardcoded and incomplete assumptions with protocol-driven calculations. Implemented scope: fixed protocol fee single source of truth, shared price-impact math, native-valued pool TVL / volume / APR, and `--` fallback when valuation is unavailable | None | Calculation regression tests and frontend display tests | D1 | DONE |
-| MM-06 | Pools | Wire Add Liquidity action | Connect pools tab `Add liquidity` button to the actual liquidity flow | None | Navigation and action wiring tests | D1 | READY |
+| MM-06 | Pools | Unify `Add Liquidity` flow with automatic pool creation when needed | Keep a single `Add Liquidity` product entry and page, while internally routing nonexistent pairs through pool creation and existing pairs through liquidity addition | None | Navigation, pair-validation, and execution-flow regression tests | D1 | DONE |
 | MM-07 | Token Details | Build token detail page foundation | Create routed token detail page with deterministic chain-backed market modules | None | Frontend route/component tests and data-loading tests | D1 | READY |
 
 ### Enhancements and New Features

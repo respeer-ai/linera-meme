@@ -2,6 +2,7 @@ import { account, type ams, swap, user } from 'src/stores/export'
 import { CheCko } from './checko'
 import { LineraWebClient } from './linera_web_client'
 import { constants } from 'src/constant'
+import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 
 export class Wallet {
   static installed = () => {
@@ -223,6 +224,107 @@ export class Wallet {
     try {
       const gas = await Wallet._estimateSwapGas(sellToken, buyToken, amountIn, amountOutMin)
       done?.(gas)
+    } catch (e) {
+      error?.(JSON.stringify(e))
+    }
+  }
+
+  static _createPool = async (
+    token0CreatorChainId: string,
+    token0: string,
+    token1CreatorChainId: string | undefined,
+    token1: string | undefined,
+    amount0: string,
+    amount1: string,
+    to: account.Account,
+  ) => {
+    const variables = {
+      token0CreatorChainId,
+      token0,
+      token1CreatorChainId,
+      token1,
+      amount0,
+      amount1,
+      to,
+    }
+
+    const walletType = user.User.walletConnectedType()
+    const swapApplicationId = constants.applicationId(constants.APPLICATION_URLS.SWAP) as string
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.createPool(swapApplicationId, variables)
+      case user.WalletType.Metamask:
+        return await LineraWebClient.createPool(swapApplicationId, variables)
+    }
+  }
+
+  static createPool = async (
+    token0CreatorChainId: string,
+    token0: string,
+    token1CreatorChainId: string | undefined,
+    token1: string | undefined,
+    amount0: string,
+    amount1: string,
+    to: account.Account,
+    done?: () => void,
+    error?: (e: string) => void,
+  ) => {
+    try {
+      await Wallet._createPool(
+        token0CreatorChainId,
+        token0,
+        token1CreatorChainId,
+        token1,
+        amount0,
+        amount1,
+        to,
+      )
+      done?.()
+    } catch (e) {
+      error?.(JSON.stringify(e))
+    }
+  }
+
+  static _addLiquidity = async (
+    pool: Pool,
+    amount0In: string,
+    amount1In: string,
+    to: account.Account,
+  ) => {
+    const variables = {
+      amount0In,
+      amount1In,
+      amount0OutMin: undefined,
+      amount1OutMin: undefined,
+      to,
+      blockTimestamp: undefined,
+    }
+
+    const walletType = user.User.walletConnectedType()
+    const poolApplicationId = account._Account.accountApplication(
+      pool.poolApplication as account.Account,
+    ) as string
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.addLiquidity(poolApplicationId, variables)
+      case user.WalletType.Metamask:
+        return await LineraWebClient.addLiquidity(poolApplicationId, variables)
+    }
+  }
+
+  static addLiquidity = async (
+    pool: Pool,
+    amount0In: string,
+    amount1In: string,
+    to: account.Account,
+    done?: () => void,
+    error?: (e: string) => void,
+  ) => {
+    try {
+      await Wallet._addLiquidity(pool, amount0In, amount1In, to)
+      done?.()
     } catch (e) {
       error?.(JSON.stringify(e))
     }

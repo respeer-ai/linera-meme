@@ -16,7 +16,7 @@
         <volume-select-view v-model='volumeInterval' />
       </div>
       <div v-else-if='_tab === Tab.Pools' class='medium-btn q-mr-sm'>
-        <q-btn dense no-caps flat class='text-white bg-primary radius-12'>
+        <q-btn dense no-caps flat class='text-white bg-primary radius-12' @click='onAddLiquidityClick'>
           Add liquidity
         </q-btn>
       </div>
@@ -48,6 +48,8 @@
 import { onMounted, ref, toRef } from 'vue'
 import { ams, kline, swap } from 'src/stores/export'
 import { Tab } from './Tab'
+import { useRouter } from 'vue-router'
+import { buildAddLiquidityRoute } from '../pools/poolFlow'
 
 import TokensListView from './TokensListView.vue'
 import PoolsListView from './PoolsListView.vue'
@@ -60,6 +62,7 @@ interface Props {
 }
 const props = defineProps<Props>()
 const tab = toRef(props, 'tab')
+const router = useRouter()
 
 const _tab = ref(tab.value)
 const volumeInterval = ref(kline.TickerInterval.OneDay)
@@ -71,6 +74,10 @@ onMounted(() => {
 
 const onSearch = (keyword: string) => {
   console.log(keyword)
+}
+
+const onAddLiquidityClick = () => {
+  void router.push(buildAddLiquidityRoute())
 }
 
 </script>

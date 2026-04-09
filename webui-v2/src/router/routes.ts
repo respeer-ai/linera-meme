@@ -70,6 +70,13 @@ const routes: RouteRecordRaw[] = [
           },
         },
       },
+      {
+        path: 'pools/add-liquidity',
+        component: () => import('pages/AddLiquidityPage.vue'),
+        meta: {
+          NeedLogined: false,
+        },
+      },
     ],
   },
 

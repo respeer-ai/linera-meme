@@ -1,7 +1,7 @@
 <template>
-  <div class='border-dark-secondary radius-8 bg-dark-secondary q-pa-md'>
+  <div class='token-input-card border-dark-secondary radius-8 bg-dark-secondary q-pa-md'>
     <div class='row'>
-      <div class='font-size-16 text-bold text-neutral'>{{ action }}</div>
+      <div v-if='showLabel' class='font-size-16 text-bold text-neutral'>{{ displayLabel }}</div>
       <q-space />
       <q-select
         :options='_tokens'
@@ -70,6 +70,7 @@ import { throttle } from 'lodash-es'
 
 interface Props {
   action?: TokenAction
+  label?: string
   autoFocus?: boolean
   tokens: Token[]
   disable?: boolean
@@ -80,9 +81,12 @@ const props = withDefaults(defineProps<Props>(), {
   disable: false
 })
 const action = toRef(props, 'action')
+const label = toRef(props, 'label')
 const autoFocus = toRef(props, 'autoFocus')
 const tokens = toRef(props, 'tokens')
 const disable = toRef(props, 'disable')
+const displayLabel = computed(() => label.value ?? action.value)
+const showLabel = computed(() => displayLabel.value !== '')
 
 interface TokenItem extends Token {
   label: string
@@ -175,7 +179,9 @@ watchEffect(() => {
 })
 
 onMounted(() => {
-  token.value = tokens.value[0]
+  if (token.value === undefined) {
+    token.value = tokens.value[0]
+  }
   proxy.Proxy.getMemeApplications(() => {
     getBalanceThrottle()
   })
@@ -191,6 +197,30 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang='sass'>
+.token-input-card
+  position: relative
+  overflow: hidden
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease
+
+  &::after
+    content: ''
+    position: absolute
+    left: 0
+    top: 0
+    width: 100%
+    height: 50%
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0))
+    opacity: 0
+    transition: opacity 0.18s ease
+
+  &:hover
+    transform: translateY(-1px)
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18)
+    background: rgba(255, 255, 255, 0.04)
+
+    &::after
+      opacity: 1
+
 ::v-deep(.q-input)
   .q-field__native,
   .q-field__control

@@ -45,7 +45,7 @@
           <!-- td :props='props' class='text-center'>0 TLINERA</td -->
           <td :props='props' class='text-center'>
             <div class='narrow-btn'>
-              <q-btn dense no-caps rounded flat class='text-secondary'>
+              <q-btn dense no-caps rounded flat class='text-secondary' @click='onAddLiquidityClick(props.row)'>
                 Add liquidity
               </q-btn>
             </div>
@@ -74,8 +74,12 @@ import { computed, onMounted, ref } from 'vue'
 import { Pool } from 'src/__generated__/graphql/swap/graphql'
 import { constants } from 'src/constant'
 import { protocol } from 'src/utils'
+import { useRouter } from 'vue-router'
+import { buildAddLiquidityRoute } from '../pools/poolFlow'
 
 import PoolLogoView from '../pools/PoolLogoView.vue'
+
+const router = useRouter()
 
 const tokens = computed(() => ams.Ams.applications().map((el) => {
   return {
@@ -184,6 +188,10 @@ const apr = (pool: Pool) => {
   )
   if (tvl === undefined || oneDayVolume === undefined) return '--'
   return `${protocol.calculatePoolAprFromDailyVolume(oneDayVolume, tvl).toFixed(4)}%`
+}
+
+const onAddLiquidityClick = (pool: Pool) => {
+  void router.push(buildAddLiquidityRoute(pool))
 }
 
 onMounted(async () => {
