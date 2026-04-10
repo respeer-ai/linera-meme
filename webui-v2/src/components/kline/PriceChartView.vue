@@ -32,7 +32,7 @@ import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
 import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
-import { mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
+import { chartStateChanged, mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -204,10 +204,14 @@ const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
 watch(latestPoints, () => {
   if (!_latestPoints.value.length || !latestPoints.value.length) return
 
-  klinePoints.value = mergeSortedPointsIntoChartState({
+  const mergedPoints = mergeSortedPointsIntoChartState({
     currentPoints: klinePoints.value,
     sortedPoints: latestPoints.value,
   })
+
+  if (!chartStateChanged(klinePoints.value, mergedPoints)) return
+
+  klinePoints.value = mergedPoints
 })
 
 const getKline = (timestamp: number, reverse: boolean) => {

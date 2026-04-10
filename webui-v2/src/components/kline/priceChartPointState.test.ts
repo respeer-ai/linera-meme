@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { KLineData } from './chart/KlineData'
-import { mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
+import { chartStateChanged, mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
 
 const chartPoint = (time: number, close: number, volume = close): KLineData => ({
   time,
@@ -61,6 +61,38 @@ describe('mergeSortedPointsIntoChartState', () => {
     expect(merged.find((point) => point.time === 550)?.close).toBe(105)
     expect(merged.find((point) => point.time === 550)?.volume).toBe(20)
     expect(merged.find((point) => point.time === 560)?.close).toBe(110)
+  })
+})
+
+describe('chartStateChanged', () => {
+  test('returns false when a merge produces an identical chart state', () => {
+    const current = [
+      chartPoint(540, 100, 10),
+      chartPoint(550, 101, 12),
+    ]
+    const next = mergeSortedPointsIntoChartState({
+      currentPoints: current,
+      sortedPoints: [
+        sortedPoint(550_000, 101, 12),
+      ],
+    })
+
+    expect(chartStateChanged(current, next)).toBe(false)
+  })
+
+  test('returns true when a merge changes an overlapping candle', () => {
+    const current = [
+      chartPoint(540, 100, 10),
+      chartPoint(550, 101, 12),
+    ]
+    const next = mergeSortedPointsIntoChartState({
+      currentPoints: current,
+      sortedPoints: [
+        sortedPoint(550_000, 105, 20),
+      ],
+    })
+
+    expect(chartStateChanged(current, next)).toBe(true)
   })
 })
 
