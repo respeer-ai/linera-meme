@@ -140,13 +140,12 @@ Defects must be prioritized ahead of enhancement or expansion work.
 
 If execution resumes immediately, the next recommended order is:
 
-1. `MM-01` strict financial candle continuity
-2. `MM-02` HTTP / WebSocket semantic alignment
-3. `MM-03` metadata field wiring
-4. `MM-05` pool metric semantics
-5. `MM-06` add-liquidity action wiring
-6. `MM-07` token detail page foundation
-7. `MM-20` upgrade `@linera/client` to latest version
-8. `MM-08` real search with pagination-aware loading
+1. `MM-07` token detail page foundation
+2. `MM-20` upgrade `@linera/client` to latest version
+3. `MM-08` real search with pagination-aware loading
+4. `MM-09` AI-assisted off-chain enrichment for token details
+5. `MM-10` quote infrastructure
+6. `MM-11` route-aware execution and best-path selection
+7. `MM-12` exact-output and advanced execution preview
 
-This sequence keeps current market semantics and core product completeness ahead of larger feature expansion.
+This sequence starts from the remaining ready Phase 1 foundation work, then moves into the next frontend and trading capability layers in dependency order.

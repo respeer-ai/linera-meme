@@ -209,6 +209,7 @@ onUnmounted(() => {
     top: 0
     width: 100%
     height: 50%
+    pointer-events: none
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0))
     opacity: 0
     transition: opacity 0.18s ease
