@@ -37,32 +37,53 @@ class FakeCursor:
           return
 
         if normalized.startswith('SHOW COLUMNS FROM transactions'):
-          self._last_result = [(name,) for name in self.connection.transaction_columns]
+          self._last_result = [
+              (name, 'varchar', 'NO' if name in self.connection.transaction_non_null_columns else 'YES')
+              for name in self.connection.transaction_columns
+          ]
           return
 
         if normalized.startswith('SHOW COLUMNS FROM candles'):
-          self._last_result = [(name,) for name in self.connection.candle_columns]
+          self._last_result = [
+              (name, 'varchar', 'NO' if name in self.connection.candle_non_null_columns else 'YES')
+              for name in self.connection.candle_columns
+          ]
           return
 
         if normalized.startswith('SHOW INDEX FROM transactions'):
           self._last_result = self.index_catalog
           return
 
-        if normalized.startswith('SELECT pool_id FROM pools'):
+        if normalized.startswith('SELECT pool_id, pool_application FROM pools'):
           token_0 = normalized.split('token_0 = "')[1].split('"')[0]
           token_1 = normalized.split('token_1 = "')[1].split('"')[0]
           matches = [
-              (pool['pool_id'],)
+              (pool['pool_id'], pool['pool_application'])
               for pool in self.connection.pool_rows.values()
               if pool['token_0'] == token_0 and pool['token_1'] == token_1
           ]
           self._last_result = matches
           return
 
+        if normalized.startswith('SELECT pool_application, token_0, token_1 FROM pools WHERE pool_id = %s'):
+          pool_id = params[0]
+          pool = self.connection.pool_rows.get(pool_id)
+          self._last_result = [] if pool is None else [
+              (pool['pool_application'], pool['token_0'], pool['token_1'])
+          ]
+          return
+
+        if normalized.startswith('SELECT pool_application FROM pools WHERE pool_id = %s'):
+          pool_id = params[0]
+          pool = self.connection.pool_rows.get(pool_id)
+          self._last_result = [] if pool is None else [(pool['pool_application'],)]
+          return
+
         if normalized.startswith('INSERT INTO pools VALUE'):
-          pool_id, token_0, token_1 = params
+          pool_id, pool_application, token_0, token_1 = params
           self.connection.pool_rows[pool_id] = {
               'pool_id': pool_id,
+              'pool_application': pool_application,
               'token_0': token_0,
               'token_1': token_1,
           }
@@ -81,6 +102,94 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('ALTER TABLE transactions ADD COLUMN pool_application'):
+          if 'pool_application' not in self.connection.transaction_columns:
+              self.connection.transaction_columns.insert(0, 'pool_application')
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE candles ADD COLUMN pool_application'):
+          if 'pool_application' not in self.connection.candle_columns:
+              self.connection.candle_columns.insert(0, 'pool_application')
+          self._last_result = []
+          return
+
+        if normalized.startswith('UPDATE pools SET pool_application = CONCAT("legacy:", pool_id) WHERE pool_application IS NULL'):
+          for pool in self.connection.pool_rows.values():
+              if pool.get('pool_application') is None:
+                  pool['pool_application'] = f'legacy:{pool["pool_id"]}'
+          self._last_result = []
+          return
+
+        if normalized.startswith('UPDATE transactions SET pool_application = CONCAT("legacy:", pool_id) WHERE pool_application IS NULL'):
+          updated_rows = []
+          for row in self.connection.transaction_rows:
+              if self.connection.transaction_value(row, 'pool_application') is not None:
+                  updated_rows.append(row)
+                  continue
+
+              row = list(row)
+              columns = self.connection.transaction_columns
+              row[columns.index('pool_application')] = f'legacy:{self.connection.transaction_value(row, "pool_id")}'
+              updated_rows.append(tuple(row))
+          self.connection.transaction_rows = updated_rows
+          self._last_result = []
+          return
+
+        if normalized.startswith('UPDATE candles SET pool_application = CONCAT("legacy:", pool_id) WHERE pool_application IS NULL'):
+          updated = {}
+          for key, row in self.connection.candle_rows.items():
+              if not isinstance(key, tuple):
+                  continue
+              if row.get('pool_application') is None:
+                  row = row.copy()
+                  row['pool_application'] = f'legacy:{row["pool_id"]}'
+              updated_key = self.connection.candle_row_key(row)
+              updated[updated_key] = row
+              updated[(row['pool_id'], row['token_reversed'], row['interval_name'], row['bucket_start_ms'])] = row
+          self.connection.candle_rows = updated
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE transactions MODIFY COLUMN pool_application VARCHAR(256) NOT NULL'):
+          self.connection.transaction_non_null_columns.add('pool_application')
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE candles MODIFY COLUMN pool_application VARCHAR(256) NOT NULL'):
+          self.connection.candle_non_null_columns.add('pool_application')
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE transactions DROP PRIMARY KEY'):
+          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != 'PRIMARY']
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE transactions ADD PRIMARY KEY'):
+          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != 'PRIMARY']
+          self.index_catalog.extend([
+              ('transactions', 0, 'PRIMARY', 1, 'pool_application'),
+              ('transactions', 0, 'PRIMARY', 2, 'pool_id'),
+              ('transactions', 0, 'PRIMARY', 3, 'transaction_id'),
+              ('transactions', 0, 'PRIMARY', 4, 'token_reversed'),
+          ])
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE candles DROP PRIMARY KEY'):
+          self._last_result = []
+          return
+
+        if normalized.startswith('ALTER TABLE candles ADD PRIMARY KEY'):
+          self._last_result = []
+          return
+
+        if normalized.startswith(f'DROP INDEX {Db.TRANSACTIONS_RANGE_INDEX} ON transactions'):
+          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != Db.TRANSACTIONS_RANGE_INDEX]
+          self._last_result = []
+          return
+
         if normalized.startswith('ALTER TABLE transactions ADD COLUMN quote_volume'):
           if 'quote_volume' not in self.connection.transaction_columns:
               insert_at = self.connection.transaction_columns.index('volume') + 1
@@ -95,31 +204,39 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith(f'CREATE INDEX {Db.TRANSACTIONS_RANGE_INDEX} ON transactions'):
+          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != Db.TRANSACTIONS_RANGE_INDEX]
+          self.index_catalog.extend([
+              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_application'),
+              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 2, 'pool_id'),
+              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 3, 'token_reversed'),
+              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 4, 'created_at'),
+          ])
+          self._last_result = []
+          return
+
         if normalized.startswith('UPDATE transactions SET quote_volume = price * volume WHERE quote_volume IS NULL'):
           updated_rows = []
           for row in self.connection.transaction_rows:
-              if len(row) > 14:
-                  if row[11] is None and row[2] in {'BuyToken0', 'SellToken0'}:
-                      row = (
-                          row[0], row[1], row[2], row[3], row[4],
-                          row[5], row[6], row[7], row[8], row[9],
-                          row[10], row[9] * row[10], row[12], row[13], row[14],
-                      )
+              if self.connection.transaction_value(row, 'quote_volume') is None and self.connection.transaction_value(row, 'transaction_type') in {'BuyToken0', 'SellToken0'}:
+                  row = list(row)
+                  if len(row) == len(self.connection.transaction_columns):
+                      columns = self.connection.transaction_columns
+                  else:
+                      columns = [column for column in self.connection.transaction_columns if column != 'pool_application']
+                  quote_index = columns.index('quote_volume')
+                  price_index = columns.index('price')
+                  volume_index = columns.index('volume')
+                  row[quote_index] = row[price_index] * row[volume_index]
+                  row = tuple(row)
               updated_rows.append(row)
           self.connection.transaction_rows = updated_rows
           self._last_result = []
           return
 
         if normalized.startswith('INSERT IGNORE INTO transactions VALUES'):
-          key = (params[0], params[1], params[13])
-          existing_keys = {
-              (
-                  row[0],
-                  row[1],
-                  row[13] if len(row) > 14 else row[12],
-              )
-              for row in self.connection.transaction_rows
-          }
+          key = (params[0], params[1], params[2], params[14])
+          existing_keys = {self.connection.transaction_row_key(row) for row in self.connection.transaction_rows}
           if key in existing_keys:
               self.rowcount = 0
               self._last_result = []
@@ -130,28 +247,31 @@ class FakeCursor:
           return
 
         if normalized.startswith('SELECT transaction_id, created_at, price, volume, quote_volume FROM transactions'):
-          pool_id = int(normalized.split('WHERE pool_id = ')[1].split(' ')[0])
+          pool_application = normalized.split('WHERE pool_application = "')[1].split('"')[0]
+          pool_id = int(normalized.split('AND pool_id = ')[1].split(' ')[0])
           token_reversed = normalized.split('AND token_reversed = ')[1].split(' ')[0] == 'True'
           start_at = int(normalized.split('AND created_at >= ')[1].split(' ')[0])
           end_at = int(normalized.split('AND created_at <= ')[1].split(' ')[0])
           rows = []
           for row in self.connection.transaction_rows:
-              row_token_reversed = bool(row[13]) if len(row) > 14 else bool(row[12])
-              row_created_at = row[14] if len(row) > 14 else row[13]
-              if row[0] != pool_id:
+              row_token_reversed = bool(self.connection.transaction_value(row, 'token_reversed'))
+              row_created_at = self.connection.transaction_value(row, 'created_at')
+              if self.connection.transaction_value(row, 'pool_application') != pool_application:
+                  continue
+              if self.connection.transaction_value(row, 'pool_id') != pool_id:
                   continue
               if row_token_reversed != token_reversed:
                   continue
-              if row[2] in {'AddLiquidity', 'RemoveLiquidity'}:
+              if self.connection.transaction_value(row, 'transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}:
                   continue
               if row_created_at < start_at or row_created_at > end_at:
                   continue
               rows.append({
-                  'transaction_id': row[1],
+                  'transaction_id': self.connection.transaction_value(row, 'transaction_id'),
                   'created_at': row_created_at,
-                  'price': row[9],
-                  'volume': row[10],
-                  'quote_volume': row[11] if len(row) > 14 else row[9] * row[10],
+                  'price': self.connection.transaction_value(row, 'price'),
+                  'volume': self.connection.transaction_value(row, 'volume'),
+                  'quote_volume': self.connection.transaction_value(row, 'quote_volume'),
               })
           rows.sort(key=lambda item: (item['created_at'], item['transaction_id']))
           if self.dictionary:
@@ -163,33 +283,41 @@ class FakeCursor:
               ]
           return
 
-        if normalized.startswith('SELECT pool_id, MAX(created_at) AS max_created_at FROM transactions GROUP BY pool_id'):
+        if normalized.startswith('SELECT t.pool_id, t.pool_application, MAX(t.created_at) AS max_created_at FROM transactions t JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application GROUP BY t.pool_id, t.pool_application'):
           grouped = {}
           for row in self.connection.transaction_rows:
-              created_at = row[14] if len(row) > 14 else row[13]
-              current = grouped.get(row[0])
+              pool_id = self.connection.transaction_value(row, 'pool_id')
+              pool_application = self.connection.transaction_value(row, 'pool_application')
+              if pool_id not in self.connection.pool_rows:
+                  continue
+              if self.connection.pool_rows[pool_id].get('pool_application') != pool_application:
+                  continue
+              created_at = self.connection.transaction_value(row, 'created_at')
+              current = grouped.get((pool_id, pool_application))
               if current is None or created_at > current:
-                  grouped[row[0]] = created_at
+                  grouped[(pool_id, pool_application)] = created_at
           rows = [
-              {'pool_id': pool_id, 'max_created_at': max_created_at}
-              for pool_id, max_created_at in grouped.items()
+              {'pool_id': pool_id, 'pool_application': pool_application, 'max_created_at': max_created_at}
+              for (pool_id, pool_application), max_created_at in grouped.items()
           ]
-          rows.sort(key=lambda item: item['pool_id'])
+          rows.sort(key=lambda item: (item['pool_id'], item['pool_application']))
           self._last_result = rows if self.dictionary else [
-              (row['pool_id'], row['max_created_at']) for row in rows
+              (row['pool_id'], row['pool_application'], row['max_created_at']) for row in rows
           ]
           return
 
-        if normalized.startswith('SELECT transaction_id, created_at, token_reversed FROM transactions WHERE pool_id = %s AND created_at = %s ORDER BY transaction_id DESC, token_reversed DESC LIMIT 1'):
-          pool_id, created_at = params
+        if normalized.startswith('SELECT transaction_id, created_at, token_reversed FROM transactions WHERE pool_application = %s AND pool_id = %s AND created_at = %s ORDER BY transaction_id DESC, token_reversed DESC LIMIT 1'):
+          pool_application, pool_id, created_at = params
           rows = []
           for row in self.connection.transaction_rows:
-              row_created_at = row[14] if len(row) > 14 else row[13]
-              row_token_reversed = bool(row[13]) if len(row) > 14 else bool(row[12])
-              if row[0] != pool_id or row_created_at != created_at:
+              row_created_at = self.connection.transaction_value(row, 'created_at')
+              row_token_reversed = bool(self.connection.transaction_value(row, 'token_reversed'))
+              if self.connection.transaction_value(row, 'pool_application') != pool_application:
+                  continue
+              if self.connection.transaction_value(row, 'pool_id') != pool_id or row_created_at != created_at:
                   continue
               rows.append({
-                  'transaction_id': row[1],
+                  'transaction_id': self.connection.transaction_value(row, 'transaction_id'),
                   'created_at': row_created_at,
                   'token_reversed': row_token_reversed,
               })
@@ -200,9 +328,32 @@ class FakeCursor:
           ]
           return
 
+        if normalized.startswith('SELECT MIN(transaction_id) AS min_transaction_id, MAX(transaction_id) AS max_transaction_id FROM transactions WHERE pool_application = %s AND pool_id = %s AND token_reversed = 0'):
+          pool_application, pool_id = params
+          matching_ids = [
+              self.connection.transaction_value(row, 'transaction_id')
+              for row in self.connection.transaction_rows
+              if self.connection.transaction_value(row, 'pool_application') == pool_application
+              and self.connection.transaction_value(row, 'pool_id') == pool_id
+              and bool(self.connection.transaction_value(row, 'token_reversed')) is False
+          ]
+          if len(matching_ids) == 0:
+              row = {'min_transaction_id': None, 'max_transaction_id': None}
+          else:
+              row = {'min_transaction_id': min(matching_ids), 'max_transaction_id': max(matching_ids)}
+          self._last_result = [row] if self.dictionary else [(row['min_transaction_id'], row['max_transaction_id'])]
+          return
+
         if normalized.startswith('SELECT open, high, low, close, volume, quote_volume, trade_count, first_trade_id, last_trade_id, first_trade_at_ms, last_trade_at_ms FROM candles'):
-          key = tuple(params[:4])
-          row = self.connection.candle_rows.get(key)
+          pool_application, pool_id, token_reversed, interval_name, bucket_start_ms = params
+          row = next(
+              (
+                  value
+                  for key, value in self.connection.candle_rows.items()
+                  if self.connection.candle_matches(key, value, pool_application, pool_id, token_reversed, interval_name, bucket_start_ms)
+              ),
+              None,
+          )
           if row is None:
               self._last_result = []
           elif self.dictionary:
@@ -212,14 +363,12 @@ class FakeCursor:
           return
 
         if normalized.startswith('SELECT bucket_start_ms, open, high, low, close, volume, quote_volume FROM candles'):
-            pool_id, token_reversed, interval_name, start_at, end_at = params
+            pool_application, pool_id, token_reversed, interval_name, start_at, end_at = params
             rows = [
                 row.copy()
                 for key, row in self.connection.candle_rows.items()
-                if key[0] == pool_id
-                and key[1] == token_reversed
-                and key[2] == interval_name
-                and start_at <= key[3] <= end_at
+                if self.connection.candle_matches(key, row, pool_application, pool_id, token_reversed, interval_name)
+                and start_at <= row['bucket_start_ms'] <= end_at
             ]
             rows.sort(key=lambda row: row['bucket_start_ms'])
             if self.dictionary:
@@ -240,14 +389,12 @@ class FakeCursor:
             return
 
         if normalized.startswith('SELECT bucket_start_ms, open, high, low, close, volume, quote_volume, trade_count, first_trade_id, last_trade_id, first_trade_at_ms, last_trade_at_ms FROM candles'):
-            pool_id, token_reversed, interval_name, before_bucket_start_ms = params
+            pool_application, pool_id, token_reversed, interval_name, before_bucket_start_ms = params
             rows = [
                 row.copy()
                 for key, row in self.connection.candle_rows.items()
-                if key[0] == pool_id
-                and key[1] == token_reversed
-                and key[2] == interval_name
-                and key[3] < before_bucket_start_ms
+                if self.connection.candle_matches(key, row, pool_application, pool_id, token_reversed, interval_name)
+                and row['bucket_start_ms'] < before_bucket_start_ms
             ]
             rows.sort(key=lambda row: row['bucket_start_ms'], reverse=True)
             selected = rows[:1]
@@ -258,36 +405,37 @@ class FakeCursor:
             return
 
         if normalized.startswith('INSERT INTO candles VALUES'):
-          key = tuple(params[:4])
-          self.connection.candle_rows[key] = {
-              'pool_id': params[0],
-              'token_reversed': params[1],
-              'interval_name': params[2],
-              'bucket_start_ms': params[3],
-              'open': params[4],
-              'high': params[5],
-              'low': params[6],
-              'close': params[7],
-              'volume': params[8],
-              'quote_volume': params[9],
-              'trade_count': params[10],
-              'first_trade_id': params[11],
-              'last_trade_id': params[12],
-              'first_trade_at_ms': params[13],
-              'last_trade_at_ms': params[14],
+          key = tuple(params[:5])
+          row = {
+              'pool_application': params[0],
+              'pool_id': params[1],
+              'token_reversed': params[2],
+              'interval_name': params[3],
+              'bucket_start_ms': params[4],
+              'open': params[5],
+              'high': params[6],
+              'low': params[7],
+              'close': params[8],
+              'volume': params[9],
+              'quote_volume': params[10],
+              'trade_count': params[11],
+              'first_trade_id': params[12],
+              'last_trade_id': params[13],
+              'first_trade_at_ms': params[14],
+              'last_trade_at_ms': params[15],
           }
+          self.connection.candle_rows[key] = row
+          self.connection.candle_rows[(params[1], params[2], params[3], params[4])] = row
           self._last_result = []
           return
 
-        if normalized.startswith('DELETE FROM candles WHERE pool_id = %s AND token_reversed = %s AND interval_name = %s AND bucket_start_ms >= %s AND bucket_start_ms <= %s'):
-          pool_id, token_reversed, interval_name, start_at, end_at = params
+        if normalized.startswith('DELETE FROM candles WHERE pool_application = %s AND pool_id = %s AND token_reversed = %s AND interval_name = %s AND bucket_start_ms >= %s AND bucket_start_ms <= %s'):
+          pool_application, pool_id, token_reversed, interval_name, start_at, end_at = params
           retained = {}
           for key, row in self.connection.candle_rows.items():
               if (
-                  key[0] == pool_id
-                  and key[1] == token_reversed
-                  and key[2] == interval_name
-                  and start_at <= key[3] <= end_at
+                  self.connection.candle_matches(key, row, pool_application, pool_id, token_reversed, interval_name)
+                  and start_at <= row['bucket_start_ms'] <= end_at
               ):
                   continue
               retained[key] = row
@@ -388,16 +536,72 @@ class FakeConnection:
         self.candle_rows = {}
         self.maker_event_rows = []
         self.transaction_columns = [
-            'pool_id', 'transaction_id', 'transaction_type', 'from_account',
+            'pool_application', 'pool_id', 'transaction_id', 'transaction_type', 'from_account',
             'amount_0_in', 'amount_0_out', 'amount_1_in', 'amount_1_out',
             'liquidity', 'price', 'volume', 'quote_volume', 'direction',
             'token_reversed', 'created_at',
         ]
+        self.transaction_non_null_columns = {'pool_id', 'transaction_id', 'token_reversed'}
         self.candle_columns = [
-            'pool_id', 'token_reversed', 'interval_name', 'bucket_start_ms',
+            'pool_application', 'pool_id', 'token_reversed', 'interval_name', 'bucket_start_ms',
             'open', 'high', 'low', 'close', 'volume', 'quote_volume',
             'trade_count', 'first_trade_id', 'last_trade_id', 'first_trade_at_ms', 'last_trade_at_ms',
         ]
+        self.candle_non_null_columns = {'pool_id', 'token_reversed', 'interval_name', 'bucket_start_ms'}
+
+    def transaction_value(self, row, column_name):
+        if len(row) == len(self.transaction_columns):
+            return row[self.transaction_columns.index(column_name)]
+
+        legacy_columns = [column for column in self.transaction_columns if column != 'pool_application']
+        if len(row) == len(legacy_columns) - 1:
+            legacy_columns = [column for column in legacy_columns if column != 'quote_volume']
+        if column_name == 'pool_application':
+            pool_id = row[legacy_columns.index('pool_id')]
+            pool = self.pool_rows.get(pool_id, {})
+            return pool.get('pool_application')
+        if column_name == 'quote_volume' and 'quote_volume' not in legacy_columns:
+            return self.transaction_value(row, 'price') * self.transaction_value(row, 'volume')
+        return row[legacy_columns.index(column_name)]
+
+    def transaction_row_key(self, row):
+        return (
+            self.transaction_value(row, 'pool_application'),
+            self.transaction_value(row, 'pool_id'),
+            self.transaction_value(row, 'transaction_id'),
+            self.transaction_value(row, 'token_reversed'),
+        )
+
+    def candle_row_key(self, row):
+        return (
+            row.get('pool_application'),
+            row['pool_id'],
+            row['token_reversed'],
+            row['interval_name'],
+            row['bucket_start_ms'],
+        )
+
+    def candle_matches(self, key, row, pool_application, pool_id, token_reversed, interval_name, bucket_start_ms=None):
+        row_pool_application = row.get('pool_application')
+        if row_pool_application is None and len(key) == 4 and pool_id in self.pool_rows:
+            row_pool_application = self.pool_rows[pool_id].get('pool_application')
+
+        row_pool_id = row['pool_id'] if 'pool_id' in row else key[-4]
+        row_token_reversed = row['token_reversed'] if 'token_reversed' in row else key[-3]
+        row_interval_name = row['interval_name'] if 'interval_name' in row else key[-2]
+        row_bucket_start_ms = row['bucket_start_ms'] if 'bucket_start_ms' in row else key[-1]
+
+        if row_pool_application != pool_application:
+            return False
+        if row_pool_id != pool_id:
+            return False
+        if row_token_reversed != token_reversed:
+            return False
+        if row_interval_name != interval_name:
+            return False
+        if bucket_start_ms is not None and row_bucket_start_ms != bucket_start_ms:
+            return False
+        return True
 
     def cursor(self, dictionary=False):
         cursor = FakeCursor(self.database_catalog, self.table_catalog, self.index_catalog)
@@ -533,12 +737,39 @@ class DbIndexInitializationTest(unittest.TestCase):
         executed_queries = [query for cursor in runtime_connection.cursors for query, _ in cursor.executed]
 
         self.assertTrue(any(
-            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_id, token_reversed, created_at)'
+            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
             in query for query in executed_queries
         ))
 
     @patch('db.mysql.connector.connect')
     def test_does_not_recreate_range_query_index_when_present(self, connect_mock):
+        self.index_catalog.extend([
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_application'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 2, 'pool_id'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 3, 'token_reversed'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 4, 'created_at'),
+        ])
+        connect_mock.side_effect = self.create_connection
+
+        Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_connection = self.connections[-1]
+        executed_queries = [query for cursor in runtime_connection.cursors for query, _ in cursor.executed]
+
+        self.assertFalse(any(
+            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
+            in query for query in executed_queries
+        ))
+
+    @patch('db.mysql.connector.connect')
+    def test_recreates_range_query_index_when_legacy_definition_is_present(self, connect_mock):
         self.index_catalog.append(
             ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_id'),
         )
@@ -556,8 +787,12 @@ class DbIndexInitializationTest(unittest.TestCase):
         runtime_connection = self.connections[-1]
         executed_queries = [query for cursor in runtime_connection.cursors for query, _ in cursor.executed]
 
-        self.assertFalse(any(
-            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_id, token_reversed, created_at)'
+        self.assertTrue(any(
+            f'DROP INDEX {Db.TRANSACTIONS_RANGE_INDEX} ON transactions' in query
+            for query in executed_queries
+        ))
+        self.assertTrue(any(
+            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
             in query for query in executed_queries
         ))
 
@@ -619,6 +854,7 @@ class DbReadFreshnessTest(unittest.TestCase):
         )
         connection.pool_rows[1001] = {
             'pool_id': 1001,
+            'pool_application': 'chain:app',
             'token_0': 'AAA',
             'token_1': 'BBB',
         }
@@ -660,6 +896,82 @@ class DbReadFreshnessTest(unittest.TestCase):
         db.get_kline('AAA', 'BBB', 1_800_000_000_000, 1_800_000_000_000, '1min')
 
         self.assertEqual(runtime_connection.rollbacks, 1)
+
+
+class DbIdentityMigrationTest(unittest.TestCase):
+    def setUp(self):
+        self.database_catalog = ['kline']
+        self.table_catalog = ['pools', 'transactions', 'candles']
+        self.index_catalog = [
+            ('transactions', 0, 'PRIMARY', 1, 'pool_id'),
+            ('transactions', 0, 'PRIMARY', 2, 'transaction_id'),
+            ('transactions', 0, 'PRIMARY', 3, 'token_reversed'),
+        ]
+        self.connections = []
+
+    def create_connection(self, **_kwargs):
+        connection = FakeConnection(
+            self.database_catalog,
+            self.table_catalog,
+            self.index_catalog,
+        )
+        if len(self.connections) == 1:
+            connection.pool_rows[7] = {
+                'pool_id': 7,
+                'pool_application': None,
+                'token_0': 'AAA',
+                'token_1': 'BBB',
+            }
+            connection.transaction_rows = [
+                (
+                    None, 7, 10, 'BuyToken0', 'chain:owner',
+                    0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000,
+                ),
+            ]
+            connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
+                'pool_application': None,
+                'pool_id': 7,
+                'token_reversed': False,
+                'interval_name': '1min',
+                'bucket_start_ms': 1_800_000_000_000,
+                'open': 2.0,
+                'high': 2.0,
+                'low': 2.0,
+                'close': 2.0,
+                'volume': 1.0,
+                'quote_volume': 2.0,
+                'trade_count': 1,
+                'first_trade_id': 10,
+                'last_trade_id': 10,
+                'first_trade_at_ms': 1_800_000_000_000,
+                'last_trade_at_ms': 1_800_000_000_000,
+            }
+        self.connections.append(connection)
+        return connection
+
+    @patch('db.mysql.connector.connect')
+    def test_backfills_legacy_pool_application_before_switching_primary_keys(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_connection = self.connections[-1]
+        self.assertEqual(runtime_connection.pool_rows[7]['pool_application'], 'legacy:7')
+        self.assertEqual(
+            runtime_connection.transaction_value(runtime_connection.transaction_rows[0], 'pool_application'),
+            'legacy:7',
+        )
+        candle = next(iter(runtime_connection.candle_rows.values()))
+        self.assertEqual(candle['pool_application'], 'legacy:7')
+        self.assertIn('pool_application', runtime_connection.transaction_non_null_columns)
+        self.assertIn('pool_application', runtime_connection.candle_non_null_columns)
 
 
 class DbMakerEventsQueryTest(unittest.TestCase):
@@ -747,8 +1059,8 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         )
 
         runtime_connection = self.connections[-1]
-        self.assertEqual(runtime_connection.transaction_rows[0][11], 20.0)
-        self.assertIsNone(runtime_connection.transaction_rows[1][11])
+        self.assertEqual(runtime_connection.transaction_value(runtime_connection.transaction_rows[0], 'quote_volume'), 20.0)
+        self.assertIsNone(runtime_connection.transaction_value(runtime_connection.transaction_rows[1], 'quote_volume'))
 
 
 if __name__ == '__main__':
@@ -765,13 +1077,15 @@ class DbQueryHelperTest(unittest.TestCase):
     def test_build_kline_points_query_orders_by_created_at_for_indexed_scan(self):
         query = build_kline_points_query(
             table_name='transactions',
+            pool_application='chain:app',
             pool_id=7,
             token_reversed=True,
             start_at=1_000_000,
             end_at=2_000_000,
         )
 
-        self.assertIn('WHERE pool_id = 7', query)
+        self.assertIn('WHERE pool_application = "chain:app"', query)
+        self.assertIn('AND pool_id = 7', query)
         self.assertIn('AND token_reversed = True', query)
         self.assertIn('AND created_at >= 1000000', query)
         self.assertIn('AND created_at <= 2000000', query)
@@ -800,6 +1114,8 @@ class DbQueryHelperTest(unittest.TestCase):
         def create_connection(**_kwargs):
             connection = FakeConnection(database_catalog, table_catalog, index_catalog)
             if len(connections) == 1:
+                connection.pool_rows[7] = {'pool_id': 7, 'pool_application': 'chain:app', 'token_0': 'AAA', 'token_1': 'BBB'}
+                connection.pool_rows[8] = {'pool_id': 8, 'pool_application': 'chain:app-2', 'token_0': 'CCC', 'token_1': 'DDD'}
                 connection.transaction_rows = [
                     (7, 10, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
                     (7, 11, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_001_000),
@@ -823,9 +1139,45 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertEqual(
             db.get_latest_transaction_watermarks(),
             {
-                7: (1_800_000_060_000, 12, 0),
-                8: (1_800_000_020_000, 3, 0),
+                (7, 'chain', 'app'): (1_800_000_060_000, 12, 0),
+                (8, 'chain', 'app-2'): (1_800_000_020_000, 3, 0),
             },
+        )
+
+    @patch('db.mysql.connector.connect')
+    def test_get_pool_transaction_id_bounds_reads_current_pool_application_only(self, connect_mock):
+        database_catalog = ['kline']
+        table_catalog = ['pools', 'transactions', 'candles']
+        index_catalog = []
+        connections = []
+
+        def create_connection(**_kwargs):
+            connection = FakeConnection(database_catalog, table_catalog, index_catalog)
+            if len(connections) == 1:
+                connection.pool_rows[7] = {'pool_id': 7, 'pool_application': 'chain:app', 'token_0': 'AAA', 'token_1': 'BBB'}
+                connection.transaction_rows = [
+                    ('legacy:7', 7, 1005, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
+                    ('chain:app', 7, 1010, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_002_000),
+                    ('chain:app', 7, 1022, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_003_000),
+                    ('chain:app', 7, 1022, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_003_000),
+                ]
+            connections.append(connection)
+            return connection
+
+        connect_mock.side_effect = create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        self.assertEqual(
+            db.get_pool_transaction_id_bounds(7),
+            {'min_transaction_id': 1010, 'max_transaction_id': 1022},
         )
 
 
@@ -862,7 +1214,8 @@ class DbCandleIngestTest(unittest.TestCase):
             )
 
     def seed_pool(self, db):
-        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB')
+        pool_application = types.SimpleNamespace(chain_id='chain', owner='app')
+        pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB', pool_application=pool_application)
         db.new_pools([pool])
 
     def test_creates_and_updates_candle_in_same_bucket(self):
@@ -915,7 +1268,7 @@ class DbCandleIngestTest(unittest.TestCase):
         runtime_connection = self.connections[-1]
         inserted = runtime_connection.transaction_rows[-1]
         self.assertEqual(len(inserted), len(runtime_connection.transaction_columns))
-        self.assertEqual(inserted[11], row['quote_volume'])
+        self.assertEqual(runtime_connection.transaction_value(inserted, 'quote_volume'), row['quote_volume'])
 
     def test_save_candle_matches_candles_table_column_count(self):
         db = self.create_db()
@@ -1124,6 +1477,7 @@ class DbCandleQueryTest(unittest.TestCase):
         connection = self.connections[-1]
         connection.pool_rows[7] = {
             'pool_id': 7,
+            'pool_application': 'chain:app',
             'token_0': 'AAA',
             'token_1': 'BBB',
         }

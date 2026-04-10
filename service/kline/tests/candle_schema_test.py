@@ -30,12 +30,14 @@ class CandleSchemaContractTest(unittest.TestCase):
     def test_builds_bucket_key_using_pool_reverse_interval_and_bucket_start(self):
         self.assertEqual(
             build_candle_bucket_key(
+                pool_application='chain:app',
                 pool_id=1000,
                 token_reversed=False,
                 interval='5min',
                 created_at_ms=1_775_465_307_782,
             ),
             CandleBucketKey(
+                pool_application='chain:app',
                 pool_id=1000,
                 token_reversed=False,
                 interval='5min',

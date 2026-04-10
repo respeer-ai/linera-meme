@@ -16,6 +16,7 @@ INTERVAL_BUCKET_MS = {
 
 @dataclass(frozen=True)
 class CandleBucketKey:
+    pool_application: str
     pool_id: int
     token_reversed: bool
     interval: str
@@ -53,6 +54,7 @@ def get_interval_bucket_ms(interval: str) -> int:
 
 
 def build_candle_bucket_key(
+    pool_application: str,
     pool_id: int,
     token_reversed: bool,
     interval: str,
@@ -62,6 +64,7 @@ def build_candle_bucket_key(
     bucket_start_ms = created_at_ms // bucket_ms * bucket_ms
 
     return CandleBucketKey(
+        pool_application=pool_application,
         pool_id=pool_id,
         token_reversed=token_reversed,
         interval=interval,

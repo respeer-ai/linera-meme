@@ -18,6 +18,7 @@ def align_timestamp_to_minute_ms(timestamp: int) -> int:
 
 def build_kline_points_query(
     table_name: str,
+    pool_application: str,
     pool_id: int,
     token_reversed: bool,
     start_at: int,
@@ -25,7 +26,8 @@ def build_kline_points_query(
 ) -> str:
     return f'''
         SELECT transaction_id, created_at, price, volume, quote_volume FROM {table_name}
-        WHERE pool_id = {pool_id}
+        WHERE pool_application = "{pool_application}"
+        AND pool_id = {pool_id}
         AND token_reversed = {token_reversed}
         AND created_at >= {start_at}
         AND created_at <= {end_at}
@@ -124,6 +126,14 @@ def build_kline_log_line(event: str, **fields) -> str:
     return ' '.join(parts)
 
 
+def build_pool_application_value(pool: Pool) -> str:
+    return f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
+
+
+def build_legacy_pool_application_value(pool_id: int) -> str:
+    return f'legacy:{pool_id}'
+
+
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
 
@@ -178,6 +188,7 @@ class Db:
             self.cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {self.pools_table} (
                     pool_id INT UNSIGNED,
+                    pool_application VARCHAR(256),
                     token_0 VARCHAR(256),
                     token_1 VARCHAR(256),
                     PRIMARY KEY (pool_id)
@@ -188,6 +199,7 @@ class Db:
         if self.transactions_table not in tables:
             self.cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {self.transactions_table} (
+                    pool_application VARCHAR(256),
                     pool_id INT UNSIGNED,
                     transaction_id INT UNSIGNED,
                     transaction_type VARCHAR(32),
@@ -203,7 +215,7 @@ class Db:
                     direction VARCHAR(8),
                     token_reversed TINYINT,
                     created_at BIGINT UNSIGNED,
-                    PRIMARY KEY (pool_id, transaction_id, token_reversed)
+                    PRIMARY KEY (pool_application, pool_id, transaction_id, token_reversed)
                 )
             ''')
             self.connection.commit()
@@ -211,6 +223,7 @@ class Db:
         if self.candles_table not in tables:
             self.cursor.execute(f'''
                 CREATE TABLE IF NOT EXISTS {self.candles_table} (
+                    pool_application VARCHAR(256),
                     pool_id INT UNSIGNED,
                     token_reversed TINYINT,
                     interval_name VARCHAR(16),
@@ -226,7 +239,7 @@ class Db:
                     last_trade_id INT UNSIGNED,
                     first_trade_at_ms BIGINT UNSIGNED,
                     last_trade_at_ms BIGINT UNSIGNED,
-                    PRIMARY KEY (pool_id, token_reversed, interval_name, bucket_start_ms)
+                    PRIMARY KEY (pool_application, pool_id, token_reversed, interval_name, bucket_start_ms)
                 )
             ''')
             self.connection.commit()
@@ -251,6 +264,7 @@ class Db:
             ''')
             self.connection.commit()
 
+        self.ensure_kline_identity_columns()
         self.ensure_transactions_indexes()
         self.ensure_kline_columns()
 
@@ -268,19 +282,156 @@ class Db:
     def log_kline_event(self, event: str, **fields):
         print(build_kline_log_line(event, **fields))
 
-    def ensure_transactions_indexes(self):
-        self.cursor.execute(f'SHOW INDEX FROM {self.transactions_table}')
-        existing_indexes = {
-            row[2] for row in self.cursor.fetchall()
-            if len(row) > 2 and row[2] is not None
-        }
+    def resolve_pool_for_write(self, pool: Pool | int):
+        if hasattr(pool, 'pool_application'):
+            return pool, build_pool_application_value(pool)
 
-        if self.TRANSACTIONS_RANGE_INDEX not in existing_indexes:
-            self.cursor.execute(f'''
-                CREATE INDEX {self.TRANSACTIONS_RANGE_INDEX}
-                ON {self.transactions_table} (pool_id, token_reversed, created_at)
-            ''')
-            self.connection.commit()
+        pool_id = int(pool)
+        self.cursor.execute(
+            f'SELECT pool_application, token_0, token_1 FROM {self.pools_table} WHERE pool_id = %s',
+            (pool_id,),
+        )
+        row = self.cursor.fetchone()
+        if row is None:
+            raise Exception(f'Unknown pool_id: {pool_id}')
+
+        pool_application, token_0, token_1 = row
+        if pool_application is None:
+            raise Exception(f'Invalid pool application for pool_id: {pool_id}')
+
+        pool_stub = type('PoolStub', (), {})()
+        pool_stub.pool_id = pool_id
+        pool_stub.token_0 = token_0
+        pool_stub.token_1 = token_1
+        pool_stub.pool_application = type('PoolApplicationStub', (), {})()
+        pool_stub.pool_application.chain_id, pool_stub.pool_application.owner = pool_application.split(':', 1)
+        return pool_stub, pool_application
+
+    def resolve_pool_application(self, pool_id: int, pool_application: str | None = None) -> str:
+        if pool_application is not None:
+            return pool_application
+
+        self.cursor.execute(
+            f'SELECT pool_application FROM {self.pools_table} WHERE pool_id = %s',
+            (pool_id,),
+        )
+        row = self.cursor.fetchone()
+        if row is None or row[0] is None:
+            raise Exception(f'Invalid pool application for pool_id: {pool_id}')
+        return row[0]
+
+    def ensure_column(self, table_name: str, column_name: str, definition: str):
+        self.cursor.execute(f'SHOW COLUMNS FROM {table_name}')
+        existing_columns = {row[0] for row in self.cursor.fetchall()}
+        if column_name in existing_columns:
+            return
+
+        self.cursor.execute(
+            f'ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}'
+        )
+        self.connection.commit()
+
+    def ensure_non_null_column(self, table_name: str, column_name: str, definition: str):
+        self.cursor.execute(f'SHOW COLUMNS FROM {table_name}')
+        columns = {row[0]: row for row in self.cursor.fetchall()}
+        column = columns.get(column_name)
+        if column is not None and len(column) > 2 and column[2] == 'NO':
+            return
+
+        self.cursor.execute(
+            f'ALTER TABLE {table_name} MODIFY COLUMN {column_name} {definition} NOT NULL'
+        )
+        self.connection.commit()
+
+    def ensure_primary_key(self, table_name: str, expected_columns: tuple[str, ...]):
+        self.cursor.execute(f'SHOW INDEX FROM {table_name}')
+        primary_columns = [
+            row[4]
+            for row in sorted(
+                [row for row in self.cursor.fetchall() if len(row) > 4 and row[2] == 'PRIMARY'],
+                key=lambda row: row[3],
+            )
+        ]
+        if tuple(primary_columns) == expected_columns:
+            return
+
+        if len(primary_columns) > 0:
+            self.cursor.execute(f'ALTER TABLE {table_name} DROP PRIMARY KEY')
+        self.cursor.execute(
+            f'ALTER TABLE {table_name} ADD PRIMARY KEY ({", ".join(expected_columns)})'
+        )
+        self.connection.commit()
+
+    def ensure_index(self, table_name: str, index_name: str, expected_columns: tuple[str, ...]):
+        self.cursor.execute(f'SHOW INDEX FROM {table_name}')
+        matching_rows = [
+            row for row in self.cursor.fetchall()
+            if len(row) > 4 and row[2] == index_name
+        ]
+        existing_columns = tuple(
+            row[4] for row in sorted(matching_rows, key=lambda row: row[3])
+        )
+
+        if existing_columns == expected_columns:
+            return
+
+        if len(existing_columns) > 0:
+            self.cursor.execute(f'DROP INDEX {index_name} ON {table_name}')
+
+        self.cursor.execute(
+            f'CREATE INDEX {index_name} ON {table_name} ({", ".join(expected_columns)})'
+        )
+        self.connection.commit()
+
+    def backfill_legacy_pool_application(self):
+        legacy_pool_application = f'CONCAT("legacy:", pool_id)'
+        self.cursor.execute(
+            f'UPDATE {self.pools_table} SET pool_application = {legacy_pool_application} WHERE pool_application IS NULL'
+        )
+        self.cursor.execute(
+            f'UPDATE {self.transactions_table} SET pool_application = {legacy_pool_application} WHERE pool_application IS NULL'
+        )
+        self.cursor.execute(
+            f'UPDATE {self.candles_table} SET pool_application = {legacy_pool_application} WHERE pool_application IS NULL'
+        )
+        self.connection.commit()
+
+    def ensure_kline_identity_columns(self):
+        self.ensure_column(
+            self.pools_table,
+            'pool_application',
+            'VARCHAR(256) NULL AFTER pool_id',
+        )
+        self.ensure_column(
+            self.transactions_table,
+            'pool_application',
+            'VARCHAR(256) NULL FIRST',
+        )
+        self.ensure_column(
+            self.candles_table,
+            'pool_application',
+            'VARCHAR(256) NULL FIRST',
+        )
+
+        self.backfill_legacy_pool_application()
+        self.ensure_non_null_column(self.transactions_table, 'pool_application', 'VARCHAR(256)')
+        self.ensure_non_null_column(self.candles_table, 'pool_application', 'VARCHAR(256)')
+
+        self.ensure_primary_key(
+            self.transactions_table,
+            ('pool_application', 'pool_id', 'transaction_id', 'token_reversed'),
+        )
+        self.ensure_primary_key(
+            self.candles_table,
+            ('pool_application', 'pool_id', 'token_reversed', 'interval_name', 'bucket_start_ms'),
+        )
+
+    def ensure_transactions_indexes(self):
+        self.ensure_index(
+            self.transactions_table,
+            self.TRANSACTIONS_RANGE_INDEX,
+            ('pool_application', 'pool_id', 'token_reversed', 'created_at'),
+        )
 
     def ensure_kline_columns(self):
         self.cursor.execute(f'SHOW COLUMNS FROM {self.transactions_table}')
@@ -315,30 +466,33 @@ class Db:
             self.cursor.execute(
                 f'''
                     INSERT INTO {self.pools_table}
-                    VALUE (%s, %s, %s) as alias
+                    VALUE (%s, %s, %s, %s) as alias
                     ON DUPLICATE KEY UPDATE
+                    pool_application = alias.pool_application,
                     token_0 = alias.token_0,
                     token_1 = alias.token_1
                 ''',
                 (pool.pool_id,
+                 build_pool_application_value(pool),
                  pool.token_0,
                  pool.token_1 if pool.token_1 is not None else 'TLINERA')
             )
         self.connection.commit()
 
-    def new_transaction(self, pool_id: int, transaction: Transaction, token_reversed: bool):
+    def new_transaction(self, pool: Pool | int, transaction: Transaction, token_reversed: bool):
+        pool, pool_application = self.resolve_pool_for_write(pool)
         direction = transaction.direction(token_reversed)
         base_volume = transaction.base_volume(token_reversed)
         quote_volume = transaction.quote_volume(token_reversed)
         price = transaction.price(token_reversed)
         created_at_ms = transaction.created_at // 1000
-
         self.cursor.execute(
             f'''
                 INSERT IGNORE INTO {self.transactions_table}
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''',
-            (pool_id,
+            (pool_application,
+             pool.pool_id,
              transaction.transaction_id,
              transaction.transaction_type,
              f'{transaction.from_.chain_id}:{transaction.from_.owner}',
@@ -358,7 +512,8 @@ class Db:
         was_inserted = self.cursor.rowcount == 1
         if was_inserted:
             self.update_candles_for_transaction(
-                pool_id=pool_id,
+                pool_application=pool_application,
+                pool_id=pool.pool_id,
                 transaction=transaction,
                 token_reversed=token_reversed,
                 created_at_ms=created_at_ms,
@@ -368,7 +523,8 @@ class Db:
             )
 
         return {
-            'pool_id': pool_id,
+            'pool_application': pool_application,
+            'pool_id': pool.pool_id,
             'transaction_id': transaction.transaction_id,
             'transaction_type': transaction.transaction_type,
             'from_account': f'{transaction.from_.chain_id}:{transaction.from_.owner}',
@@ -392,14 +548,18 @@ class Db:
         interval: str,
         start_at: int,
         end_at: int,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         start_bucket_ms = build_candle_bucket_key(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             interval=interval,
             created_at_ms=start_at,
         ).bucket_start_ms
         end_bucket_ms = build_candle_bucket_key(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             interval=interval,
@@ -407,6 +567,7 @@ class Db:
         ).bucket_start_ms
         query = build_kline_points_query(
             table_name=self.transactions_table,
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             start_at=start_bucket_ms,
@@ -418,6 +579,7 @@ class Db:
         candles_by_bucket = {}
         for row in rows:
             bucket_key = build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -437,18 +599,20 @@ class Db:
         self.cursor.execute(
             f'''
                 DELETE FROM {self.candles_table}
-                WHERE pool_id = %s
+                WHERE pool_application = %s
+                AND pool_id = %s
                 AND token_reversed = %s
                 AND interval_name = %s
                 AND bucket_start_ms >= %s
                 AND bucket_start_ms <= %s
             ''',
-            (pool_id, token_reversed, interval, start_bucket_ms, end_bucket_ms),
+            (pool_application, pool_id, token_reversed, interval, start_bucket_ms, end_bucket_ms),
         )
 
         for bucket_start_ms in sorted(candles_by_bucket.keys()):
             self.save_candle(
                 build_candle_bucket_key(
+                    pool_application=pool_application,
                     pool_id=pool_id,
                     token_reversed=token_reversed,
                     interval=interval,
@@ -461,11 +625,12 @@ class Db:
         return len(candles_by_bucket)
 
     def rebuild_pair_candles(self, token_0: str, token_1: str, start_at: int, end_at: int, intervals=None):
-        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
         selected_intervals = list(intervals) if intervals is not None else list(INTERVAL_BUCKET_MS.keys())
         results = {}
         for interval in selected_intervals:
             results[f'{interval}:forward'] = self.rebuild_candles_from_transactions(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -473,6 +638,7 @@ class Db:
                 end_at=end_at,
             )
             results[f'{interval}:reverse'] = self.rebuild_candles_from_transactions(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=not token_reversed,
                 interval=interval,
@@ -597,20 +763,21 @@ class Db:
         )
         return self.cursor_dict.fetchone()
 
-    def new_transactions(self, pool_id: int, transactions: list[Transaction]):
+    def new_transactions(self, pool: Pool | int, transactions: list[Transaction]):
         _transactions = []
 
         for transaction in transactions:
             # For each transaction we actually have two direction so we need to create two transactions
-            _transactions.append(self.new_transaction(pool_id, transaction, False))
+            _transactions.append(self.new_transaction(pool, transaction, False))
             if transaction.record_reverse():
-                _transactions.append(self.new_transaction(pool_id, transaction, True))
+                _transactions.append(self.new_transaction(pool, transaction, True))
 
         self.connection.commit()
 
         return _transactions
 
-    def load_candle(self, pool_id: int, token_reversed: bool, interval: str, bucket_start_ms: int):
+    def load_candle(self, pool_id: int, token_reversed: bool, interval: str, bucket_start_ms: int, pool_application: str | None = None):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         self.cursor_dict.execute(
             f'''
                 SELECT
@@ -626,12 +793,13 @@ class Db:
                     first_trade_at_ms,
                     last_trade_at_ms
                 FROM {self.candles_table}
-                WHERE pool_id = %s
+                WHERE pool_application = %s
+                AND pool_id = %s
                 AND token_reversed = %s
                 AND interval_name = %s
                 AND bucket_start_ms = %s
             ''',
-            (pool_id, token_reversed, interval, bucket_start_ms),
+            (pool_application, pool_id, token_reversed, interval, bucket_start_ms),
         )
         row = self.cursor_dict.fetchone()
 
@@ -639,6 +807,7 @@ class Db:
             return None
         if row['quote_volume'] is None:
             candle = self.rebuild_candle_from_transactions(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -648,6 +817,7 @@ class Db:
                 return None
 
             bucket_key = build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -676,10 +846,13 @@ class Db:
         token_reversed: bool,
         interval: str,
         bucket_start_ms: int,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         bucket_end_ms = bucket_start_ms + get_interval_bucket_ms(interval) - 1
         query = build_kline_points_query(
             table_name=self.transactions_table,
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             start_at=bucket_start_ms,
@@ -707,7 +880,7 @@ class Db:
         self.cursor.execute(
             f'''
                 INSERT INTO {self.candles_table}
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
                 ON DUPLICATE KEY UPDATE
                 open = alias.open,
                 high = alias.high,
@@ -722,6 +895,7 @@ class Db:
                 last_trade_at_ms = alias.last_trade_at_ms
             ''',
             (
+                bucket_key.pool_application,
                 bucket_key.pool_id,
                 bucket_key.token_reversed,
                 bucket_key.interval,
@@ -746,7 +920,9 @@ class Db:
         token_reversed: bool,
         interval: str,
         bucket_start_ms: int,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         self.cursor_dict.execute(
             f'''
                 SELECT
@@ -758,12 +934,13 @@ class Db:
                     volume,
                     quote_volume
                 FROM {self.candles_table}
-                WHERE pool_id = %s
+                WHERE pool_application = %s
+                AND pool_id = %s
                 AND token_reversed = %s
                 AND interval_name = %s
                 AND bucket_start_ms = %s
             ''',
-            (pool_id, token_reversed, interval, bucket_start_ms),
+            (pool_application, pool_id, token_reversed, interval, bucket_start_ms),
         )
         row = self.cursor_dict.fetchone()
         if row is None:
@@ -790,7 +967,9 @@ class Db:
         token_reversed: bool,
         interval: str,
         before_bucket_start_ms: int,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         self.cursor_dict.execute(
             f'''
                 SELECT
@@ -807,14 +986,15 @@ class Db:
                     first_trade_at_ms,
                     last_trade_at_ms
                 FROM {self.candles_table}
-                WHERE pool_id = %s
+                WHERE pool_application = %s
+                AND pool_id = %s
                 AND token_reversed = %s
                 AND interval_name = %s
                 AND bucket_start_ms < %s
                 ORDER BY bucket_start_ms DESC
                 LIMIT 1
             ''',
-            (pool_id, token_reversed, interval, before_bucket_start_ms),
+            (pool_application, pool_id, token_reversed, interval, before_bucket_start_ms),
         )
         row = self.cursor_dict.fetchone()
 
@@ -822,6 +1002,7 @@ class Db:
             return None
 
         return self.load_candle(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             interval=interval,
@@ -837,7 +1018,9 @@ class Db:
         price: float,
         base_volume: float,
         quote_volume: float,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         if transaction.transaction_type not in ['BuyToken0', 'SellToken0']:
             return
 
@@ -851,12 +1034,14 @@ class Db:
 
         for interval in INTERVAL_BUCKET_MS.keys():
             bucket_key = build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
                 created_at_ms=created_at_ms,
             )
             existing = self.load_candle(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -865,36 +1050,40 @@ class Db:
             candle = apply_candle_update(existing=existing, update=update)
             self.save_candle(bucket_key, candle)
 
-    def get_pool_id(self, token_0: str, token_1: str) -> (int, str, str, bool):
+    def get_pool_identity(self, token_0: str, token_1: str) -> (int, str, str, str, bool):
         token_1 = token_1 if token_1 is not None else 'TLINERA'
         token_0 = token_0 if token_0 is not None else 'TLINERA'
 
         self.cursor.execute(
-            f'''SELECT pool_id FROM {self.pools_table}
+            f'''SELECT pool_id, pool_application FROM {self.pools_table}
                 WHERE token_0 = "{token_0}"
                 AND token_1 = "{token_1}"
             '''
         )
-        pool_ids = [row[0] for row in self.cursor.fetchall()]
-        if len(pool_ids) > 1:
+        pool_rows = self.cursor.fetchall()
+        if len(pool_rows) > 1:
             raise(Exception('Invalid token pair'))
 
         token_reversed = False
 
-        if len(pool_ids) == 0:
+        if len(pool_rows) == 0:
             self.cursor.execute(
-                f'''SELECT pool_id FROM {self.pools_table}
+                f'''SELECT pool_id, pool_application FROM {self.pools_table}
                     WHERE token_0 = "{token_1}"
                     AND token_1 = "{token_0}"
                 '''
             )
-            pool_ids = [row[0] for row in self.cursor.fetchall()]
+            pool_rows = self.cursor.fetchall()
             token_reversed = True
 
-        if len(pool_ids) != 1:
+        if len(pool_rows) != 1:
             raise(Exception('Invalid token pair'))
 
-        return (pool_ids[0], token_0, token_1, token_reversed)
+        pool_id, pool_application = pool_rows[0]
+        if pool_application is None:
+            raise(Exception('Invalid pool application'))
+
+        return (pool_id, pool_application, token_0, token_1, token_reversed)
 
     def get_transactions_information(self, token_0: str, token_1: str):
         self.ensure_fresh_read_connection()
@@ -905,10 +1094,13 @@ class Db:
                     MAX(created_at) AS timestamp_begin,
                     MIN(created_at) AS timestamp_end
                 FROM {self.transactions_table}
+                JOIN {self.pools_table}
+                  ON {self.transactions_table}.pool_id = {self.pools_table}.pool_id
+                 AND {self.transactions_table}.pool_application = {self.pools_table}.pool_application
             '''
         else:
             try:
-                (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+                (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
             except Exception as e:
                 print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
                 return []
@@ -919,7 +1111,8 @@ class Db:
                     MAX(created_at) AS timestamp_begin,
                     MIN(created_at) AS timestamp_end
                 FROM {self.transactions_table}
-                WHERE pool_id = {pool_id}
+                WHERE pool_application = "{pool_application}"
+                AND pool_id = {pool_id}
                 AND token_reversed = {token_reversed}
             '''
 
@@ -931,10 +1124,14 @@ class Db:
         self.cursor_dict.execute(
             f'''
                 SELECT
-                    pool_id,
-                    MAX(created_at) AS max_created_at
-                FROM {self.transactions_table}
-                GROUP BY pool_id
+                    t.pool_id,
+                    t.pool_application,
+                    MAX(t.created_at) AS max_created_at
+                FROM {self.transactions_table} t
+                JOIN {self.pools_table} p
+                  ON t.pool_id = p.pool_id
+                 AND t.pool_application = p.pool_application
+                GROUP BY t.pool_id, t.pool_application
             '''
         )
         watermark_rows = self.cursor_dict.fetchall()
@@ -942,6 +1139,7 @@ class Db:
 
         for row in watermark_rows:
             pool_id = int(row['pool_id'])
+            pool_application = row['pool_application']
             created_at = int(row['max_created_at'])
             self.cursor_dict.execute(
                 f'''
@@ -950,18 +1148,19 @@ class Db:
                         created_at,
                         token_reversed
                     FROM {self.transactions_table}
-                    WHERE pool_id = %s
+                    WHERE pool_application = %s
+                    AND pool_id = %s
                     AND created_at = %s
                     ORDER BY transaction_id DESC, token_reversed DESC
                     LIMIT 1
                 ''',
-                (pool_id, created_at),
+                (pool_application, pool_id, created_at),
             )
             latest_row = self.cursor_dict.fetchone()
             if latest_row is None:
                 continue
 
-            watermarks[pool_id] = (
+            watermarks[(pool_id, *pool_application.split(':', 1))] = (
                 int(latest_row['created_at']),
                 int(latest_row['transaction_id']),
                 1 if bool(latest_row['token_reversed']) else 0,
@@ -969,24 +1168,52 @@ class Db:
 
         return watermarks
 
+    def get_pool_transaction_id_bounds(self, pool_id: int, pool_application: str | None = None):
+        self.ensure_fresh_read_connection()
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    MIN(transaction_id) AS min_transaction_id,
+                    MAX(transaction_id) AS max_transaction_id
+                FROM {self.transactions_table}
+                WHERE pool_application = %s
+                AND pool_id = %s
+                AND token_reversed = 0
+            ''',
+            (pool_application, pool_id),
+        )
+        row = self.cursor_dict.fetchone()
+        if row is None or row['min_transaction_id'] is None or row['max_transaction_id'] is None:
+            return None
+
+        return {
+            'min_transaction_id': int(row['min_transaction_id']),
+            'max_transaction_id': int(row['max_transaction_id']),
+        }
+
     def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
         self.ensure_fresh_read_connection()
         if token_0 is None or token_1 is None:
             query = f'''
-                SELECT * FROM {self.transactions_table}
+                SELECT t.* FROM {self.transactions_table} t
+                JOIN {self.pools_table} p
+                  ON t.pool_id = p.pool_id
+                 AND t.pool_application = p.pool_application
                 WHERE created_at >= {start_at}
                 AND created_at <= {end_at}
             '''
         else:
             try:
-                (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+                (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
             except Exception as e:
                 print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
                 return []
 
             query = f'''
                 SELECT * FROM {self.transactions_table}
-                WHERE pool_id = {pool_id}
+                WHERE pool_application = "{pool_application}"
+                AND pool_id = {pool_id}
                 AND token_reversed = {token_reversed}
                 AND created_at >= {start_at}
                 AND created_at <= {end_at}
@@ -997,7 +1224,7 @@ class Db:
 
     def get_kline_information(self, token_0: str, token_1: str, interval: str):
         self.ensure_fresh_read_connection()
-        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
 
         query = f'''
             SELECT
@@ -1005,7 +1232,8 @@ class Db:
                 MAX(created_at) AS timestamp_begin,
                 MIN(created_at) AS timestamp_end
             FROM {self.transactions_table}
-            WHERE pool_id = {pool_id}
+            WHERE pool_application = "{pool_application}"
+            AND pool_id = {pool_id}
             AND token_reversed = {token_reversed}
             AND transaction_type != 'AddLiquidity'
             AND transaction_type != 'RemoveLiquidity';
@@ -1016,7 +1244,7 @@ class Db:
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
         self.ensure_fresh_read_connection()
         request_started_at = time.perf_counter()
-        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
         interval = interval if interval is not None else '1min'
         self.log_kline_event(
             event='request_start',
@@ -1027,6 +1255,7 @@ class Db:
             token_reversed=token_reversed,
         )
         points = self.get_kline_from_candles(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             token_0=token_0,
@@ -1062,6 +1291,7 @@ class Db:
             token_reversed=token_reversed,
         )
         points = self.get_kline_from_transactions(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             start_at=start_at,
@@ -1096,15 +1326,19 @@ class Db:
         start_at: int,
         end_at: int,
         interval: str,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         interval = interval if interval is not None else '1min'
         query_start_at = build_candle_bucket_key(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             interval=interval,
             created_at_ms=start_at,
         ).bucket_start_ms
         query_end_at = build_candle_bucket_key(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             interval=interval,
@@ -1123,14 +1357,15 @@ class Db:
                     volume,
                     quote_volume
                 FROM {self.candles_table}
-                WHERE pool_id = %s
+                WHERE pool_application = %s
+                AND pool_id = %s
                 AND token_reversed = %s
                 AND interval_name = %s
                 AND bucket_start_ms >= %s
                 AND bucket_start_ms <= %s
                 ORDER BY bucket_start_ms ASC
             ''',
-            (pool_id, token_reversed, interval, query_start_at, query_end_at),
+            (pool_application, pool_id, token_reversed, interval, query_start_at, query_end_at),
         )
         rows = self.cursor_dict.fetchall()
         query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
@@ -1146,6 +1381,7 @@ class Db:
         )
         if len(rows) == 0:
             previous_candle = self.load_previous_candle(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -1188,6 +1424,7 @@ class Db:
             token_reversed=token_reversed,
             interval=interval,
             before_bucket_start_ms=query_start_at,
+            pool_application=pool_application,
         )
 
         return build_continuous_candle_points(
@@ -1206,9 +1443,12 @@ class Db:
         start_at: int,
         end_at: int,
         interval: str,
+        pool_application: str | None = None,
     ):
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
         query = build_kline_points_query(
             table_name=self.transactions_table,
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             start_at=start_at,
@@ -1240,6 +1480,7 @@ class Db:
         for row in rows:
             created_at_ms = int(row['created_at'])
             bucket_key = build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -1262,6 +1503,7 @@ class Db:
         persist_started_at = time.perf_counter()
         for bucket_start_ms in sorted(candles_by_bucket.keys()):
             bucket_key = build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -1297,10 +1539,12 @@ class Db:
             token_reversed=token_reversed,
         )
         previous_candle = self.load_previous_candle(
+            pool_application=pool_application,
             pool_id=pool_id,
             token_reversed=token_reversed,
             interval=interval,
             before_bucket_start_ms=build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -1311,12 +1555,14 @@ class Db:
         return build_continuous_candle_points(
             interval=interval,
             start_bucket_ms=build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
                 created_at_ms=start_at,
             ).bucket_start_ms,
             end_bucket_ms=build_candle_bucket_key(
+                pool_application=pool_application,
                 pool_id=pool_id,
                 token_reversed=token_reversed,
                 interval=interval,
@@ -1385,7 +1631,7 @@ class Db:
                     COALESCE(t.amount_0_in, 0) + COALESCE(t.amount_0_out, 0) AS volume,
                     t.price AS price
                 FROM transactions t
-                JOIN pools p ON t.pool_id = p.pool_id
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     t.created_at >= {start_at}
                     AND t.created_at <= {end_at}
@@ -1398,7 +1644,7 @@ class Db:
                     COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0) AS volume,
                     1 / t.price AS price
                 FROM transactions t
-                JOIN pools p ON t.pool_id = p.pool_id
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     t.created_at >= {start_at}
                     AND t.created_at <= {end_at}
@@ -1418,7 +1664,7 @@ class Db:
                         t.created_at,
                         t.price AS price
                     FROM transactions t
-                    JOIN pools p ON t.pool_id = p.pool_id
+                    JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                     WHERE
                         p.token_1 = 'TLINERA'
                         AND t.token_reversed = {token_reversed}
@@ -1428,7 +1674,7 @@ class Db:
                         t.created_at,
                         1 / t.price AS price
                     FROM transactions t
-                    JOIN pools p ON t.pool_id = p.pool_id
+                    JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                     WHERE
                         p.token_0 = 'TLINERA'
                         AND t.token_reversed = {token_reversed}
@@ -1507,7 +1753,8 @@ class Db:
                 (
                     SELECT t2.price
                     FROM transactions t2
-                    WHERE t2.pool_id = p.pool_id
+                    WHERE t2.pool_application = p.pool_application
+                      AND t2.pool_id = p.pool_id
                       AND t2.created_at >= {start_at}
                       AND t2.created_at <= {end_at}
                       AND t2.transaction_type IN ('BuyToken0', 'SellToken0')
@@ -1517,7 +1764,8 @@ class Db:
                 (
                     SELECT t3.price
                     FROM transactions t3
-                    WHERE t3.pool_id = p.pool_id
+                    WHERE t3.pool_application = p.pool_application
+                      AND t3.pool_id = p.pool_id
                       AND t3.created_at >= {start_at}
                       AND t3.created_at <= {end_at}
                       AND t3.transaction_type IN ('BuyToken0', 'SellToken0')
@@ -1527,6 +1775,7 @@ class Db:
             FROM transactions t
             JOIN pools p
               ON t.pool_id = p.pool_id
+             AND t.pool_application = p.pool_application
             WHERE
                 t.created_at >= {start_at}
                 AND t.created_at <= {end_at}
@@ -1581,6 +1830,7 @@ class Db:
                     SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume,
                     COUNT(*) AS tx_count
                 FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     t.created_at >= {start_at}
                     AND t.token_reversed = {token_reversed}
@@ -1589,6 +1839,7 @@ class Db:
                 SELECT
                     SUM(COALESCE(t.amount_1_in, 0) + COALESCE(t.amount_1_out, 0)) AS volume
                 FROM transactions t
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     t.created_at >= {prev_start_at}
                     AND t.created_at < {start_at}
@@ -1632,7 +1883,7 @@ class Db:
                     t.created_at,
                     t.price AS price
                 FROM transactions t
-                JOIN pools p ON t.pool_id = p.pool_id
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     p.token_1 = 'TLINERA'
                     AND t.token_reversed = {token_reversed}
@@ -1647,7 +1898,7 @@ class Db:
                         ELSE 1 / t.price
                     END AS price
                 FROM transactions t
-                JOIN pools p ON t.pool_id = p.pool_id
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     p.token_0 = 'TLINERA'
                     AND t.token_reversed = {token_reversed}
@@ -1679,7 +1930,7 @@ class Db:
                     t.created_at,
                     t.price AS price
                 FROM transactions t
-                JOIN pools p ON t.pool_id = p.pool_id
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     p.token_1 = 'TLINERA'
                     AND t.created_at >= {prev_start_at}
@@ -1696,7 +1947,7 @@ class Db:
                         ELSE 1 / t.price
                     END AS price
                 FROM transactions t
-                JOIN pools p ON t.pool_id = p.pool_id
+                JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application
                 WHERE
                     p.token_0 = 'TLINERA'
                     AND t.created_at >= {prev_start_at}
