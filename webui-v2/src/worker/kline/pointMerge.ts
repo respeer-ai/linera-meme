@@ -12,6 +12,16 @@ type MergePointsInput = {
 
 const isFetchReason = (reason: SortReasonLike) => reason.reason === 'Fetch'
 
+const isFinal = (point: Point) => point.is_final === true
+
+const volumeValue = (point: Point) => point.base_volume
+
+const shouldOverwriteWithFetch = (current: Point, incoming: Point): boolean => {
+  if (isFinal(current) && !isFinal(incoming)) return false
+  if (volumeValue(current) > 0 && volumeValue(incoming) === 0) return false
+  return true
+}
+
 export const mergeKlinePoints = ({
   originPoints,
   newPoints,
@@ -30,7 +40,9 @@ export const mergeKlinePoints = ({
     // Network fetch is authoritative for overlapping timestamps.
     // Cache load only fills gaps and must not overwrite newer in-memory points.
     if (isFetchReason(reason)) {
-      merged[index] = point
+      if (shouldOverwriteWithFetch(merged[index] as Point, point)) {
+        merged[index] = point
+      }
     }
   })
 

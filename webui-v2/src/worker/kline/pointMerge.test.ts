@@ -12,6 +12,11 @@ const point = (timestamp: number, close: number) => ({
   quote_volume: close * 2,
 })
 
+const finalPoint = (timestamp: number, close: number) => ({
+  ...point(timestamp, close),
+  is_final: true,
+})
+
 describe('mergeKlinePoints', () => {
   test('allows fetch results to overwrite overlapping cached points', () => {
     const merged = mergeKlinePoints({
@@ -24,6 +29,54 @@ describe('mergeKlinePoints', () => {
       point(1_000, 10),
       point(2_000, 25),
       point(3_000, 30),
+    ])
+  })
+
+  test('prevents zero-volume fetch candles from overwriting non-zero live candles', () => {
+    const merged = mergeKlinePoints({
+      originPoints: [{ ...point(2_000, 25), base_volume: 7, quote_volume: 14 }],
+      newPoints: [{ ...point(2_000, 25), base_volume: 0, quote_volume: 0 }],
+      reason: { reason: 'Fetch' },
+    })
+
+    expect(merged).toEqual([
+      { ...point(2_000, 25), base_volume: 7, quote_volume: 14 },
+    ])
+  })
+
+  test('allows non-zero fetch candles to overwrite zero-volume placeholders', () => {
+    const merged = mergeKlinePoints({
+      originPoints: [{ ...point(2_000, 25), base_volume: 0, quote_volume: 0 }],
+      newPoints: [{ ...point(2_000, 26), base_volume: 7, quote_volume: 14 }],
+      reason: { reason: 'Fetch' },
+    })
+
+    expect(merged).toEqual([
+      { ...point(2_000, 26), base_volume: 7, quote_volume: 14 },
+    ])
+  })
+
+  test('prevents non-final fetch candles from overwriting final candles', () => {
+    const merged = mergeKlinePoints({
+      originPoints: [finalPoint(2_000, 25)],
+      newPoints: [{ ...point(2_000, 26), is_final: false }],
+      reason: { reason: 'Fetch' },
+    })
+
+    expect(merged).toEqual([
+      finalPoint(2_000, 25),
+    ])
+  })
+
+  test('allows final fetch candles to overwrite non-final candles', () => {
+    const merged = mergeKlinePoints({
+      originPoints: [{ ...point(2_000, 25), is_final: false }],
+      newPoints: [finalPoint(2_000, 26)],
+      reason: { reason: 'Fetch' },
+    })
+
+    expect(merged).toEqual([
+      finalPoint(2_000, 26),
     ])
   })
 

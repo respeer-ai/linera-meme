@@ -32,7 +32,7 @@ import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
 import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
-import { mergeSortedPointsIntoChartState } from './priceChartPointState'
+import { mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -147,13 +147,7 @@ const token1App = computed(() => {
   return ams.Ams.application(buyToken.value) || defaultApp
 })
 
-const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.value, buyToken.value, sellToken.value).map((el) => {
-  return {
-    ...el,
-    volume: el.base_volume,
-    time: Math.floor(el.timestamp / 1000)
-  }
-}))
+const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.value, buyToken.value, sellToken.value))
 
 const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
@@ -179,7 +173,10 @@ const maxPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.
 const minPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
   item.time < max.time ? item : max
 ).time * 1000 : poolCreatedAt.value)
-const latestPoints = computed(() => _latestPoints.value.filter((el) => el.timestamp > maxPointTimestamp.value - 300000))
+const latestPoints = computed(() => selectLivePointsForChartState({
+  currentPoints: klinePoints.value,
+  latestPoints: _latestPoints.value,
+}))
 const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
   firstScreenReady: firstScreenReady.value,
   backgroundHistoryQueued: backgroundHistoryQueued.value,
@@ -191,18 +188,9 @@ const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
 watch(latestPoints, () => {
   if (!_latestPoints.value.length || !latestPoints.value.length) return
 
-  latestPoints.value.forEach((point) => {
-    if (point.timestamp < maxPointTimestamp.value) return
-
-    const index = klinePoints.value.findIndex((el) => el.time === point.timestamp / 1000)
-    if (index >= 0) klinePoints.value[index] = {
-      ...point,
-      time: Math.floor(point.timestamp / 1000)
-    }
-    else klinePoints.value.push({
-      ...point,
-      time: Math.floor(point.timestamp / 1000)
-    })
+  klinePoints.value = mergeSortedPointsIntoChartState({
+    currentPoints: klinePoints.value,
+    sortedPoints: latestPoints.value,
   })
 })
 
