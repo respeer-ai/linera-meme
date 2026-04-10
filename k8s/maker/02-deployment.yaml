@@ -143,6 +143,25 @@ spec:
         env:
         - name: RUST_LOG
           value: warn
+        - name: DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-password-secret
+              key: rootpassword
+        - name: DATABASE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: mysql-config
+              key: MYSQL_DATABASE
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-password-secret
+              key: username
+        - name: DATABASE_PORT
+          value: "3306"
+        - name: DATABASE_HOST
+          value: mysql
         volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data

@@ -7,6 +7,7 @@ from meme import Meme
 from proxy import Proxy
 from wallet import Wallet
 from trader import Trader
+from db import Db
 
 
 async def main():
@@ -22,6 +23,11 @@ async def main():
     parser.add_argument('--proxy-chain-id', type=str, required=True, help='Proxy chain id')
     parser.add_argument('--proxy-application-id', type=str, required=True, help='Proxy application id')
     parser.add_argument('--faucet-url', type=str, default='https://faucet.testnet-conway.linera.net', help='Faucet url')
+    parser.add_argument('--database-host', type=str, default='localhost', help='Kline database host')
+    parser.add_argument('--database-port', type=str, default='3306', help='Kline database port')
+    parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
+    parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Kline database password')
+    parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
 
     args = parser.parse_args()
 
@@ -32,8 +38,12 @@ async def main():
 
     _proxy = Proxy(args.proxy_host, args.proxy_chain_id, args.proxy_application_id)
 
-    _trader = Trader(_swap, _wallet, _meme, _proxy)
-    await _trader.run()
+    _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, False)
+    try:
+        _trader = Trader(_swap, _wallet, _meme, _proxy, db=_db)
+        await _trader.run()
+    finally:
+        _db.close()
 
 if __name__ == '__main__':
     asyncio.run(main())

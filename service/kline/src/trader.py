@@ -4,6 +4,7 @@ import traceback
 import asyncio
 import math
 import os
+import json
 from enum import Enum
 
 
@@ -35,11 +36,12 @@ class MarketState:
 
 
 class Trader:
-    def __init__(self, swap, wallet, meme, proxy):
+    def __init__(self, swap, wallet, meme, proxy, db=None):
         self.swap = swap
         self.wallet = wallet
         self.meme = meme
         self.proxy = proxy
+        self.db = db
         self.semaphore = asyncio.Semaphore(5)
 
         self.shadow_reserve_0 = None
@@ -79,6 +81,22 @@ class Trader:
 
     def _long_term_quote_bias(self, pool):
         return self.long_term_quote_bias.get(pool.pool_id, 0.0)
+
+    def persist_maker_event(self, event_type, pool, amount_0=None, amount_1=None, quote_notional=None, details=None):
+        if self.db is None:
+            return
+        self.db.new_maker_event(
+            event_type=event_type,
+            pool_id=pool.pool_id,
+            token_0=pool.token_0,
+            token_1=pool.token_1 if pool.token_1 is not None else 'TLINERA',
+            amount_0=amount_0,
+            amount_1=amount_1,
+            quote_notional=quote_notional,
+            pool_price=self._pool_price(pool),
+            details=json.dumps(details, sort_keys=True) if details is not None else None,
+            created_at=int(time.time() * 1000),
+        )
 
     def trade_amounts(self, pool, token_0_balance, token_1_balance):
         MIN_PRICE = 1e-12
@@ -314,6 +332,20 @@ class Trader:
         print(f'      DeltaBuyQuote          {delta_buy}')
         print(f'      DeltaSellQuote         {delta_sell}')
         print(f'      DateTime               {time.time()}')
+        self.persist_maker_event(
+            event_type='planned',
+            pool=pool,
+            amount_0=amount_0,
+            amount_1=amount_1,
+            quote_notional=delta_buy - delta_sell,
+            details={
+                'delta_buy_quote': delta_buy,
+                'delta_sell_quote': delta_sell,
+                'pending_buy_quote': self._pending_buy_notional(pool),
+                'pending_sell_quote': self._pending_sell_notional(pool),
+                'pending_net_quote': net_notional,
+            },
+        )
 
     async def plan_trade_in_pool(self, pool):
         wallet_chain = self.wallet._chain()
@@ -390,6 +422,17 @@ class Trader:
         print(f'      DateTime               {time.time()}')
 
         await pool.swap(amount_0, amount_1)
+        executed_quote = amount_1 if amount_1 is not None else -(amount_0 * price)
+        self.persist_maker_event(
+            event_type='executed',
+            pool=pool,
+            amount_0=amount_0,
+            amount_1=amount_1,
+            quote_notional=executed_quote,
+            details={
+                'requested_quote_notional': quote_notional,
+            },
+        )
         if amount_1 is not None:
             return amount_1
         return -(amount_0 * price)

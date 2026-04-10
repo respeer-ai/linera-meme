@@ -138,6 +138,7 @@ class Db:
             'password': self.password,
             'host': self.host,
             'port': self.port,
+            'autocommit': True,
             'raise_on_warnings': False, # TODO: Test with alchemy
         }
 
@@ -150,6 +151,7 @@ class Db:
         self.transactions_table = 'transactions'
         self.pools_table = 'pools'
         self.candles_table = 'candles'
+        self.maker_events_table = 'maker_events'
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -229,6 +231,26 @@ class Db:
             ''')
             self.connection.commit()
 
+        if self.maker_events_table not in tables:
+            self.cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.maker_events_table} (
+                    event_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    source VARCHAR(32) NOT NULL,
+                    event_type VARCHAR(32) NOT NULL,
+                    pool_id INT UNSIGNED,
+                    token_0 VARCHAR(256),
+                    token_1 VARCHAR(256),
+                    amount_0 DECIMAL(30, 18) NULL,
+                    amount_1 DECIMAL(30, 18) NULL,
+                    quote_notional DECIMAL(30, 18) NULL,
+                    pool_price DECIMAL(30, 18) NULL,
+                    details TEXT NULL,
+                    created_at BIGINT UNSIGNED NOT NULL,
+                    PRIMARY KEY (event_id)
+                )
+            ''')
+            self.connection.commit()
+
         self.ensure_transactions_indexes()
         self.ensure_kline_columns()
 
@@ -236,6 +258,12 @@ class Db:
 
     def now_ms(self):
         return int(time.time() * 1000)
+
+    def ensure_fresh_read_connection(self):
+        try:
+            self.connection.rollback()
+        except Exception:
+            pass
 
     def log_kline_event(self, event: str, **fields):
         print(build_kline_log_line(event, **fields))
@@ -307,22 +335,8 @@ class Db:
 
         self.cursor.execute(
             f'''
-                INSERT INTO {self.transactions_table}
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) as alias
-                ON DUPLICATE KEY UPDATE
-                transaction_type = alias.transaction_type,
-                from_account = alias.from_account,
-                amount_0_in = alias.amount_0_in,
-                amount_0_out = alias.amount_0_out,
-                amount_1_in = alias.amount_1_in,
-                amount_1_out = alias.amount_1_out,
-                liquidity = alias.liquidity,
-                price = alias.price,
-                volume = alias.volume,
-                quote_volume = alias.quote_volume,
-                direction = alias.direction,
-                token_reversed = alias.token_reversed,
-                created_at = alias.created_at
+                INSERT IGNORE INTO {self.transactions_table}
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''',
             (pool_id,
              transaction.transaction_id,
@@ -341,15 +355,17 @@ class Db:
              created_at_ms)
         )
 
-        self.update_candles_for_transaction(
-            pool_id=pool_id,
-            transaction=transaction,
-            token_reversed=token_reversed,
-            created_at_ms=created_at_ms,
-            price=price,
-            base_volume=base_volume,
-            quote_volume=quote_volume,
-        )
+        was_inserted = self.cursor.rowcount == 1
+        if was_inserted:
+            self.update_candles_for_transaction(
+                pool_id=pool_id,
+                transaction=transaction,
+                token_reversed=token_reversed,
+                created_at_ms=created_at_ms,
+                price=price,
+                base_volume=base_volume,
+                quote_volume=quote_volume,
+            )
 
         return {
             'pool_id': pool_id,
@@ -368,6 +384,218 @@ class Db:
             'token_reversed': token_reversed,
             'created_at': created_at_ms,
         }
+
+    def rebuild_candles_from_transactions(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        interval: str,
+        start_at: int,
+        end_at: int,
+    ):
+        start_bucket_ms = build_candle_bucket_key(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            created_at_ms=start_at,
+        ).bucket_start_ms
+        end_bucket_ms = build_candle_bucket_key(
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            interval=interval,
+            created_at_ms=end_at,
+        ).bucket_start_ms
+        query = build_kline_points_query(
+            table_name=self.transactions_table,
+            pool_id=pool_id,
+            token_reversed=token_reversed,
+            start_at=start_bucket_ms,
+            end_at=end_bucket_ms + get_interval_bucket_ms(interval) - 1,
+        )
+        self.cursor_dict.execute(query)
+        rows = self.cursor_dict.fetchall()
+
+        candles_by_bucket = {}
+        for row in rows:
+            bucket_key = build_candle_bucket_key(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                created_at_ms=int(row['created_at']),
+            )
+            candles_by_bucket[bucket_key.bucket_start_ms] = apply_candle_update(
+                existing=candles_by_bucket.get(bucket_key.bucket_start_ms),
+                update=CandleUpdate(
+                    transaction_id=int(row['transaction_id']),
+                    created_at_ms=int(row['created_at']),
+                    price=float(row['price']),
+                    base_volume=float(row['volume']),
+                    quote_volume=float(row['quote_volume']),
+                ),
+            )
+
+        self.cursor.execute(
+            f'''
+                DELETE FROM {self.candles_table}
+                WHERE pool_id = %s
+                AND token_reversed = %s
+                AND interval_name = %s
+                AND bucket_start_ms >= %s
+                AND bucket_start_ms <= %s
+            ''',
+            (pool_id, token_reversed, interval, start_bucket_ms, end_bucket_ms),
+        )
+
+        for bucket_start_ms in sorted(candles_by_bucket.keys()):
+            self.save_candle(
+                build_candle_bucket_key(
+                    pool_id=pool_id,
+                    token_reversed=token_reversed,
+                    interval=interval,
+                    created_at_ms=bucket_start_ms,
+                ),
+                candles_by_bucket[bucket_start_ms],
+            )
+
+        self.connection.commit()
+        return len(candles_by_bucket)
+
+    def rebuild_pair_candles(self, token_0: str, token_1: str, start_at: int, end_at: int, intervals=None):
+        (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
+        selected_intervals = list(intervals) if intervals is not None else list(INTERVAL_BUCKET_MS.keys())
+        results = {}
+        for interval in selected_intervals:
+            results[f'{interval}:forward'] = self.rebuild_candles_from_transactions(
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                start_at=start_at,
+                end_at=end_at,
+            )
+            results[f'{interval}:reverse'] = self.rebuild_candles_from_transactions(
+                pool_id=pool_id,
+                token_reversed=not token_reversed,
+                interval=interval,
+                start_at=start_at,
+                end_at=end_at,
+            )
+        return results
+
+    def new_maker_event(
+        self,
+        event_type: str,
+        pool_id: int,
+        token_0: str,
+        token_1: str,
+        amount_0,
+        amount_1,
+        quote_notional,
+        pool_price,
+        details: str,
+        created_at: int,
+    ):
+        self.cursor.execute(
+            f'''
+                INSERT INTO {self.maker_events_table}
+                (source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''',
+            (
+                'maker',
+                event_type,
+                pool_id,
+                token_0,
+                token_1,
+                amount_0,
+                amount_1,
+                quote_notional,
+                pool_price,
+                details,
+                created_at,
+            ),
+        )
+        self.connection.commit()
+
+    def get_maker_events(self, token_0: str, token_1: str, start_at: int, end_at: int):
+        self.ensure_fresh_read_connection()
+        if token_0 is None or token_1 is None:
+            self.cursor_dict.execute(
+                f'''
+                    SELECT
+                        event_id,
+                        source,
+                        event_type,
+                        pool_id,
+                        token_0,
+                        token_1,
+                        amount_0,
+                        amount_1,
+                        quote_notional,
+                        pool_price,
+                        details,
+                        created_at
+                    FROM {self.maker_events_table}
+                    WHERE created_at >= %s
+                    AND created_at <= %s
+                    ORDER BY created_at ASC, event_id ASC
+                ''',
+                (start_at, end_at),
+            )
+            return self.cursor_dict.fetchall()
+
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    event_id,
+                    source,
+                    event_type,
+                    pool_id,
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    quote_notional,
+                    pool_price,
+                    details,
+                    created_at
+                FROM {self.maker_events_table}
+                WHERE token_0 = %s
+                AND token_1 = %s
+                AND created_at >= %s
+                AND created_at <= %s
+                ORDER BY created_at ASC, event_id ASC
+            ''',
+            (token_0, token_1, start_at, end_at),
+        )
+        return self.cursor_dict.fetchall()
+
+    def get_maker_events_information(self, token_0: str, token_1: str):
+        self.ensure_fresh_read_connection()
+        if token_0 is None or token_1 is None:
+            self.cursor_dict.execute(
+                f'''
+                    SELECT
+                        COUNT(*) AS count,
+                        MAX(created_at) AS timestamp_begin,
+                        MIN(created_at) AS timestamp_end
+                    FROM {self.maker_events_table}
+                '''
+            )
+            return self.cursor_dict.fetchone()
+
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    COUNT(*) AS count,
+                    MAX(created_at) AS timestamp_begin,
+                    MIN(created_at) AS timestamp_end
+                FROM {self.maker_events_table}
+                WHERE token_0 = %s
+                AND token_1 = %s
+            ''',
+            (token_0, token_1),
+        )
+        return self.cursor_dict.fetchone()
 
     def new_transactions(self, pool_id: int, transactions: list[Transaction]):
         _transactions = []
@@ -669,6 +897,7 @@ class Db:
         return (pool_ids[0], token_0, token_1, token_reversed)
 
     def get_transactions_information(self, token_0: str, token_1: str):
+        self.ensure_fresh_read_connection()
         if token_0 is None or token_1 is None:
             query = f'''
                 SELECT
@@ -698,6 +927,7 @@ class Db:
         return self.cursor_dict.fetchone()
 
     def get_latest_transaction_watermarks(self):
+        self.ensure_fresh_read_connection()
         self.cursor_dict.execute(
             f'''
                 SELECT
@@ -740,6 +970,7 @@ class Db:
         return watermarks
 
     def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
+        self.ensure_fresh_read_connection()
         if token_0 is None or token_1 is None:
             query = f'''
                 SELECT * FROM {self.transactions_table}
@@ -765,6 +996,7 @@ class Db:
         return self.cursor_dict.fetchall()
 
     def get_kline_information(self, token_0: str, token_1: str, interval: str):
+        self.ensure_fresh_read_connection()
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
 
         query = f'''
@@ -782,6 +1014,7 @@ class Db:
         return self.cursor_dict.fetchone()
 
     def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
+        self.ensure_fresh_read_connection()
         request_started_at = time.perf_counter()
         (pool_id, token_0, token_1, token_reversed) = self.get_pool_id(token_0, token_1)
         interval = interval if interval is not None else '1min'
@@ -1118,6 +1351,7 @@ class Db:
         return  (token_0, token_1, start_at, end_at, interval, points)
 
     def get_ticker(self, interval: str):
+        self.ensure_fresh_read_connection()
         intervals = {
             "1h": 3600,
             "1d": 86400,
@@ -1235,6 +1469,7 @@ class Db:
         return self.cursor_dict.fetchall()
 
     def get_pool_stats(self, interval: str):
+        self.ensure_fresh_read_connection()
         intervals = {
             "1h": 3600,
             "1d": 86400,
@@ -1308,6 +1543,7 @@ class Db:
         return self.cursor_dict.fetchall()
 
     def get_protocol_stats(self, pools: list[Pool]):
+        self.ensure_fresh_read_connection()
         from decimal import Decimal
         import time
 

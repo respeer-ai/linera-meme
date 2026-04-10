@@ -21,10 +21,12 @@ class FakeCursor:
         self.executed = []
         self._last_result = []
         self.connection = None
+        self.rowcount = 0
 
     def execute(self, query, params=None):
         normalized = ' '.join(query.split())
         self.executed.append((normalized, params))
+        self.rowcount = 0
 
         if normalized == 'SHOW DATABASES':
           self._last_result = [(name,) for name in self.database_catalog]
@@ -73,6 +75,12 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('CREATE TABLE IF NOT EXISTS maker_events'):
+          if 'maker_events' not in self.table_catalog:
+              self.table_catalog.append('maker_events')
+          self._last_result = []
+          return
+
         if normalized.startswith('ALTER TABLE transactions ADD COLUMN quote_volume'):
           if 'quote_volume' not in self.connection.transaction_columns:
               insert_at = self.connection.transaction_columns.index('volume') + 1
@@ -102,8 +110,22 @@ class FakeCursor:
           self._last_result = []
           return
 
-        if normalized.startswith('INSERT INTO transactions VALUES'):
+        if normalized.startswith('INSERT IGNORE INTO transactions VALUES'):
+          key = (params[0], params[1], params[13])
+          existing_keys = {
+              (
+                  row[0],
+                  row[1],
+                  row[13] if len(row) > 14 else row[12],
+              )
+              for row in self.connection.transaction_rows
+          }
+          if key in existing_keys:
+              self.rowcount = 0
+              self._last_result = []
+              return
           self.connection.transaction_rows.append(params)
+          self.rowcount = 1
           self._last_result = []
           return
 
@@ -257,6 +279,89 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('DELETE FROM candles WHERE pool_id = %s AND token_reversed = %s AND interval_name = %s AND bucket_start_ms >= %s AND bucket_start_ms <= %s'):
+          pool_id, token_reversed, interval_name, start_at, end_at = params
+          retained = {}
+          for key, row in self.connection.candle_rows.items():
+              if (
+                  key[0] == pool_id
+                  and key[1] == token_reversed
+                  and key[2] == interval_name
+                  and start_at <= key[3] <= end_at
+              ):
+                  continue
+              retained[key] = row
+          self.connection.candle_rows = retained
+          self._last_result = []
+          return
+
+        if normalized.startswith('INSERT INTO maker_events (source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at) VALUES'):
+          self.connection.maker_event_rows.append({
+              'event_id': len(self.connection.maker_event_rows) + 1,
+              'source': params[0],
+              'event_type': params[1],
+              'pool_id': params[2],
+              'token_0': params[3],
+              'token_1': params[4],
+              'amount_0': params[5],
+              'amount_1': params[6],
+              'quote_notional': params[7],
+              'pool_price': params[8],
+              'details': params[9],
+              'created_at': params[10],
+          })
+          self.rowcount = 1
+          self._last_result = []
+          return
+
+        if normalized.startswith('SELECT event_id, source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at FROM maker_events WHERE created_at >= %s AND created_at <= %s ORDER BY created_at ASC, event_id ASC'):
+          start_at, end_at = params
+          rows = [
+              row.copy()
+              for row in self.connection.maker_event_rows
+              if start_at <= row['created_at'] <= end_at
+          ]
+          rows.sort(key=lambda row: (row['created_at'], row['event_id']))
+          self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
+          return
+
+        if normalized.startswith('SELECT event_id, source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at FROM maker_events WHERE token_0 = %s AND token_1 = %s AND created_at >= %s AND created_at <= %s ORDER BY created_at ASC, event_id ASC'):
+          token_0, token_1, start_at, end_at = params
+          rows = [
+              row.copy()
+              for row in self.connection.maker_event_rows
+              if row['token_0'] == token_0
+              and row['token_1'] == token_1
+              and start_at <= row['created_at'] <= end_at
+          ]
+          rows.sort(key=lambda row: (row['created_at'], row['event_id']))
+          self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
+          return
+
+        if normalized.startswith('SELECT COUNT(*) AS count, MAX(created_at) AS timestamp_begin, MIN(created_at) AS timestamp_end FROM maker_events WHERE token_0 = %s AND token_1 = %s'):
+          token_0, token_1 = params
+          rows = [
+              row for row in self.connection.maker_event_rows
+              if row['token_0'] == token_0 and row['token_1'] == token_1
+          ]
+          result = {
+              'count': len(rows),
+              'timestamp_begin': max((row['created_at'] for row in rows), default=None),
+              'timestamp_end': min((row['created_at'] for row in rows), default=None),
+          }
+          self._last_result = [result] if self.dictionary else [tuple(result.values())]
+          return
+
+        if normalized.startswith('SELECT COUNT(*) AS count, MAX(created_at) AS timestamp_begin, MIN(created_at) AS timestamp_end FROM maker_events'):
+          rows = list(self.connection.maker_event_rows)
+          result = {
+              'count': len(rows),
+              'timestamp_begin': max((row['created_at'] for row in rows), default=None),
+              'timestamp_end': min((row['created_at'] for row in rows), default=None),
+          }
+          self._last_result = [result] if self.dictionary else [tuple(result.values())]
+          return
+
         self._last_result = []
 
     def fetchall(self):
@@ -275,11 +380,13 @@ class FakeConnection:
         self.table_catalog = table_catalog
         self.index_catalog = index_catalog
         self.commits = 0
+        self.rollbacks = 0
         self.closed = False
         self.cursors = []
         self.pool_rows = {}
         self.transaction_rows = []
         self.candle_rows = {}
+        self.maker_event_rows = []
         self.transaction_columns = [
             'pool_id', 'transaction_id', 'transaction_type', 'from_account',
             'amount_0_in', 'amount_0_out', 'amount_1_in', 'amount_1_out',
@@ -301,6 +408,9 @@ class FakeConnection:
 
     def commit(self):
         self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
 
     def close(self):
         self.closed = True
@@ -471,6 +581,135 @@ class DbIndexInitializationTest(unittest.TestCase):
         self.assertTrue(any(
             'CREATE TABLE IF NOT EXISTS candles' in query for query in executed_queries
         ))
+
+    @patch('db.mysql.connector.connect')
+    def test_runtime_connection_enables_autocommit(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_call = connect_mock.call_args_list[-1]
+        self.assertTrue(runtime_call.kwargs['autocommit'])
+
+
+class DbReadFreshnessTest(unittest.TestCase):
+    def setUp(self):
+        self.database_catalog = ['kline']
+        self.table_catalog = ['pools', 'transactions', 'candles']
+        self.index_catalog = [
+            ('transactions', 0, 'PRIMARY', 1, 'pool_id'),
+            ('transactions', 0, 'PRIMARY', 2, 'transaction_id'),
+            ('transactions', 0, 'PRIMARY', 3, 'token_reversed'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_id'),
+        ]
+        self.connections = []
+
+    def create_connection(self, **_kwargs):
+        connection = FakeConnection(
+            self.database_catalog,
+            self.table_catalog,
+            self.index_catalog,
+        )
+        connection.pool_rows[1001] = {
+            'pool_id': 1001,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+        }
+        self.connections.append(connection)
+        return connection
+
+    @patch('db.mysql.connector.connect')
+    def test_get_kline_rolls_back_before_reading(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_connection = self.connections[-1]
+        runtime_connection.candle_rows[(1001, False, '1min', 1_800_000_000_000)] = {
+            'pool_id': 1001,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 2.0,
+            'low': 2.0,
+            'close': 2.0,
+            'volume': 1.0,
+            'quote_volume': 2.0,
+            'trade_count': 1,
+            'first_trade_id': 1,
+            'last_trade_id': 1,
+            'first_trade_at_ms': 1_800_000_000_000,
+            'last_trade_at_ms': 1_800_000_000_000,
+        }
+
+        db.get_kline('AAA', 'BBB', 1_800_000_000_000, 1_800_000_000_000, '1min')
+
+        self.assertEqual(runtime_connection.rollbacks, 1)
+
+
+class DbMakerEventsQueryTest(unittest.TestCase):
+    def setUp(self):
+        self.database_catalog = ['kline']
+        self.table_catalog = ['pools', 'transactions', 'candles', 'maker_events']
+        self.index_catalog = [
+            ('transactions', 0, 'PRIMARY', 1, 'pool_id'),
+            ('transactions', 0, 'PRIMARY', 2, 'transaction_id'),
+            ('transactions', 0, 'PRIMARY', 3, 'token_reversed'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_id'),
+        ]
+        self.connections = []
+
+    def create_connection(self, **_kwargs):
+        connection = FakeConnection(
+            self.database_catalog,
+            self.table_catalog,
+            self.index_catalog,
+        )
+        self.connections.append(connection)
+        return connection
+
+    @patch('db.mysql.connector.connect')
+    def test_reads_maker_events_and_information(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        db.new_maker_event('planned', 1001, 'AAA', 'BBB', 1.0, 2.0, 2.0, 2.0, '{"step":1}', 1000)
+        db.new_maker_event('executed', 1001, 'AAA', 'BBB', 3.0, 4.0, 4.0, 2.0, '{"step":2}', 2000)
+        db.new_maker_event('planned', 1002, 'CCC', 'DDD', 5.0, 6.0, 6.0, 2.0, '{"step":3}', 3000)
+
+        filtered = db.get_maker_events('AAA', 'BBB', 0, 2500)
+        self.assertEqual([row['event_type'] for row in filtered], ['planned', 'executed'])
+
+        combined = db.get_maker_events(None, None, 1500, 3500)
+        self.assertEqual([row['pool_id'] for row in combined], [1001, 1002])
+
+        info = db.get_maker_events_information('AAA', 'BBB')
+        self.assertEqual(info['count'], 2)
+        self.assertEqual(info['timestamp_begin'], 2000)
+        self.assertEqual(info['timestamp_end'], 1000)
 
     @patch('db.mysql.connector.connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):
@@ -804,6 +1043,50 @@ class DbCandleIngestTest(unittest.TestCase):
         self.assertEqual(reverse_candle['open'], 0.5)
         self.assertEqual(reverse_candle['volume'], 20.0)
         self.assertEqual(reverse_candle['quote_volume'], 10.0)
+
+    def test_rebuild_candles_from_transactions_overwrites_corrupted_bucket(self):
+        db = self.create_db()
+        self.seed_pool(db)
+        runtime_connection = self.connections[-1]
+        runtime_connection.transaction_rows = [
+            (7, 10, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
+            (7, 11, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 3.0, 4.0, 12.0, 'Buy', False, 1_800_000_030_000),
+        ]
+        runtime_connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 2.0,
+            'close': 3.0,
+            'volume': 30.0,
+            'quote_volume': 50.0,
+            'trade_count': 3,
+            'first_trade_id': 10,
+            'last_trade_id': 11,
+            'first_trade_at_ms': 1_800_000_001_000,
+            'last_trade_at_ms': 1_800_000_030_000,
+        }
+
+        rebuilt_count = db.rebuild_candles_from_transactions(
+            pool_id=7,
+            token_reversed=False,
+            interval='1min',
+            start_at=1_800_000_000_000,
+            end_at=1_800_000_059_999,
+        )
+
+        rebuilt = runtime_connection.candle_rows[(7, False, '1min', 1_800_000_000_000)]
+        self.assertEqual(rebuilt_count, 1)
+        self.assertEqual(rebuilt['open'], 2.0)
+        self.assertEqual(rebuilt['high'], 3.0)
+        self.assertEqual(rebuilt['low'], 2.0)
+        self.assertEqual(rebuilt['close'], 3.0)
+        self.assertEqual(rebuilt['volume'], 14.0)
+        self.assertEqual(rebuilt['quote_volume'], 32.0)
+        self.assertEqual(rebuilt['trade_count'], 2)
 
 
 class DbCandleQueryTest(unittest.TestCase):

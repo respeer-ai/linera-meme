@@ -24,6 +24,13 @@ spec:
     - host: api.testnet-conway.kline.lineraswap.fun
       http:
         paths:
+          - path: /api/maker
+            pathType: Prefix
+            backend:
+              service:
+                name: maker-service
+                port:
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:
