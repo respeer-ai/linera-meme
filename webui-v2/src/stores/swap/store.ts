@@ -13,6 +13,14 @@ import { Subscription } from 'src/subscription'
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
 
+const poolApplicationKey = (pool: Pool) => {
+  const chainId = pool.poolApplication?.chainId ?? pool.poolApplication?.chain_id
+  const owner = pool.poolApplication?.owner
+  return `${chainId || ''}:${owner || ''}`
+}
+
+const poolIdentityKey = (pool: Pool) => `${pool.poolId}:${poolApplicationKey(pool)}`
+
 export const useSwapStore = defineStore('swap', {
   state: () => ({
     pools: [] as Array<Pool>,
@@ -63,7 +71,8 @@ export const useSwapStore = defineStore('swap', {
     },
     appendChains(pools: Pool[]) {
       pools.forEach((pool) => {
-        const index = this.pools.findIndex((el) => el.poolId === pool.poolId)
+        const identityKey = poolIdentityKey(pool)
+        const index = this.pools.findIndex((el) => poolIdentityKey(el) === identityKey)
         const _pool = {
           ...pool,
           token1: (pool.token1 as string) || constants.LINERA_NATIVE_ID,

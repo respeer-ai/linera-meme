@@ -291,16 +291,29 @@ describe('resolveNextFetchTimestamp', () => {
     expect(shouldRestartKlineOnSelectedPoolChange({
       previousPoolId: undefined,
       nextPoolId: 1,
+      previousPoolApplication: undefined,
+      nextPoolApplication: 'chain-a:owner-a',
     })).toBe(true)
 
     expect(shouldRestartKlineOnSelectedPoolChange({
       previousPoolId: 1,
       nextPoolId: 1,
+      previousPoolApplication: 'chain-a:owner-a',
+      nextPoolApplication: 'chain-a:owner-a',
     })).toBe(false)
 
     expect(shouldRestartKlineOnSelectedPoolChange({
       previousPoolId: 1,
       nextPoolId: 2,
+      previousPoolApplication: 'chain-a:owner-a',
+      nextPoolApplication: 'chain-b:owner-b',
+    })).toBe(true)
+
+    expect(shouldRestartKlineOnSelectedPoolChange({
+      previousPoolId: 1,
+      nextPoolId: 1,
+      previousPoolApplication: 'chain-a:owner-a',
+      nextPoolApplication: 'chain-b:owner-b',
     })).toBe(true)
   })
 

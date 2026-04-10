@@ -185,10 +185,21 @@ export const resolveBackgroundHistoryStatus = ({
 export const shouldRestartKlineOnSelectedPoolChange = ({
   previousPoolId,
   nextPoolId,
+  previousPoolApplication,
+  nextPoolApplication,
 }: {
   previousPoolId: number | undefined
   nextPoolId: number | undefined
-}) => previousPoolId !== nextPoolId && nextPoolId !== undefined
+  previousPoolApplication: string | undefined
+  nextPoolApplication: string | undefined
+}) => (
+  nextPoolId !== undefined &&
+  nextPoolApplication !== undefined &&
+  (
+    previousPoolId !== nextPoolId ||
+    previousPoolApplication !== nextPoolApplication
+  )
+)
 
 type NextFetchDecisionInput = {
   reverse: boolean

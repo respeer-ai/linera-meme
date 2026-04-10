@@ -150,7 +150,7 @@ const token1App = computed(() => {
 const selectedPoolId = computed(() => selectedPool.value?.poolId)
 const selectedPoolApplication = computed(() => (
   selectedPool.value?.poolApplication
-    ? `${selectedPool.value.poolApplication.chainId}:${selectedPool.value.poolApplication.owner}`
+    ? `${selectedPool.value.poolApplication.chainId ?? selectedPool.value.poolApplication.chain_id}:${selectedPool.value.poolApplication.owner}`
     : undefined
 ))
 
@@ -356,6 +356,12 @@ watch(selectedPool, (newPool, oldPool) => {
   if (!shouldRestartKlineOnSelectedPoolChange({
     previousPoolId: oldPool?.poolId,
     nextPoolId: newPool?.poolId,
+    previousPoolApplication: oldPool?.poolApplication
+      ? `${oldPool.poolApplication.chainId ?? oldPool.poolApplication.chain_id}:${oldPool.poolApplication.owner}`
+      : undefined,
+    nextPoolApplication: newPool?.poolApplication
+      ? `${newPool.poolApplication.chainId ?? newPool.poolApplication.chain_id}:${newPool.poolApplication.owner}`
+      : undefined,
   })) return
 
   getStoreKline()
