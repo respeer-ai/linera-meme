@@ -147,7 +147,23 @@ const token1App = computed(() => {
   return ams.Ams.application(buyToken.value) || defaultApp
 })
 
-const _latestPoints = computed(() => kline.Kline.latestPoints(selectedInterval.value, buyToken.value, sellToken.value))
+const selectedPoolId = computed(() => selectedPool.value?.poolId)
+const selectedPoolApplication = computed(() => (
+  selectedPool.value?.poolApplication
+    ? `${selectedPool.value.poolApplication.chainId}:${selectedPool.value.poolApplication.owner}`
+    : undefined
+))
+
+const _latestPoints = computed(() => {
+  if (!selectedPoolId.value || !selectedPoolApplication.value) return []
+  return kline.Kline.latestPoints(
+    selectedInterval.value,
+    buyToken.value,
+    sellToken.value,
+    selectedPoolId.value,
+    selectedPoolApplication.value,
+  )
+})
 
 const klinePoints = ref([] as KLineData[])
 const loading = ref(false)
@@ -197,6 +213,7 @@ watch(latestPoints, () => {
 const getKline = (timestamp: number, reverse: boolean) => {
   if (!buyToken.value || !sellToken.value) return
   if (buyToken.value === sellToken.value) return
+  if (!selectedPoolId.value || !selectedPoolApplication.value) return
 
   const windowSize = getWindowSize(selectedInterval.value)
   const fetchWindow = resolveEdgeFetchWindow({
@@ -210,6 +227,8 @@ const getKline = (timestamp: number, reverse: boolean) => {
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_POINTS, {
     token0: buyToken.value,
     token1: sellToken.value,
+    poolId: selectedPoolId.value,
+    poolApplication: selectedPoolApplication.value,
     startAt: fetchWindow.startAt,
     endAt: fetchWindow.endAt,
     interval: selectedInterval.value,
@@ -221,10 +240,13 @@ const getKline = (timestamp: number, reverse: boolean) => {
 const fetchKlineRange = (startAt: number, endAt: number, reverse: boolean) => {
   if (!buyToken.value || !sellToken.value) return false
   if (buyToken.value === sellToken.value) return false
+  if (!selectedPoolId.value || !selectedPoolApplication.value) return false
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.FETCH_POINTS, {
     token0: buyToken.value,
     token1: sellToken.value,
+    poolId: selectedPoolId.value,
+    poolApplication: selectedPoolApplication.value,
     startAt,
     endAt,
     interval: selectedInterval.value,
@@ -238,6 +260,7 @@ const fetchKlineRange = (startAt: number, endAt: number, reverse: boolean) => {
 const loadKline = (offset: number | undefined, limit: number | undefined, timestampBegin: number | undefined, timestampEnd: number | undefined, reverse: boolean) => {
   if (!buyToken.value || !sellToken.value) return false
   if (buyToken.value === sellToken.value) return false
+  if (!selectedPoolId.value || !selectedPoolApplication.value) return false
 
   loading.value = true
   const loadRange = resolveLoadRange({
@@ -247,6 +270,8 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
   const loadPayload: klineWorker.LoadPointsPayload = {
     token0: buyToken.value,
     token1: sellToken.value,
+    poolId: selectedPoolId.value,
+    poolApplication: selectedPoolApplication.value,
     offset: offset || 0,
     limit: limit || 100,
     interval: selectedInterval.value,
@@ -269,7 +294,14 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
 const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
-    kline.Kline.subscribe(buyToken.value, sellToken.value, selectedInterval.value)
+    if (!selectedPoolId.value || !selectedPoolApplication.value) return
+    kline.Kline.subscribe(
+      buyToken.value,
+      sellToken.value,
+      selectedInterval.value,
+      selectedPoolId.value,
+      selectedPoolApplication.value,
+    )
     currentRequestId.value += 1
     indicatorsReady.value = false
     startupInstrumentation.begin({
@@ -332,9 +364,13 @@ watch(selectedInterval, () => {
 })
 
 const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
+  if (!selectedPoolId.value || !selectedPoolApplication.value) return
+
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
     token0: buyToken.value,
     token1: sellToken.value,
+    poolId: selectedPoolId.value,
+    poolApplication: selectedPoolApplication.value,
     originPoints: [...klinePoints.value].map((el) => {
       return {
         ...el,
@@ -353,9 +389,10 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
 
 const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1, interval, reverse, requestId } = payload
+  const { token0, token1, poolId, poolApplication, interval, reverse, requestId } = payload
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) return
+  if (poolId !== selectedPoolId.value || poolApplication !== selectedPoolApplication.value) return
   if (requestId !== currentRequestId.value) return
   if (interval !== selectedInterval.value) return
 
@@ -379,7 +416,7 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   const _points = payload.points
-  const { token0, token1, reverse, timestampBegin, timestampEnd, interval, requestId } = payload
+  const { token0, token1, poolId, poolApplication, reverse, timestampBegin, timestampEnd, interval, requestId } = payload
 
   console.log('[PriceChartView] onLoadedPoints, interval:', interval, 'selectedInterval:', selectedInterval.value, 'points count:', _points.length)
 
@@ -387,6 +424,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
     return
   }
+  if (poolId !== selectedPoolId.value || poolApplication !== selectedPoolApplication.value) return
   if (requestId !== currentRequestId.value) return
 
   // 检查 interval 是否匹配
@@ -539,10 +577,11 @@ const onIndicatorsReady = () => {
 }
 
 const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
-  const { points, token0, token1, reverse, reason, requestId } = payload
+  const { points, token0, token1, poolId, poolApplication, reverse, reason, requestId } = payload
   const _reason = reason as Reason
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) return
+  if (poolId !== selectedPoolId.value || poolApplication !== selectedPoolApplication.value) return
   if (requestId !== currentRequestId.value) return
 
   if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {

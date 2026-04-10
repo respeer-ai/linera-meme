@@ -8,6 +8,8 @@ const point = {
   id: 1,
   token0: 'token-a',
   token1: 'token-b',
+  poolId: 7,
+  poolApplication: 'chain:owner',
   interval: Interval.TEN_MINUTE,
   timestamp: 1_000,
   bucket_start_ms: 1_000,

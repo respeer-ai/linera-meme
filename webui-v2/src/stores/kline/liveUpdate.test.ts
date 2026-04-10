@@ -9,7 +9,11 @@ const createPoints = (
   token_1: string,
   interval: string,
   timestamps: number[],
+  pool_id = 1,
+  pool_application = 'chain:owner',
 ): Points => ({
+  pool_id,
+  pool_application,
   token_0,
   token_1,
   interval,
@@ -53,15 +57,33 @@ describe('mergeLatestPointMaps', () => {
       createPoints('CCC', 'DDD', Interval.ONE_MINUTE, [3000]),
     ])
   })
+
+  test('keeps same-pair entries isolated when they come from different pools', () => {
+    const current = new Map([
+      [Interval.FIVE_MINUTE, [createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000], 1, 'chain:a')]],
+    ])
+    const incoming = new Map([
+      [Interval.FIVE_MINUTE, [createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [2000], 2, 'chain:b')]],
+    ])
+
+    const merged = mergeLatestPointMaps(current, incoming)
+
+    expect(merged.get(Interval.FIVE_MINUTE)).toEqual([
+      createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000], 1, 'chain:a'),
+      createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [2000], 2, 'chain:b'),
+    ])
+  })
 })
 
 describe('buildKlineSubscriptionMessage', () => {
   test('serializes a pair-aware and interval-aware subscription request', () => {
-    expect(buildKlineSubscriptionMessage('AAA', 'BBB', Interval.FIVE_MINUTE)).toEqual({
+    expect(buildKlineSubscriptionMessage('AAA', 'BBB', Interval.FIVE_MINUTE, 7, 'chain:owner')).toEqual({
       action: 'subscribe',
       topic: 'kline',
       token_0: 'AAA',
       token_1: 'BBB',
+      pool_id: 7,
+      pool_application: 'chain:owner',
       intervals: [Interval.FIVE_MINUTE],
     })
   })

@@ -5,11 +5,23 @@ const kline = useKlineStore()
 export class Kline {
   static initialize = () => kline.initializeKline()
 
-  static subscribe = (token0: string, token1: string, interval: Interval) =>
-    kline.subscribeKline(token0, token1, interval)
+  static subscribe = (
+    token0: string,
+    token1: string,
+    interval: Interval,
+    poolId: number,
+    poolApplication: string,
+  ) =>
+    kline.subscribeKline(token0, token1, interval, poolId, poolApplication)
 
-  static latestPoints = (key: Interval, token0: string, token1: string): Point[] => {
-    return kline._latestPoints(key, token0, token1)
+  static latestPoints = (
+    key: Interval,
+    token0: string,
+    token1: string,
+    poolId: number,
+    poolApplication: string,
+  ): Point[] => {
+    return kline._latestPoints(key, token0, token1, poolId, poolApplication)
   }
 
   static latestTransactions = (token0: string, token1: string, tokenReversed: boolean) => {

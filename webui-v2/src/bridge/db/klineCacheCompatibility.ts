@@ -12,6 +12,8 @@ export const isCompatibleKlinePoint = (
   return (
     typeof point.token0 === 'string' &&
     typeof point.token1 === 'string' &&
+    isFiniteNumber(point.poolId) &&
+    typeof point.poolApplication === 'string' &&
     typeof point.interval === 'string' &&
     isFiniteNumber(point.timestamp) &&
     isFiniteNumber(point.open) &&

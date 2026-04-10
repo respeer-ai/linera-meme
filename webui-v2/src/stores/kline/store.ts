@@ -21,11 +21,11 @@ import { buildKlineSubscriptionMessage, mergeLatestPointMaps } from './liveUpdat
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
-    latestTimestamps: new Map<string, Map<string, Map<Interval, number>>>(),
+    latestTimestamps: new Map<string, number>(),
     websocket: undefined as unknown as _WebSocket,
     latestPoints: new Map<Interval, Points[]>(),
     activeSubscription: undefined as
-      | { token0: string; token1: string; interval: Interval }
+      | { token0: string; token1: string; poolId: number; poolApplication: string; interval: Interval }
       | undefined,
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
@@ -44,7 +44,13 @@ export const useKlineStore = defineStore('kline', {
       if (!subscription) return
 
       this.websocket.sendJson(
-        buildKlineSubscriptionMessage(subscription.token0, subscription.token1, subscription.interval),
+        buildKlineSubscriptionMessage(
+          subscription.token0,
+          subscription.token1,
+          subscription.interval,
+          subscription.poolId,
+          subscription.poolApplication,
+        ),
       )
     },
     onMessage(notification: Notification) {
@@ -59,25 +65,24 @@ export const useKlineStore = defineStore('kline', {
         this.onTransactions(notification.value as Transactions[])
       }
     },
-    subscribeKline(token0: string, token1: string, interval: Interval) {
+    subscribeKline(token0: string, token1: string, interval: Interval, poolId: number, poolApplication: string) {
       if (!token0 || !token1 || token0 === token1) return
 
-      this.activeSubscription = { token0, token1, interval }
-      this.websocket?.sendJson(buildKlineSubscriptionMessage(token0, token1, interval))
+      this.activeSubscription = { token0, token1, poolId, poolApplication, interval }
+      this.websocket?.sendJson(buildKlineSubscriptionMessage(token0, token1, interval, poolId, poolApplication))
     },
     onKline(points: Map<Interval, Points[]>) {
       points.forEach((_points, interval) => {
         _points.forEach((__points) => {
           if (!__points.points.length) return
-
-          const _latestTimestamps =
-            this.latestTimestamps.get(__points.token_0) || new Map<string, Map<Interval, number>>()
-          const __latestTimestamps =
-            _latestTimestamps.get(__points.token_1) || new Map<Interval, number>()
-
-          __latestTimestamps.set(interval, Math.max(...__points.points.map((el) => el.timestamp)))
-          _latestTimestamps.set(__points.token_1, __latestTimestamps)
-          this.latestTimestamps.set(__points.token_0, _latestTimestamps)
+          const key = [
+            __points.token_0,
+            __points.token_1,
+            __points.pool_id ?? 'none',
+            __points.pool_application ?? 'none',
+            interval,
+          ].join(':')
+          this.latestTimestamps.set(key, Math.max(...__points.points.map((el) => el.timestamp)))
         })
       })
       klineWorker.KlineWorker.send(klineWorker.KlineEventType.NEW_POINTS, points)
@@ -168,16 +173,19 @@ export const useKlineStore = defineStore('kline', {
     },
   },
   getters: {
-    latestTimestamp(): (key: Interval, token0: string, token1: string) => number {
-      return (key: Interval, token0: string, token1: string) => {
-        return this.latestTimestamps.get(token0)?.get(token1)?.get(key) || 0
+    latestTimestamp(): (key: Interval, token0: string, token1: string, poolId: number, poolApplication: string) => number {
+      return (key: Interval, token0: string, token1: string, poolId: number, poolApplication: string) => {
+        return this.latestTimestamps.get([token0, token1, poolId, poolApplication, key].join(':')) || 0
       }
     },
-    _latestPoints(): (key: Interval, token0: string, token1: string) => Point[] {
-      return (key: Interval, token0: string, token1: string) => {
+    _latestPoints(): (key: Interval, token0: string, token1: string, poolId: number, poolApplication: string) => Point[] {
+      return (key: Interval, token0: string, token1: string, poolId: number, poolApplication: string) => {
         return (
           (this.latestPoints.get(key) || []).find(
-            (el) => el.token_0 === token0 && el.token_1 === token1,
+            (el) => el.token_0 === token0 &&
+              el.token_1 === token1 &&
+              el.pool_id === poolId &&
+              el.pool_application === poolApplication,
           )?.points || []
         ).sort((a, b) => a.timestamp - b.timestamp)
       }

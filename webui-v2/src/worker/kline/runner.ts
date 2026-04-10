@@ -34,6 +34,8 @@ export enum KlineEventType {
 export interface BasePayload {
   token0: string
   token1: string
+  poolId?: number
+  poolApplication?: string
 }
 
 export interface FetchPointsPayload extends BasePayload {
@@ -157,6 +159,8 @@ export class KlineRunner {
   static storePoints = async (
     token0: string,
     token1: string,
+    poolId: number,
+    poolApplication: string,
     interval: Interval,
     points: Points,
     offset: number,
@@ -167,30 +171,41 @@ export class KlineRunner {
     await dbBridge.Kline.bulkPut(
       token0,
       token1,
+      poolId,
+      poolApplication,
       interval,
       points.points.slice(offset, offset + count),
     )
 
     setTimeout(() => {
-      void KlineRunner.storePoints(token0, token1, interval, points, offset + count, count)
+      void KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, offset + count, count)
     })
   }
 
-  static bulkStorePoints = (token0: string, token1: string, interval: Interval, points: Points) => {
-    void KlineRunner.storePoints(token0, token1, interval, points, 0, 20)
+  static bulkStorePoints = (token0: string, token1: string, poolId: number, poolApplication: string, interval: Interval, points: Points) => {
+    void KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, 0, 20)
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
-    const { token0, token1, startAt, endAt, interval, reverse, requestId } = payload
+    const { token0, token1, poolId, poolApplication, startAt, endAt, interval, reverse, requestId } = payload
+    if (poolId === undefined || !poolApplication) {
+      self.postMessage({
+        type: KlineEventType.Error,
+        payload: 'Missing pool identity for kline fetch',
+      })
+      return
+    }
     const traceId = buildKlineRequestTraceId(payload)
 
-    const url = constants.formalizeSchema(
+    const url = new URL(constants.formalizeSchema(
       `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`,
-    )
+    ))
+    url.searchParams.set('pool_id', String(poolId))
+    url.searchParams.set('pool_application', poolApplication)
 
     try {
       const sentAtMs = Date.now()
-      const tracedUrl = appendKlineTraceParams(url, traceId, sentAtMs)
+      const tracedUrl = appendKlineTraceParams(url.toString(), traceId, sentAtMs)
       console.log('[KlineRunner] fetch points start', { traceId, url: tracedUrl, sentAtMs })
       const res = await axios.get(tracedUrl)
       console.log('[KlineRunner] fetch points done', {
@@ -202,13 +217,15 @@ export class KlineRunner {
       const points = res.data as Points
       points.end_at = endAt
 
-      KlineRunner.bulkStorePoints(token0, token1, interval, points)
+      KlineRunner.bulkStorePoints(token0, token1, poolId, poolApplication, interval, points)
 
       self.postMessage({
         type: KlineEventType.FETCHED_POINTS,
         payload: {
           token0,
           token1,
+          poolId,
+          poolApplication,
           points,
           interval,
           reverse,
@@ -281,13 +298,22 @@ export class KlineRunner {
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, offset, limit, interval, reverse, timestampBegin, timestampEnd, requestId } =
+    const { token0, token1, poolId, poolApplication, offset, limit, interval, reverse, timestampBegin, timestampEnd, requestId } =
       payload
+    if (poolId === undefined || !poolApplication) {
+      self.postMessage({
+        type: KlineEventType.Error,
+        payload: 'Missing pool identity for kline cache load',
+      })
+      return
+    }
 
     try {
       const points = await dbBridge.Kline.points(
         token0,
         token1,
+        poolId,
+        poolApplication,
         interval,
         offset,
         limit,
@@ -301,6 +327,8 @@ export class KlineRunner {
         payload: {
           token0,
           token1,
+          poolId,
+          poolApplication,
           offset,
           limit,
           interval,
@@ -356,7 +384,14 @@ export class KlineRunner {
     points.forEach((_points, interval) => {
       _points.forEach((__points) => {
         // Timestamp is already converted, not good but work
-        KlineRunner.bulkStorePoints(__points.token_0, __points.token_1, interval, __points)
+        KlineRunner.bulkStorePoints(
+          __points.token_0,
+          __points.token_1,
+          __points.pool_id ?? 0,
+          __points.pool_application ?? 'unknown',
+          interval,
+          __points,
+        )
       })
     })
   }
@@ -374,7 +409,7 @@ export class KlineRunner {
   }
 
   static handleSortPoints = (payload: SortPointsPayload) => {
-    const { token0, token1, originPoints, newPoints, reason, keepCount, reverse, requestId } = payload
+    const { token0, token1, poolId, poolApplication, originPoints, newPoints, reason, keepCount, reverse, requestId } = payload
 
     const _points = mergeKlinePoints({
       originPoints,
@@ -388,6 +423,8 @@ export class KlineRunner {
       payload: {
         token0,
         token1,
+        poolId,
+        poolApplication,
         points: _points.slice(
           reverse ? 0 : Math.max(_points.length - _keepCount, 0),
           reverse ? _keepCount : _points.length,

@@ -15,6 +15,8 @@ export interface KlinePoint extends Point {
   id?: number
   token0: string
   token1: string
+  poolId: number
+  poolApplication: string
   interval: Interval
 }
 

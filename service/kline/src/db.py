@@ -320,6 +320,34 @@ class Db:
             raise Exception(f'Invalid pool application for pool_id: {pool_id}')
         return row[0]
 
+    def resolve_pool_identity_for_read(
+        self,
+        token_0: str,
+        token_1: str,
+        pool_id: int | None = None,
+        pool_application: str | None = None,
+    ) -> (int, str, str, str, bool):
+        token_1 = token_1 if token_1 is not None else 'TLINERA'
+        token_0 = token_0 if token_0 is not None else 'TLINERA'
+
+        if pool_id is None:
+            return self.get_pool_identity(token_0, token_1)
+
+        pool_stub, resolved_pool_application = self.resolve_pool_for_write(pool_id)
+        if pool_application is not None and resolved_pool_application != pool_application:
+            raise Exception('Invalid pool application')
+
+        pool_token_0 = pool_stub.token_0 if pool_stub.token_0 is not None else 'TLINERA'
+        pool_token_1 = pool_stub.token_1 if pool_stub.token_1 is not None else 'TLINERA'
+        if pool_token_0 == token_0 and pool_token_1 == token_1:
+            token_reversed = False
+        elif pool_token_0 == token_1 and pool_token_1 == token_0:
+            token_reversed = True
+        else:
+            raise Exception('Invalid token pair for pool')
+
+        return (int(pool_stub.pool_id), resolved_pool_application, token_0, token_1, token_reversed)
+
     def ensure_column(self, table_name: str, column_name: str, definition: str):
         self.cursor.execute(f'SHOW COLUMNS FROM {table_name}')
         existing_columns = {row[0] for row in self.cursor.fetchall()}
@@ -1222,9 +1250,14 @@ class Db:
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
 
-    def get_kline_information(self, token_0: str, token_1: str, interval: str):
+    def get_kline_information(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
         self.ensure_fresh_read_connection()
-        (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
+        (pool_id, pool_application, token_0, token_1, token_reversed) = self.resolve_pool_identity_for_read(
+            token_0,
+            token_1,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
 
         query = f'''
             SELECT
@@ -1241,10 +1274,15 @@ class Db:
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchone()
 
-    def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str):
+    def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str, pool_id: int | None = None, pool_application: str | None = None):
         self.ensure_fresh_read_connection()
         request_started_at = time.perf_counter()
-        (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
+        (pool_id, pool_application, token_0, token_1, token_reversed) = self.resolve_pool_identity_for_read(
+            token_0,
+            token_1,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
         interval = interval if interval is not None else '1min'
         self.log_kline_event(
             event='request_start',
@@ -1282,7 +1320,7 @@ class Db:
                 source='candles',
                 token_reversed=token_reversed,
             )
-            return (token_0, token_1, points)
+            return (pool_id, pool_application, token_0, token_1, points)
 
         self.log_kline_event(
             event='transactions_fallback_start',
@@ -1315,7 +1353,7 @@ class Db:
             token_reversed=token_reversed,
         )
 
-        return (token_0, token_1, points)
+        return (pool_id, pool_application, token_0, token_1, points)
 
     def get_kline_from_candles(
         self,
@@ -1573,7 +1611,7 @@ class Db:
             now_ms=now_ms,
         )
 
-    def get_last_kline(self, token_0: str, token_1: str, interval: str):
+    def get_last_kline(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
         # Only use full minutes data. Only for minute currently
         end_at = time.time() // 60 * 60
 
@@ -1592,9 +1630,17 @@ class Db:
         start_at *= 1000
         end_at *= 1000
 
-        (token_0, token_1, points) = self.get_kline(token_0, token_1, start_at, end_at, interval)
+        (pool_id, pool_application, token_0, token_1, points) = self.get_kline(
+            token_0,
+            token_1,
+            start_at,
+            end_at,
+            interval,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
 
-        return  (token_0, token_1, start_at, end_at, interval, points)
+        return  (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, points)
 
     def get_ticker(self, interval: str):
         self.ensure_fresh_read_connection()

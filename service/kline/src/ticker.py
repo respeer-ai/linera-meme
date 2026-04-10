@@ -133,7 +133,9 @@ class Ticker:
                     start_at=range_start,
                     end_at=bucket_key.bucket_start_ms,
                     interval=interval,
-                )[2]
+                    pool_id=pool.pool_id,
+                    pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                )[4]
                 if len(points) == 0:
                     self.log_event(
                         'incremental_points_empty',
@@ -167,6 +169,8 @@ class Ticker:
                 )
                 interval_points = payload.get(interval, [])
                 interval_points.append({
+                    'pool_id': pool.pool_id,
+                    'pool_application': f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
                     'token_0': token_0,
                     'token_1': token_1,
                     'interval': interval,
@@ -215,12 +219,16 @@ class Ticker:
                     start_at=range_start,
                     end_at=range_end,
                     interval=interval,
-                )[2]
+                    pool_id=pool.pool_id,
+                    pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                )[4]
                 if len(points) == 0:
                     continue
 
                 interval_points = payload.get(interval, [])
                 interval_points.append({
+                    'pool_id': pool.pool_id,
+                    'pool_application': f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
                     'token_0': token_0,
                     'token_1': token_1,
                     'interval': interval,

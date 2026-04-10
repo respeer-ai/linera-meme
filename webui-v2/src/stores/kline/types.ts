@@ -16,6 +16,8 @@ export interface Point {
 }
 
 export interface Points {
+  pool_id?: number
+  pool_application?: string
   token_0: string
   token_1: string
   start_at: number

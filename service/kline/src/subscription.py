@@ -7,6 +7,8 @@ class KlineSubscription:
     token_0: str
     token_1: str
     interval: str
+    pool_id: int | None = None
+    pool_application: str | None = None
 
 
 class WebSocketManager:
@@ -35,6 +37,8 @@ class WebSocketManager:
             token_0 = data.get('token_0')
             token_1 = data.get('token_1')
             intervals = data.get('intervals') or []
+            pool_id = data.get('pool_id')
+            pool_application = data.get('pool_application')
 
             if not token_0 or not token_1 or len(intervals) == 0:
                 return
@@ -44,6 +48,8 @@ class WebSocketManager:
                     token_0=token_0,
                     token_1=token_1,
                     interval=interval,
+                    pool_id=pool_id,
+                    pool_application=pool_application,
                 )
                 for interval in intervals
             }
@@ -59,6 +65,8 @@ class WebSocketManager:
                     token_0=points.get('token_0'),
                     token_1=points.get('token_1'),
                     interval=interval,
+                    pool_id=points.get('pool_id'),
+                    pool_application=points.get('pool_application'),
                 ) in subscriptions
             ]
             if len(matching_points) > 0:
@@ -101,8 +109,16 @@ class WebSocketManager:
                 for interval in intervals:
                     interval_points = []
                     for pool in pools:
-                        (token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(pool.token_0, pool.token_1, interval)
+                        (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
+                            pool.token_0,
+                            pool.token_1,
+                            interval,
+                            pool_id=pool.pool_id,
+                            pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                        )
                         interval_points.append({
+                            'pool_id': pool_id,
+                            'pool_application': pool_application,
                             'token_0': token_0,
                             'token_1': token_1,
                             'interval': interval,
@@ -110,8 +126,16 @@ class WebSocketManager:
                             'end_at': end_at,
                             'points': _points,
                         })
-                        (token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(pool.token_1, pool.token_0, interval)
+                        (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
+                            pool.token_1,
+                            pool.token_0,
+                            interval,
+                            pool_id=pool.pool_id,
+                            pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                        )
                         interval_points.append({
+                            'pool_id': pool_id,
+                            'pool_application': pool_application,
                             'token_0': token_0,
                             'token_1': token_1,
                             'interval': interval,
@@ -122,13 +146,17 @@ class WebSocketManager:
                     points[interval] = interval_points
             else:
                 for subscription in subscriptions:
-                    (token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
+                    (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
                         subscription.token_0,
                         subscription.token_1,
                         subscription.interval,
+                        pool_id=subscription.pool_id,
+                        pool_application=subscription.pool_application,
                     )
                     interval_points = points.get(subscription.interval, [])
                     interval_points.append({
+                        'pool_id': pool_id,
+                        'pool_application': pool_application,
                         'token_0': token_0,
                         'token_1': token_1,
                         'interval': interval,

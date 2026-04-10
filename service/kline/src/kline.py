@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, Request, WebSocket, Query
 from fastapi.responses import JSONResponse
 import asyncio
 import uvicorn
@@ -25,9 +25,20 @@ _db_config = None
 
 
 @app.get('/points/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
-async def on_get_kline(request: Request, token0: str, token1: str, start_at: int, end_at: int, interval: str):
+async def on_get_kline(
+    request: Request,
+    token0: str,
+    token1: str,
+    start_at: int,
+    end_at: int,
+    interval: str,
+    pool_id: int | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+):
     token_0 = token0
     token_1 = token1
+    response_pool_id = pool_id
+    response_pool_application = pool_application
     points = []
     raw_start_at = start_at
     raw_end_at = end_at
@@ -51,7 +62,15 @@ async def on_get_kline(request: Request, token0: str, token1: str, start_at: int
     ))
 
     try:
-        (token_0, token_1, points) = _db.get_kline(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at, interval=interval)
+        (response_pool_id, response_pool_application, token_0, token_1, points) = _db.get_kline(
+            token_0=token0,
+            token_1=token1,
+            start_at=start_at,
+            end_at=end_at,
+            interval=interval,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
     except Exception as e:
         print(f'Failed get kline: {e}')
     finally:
@@ -65,6 +84,8 @@ async def on_get_kline(request: Request, token0: str, token1: str, start_at: int
         ))
 
     return {
+        'pool_id': response_pool_id,
+        'pool_application': response_pool_application,
         'token_0': token_0,
         'token_1': token_1,
         'interval': interval,
@@ -75,9 +96,21 @@ async def on_get_kline(request: Request, token0: str, token1: str, start_at: int
 
 
 @app.get('/points/token0/{token0}/token1/{token1}/interval/{interval}/information')
-async def on_get_kline_information(token0: str, token1: str, interval: str):
+async def on_get_kline_information(
+    token0: str,
+    token1: str,
+    interval: str,
+    pool_id: int | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+):
     try:
-        return _db.get_kline_information(token_0=token0, token_1=token1, interval=interval)
+        return _db.get_kline_information(
+            token_0=token0,
+            token_1=token1,
+            interval=interval,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
     except Exception as e:
         print(f'Failed get kline information: {e}')
         return JSONResponse(
