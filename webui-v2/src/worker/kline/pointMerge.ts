@@ -16,7 +16,7 @@ const isFinal = (point: Point) => point.is_final === true
 
 const volumeValue = (point: Point) => point.base_volume
 
-const shouldOverwriteWithFetch = (current: Point, incoming: Point): boolean => {
+export const shouldOverwriteOverlappingPoint = (current: Point, incoming: Point): boolean => {
   if (isFinal(current) && !isFinal(incoming)) return false
   if (volumeValue(current) > 0 && volumeValue(incoming) === 0) return false
   return true
@@ -40,7 +40,7 @@ export const mergeKlinePoints = ({
     // Network fetch is authoritative for overlapping timestamps.
     // Cache load only fills gaps and must not overwrite newer in-memory points.
     if (isFetchReason(reason)) {
-      if (shouldOverwriteWithFetch(merged[index] as Point, point)) {
+      if (shouldOverwriteOverlappingPoint(merged[index] as Point, point)) {
         merged[index] = point
       }
     }

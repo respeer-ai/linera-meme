@@ -7,4 +7,5 @@ export interface KLineData {
   volume: number
   base_volume?: number
   quote_volume?: number
+  is_final?: boolean
 }

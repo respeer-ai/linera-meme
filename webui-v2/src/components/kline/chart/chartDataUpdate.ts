@@ -195,6 +195,24 @@ export const shouldScrollToLatestOnFirstRender = ({
   previousRange === null
 )
 
+export const shouldScrollToLatestAfterIncrementalAppend = ({
+  renderMode,
+  previousData,
+  nextData,
+  previousRange,
+}: {
+  renderMode: PrimarySeriesRenderPlan['mode']
+  previousData: KLineData[]
+  nextData: KLineData[]
+  previousRange: LogicalRange | null
+}) => (
+  renderMode === 'incremental' &&
+  previousData.length > 0 &&
+  nextData.length > previousData.length &&
+  previousRange !== null &&
+  Math.ceil(previousRange.to) >= previousData.length - 1
+)
+
 export const shouldFitContentOnFirstRender = ({
   previousData,
   nextData,

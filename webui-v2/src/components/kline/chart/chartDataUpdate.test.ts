@@ -5,6 +5,7 @@ import {
   getChartDataRenderSignal,
   shouldAnchorLatestAfterBootstrapExpansion,
   shouldFitContentOnFirstRender,
+  shouldScrollToLatestAfterIncrementalAppend,
   shouldScrollToLatestOnFirstRender,
   resolveVisibleLogicalRangeAfterPrimaryRender,
   resolveVisibleLogicalRangeRestore,
@@ -291,7 +292,7 @@ describe('shouldScrollToLatestOnFirstRender', () => {
     })).toBe(false)
   })
 
-  test('does not auto-scroll on incremental refreshes once data has already rendered', () => {
+  test('does not treat incremental refreshes as a first-render latest anchor', () => {
     expect(shouldScrollToLatestOnFirstRender({
       previousData: [
         point(60, 1, 2, 0.5, 1.5, 10),
@@ -302,6 +303,57 @@ describe('shouldScrollToLatestOnFirstRender', () => {
       ],
       previousRange: null,
       minimumDataPointsToAnchor: 14,
+    })).toBe(false)
+  })
+})
+
+describe('shouldScrollToLatestAfterIncrementalAppend', () => {
+  test('keeps the chart anchored when new bars append while the current range already reaches the latest edge', () => {
+    expect(shouldScrollToLatestAfterIncrementalAppend({
+      renderMode: 'incremental',
+      previousData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+        point(180, 2, 3, 1.8, 2.6, 15),
+      ],
+      previousRange: { from: -8, to: 1.8 },
+    })).toBe(true)
+  })
+
+  test('does not auto-scroll if the user is no longer looking at the latest edge', () => {
+    expect(shouldScrollToLatestAfterIncrementalAppend({
+      renderMode: 'incremental',
+      previousData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+        point(180, 2, 3, 1.8, 2.6, 15),
+      ],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+        point(180, 2, 3, 1.8, 2.6, 15),
+        point(240, 2.6, 3.2, 2.4, 3, 18),
+      ],
+      previousRange: { from: 0, to: 1 },
+    })).toBe(false)
+  })
+
+  test('does not auto-scroll when an incremental update only revises the latest candle in place', () => {
+    expect(shouldScrollToLatestAfterIncrementalAppend({
+      renderMode: 'incremental',
+      previousData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.5, 1, 2, 12),
+      ],
+      nextData: [
+        point(60, 1, 2, 0.5, 1.5, 10),
+        point(120, 1.5, 2.7, 1, 2.2, 20),
+      ],
+      previousRange: { from: -8, to: 1.8 },
     })).toBe(false)
   })
 })

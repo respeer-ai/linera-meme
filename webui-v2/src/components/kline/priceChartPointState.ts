@@ -1,5 +1,6 @@
 import type { KLineData } from './chart/KlineData'
 import type { Point } from 'src/stores/kline/types'
+import { shouldOverwriteOverlappingPoint } from 'src/worker/kline/pointMerge'
 
 type MergeSortedPointsInput = {
   currentPoints: KLineData[]
@@ -18,6 +19,17 @@ const toChartPoint = (point: Point): KLineData => ({
   ...point,
   volume: point.base_volume,
   time: Math.floor(point.timestamp / 1000),
+})
+
+const toComparablePoint = (point: KLineData): Point => ({
+  ...(point.is_final !== undefined ? { is_final: point.is_final } : {}),
+  timestamp: point.time * 1000,
+  open: point.open,
+  high: point.high,
+  low: point.low,
+  close: point.close,
+  base_volume: point.base_volume ?? point.volume,
+  quote_volume: point.quote_volume ?? 0,
 })
 
 export const mergeSortedPointsIntoChartState = ({
@@ -70,5 +82,10 @@ export const selectLivePointsForChartState = ({
       point.timestamp >= thresholdTimestamp ||
       currentTimestamps.has(point.timestamp)
     ))
+    .filter((point) => {
+      const currentPoint = currentPoints.find((current) => current.time * 1000 === point.timestamp)
+      if (!currentPoint) return true
+      return shouldOverwriteOverlappingPoint(toComparablePoint(currentPoint), point)
+    })
     .sort((left, right) => left.timestamp - right.timestamp)
 }

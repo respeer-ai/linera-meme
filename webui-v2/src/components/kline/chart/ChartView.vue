@@ -107,6 +107,7 @@ import {
   resolveVisibleLogicalRangeAfterPrimaryRender,
   shouldAnchorLatestAfterBootstrapExpansion,
   shouldFitContentOnFirstRender,
+  shouldScrollToLatestAfterIncrementalAppend,
   shouldScrollToLatestOnFirstRender,
   resolveVisibleLogicalRangeRestore,
   resolvePrimarySeriesRenderPlan,
@@ -1213,6 +1214,14 @@ const updateChartData = () => {
   })) {
     logTimeScaleState('update_chart_data_decision', { action: 'fit_content_first_render', renderMode: primaryRenderPlan.mode })
     scheduleFitContent()
+  } else if (shouldScrollToLatestAfterIncrementalAppend({
+    renderMode: primaryRenderPlan.mode,
+    previousData: lastRenderedPrimarySeriesData,
+    nextData: props.data,
+    previousRange: previousVisibleLogicalRange,
+  })) {
+    logTimeScaleState('update_chart_data_decision', { action: 'scroll_to_latest_incremental_append', renderMode: primaryRenderPlan.mode })
+    scheduleScrollToLatest()
   } else {
     logTimeScaleState('update_chart_data_decision', { action: 'restore_visible_range', renderMode: primaryRenderPlan.mode })
     restoreVisibleLogicalRange(resolveVisibleLogicalRangeAfterPrimaryRender({

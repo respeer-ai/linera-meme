@@ -1,11 +1,17 @@
 import type { Interval } from './const'
 import type { Point, Points } from './types'
+import { shouldOverwriteOverlappingPoint } from 'src/worker/kline/pointMerge'
 
 const mergePointLists = (current: Point[], incoming: Point[]): Point[] => {
   const merged = new Map<number, Point>()
 
   current.forEach((point) => merged.set(point.timestamp, point))
-  incoming.forEach((point) => merged.set(point.timestamp, point))
+  incoming.forEach((point) => {
+    const existing = merged.get(point.timestamp)
+    if (!existing || shouldOverwriteOverlappingPoint(existing, point)) {
+      merged.set(point.timestamp, point)
+    }
+  })
 
   return [...merged.values()].sort((left, right) => left.timestamp - right.timestamp)
 }

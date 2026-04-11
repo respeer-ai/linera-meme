@@ -140,6 +140,34 @@ describe('selectLivePointsForChartState', () => {
     expect(selected.map((point) => point.timestamp)).toEqual([550_000])
   })
 
+  test('ignores overlapping live placeholders that would regress a rendered non-zero candle', () => {
+    const selected = selectLivePointsForChartState({
+      currentPoints: [
+        chartPoint(550, 101, 12),
+      ],
+      latestPoints: [
+        sortedPoint(550_000, 101, 0),
+      ],
+      liveOverlayWindowMs: 5_000,
+    })
+
+    expect(selected).toEqual([])
+  })
+
+  test('ignores overlapping non-final live candles when the chart already has a final candle', () => {
+    const selected = selectLivePointsForChartState({
+      currentPoints: [
+        { ...chartPoint(550, 101, 12), is_final: true },
+      ],
+      latestPoints: [
+        { ...sortedPoint(550_000, 102, 14), is_final: false },
+      ],
+      liveOverlayWindowMs: 5_000,
+    })
+
+    expect(selected).toEqual([])
+  })
+
   test('ignores older live points that are outside the recent overlay window and not on the chart', () => {
     const selected = selectLivePointsForChartState({
       currentPoints: [
