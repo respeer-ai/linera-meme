@@ -97,6 +97,13 @@ const routes: RouteRecordRaw[] = [
           NeedLogined: false,
         },
       },
+      {
+        path: 'pools/remove-liquidity',
+        component: () => import('pages/RemoveLiquidityPage.vue'),
+        meta: {
+          NeedLogined: false,
+        },
+      },
     ],
   },
 

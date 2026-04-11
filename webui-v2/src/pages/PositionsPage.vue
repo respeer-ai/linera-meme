@@ -5,15 +5,15 @@
         <div class='reward-card'>
           <div class='reward-copy'>
             <div class='reward-value'>
-              0 LMM
+              {{ formattedLiquidityShare }} LMM
               <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
             </div>
             <div class='reward-label'>
               LMM liquidity share
               <span class='reward-info'>i
                 <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
-                  <p>LMM represents your liquidity share, not a tradable token.</p>
-                  <p>You can only use it to redeem liquidity and earn trading fees.</p>
+                  <p>LMM tracks your liquidity share, not a tradable token.</p>
+                  <p>Holding LMM lets you redeem liquidity and earn swap fees.</p>
                 </q-tooltip>
               </span>
             </div>
@@ -25,7 +25,7 @@
             <h1 class='positions-title q-ma-none'>Your positions</h1>
 
             <div class='filter-row'>
-              <button class='filter-btn filter-btn-primary'>
+              <button class='filter-btn filter-btn-primary' @click='onNewPositionClick'>
                 <span class='filter-plus'>+</span>
                 <span>New</span>
               </button>
@@ -50,29 +50,88 @@
             </div>
           </div>
 
-          <div class='empty-card'>
-            <div class='empty-icon-wrap'>
-              <div class='empty-icon'>≈</div>
-            </div>
-            <div class='empty-title'>No positions</div>
-            <div class='empty-text'>
-              You don't have any liquidity positions. Create a new
-              position to start earning trading fees from swaps in the pool.
-            </div>
-            <div class='empty-actions'>
-              <button class='empty-btn empty-btn-secondary'>Explore pools</button>
-              <button class='empty-btn empty-btn-primary'>New position</button>
+          <div v-if='positionsStore.loading && !positionsStore.loaded' class='positions-list'>
+            <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
+              <q-skeleton dark type='text' width='32%' />
+              <q-skeleton dark type='text' width='18%' />
+              <div class='position-grid'>
+                <q-skeleton dark type='text' width='100%' />
+                <q-skeleton dark type='text' width='100%' />
+                <q-skeleton dark type='text' width='100%' />
+                <q-skeleton dark type='text' width='100%' />
+              </div>
             </div>
           </div>
 
-          <div class='notice-row'>
+          <div v-else-if='visiblePositions.length' class='positions-list'>
+            <article v-for='position in visiblePositions' :key='positionKey(position)' class='position-card'>
+              <div class='position-card-header'>
+                <div>
+                  <div class='position-pair'>{{ position.token_0 }} / {{ position.token_1 }}</div>
+                  <div class='position-subtitle'>Pool #{{ position.pool_id }}</div>
+                </div>
+                <span :class='["position-badge", `position-badge-${position.status}`]'>
+                  {{ position.status === 'active' ? 'Active' : 'Closed' }}
+                </span>
+              </div>
+
+              <div class='position-share-row'>
+                <div>
+                  <div class='position-share-label'>Liquidity share</div>
+                  <div class='position-share-value'>{{ formatLiquidity(position.current_liquidity) }} LMM</div>
+                </div>
+                <div class='position-share-meta'>{{ formatTimestamp(position.updated_at) }}</div>
+              </div>
+
+              <div class='position-grid'>
+                <div class='position-metric'>
+                  <span class='metric-label'>Added</span>
+                  <span class='metric-value'>{{ formatLiquidity(position.added_liquidity) }} LMM</span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>Removed</span>
+                  <span class='metric-value'>{{ formatLiquidity(position.removed_liquidity) }} LMM</span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>Opened</span>
+                  <span class='metric-value'>{{ formatTimestamp(position.opened_at) }}</span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>{{ position.status === 'closed' ? 'Closed' : 'Last activity' }}</span>
+                  <span class='metric-value'>
+                    {{ formatTimestamp(position.status === 'closed' ? position.closed_at : position.updated_at) }}
+                  </span>
+                </div>
+              </div>
+
+              <div v-if='position.status === "active"' class='position-actions'>
+                <button class='position-action-btn position-action-btn-primary' @click='onManagePositionClick(position)'>
+                  Manage
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <div v-else class='empty-card'>
+            <div class='empty-icon-wrap'>
+              <div class='empty-icon'>≈</div>
+            </div>
+            <div class='empty-title'>{{ emptyStateTitle }}</div>
+            <div class='empty-text'>{{ emptyStateText }}</div>
+            <div class='empty-actions'>
+              <button class='empty-btn empty-btn-secondary' @click='onExplorePoolsClick'>Explore pools</button>
+              <button class='empty-btn empty-btn-primary' @click='onNewPositionClick'>New position</button>
+            </div>
+          </div>
+
+          <div v-if='showClosedHint' class='notice-row'>
             <div class='notice-icon'>i</div>
             <div class='notice-copy'>
               <div class='notice-title'>Looking for your closed positions?</div>
-              <div class='notice-text'>You can see them by using the filter at the top of the page.</div>
+              <div class='notice-text'>Switch the filter to Closed to review positions you already redeemed.</div>
             </div>
-            <button class='notice-close'>×</button>
           </div>
+
         </section>
       </section>
     </main>
@@ -80,24 +139,129 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMeta } from 'quasar'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { usePageSeo } from 'src/utils/seo'
 import { constants } from 'src/constant'
-
-type PositionStatus = 'all' | 'active' | 'closed'
+import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
+import { useUserStore } from 'src/stores/user'
+import { usePositionsStore, type Position, type PositionStatusFilter } from 'src/stores/positions'
 
 const route = useRoute()
-const selectedStatus = ref<PositionStatus>('active')
-const statusOptions: Array<{ value: PositionStatus; label: string }> = [
+const router = useRouter()
+const userStore = useUserStore()
+const positionsStore = usePositionsStore()
+
+const selectedStatus = ref<PositionStatusFilter>('active')
+const owner = ref('')
+
+const statusOptions: Array<{ value: PositionStatusFilter; label: string }> = [
   { value: 'all', label: 'All positions' },
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
 ]
+
 const selectedStatusLabel = computed(() => (
   statusOptions.find((option) => option.value === selectedStatus.value)?.label || 'Status'
 ))
+const walletConnected = computed(() => Boolean(userStore.chainId && userStore.publicKey))
+const visiblePositions = computed(() => positionsStore.positions)
+const formattedLiquidityShare = computed(() => formatLiquidity(positionsStore.activeLiquidityShare))
+const showClosedHint = computed(() => (
+  walletConnected.value &&
+  positionsStore.loaded &&
+  !positionsStore.loading &&
+  !visiblePositions.value.length &&
+  selectedStatus.value !== 'closed'
+))
+const emptyStateTitle = computed(() => {
+  if (!walletConnected.value) return 'Connect wallet to view positions'
+  if (selectedStatus.value === 'closed') return 'No closed positions'
+  return 'No positions'
+})
+const emptyStateText = computed(() => {
+  if (!walletConnected.value) {
+    return 'Connect your wallet to load liquidity positions associated with your account.'
+  }
+  if (selectedStatus.value === 'closed') {
+    return 'You have not fully redeemed any liquidity positions yet.'
+  }
+  return 'You do not have any liquidity positions for the selected filter yet.'
+})
+
+const buildOwnerParam = async () => {
+  const account = await userStore.account()
+  if (!account.owner || !account.chain_id) return ''
+  return `${account.chain_id}:${account.owner}`
+}
+
+const refreshPositions = async () => {
+  if (!walletConnected.value) {
+    owner.value = ''
+    positionsStore.clear()
+    return
+  }
+
+  const nextOwner = await buildOwnerParam()
+  owner.value = nextOwner
+
+  if (!nextOwner) {
+    positionsStore.clear()
+    return
+  }
+
+  await positionsStore.fetchPositions(nextOwner, selectedStatus.value)
+}
+
+const positionKey = (position: Position) => `${position.pool_application}:${position.pool_id}:${position.status}`
+const formatLiquidity = (value: string | number) => {
+  const numeric = typeof value === 'number' ? value : Number.parseFloat(value || '0')
+  if (!Number.isFinite(numeric)) return '0'
+  if (numeric === 0) return '0'
+  if (numeric >= 1000) {
+    return new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+    }).format(numeric)
+  }
+  if (numeric >= 1) return numeric.toFixed(4).replace(/\.?0+$/, '')
+  return numeric.toFixed(6).replace(/\.?0+$/, '')
+}
+const formatTimestamp = (value: number | null) => {
+  if (!value) return 'N/A'
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value)
+}
+const onExplorePoolsClick = () => {
+  void router.push('/explore')
+}
+const onNewPositionClick = () => {
+  void router.push('/pools/add-liquidity')
+}
+const onManagePositionClick = (position: Position) => {
+  void router.push(buildRemoveLiquidityRoute({
+    token0: position.token_0,
+    token1: position.token_1,
+  }))
+}
+
+watch(
+  [
+    selectedStatus,
+    () => userStore.chainId,
+    () => userStore.publicKey,
+    () => userStore.walletType,
+  ],
+  () => {
+    void refreshPositions()
+  },
+  { immediate: true },
+)
 
 useMeta(() => ({
   script: {
@@ -140,7 +304,8 @@ usePageSeo(() => ({
 
 .reward-card,
 .empty-card,
-.notice-row
+.notice-row,
+.position-card
   border: 1px solid rgba(255, 255, 255, 0.08)
   background: rgba(255, 255, 255, 0.018)
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025)
@@ -242,8 +407,7 @@ usePageSeo(() => ({
   gap: 8px
 
 .filter-btn,
-.empty-btn,
-.notice-close
+.empty-btn
   border: 0
   background: transparent
   color: inherit
@@ -276,9 +440,6 @@ usePageSeo(() => ({
   font-size: 12px
   opacity: 0.75
 
-.filter-btn-icon
-  min-width: 60px
-
 :global(.status-menu.q-menu)
   min-width: 176px
   padding: 6px
@@ -299,6 +460,105 @@ usePageSeo(() => ({
 
 :global(.status-menu-item:hover)
   background: rgba(255, 255, 255, 0.06)
+
+.positions-list
+  display: grid
+  gap: 14px
+  margin-top: 20px
+
+.position-card
+  padding: 18px 18px 16px
+  border-radius: 20px
+
+.position-card-loading
+  display: grid
+  gap: 12px
+
+.position-card-header,
+.position-share-row
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 16px
+
+.position-pair
+  font-size: 18px
+  font-weight: 700
+  color: var(--q-light)
+
+.position-subtitle,
+.position-share-label,
+.position-share-meta,
+.metric-label
+  font-size: 13px
+  color: #9aa0ab
+
+.position-subtitle
+  margin-top: 4px
+
+.position-badge
+  display: inline-flex
+  align-items: center
+  height: 28px
+  padding: 0 12px
+  border-radius: 999px
+  font-size: 12px
+  font-weight: 700
+
+.position-badge-active
+  background: rgba(77, 214, 143, 0.12)
+  color: #7de9ab
+
+.position-badge-closed
+  background: rgba(255, 255, 255, 0.08)
+  color: #d1d7e0
+
+.position-share-row
+  margin-top: 18px
+  padding-top: 16px
+  border-top: 1px solid rgba(255, 255, 255, 0.06)
+  align-items: flex-end
+
+.position-share-value
+  margin-top: 4px
+  font-size: 28px
+  font-weight: 600
+  line-height: 1.05
+  color: var(--q-light)
+
+.position-grid
+  display: grid
+  grid-template-columns: repeat(2, minmax(0, 1fr))
+  gap: 14px 18px
+  margin-top: 18px
+
+.position-actions
+  display: flex
+  justify-content: flex-end
+  margin-top: 18px
+
+.position-action-btn
+  border: 0
+  border-radius: 14px
+  height: 36px
+  padding: 0 16px
+  font: inherit
+  font-size: 14px
+  font-weight: 700
+  cursor: pointer
+
+.position-action-btn-primary
+  background: #f5f5f7
+  color: #111
+
+.position-metric
+  display: grid
+  gap: 6px
+
+.metric-value
+  font-size: 14px
+  font-weight: 600
+  color: var(--q-light)
 
 .empty-card
   display: flex
@@ -394,29 +654,32 @@ usePageSeo(() => ({
   font-size: 13px
   color: #9aa0ab
 
-.notice-close
-  font-size: 22px
-  line-height: 1
-  color: var(--q-neutral)
-
 @media (max-width: 720px)
   .positions-page
     padding-top: 18px
 
   .reward-card,
   .empty-card,
-  .notice-row
+  .notice-row,
+  .position-card
     padding-left: 16px
     padding-right: 16px
 
   .reward-card
     display: block
 
-  .positions-header
+  .positions-header,
+  .position-card-header,
+  .position-share-row
     display: block
 
-  .filter-row
+  .filter-row,
+  .position-badge,
+  .position-share-meta
     margin-top: 16px
+
+  .position-grid
+    grid-template-columns: 1fr
 
   .empty-actions
     flex-direction: column

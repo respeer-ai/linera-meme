@@ -1,5 +1,9 @@
 # MicroMeme Architecture
 
+> Audience: humans
+>
+> For assistant-specific rules, facts, and live task tracking, see `agents/`.
+
 ## Goal
 
 MicroMeme is a Linera-native product stack that combines:
@@ -36,7 +40,7 @@ MicroMeme is split into protocol modules, services, and frontend modules.
 
 ## Core Module Responsibilities
 
-## `proxy/`
+### `proxy/`
 
 Primary role:
 
@@ -48,7 +52,7 @@ In product terms:
 
 - this is the launch control layer.
 
-## `meme/`
+### `meme/`
 
 Primary role:
 
@@ -62,7 +66,7 @@ In product terms:
 
 - this is both the token contract and the mining core.
 
-## `swap/`
+### `swap/`
 
 Primary role:
 
@@ -74,7 +78,7 @@ In product terms:
 
 - this is the market registry and routing base layer.
 
-## `pool/`
+### `pool/`
 
 Primary role:
 
@@ -88,7 +92,7 @@ In product terms:
 
 - this is the per-market execution engine.
 
-## `service/miner/`
+### `service/miner/`
 
 Primary role:
 
@@ -101,7 +105,7 @@ Important consequence:
 
 - in mining-enabled markets, this service can affect when operations and messages become executable in practice.
 
-## `service/kline/`
+### `service/kline/`
 
 Primary role:
 
@@ -115,7 +119,7 @@ Important consequence:
 - this service reflects settled trades, not planned trades.
 - any settlement asymmetry or mining-induced delay can change K-line shape.
 
-## `webui-v2/`
+### `webui-v2/`
 
 Primary role:
 
@@ -157,7 +161,7 @@ swap -> service/kline -> pool discovery and market indexing
 
 ## Main Runtime Flows
 
-## 1. Meme Launch Flow
+### 1. Meme Launch Flow
 
 Typical path:
 
@@ -175,7 +179,7 @@ Participating modules:
 - `swap`
 - `pool`
 
-## 2. Swap Flow
+### 2. Swap Flow
 
 Typical path:
 
@@ -195,7 +199,7 @@ Participating modules:
 - `swap`
 - `service/kline`
 
-## 3. Mining Flow
+### 3. Mining Flow
 
 Typical path:
 
@@ -214,7 +218,7 @@ Important product effect:
 
 - mining affects execution timing and can influence trade settlement behavior and market data shape.
 
-## 4. K-line and Market Data Flow
+### 4. K-line and Market Data Flow
 
 Typical path:
 
@@ -309,4 +313,3 @@ documents/          Product, technical, and architecture docs
 3. Add quote and routing layers above current pool registry.
 4. Improve delayed-settlement observability.
 5. Align frontend trade UX with protocol truth.
-

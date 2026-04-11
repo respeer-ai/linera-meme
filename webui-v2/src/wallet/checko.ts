@@ -9,6 +9,7 @@ import {
   CREATE_MEME,
   ESTIMATE_GAS,
   PUBLISH_DATA_BLOB,
+  REMOVE_LIQUIDITY,
   SWAP,
 } from 'src/graphql'
 import { ApolloClient } from '@apollo/client/core'
@@ -202,6 +203,45 @@ export class CheCko {
 
   static addLiquidity = async (poolApplicationId: string, variables: Record<string, unknown>) => {
     const operationParams = await CheCko.addLiquidityOperation(poolApplicationId, variables)
+
+    return new Promise((resolve, reject) => {
+      window.linera
+        .request({
+          method: 'linera_graphqlMutation',
+          params: operationParams,
+        })
+        .then((hash) => {
+          resolve(hash as string)
+        })
+        .catch((e) => {
+          reject(new Error(e))
+        })
+    })
+  }
+
+  static removeLiquidityOperation = async (
+    poolApplicationId: string,
+    variables: Record<string, unknown>,
+  ) => {
+    const publicKey = user.User.publicKey()
+    const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(
+      REMOVE_LIQUIDITY.loc?.source?.body as string,
+      stringify(variables) as string,
+    )
+    return {
+      applicationId: poolApplicationId,
+      publicKey,
+      query: {
+        query: REMOVE_LIQUIDITY.loc?.source?.body,
+        variables,
+        applicationOperationBytes: queryBytes,
+      },
+      operationName: 'removeLiquidity',
+    }
+  }
+
+  static removeLiquidity = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const operationParams = await CheCko.removeLiquidityOperation(poolApplicationId, variables)
 
     return new Promise((resolve, reject) => {
       window.linera

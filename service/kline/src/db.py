@@ -2,6 +2,7 @@ import mysql.connector
 from swap import Transaction, Pool
 import time
 import warnings
+from decimal import Decimal
 from candle_schema import (
     INTERVAL_BUCKET_MS,
     CandleState,
@@ -281,6 +282,17 @@ class Db:
 
     def log_kline_event(self, event: str, **fields):
         print(build_kline_log_line(event, **fields))
+
+    def log_positions_event(self, event: str, **fields):
+        parts = [f'[positions] event={event}']
+        for key in sorted(fields.keys()):
+            parts.append(f'{key}={fields[key]}')
+        print(' '.join(parts))
+
+    def serialize_decimal(self, value):
+        if isinstance(value, Decimal):
+            return format(value, 'f')
+        return value
 
     def resolve_pool_for_write(self, pool: Pool | int):
         if hasattr(pool, 'pool_application'):
@@ -1249,6 +1261,105 @@ class Db:
 
         self.cursor_dict.execute(query)
         return self.cursor_dict.fetchall()
+
+    def get_positions(self, owner: str, status: str = 'active'):
+        self.ensure_fresh_read_connection()
+        normalized_status = (status or 'active').lower()
+        if normalized_status not in {'active', 'closed', 'all'}:
+            raise ValueError('Invalid positions status')
+
+        query_started_at = time.perf_counter()
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    t.pool_application,
+                    t.pool_id,
+                    p.token_0,
+                    p.token_1,
+                    t.from_account AS owner,
+                    COALESCE(SUM(CASE
+                        WHEN t.transaction_type = 'AddLiquidity' THEN t.liquidity
+                        ELSE 0
+                    END), 0) AS added_liquidity,
+                    COALESCE(SUM(CASE
+                        WHEN t.transaction_type = 'RemoveLiquidity' THEN t.liquidity
+                        ELSE 0
+                    END), 0) AS removed_liquidity,
+                    COALESCE(SUM(CASE
+                        WHEN t.transaction_type = 'AddLiquidity' THEN 1
+                        ELSE 0
+                    END), 0) AS add_tx_count,
+                    COALESCE(SUM(CASE
+                        WHEN t.transaction_type = 'RemoveLiquidity' THEN 1
+                        ELSE 0
+                    END), 0) AS remove_tx_count,
+                    MIN(CASE
+                        WHEN t.transaction_type = 'AddLiquidity' THEN t.created_at
+                        ELSE NULL
+                    END) AS opened_at,
+                    MAX(t.created_at) AS updated_at
+                FROM {self.transactions_table} t
+                JOIN {self.pools_table} p
+                  ON p.pool_id = t.pool_id
+                 AND p.pool_application = t.pool_application
+                WHERE
+                    t.from_account = %s
+                    AND t.transaction_type IN ('AddLiquidity', 'RemoveLiquidity')
+                GROUP BY
+                    t.pool_application,
+                    t.pool_id,
+                    p.token_0,
+                    p.token_1,
+                    t.from_account
+            ''',
+            (owner,),
+        )
+        rows = self.cursor_dict.fetchall()
+        query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
+
+        positions = []
+        for row in rows:
+            added_liquidity = Decimal(str(row['added_liquidity']))
+            removed_liquidity = Decimal(str(row['removed_liquidity']))
+            current_liquidity = added_liquidity - removed_liquidity
+            if abs(current_liquidity) < Decimal('0.000000000001'):
+                current_liquidity = Decimal('0')
+
+            position_status = 'active' if current_liquidity > 0 else 'closed'
+            if normalized_status != 'all' and position_status != normalized_status:
+                continue
+
+            positions.append({
+                'pool_application': row['pool_application'],
+                'pool_id': int(row['pool_id']),
+                'token_0': row['token_0'],
+                'token_1': row['token_1'],
+                'owner': row['owner'],
+                'status': position_status,
+                'current_liquidity': self.serialize_decimal(current_liquidity),
+                'added_liquidity': self.serialize_decimal(added_liquidity),
+                'removed_liquidity': self.serialize_decimal(removed_liquidity),
+                'add_tx_count': int(row['add_tx_count']),
+                'remove_tx_count': int(row['remove_tx_count']),
+                'opened_at': int(row['opened_at']) if row['opened_at'] is not None else None,
+                'updated_at': int(row['updated_at']) if row['updated_at'] is not None else None,
+                'closed_at': int(row['updated_at']) if position_status == 'closed' and row['updated_at'] is not None else None,
+            })
+
+        positions.sort(
+            key=lambda row: (
+                -(row['closed_at'] if normalized_status == 'closed' else row['updated_at'] or 0),
+                row['pool_id'],
+            ),
+        )
+        self.log_positions_event(
+            'query',
+            duration_ms=query_duration_ms,
+            owner=owner,
+            row_count=len(positions),
+            status=normalized_status,
+        )
+        return positions
 
     def get_kline_information(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
         self.ensure_fresh_read_connection()

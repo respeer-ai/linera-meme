@@ -29,7 +29,7 @@ The target is a full meme asset lifecycle on Linera:
 5. Join mining.
 6. Monitor market activity.
 
-## Current Scope
+## What This Repository Contains
 
 This repository already contains the foundations for:
 
@@ -41,6 +41,18 @@ This repository already contains the foundations for:
 - mineable meme token mechanics,
 - frontend and service components.
 
+## Repository Layout
+
+- `meme/`: meme token and mining logic
+- `swap/`: swap router state and pool registry
+- `pool/`: pool contract and swap/liquidity execution
+- `proxy/`: meme creation and miner-facing coordination
+- `ams/`: application indexing and discovery support
+- `blob-gateway/`: blob registration and metadata storage hooks
+- `service/kline/`: market data, transactions, and K-line service
+- `service/miner/`: mining worker service
+- `webui-v2/`: current web product UI
+
 ## Current Priorities
 
 - trading execution symmetry,
@@ -50,23 +62,20 @@ This repository already contains the foundations for:
 - launch UX simplification,
 - mining-aware market data and user experience.
 
-## Documents
+## Documentation
 
-Planning and architecture documents live under [documents/](documents/):
+Human-facing documents live under [documents/](documents/):
 
 - [MICROMEME_PRODUCT_PLAN.md](documents/MICROMEME_PRODUCT_PLAN.md)
 - [MICROMEME_TECHNICAL_ROADMAP.md](documents/MICROMEME_TECHNICAL_ROADMAP.md)
 - [ARCHITECTURE.md](documents/ARCHITECTURE.md)
+- [POSITIONS_IMPLEMENTATION_PLAN.md](documents/POSITIONS_IMPLEMENTATION_PLAN.md)
 
-## Repository Layout
+Assistant-facing project instructions and the only task board live under [agents/](agents/):
 
-- `meme/`: meme token and mining logic.
-- `swap/`: swap router state and pool registry.
-- `pool/`: pool contract and swap/liquidity execution.
-- `proxy/`: meme creation and miner-facing coordination.
-- `service/kline/`: market data, transactions, and K-line service.
-- `service/miner/`: mining worker service.
-- `webui-v2/`: current web product UI.
+- [AGENTS.md](AGENTS.md)
+- [agents/README.md](agents/README.md)
+- [agents/PROJECT_TASK_BOARD.md](agents/PROJECT_TASK_BOARD.md)
 
 ## Product Layers
 
@@ -83,9 +92,3 @@ Linera's microchain execution model makes cross-chain settlement explicit and hi
 - meme launch,
 - exchange infrastructure,
 - and mining-native token mechanics.
-
-## Status
-
-This project is functional but still evolving toward the full target product.
-
-The largest remaining work is in execution semantics, quote and routing infrastructure, mining-aware product behavior, and creator launch UX.

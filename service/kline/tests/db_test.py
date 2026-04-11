@@ -283,6 +283,73 @@ class FakeCursor:
               ]
           return
 
+        if normalized.startswith('SELECT t.pool_application, t.pool_id, p.token_0, p.token_1, t.from_account AS owner, COALESCE(SUM(CASE WHEN t.transaction_type = \'AddLiquidity\' THEN t.liquidity ELSE 0 END), 0) AS added_liquidity, COALESCE(SUM(CASE WHEN t.transaction_type = \'RemoveLiquidity\' THEN t.liquidity ELSE 0 END), 0) AS removed_liquidity, COALESCE(SUM(CASE WHEN t.transaction_type = \'AddLiquidity\' THEN 1 ELSE 0 END), 0) AS add_tx_count, COALESCE(SUM(CASE WHEN t.transaction_type = \'RemoveLiquidity\' THEN 1 ELSE 0 END), 0) AS remove_tx_count, MIN(CASE WHEN t.transaction_type = \'AddLiquidity\' THEN t.created_at ELSE NULL END) AS opened_at, MAX(t.created_at) AS updated_at FROM transactions t JOIN pools p ON p.pool_id = t.pool_id AND p.pool_application = t.pool_application WHERE t.from_account = %s AND t.transaction_type IN (\'AddLiquidity\', \'RemoveLiquidity\') GROUP BY t.pool_application, t.pool_id, p.token_0, p.token_1, t.from_account'):
+          owner = params[0]
+          grouped = {}
+          for row in self.connection.transaction_rows:
+              if self.connection.transaction_value(row, 'from_account') != owner:
+                  continue
+              transaction_type = self.connection.transaction_value(row, 'transaction_type')
+              if transaction_type not in {'AddLiquidity', 'RemoveLiquidity'}:
+                  continue
+              pool_id = self.connection.transaction_value(row, 'pool_id')
+              pool_application = self.connection.transaction_value(row, 'pool_application')
+              pool = self.connection.pool_rows.get(pool_id)
+              if pool is None or pool.get('pool_application') != pool_application:
+                  continue
+
+              key = (pool_application, pool_id, pool['token_0'], pool['token_1'], owner)
+              current = grouped.get(key)
+              created_at = self.connection.transaction_value(row, 'created_at')
+              liquidity = self.connection.transaction_value(row, 'liquidity') or 0
+              if current is None:
+                  current = {
+                      'pool_application': pool_application,
+                      'pool_id': pool_id,
+                      'token_0': pool['token_0'],
+                      'token_1': pool['token_1'],
+                      'owner': owner,
+                      'added_liquidity': 0,
+                      'removed_liquidity': 0,
+                      'add_tx_count': 0,
+                      'remove_tx_count': 0,
+                      'opened_at': None,
+                      'updated_at': None,
+                  }
+                  grouped[key] = current
+
+              if transaction_type == 'AddLiquidity':
+                  current['added_liquidity'] += liquidity
+                  current['add_tx_count'] += 1
+                  if current['opened_at'] is None or created_at < current['opened_at']:
+                      current['opened_at'] = created_at
+              elif transaction_type == 'RemoveLiquidity':
+                  current['removed_liquidity'] += liquidity
+                  current['remove_tx_count'] += 1
+
+              if current['updated_at'] is None or created_at > current['updated_at']:
+                  current['updated_at'] = created_at
+
+          rows = list(grouped.values())
+          rows.sort(key=lambda row: (row['pool_id'], row['pool_application']))
+          self._last_result = rows if self.dictionary else [
+              (
+                  row['pool_application'],
+                  row['pool_id'],
+                  row['token_0'],
+                  row['token_1'],
+                  row['owner'],
+                  row['added_liquidity'],
+                  row['removed_liquidity'],
+                  row['add_tx_count'],
+                  row['remove_tx_count'],
+                  row['opened_at'],
+                  row['updated_at'],
+              )
+              for row in rows
+          ]
+          return
+
         if normalized.startswith('SELECT t.pool_id, t.pool_application, MAX(t.created_at) AS max_created_at FROM transactions t JOIN pools p ON t.pool_id = p.pool_id AND t.pool_application = p.pool_application GROUP BY t.pool_id, t.pool_application'):
           grouped = {}
           for row in self.connection.transaction_rows:
@@ -1505,7 +1572,7 @@ class DbCandleQueryTest(unittest.TestCase):
         }
 
         with patch.object(db, 'now_ms', return_value=1_800_000_200_000):
-            token_0, token_1, points = db.get_kline(
+            _, _, token_0, token_1, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
                 start_at=1_800_000_000_000,
@@ -1835,7 +1902,7 @@ class DbCandleQueryTest(unittest.TestCase):
                 'quote_volume': 13.5,
             },
         ]) as transaction_mock, patch.object(db, 'log_kline_event') as log_mock:
-            _, _, points = db.get_kline(
+            _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
                 start_at=1_800_000_000_000,
@@ -1876,7 +1943,7 @@ class DbCandleQueryTest(unittest.TestCase):
         ]
 
         with patch.object(db, 'get_kline_from_candles', return_value=candle_points) as candle_mock, patch.object(db, 'get_kline_from_transactions') as transaction_mock:
-            _, _, points = db.get_kline(
+            _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
                 start_at=1_800_000_000_000,
@@ -2013,7 +2080,7 @@ class DbCandleQueryTest(unittest.TestCase):
         }
 
         with patch.object(db, 'now_ms', return_value=1_800_000_120_000):
-            _, _, points = db.get_kline(
+            _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
                 start_at=1_800_000_000_000,
@@ -2046,7 +2113,7 @@ class DbCandleQueryTest(unittest.TestCase):
         }
 
         with patch.object(db, 'now_ms', return_value=1_800_000_070_000):
-            _, _, points = db.get_kline(
+            _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
                 start_at=1_800_000_000_000,
@@ -2056,3 +2123,171 @@ class DbCandleQueryTest(unittest.TestCase):
 
         self.assertEqual(len(points), 1)
         self.assertEqual(points[0]['bucket_start_ms'], 1_800_000_000_000)
+
+
+class DbPositionsQueryTest(unittest.TestCase):
+    def setUp(self):
+        self.database_catalog = ['kline']
+        self.table_catalog = ['pools', 'transactions', 'candles']
+        self.index_catalog = [
+            ('transactions', 0, 'PRIMARY', 1, 'pool_id'),
+            ('transactions', 0, 'PRIMARY', 2, 'transaction_id'),
+            ('transactions', 0, 'PRIMARY', 3, 'token_reversed'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_application'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 2, 'pool_id'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 3, 'token_reversed'),
+            ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 4, 'created_at'),
+        ]
+        self.connections = []
+
+    def create_connection(self, **_kwargs):
+        connection = FakeConnection(
+            self.database_catalog,
+            self.table_catalog,
+            self.index_catalog,
+        )
+        self.connections.append(connection)
+        return connection
+
+    def create_db(self):
+        with patch('db.mysql.connector.connect') as connect_mock:
+            connect_mock.side_effect = self.create_connection
+            db = Db(
+                host='localhost',
+                port=3306,
+                db_name='kline',
+                username='user',
+                password='pass',
+                clean_kline=False,
+            )
+        connection = self.connections[-1]
+        connection.pool_rows[7] = {
+            'pool_id': 7,
+            'pool_application': 'chain:app',
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+        }
+        connection.pool_rows[8] = {
+            'pool_id': 8,
+            'pool_application': 'chain:app',
+            'token_0': 'CCC',
+            'token_1': 'DDD',
+        }
+        return db
+
+    def transaction_row(
+        self,
+        pool_id,
+        transaction_id,
+        transaction_type,
+        owner,
+        liquidity,
+        created_at,
+        pool_application='chain:app',
+    ):
+        return (
+            pool_application,
+            pool_id,
+            transaction_id,
+            transaction_type,
+            owner,
+            0,
+            0,
+            0,
+            0,
+            liquidity,
+            0,
+            0,
+            0,
+            'Deposit' if transaction_type == 'AddLiquidity' else 'Burn',
+            False,
+            created_at,
+        )
+
+    def test_get_positions_returns_active_and_closed_positions(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.transaction_rows.extend([
+            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
+            self.transaction_row(7, 11, 'RemoveLiquidity', 'chain:owner-a', 40, 1_800_000_010_000),
+            self.transaction_row(8, 12, 'AddLiquidity', 'chain:owner-a', 50, 1_800_000_020_000),
+            self.transaction_row(8, 13, 'RemoveLiquidity', 'chain:owner-a', 50, 1_800_000_030_000),
+            self.transaction_row(7, 14, 'AddLiquidity', 'chain:owner-b', 999, 1_800_000_040_000),
+        ])
+
+        positions = db.get_positions('chain:owner-a', status='all')
+
+        self.assertEqual(len(positions), 2)
+        self.assertEqual(
+            positions,
+            [
+                {
+                    'pool_application': 'chain:app',
+                    'pool_id': 8,
+                    'token_0': 'CCC',
+                    'token_1': 'DDD',
+                    'owner': 'chain:owner-a',
+                    'status': 'closed',
+                    'current_liquidity': '0',
+                    'added_liquidity': '50',
+                    'removed_liquidity': '50',
+                    'add_tx_count': 1,
+                    'remove_tx_count': 1,
+                    'opened_at': 1_800_000_020_000,
+                    'updated_at': 1_800_000_030_000,
+                    'closed_at': 1_800_000_030_000,
+                },
+                {
+                    'pool_application': 'chain:app',
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': 'chain:owner-a',
+                    'status': 'active',
+                    'current_liquidity': '60',
+                    'added_liquidity': '100',
+                    'removed_liquidity': '40',
+                    'add_tx_count': 1,
+                    'remove_tx_count': 1,
+                    'opened_at': 1_800_000_001_000,
+                    'updated_at': 1_800_000_010_000,
+                    'closed_at': None,
+                },
+            ],
+        )
+
+    def test_get_positions_filters_active_only(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.transaction_rows.extend([
+            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
+            self.transaction_row(8, 12, 'AddLiquidity', 'chain:owner-a', 50, 1_800_000_020_000),
+            self.transaction_row(8, 13, 'RemoveLiquidity', 'chain:owner-a', 50, 1_800_000_030_000),
+        ])
+
+        positions = db.get_positions('chain:owner-a', status='active')
+
+        self.assertEqual(len(positions), 1)
+        self.assertEqual(positions[0]['pool_id'], 7)
+        self.assertEqual(positions[0]['status'], 'active')
+
+    def test_get_positions_filters_closed_only(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.transaction_rows.extend([
+            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
+            self.transaction_row(7, 11, 'RemoveLiquidity', 'chain:owner-a', 100, 1_800_000_010_000),
+        ])
+
+        positions = db.get_positions('chain:owner-a', status='closed')
+
+        self.assertEqual(len(positions), 1)
+        self.assertEqual(positions[0]['pool_id'], 7)
+        self.assertEqual(positions[0]['status'], 'closed')
+        self.assertEqual(positions[0]['closed_at'], 1_800_000_010_000)
+
+    def test_get_positions_rejects_invalid_status(self):
+        db = self.create_db()
+
+        with self.assertRaises(ValueError):
+            db.get_positions('chain:owner-a', status='bad')

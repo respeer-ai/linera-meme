@@ -329,4 +329,45 @@ export class Wallet {
       error?.(JSON.stringify(e))
     }
   }
+
+  static _removeLiquidity = async (
+    pool: Pool,
+    liquidity: string,
+    to: account.Account,
+  ) => {
+    const variables = {
+      liquidity,
+      amount0OutMin: undefined,
+      amount1OutMin: undefined,
+      to,
+      blockTimestamp: undefined,
+    }
+
+    const walletType = user.User.walletConnectedType()
+    const poolApplicationId = account._Account.accountApplication(
+      pool.poolApplication as account.Account,
+    ) as string
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.removeLiquidity(poolApplicationId, variables)
+      case user.WalletType.Metamask:
+        return await LineraWebClient.removeLiquidity(poolApplicationId, variables)
+    }
+  }
+
+  static removeLiquidity = async (
+    pool: Pool,
+    liquidity: string,
+    to: account.Account,
+    done?: () => void,
+    error?: (e: string) => void,
+  ) => {
+    try {
+      await Wallet._removeLiquidity(pool, liquidity, to)
+      done?.()
+    } catch (e) {
+      error?.(JSON.stringify(e))
+    }
+  }
 }

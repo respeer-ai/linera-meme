@@ -103,6 +103,19 @@ export const buildAddLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute => {
   }
 }
 
+export const buildRemoveLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute => {
+  if (!pair) {
+    return {
+      path: '/pools/remove-liquidity',
+    }
+  }
+
+  return {
+    path: '/pools/remove-liquidity',
+    query: normalizePoolPair(pair),
+  }
+}
+
 export const resolveRoutePoolPair = ({
   token0,
   token1,

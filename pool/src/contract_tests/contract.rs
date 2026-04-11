@@ -5,6 +5,7 @@ use abi::{
     swap::pool::{
         InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
     },
+    swap::transaction::TransactionType,
 };
 use futures::FutureExt as _;
 use linera_sdk::{
@@ -229,6 +230,38 @@ async fn message_add_liquidity() {
         Amount::from_str("0.1").unwrap()
     );
 
+    let add_liquidity = pool.state.borrow().build_transaction(
+        owner,
+        Some(Amount::ONE),
+        Some(Amount::from_tokens(10)),
+        None,
+        None,
+        Some(Amount::from_str("0.1").unwrap()),
+        runtime_context.system_time(),
+    );
+    pool.execute_message(PoolMessage::NewTransaction {
+        transaction: add_liquidity,
+    })
+    .await;
+
+    let transactions = pool
+        .state
+        .borrow()
+        .latest_transactions
+        .elements()
+        .await
+        .unwrap();
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(transactions[0].transaction_type, TransactionType::AddLiquidity);
+    assert_eq!(transactions[0].from, owner);
+    assert_eq!(transactions[0].liquidity, Some(Amount::from_str("0.1").unwrap()));
+
+    let (amount_0_out, amount_1_out) = pool
+        .state
+        .borrow()
+        .try_calculate_liquidity_amount_pair(Amount::from_str("0.05").unwrap(), None, None)
+        .unwrap();
+
     pool.execute_message(PoolMessage::RemoveLiquidity {
         origin: owner,
         liquidity: Amount::from_str("0.05").unwrap(),
@@ -242,6 +275,35 @@ async fn message_add_liquidity() {
     assert_eq!(
         pool.state.borrow().liquidity(owner).await.unwrap(),
         Amount::from_str("0.05").unwrap()
+    );
+
+    let remove_liquidity = pool.state.borrow().build_transaction(
+        owner,
+        None,
+        None,
+        Some(amount_0_out),
+        Some(amount_1_out),
+        Some(Amount::from_str("0.05").unwrap()),
+        runtime_context.system_time(),
+    );
+    pool.execute_message(PoolMessage::NewTransaction {
+        transaction: remove_liquidity,
+    })
+    .await;
+
+    let transactions = pool
+        .state
+        .borrow()
+        .latest_transactions
+        .elements()
+        .await
+        .unwrap();
+    assert_eq!(transactions.len(), 2);
+    assert_eq!(transactions[1].transaction_type, TransactionType::RemoveLiquidity);
+    assert_eq!(transactions[1].from, owner);
+    assert_eq!(
+        transactions[1].liquidity,
+        Some(Amount::from_str("0.05").unwrap())
     );
 }
 

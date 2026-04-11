@@ -153,6 +153,29 @@ async def on_get_combined_transactions_information():
         )
 
 
+@app.get('/positions')
+async def on_get_positions(
+    owner: str = Query(...),
+    status: str = Query(default='active'),
+):
+    try:
+        return {
+            'owner': owner,
+            'positions': _db.get_positions(owner=owner, status=status),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get positions: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 @app.get('/ticker/interval/{interval}')
 async def on_get_ticker(interval: str):
     try:

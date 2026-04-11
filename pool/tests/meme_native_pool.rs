@@ -21,6 +21,7 @@ use abi::{
             InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
             SwapParameters,
         },
+        transaction::{Transaction, TransactionType},
     },
 };
 use async_graphql::{Request, Variables};
@@ -264,6 +265,16 @@ impl TestSuite {
             .await;
         chain.handle_received_messages().await;
     }
+
+    async fn latest_transactions(&self) -> Vec<Transaction> {
+        let QueryOutcome { response, .. } = self
+            .pool_chain
+            .clone()
+            .unwrap()
+            .graphql_query(self.pool_application_id.unwrap(), "query { latestTransactions }")
+            .await;
+        serde_json::from_value(response["latestTransactions"].clone()).unwrap()
+    }
 }
 
 /// Test setting a pool and testing its coherency across microchains.
@@ -489,6 +500,14 @@ async fn meme_native_virtual_initial_liquidity_test() {
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_attos(220000000000000000000000),
     );
+
+    let latest_transactions = suite.latest_transactions().await;
+    let add_liquidity = latest_transactions
+        .last()
+        .expect("add liquidity should create a transaction record");
+    assert_eq!(add_liquidity.transaction_type, TransactionType::AddLiquidity);
+    assert_eq!(add_liquidity.from, suite.chain_owner_account(user_chain));
+    assert!(add_liquidity.liquidity.is_some());
 
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), "query { pool }")
