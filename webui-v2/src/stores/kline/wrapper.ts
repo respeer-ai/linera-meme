@@ -11,8 +11,7 @@ export class Kline {
     interval: Interval,
     poolId: number,
     poolApplication: string,
-  ) =>
-    kline.subscribeKline(token0, token1, interval, poolId, poolApplication)
+  ) => kline.subscribeKline(token0, token1, interval, poolId, poolApplication)
 
   static latestPoints = (
     key: Interval,

@@ -146,9 +146,8 @@ export const buildKlineRequestTraceId = ({
   endAt,
   reverse,
   requestId,
-}: FetchPointsPayload): string => (
+}: FetchPointsPayload): string =>
   `${requestId}:${interval}:${reverse ? 'reverse' : 'forward'}:${startAt}:${endAt}:${token0.slice(0, 8)}:${token1.slice(0, 8)}`
-)
 
 export const appendKlineTraceParams = (url: string, traceId: string, sentAtMs: number): string => {
   const separator = url.includes('?') ? '&' : '?'
@@ -178,16 +177,42 @@ export class KlineRunner {
     )
 
     setTimeout(() => {
-      void KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, offset + count, count)
+      void KlineRunner.storePoints(
+        token0,
+        token1,
+        poolId,
+        poolApplication,
+        interval,
+        points,
+        offset + count,
+        count,
+      )
     })
   }
 
-  static bulkStorePoints = (token0: string, token1: string, poolId: number, poolApplication: string, interval: Interval, points: Points) => {
+  static bulkStorePoints = (
+    token0: string,
+    token1: string,
+    poolId: number,
+    poolApplication: string,
+    interval: Interval,
+    points: Points,
+  ) => {
     void KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, 0, 20)
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
-    const { token0, token1, poolId, poolApplication, startAt, endAt, interval, reverse, requestId } = payload
+    const {
+      token0,
+      token1,
+      poolId,
+      poolApplication,
+      startAt,
+      endAt,
+      interval,
+      reverse,
+      requestId,
+    } = payload
     if (poolId === undefined || !poolApplication) {
       self.postMessage({
         type: KlineEventType.Error,
@@ -197,9 +222,11 @@ export class KlineRunner {
     }
     const traceId = buildKlineRequestTraceId(payload)
 
-    const url = new URL(constants.formalizeSchema(
-      `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`,
-    ))
+    const url = new URL(
+      constants.formalizeSchema(
+        `${constants.KLINE_HTTP_URL}/points/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}/interval/${interval}`,
+      ),
+    )
     url.searchParams.set('pool_id', String(poolId))
     url.searchParams.set('pool_application', poolApplication)
 
@@ -298,8 +325,19 @@ export class KlineRunner {
   }
 
   static handleLoadPoints = async (payload: LoadPointsPayload) => {
-    const { token0, token1, poolId, poolApplication, offset, limit, interval, reverse, timestampBegin, timestampEnd, requestId } =
-      payload
+    const {
+      token0,
+      token1,
+      poolId,
+      poolApplication,
+      offset,
+      limit,
+      interval,
+      reverse,
+      timestampBegin,
+      timestampEnd,
+      requestId,
+    } = payload
     if (poolId === undefined || !poolApplication) {
       self.postMessage({
         type: KlineEventType.Error,
@@ -409,7 +447,18 @@ export class KlineRunner {
   }
 
   static handleSortPoints = (payload: SortPointsPayload) => {
-    const { token0, token1, poolId, poolApplication, originPoints, newPoints, reason, keepCount, reverse, requestId } = payload
+    const {
+      token0,
+      token1,
+      poolId,
+      poolApplication,
+      originPoints,
+      newPoints,
+      reason,
+      keepCount,
+      reverse,
+      requestId,
+    } = payload
 
     const _points = mergeKlinePoints({
       originPoints,

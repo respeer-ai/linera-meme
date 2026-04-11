@@ -91,8 +91,13 @@ export class Kline {
     const to = [token0, token1, poolId, poolApplication, interval, timestampEnd ?? 9999999999999]
 
     const collection = reverse
-      ? dbKline.klinePoints.where('[token0+token1+poolId+poolApplication+interval+timestamp]').between(from, to).reverse()
-      : dbKline.klinePoints.where('[token0+token1+poolId+poolApplication+interval+timestamp]').between(from, to)
+      ? dbKline.klinePoints
+          .where('[token0+token1+poolId+poolApplication+interval+timestamp]')
+          .between(from, to)
+          .reverse()
+      : dbKline.klinePoints
+          .where('[token0+token1+poolId+poolApplication+interval+timestamp]')
+          .between(from, to)
 
     const loadedPoints = await collection
       .offset(offset ?? 0)
@@ -104,14 +109,26 @@ export class Kline {
     if (incompatible.length > 0) {
       await dbKline.klinePoints.bulkDelete(
         incompatible
-          .filter((point) =>
-            typeof point.token0 === 'string' &&
-            typeof point.token1 === 'string' &&
-            typeof point.poolApplication === 'string' &&
-            typeof point.poolId === 'number' &&
-            typeof point.interval === 'string' &&
-            typeof point.timestamp === 'number')
-          .map((point) => [point.token0, point.token1, point.poolId, point.poolApplication, point.interval, point.timestamp] as const),
+          .filter(
+            (point) =>
+              typeof point.token0 === 'string' &&
+              typeof point.token1 === 'string' &&
+              typeof point.poolApplication === 'string' &&
+              typeof point.poolId === 'number' &&
+              typeof point.interval === 'string' &&
+              typeof point.timestamp === 'number',
+          )
+          .map(
+            (point) =>
+              [
+                point.token0,
+                point.token1,
+                point.poolId,
+                point.poolApplication,
+                point.interval,
+                point.timestamp,
+              ] as const,
+          ),
       )
     }
 

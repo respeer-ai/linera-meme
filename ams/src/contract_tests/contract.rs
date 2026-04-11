@@ -1,9 +1,7 @@
 use super::super::{AmsContract, AmsState};
 
 use abi::{
-    ams::{
-        AmsAbi, AmsMessage, InstantiationArgument, Metadata, APPLICATION_TYPES,
-    },
+    ams::{AmsAbi, AmsMessage, InstantiationArgument, Metadata, APPLICATION_TYPES},
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -151,7 +149,8 @@ async fn message_claim_application_success_for_same_owner() {
     let claimed_account = same_owner_different_chain_account();
 
     ams.execute_message(AmsMessage::Register { metadata }).await;
-    ams.execute_message(AmsMessage::Claim { application_id }).await;
+    ams.execute_message(AmsMessage::Claim { application_id })
+        .await;
 
     assert_eq!(
         ams.state
@@ -203,7 +202,8 @@ async fn message_claim_application_rejects_different_owner() {
     );
 
     ams.execute_message(AmsMessage::Register { metadata }).await;
-    ams.execute_message(AmsMessage::Claim { application_id }).await;
+    ams.execute_message(AmsMessage::Claim { application_id })
+        .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -267,7 +267,7 @@ async fn message_update_application_rejects_different_owner() {
     ams.execute_message(AmsMessage::Register {
         metadata: metadata.clone(),
     })
-        .await;
+    .await;
     ams.execute_message(AmsMessage::Update {
         owner: other_account(),
         application_id,
@@ -330,7 +330,9 @@ fn create_and_instantiate_ams() -> AmsContract {
         runtime: Rc::new(RefCell::new(runtime)),
     };
 
-    contract.instantiate(InstantiationArgument {}).blocking_wait();
+    contract
+        .instantiate(InstantiationArgument {})
+        .blocking_wait();
 
     assert_eq!(
         contract

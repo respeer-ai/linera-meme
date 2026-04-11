@@ -1,7 +1,9 @@
 use super::super::{BlobGatewayContract, BlobGatewayState};
 
 use abi::{
-    blob_gateway::{BlobData, BlobDataType, BlobGatewayAbi, BlobGatewayMessage, BlobGatewayOperation},
+    blob_gateway::{
+        BlobData, BlobDataType, BlobGatewayAbi, BlobGatewayMessage, BlobGatewayOperation,
+    },
     store_type::StoreType,
 };
 use linera_sdk::{
@@ -26,7 +28,10 @@ async fn op_register_queues_message_with_runtime_metadata() {
         })
         .await;
 
-    assert!(matches!(response, abi::blob_gateway::BlobGatewayResponse::Ok));
+    assert!(matches!(
+        response,
+        abi::blob_gateway::BlobGatewayResponse::Ok
+    ));
 
     let runtime = contract.runtime.borrow();
     let requests = runtime.created_send_message_requests();
@@ -150,13 +155,11 @@ fn other_account() -> Account {
 }
 
 fn current_chain_id() -> ChainId {
-    ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
-        .unwrap()
+    ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8").unwrap()
 }
 
 fn creator_chain_id() -> ChainId {
-    ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
-        .unwrap()
+    ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65").unwrap()
 }
 
 fn application_id() -> ApplicationId<BlobGatewayAbi> {

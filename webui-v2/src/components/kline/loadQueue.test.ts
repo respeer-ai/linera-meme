@@ -4,10 +4,7 @@ import { dequeueLoadDirection, enqueueLoadDirection } from './loadQueue'
 
 describe('loadQueue', () => {
   test('keeps both refresh-time directions without duplication', () => {
-    const queue = enqueueLoadDirection(
-      enqueueLoadDirection([], 'old'),
-      'new',
-    )
+    const queue = enqueueLoadDirection(enqueueLoadDirection([], 'old'), 'new')
 
     expect(enqueueLoadDirection(queue, 'old')).toEqual(['old', 'new'])
   })

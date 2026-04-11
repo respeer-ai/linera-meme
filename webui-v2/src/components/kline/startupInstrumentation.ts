@@ -106,14 +106,16 @@ export const createStartupInstrumentation = ({
   }
 
   const markCacheLoaded = ({ requestId, pointCount }: StartupMilestoneArgs) => {
-    if (!currentRun || !isCurrentRequest(requestId) || currentRun.cacheLoadedAt !== undefined) return
+    if (!currentRun || !isCurrentRequest(requestId) || currentRun.cacheLoadedAt !== undefined)
+      return
 
     currentRun.cacheLoadedAt = now()
     emit(buildEvent(currentRun, 'cache_loaded', { pointCount }))
   }
 
   const markNetworkFetched = ({ requestId, pointCount }: StartupMilestoneArgs) => {
-    if (!currentRun || !isCurrentRequest(requestId) || currentRun.networkFetchedAt !== undefined) return
+    if (!currentRun || !isCurrentRequest(requestId) || currentRun.networkFetchedAt !== undefined)
+      return
 
     currentRun.networkFetchedAt = now()
     emit(buildEvent(currentRun, 'network_fetched', { pointCount }))
@@ -127,14 +129,16 @@ export const createStartupInstrumentation = ({
   }
 
   const markFirstRender = ({ requestId, pointCount }: StartupMilestoneArgs) => {
-    if (!currentRun || !isCurrentRequest(requestId) || currentRun.firstRenderAt !== undefined) return
+    if (!currentRun || !isCurrentRequest(requestId) || currentRun.firstRenderAt !== undefined)
+      return
 
     currentRun.firstRenderAt = now()
     emit(buildEvent(currentRun, 'first_render', { pointCount }))
   }
 
   const markIndicatorsReady = ({ requestId, pointCount }: StartupMilestoneArgs) => {
-    if (!currentRun || !isCurrentRequest(requestId) || currentRun.indicatorReadyAt !== undefined) return
+    if (!currentRun || !isCurrentRequest(requestId) || currentRun.indicatorReadyAt !== undefined)
+      return
 
     currentRun.indicatorReadyAt = now()
     emit(buildEvent(currentRun, 'indicators_ready', { pointCount }))

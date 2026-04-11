@@ -330,11 +330,7 @@ export class Wallet {
     }
   }
 
-  static _removeLiquidity = async (
-    pool: Pool,
-    liquidity: string,
-    to: account.Account,
-  ) => {
+  static _removeLiquidity = async (pool: Pool, liquidity: string, to: account.Account) => {
     const variables = {
       liquidity,
       amount0OutMin: undefined,

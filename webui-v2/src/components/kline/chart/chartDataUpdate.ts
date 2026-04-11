@@ -26,14 +26,13 @@ export type LogicalRange = {
 
 const DEFAULT_RENDER_SIGNAL_TAIL_SIZE = 8
 
-const pointsEqual = (left: KLineData, right: KLineData) => (
+const pointsEqual = (left: KLineData, right: KLineData) =>
   left.time === right.time &&
   left.open === right.open &&
   left.high === right.high &&
   left.low === right.low &&
   left.close === right.close &&
   left.volume === right.volume
-)
 
 const resolveDataOffset = ({
   previousData,
@@ -149,7 +148,9 @@ export const getChartDataRenderSignal = (
   const firstTime = data[0]?.time ?? 0
   const tail = data.slice(Math.max(data.length - tailSize, 0))
   const tailSignature = tail
-    .map((point) => [point.time, point.open, point.high, point.low, point.close, point.volume].join(':'))
+    .map((point) =>
+      [point.time, point.open, point.high, point.low, point.close, point.volume].join(':'),
+    )
     .join('|')
 
   return `${data.length}#${firstTime}#${tailSignature}`
@@ -189,11 +190,7 @@ export const shouldScrollToLatestOnFirstRender = ({
   nextData: KLineData[]
   previousRange: LogicalRange | null
   minimumDataPointsToAnchor?: number
-}) => (
-  !previousData.length &&
-  nextData.length >= minimumDataPointsToAnchor &&
-  previousRange === null
-)
+}) => !previousData.length && nextData.length >= minimumDataPointsToAnchor && previousRange === null
 
 export const shouldScrollToLatestAfterIncrementalAppend = ({
   renderMode,
@@ -205,13 +202,12 @@ export const shouldScrollToLatestAfterIncrementalAppend = ({
   previousData: KLineData[]
   nextData: KLineData[]
   previousRange: LogicalRange | null
-}) => (
+}) =>
   renderMode === 'incremental' &&
   previousData.length > 0 &&
   nextData.length > previousData.length &&
   previousRange !== null &&
   Math.ceil(previousRange.to) >= previousData.length - 1
-)
 
 export const shouldFitContentOnFirstRender = ({
   previousData,
@@ -223,12 +219,11 @@ export const shouldFitContentOnFirstRender = ({
   nextData: KLineData[]
   previousRange: LogicalRange | null
   minimumDataPointsToAnchor?: number
-}) => (
+}) =>
   !previousData.length &&
   nextData.length > 0 &&
   nextData.length < minimumDataPointsToAnchor &&
   previousRange === null
-)
 
 export const shouldAnchorLatestAfterBootstrapExpansion = ({
   previousData,
@@ -238,11 +233,10 @@ export const shouldAnchorLatestAfterBootstrapExpansion = ({
   previousData: KLineData[]
   nextData: KLineData[]
   minimumDataPointsToAnchor?: number
-}) => (
+}) =>
   previousData.length > 0 &&
   previousData.length < minimumDataPointsToAnchor &&
   nextData.length >= minimumDataPointsToAnchor
-)
 
 export const resolveVisibleLogicalRangeAfterPrimaryRender = ({
   renderMode,

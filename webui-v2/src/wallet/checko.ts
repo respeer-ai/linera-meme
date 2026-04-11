@@ -240,7 +240,10 @@ export class CheCko {
     }
   }
 
-  static removeLiquidity = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+  static removeLiquidity = async (
+    poolApplicationId: string,
+    variables: Record<string, unknown>,
+  ) => {
     const operationParams = await CheCko.removeLiquidityOperation(poolApplicationId, variables)
 
     return new Promise((resolve, reject) => {

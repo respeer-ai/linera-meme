@@ -116,13 +116,7 @@ export const buildRemoveLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute =>
   }
 }
 
-export const resolveRoutePoolPair = ({
-  token0,
-  token1,
-}: {
-  token0: unknown
-  token1: unknown
-}) => {
+export const resolveRoutePoolPair = ({ token0, token1 }: { token0: unknown; token1: unknown }) => {
   const requestedToken0 = readQueryValue(token0)
   const requestedToken1 = readQueryValue(token1)
 
@@ -158,10 +152,7 @@ export const mapPairAmountsToPoolOrder = ({
 }) => {
   const normalizedPair = normalizePoolPair(canonicalPair)
 
-  if (
-    selectedToken0 === normalizedPair.token0 &&
-    selectedToken1 === normalizedPair.token1
-  ) {
+  if (selectedToken0 === normalizedPair.token0 && selectedToken1 === normalizedPair.token1) {
     return {
       amount0: amountForSelectedToken0,
       amount1: amountForSelectedToken1,

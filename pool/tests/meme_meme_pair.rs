@@ -966,7 +966,10 @@ async fn meme_meme_pair_test() {
     let remove_liquidity = latest_transactions
         .last()
         .expect("remove liquidity should create a transaction record");
-    assert_eq!(remove_liquidity.transaction_type, TransactionType::RemoveLiquidity);
+    assert_eq!(
+        remove_liquidity.transaction_type,
+        TransactionType::RemoveLiquidity
+    );
     assert_eq!(remove_liquidity.from, suite.chain_owner_account(user_chain));
     assert_eq!(remove_liquidity.liquidity, Some(liquidity.liquidity));
 }

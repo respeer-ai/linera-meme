@@ -37,9 +37,11 @@ describe('isCompatibleKlinePoint', () => {
     delete (legacyPoint as Partial<typeof legacyPoint>).bucket_end_ms
     delete (legacyPoint as Partial<typeof legacyPoint>).is_final
 
-    expect(isCompatibleKlinePoint({
-      ...legacyPoint,
-    })).toBe(false)
+    expect(
+      isCompatibleKlinePoint({
+        ...legacyPoint,
+      }),
+    ).toBe(false)
   })
 })
 
@@ -52,10 +54,7 @@ describe('splitCompatibleKlinePoints', () => {
     }
     delete (stalePoint as Partial<typeof stalePoint>).quote_volume
 
-    const result = splitCompatibleKlinePoints([
-      point,
-      stalePoint,
-    ])
+    const result = splitCompatibleKlinePoints([point, stalePoint])
 
     expect(result.compatible).toEqual([point])
     expect(result.incompatible).toHaveLength(1)

@@ -21,7 +21,9 @@ const mergePointsEntry = (current: Points | undefined, incoming: Points): Points
 
   return {
     ...(incoming.pool_id !== undefined ? { pool_id: incoming.pool_id } : {}),
-    ...(incoming.pool_application !== undefined ? { pool_application: incoming.pool_application } : {}),
+    ...(incoming.pool_application !== undefined
+      ? { pool_application: incoming.pool_application }
+      : {}),
     token_0: incoming.token_0,
     token_1: incoming.token_1,
     interval: incoming.interval,
@@ -39,10 +41,12 @@ export const mergeLatestPointMaps = (
 
   incoming.forEach((incomingEntries, interval) => {
     const existingEntries = merged.get(interval) || []
-    const mergedEntries = new Map(existingEntries.map((entry) => [
-      `${entry.token_0}:${entry.token_1}:${entry.pool_id ?? 'none'}:${entry.pool_application ?? 'none'}`,
-      entry,
-    ]))
+    const mergedEntries = new Map(
+      existingEntries.map((entry) => [
+        `${entry.token_0}:${entry.token_1}:${entry.pool_id ?? 'none'}:${entry.pool_application ?? 'none'}`,
+        entry,
+      ]),
+    )
 
     incomingEntries.forEach((entry) => {
       const key = `${entry.token_0}:${entry.token_1}:${entry.pool_id ?? 'none'}:${entry.pool_application ?? 'none'}`

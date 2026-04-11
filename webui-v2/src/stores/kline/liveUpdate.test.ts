@@ -49,9 +49,42 @@ describe('mergeLatestPointMaps', () => {
     expect(mergedFiveMinutePoints === undefined).toBe(false)
 
     expect(mergedFiveMinutePoints).toEqual([
-      { timestamp: 1000, bucket_start_ms: 1000, bucket_end_ms: 60_999, is_final: true, open: 1, high: 1, low: 1, close: 1, base_volume: 1, quote_volume: 2 },
-      { timestamp: 2000, bucket_start_ms: 2000, bucket_end_ms: 61_999, is_final: true, open: 1, high: 1, low: 1, close: 1, base_volume: 1, quote_volume: 2 },
-      { timestamp: 4000, bucket_start_ms: 4000, bucket_end_ms: 63_999, is_final: true, open: 2, high: 2, low: 2, close: 2, base_volume: 2, quote_volume: 4 },
+      {
+        timestamp: 1000,
+        bucket_start_ms: 1000,
+        bucket_end_ms: 60_999,
+        is_final: true,
+        open: 1,
+        high: 1,
+        low: 1,
+        close: 1,
+        base_volume: 1,
+        quote_volume: 2,
+      },
+      {
+        timestamp: 2000,
+        bucket_start_ms: 2000,
+        bucket_end_ms: 61_999,
+        is_final: true,
+        open: 1,
+        high: 1,
+        low: 1,
+        close: 1,
+        base_volume: 1,
+        quote_volume: 2,
+      },
+      {
+        timestamp: 4000,
+        bucket_start_ms: 4000,
+        bucket_end_ms: 63_999,
+        is_final: true,
+        open: 2,
+        high: 2,
+        low: 2,
+        close: 2,
+        base_volume: 2,
+        quote_volume: 4,
+      },
     ])
     expect(merged.get(Interval.ONE_MINUTE)).toEqual([
       createPoints('CCC', 'DDD', Interval.ONE_MINUTE, [3000]),
@@ -60,10 +93,16 @@ describe('mergeLatestPointMaps', () => {
 
   test('keeps same-pair entries isolated when they come from different pools', () => {
     const current = new Map([
-      [Interval.FIVE_MINUTE, [createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000], 1, 'chain:a')]],
+      [
+        Interval.FIVE_MINUTE,
+        [createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000], 1, 'chain:a')],
+      ],
     ])
     const incoming = new Map([
-      [Interval.FIVE_MINUTE, [createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [2000], 2, 'chain:b')]],
+      [
+        Interval.FIVE_MINUTE,
+        [createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [2000], 2, 'chain:b')],
+      ],
     ])
 
     const merged = mergeLatestPointMaps(current, incoming)
@@ -77,7 +116,9 @@ describe('mergeLatestPointMaps', () => {
 
 describe('buildKlineSubscriptionMessage', () => {
   test('serializes a pair-aware and interval-aware subscription request', () => {
-    expect(buildKlineSubscriptionMessage('AAA', 'BBB', Interval.FIVE_MINUTE, 7, 'chain:owner')).toEqual({
+    expect(
+      buildKlineSubscriptionMessage('AAA', 'BBB', Interval.FIVE_MINUTE, 7, 'chain:owner'),
+    ).toEqual({
       action: 'subscribe',
       topic: 'kline',
       token_0: 'AAA',
@@ -90,38 +131,52 @@ describe('buildKlineSubscriptionMessage', () => {
 
   test('retains explicit candle finality metadata when merging websocket updates', () => {
     const current = new Map([
-      [Interval.FIVE_MINUTE, [{
-        ...createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000]),
-        points: [{
-          timestamp: 1000,
-          bucket_start_ms: 1000,
-          bucket_end_ms: 1000 + 299_999,
-          is_final: false,
-          open: 1,
-          high: 1,
-          low: 1,
-          close: 1,
-          base_volume: 1,
-          quote_volume: 2,
-        }],
-      }]],
+      [
+        Interval.FIVE_MINUTE,
+        [
+          {
+            ...createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000]),
+            points: [
+              {
+                timestamp: 1000,
+                bucket_start_ms: 1000,
+                bucket_end_ms: 1000 + 299_999,
+                is_final: false,
+                open: 1,
+                high: 1,
+                low: 1,
+                close: 1,
+                base_volume: 1,
+                quote_volume: 2,
+              },
+            ],
+          },
+        ],
+      ],
     ])
     const incoming = new Map([
-      [Interval.FIVE_MINUTE, [{
-        ...createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000]),
-        points: [{
-          timestamp: 1000,
-          bucket_start_ms: 1000,
-          bucket_end_ms: 1000 + 299_999,
-          is_final: true,
-          open: 2,
-          high: 2,
-          low: 2,
-          close: 2,
-          base_volume: 2,
-          quote_volume: 4,
-        }],
-      }]],
+      [
+        Interval.FIVE_MINUTE,
+        [
+          {
+            ...createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000]),
+            points: [
+              {
+                timestamp: 1000,
+                bucket_start_ms: 1000,
+                bucket_end_ms: 1000 + 299_999,
+                is_final: true,
+                open: 2,
+                high: 2,
+                low: 2,
+                close: 2,
+                base_volume: 2,
+                quote_volume: 4,
+              },
+            ],
+          },
+        ],
+      ],
     ])
 
     const merged = mergeLatestPointMaps(current, incoming)

@@ -67,7 +67,10 @@ type KlineStartupDebugGlobal = {
   summaries: () => StartupBaselineSummary[]
   samples: () => StartupBaselineSample[]
   clearSamples: () => void
-  captureLatestSample: (cacheMode: StartupBaselineCacheMode, note?: string) => StartupBaselineSample | null
+  captureLatestSample: (
+    cacheMode: StartupBaselineCacheMode,
+    note?: string,
+  ) => StartupBaselineSample | null
   exportMarkdownRows: () => string
   evaluateMilestone: () => StartupMilestoneEvaluation
   exportMilestoneReport: () => string
@@ -95,14 +98,13 @@ export const DEFAULT_STARTUP_MILESTONE_THRESHOLDS: StartupMilestoneThresholds = 
   requiredIntervals: ['1min', '5min', '10min'],
 }
 
-export const formatStartupBaselineSampleAsMarkdownRow = (
-  sample: StartupBaselineSample,
-): string => `| \`${sample.interval}\` | ${sample.cacheMode} | \`${sample.cacheLoadMs ?? 'TBD'}\` | \`${sample.networkFetchMs ?? 'TBD'}\` | \`${sample.mergeMs ?? 'TBD'}\` | \`${sample.firstRenderMs ?? 'TBD'}\` | \`${sample.indicatorReadyMs ?? 'TBD'}\` | \`${sample.finalPointCount ?? 'TBD'}\` | \`${sample.note ?? ''}\` |`
+export const formatStartupBaselineSampleAsMarkdownRow = (sample: StartupBaselineSample): string =>
+  `| \`${sample.interval}\` | ${sample.cacheMode} | \`${sample.cacheLoadMs ?? 'TBD'}\` | \`${sample.networkFetchMs ?? 'TBD'}\` | \`${sample.mergeMs ?? 'TBD'}\` | \`${sample.firstRenderMs ?? 'TBD'}\` | \`${sample.indicatorReadyMs ?? 'TBD'}\` | \`${sample.finalPointCount ?? 'TBD'}\` | \`${sample.note ?? ''}\` |`
 
 const milestoneTargetForCacheMode = (
   thresholds: StartupMilestoneThresholds,
   cacheMode: StartupBaselineCacheMode,
-) => cacheMode === 'warm' ? thresholds.warmFirstRenderMs : thresholds.coldFirstRenderMs
+) => (cacheMode === 'warm' ? thresholds.warmFirstRenderMs : thresholds.coldFirstRenderMs)
 
 export const evaluateStartupMilestone = (
   samples: StartupBaselineSample[],
@@ -180,9 +182,7 @@ export const evaluateStartupMilestone = (
   }
 }
 
-export const formatStartupMilestoneReport = (
-  evaluation: StartupMilestoneEvaluation,
-): string => {
+export const formatStartupMilestoneReport = (evaluation: StartupMilestoneEvaluation): string => {
   const lines = [
     `Milestone: ${evaluation.passed ? 'PASS' : 'FAIL'}`,
     '',
@@ -289,9 +289,8 @@ export const createStartupBaselineRecorder = ({
     return sample
   }
 
-  const exportMarkdownRows = () => store.samples
-    .map(formatStartupBaselineSampleAsMarkdownRow)
-    .join('\n')
+  const exportMarkdownRows = () =>
+    store.samples.map(formatStartupBaselineSampleAsMarkdownRow).join('\n')
 
   const evaluateMilestone = () => evaluateStartupMilestone(store.samples)
 

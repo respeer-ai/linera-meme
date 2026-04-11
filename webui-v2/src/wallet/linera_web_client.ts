@@ -101,7 +101,10 @@ export class LineraWebClient {
     await application.query(gqlStr)
   }
 
-  static removeLiquidity = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+  static removeLiquidity = async (
+    poolApplicationId: string,
+    variables: Record<string, unknown>,
+  ) => {
     const application = await LineraWebClient.chain.application(poolApplicationId)
     const gqlStr = stringify({
       query: print(REMOVE_LIQUIDITY),

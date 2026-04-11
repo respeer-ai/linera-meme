@@ -21,9 +21,9 @@ use linera_sdk::{
     views::View,
     Contract, ContractRuntime,
 };
-use swap::interfaces::state::StateInterface;
 use std::str::FromStr;
 use std::{cell::RefCell, rc::Rc};
+use swap::interfaces::state::StateInterface;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn operation_initialize_liquidity() {
@@ -252,23 +252,25 @@ async fn message_create_user_pool_rejects_duplicate_existing_pool() {
     let mut swap = create_and_instantiate_swap();
     let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
 
-    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
-        token_0_creator_chain_id: ChainId::from_str(
-            "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
-        )
-        .unwrap(),
-        token_0,
-        token_1_creator_chain_id: Some(
-            ChainId::from_str(
+    let result = std::panic::AssertUnwindSafe(
+        swap.execute_message(SwapMessage::CreateUserPool {
+            token_0_creator_chain_id: ChainId::from_str(
                 "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
             )
             .unwrap(),
-        ),
-        token_1,
-        amount_0: Amount::ONE,
-        amount_1: Amount::ONE,
-        to: None,
-    }))
+            token_0,
+            token_1_creator_chain_id: Some(
+                ChainId::from_str(
+                    "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+                )
+                .unwrap(),
+            ),
+            token_1,
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+            to: None,
+        }),
+    )
     .catch_unwind()
     .await;
 
@@ -331,10 +333,9 @@ async fn message_pool_created_ignores_duplicate_receipt() {
     let token_1 =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
             .unwrap();
-    let pool_chain_id = ChainId::from_str(
-        "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea",
-    )
-    .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
     let pool_application = Account {
         chain_id: pool_chain_id,
         owner: AccountOwner::from(
@@ -344,7 +345,10 @@ async fn message_pool_created_ignores_duplicate_receipt() {
             .unwrap(),
         ),
     };
-    swap.state.borrow_mut().create_pool_chain(pool_chain_id).unwrap();
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
 
     let message = SwapMessage::PoolCreated {
         creator,

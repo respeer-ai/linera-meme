@@ -2,7 +2,10 @@ use crate::interfaces::state::StateInterface;
 use crate::state::{errors::StateError, AmsState};
 use abi::ams::{InstantiationArgument, Metadata, APPLICATION_TYPES};
 use async_trait::async_trait;
-use linera_sdk::{linera_base_types::{Account, ApplicationId}, util::BlockingWait};
+use linera_sdk::{
+    linera_base_types::{Account, ApplicationId},
+    util::BlockingWait,
+};
 
 #[async_trait(?Send)]
 impl StateInterface for AmsState {

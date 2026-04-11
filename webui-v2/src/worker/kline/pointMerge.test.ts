@@ -25,11 +25,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([
-      point(1_000, 10),
-      point(2_000, 25),
-      point(3_000, 30),
-    ])
+    expect(merged).toEqual([point(1_000, 10), point(2_000, 25), point(3_000, 30)])
   })
 
   test('prevents zero-volume fetch candles from overwriting non-zero live candles', () => {
@@ -39,9 +35,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([
-      { ...point(2_000, 25), base_volume: 7, quote_volume: 14 },
-    ])
+    expect(merged).toEqual([{ ...point(2_000, 25), base_volume: 7, quote_volume: 14 }])
   })
 
   test('allows non-zero fetch candles to overwrite zero-volume placeholders', () => {
@@ -51,9 +45,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([
-      { ...point(2_000, 26), base_volume: 7, quote_volume: 14 },
-    ])
+    expect(merged).toEqual([{ ...point(2_000, 26), base_volume: 7, quote_volume: 14 }])
   })
 
   test('prevents non-final fetch candles from overwriting final candles', () => {
@@ -63,9 +55,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([
-      finalPoint(2_000, 25),
-    ])
+    expect(merged).toEqual([finalPoint(2_000, 25)])
   })
 
   test('allows final fetch candles to overwrite non-final candles', () => {
@@ -75,9 +65,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([
-      finalPoint(2_000, 26),
-    ])
+    expect(merged).toEqual([finalPoint(2_000, 26)])
   })
 
   test('prevents late cache load results from overwriting existing overlapping points', () => {
@@ -87,11 +75,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Load' },
     })
 
-    expect(merged).toEqual([
-      point(1_000, 10),
-      point(2_000, 25),
-      point(3_000, 30),
-    ])
+    expect(merged).toEqual([point(1_000, 10), point(2_000, 25), point(3_000, 30)])
   })
 
   test('preserves zero-volume flat candles to keep financial time continuity', () => {

@@ -668,7 +668,9 @@ async fn message_initialize_liquidity_duplicate_fails_without_double_transfer() 
 async fn operation_transfer_to_caller_returns_fail_on_insufficient_balance() {
     let mut meme = create_and_instantiate_meme(false, None).await;
     let chain_id = meme.runtime.borrow_mut().chain_id();
-    meme.runtime.borrow_mut().set_message_origin_chain_id(chain_id);
+    meme.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(chain_id);
 
     let signer = Account {
         chain_id,
@@ -741,8 +743,14 @@ async fn message_redeem_none_redeems_full_balance_to_owner_account() {
     })
     .await;
 
-    assert_eq!(meme.state.borrow().balance_of(creator_owner).await, Amount::ZERO);
-    assert_eq!(meme.state.borrow().balance_of(remote_owner).await, creator_balance);
+    assert_eq!(
+        meme.state.borrow().balance_of(creator_owner).await,
+        Amount::ZERO
+    );
+    assert_eq!(
+        meme.state.borrow().balance_of(remote_owner).await,
+        creator_balance
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

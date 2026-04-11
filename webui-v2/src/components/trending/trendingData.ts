@@ -37,8 +37,7 @@ const parseNumber = (value: string | number | null | undefined): number => {
 const calculatePrice = (application: Application, pool?: Pool): number => {
   if (!pool) return 0
 
-  const rawPrice =
-    application.applicationId === pool.token0 ? pool.token0Price : pool.token1Price
+  const rawPrice = application.applicationId === pool.token0 ? pool.token0Price : pool.token1Price
 
   return parseNumber(rawPrice)
 }
@@ -99,7 +98,8 @@ const formatAge = (createdAt: number, nowMs: number): string => {
 const sortEntries = (entries: TrendingTokenEntry[], kind: TrendingKind): TrendingTokenEntry[] => {
   if (kind === 'gainers') {
     return [...entries].sort((left, right) => {
-      if (right.changePercent !== left.changePercent) return right.changePercent - left.changePercent
+      if (right.changePercent !== left.changePercent)
+        return right.changePercent - left.changePercent
       if (right.volume !== left.volume) return right.volume - left.volume
       return right.application.createdAt - left.application.createdAt
     })
@@ -108,12 +108,15 @@ const sortEntries = (entries: TrendingTokenEntry[], kind: TrendingKind): Trendin
   if (kind === 'volume') {
     return [...entries].sort((left, right) => {
       if (right.volume !== left.volume) return right.volume - left.volume
-      if (right.changePercent !== left.changePercent) return right.changePercent - left.changePercent
+      if (right.changePercent !== left.changePercent)
+        return right.changePercent - left.changePercent
       return right.application.createdAt - left.application.createdAt
     })
   }
 
-  return [...entries].sort((left, right) => right.application.createdAt - left.application.createdAt)
+  return [...entries].sort(
+    (left, right) => right.application.createdAt - left.application.createdAt,
+  )
 }
 
 const toBulletinItem = (

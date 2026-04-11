@@ -35,6 +35,6 @@ export const resolveVisibleRangeLoadDecision = ({
   return {
     loadOld: reachesStart,
     loadNew: reachesEnd,
-    loadOrder: reachesStart ? ['old'] : (reachesEnd ? ['new'] : []),
+    loadOrder: reachesStart ? ['old'] : reachesEnd ? ['new'] : [],
   }
 }

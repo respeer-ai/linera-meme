@@ -122,14 +122,13 @@ async fn message_set_fee_to_setter_rotates_operator_and_invalidates_old_operator
     .await;
     assert_eq!(pool.state.borrow().pool().fee_to_setter, new_operator);
 
-    let old_operator_attempt = std::panic::AssertUnwindSafe(
-        pool.execute_message(PoolMessage::SetFeeTo {
+    let old_operator_attempt =
+        std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::SetFeeTo {
             operator: old_operator,
             account: target_fee_to,
-        }),
-    )
-    .catch_unwind()
-    .await;
+        }))
+        .catch_unwind()
+        .await;
     assert!(old_operator_attempt.is_err());
 
     pool.execute_message(PoolMessage::SetFeeTo {
@@ -409,9 +408,15 @@ async fn message_add_liquidity() {
         .await
         .unwrap();
     assert_eq!(transactions.len(), 1);
-    assert_eq!(transactions[0].transaction_type, TransactionType::AddLiquidity);
+    assert_eq!(
+        transactions[0].transaction_type,
+        TransactionType::AddLiquidity
+    );
     assert_eq!(transactions[0].from, owner);
-    assert_eq!(transactions[0].liquidity, Some(Amount::from_str("0.1").unwrap()));
+    assert_eq!(
+        transactions[0].liquidity,
+        Some(Amount::from_str("0.1").unwrap())
+    );
 
     let (amount_0_out, amount_1_out) = pool
         .state
@@ -456,7 +461,10 @@ async fn message_add_liquidity() {
         .await
         .unwrap();
     assert_eq!(transactions.len(), 2);
-    assert_eq!(transactions[1].transaction_type, TransactionType::RemoveLiquidity);
+    assert_eq!(
+        transactions[1].transaction_type,
+        TransactionType::RemoveLiquidity
+    );
     assert_eq!(transactions[1].from, owner);
     assert_eq!(
         transactions[1].liquidity,
@@ -597,7 +605,10 @@ async fn add_liquidity_fund_second_leg_fail_does_not_close_flow() {
     assert_eq!(fund_request_0.status, FundStatus::Success);
     assert_eq!(fund_request_1.status, FundStatus::Fail);
     assert_eq!(fund_request_1.error, Some("second leg failed".to_string()));
-    assert_eq!(pool.state.borrow().liquidity(owner).await.unwrap(), Amount::ZERO);
+    assert_eq!(
+        pool.state.borrow().liquidity(owner).await.unwrap(),
+        Amount::ZERO
+    );
     assert_eq!(
         pool.state
             .borrow()
@@ -655,7 +666,10 @@ async fn add_liquidity_fund_success_only_queues_follow_up_message() {
     let fund_request_1 = pool.state.borrow().fund_request(1001).await.unwrap();
     assert_eq!(fund_request_0.status, FundStatus::Success);
     assert_eq!(fund_request_1.status, FundStatus::Success);
-    assert_eq!(pool.state.borrow().liquidity(owner).await.unwrap(), Amount::ZERO);
+    assert_eq!(
+        pool.state.borrow().liquidity(owner).await.unwrap(),
+        Amount::ZERO
+    );
     assert_eq!(
         pool.state
             .borrow()

@@ -151,7 +151,13 @@ async fn msg_deregister_miner_rejects_wrong_chain_for_registered_owner() {
 
     assert!(result.is_err());
     assert_eq!(
-        proxy.state.borrow().miners.contains_key(&registered).await.unwrap(),
+        proxy
+            .state
+            .borrow()
+            .miners
+            .contains_key(&registered)
+            .await
+            .unwrap(),
         true
     );
 }
@@ -191,7 +197,13 @@ async fn msg_deregister_miner_rejects_other_owner_without_touching_registered_mi
 
     assert!(result.is_err());
     assert_eq!(
-        proxy.state.borrow().miners.contains_key(&registered).await.unwrap(),
+        proxy
+            .state
+            .borrow()
+            .miners
+            .contains_key(&registered)
+            .await
+            .unwrap(),
         true
     );
 }
@@ -358,7 +370,13 @@ async fn msg_propose_ban_operator_records_first_vote_but_keeps_target_active() {
     assert_eq!(approval.voted(operator_1), true);
     assert_eq!(approval.approved(), false);
     assert_eq!(
-        proxy.state.borrow().operators.contains_key(&operator_2).await.unwrap(),
+        proxy
+            .state
+            .borrow()
+            .operators
+            .contains_key(&operator_2)
+            .await
+            .unwrap(),
         true
     );
 }
@@ -394,11 +412,18 @@ async fn msg_approve_ban_operator_second_vote_removes_operator() {
         .await;
 
     assert_eq!(
-        proxy.state.borrow().operators.contains_key(&operator_2).await.unwrap(),
+        proxy
+            .state
+            .borrow()
+            .operators
+            .contains_key(&operator_2)
+            .await
+            .unwrap(),
         false
     );
     assert_eq!(
-        proxy.state
+        proxy
+            .state
             .borrow()
             .banning_operators
             .contains_key(&operator_2)
@@ -426,10 +451,9 @@ async fn msg_create_meme_ext_rejects_creator_chain_execution() {
 #[tokio::test(flavor = "multi_thread")]
 async fn msg_meme_created_sets_chain_token_for_existing_chain() {
     let mut proxy = create_and_instantiate_proxy();
-    let chain_id = ChainId::from_str(
-        "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
-    )
-    .unwrap();
+    let chain_id =
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
+            .unwrap();
     let token =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
             .unwrap();
@@ -461,10 +485,9 @@ async fn msg_meme_created_sets_chain_token_for_existing_chain() {
 #[tokio::test(flavor = "multi_thread")]
 async fn msg_meme_created_ignores_unknown_chain_receipt() {
     let mut proxy = create_and_instantiate_proxy();
-    let chain_id = ChainId::from_str(
-        "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
-    )
-    .unwrap();
+    let chain_id =
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
+            .unwrap();
     let token =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
             .unwrap();
@@ -474,7 +497,13 @@ async fn msg_meme_created_ignores_unknown_chain_receipt() {
         .await;
 
     assert_eq!(
-        proxy.state.borrow().chains.contains_key(&chain_id).await.unwrap(),
+        proxy
+            .state
+            .borrow()
+            .chains
+            .contains_key(&chain_id)
+            .await
+            .unwrap(),
         false
     );
 }
@@ -482,10 +511,9 @@ async fn msg_meme_created_ignores_unknown_chain_receipt() {
 #[tokio::test(flavor = "multi_thread")]
 async fn msg_meme_created_is_idempotent_for_same_receipt() {
     let mut proxy = create_and_instantiate_proxy();
-    let chain_id = ChainId::from_str(
-        "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
-    )
-    .unwrap();
+    let chain_id =
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
+            .unwrap();
     let token =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
             .unwrap();

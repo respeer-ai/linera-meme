@@ -300,7 +300,10 @@ impl TestSuite {
             .pool_chain
             .clone()
             .unwrap()
-            .graphql_query(self.pool_application_id.unwrap(), "query { latestTransactions }")
+            .graphql_query(
+                self.pool_application_id.unwrap(),
+                "query { latestTransactions }",
+            )
             .await;
         serde_json::from_value(response["latestTransactions"].clone()).unwrap()
     }
@@ -534,7 +537,10 @@ async fn meme_native_virtual_initial_liquidity_test() {
     let add_liquidity = latest_transactions
         .last()
         .expect("add liquidity should create a transaction record");
-    assert_eq!(add_liquidity.transaction_type, TransactionType::AddLiquidity);
+    assert_eq!(
+        add_liquidity.transaction_type,
+        TransactionType::AddLiquidity
+    );
     assert_eq!(add_liquidity.from, suite.chain_owner_account(user_chain));
     assert!(add_liquidity.liquidity.is_some());
 
@@ -597,14 +603,15 @@ async fn meme_native_virtual_initial_liquidity_test() {
 
     let removed_liquidity = Amount::from_tokens(5);
     assert!(liquidity.liquidity > removed_liquidity);
-    suite
-        .remove_liquidity(&user_chain, removed_liquidity)
-        .await;
+    suite.remove_liquidity(&user_chain, removed_liquidity).await;
     let latest_transactions = suite.latest_transactions().await;
     let remove_liquidity = latest_transactions
         .last()
         .expect("remove liquidity should create a transaction record");
-    assert_eq!(remove_liquidity.transaction_type, TransactionType::RemoveLiquidity);
+    assert_eq!(
+        remove_liquidity.transaction_type,
+        TransactionType::RemoveLiquidity
+    );
     assert_eq!(remove_liquidity.from, suite.chain_owner_account(user_chain));
     assert_eq!(remove_liquidity.liquidity, Some(removed_liquidity));
 }

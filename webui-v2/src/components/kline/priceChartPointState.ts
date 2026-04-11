@@ -49,19 +49,20 @@ export const mergeSortedPointsIntoChartState = ({
   return [...merged.values()].sort((left, right) => left.time - right.time)
 }
 
-const chartPointEquals = (left: KLineData, right: KLineData): boolean => (
+const chartPointEquals = (left: KLineData, right: KLineData): boolean =>
   left.time === right.time &&
   left.open === right.open &&
   left.high === right.high &&
   left.low === right.low &&
   left.close === right.close &&
   left.volume === right.volume
-)
 
 export const chartStateChanged = (currentPoints: KLineData[], nextPoints: KLineData[]): boolean => {
   if (currentPoints.length !== nextPoints.length) return true
 
-  return currentPoints.some((point, index) => !chartPointEquals(point, nextPoints[index] as KLineData))
+  return currentPoints.some(
+    (point, index) => !chartPointEquals(point, nextPoints[index] as KLineData),
+  )
 }
 
 export const selectLivePointsForChartState = ({
@@ -78,10 +79,9 @@ export const selectLivePointsForChartState = ({
   const thresholdTimestamp = maxTimestamp - liveOverlayWindowMs
 
   return latestPoints
-    .filter((point) => (
-      point.timestamp >= thresholdTimestamp ||
-      currentTimestamps.has(point.timestamp)
-    ))
+    .filter(
+      (point) => point.timestamp >= thresholdTimestamp || currentTimestamps.has(point.timestamp),
+    )
     .filter((point) => {
       const currentPoint = currentPoints.find((current) => current.time * 1000 === point.timestamp)
       if (!currentPoint) return true

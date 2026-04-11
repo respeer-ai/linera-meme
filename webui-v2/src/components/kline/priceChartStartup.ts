@@ -164,9 +164,7 @@ export const shouldScheduleBackgroundHistoryBackfill = ({
   minPointTimestamp,
   poolCreatedAt,
 }: BackgroundHistoryScheduleInput): boolean =>
-  firstScreenReady &&
-  !backgroundHistoryQueued &&
-  minPointTimestamp > poolCreatedAt
+  firstScreenReady && !backgroundHistoryQueued && minPointTimestamp > poolCreatedAt
 
 export const resolveBackgroundHistoryStatus = ({
   firstScreenReady,
@@ -192,14 +190,10 @@ export const shouldRestartKlineOnSelectedPoolChange = ({
   nextPoolId: number | undefined
   previousPoolApplication: string | undefined
   nextPoolApplication: string | undefined
-}) => (
+}) =>
   nextPoolId !== undefined &&
   nextPoolApplication !== undefined &&
-  (
-    previousPoolId !== nextPoolId ||
-    previousPoolApplication !== nextPoolApplication
-  )
-)
+  (previousPoolId !== nextPoolId || previousPoolApplication !== nextPoolApplication)
 
 type NextFetchDecisionInput = {
   reverse: boolean
@@ -236,10 +230,7 @@ export const resolveFetchSortDecision = ({
   },
 })
 
-export const resolveLoadRange = ({
-  timestampBegin,
-  timestampEnd,
-}: LoadRangeInput): LoadRange => ({
+export const resolveLoadRange = ({ timestampBegin, timestampEnd }: LoadRangeInput): LoadRange => ({
   timestampBegin,
   timestampEnd,
 })

@@ -1,8 +1,7 @@
 import type { KlinePoint } from 'src/model/db/model'
 
-const isFiniteNumber = (value: unknown): value is number => (
+const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
-)
 
 export const isCompatibleKlinePoint = (
   point: Partial<KlinePoint> | undefined | null,
