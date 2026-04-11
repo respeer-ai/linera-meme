@@ -51,6 +51,26 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'positions',
+        component: () => import('pages/PositionsPage.vue'),
+        meta: {
+          NeedLogined: false,
+          seo: {
+            title: 'Positions | MicroMeme',
+            description:
+              'Review liquidity positions, unclaimed fees, and reward exposure across meme pools on MicroMeme.',
+            path: '/positions',
+            keywords: [
+              'MicroMeme',
+              'Positions',
+              'Liquidity positions',
+              'Unclaimed fees',
+              'Rewards',
+            ],
+          },
+        },
+      },
+      {
         path: 'trending',
         component: () => import('pages/TrendingPage.vue'),
         meta: {
