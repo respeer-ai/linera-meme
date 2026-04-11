@@ -1,0 +1,188 @@
+version: 1
+entry:
+  readme: agents/README.md
+required_read_order:
+  - agents/index.yaml
+  - agents/context/project-rules.md
+  - agents/context/doc-standard.md
+  - agents/tasks/board.yaml
+task_source:
+  primary: agents/tasks/board.yaml
+rules_source:
+  primary: agents/context/project-rules.md
+assistant_doc_roots:
+  - agents/
+  - docker/AGENTS.md
+local_scope_rule:
+  instruction: Before editing a directory, check for the nearest AGENTS.md in that directory or its parents.
+decision_map:
+  ownership_bug:
+    read_first:
+      - agents/primitives/identity-and-origin.md
+      - agents/primitives/cross-chain.md
+      - agents/runbooks/bug-investigation.md
+  chart_discrepancy:
+    read_first:
+      - agents/primitives/data-sources.md
+      - agents/context/current-capabilities.md
+      - agents/runbooks/bug-investigation.md
+  positions_bug:
+    read_first:
+      - agents/primitives/liquidity-and-funds.md
+      - agents/primitives/identity-and-origin.md
+      - agents/context/current-capabilities.md
+      - agents/runbooks/bug-investigation.md
+  deployment_issue:
+    read_first:
+      - agents/primitives/service-routing.md
+      - agents/runbooks/local-deployment.md
+      - docker/AGENTS.md
+  funds_consistency_issue:
+    read_first:
+      - agents/primitives/liquidity-and-funds.md
+      - agents/primitives/cross-chain.md
+      - agents/runbooks/bug-investigation.md
+  async_contract_issue:
+    read_first:
+      - agents/primitives/cross-chain.md
+      - agents/primitives/identity-and-origin.md
+      - agents/runbooks/bug-investigation.md
+  testing_task:
+    read_first:
+      - agents/runbooks/testing.md
+      - agents/context/project-rules.md
+      - agents/tasks/board.yaml
+navigation:
+  context:
+    - path: agents/context/doc-standard.md
+      canonical_for:
+        - assistant_doc_format
+        - assistant_doc_update_rules
+      when_to_read:
+        - creating new assistant docs
+        - restructuring existing assistant docs
+        - deciding yaml vs md
+    - path: agents/context/system-map.md
+      canonical_for:
+        - module_map
+        - runtime_topology
+        - high_level_architecture
+      when_to_read:
+        - entering unfamiliar subsystem
+        - tracing cross-module behavior
+        - mapping ownership boundaries
+    - path: agents/context/current-capabilities.md
+      canonical_for:
+        - currently_implemented_positions_behavior
+        - currently_implemented_kline_behavior
+        - recent_confirmed_findings
+      when_to_read:
+        - checking whether a feature already exists
+        - validating assumptions against recent findings
+  primitives:
+    - path: agents/primitives/cross-chain.md
+      canonical_for:
+        - operation_message_semantics
+        - replica_semantics
+        - add_liquidity_async_flow
+      when_to_read:
+        - debugging async contract behavior
+        - reviewing message-driven flows
+        - reasoning about wrong-chain state
+    - path: agents/primitives/identity-and-origin.md
+      canonical_for:
+        - authenticated_actor_binding
+        - origin_semantics
+        - ownership_trace_rules
+      when_to_read:
+        - debugging claim/redeem/ownership issues
+        - reviewing actor identity usage
+        - verifying transaction actor persistence
+    - path: agents/primitives/liquidity-and-funds.md
+      canonical_for:
+        - lp_share_semantics
+        - position_status_semantics
+        - fund_consistency_review_targets
+      when_to_read:
+        - debugging positions
+        - reviewing liquidity accounting
+        - reviewing refund/payout safety
+    - path: agents/primitives/data-sources.md
+      canonical_for:
+        - truth_hierarchy
+        - kline_data_source_rules
+        - candle_storage_rules
+      when_to_read:
+        - debugging chart discrepancies
+        - deciding whether bug is upstream or frontend
+        - reasoning about service/kline correctness
+    - path: agents/primitives/service-routing.md
+      canonical_for:
+        - query_mutation_split
+        - shared_query_service_rules
+        - public_route_shape
+      when_to_read:
+        - modifying API call sites
+        - changing ingress or local deployment wiring
+        - debugging query-service behavior
+  runbooks:
+    - path: agents/runbooks/bug-investigation.md
+      canonical_for:
+        - bug_investigation_flow
+      when_to_read:
+        - starting any bug fix
+      inputs:
+        - bug report or failing behavior
+        - code path
+        - runtime evidence
+      outputs:
+        - root cause
+        - fix or explicit blocker
+        - regression tests
+      stop_conditions:
+        - root cause proven and fixed
+        - unresolved external blocker identified
+    - path: agents/runbooks/local-deployment.md
+      canonical_for:
+        - local_deployment_flow
+      when_to_read:
+        - changing docker compose deployment
+        - debugging local environment startup
+      inputs:
+        - desired local deployment change
+        - docker compose files
+        - wallet/query routing requirements
+      outputs:
+        - corrected local deployment flow
+        - validated startup order
+      stop_conditions:
+        - startup path corrected and validated
+        - unresolved external environment blocker identified
+    - path: agents/runbooks/testing.md
+      canonical_for:
+        - testing_expectations
+      when_to_read:
+        - adding tests
+        - validating a fix
+      inputs:
+        - code change
+        - target validation scope
+      outputs:
+        - passing targeted tests
+        - regression coverage or explicit verification gap
+      stop_conditions:
+        - required tests executed
+        - verification blocker identified explicitly
+  tasks:
+    - path: agents/tasks/board.yaml
+      canonical_for:
+        - live_task_status
+        - task_priority
+        - task_dependencies
+      when_to_read:
+        - selecting next task
+        - updating task status
+        - checking dependencies
+generated:
+  directory: agents/generated/
+  rule: Never store hand-maintained truth here.

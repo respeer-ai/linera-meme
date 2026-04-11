@@ -41,15 +41,19 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
-function get_application_id() {
+function get_domain_value() {
     application=$1
     sed ':a;N;s/=\n/=/;ta;P;D'  ../webui-v2/src/constant/domain.ts | grep $application | awk '{ print $NF }'
 }
 
-BLOB_GATEWAY_APPLICATION_ID=$(get_application_id BLOB_GATEWAY_APPLICATION_ID)
-AMS_APPLICATION_ID=$(get_application_id AMS_APPLICATION_ID)
-SWAP_APPLICATION_ID=$(get_application_id SWAP_APPLICATION_ID)
-PROXY_APPLICATION_ID=$(get_application_id PROXY_APPLICATION_ID)
+BLOB_GATEWAY_CHAIN_ID=$(get_domain_value BLOB_GATEWAY_CHAIN_ID)
+BLOB_GATEWAY_APPLICATION_ID=$(get_domain_value BLOB_GATEWAY_APPLICATION_ID)
+AMS_CHAIN_ID=$(get_domain_value AMS_CHAIN_ID)
+AMS_APPLICATION_ID=$(get_domain_value AMS_APPLICATION_ID)
+SWAP_CHAIN_ID=$(get_domain_value SWAP_CHAIN_ID)
+SWAP_APPLICATION_ID=$(get_domain_value SWAP_APPLICATION_ID)
+PROXY_CHAIN_ID=$(get_domain_value PROXY_CHAIN_ID)
+PROXY_APPLICATION_ID=$(get_domain_value PROXY_APPLICATION_ID)
 
 SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
 DATABASE_NAME=linera_swap_kline
@@ -79,6 +83,14 @@ function wallet_chain_id() {
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
            | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
+}
+
+function stop_chains() {
+    LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml down
+}
+
+function start_chains() {
+    LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
 }
 
 function build_linera_respeer() {
@@ -112,13 +124,52 @@ if [ "x$COMPILE" = "x1" ]; then
     build_funder
 fi
 
-function restart_chains() {
-    LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml down
-    LINERA_IMAGE=linera-respeer docker compose -f config/docker-compose.yml up --wait
-}
-
 function restart_kline() {
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml down
+    MAKER_OWNER=$(wallet_owner maker 0)
+    MAKER_CHAIN_ID=$(wallet_chain_id maker 0)
+    BLOB_GATEWAY_OWNER=$(wallet_owner blob-gateway 0)
+    AMS_OWNER=$(wallet_owner ams 0)
+    PROXY_OWNER=$(wallet_owner proxy 0)
+    SWAP_OWNER=$(wallet_owner swap 0)
+
+    cp -v $ROOT_DIR/docker/docker-compose-query.yml $DOCKER_DIR
+    LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml down
+    LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml up --wait
+
+    function import_query_chain() {
+        owner=$1
+        chain_id=$2
+        label=$3
+
+        payload=$(jq -cn \
+            --arg owner "$owner" \
+            --arg chainId "$chain_id" \
+            '{query:"mutation ImportChain($owner: AccountOwner!, $chainId: ChainId!) { importChain(owner: $owner, chainId: $chainId) }", variables:{owner:$owner, chainId:$chainId}}')
+        verify_payload='{"query":"query Chains { chains { list } }"}'
+
+        for _ in $(seq 1 20); do
+            resp=$(curl -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
+            verify=$(curl -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
+            if echo "$verify" | grep -q "$chain_id"; then
+                echo "Imported $label chain $chain_id to query-service"
+                return 0
+            fi
+            sleep 2
+        done
+
+        echo "Failed import $label chain $chain_id to query-service"
+        echo "$resp"
+        echo "$verify"
+        exit 1
+    }
+
+    import_query_chain "$BLOB_GATEWAY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
+    import_query_chain "$AMS_OWNER" "$AMS_CHAIN_ID" ams
+    import_query_chain "$PROXY_OWNER" "$PROXY_CHAIN_ID" proxy
+    import_query_chain "$SWAP_OWNER" "$SWAP_CHAIN_ID" swap
+
+    start_chains
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
 
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
@@ -128,10 +179,10 @@ function restart_kline() {
       SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
 
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
       SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml down
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
       SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
@@ -142,10 +193,11 @@ function restart_funder() {
     docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml down
     LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
     PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    MAKER_WALLET_CHAIN_ID=$MAKER_CHAIN_ID \
     docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
 
 cd $OUTPUT_DIR
-restart_chains
+stop_chains
 restart_kline
 restart_funder

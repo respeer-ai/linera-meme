@@ -5,6 +5,6 @@ For coding assistants, project-specific instructions live under [`agents/`](./ag
 Start here:
 
 - [`agents/README.md`](./agents/README.md)
-- [`agents/PROJECT_RULES.md`](./agents/PROJECT_RULES.md)
-- [`agents/PROJECT_FACTS.md`](./agents/PROJECT_FACTS.md)
-- [`agents/PROJECT_TASK_BOARD.md`](./agents/PROJECT_TASK_BOARD.md)
+- [`agents/index.yaml`](./agents/index.yaml)
+- [`agents/context/project-rules.md`](./agents/context/project-rules.md)
+- [`agents/tasks/board.yaml`](./agents/tasks/board.yaml)

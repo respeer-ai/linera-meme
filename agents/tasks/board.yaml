@@ -1,0 +1,255 @@
+version: 1
+type: task-board
+authority: high
+status_legend:
+  Todo: not started
+  Doing: in progress
+  Done: completed
+  Blocked: waiting on dependency or confirmation
+groups:
+  - name: Positions
+    tasks:
+      - id: POS-001
+        status: Done
+        priority: P2
+        depends_on: []
+        title: Positions tab / route
+        notes: 页面入口已存在
+      - id: POS-002
+        status: Done
+        priority: P2
+        depends_on: [POS-001]
+        title: Positions 原型页
+        notes: 当前为静态原型页
+      - id: POS-003
+        status: Done
+        priority: P2
+        depends_on: [POS-002]
+        title: V2 文案语义校正
+        notes: 已去掉 V3 风格 `in range / rewards / incentives`
+      - id: POS-004
+        status: Done
+        priority: P2
+        depends_on: [POS-002]
+        title: Status UI 改成 All / Active / Closed
+        notes: 当前仅 UI 尚未接真实数据
+      - id: POS-005
+        status: Todo
+        priority: P2
+        depends_on: []
+        title: 明确 opened_at 定义
+        notes: 取首次 add 还是最近一轮 reopen 时间
+      - id: POS-006
+        status: Todo
+        priority: P2
+        depends_on: [POS-005]
+        title: 明确 current_liquidity 与 LMM 展示关系
+        notes: 是否直接用作顶部 share 数值
+      - id: POS-007
+        status: Done
+        priority: P1
+        depends_on: []
+        title: service/kline 实现 get_positions(owner status)
+        notes: 已完成 owner 维度 positions 聚合查询
+      - id: POS-008
+        status: Done
+        priority: P1
+        depends_on: [POS-007]
+        title: service/kline 暴露 GET /positions
+        notes: 已完成统一查询接口
+      - id: POS-009
+        status: Done
+        priority: P1
+        depends_on: [POS-007]
+        title: 为 positions 聚合补 DB 单测
+        notes: 已覆盖 active closed 多池 多用户 非法状态
+      - id: POS-010
+        status: Done
+        priority: P1
+        depends_on: [POS-008]
+        title: 为 /positions 补接口测试
+        notes: 已覆盖 owner status 非法参数
+      - id: POS-011
+        status: Done
+        priority: P1
+        depends_on: [POS-008]
+        title: 前端新增 positions store/types/wrapper
+        notes: 已新增独立 positions 数据层
+      - id: POS-012
+        status: Done
+        priority: P1
+        depends_on: [POS-011]
+        title: Positions 页接钱包 owner
+        notes: 已按当前钱包 owner 拉取 positions
+      - id: POS-013
+        status: Done
+        priority: P1
+        depends_on: [POS-008, POS-011, POS-012]
+        title: Positions 页接 /positions
+        notes: 已拉取真实 active / closed 数据
+      - id: POS-014
+        status: Done
+        priority: P1
+        depends_on: [POS-013]
+        title: 实现 Status 筛选联动接口
+        notes: 已支持 all active closed 查询切换
+      - id: POS-015
+        status: Done
+        priority: P1
+        depends_on: [POS-013]
+        title: 实现真实列表渲染
+        notes: 已用真实 position card 替换纯空态原型
+      - id: POS-016
+        status: Done
+        priority: P2
+        depends_on: [POS-015]
+        title: 空态区分未连接钱包与无持仓
+        notes: 已区分钱包未连接 无 active 无 closed
+      - id: POS-017
+        status: Done
+        priority: P2
+        depends_on: [POS-015]
+        title: 设计 active position card
+        notes: 已展示 pool token share opened activity 信息
+      - id: POS-018
+        status: Done
+        priority: P1
+        depends_on: [POS-015]
+        title: 接 Manage / Remove liquidity 入口
+        notes: 已支持从 active position 进入 remove/manage 页面
+      - id: POS-019
+        status: Blocked
+        priority: P0
+        depends_on: []
+        title: 核验 from_account 是否稳定代表 LP owner
+        notes: 依赖后端交易写库语义确认
+      - id: POS-020
+        status: Blocked
+        priority: P0
+        depends_on: []
+        title: 核验 liquidity 字段是否可直接净额相减
+        notes: 依赖后端字段单位和精度确认
+  - name: Contract Tests
+    tasks:
+      - id: TEST-001
+        status: Done
+        priority: P1
+        depends_on: []
+        title: pool SetFeeTo / SetFeeToSetter 权限测试
+        notes: 已覆盖 operator 正常路径 旧 operator 失效 非 operator 拒绝
+      - id: TEST-002
+        status: Done
+        priority: P1
+        depends_on: []
+        title: pool RemoveLiquidity 集成级历史断言
+        notes: 已覆盖 meme-native meme-meme 要求 latestTransactions 出现 RemoveLiquidity
+      - id: TEST-003
+        status: Done
+        priority: P1
+        depends_on: []
+        title: pool min amount 边界测试
+        notes: 已覆盖 Swap AddLiquidity RemoveLiquidity 刚好满足 差1attos 不满足
+      - id: TEST-004
+        status: Done
+        priority: P0
+        depends_on: []
+        title: pool fund 异步闭环异常测试
+        notes: 已覆盖第一笔成功第二笔失败 两笔成功但最终 AddLiquidity/NewTransaction 未闭环
+      - id: TEST-005
+        status: Done
+        priority: P1
+        depends_on: []
+        title: pool NewTransaction 幂等与 5000 条队列边界测试
+        notes: 已覆盖重复 message 4999/5000/5001 截断保序
+      - id: TEST-006
+        status: Done
+        priority: P0
+        depends_on: []
+        title: swap UpdatePool 幂等/乱序测试
+        notes: 已覆盖重复 transaction 旧 transaction 覆盖新状态 reserve/price 不回退
+      - id: TEST-007
+        status: Done
+        priority: P1
+        depends_on: []
+        title: swap CreatePool / CreateUserPool / UserPoolCreated / PoolCreated 边界测试
+        notes: 已覆盖重复建池 同 token 建池 错链回执 重复回执
+      - id: TEST-008
+        status: Done
+        priority: P2
+        depends_on: []
+        title: proxy genesis miner remove 全链路测试
+        notes: 已在多链集成层覆盖两阶段移除闭环
+      - id: TEST-009
+        status: Done
+        priority: P2
+        depends_on: []
+        title: proxy miner register/deregister 边界测试
+        notes: 已覆盖重复注册 未注册注销 跨 owner 错链 并修正静默 no-op 掩盖非法输入
+      - id: TEST-010
+        status: Done
+        priority: P2
+        depends_on: []
+        title: proxy operator 治理测试
+        notes: 已覆盖 AddOperator/BanOperator 两阶段治理 并修正 operator 校验与 ban 审批状态写回
+      - id: TEST-011
+        status: Done
+        priority: P2
+        depends_on: [TEST-010]
+        title: proxy CreateMemeExt / MemeCreated 异步幂等测试
+        notes: 已覆盖重复回执 错链回执 创建成功后状态写入 并修正 receipt 幂等处理
+      - id: TEST-012
+        status: Done
+        priority: P1
+        depends_on: []
+        title: meme TransferFromApplication / InitializeLiquidity / TransferToCaller 权限测试
+        notes: 已覆盖缺失 authenticated caller 错误 caller 重复初始化 余额边界
+      - id: TEST-013
+        status: Done
+        priority: P1
+        depends_on: []
+        title: meme Mint / Redeem 边界测试
+        notes: 已覆盖 Mint 非 owner signer 拒绝 Redeem(None) Redeem(Some(0)) 超额赎回
+      - id: TEST-014
+        status: Done
+        priority: P2
+        depends_on: []
+        title: ams contract/integration 基础测试
+        notes: 已覆盖 Register Claim AddApplicationType Update 正常 重复 权限 非法类型 并恢复 Claim 为 origin/runtime 当前发起者语义
+      - id: TEST-015
+        status: Done
+        priority: P2
+        depends_on: []
+        title: blob-gateway contract/integration 基础测试
+        notes: 已覆盖 Register operation 发消息 message 落库 重复 hash 幂等且保留首条 metadata
+      - id: REV-001
+        status: Done
+        priority: P2
+        depends_on: []
+        title: Review 当前资金闭环与退款一致性风险
+        notes: 已确认 3 类高风险缺口 AddLiquidity 双腿部分成功后失败无退款 pool payout/refund 吞掉 MemeResponse::Fail 初始建池路径吞掉下游失败仍持久化成功
+  - name: Funds Consistency
+    tasks:
+      - id: FUNDS-001
+        status: Todo
+        priority: P0
+        depends_on: [REV-001]
+        title: 修复 AddLiquidity 双腿部分成功后的退款缺失
+        notes: 第一腿 FundSuccess 后第二腿 FundFail 只记失败 未退回第一腿资金
+      - id: FUNDS-002
+        status: Todo
+        priority: P0
+        depends_on: [REV-001]
+        title: 修复 pool payout / refund 对 MemeResponse::Fail 的静默吞错
+        notes: 涉及 swap 输出发放 swap refund add-liquidity excess refund remove-liquidity payout
+      - id: FUNDS-003
+        status: Todo
+        priority: P0
+        depends_on: [REV-001]
+        title: 修复初始建池链路的伪成功持久化
+        notes: PoolCreated / LiquidityFunded 等路径忽略下游 call 结果 可能出现 pool 已登记但初始资金或初始化未完成
+      - id: FUNDS-004
+        status: Todo
+        priority: P1
+        depends_on: [REV-001]
+        title: 为资金闭环补集成测试
+        notes: 覆盖部分成功退款 输出发放失败 初始建池下游失败后的状态一致性

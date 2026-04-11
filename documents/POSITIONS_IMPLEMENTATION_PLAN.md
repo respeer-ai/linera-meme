@@ -4,7 +4,7 @@
 >
 > This document is a feature plan and design note.
 > It is not the task board.
-> Live task tracking is maintained in `agents/PROJECT_TASK_BOARD.md`.
+> Live task tracking is maintained in `agents/tasks/board.yaml`.
 
 ## Background
 

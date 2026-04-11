@@ -1,0 +1,13 @@
+services:
+  query-service:
+    image: "${LINERA_IMAGE:-linera}"
+    container_name: query-service
+    ports:
+      - "24080:30080"
+      - "24082:30082"
+    command: [ "./rpc-entrypoint.sh" ]
+    volumes:
+      - ../wallet/query/0:/wallet
+    environment:
+      RUST_LOG: info
+    restart: always

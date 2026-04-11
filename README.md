@@ -75,7 +75,9 @@ Assistant-facing project instructions and the only task board live under [agents
 
 - [AGENTS.md](AGENTS.md)
 - [agents/README.md](agents/README.md)
-- [agents/PROJECT_TASK_BOARD.md](agents/PROJECT_TASK_BOARD.md)
+- [agents/index.yaml](agents/index.yaml)
+- [agents/context/project-rules.md](agents/context/project-rules.md)
+- [agents/tasks/board.yaml](agents/tasks/board.yaml)
 
 ## Product Layers
 

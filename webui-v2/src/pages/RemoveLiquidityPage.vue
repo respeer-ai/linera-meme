@@ -102,7 +102,7 @@ import { type LiquidityAmount } from 'src/stores/pool'
 import { NotifyType } from 'src/stores/notify'
 import { Wallet } from 'src/wallet'
 import ConnectWalletView from 'src/components/wallet/ConnectWalletView.vue'
-import { buildAddLiquidityRoute, resolveRoutePoolPair } from 'src/components/pools/poolFlow'
+import { resolveRoutePoolPair } from 'src/components/pools/poolFlow'
 
 const route = useRoute()
 const router = useRouter()

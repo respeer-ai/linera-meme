@@ -85,8 +85,8 @@ fi
 
 docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
 docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
-docker stop maker-wallet kline maker funder
-docker rm maker-wallet kline maker funder
+docker stop maker-wallet query-service kline maker funder
+docker rm maker-wallet query-service kline maker funder
 docker rmi kline funder
 
 export PATH=$BIN_DIR:$PATH
@@ -156,15 +156,19 @@ function create_wallets() {
 
 # Create wallet for blob gateway
 BLOB_GATEWAY_OWNERS=$(create_wallets blob-gateway)
+BLOB_GATEWAY_QUERY_OWNER=$(echo "$BLOB_GATEWAY_OWNERS" | awk '{print $2}')
 
 # Create wallet for ams
 AMS_OWNERS=$(create_wallets ams)
+AMS_QUERY_OWNER=$(echo "$AMS_OWNERS" | awk '{print $2}')
 
 # Create wallet for swap
 SWAP_OWNERS=$(create_wallets swap)
+SWAP_QUERY_OWNER=$(echo "$SWAP_OWNERS" | awk '{print $2}')
 
 # Create wallet for proxy
 PROXY_OWNERS=$(create_wallets proxy)
+PROXY_QUERY_OWNER=$(echo "$PROXY_OWNERS" | awk '{print $2}')
 
 function publish_bytecode_on_chain() {
     application_name=$1
@@ -396,11 +400,14 @@ function generate_nginx_conf() {
     domain=$3
     count=$4
 
-    servers=$(service_servers $port_base $count)
+    mutation_servers=$(service_servers $port_base $count)
+    query_servers='"localhost:24080"'
     echo "{
         \"service\": {
-            \"endpoint\": \"$endpoint\",
-            \"servers\": [$servers],
+            \"mutation_endpoint\": \"$endpoint\",
+            \"mutation_servers\": [$mutation_servers],
+            \"query_endpoint\": \"query-service\",
+            \"query_servers\": [$query_servers],
             \"domain\": \"$domain\",
             \"sub_domain\": \"$SUB_DOMAIN\",
             \"api_endpoint\": \"$endpoint\"
@@ -502,12 +509,58 @@ jinja -d ${CONFIG_DIR}/docker-compose.json $COMPOSE_TEMPLATE_FILE > ${CONFIG_DIR
 
 cd $OUTPUT_DIR
 
+rm $WALLET_DIR/query/0 -rf
+mkdir $WALLET_DIR/query/0 -p
+linera --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb:$WALLET_DIR/query/0/client.db wallet init --faucet $FAUCET_URL
+linera --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb:$WALLET_DIR/query/0/client.db wallet request-chain --faucet $FAUCET_URL
+
+cp -v $ROOT_DIR/docker/docker-compose-query.yml $DOCKER_DIR
+LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-query.yml up --wait
+
+function import_query_chain() {
+    owner=$1
+    chain_id=$2
+    label=$3
+
+    payload=$(jq -cn \
+        --arg owner "$owner" \
+        --arg chainId "$chain_id" \
+        '{query:"mutation ImportChain($owner: AccountOwner!, $chainId: ChainId!) { importChain(owner: $owner, chainId: $chainId) }", variables:{owner:$owner, chainId:$chainId}}')
+
+    verify_payload='{"query":"query Chains { chains { list } }"}'
+
+    for _ in $(seq 1 20); do
+        resp=$(curl -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
+        verify=$(curl -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
+        if echo "$verify" | grep -q "$chain_id"; then
+            echo "Imported $label chain $chain_id to query-service"
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo "Failed import $label chain $chain_id to query-service"
+    echo "$resp"
+    echo "$verify"
+    exit 1
+}
+
+import_query_chain "$BLOB_GATEWAY_QUERY_OWNER" "$BLOB_GATEWAY_CHAIN_ID" blob-gateway
+import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
+import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
+import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
+
 LINERA_IMAGE=$IMAGE_NAME docker compose -f config/docker-compose.yml up --wait
 
 rm $WALLET_DIR/maker/0 -rf
 mkdir $WALLET_DIR/maker/0 -p
 linera --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet init --faucet $FAUCET_URL
 linera --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet request-chain --faucet $FAUCET_URL
+MAKER_OWNER=$(wallet_owner maker 0)
+MAKER_CHAIN_ID=$(wallet_chain_id maker 0)
+
+cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
+LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
 
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
@@ -535,7 +588,7 @@ function run_kline() {
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
       SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
-    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
+    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
       SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
@@ -552,7 +605,7 @@ function run_funder() {
 
     LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
-      MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$(wallet_chain_id maker 0) \
+      MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$MAKER_CHAIN_ID \
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
 
@@ -563,7 +616,3 @@ cp -v $ROOT_DIR/service/kline $DOCKER_DIR -rf
 run_mysql
 run_kline
 run_funder
-
-# Let maker to get wallet owner and chain firstly
-cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
