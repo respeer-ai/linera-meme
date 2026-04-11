@@ -9,7 +9,7 @@
               <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
             </div>
             <div class='reward-label'>
-              Rewards earned
+              LMM liquidity share
               <span class='reward-info'>i
                 <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
                   <p>LMM represents your liquidity share, not a tradable token.</p>
@@ -17,34 +17,37 @@
                 </q-tooltip>
               </span>
             </div>
-            <div class='reward-link'>Find pools with LMM rewards -></div>
-            <div class='reward-caption'>
-              Eligible pools have token rewards so you can earn more
-            </div>
-          </div>
-          <div class='reward-side'>
-          <q-btn
-            flat
-            no-caps
-            rounded
-            class='reward-action'
-            label='Collect rewards'
-          />
           </div>
         </div>
 
         <section class='positions-section'>
-          <h1 class='positions-title q-ma-none'>Your positions</h1>
+          <div class='positions-header'>
+            <h1 class='positions-title q-ma-none'>Your positions</h1>
 
-          <div class='filter-row'>
-            <button class='filter-btn filter-btn-primary'>
-              <span class='filter-plus'>+</span>
-              <span>New</span>
-            </button>
-            <button class='filter-btn'>
-              <span>Status</span>
-              <span class='filter-caret'>⌄</span>
-            </button>
+            <div class='filter-row'>
+              <button class='filter-btn filter-btn-primary'>
+                <span class='filter-plus'>+</span>
+                <span>New</span>
+              </button>
+              <button class='filter-btn'>
+                <span>{{ selectedStatusLabel }}</span>
+                <span class='filter-caret'>⌄</span>
+                <q-menu class='status-menu' anchor='bottom right' self='top right' :offset='[0, 10]'>
+                  <q-list dense class='status-menu-list'>
+                    <q-item
+                      v-for='option in statusOptions'
+                      :key='option.value'
+                      clickable
+                      v-close-popup
+                      class='status-menu-item'
+                      @click='selectedStatus = option.value'
+                    >
+                      <q-item-section>{{ option.label }}</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-menu>
+              </button>
+            </div>
           </div>
 
           <div class='empty-card'>
@@ -54,7 +57,7 @@
             <div class='empty-title'>No positions</div>
             <div class='empty-text'>
               You don't have any liquidity positions. Create a new
-              position to start earning fees and rewards on eligible pools.
+              position to start earning trading fees from swaps in the pool.
             </div>
             <div class='empty-actions'>
               <button class='empty-btn empty-btn-secondary'>Explore pools</button>
@@ -70,11 +73,6 @@
             </div>
             <button class='notice-close'>×</button>
           </div>
-
-          <div class='legacy-hint'>
-            Some v2 positions aren't displayed automatically.
-            <a href='#' @click.prevent>Import V2 positions</a>
-          </div>
         </section>
       </section>
     </main>
@@ -82,12 +80,24 @@
 </template>
 
 <script setup lang='ts'>
+import { computed, ref } from 'vue'
 import { useMeta } from 'quasar'
 import { useRoute } from 'vue-router'
 import { usePageSeo } from 'src/utils/seo'
 import { constants } from 'src/constant'
 
+type PositionStatus = 'all' | 'active' | 'closed'
+
 const route = useRoute()
+const selectedStatus = ref<PositionStatus>('active')
+const statusOptions: Array<{ value: PositionStatus; label: string }> = [
+  { value: 'all', label: 'All positions' },
+  { value: 'active', label: 'Active' },
+  { value: 'closed', label: 'Closed' },
+]
+const selectedStatusLabel = computed(() => (
+  statusOptions.find((option) => option.value === selectedStatus.value)?.label || 'Status'
+))
 
 useMeta(() => ({
   script: {
@@ -97,7 +107,7 @@ useMeta(() => ({
         '@context': 'https://schema.org',
         '@type': 'CollectionPage',
         name: 'MicroMeme Positions',
-        description: 'Positions view for liquidity positions and rewards on MicroMeme.',
+        description: 'Positions view for liquidity positions and fee accrual on MicroMeme.',
       }),
     },
   },
@@ -107,12 +117,13 @@ usePageSeo(() => ({
   title: route.meta.seo?.title || 'Positions | MicroMeme',
   description:
     route.meta.seo?.description ||
-    'Review your liquidity positions, unclaimed fees, and reward exposure on MicroMeme.',
+    'Review your liquidity positions, pool share, and trading fee accrual on MicroMeme.',
   path: route.meta.seo?.path || route.path,
   keywords: route.meta.seo?.keywords || [
     'MicroMeme positions',
     'Liquidity positions',
-    'Rewards',
+    'Trading fees',
+    'Liquidity share',
   ],
 }))
 </script>
@@ -155,18 +166,12 @@ usePageSeo(() => ({
   font-weight: 500
   color: var(--q-light)
 
-.reward-side
-  display: flex
-  flex-direction: column
-  align-items: flex-end
-  justify-content: flex-start
-
 .reward-inline-logo
   display: inline-block
-  width: 1em !important
-  height: 1em !important
+  width: 0.92em !important
+  height: 0.92em !important
   margin-left: 6px
-  vertical-align: 0.02em
+  vertical-align: -0.06em
 
 .reward-label
   margin-top: 8px
@@ -188,6 +193,14 @@ usePageSeo(() => ({
   font-size: 10px
   font-weight: 600
   vertical-align: middle
+  cursor: help
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease
+
+  &:hover
+    background: rgba(255, 255, 255, 0.08)
+    border-color: rgba(255, 255, 255, 0.18)
+    color: #dbe2ec
+    transform: translateY(-1px)
 
 :global(.reward-tooltip.q-tooltip)
   max-width: 420px
@@ -208,27 +221,14 @@ usePageSeo(() => ({
 :global(.reward-tooltip.q-tooltip p + p)
   margin-top: 5px
 
-.reward-link
-  margin-top: 28px
-  font-size: 14px
-  font-weight: 700
-  color: var(--q-light)
-
-.reward-caption
-  margin-top: 4px
-  font-size: 14px
-  color: #9aa0ab
-
-.reward-action
-  min-height: 34px
-  padding: 0 14px
-  border-radius: 14px
-  border: 1px solid rgba(255, 255, 255, 0.1)
-  color: var(--q-light)
-  background: rgba(255, 255, 255, 0.02)
-
 .positions-section
   margin-top: 34px
+
+.positions-header
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 16px
 
 .positions-title
   font-size: 22px
@@ -240,7 +240,6 @@ usePageSeo(() => ({
   display: flex
   flex-wrap: wrap
   gap: 8px
-  margin-top: 16px
 
 .filter-btn,
 .empty-btn,
@@ -252,6 +251,7 @@ usePageSeo(() => ({
   cursor: pointer
 
 .filter-btn
+  position: relative
   display: inline-flex
   align-items: center
   gap: 8px
@@ -278,6 +278,27 @@ usePageSeo(() => ({
 
 .filter-btn-icon
   min-width: 60px
+
+:global(.status-menu.q-menu)
+  min-width: 176px
+  padding: 6px
+  border: 1px solid rgba(255, 255, 255, 0.08)
+  border-radius: 16px
+  background: rgba(16, 18, 24, 0.98)
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28)
+
+:global(.status-menu-list)
+  padding: 0
+
+:global(.status-menu-item)
+  min-height: 38px
+  border-radius: 12px
+  color: #d7dde7
+  font-size: 14px
+  font-weight: 600
+
+:global(.status-menu-item:hover)
+  background: rgba(255, 255, 255, 0.06)
 
 .empty-card
   display: flex
@@ -378,17 +399,6 @@ usePageSeo(() => ({
   line-height: 1
   color: var(--q-neutral)
 
-.legacy-hint
-  margin-top: 38px
-  text-align: center
-  font-size: 14px
-  color: #9aa0ab
-
-  a
-    margin-left: 4px
-    color: var(--q-light)
-    text-decoration: none
-
 @media (max-width: 720px)
   .positions-page
     padding-top: 18px
@@ -402,8 +412,11 @@ usePageSeo(() => ({
   .reward-card
     display: block
 
-  .reward-action
-    margin-top: 18px
+  .positions-header
+    display: block
+
+  .filter-row
+    margin-top: 16px
 
   .empty-actions
     flex-direction: column
