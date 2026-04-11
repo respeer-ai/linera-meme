@@ -8,11 +8,11 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
     _runtime: Rc<RefCell<R>>,
-    _state: S,
+    state: S,
 
-    _owner: Account,
-    _application_id: ApplicationId,
-    _metadata: Metadata,
+    owner: Account,
+    application_id: ApplicationId,
+    metadata: Metadata,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler<R, S> {
@@ -27,12 +27,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler
         };
 
         Self {
-            _state: state,
+            state,
             _runtime: runtime,
 
-            _owner: *owner,
-            _application_id: *application_id,
-            _metadata: metadata.clone(),
+            owner: *owner,
+            application_id: *application_id,
+            metadata: metadata.clone(),
         }
     }
 }
@@ -44,6 +44,11 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
-        Err(HandlerError::NotImplemented)
+        self.state
+            .update_application(self.owner, self.application_id, self.metadata.clone())
+            .await
+            .map_err(|err| HandlerError::ProcessError(Box::new(err)))?;
+
+        Ok(None)
     }
 }

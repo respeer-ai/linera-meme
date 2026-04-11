@@ -151,8 +151,8 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().register_miner(owner, now).await
     }
 
-    fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
-        self.state.borrow_mut().deregister_miner(owner)
+    async fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
+        self.state.borrow_mut().deregister_miner(owner).await
     }
 
     async fn get_miner_with_account_owner(&self, owner: AccountOwner) -> Result<Miner, StateError> {

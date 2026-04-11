@@ -26,6 +26,22 @@ Authority: High
   4. patch only after the chain of evidence is clear
 - Do not patch frontend display for problems that originate upstream in contracts or data services
 
+## Error Handling Rules
+
+- Do not convert silent handling into hard errors without first auditing all call sites
+- Before changing a silent `Ok(())` / no-op path, classify it as one of:
+  - required idempotency for duplicate / replayable internal messages
+  - explicit user-facing invalid input that should fail loudly
+  - a mixed case that should be handled differently at different layers
+- When silent handling is intentional for idempotency, keep the state transition safe and add tests for duplicate delivery
+- When silent handling hides invalid user input, prefer explicit errors, but verify the caller / handler layer can surface them without breaking legitimate retry paths
+
+## Identity Binding Rules
+
+- For user-bound actions such as `claim`, `redeem`, and similar "act for current caller" semantics, the effective actor must come from runtime authentication, not from request payload fields
+- If such an action crosses chains, recover the actor from authenticated origin/message context on the destination chain; do not trust a caller-provided `owner`/`operator` field as the security boundary
+- Payload fields may identify the target object being acted on, but not the authenticated subject when the intent is "current caller only"
+
 ## Responsibility Boundaries
 
 - chain contracts are the protocol truth

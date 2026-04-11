@@ -5,7 +5,7 @@ use crate::{interfaces::state::StateInterface, state::AmsState};
 use abi::ams::{InstantiationArgument, Metadata};
 use async_trait::async_trait;
 
-use linera_sdk::linera_base_types::Account;
+use linera_sdk::linera_base_types::{Account, ApplicationId};
 
 pub struct StateAdapter {
     state: Rc<RefCell<AmsState>>,
@@ -38,5 +38,28 @@ impl StateInterface for StateAdapter {
 
     fn register_application(&mut self, application: Metadata) -> Result<(), Self::Error> {
         self.state.borrow_mut().register_application(application)
+    }
+
+    async fn claim_application(
+        &mut self,
+        owner: Account,
+        application_id: ApplicationId,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .claim_application(owner, application_id)
+            .await
+    }
+
+    async fn update_application(
+        &mut self,
+        owner: Account,
+        application_id: ApplicationId,
+        metadata: Metadata,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .update_application(owner, application_id, metadata)
+            .await
     }
 }

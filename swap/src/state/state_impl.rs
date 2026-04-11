@@ -7,6 +7,17 @@ use abi::swap::{
 use async_trait::async_trait;
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
+fn should_apply_pool_update(current: Option<Transaction>, incoming: Transaction) -> bool {
+    let Some(current) = current else {
+        return true;
+    };
+
+    match (current.transaction_id, incoming.transaction_id) {
+        (Some(current_id), Some(incoming_id)) => incoming_id > current_id,
+        _ => incoming.created_at > current.created_at,
+    }
+}
+
 #[async_trait(?Send)]
 impl StateInterface for SwapState {
     type Error = StateError;
@@ -106,6 +117,27 @@ impl StateInterface for SwapState {
         Ok(())
     }
 
+    async fn is_pool_chain(&self, chain_id: ChainId) -> Result<bool, Self::Error> {
+        Ok(self.pool_chains.get(&chain_id).await?.unwrap_or(false))
+    }
+
+    async fn mark_user_pool_created(
+        &mut self,
+        pool_application: Account,
+    ) -> Result<bool, Self::Error> {
+        let already_processed = self
+            .processed_user_pool_creations
+            .get(&pool_application)
+            .await?
+            .unwrap_or(false);
+        if already_processed {
+            return Ok(false);
+        }
+        self.processed_user_pool_creations
+            .insert(&pool_application, true)?;
+        Ok(true)
+    }
+
     async fn update_pool(
         &mut self,
         token_0: ApplicationId,
@@ -119,6 +151,10 @@ impl StateInterface for SwapState {
         let Some(mut pool) = self.get_pool_exchangable(token_0, token_1).await? else {
             panic!("Invalid pool");
         };
+        if !should_apply_pool_update(pool.latest_transaction, transaction) {
+            return Ok(());
+        }
+
         pool.latest_transaction = Some(transaction);
         pool.token_0_price = Some(token_0_price);
         pool.token_1_price = Some(token_1_price);

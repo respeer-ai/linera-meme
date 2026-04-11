@@ -117,8 +117,37 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         log::info!("DEBUG MSG:SWAP: pool created ...");
 
+        if !self
+            .state
+            .is_pool_chain(self.pool_application.chain_id)
+            .await
+            .expect("Failed: check pool chain")
+        {
+            log::warn!(
+                "Ignoring PoolCreated from untracked pool chain {}",
+                self.pool_application.chain_id
+            );
+            return Ok(None);
+        }
+
         assert!(self.amount_1 > Amount::ZERO, "Invalid amount");
         assert!(self.amount_0 > Amount::ZERO, "Invalid amount");
+
+        if let Some(existing_pool) = self
+            .state
+            .get_pool_exchangable(self.token_0, self.token_1)
+            .await
+            .expect("Failed: get pool exchangable")
+        {
+            if existing_pool.pool_application == self.pool_application {
+                log::warn!(
+                    "Ignoring duplicate PoolCreated receipt for pool {}",
+                    self.pool_application.chain_id
+                );
+                return Ok(None);
+            }
+            panic!("Pool exists");
+        }
 
         let outcome_message = if self.user_pool {
             Some(self.user_pool_created(

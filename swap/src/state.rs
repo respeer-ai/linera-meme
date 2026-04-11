@@ -1,6 +1,6 @@
 use abi::swap::router::Pool;
 use linera_sdk::{
-    linera_base_types::{ApplicationId, ChainId, ModuleId},
+    linera_base_types::{Account, ApplicationId, ChainId, ModuleId},
     views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 use std::collections::HashMap;
@@ -20,6 +20,7 @@ pub struct SwapState {
     pub pool_bytecode_id: RegisterView<Option<ModuleId>>,
 
     pub pool_chains: MapView<ChainId, bool>,
+    pub processed_user_pool_creations: MapView<Account, bool>,
     // We cannot invoke meme application to get meme creator chain id due to reentrant error
     // So we have to record it
     pub token_creator_chain_ids: MapView<ApplicationId, ChainId>,

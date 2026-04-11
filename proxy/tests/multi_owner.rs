@@ -191,6 +191,106 @@ async fn proxy_create_meme_real_initial_liquidity_multi_owner_disable_mining_tes
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn proxy_remove_genesis_miner_requires_second_operator_approval_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let mut suite = TestSuite::new().await;
+
+    let proxy_chain = &suite.proxy_chain.clone();
+    let operator_chain_1 = &suite.operator_chain_1.clone();
+    let operator_chain_2 = &suite.operator_chain_2.clone();
+    let operator_chain_3 = suite.validator.new_chain().await;
+
+    let proxy_owner = suite.chain_owner_account(proxy_chain);
+    let operator_1 = suite.chain_owner_account(operator_chain_1);
+    let operator_2 = suite.chain_owner_account(operator_chain_2);
+    let operator_3 = suite.chain_owner_account(&operator_chain_3);
+    let removable_miner = suite.chain_owner_account(&suite.meme_miner_chain);
+
+    suite.create_swap_application().await;
+    suite
+        .create_proxy_application(vec![operator_1, operator_2, operator_3])
+        .await;
+
+    suite
+        .propose_add_genesis_miner(&operator_chain_1, removable_miner)
+        .await;
+    suite
+        .approve_add_genesis_miner(&operator_chain_2, removable_miner)
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { genesisMiners { owner registeredAt } }",
+        )
+        .await;
+    let response: Vec<Miner> = response["genesisMiners"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|miner| serde_json::from_value::<Miner>(miner.clone()).unwrap())
+        .collect();
+    let response: HashSet<_> = response.into_iter().collect();
+    assert!(response.contains(&Miner {
+        owner: proxy_owner,
+        registered_at: 0.into(),
+    }));
+    assert!(response.contains(&Miner {
+        owner: removable_miner,
+        registered_at: 0.into(),
+    }));
+
+    suite
+        .propose_remove_genesis_miner(&operator_chain_1, removable_miner)
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { genesisMiners { owner registeredAt } }",
+        )
+        .await;
+    let response: Vec<Miner> = response["genesisMiners"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|miner| serde_json::from_value::<Miner>(miner.clone()).unwrap())
+        .collect();
+    let response: HashSet<_> = response.into_iter().collect();
+    assert!(response.contains(&Miner {
+        owner: removable_miner,
+        registered_at: 0.into(),
+    }));
+
+    suite
+        .approve_remove_genesis_miner(&operator_chain_2, removable_miner)
+        .await;
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { genesisMiners { owner registeredAt } }",
+        )
+        .await;
+    let response: Vec<Miner> = response["genesisMiners"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|miner| serde_json::from_value::<Miner>(miner.clone()).unwrap())
+        .collect();
+    let response: HashSet<_> = response.into_iter().collect();
+    assert!(response.contains(&Miner {
+        owner: proxy_owner,
+        registered_at: 0.into(),
+    }));
+    assert!(!response.contains(&Miner {
+        owner: removable_miner,
+        registered_at: 0.into(),
+    }));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn proxy_create_meme_real_initial_liquidity_multi_owner_enable_mining_test() {
     let _ = env_logger::builder().is_test(true).try_init();
 

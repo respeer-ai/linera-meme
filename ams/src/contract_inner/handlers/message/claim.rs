@@ -7,10 +7,10 @@ use runtime::interfaces::{access_control::AccessControl, contract::ContractRunti
 use std::{cell::RefCell, rc::Rc};
 
 pub struct ClaimHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    _runtime: Rc<RefCell<R>>,
-    _state: S,
+    runtime: Rc<RefCell<R>>,
+    state: S,
 
-    _application_id: ApplicationId,
+    application_id: ApplicationId,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimHandler<R, S> {
@@ -20,10 +20,10 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> ClaimHandler<
         };
 
         Self {
-            _state: state,
-            _runtime: runtime,
+            state,
+            runtime,
 
-            _application_id: *application_id,
+            application_id: *application_id,
         }
     }
 }
@@ -35,6 +35,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
-        Err(HandlerError::NotImplemented)
+        let owner = self.runtime.borrow_mut().message_signer_account();
+        self.state
+            .claim_application(owner, self.application_id)
+            .await
+            .map_err(|err| HandlerError::ProcessError(Box::new(err)))?;
+
+        Ok(None)
     }
 }

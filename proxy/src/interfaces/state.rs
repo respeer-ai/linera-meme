@@ -80,7 +80,7 @@ pub trait StateInterface {
 
     async fn register_miner(&mut self, owner: Account, now: Timestamp) -> Result<(), Self::Error>;
 
-    fn deregister_miner(&mut self, owner: Account) -> Result<(), Self::Error>;
+    async fn deregister_miner(&mut self, owner: Account) -> Result<(), Self::Error>;
 
     async fn get_miner_with_account_owner(&self, owner: AccountOwner)
         -> Result<Miner, Self::Error>;

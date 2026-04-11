@@ -15,4 +15,17 @@ pub trait StateInterface {
     ) -> Result<(), Self::Error>;
 
     fn register_application(&mut self, application: Metadata) -> Result<(), Self::Error>;
+
+    async fn claim_application(
+        &mut self,
+        owner: Account,
+        application_id: linera_sdk::linera_base_types::ApplicationId,
+    ) -> Result<(), Self::Error>;
+
+    async fn update_application(
+        &mut self,
+        owner: Account,
+        application_id: linera_sdk::linera_base_types::ApplicationId,
+        metadata: Metadata,
+    ) -> Result<(), Self::Error>;
 }

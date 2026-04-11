@@ -129,7 +129,9 @@ impl StateInterface for ProxyState {
     }
 
     async fn validate_operator(&self, owner: Account) -> Result<(), StateError> {
-        let approval = self.operators.get(&owner).await?.unwrap();
+        let Some(approval) = self.operators.get(&owner).await? else {
+            panic!("Invalid operator");
+        };
         assert!(approval.approved(), "Invalid operator");
         Ok(())
     }
@@ -185,7 +187,7 @@ impl StateInterface for ProxyState {
             self.banning_operators.remove(&owner)?;
             return Ok(self.operators.remove(&owner)?);
         }
-        Ok(self.operators.insert(&owner, approval)?)
+        Ok(self.banning_operators.insert(&owner, approval)?)
     }
 
     async fn remove_genesis_miner(&mut self, owner: Account) -> Result<(), StateError> {
@@ -238,7 +240,12 @@ impl StateInterface for ProxyState {
         chain_id: ChainId,
         token: ApplicationId,
     ) -> Result<(), StateError> {
-        let mut chain = self.chains.get(&chain_id).await?.unwrap();
+        let Some(mut chain) = self.chains.get(&chain_id).await? else {
+            return Ok(());
+        };
+        if chain.token == Some(token) {
+            return Ok(());
+        }
         assert!(chain.token.is_none(), "Token already created");
         chain.token = Some(token);
         Ok(self.chains.insert(&chain_id, chain)?)
@@ -264,7 +271,10 @@ impl StateInterface for ProxyState {
         )?)
     }
 
-    fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
+    async fn deregister_miner(&mut self, owner: Account) -> Result<(), StateError> {
+        if !self.miners.contains_key(&owner).await? {
+            return Err(StateError::NotExists);
+        }
         Ok(self.miners.remove(&owner)?)
     }
 

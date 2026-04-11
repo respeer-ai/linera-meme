@@ -44,6 +44,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     ) -> Result<Option<HandlerOutcome<ProxyMessage, ProxyResponse>>, HandlerError> {
         self.state
             .deregister_miner(self.owner)
+            .await
             .map_err(Into::into)?;
 
         Ok(None)

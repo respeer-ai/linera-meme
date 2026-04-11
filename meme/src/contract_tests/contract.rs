@@ -569,6 +569,226 @@ async fn message_transfer_ownership() {
     assert_eq!(meme.state.borrow().owner.get().unwrap(), new_owner);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Authenticated caller ID has not been mocked")]
+async fn operation_transfer_from_application_requires_authenticated_caller() {
+    let mut meme = create_and_instantiate_meme_with_authenticated_caller(false, None, None).await;
+    let to = Account {
+        chain_id: meme.runtime.borrow_mut().chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let _ = meme
+        .execute_operation(MemeOperation::TransferFromApplication {
+            to,
+            amount: Amount::ONE,
+        })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid caller")]
+async fn message_initialize_liquidity_rejects_wrong_caller() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let wrong_caller = Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03",
+        )
+        .unwrap(),
+    };
+    let to = Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    meme.execute_message(MemeMessage::InitializeLiquidity {
+        caller: wrong_caller,
+        to,
+        amount: Amount::from_tokens(1),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_initialize_liquidity_duplicate_fails_without_double_transfer() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let caller = Account {
+        chain_id,
+        owner: AccountOwner::from(meme.state.borrow().swap_application_id().unwrap()),
+    };
+    let application = Account {
+        chain_id,
+        owner: AccountOwner::from(meme.runtime.borrow_mut().application_id().forget_abi()),
+    };
+    let to = Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03",
+        )
+        .unwrap(),
+    };
+    let amount = meme
+        .state
+        .borrow()
+        ._initial_liquidity()
+        .unwrap()
+        .fungible_amount;
+
+    meme.execute_message(MemeMessage::InitializeLiquidity { caller, to, amount })
+        .await;
+
+    assert_eq!(meme.state.borrow().balance_of(to).await, amount);
+
+    let second_attempt = std::panic::AssertUnwindSafe(async {
+        meme.execute_message(MemeMessage::InitializeLiquidity { caller, to, amount })
+            .await;
+    })
+    .catch_unwind()
+    .await;
+
+    assert!(second_attempt.is_err());
+    assert_eq!(meme.state.borrow().balance_of(to).await, amount);
+    assert_eq!(
+        meme.state.borrow().allowance_of(application, caller).await,
+        Amount::ZERO
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_transfer_to_caller_returns_fail_on_insufficient_balance() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    meme.runtime.borrow_mut().set_message_origin_chain_id(chain_id);
+
+    let signer = Account {
+        chain_id,
+        owner: meme.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+    let caller = Account {
+        chain_id,
+        owner: AccountOwner::from(meme.runtime.borrow_mut().authenticated_caller_id().unwrap()),
+    };
+    let signer_balance = meme.state.borrow().balance_of(signer).await;
+    let caller_balance = meme.state.borrow().balance_of(caller).await;
+    let amount = signer_balance.try_add(Amount::ONE).unwrap();
+
+    let response = meme
+        .execute_operation(MemeOperation::TransferToCaller { amount })
+        .now_or_never()
+        .expect("Execution of meme operation should not await anything");
+
+    assert!(matches!(response, MemeResponse::Fail(_)));
+    assert_eq!(meme.state.borrow().balance_of(signer).await, signer_balance);
+    assert_eq!(meme.state.borrow().balance_of(caller).await, caller_balance);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid caller")]
+async fn message_mint_rejects_non_owner_signer() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    meme.runtime.borrow_mut().set_authenticated_signer(Some(
+        AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03",
+        )
+        .unwrap(),
+    ));
+
+    let to = Account {
+        chain_id: meme.runtime.borrow_mut().chain_id(),
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    meme.execute_message(MemeMessage::Mint {
+        to,
+        amount: Amount::ONE,
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_redeem_none_redeems_full_balance_to_owner_account() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let creator_chain_id = meme.runtime.borrow_mut().chain_id();
+    let remote_owner = Account {
+        chain_id: ChainId::from_str(
+            "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+        )
+        .unwrap(),
+        owner: meme.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+    let creator_owner = Account {
+        chain_id: creator_chain_id,
+        owner: remote_owner.owner,
+    };
+    let creator_balance = meme.state.borrow().balance_of(creator_owner).await;
+
+    meme.execute_message(MemeMessage::Redeem {
+        owner: remote_owner,
+        amount: None,
+    })
+    .await;
+
+    assert_eq!(meme.state.borrow().balance_of(creator_owner).await, Amount::ZERO);
+    assert_eq!(meme.state.borrow().balance_of(remote_owner).await, creator_balance);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid amount")]
+async fn message_redeem_zero_amount_rejected() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let remote_owner = Account {
+        chain_id: ChainId::from_str(
+            "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+        )
+        .unwrap(),
+        owner: meme.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+
+    meme.execute_message(MemeMessage::Redeem {
+        owner: remote_owner,
+        amount: Some(Amount::ZERO),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Insufficient balance")]
+async fn message_redeem_rejects_amount_above_balance() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let creator_chain_id = meme.runtime.borrow_mut().chain_id();
+    let remote_owner = Account {
+        chain_id: ChainId::from_str(
+            "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+        )
+        .unwrap(),
+        owner: meme.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+    let creator_owner = Account {
+        chain_id: creator_chain_id,
+        owner: remote_owner.owner,
+    };
+    let creator_balance = meme.state.borrow().balance_of(creator_owner).await;
+
+    meme.execute_message(MemeMessage::Redeem {
+        owner: remote_owner,
+        amount: Some(creator_balance.try_add(Amount::ONE).unwrap()),
+    })
+    .await;
+}
+
 #[test]
 fn cross_application_call() {}
 
@@ -583,6 +803,24 @@ fn mock_application_call(
 async fn create_and_instantiate_meme(
     enable_mining: bool,
     mining_supply: Option<Amount>,
+) -> MemeContract {
+    create_and_instantiate_meme_with_authenticated_caller(
+        enable_mining,
+        mining_supply,
+        Some(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+            )
+            .unwrap(),
+        ),
+    )
+    .await
+}
+
+async fn create_and_instantiate_meme_with_authenticated_caller(
+    enable_mining: bool,
+    mining_supply: Option<Amount>,
+    authenticated_caller_id: Option<ApplicationId>,
 ) -> MemeContract {
     let operator = AccountOwner::from_str(
         "0xfd90bbb496d286ff1227b8aa2f0d8e479d2b425257940bf36c4338ab73705ac6",
@@ -627,7 +865,7 @@ async fn create_and_instantiate_meme(
         enable_mining,
         mining_supply,
     };
-    let runtime = ContractRuntime::new()
+    let mut runtime = ContractRuntime::new()
         .with_can_change_application_permissions(true)
         .with_chain_id(chain_id)
         .with_application_id(application_id)
@@ -639,13 +877,15 @@ async fn create_and_instantiate_meme(
         .with_owner_balance(operator, Amount::from_tokens(10000))
         .with_owner_balance(AccountOwner::from(swap_application_id), Amount::ZERO)
         .with_chain_balance(Amount::ONE)
-        .with_authenticated_caller_id(swap_application_id)
         .with_call_application_handler(mock_application_call)
         .with_application_creator_chain_id(chain_id)
         .with_application_parameters(parameters.clone())
         .with_system_time(Timestamp::now())
         .with_block_height(BlockHeight(0))
         .with_authenticated_signer(operator);
+    if let Some(authenticated_caller_id) = authenticated_caller_id {
+        runtime = runtime.with_authenticated_caller_id(authenticated_caller_id);
+    }
     let mut contract = MemeContract {
         state: Rc::new(RefCell::new(
             MemeState::load(runtime.root_view_storage_context())

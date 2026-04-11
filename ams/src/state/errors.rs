@@ -9,6 +9,12 @@ pub enum StateError {
     #[error("Already exists")]
     AlreadyExists,
 
+    #[error("Not exists")]
+    NotExists,
+
+    #[error("Invalid application type")]
+    InvalidApplicationType,
+
     #[error("Permission denied")]
     PermissionDenied,
 }

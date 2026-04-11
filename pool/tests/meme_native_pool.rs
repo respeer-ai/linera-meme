@@ -266,6 +266,35 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
+    async fn remove_liquidity(&self, chain: &ActiveChain, liquidity: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.pool_application_id.unwrap(),
+                    PoolOperation::RemoveLiquidity {
+                        liquidity,
+                        amount_0_out_min: None,
+                        amount_1_out_min: None,
+                        to: None,
+                        block_timestamp: None,
+                    },
+                );
+            })
+            .await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        chain.handle_received_messages().await;
+    }
+
     async fn latest_transactions(&self) -> Vec<Transaction> {
         let QueryOutcome { response, .. } = self
             .pool_chain
@@ -565,6 +594,19 @@ async fn meme_native_virtual_initial_liquidity_test() {
         liquidity.liquidity,
         Amount::from_attos(10299999999999999981),
     );
+
+    let removed_liquidity = Amount::from_tokens(5);
+    assert!(liquidity.liquidity > removed_liquidity);
+    suite
+        .remove_liquidity(&user_chain, removed_liquidity)
+        .await;
+    let latest_transactions = suite.latest_transactions().await;
+    let remove_liquidity = latest_transactions
+        .last()
+        .expect("remove liquidity should create a transaction record");
+    assert_eq!(remove_liquidity.transaction_type, TransactionType::RemoveLiquidity);
+    assert_eq!(remove_liquidity.from, suite.chain_owner_account(user_chain));
+    assert_eq!(remove_liquidity.liquidity, Some(removed_liquidity));
 }
 
 #[tokio::test(flavor = "multi_thread")]

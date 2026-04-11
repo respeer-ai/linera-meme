@@ -283,7 +283,20 @@ impl StateInterface for PoolState {
         }
     }
 
-    fn create_transaction(&mut self, mut transaction: Transaction) -> Transaction {
+    async fn create_transaction(
+        &mut self,
+        mut transaction: Transaction,
+    ) -> Result<Option<Transaction>, Self::Error> {
+        let existing_transactions = self.latest_transactions.elements().await?;
+        let duplicate = existing_transactions.into_iter().any(|existing| {
+            let mut normalized_existing = existing;
+            normalized_existing.transaction_id = None;
+            normalized_existing == transaction
+        });
+        if duplicate {
+            return Ok(None);
+        }
+
         let transaction_id = *self.transaction_id.get();
 
         transaction.transaction_id = Some(transaction_id);
@@ -296,6 +309,6 @@ impl StateInterface for PoolState {
         }
         self.transaction_id.set(transaction_id + 1);
 
-        transaction
+        Ok(Some(transaction))
     }
 }

@@ -179,6 +179,38 @@ impl TestSuite {
             .await;
     }
 
+    pub async fn propose_remove_genesis_miner(&self, chain: &ActiveChain, owner: Account) {
+        let (certificate, _) = chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.proxy_application_id.unwrap(),
+                    ProxyOperation::ProposeRemoveGenesisMiner { owner },
+                );
+            })
+            .await;
+        self.proxy_chain
+            .add_block(move |block| {
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
+            })
+            .await;
+    }
+
+    pub async fn approve_remove_genesis_miner(&self, chain: &ActiveChain, owner: Account) {
+        let (certificate, _) = chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.proxy_application_id.unwrap(),
+                    ProxyOperation::ApproveRemoveGenesisMiner { owner },
+                );
+            })
+            .await;
+        self.proxy_chain
+            .add_block(move |block| {
+                block.with_messages_from_by_action(&certificate, MessageAction::Accept);
+            })
+            .await;
+    }
+
     pub async fn create_meme_application(
         &self,
         chain: &ActiveChain,

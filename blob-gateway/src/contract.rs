@@ -60,3 +60,6 @@ impl Contract for BlobGatewayContract {
 }
 
 mod contract_impl;
+
+#[cfg(test)]
+mod contract_tests;

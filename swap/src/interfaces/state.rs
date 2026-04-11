@@ -36,6 +36,13 @@ pub trait StateInterface {
 
     fn create_pool_chain(&mut self, chain_id: ChainId) -> Result<(), Self::Error>;
 
+    async fn is_pool_chain(&self, chain_id: ChainId) -> Result<bool, Self::Error>;
+
+    async fn mark_user_pool_created(
+        &mut self,
+        pool_application: Account,
+    ) -> Result<bool, Self::Error>;
+
     async fn update_pool(
         &mut self,
         token_0: ApplicationId,

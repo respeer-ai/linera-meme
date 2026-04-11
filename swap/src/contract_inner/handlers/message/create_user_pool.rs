@@ -60,6 +60,8 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+
         if let Some(_) = self
             .state
             .borrow()

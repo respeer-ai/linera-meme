@@ -43,7 +43,14 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
-        let transaction = self.state.create_transaction(self.transaction);
+        let Some(transaction) = self
+            .state
+            .create_transaction(self.transaction)
+            .await
+            .map_err(Into::into)?
+        else {
+            return Ok(None);
+        };
         let (token_0_price, token_1_price) = self.state.calculate_price_pair();
         let reserve_0 = self.state.reserve_0();
         let reserve_1 = self.state.reserve_1();

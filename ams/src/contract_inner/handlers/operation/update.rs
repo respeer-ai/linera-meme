@@ -2,16 +2,17 @@ use crate::interfaces::state::StateInterface;
 use abi::ams::{AmsMessage, AmsOperation, AmsResponse, Metadata};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::ApplicationId;
+use linera_sdk::linera_base_types::{Account, ApplicationId};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct UpdateHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    _runtime: Rc<RefCell<R>>,
+    runtime: Rc<RefCell<R>>,
     _state: S,
 
-    _application_id: ApplicationId,
-    _metadata: Metadata,
+    owner: Account,
+    application_id: ApplicationId,
+    metadata: Metadata,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler<R, S> {
@@ -23,13 +24,15 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdateHandler
         else {
             panic!("Invalid operation");
         };
+        let owner = runtime.borrow_mut().authenticated_account();
 
         Self {
             _state: state,
-            _runtime: runtime,
+            runtime,
 
-            _application_id: *application_id,
-            _metadata: metadata.clone(),
+            owner,
+            application_id: *application_id,
+            metadata: metadata.clone(),
         }
     }
 }
@@ -41,6 +44,18 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<AmsMessage, AmsResponse>>, HandlerError> {
-        Err(HandlerError::NotImplemented)
+        let destination = self.runtime.borrow_mut().application_creator_chain_id();
+        let mut outcome = HandlerOutcome::new();
+
+        outcome.with_message(
+            destination,
+            AmsMessage::Update {
+                owner: self.owner,
+                application_id: self.application_id,
+                metadata: self.metadata.clone(),
+            },
+        );
+
+        Ok(Some(outcome))
     }
 }
