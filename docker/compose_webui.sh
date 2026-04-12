@@ -54,8 +54,8 @@ function generate_nginx_conf() {
 
   echo "{
       \"service\": {
-      \"endpoint\": \"$endpoint\",
-      \"servers\": [\"localhost:$port_base\"],
+      \"mutation_endpoint\": \"$endpoint\",
+      \"mutation_servers\": [\"localhost:$port_base\"],
       \"domain\": \"$domain\",
       \"sub_domain\": \"$SUB_DOMAIN\",
       \"api_endpoint\": \"$endpoint\"
