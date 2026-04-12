@@ -137,6 +137,27 @@ function restart_kline() {
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml down
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml up --wait
 
+    function wait_query_service_ready() {
+        payload='{"query":"query Chains { chains { list } }"}'
+
+        for attempt in $(seq 1 120); do
+            resp=$(curl --noproxy '*' -vv http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
+            if echo "$resp" | grep -q '"data"'; then
+                echo "query-service GraphQL is ready"
+                return 0
+            fi
+            echo "waiting for query-service GraphQL readiness: attempt $attempt/120"
+            echo "query-service readiness response: $resp"
+            sleep 2
+        done
+
+        echo "query-service GraphQL readiness check failed"
+        echo "$resp"
+        exit 1
+    }
+
+    wait_query_service_ready
+
     function import_query_chain() {
         owner=$1
         chain_id=$2
@@ -149,8 +170,8 @@ function restart_kline() {
         verify_payload='{"query":"query Chains { chains { list } }"}'
 
         for _ in $(seq 1 20); do
-            resp=$(curl -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
-            verify=$(curl -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
+            resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
+            verify=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
             if echo "$verify" | grep -q "$chain_id"; then
                 echo "Imported $label chain $chain_id to query-service"
                 return 0
