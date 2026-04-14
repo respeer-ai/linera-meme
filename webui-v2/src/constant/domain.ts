@@ -1,13 +1,9 @@
 export const SUB_DOMAIN = 'testnet-conway.'
-export const BLOB_GATEWAY_CHAIN_ID =
-  'ad756760990bb8458e56f542b4c6c61ff1a7cbf3962e72df8ff9eab28505aae7'
-export const BLOB_GATEWAY_APPLICATION_ID =
-  '1e18ffcf6b6d751d6a7d046001b4c52d5a20af7c5edac67f9861caadf2aa9856'
+export const BLOB_GATEWAY_CHAIN_ID = 'ad756760990bb8458e56f542b4c6c61ff1a7cbf3962e72df8ff9eab28505aae7'
+export const BLOB_GATEWAY_APPLICATION_ID = '1e18ffcf6b6d751d6a7d046001b4c52d5a20af7c5edac67f9861caadf2aa9856'
 export const AMS_CHAIN_ID = 'cfcb61d211eacddc6fc7ab5cb851cbab3d84054546d7e01309458eb4cb55d0da'
 export const AMS_APPLICATION_ID = '6e3ed2d08e3c0e1d6f88bc141c3c2422d0a6905f9f0e996ad695e77402a1cadd'
 export const PROXY_CHAIN_ID = 'b0027a4243268e1f84b698f1174aef0360494af2dfdbca3e1d675801d58bc0d9'
-export const PROXY_APPLICATION_ID =
-  '7b5f67ef26f17af82ec360986ceddb0b873328d0903dddb65c8ceb0108b0dbd7'
+export const PROXY_APPLICATION_ID = '7b5f67ef26f17af82ec360986ceddb0b873328d0903dddb65c8ceb0108b0dbd7'
 export const SWAP_CHAIN_ID = 'f8341ff4e75e5a30b3131f5d51ccaceba32aad062462dd97a5bf87d5b1121137'
-export const SWAP_APPLICATION_ID =
-  'ee316ecfc2b060adbf20a8f3934c1aee09ec8f326feec9e41e6ac63a5fc72ee5'
+export const SWAP_APPLICATION_ID = 'ee316ecfc2b060adbf20a8f3934c1aee09ec8f326feec9e41e6ac63a5fc72ee5'
