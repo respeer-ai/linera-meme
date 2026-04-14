@@ -49,11 +49,11 @@
           <div class='remove-estimate'>
             <div class='remove-estimate-title'>Estimated received</div>
             <div class='remove-estimate-row'>
-              <span>{{ selectedPool.token0 }}</span>
+              <span>{{ tokenTicker(selectedPool.token0) }}</span>
               <span>{{ formatAmount(estimatedAmount0) }}</span>
             </div>
             <div class='remove-estimate-row'>
-              <span>{{ selectedPool.token1 || constants.LINERA_TICKER }}</span>
+              <span>{{ tokenTicker(selectedPool.token1 || constants.LINERA_NATIVE_ID) }}</span>
               <span>{{ formatAmount(estimatedAmount1) }}</span>
             </div>
           </div>
@@ -96,7 +96,7 @@
 <script setup lang='ts'>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { notify, pool, swap, user } from 'src/stores/export'
+import { ams, notify, pool, swap, user, type meme } from 'src/stores/export'
 import { constants } from 'src/constant'
 import { type LiquidityAmount } from 'src/stores/pool'
 import { NotifyType } from 'src/stores/notify'
@@ -135,8 +135,14 @@ const removeRatio = computed(() => {
 })
 const estimatedAmount0 = computed(() => Number.parseFloat(currentLiquidity.value.amount0 || '0') * removeRatio.value)
 const estimatedAmount1 = computed(() => Number.parseFloat(currentLiquidity.value.amount1 || '0') * removeRatio.value)
+const tokenTicker = (token: string) => {
+  if (!token || token === constants.LINERA_NATIVE_ID) return constants.LINERA_TICKER
+  const application = ams.Ams.application(token)
+  const memeSpec = JSON.parse(application?.spec || '{}') as meme.Meme
+  return memeSpec?.ticker || token
+}
 const pairLabel = computed(() => selectedPool.value
-  ? `${selectedPool.value.token0} / ${selectedPool.value.token1 || constants.LINERA_TICKER}`
+  ? `${tokenTicker(selectedPool.value.token0)} / ${tokenTicker(selectedPool.value.token1 || constants.LINERA_NATIVE_ID)}`
   : 'Position')
 const primaryActionLabel = computed(() => walletConnected.value ? 'REMOVE LIQUIDITY' : 'CONNECT WALLET')
 const submitDisabled = computed(() => {

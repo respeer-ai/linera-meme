@@ -427,7 +427,7 @@ async fn meme_native_create_pool_test() {
 
     assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
-    assert_eq!(Amount::from_attos(200000000000000000), pool.reserve_0);
+    assert_eq!(Amount::from_attos(5058015437063113917), pool.reserve_0);
 
     let user_account = suite.chain_owner_account(&user_chain);
     let query = Request::new(
@@ -448,7 +448,7 @@ async fn meme_native_create_pool_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(9800000000000000000),
+        Amount::from_attos(4941984562936886083),
     );
 
     let query = Request::new(
@@ -469,7 +469,7 @@ async fn meme_native_create_pool_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(200000000000000000),
+        Amount::from_attos(5058015437063113917),
     );
 
     let liquidity_fund_amount = Amount::from_attos(19800000000000000000);
@@ -500,7 +500,7 @@ async fn meme_native_create_pool_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(200000000000000000),
+        Amount::from_attos(5058015437063113917),
     );
 
     let QueryOutcome { response, .. } = pool_chain
@@ -511,7 +511,7 @@ async fn meme_native_create_pool_test() {
     assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     // TODO: reserve should equal to balance ?
     assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
-    assert_eq!(Amount::from_attos(200000000000000000), pool.reserve_0);
+    assert_eq!(Amount::from_attos(5058015437063113917), pool.reserve_0);
 
     let query = Request::new(
         r#"
@@ -531,7 +531,7 @@ async fn meme_native_create_pool_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(9800000000000000000),
+        Amount::from_attos(4941984562936886083),
     );
 
     let meme_account = suite.chain_owner_account(&meme_chain);

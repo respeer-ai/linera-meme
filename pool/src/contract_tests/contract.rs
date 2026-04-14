@@ -39,6 +39,18 @@ async fn create_pool_with_virtual_liquidity() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn create_pool_with_virtual_liquidity_locks_initial_supply() {
+    let pool = create_and_instantiate_pool(true).await;
+    let owner = authenticated_account(&pool);
+
+    assert_eq!(
+        pool.state.borrow().liquidity(owner).await.unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(total_supply(&pool), Amount::from_str("100").unwrap());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn operation_swap() {
     let mut pool = create_and_instantiate_pool(true).await;
 
@@ -571,6 +583,191 @@ async fn message_remove_liquidity_min_amount_boundary() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn message_add_liquidity_mints_fee_to_after_swap_growth() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let operator = authenticated_account(&pool);
+    let fee_to = alternate_account(operator.chain_id);
+
+    pool.execute_message(PoolMessage::SetFeeTo {
+        operator,
+        account: fee_to,
+    })
+    .await;
+
+    pool.execute_message(PoolMessage::Swap {
+        origin: operator,
+        amount_0_in: None,
+        amount_1_in: Some(Amount::ONE),
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    assert_eq!(
+        pool.state.borrow().liquidity(fee_to).await.unwrap(),
+        Amount::ZERO
+    );
+
+    pool.execute_message(PoolMessage::AddLiquidity {
+        origin: operator,
+        amount_0_in: Amount::ONE,
+        amount_1_in: Amount::from_tokens(10),
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    assert!(pool.state.borrow().liquidity(fee_to).await.unwrap() > Amount::ZERO);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_remove_liquidity_mints_fee_to_and_updates_reserves_after_swap_growth() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let operator = authenticated_account(&pool);
+    let fee_to = alternate_account(operator.chain_id);
+
+    pool.execute_message(PoolMessage::SetFeeTo {
+        operator,
+        account: fee_to,
+    })
+    .await;
+
+    pool.execute_message(PoolMessage::Swap {
+        origin: operator,
+        amount_0_in: None,
+        amount_1_in: Some(Amount::ONE),
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let reserve_0_before = pool.state.borrow().reserve_0();
+    let reserve_1_before = pool.state.borrow().reserve_1();
+
+    pool.execute_message(PoolMessage::RemoveLiquidity {
+        origin: operator,
+        liquidity: Amount::ONE,
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    assert!(pool.state.borrow().liquidity(fee_to).await.unwrap() > Amount::ZERO);
+    assert!(pool.state.borrow().reserve_0() < reserve_0_before);
+    assert!(pool.state.borrow().reserve_1() < reserve_1_before);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_add_liquidity_conserves_total_supply_with_fee_dilution() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let operator = authenticated_account(&pool);
+    let fee_to = alternate_account(operator.chain_id);
+
+    pool.execute_message(PoolMessage::SetFeeTo {
+        operator,
+        account: fee_to,
+    })
+    .await;
+
+    pool.execute_message(PoolMessage::Swap {
+        origin: operator,
+        amount_0_in: None,
+        amount_1_in: Some(Amount::ONE),
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    pool.execute_message(PoolMessage::AddLiquidity {
+        origin: operator,
+        amount_0_in: Amount::ONE,
+        amount_1_in: Amount::from_tokens(10),
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let fee_to_share = pool.state.borrow().liquidity(fee_to).await.unwrap();
+    let operator_share = pool.state.borrow().liquidity(operator).await.unwrap();
+    let total_supply = total_supply(&pool);
+
+    assert_eq!(
+        fee_to_share,
+        Amount::from_str("0.002272933913650825").unwrap()
+    );
+    assert_eq!(
+        operator_share,
+        Amount::from_str("100.109972499545424841").unwrap(),
+    );
+    assert_eq!(
+        total_supply,
+        Amount::from_str("100.112245433459075666").unwrap()
+    );
+    assert_eq!(operator_share.try_add(fee_to_share).unwrap(), total_supply);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_remove_liquidity_conserves_total_supply_after_fee_mint() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let operator = authenticated_account(&pool);
+    let fee_to = alternate_account(operator.chain_id);
+
+    pool.execute_message(PoolMessage::SetFeeTo {
+        operator,
+        account: fee_to,
+    })
+    .await;
+
+    pool.execute_message(PoolMessage::Swap {
+        origin: operator,
+        amount_0_in: None,
+        amount_1_in: Some(Amount::ONE),
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    pool.execute_message(PoolMessage::RemoveLiquidity {
+        origin: operator,
+        liquidity: Amount::ONE,
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let fee_to_share = pool.state.borrow().liquidity(fee_to).await.unwrap();
+    let operator_share = pool.state.borrow().liquidity(operator).await.unwrap();
+    let total_supply = total_supply(&pool);
+
+    assert_eq!(
+        fee_to_share,
+        Amount::from_str("0.002272933913650825").unwrap()
+    );
+    assert_eq!(operator_share, Amount::from_str("99").unwrap());
+    assert_eq!(
+        total_supply,
+        Amount::from_str("99.002272933913650825").unwrap()
+    );
+    assert_eq!(operator_share.try_add(fee_to_share).unwrap(), total_supply);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn add_liquidity_fund_second_leg_fail_does_not_close_flow() {
     let mut pool = create_and_instantiate_pool(true).await;
     let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
@@ -798,6 +995,20 @@ fn authenticated_account(pool: &PoolContract) -> Account {
     }
 }
 
+fn alternate_account(chain_id: ChainId) -> Account {
+    Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+        .unwrap(),
+    }
+}
+
+fn total_supply(pool: &PoolContract) -> Amount {
+    *pool.state.borrow().total_supply.get()
+}
+
 async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
     let _ = env_logger::builder().is_test(true).try_init();
 
@@ -855,7 +1066,6 @@ async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolCon
             amount_0: Amount::from_str("1000").unwrap(),
             amount_1: Amount::from_str("10").unwrap(),
             pool_fee_percent_mul_100: 30,
-            protocol_fee_percent_mul_100: 5,
             router_application_id,
         })
         .await;

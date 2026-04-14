@@ -10,6 +10,7 @@ import {
   type PoolStats,
   type PoolStat,
   type ProtocolStat,
+  type PositionMetricsResponse,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
@@ -183,6 +184,17 @@ export const useKlineStore = defineStore('kline', {
         return res.data as ProtocolStat
       } catch (e) {
         console.log('Failed get protocol stats', e)
+      }
+    },
+    async getPositionMetrics(owner: string, status: 'active' | 'closed' | 'all' = 'active') {
+      const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/position-metrics`)
+      try {
+        const res = await axios.get(url, {
+          params: { owner, status },
+        })
+        return res.data as PositionMetricsResponse
+      } catch (e) {
+        console.log('Failed get position metrics', e)
       }
     },
   },

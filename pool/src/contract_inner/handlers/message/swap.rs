@@ -4,7 +4,7 @@ use crate::{
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::{PoolMessage, PoolResponse};
+use abi::swap::pool::{PoolError, PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
@@ -174,11 +174,13 @@ impl<
         }
 
         // 2: Check liquidity
-        let amount_pair = self
-            .state
-            .borrow()
-            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out);
-        match amount_pair {
+        let invariant_check = self.state.borrow().pool().validate_swap_invariant(
+            amount_0_in.unwrap_or(Amount::ZERO),
+            amount_1_in.unwrap_or(Amount::ZERO),
+            amount_0_out,
+            amount_1_out,
+        );
+        match invariant_check {
             Ok(_) => {}
             Err(err) => {
                 self.refund_amount_in(origin, amount_0_in, amount_1_in)
@@ -188,7 +190,12 @@ impl<
                     amount_0_out,
                     amount_1_out
                 );
-                return Err(err.into());
+                return Err(match err {
+                    PoolError::InvalidAmount => HandlerError::InvalidAmount,
+                    PoolError::BrokenK | PoolError::InsufficientLiquidity => {
+                        HandlerError::InsufficientFunds
+                    }
+                });
             }
         }
 

@@ -54,7 +54,7 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div class='position-grid'>
+              <div class='position-summary-row'>
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
@@ -66,48 +66,71 @@
           <div v-else-if='visiblePositions.length' class='positions-list'>
             <article v-for='position in visiblePositions' :key='positionKey(position)' class='position-card'>
               <div class='position-card-header'>
-                <div>
-                  <div class='position-pair'>{{ position.token_0 }} / {{ position.token_1 }}</div>
-                  <div class='position-subtitle'>Pool #{{ position.pool_id }}</div>
+                <div class='position-pair-wrap'>
+                  <div class='position-pair-icons'>
+                    <q-avatar size='30px' class='position-token-avatar position-token-avatar-front'>
+                      <q-img :src='tokenLogo(position.token_0)' fit='contain' />
+                    </q-avatar>
+                    <q-avatar size='30px' class='position-token-avatar position-token-avatar-back'>
+                      <q-img :src='tokenLogo(position.token_1)' fit='contain' />
+                    </q-avatar>
+                  </div>
+                  <div>
+                    <div class='position-pair'>{{ tokenTicker(position.token_0) }} / {{ tokenTicker(position.token_1) }}</div>
+                  </div>
                 </div>
-                <span :class='["position-badge", `position-badge-${position.status}`]'>
-                  {{ position.status === 'active' ? 'Active' : 'Closed' }}
-                </span>
-              </div>
-
-              <div class='position-share-row'>
-                <div>
-                  <div class='position-share-label'>Liquidity share</div>
-                  <div class='position-share-value'>{{ formatLiquidity(position.current_liquidity) }} LMM</div>
-                </div>
-                <div class='position-share-meta'>{{ formatTimestamp(position.updated_at) }}</div>
-              </div>
-
-              <div class='position-grid'>
-                <div class='position-metric'>
-                  <span class='metric-label'>Added</span>
-                  <span class='metric-value'>{{ formatLiquidity(position.added_liquidity) }} LMM</span>
-                </div>
-                <div class='position-metric'>
-                  <span class='metric-label'>Removed</span>
-                  <span class='metric-value'>{{ formatLiquidity(position.removed_liquidity) }} LMM</span>
-                </div>
-                <div class='position-metric'>
-                  <span class='metric-label'>Opened</span>
-                  <span class='metric-value'>{{ formatTimestamp(position.opened_at) }}</span>
-                </div>
-                <div class='position-metric'>
-                  <span class='metric-label'>{{ position.status === 'closed' ? 'Closed' : 'Last activity' }}</span>
-                  <span class='metric-value'>
-                    {{ formatTimestamp(position.status === 'closed' ? position.closed_at : position.updated_at) }}
+                <div class='position-header-actions'>
+                  <button class='position-menu-btn' aria-label='Position actions'>
+                    ⋮
+                    <q-menu class='status-menu position-actions-menu' anchor='bottom right' self='top right' :offset='[0, 10]'>
+                      <q-list dense class='status-menu-list'>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          class='status-menu-item'
+                          :disable='position.status !== "active" || !hasLiquidity(position)'
+                          @click='onManagePositionClick(position)'
+                        >
+                          <q-item-section>Remove</q-item-section>
+                        </q-item>
+                      </q-list>
+                    </q-menu>
+                  </button>
+                  <span :class='["position-badge", `position-badge-${position.status}`]'>
+                    {{ position.status === 'active' ? 'Active' : 'Closed' }}
                   </span>
                 </div>
               </div>
 
-              <div v-if='position.status === "active"' class='position-actions'>
-                <button class='position-action-btn position-action-btn-primary' @click='onManagePositionClick(position)'>
-                  Manage
-                </button>
+              <div class='position-summary-row'>
+                <div class='position-metric'>
+                  <span class='metric-label'>Pool share</span>
+                  <span class='metric-value metric-value-stack'>
+                    <span>{{ positionPoolShareLabel(position) }}</span>
+                    <span>{{ formatLiquidity(position.current_liquidity) }} LMM</span>
+                  </span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>Pooled tokens</span>
+                  <span class='metric-value metric-value-stack'>
+                    <span>{{ formatLiquidity(positionLiquidity(position).amount0) }} {{ tokenTicker(position.token_0) }}</span>
+                    <span>{{ formatLiquidity(positionLiquidity(position).amount1) }} {{ tokenTicker(position.token_1) }}</span>
+                  </span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>Fees</span>
+                  <span class='metric-value metric-value-stack'>
+                    <span>{{ positionFeesLabel(position).token0 }}</span>
+                    <span>{{ positionFeesLabel(position).token1 }}</span>
+                  </span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>APR</span>
+                  <span class='metric-value'>{{ positionAprLabel(position) }}</span>
+                </div>
+              </div>
+
+              <div class='position-actions'>
               </div>
             </article>
           </div>
@@ -147,6 +170,9 @@ import { constants } from 'src/constant'
 import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
 import { useUserStore } from 'src/stores/user'
 import { usePositionsStore, type Position, type PositionStatusFilter } from 'src/stores/positions'
+import { type PositionMetricsEntry } from 'src/stores/kline'
+import { ams, kline, swap, type meme } from 'src/stores/export'
+import { protocol } from 'src/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -168,6 +194,10 @@ const selectedStatusLabel = computed(() => (
 const walletConnected = computed(() => Boolean(userStore.chainId && userStore.publicKey))
 const visiblePositions = computed(() => positionsStore.positions)
 const formattedLiquidityShare = computed(() => formatLiquidity(positionsStore.activeLiquidityShare))
+const pools = computed(() => swap.Swap.pools())
+const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
+const positionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
+const positionMetricsRequestSerial = ref(0)
 const showClosedHint = computed(() => (
   walletConnected.value &&
   positionsStore.loaded &&
@@ -199,6 +229,7 @@ const buildOwnerParam = async () => {
 const refreshPositions = async () => {
   if (!walletConnected.value) {
     owner.value = ''
+    positionMetricsSnapshots.value = {}
     positionsStore.clear()
     return
   }
@@ -207,14 +238,92 @@ const refreshPositions = async () => {
   owner.value = nextOwner
 
   if (!nextOwner) {
+    positionMetricsSnapshots.value = {}
     positionsStore.clear()
     return
   }
 
+  void kline.Kline.getPoolStats(kline.TickerInterval.OneDay)
   await positionsStore.fetchPositions(nextOwner, selectedStatus.value)
+  void refreshPositionMetricsSnapshots(nextOwner, selectedStatus.value)
 }
 
 const positionKey = (position: Position) => `${position.pool_application}:${position.pool_id}:${position.status}`
+const tokenApplication = (token: string) => {
+  if (!token || token === constants.LINERA_NATIVE_ID) return undefined
+  return ams.Ams.application(token)
+}
+const tokenTicker = (token: string) => {
+  if (!token || token === constants.LINERA_NATIVE_ID) return constants.LINERA_TICKER
+  const application = tokenApplication(token)
+  const memeSpec = JSON.parse(application?.spec || '{}') as meme.Meme
+  return memeSpec?.ticker || token
+}
+const tokenLogo = (token: string) => {
+  if (!token || token === constants.LINERA_NATIVE_ID) return constants.LINERA_LOGO
+  const application = tokenApplication(token)
+  return application ? ams.Ams.applicationLogo(application) : constants.LINERA_LOGO
+}
+const positionMetrics = (position: Position) => positionMetricsSnapshots.value[positionKey(position)]
+const positionLiquidity = (position: Position) =>
+  ({
+    liquidity:
+      positionMetrics(position)?.position_liquidity_live || position.current_liquidity || '0',
+    amount0: positionMetrics(position)?.redeemable_amount0 || '0',
+    amount1: positionMetrics(position)?.redeemable_amount1 || '0',
+  })
+const poolForPosition = (position: Position) => swap.Swap.getPool(position.token_0, position.token_1)
+const positionShareRatio = (position: Position) => {
+  const ratio = Number.parseFloat(positionMetrics(position)?.exact_share_ratio || '0')
+
+  if (!Number.isFinite(ratio) || ratio <= 0) return 0
+  return ratio
+}
+const positionPoolShareLabel = (position: Position) => {
+  const ratio = positionShareRatio(position)
+  if (ratio <= 0) return '0%'
+  return `${(ratio * 100).toFixed(ratio >= 0.01 ? 2 : 4).replace(/\.?0+$/, '')}%`
+}
+const formatPercentLabel = (value: number, fractionDigits = 2) => {
+  if (!Number.isFinite(value) || value <= 0) return '0%'
+  return `${value.toFixed(fractionDigits).replace(/\.?0+$/, '')}%`
+}
+const positionFeesLabel = (position: Position) => {
+  const metrics = positionMetrics(position)
+  if (!metrics) {
+    return {
+      token0: '--',
+      token1: '--',
+    }
+  }
+
+  if (!metrics.exact_fee_supported) {
+    return {
+      token0: 'Unavailable',
+      token1: 'Unavailable',
+    }
+  }
+
+  return {
+    token0: `${formatLiquidity(metrics.fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
+    token1: `${formatLiquidity(metrics.fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
+  }
+}
+const positionAprLabel = (position: Position) => {
+  const selectedPool = poolForPosition(position)
+  if (!selectedPool) return '--'
+
+  const tvl = protocol.calculatePoolTvlInNative(selectedPool, nativePriceMap.value)
+  const oneDayVolume = protocol.calculatePoolVolumeInNative(
+    kline.Kline.poolStat(selectedPool.poolId, kline.TickerInterval.OneDay),
+    nativePriceMap.value,
+  )
+  if (tvl === undefined || oneDayVolume === undefined) return '--'
+
+  return formatPercentLabel(protocol.calculatePoolAprFromDailyVolume(oneDayVolume, tvl) * 100, 4)
+}
+const hasLiquidity = (position: Position) =>
+  Number.parseFloat(positionLiquidity(position).liquidity || position.current_liquidity || '0') > 0
 const formatLiquidity = (value: string | number) => {
   const numeric = typeof value === 'number' ? value : Number.parseFloat(value || '0')
   if (!Number.isFinite(numeric)) return '0'
@@ -227,15 +336,6 @@ const formatLiquidity = (value: string | number) => {
   }
   if (numeric >= 1) return numeric.toFixed(4).replace(/\.?0+$/, '')
   return numeric.toFixed(6).replace(/\.?0+$/, '')
-}
-const formatTimestamp = (value: number | null) => {
-  if (!value) return 'N/A'
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(value)
 }
 const onExplorePoolsClick = () => {
   void router.push('/explore')
@@ -250,12 +350,36 @@ const onManagePositionClick = (position: Position) => {
   }))
 }
 
+const refreshPositionMetricsSnapshots = async (
+  nextOwner: string,
+  status: PositionStatusFilter,
+) => {
+  const requestSerial = ++positionMetricsRequestSerial.value
+
+  if (!walletConnected.value || !positionsStore.positions.length || !nextOwner) {
+    positionMetricsSnapshots.value = {}
+    return
+  }
+
+  const response = await kline.Kline.getPositionMetrics(nextOwner, status)
+  if (requestSerial !== positionMetricsRequestSerial.value) return
+
+  const metrics = response?.metrics || []
+  positionMetricsSnapshots.value = Object.fromEntries(
+    metrics.map((entry) => [
+      `${entry.pool_application}:${entry.pool_id}:${entry.status}`,
+      entry,
+    ]),
+  )
+}
+
 watch(
   [
     selectedStatus,
     () => userStore.chainId,
     () => userStore.publicKey,
     () => userStore.walletType,
+    () => pools.value.length,
   ],
   () => {
     void refreshPositions()
@@ -474,12 +598,39 @@ usePageSeo(() => ({
   display: grid
   gap: 12px
 
-.position-card-header,
-.position-share-row
+.position-card-header
   display: flex
   align-items: center
   justify-content: space-between
   gap: 16px
+
+.position-pair-wrap
+  display: flex
+  align-items: center
+  gap: 14px
+
+.position-header-actions
+  display: flex
+  align-items: center
+  gap: 10px
+
+.position-pair-icons
+  position: relative
+  width: 52px
+  height: 30px
+
+.position-token-avatar
+  position: absolute
+  top: 0
+  border: 2px solid rgba(16, 18, 24, 0.88)
+  background: rgba(255, 255, 255, 0.1)
+
+.position-token-avatar-front
+  left: 0
+  z-index: 2
+
+.position-token-avatar-back
+  left: 20px
 
 .position-pair
   font-size: 18px
@@ -487,7 +638,6 @@ usePageSeo(() => ({
   color: var(--q-light)
 
 .position-subtitle,
-.position-share-label,
 .position-share-meta,
 .metric-label
   font-size: 13px
@@ -513,52 +663,45 @@ usePageSeo(() => ({
   background: rgba(255, 255, 255, 0.08)
   color: #d1d7e0
 
-.position-share-row
+.position-summary-row
   margin-top: 18px
   padding-top: 16px
   border-top: 1px solid rgba(255, 255, 255, 0.06)
-  align-items: flex-end
-
-.position-share-value
-  margin-top: 4px
-  font-size: 28px
-  font-weight: 600
-  line-height: 1.05
-  color: var(--q-light)
-
-.position-grid
   display: grid
-  grid-template-columns: repeat(2, minmax(0, 1fr))
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.65fr) repeat(2, minmax(0, 0.8fr))
   gap: 14px 18px
-  margin-top: 18px
 
-.position-actions
-  display: flex
-  justify-content: flex-end
-  margin-top: 18px
-
-.position-action-btn
+.position-menu-btn
   border: 0
-  border-radius: 14px
-  height: 36px
-  padding: 0 16px
+  border-radius: 12px
+  width: 30px
+  height: 30px
+  display: inline-flex
+  align-items: center
+  justify-content: center
   font: inherit
-  font-size: 14px
+  font-size: 18px
   font-weight: 700
   cursor: pointer
-
-.position-action-btn-primary
-  background: #f5f5f7
-  color: #111
+  background: rgba(255, 255, 255, 0.06)
+  color: var(--q-light)
+  line-height: 1
 
 .position-metric
   display: grid
   gap: 6px
+  min-width: 0
 
 .metric-value
   font-size: 14px
   font-weight: 600
   color: var(--q-light)
+
+.metric-value-stack
+  display: grid
+  gap: 2px
+  white-space: normal
+  overflow-wrap: anywhere
 
 .empty-card
   display: flex
@@ -669,17 +812,15 @@ usePageSeo(() => ({
     display: block
 
   .positions-header,
-  .position-card-header,
-  .position-share-row
+  .position-card-header
     display: block
 
   .filter-row,
-  .position-badge,
-  .position-share-meta
+  .position-header-actions
     margin-top: 16px
 
-  .position-grid
-    grid-template-columns: 1fr
+  .position-summary-row
+    grid-template-columns: repeat(2, minmax(0, 1fr))
 
   .empty-actions
     flex-direction: column

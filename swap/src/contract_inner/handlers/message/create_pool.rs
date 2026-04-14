@@ -126,7 +126,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                         self.amount_1
                     },
                     pool_fee_percent_mul_100: 30,
-                    protocol_fee_percent_mul_100: 5,
                     router_application_id: application_id,
                 },
             )

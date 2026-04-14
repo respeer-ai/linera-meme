@@ -85,3 +85,43 @@ export interface ProtocolStat {
   tx_count: number
   pool_count: number
 }
+
+export type PositionMetricsStatus = 'partial_live_redeemable_only' | 'exact_no_swap_history'
+
+export type PositionMetricsBlocker =
+  | 'missing_liquidity_history'
+  | 'missing_live_liquidity'
+  | 'liquidity_history_mismatch'
+  | 'virtual_initial_liquidity_present'
+  | 'pool_has_swap_history_after_position_open'
+  | 'uniswap_v2_fee_split_not_supported_yet'
+  | 'missing_live_redeemable_amounts'
+
+export interface PositionMetricsEntry {
+  pool_application: string
+  pool_id: number
+  token_0: string
+  token_1: string
+  owner: string
+  status: 'active' | 'closed'
+  current_liquidity: string
+  position_liquidity_live: string | null
+  total_supply_live: string | null
+  exact_share_ratio: string | null
+  redeemable_amount0: string | null
+  redeemable_amount1: string | null
+  virtual_initial_liquidity: boolean
+  metrics_status: PositionMetricsStatus
+  exact_fee_supported: boolean
+  exact_principal_supported: boolean
+  computation_blockers: PositionMetricsBlocker[]
+  principal_amount0: string | null
+  principal_amount1: string | null
+  fee_amount0: string | null
+  fee_amount1: string | null
+}
+
+export interface PositionMetricsResponse {
+  owner: string
+  metrics: PositionMetricsEntry[]
+}

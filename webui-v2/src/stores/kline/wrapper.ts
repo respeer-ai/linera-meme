@@ -53,5 +53,12 @@ export class Kline {
     return await kline.getProtocolStat()
   }
 
+  static getPositionMetrics = async (
+    owner: string,
+    status: 'active' | 'closed' | 'all' = 'active',
+  ) => {
+    return await kline.getPositionMetrics(owner, status)
+  }
+
   static protocolStat = () => kline.protocolStat
 }

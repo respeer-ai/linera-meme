@@ -25,6 +25,7 @@ pub trait StateInterface {
 
     fn reserve_0(&self) -> Amount;
     fn reserve_1(&self) -> Amount;
+    fn total_supply(&self) -> Amount;
 
     fn consume_transfer_id(&mut self) -> u64;
 
@@ -42,12 +43,6 @@ pub trait StateInterface {
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error>;
     fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, Self::Error>;
-
-    fn calculate_adjusted_amount_pair(
-        &self,
-        amount_0_out: Amount,
-        amount_1_out: Amount,
-    ) -> Result<(Amount, Amount), Self::Error>;
 
     fn try_calculate_swap_amount_pair(
         &self,
@@ -73,6 +68,15 @@ pub trait StateInterface {
         to: Account,
         block_timestamp: Timestamp,
     ) -> Result<Amount, Self::Error>;
+
+    async fn remove_liquidity(
+        &mut self,
+        from: Account,
+        liquidity: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+        block_timestamp: Timestamp,
+    ) -> Result<(Amount, Amount), Self::Error>;
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error>;
 

@@ -1361,6 +1361,79 @@ class Db:
         )
         return positions
 
+    def get_position_liquidity_history(self, owner: str, pool_application: str, pool_id: int):
+        self.ensure_fresh_read_connection()
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    transaction_id,
+                    transaction_type,
+                    amount_0_in,
+                    amount_0_out,
+                    amount_1_in,
+                    amount_1_out,
+                    liquidity,
+                    created_at
+                FROM {self.transactions_table}
+                WHERE
+                    from_account = %s
+                    AND pool_application = %s
+                    AND pool_id = %s
+                    AND transaction_type IN ('AddLiquidity', 'RemoveLiquidity')
+                ORDER BY created_at ASC, transaction_id ASC
+            ''',
+            (owner, pool_application, pool_id),
+        )
+        return self.cursor_dict.fetchall()
+
+    def get_pool_transaction_history(self, pool_application: str, pool_id: int):
+        self.ensure_fresh_read_connection()
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    transaction_id,
+                    transaction_type,
+                    from_account,
+                    amount_0_in,
+                    amount_0_out,
+                    amount_1_in,
+                    amount_1_out,
+                    liquidity,
+                    created_at
+                FROM {self.transactions_table}
+                WHERE
+                    pool_application = %s
+                    AND pool_id = %s
+                    AND token_reversed = 0
+                ORDER BY created_at ASC, transaction_id ASC
+            ''',
+            (pool_application, pool_id),
+        )
+        return self.cursor_dict.fetchall()
+
+    def get_pool_swap_count_since(
+        self,
+        pool_application: str,
+        pool_id: int,
+        created_at: int | None,
+    ) -> int:
+        self.ensure_fresh_read_connection()
+        lower_bound = int(created_at or 0)
+        self.cursor_dict.execute(
+            f'''
+                SELECT COUNT(*) AS swap_count
+                FROM {self.transactions_table}
+                WHERE
+                    pool_application = %s
+                    AND pool_id = %s
+                    AND created_at >= %s
+                    AND transaction_type NOT IN ('AddLiquidity', 'RemoveLiquidity')
+            ''',
+            (pool_application, pool_id, lower_bound),
+        )
+        row = self.cursor_dict.fetchone()
+        return int(row['swap_count']) if row is not None else 0
+
     def get_kline_information(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
         self.ensure_fresh_read_connection()
         (pool_id, pool_application, token_0, token_1, token_reversed) = self.resolve_pool_identity_for_read(

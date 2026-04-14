@@ -25,6 +25,19 @@ ticker_stub = types.ModuleType('ticker')
 ticker_stub.Ticker = object
 sys.modules['ticker'] = ticker_stub
 
+async_request_stub = types.ModuleType('async_request')
+
+async def dummy_post(*_args, **_kwargs):
+    raise AssertionError('async_request.post should be stubbed by the test when needed')
+
+async_request_stub.post = dummy_post
+sys.modules['async_request'] = async_request_stub
+
+db_stub = types.ModuleType('db')
+db_stub.Db = object
+db_stub.align_timestamp_to_minute_ms = lambda value: value
+sys.modules['db'] = db_stub
+
 fastapi_stub = types.ModuleType('fastapi')
 
 
@@ -112,6 +125,100 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         try:
             response = await kline_module.on_get_positions(owner='chain:owner-a', status='bad')
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"Invalid positions status"}')
+
+    async def test_on_get_position_metrics_returns_live_metrics(self):
+        original_db = kline_module._db
+        original_fetcher = kline_module._position_metrics_fetcher
+        fake_db = FakeDb(positions=[
+            {
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'token_0': 'QQQ',
+                'token_1': 'TLINERA',
+                'owner': 'chain:owner-a',
+                'status': 'active',
+                'current_liquidity': '0.346087',
+            },
+        ])
+
+        async def fake_fetcher(position):
+            self.assertEqual(position['pool_id'], 7)
+            return {
+                'position_liquidity_live': '0.346087',
+                'total_supply_live': '1.000000',
+                'exact_share_ratio': '0.346087',
+                'redeemable_amount0': '123.45',
+                'redeemable_amount1': '6.78',
+                'virtual_initial_liquidity': True,
+                'metrics_status': 'partial_live_redeemable_only',
+                'exact_fee_supported': False,
+                'exact_principal_supported': False,
+                'computation_blockers': [
+                    'missing_historical_total_supply',
+                    'missing_fee_growth_trace',
+                    'missing_virtual_liquidity_exclusion_basis',
+                ],
+                'principal_amount0': None,
+                'principal_amount1': None,
+                'fee_amount0': None,
+                'fee_amount1': None,
+            }
+
+        kline_module._db = fake_db
+        kline_module._position_metrics_fetcher = fake_fetcher
+
+        try:
+            response = await kline_module.on_get_position_metrics(owner='chain:owner-a', status='active')
+        finally:
+            kline_module._db = original_db
+            kline_module._position_metrics_fetcher = original_fetcher
+
+        self.assertEqual(response, {
+            'owner': 'chain:owner-a',
+            'metrics': [
+                {
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 7,
+                    'token_0': 'QQQ',
+                    'token_1': 'TLINERA',
+                    'owner': 'chain:owner-a',
+                    'status': 'active',
+                    'current_liquidity': '0.346087',
+                    'position_liquidity_live': '0.346087',
+                    'total_supply_live': '1.000000',
+                    'exact_share_ratio': '0.346087',
+                    'redeemable_amount0': '123.45',
+                    'redeemable_amount1': '6.78',
+                    'virtual_initial_liquidity': True,
+                    'metrics_status': 'partial_live_redeemable_only',
+                    'exact_fee_supported': False,
+                    'exact_principal_supported': False,
+                    'computation_blockers': [
+                        'missing_historical_total_supply',
+                        'missing_fee_growth_trace',
+                        'missing_virtual_liquidity_exclusion_basis',
+                    ],
+                    'principal_amount0': None,
+                    'principal_amount1': None,
+                    'fee_amount0': None,
+                    'fee_amount1': None,
+                },
+            ],
+        })
+        self.assertEqual(fake_db.calls, [{'owner': 'chain:owner-a', 'status': 'active'}])
+
+    async def test_on_get_position_metrics_returns_400_for_invalid_status(self):
+        original_db = kline_module._db
+        fake_db = FakeDb(error=ValueError('Invalid positions status'))
+        kline_module._db = fake_db
+
+        try:
+            response = await kline_module.on_get_position_metrics(owner='chain:owner-a', status='bad')
         finally:
             kline_module._db = original_db
 

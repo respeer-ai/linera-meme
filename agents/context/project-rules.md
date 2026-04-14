@@ -39,7 +39,8 @@ Authority: High
 - Prefer concise rows over prose-heavy plans inside the task board
 - Keep completed tasks for history, but move stable conclusions into `context/` or `primitives/`
 - Prefer targeted tests first
-- When running heavy Rust tests, reduce parallelism and memory pressure
+- When running Rust tests, always apply explicit memory limits to avoid host lockups
+- For heavy Rust tests, reduce parallelism and memory pressure further
 - For async contract flows, test both happy path and message-chain failure or duplication edges
 
 ## Checklist

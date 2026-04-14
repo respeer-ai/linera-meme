@@ -26,6 +26,7 @@ Local rules for `webui-v2/` code and frontend bug fixing.
 
 ## Rules
 
+- For `webui-v2` dependency install, build, and validation commands, use `bun` first; do not default to `yarn`
 - Do not patch frontend display for issues that originate in contracts, transaction persistence, or `service/kline`
 - For chart bugs, separate:
   - backend `/points` response correctness

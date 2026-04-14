@@ -53,6 +53,10 @@ impl StateInterface for StateAdapter {
         self.state.borrow().reserve_1()
     }
 
+    fn total_supply(&self) -> Amount {
+        self.state.borrow().total_supply()
+    }
+
     fn consume_transfer_id(&mut self) -> u64 {
         self.state.borrow_mut().consume_transfer_id()
     }
@@ -86,16 +90,6 @@ impl StateInterface for StateAdapter {
 
     fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, Self::Error> {
         self.state.borrow().calculate_swap_amount_1(amount_0)
-    }
-
-    fn calculate_adjusted_amount_pair(
-        &self,
-        amount_0_out: Amount,
-        amount_1_out: Amount,
-    ) -> Result<(Amount, Amount), Self::Error> {
-        self.state
-            .borrow()
-            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)
     }
 
     fn try_calculate_swap_amount_pair(
@@ -142,6 +136,20 @@ impl StateInterface for StateAdapter {
         self.state
             .borrow_mut()
             .add_liquidity(amount_0, amount_1, to, block_timestamp)
+            .await
+    }
+
+    async fn remove_liquidity(
+        &mut self,
+        from: Account,
+        liquidity: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+        block_timestamp: Timestamp,
+    ) -> Result<(Amount, Amount), Self::Error> {
+        self.state
+            .borrow_mut()
+            .remove_liquidity(from, liquidity, amount_0_min, amount_1_min, block_timestamp)
             .await
     }
 

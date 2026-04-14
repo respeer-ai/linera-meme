@@ -138,7 +138,6 @@ pub struct InstantiationArgument {
     pub amount_0: Amount,
     pub amount_1: Amount,
     pub pool_fee_percent_mul_100: u16,
-    pub protocol_fee_percent_mul_100: u16,
     pub router_application_id: ApplicationId,
 }
 
@@ -165,7 +164,6 @@ pub struct Pool {
     pub reserve_0: Amount,
     pub reserve_1: Amount,
     pub pool_fee_percent_mul_100: u16,
-    pub protocol_fee_percent_mul_100: u16,
     pub fee_to: Account,
     pub fee_to_setter: Account,
     pub price_0_cumulative: Decimal,
@@ -181,7 +179,6 @@ impl Pool {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
         pool_fee_percent_mul_100: u16,
-        protocol_fee_percent_mul_100: u16,
         creator: Account,
         block_timestamp: Timestamp,
     ) -> Self {
@@ -193,7 +190,6 @@ impl Pool {
             reserve_0: Amount::ZERO,
             reserve_1: Amount::ZERO,
             pool_fee_percent_mul_100,
-            protocol_fee_percent_mul_100,
             fee_to: creator,
             fee_to_setter: creator,
             price_0_cumulative: Decimal::default(),
@@ -219,9 +215,6 @@ impl Pool {
             );
         }
 
-        let reserve_0 = self.reserve_0.saturating_add(amount_0);
-        let reserve_1 = self.reserve_1.saturating_add(amount_1);
-
         if total_supply == Amount::ZERO {
             Amount::from_attos(
                 U256::from(u128::from(amount_0))
@@ -235,13 +228,13 @@ impl Pool {
                 U256::from(u128::from(amount_0))
                     .checked_mul(U256::from(u128::from(total_supply)))
                     .unwrap()
-                    .checked_div(U256::from(u128::from(reserve_0)))
+                    .checked_div(U256::from(u128::from(self.reserve_0)))
                     .unwrap()
                     .min(
                         U256::from(U256::from(u128::from(amount_1)))
                             .checked_mul(U256::from(u128::from(total_supply)))
                             .unwrap()
-                            .checked_div(U256::from(u128::from(reserve_1)))
+                            .checked_div(U256::from(u128::from(self.reserve_1)))
                             .unwrap(),
                     )
                     .as_u128(),
@@ -279,6 +272,16 @@ impl Pool {
         return Amount::ZERO;
     }
 
+    pub fn update_k_last(&mut self) {
+        self.k_last = Amount::from_attos(
+            U256::from(u128::from(self.reserve_0))
+                .checked_mul(U256::from(u128::from(self.reserve_1)))
+                .unwrap()
+                .integer_sqrt()
+                .as_u128(),
+        );
+    }
+
     // TODO: this should be calculate only once for each block
     pub fn liquid(&mut self, balance_0: Amount, balance_1: Amount, block_timestamp: Timestamp) {
         let time_elapsed = u128::from(
@@ -295,13 +298,6 @@ impl Pool {
         self.reserve_0 = balance_0;
         self.reserve_1 = balance_1;
         self.block_timestamp = block_timestamp;
-        self.k_last = Amount::from_attos(
-            U256::from(u128::from(self.reserve_0))
-                .checked_mul(U256::from(u128::from(self.reserve_1)))
-                .unwrap()
-                .integer_sqrt()
-                .as_u128(),
-        );
     }
 
     pub fn calculate_price_cumulative_pair(&self, time_elapsed: u128) -> (Decimal, Decimal) {
@@ -340,93 +336,129 @@ impl Pool {
     }
 
     pub fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, PoolError> {
-        if self.reserve_0 <= Amount::ZERO || self.reserve_1 <= Amount::ZERO {
+        if self.reserve_0 <= Amount::ZERO
+            || self.reserve_1 <= Amount::ZERO
+            || amount_0 <= Amount::ZERO
+        {
             return Err(PoolError::InvalidAmount);
         }
 
-        let reserve_0 = Decimal::from_str(&format!("{}", self.reserve_0)).unwrap();
-        let reserve_1 = Decimal::from_str(&format!("{}", self.reserve_1)).unwrap();
-        let amount_0 = Decimal::from_str(&format!("{}", amount_0)).unwrap();
+        let fee_base = U256::from(10000u128);
+        let fee_multiplier = fee_base
+            .checked_sub(U256::from(self.pool_fee_percent_mul_100))
+            .unwrap();
+        let amount_in_with_fee = U256::from(u128::from(amount_0))
+            .checked_mul(fee_multiplier)
+            .unwrap();
+        let numerator = amount_in_with_fee
+            .checked_mul(U256::from(u128::from(self.reserve_1)))
+            .unwrap();
+        let denominator = U256::from(u128::from(self.reserve_0))
+            .checked_mul(fee_base)
+            .unwrap()
+            .checked_add(amount_in_with_fee)
+            .unwrap();
 
-        Ok(Amount::from_str(
-            &amount_0
-                .checked_mul(reserve_1)
-                .unwrap()
-                .checked_div(reserve_0)
-                .unwrap()
-                .round_dp(Amount::DECIMAL_PLACES as u32)
-                .to_string(),
-        )
-        .unwrap())
+        Ok(Amount::from_attos(
+            numerator
+                .checked_div(denominator)
+                .unwrap_or(U256::from(0))
+                .as_u128(),
+        ))
     }
 
     pub fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, PoolError> {
-        if self.reserve_0 <= Amount::ZERO || self.reserve_1 <= Amount::ZERO {
+        if self.reserve_0 <= Amount::ZERO
+            || self.reserve_1 <= Amount::ZERO
+            || amount_1 <= Amount::ZERO
+        {
             return Err(PoolError::InvalidAmount);
         }
 
-        let reserve_0 = Decimal::from_str(&format!("{}", self.reserve_0)).unwrap();
-        let reserve_1 = Decimal::from_str(&format!("{}", self.reserve_1)).unwrap();
-        let amount_1 = Decimal::from_str(&format!("{}", amount_1)).unwrap();
+        let fee_base = U256::from(10000u128);
+        let fee_multiplier = fee_base
+            .checked_sub(U256::from(self.pool_fee_percent_mul_100))
+            .unwrap();
+        let amount_in_with_fee = U256::from(u128::from(amount_1))
+            .checked_mul(fee_multiplier)
+            .unwrap();
+        let numerator = amount_in_with_fee
+            .checked_mul(U256::from(u128::from(self.reserve_0)))
+            .unwrap();
+        let denominator = U256::from(u128::from(self.reserve_1))
+            .checked_mul(fee_base)
+            .unwrap()
+            .checked_add(amount_in_with_fee)
+            .unwrap();
 
-        Ok(Amount::from_str(
-            &amount_1
-                .checked_mul(reserve_0)
-                .unwrap()
-                .checked_div(reserve_1)
-                .unwrap()
-                .round_dp(Amount::DECIMAL_PLACES as u32)
-                .to_string(),
-        )
-        .unwrap())
+        Ok(Amount::from_attos(
+            numerator
+                .checked_div(denominator)
+                .unwrap_or(U256::from(0))
+                .as_u128(),
+        ))
     }
 
-    pub fn calculate_adjusted_amount_pair(
+    pub fn validate_swap_invariant(
         &self,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
         amount_0_out: Amount,
         amount_1_out: Amount,
-    ) -> Result<(Amount, Amount), PoolError> {
-        let amount_0_in = if self.reserve_0 > amount_0_out {
-            amount_0_out
-        } else {
-            Amount::ZERO
-        };
-        let amount_1_in = if self.reserve_1 > amount_1_out {
-            amount_1_out
-        } else {
-            Amount::ZERO
-        };
+    ) -> Result<(), PoolError> {
         if amount_0_in <= Amount::ZERO && amount_1_in <= Amount::ZERO {
             return Err(PoolError::InsufficientLiquidity);
         }
-        let balance_0_adjusted = U256::from(u128::from(self.reserve_0))
+        if amount_0_out >= self.reserve_0 || amount_1_out >= self.reserve_1 {
+            return Err(PoolError::InsufficientLiquidity);
+        }
+
+        let fee_base = U256::from(10000u128);
+        let reserve_0 = U256::from(u128::from(self.reserve_0));
+        let reserve_1 = U256::from(u128::from(self.reserve_1));
+        let balance_0 = reserve_0
+            .checked_add(U256::from(u128::from(amount_0_in)))
+            .unwrap()
+            .checked_sub(U256::from(u128::from(amount_0_out)))
+            .unwrap();
+        let balance_1 = reserve_1
+            .checked_add(U256::from(u128::from(amount_1_in)))
+            .unwrap()
+            .checked_sub(U256::from(u128::from(amount_1_out)))
+            .unwrap();
+
+        let balance_0_adjusted = balance_0
+            .checked_mul(fee_base)
+            .unwrap()
             .checked_sub(
-                // Fee percent already scale to 100 larger
                 U256::from(u128::from(amount_0_in))
                     .checked_mul(U256::from(self.pool_fee_percent_mul_100))
-                    .unwrap()
-                    .checked_div(U256::from(10000))
                     .unwrap(),
             )
             .unwrap();
-        let balance_1_adjusted = U256::from(u128::from(self.reserve_1))
+        let balance_1_adjusted = balance_1
+            .checked_mul(fee_base)
+            .unwrap()
             .checked_sub(
-                // Fee percent already scale to 100 larger
                 U256::from(u128::from(amount_1_in))
                     .checked_mul(U256::from(self.pool_fee_percent_mul_100))
-                    .unwrap()
-                    .checked_div(U256::from(10000))
                     .unwrap(),
             )
             .unwrap();
-        if balance_0_adjusted.checked_mul(balance_1_adjusted)
-            >= U256::from(u128::from(self.reserve_0))
-                .checked_mul(U256::from(u128::from(self.reserve_1)))
+
+        if balance_0_adjusted.checked_mul(balance_1_adjusted).unwrap()
+            < reserve_0
+                .checked_mul(reserve_1)
+                .unwrap()
+                .checked_mul(fee_base)
+                .unwrap()
+                .checked_mul(fee_base)
+                .unwrap()
         {
             return Err(PoolError::BrokenK);
         }
 
-        Ok((amount_0_in, amount_1_in))
+        Ok(())
     }
 
     pub fn try_calculate_swap_amount_pair(
@@ -439,7 +471,21 @@ impl Pool {
         if self.reserve_0 == Amount::ZERO && self.reserve_1 == Amount::ZERO {
             return Ok((amount_0_desired, amount_1_desired));
         }
-        let amount_1_optimal = self.calculate_swap_amount_1(amount_0_desired)?;
+        let reserve_0 = Decimal::from_str(&format!("{}", self.reserve_0)).unwrap();
+        let reserve_1 = Decimal::from_str(&format!("{}", self.reserve_1)).unwrap();
+        let amount_0_desired_decimal = Decimal::from_str(&format!("{}", amount_0_desired)).unwrap();
+        let amount_1_desired_decimal = Decimal::from_str(&format!("{}", amount_1_desired)).unwrap();
+
+        let amount_1_optimal = Amount::from_str(
+            &amount_0_desired_decimal
+                .checked_mul(reserve_1)
+                .unwrap()
+                .checked_div(reserve_0)
+                .unwrap()
+                .round_dp(Amount::DECIMAL_PLACES as u32)
+                .to_string(),
+        )
+        .unwrap();
         if amount_1_optimal <= amount_1_desired {
             if let Some(amount_1_min) = amount_1_min {
                 if amount_1_optimal < amount_1_min {
@@ -448,7 +494,16 @@ impl Pool {
             }
             return Ok((amount_0_desired, amount_1_optimal));
         }
-        let amount_0_optimal = self.calculate_swap_amount_0(amount_1_desired)?;
+        let amount_0_optimal = Amount::from_str(
+            &amount_1_desired_decimal
+                .checked_mul(reserve_0)
+                .unwrap()
+                .checked_div(reserve_1)
+                .unwrap()
+                .round_dp(Amount::DECIMAL_PLACES as u32)
+                .to_string(),
+        )
+        .unwrap();
         if amount_0_optimal > amount_0_desired {
             return Err(PoolError::InvalidAmount);
         }
@@ -559,7 +614,7 @@ mod tests {
                 .unwrap();
         let creator = Account { chain_id, owner };
 
-        let mut pool = Pool::create(token_0, Some(token_1), 30, 5, creator, 0.into());
+        let mut pool = Pool::create(token_0, Some(token_1), 30, creator, 0.into());
 
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
@@ -604,6 +659,16 @@ mod tests {
             .unwrap();
         assert_eq!(amount_0, Amount::from_str("0.666666666666666666").unwrap());
         assert_eq!(amount_1, Amount::from_str("14.156133333333333333").unwrap());
+
+        let liquidity = pool.calculate_liquidity(
+            Amount::from_tokens(30),
+            Amount::from_str("1.412815175518738639").unwrap(),
+            Amount::from_tokens(30),
+        );
+        assert_eq!(
+            liquidity,
+            Amount::from_str("42.384455265562159158").unwrap()
+        );
     }
 
     #[test]
@@ -627,7 +692,7 @@ mod tests {
                 .unwrap();
         let creator = Account { chain_id, owner };
 
-        let mut pool = Pool::create(token_0, Some(token_1), 30, 5, creator, 0.into());
+        let mut pool = Pool::create(token_0, Some(token_1), 30, creator, 0.into());
 
         assert_eq!(pool.token_0, token_0);
         assert_eq!(pool.token_1, Some(token_1));
@@ -648,6 +713,18 @@ mod tests {
         assert_eq!(amount_0, Amount::from_str("1.412815175518738639").unwrap());
         assert_eq!(amount_1, Amount::from_str("30").unwrap());
 
+        let swap_amount_0 = pool.calculate_swap_amount_0(Amount::ONE).unwrap();
+        assert_eq!(
+            swap_amount_0,
+            Amount::from_str("0.044846881859728669").unwrap()
+        );
+
+        let swap_amount_1 = pool.calculate_swap_amount_1(Amount::ONE).unwrap();
+        assert_eq!(
+            swap_amount_1,
+            Amount::from_str("10.601150425638457686").unwrap()
+        );
+
         let (amount_0, amount_1) = pool
             .try_calculate_liquidity_amount_pair(
                 Amount::from_tokens(20),
@@ -659,8 +736,48 @@ mod tests {
         assert_eq!(amount_0, Amount::from_str("0.666666666666666666").unwrap());
         assert_eq!(amount_1, Amount::from_str("14.156133333333333333").unwrap());
 
+        let liquidity = pool.calculate_liquidity(
+            Amount::from_tokens(30),
+            Amount::from_str("1.412815175518738639").unwrap(),
+            Amount::from_tokens(30),
+        );
+        assert_eq!(
+            liquidity,
+            Amount::from_str("42.384455265562159158").unwrap()
+        );
+
         let (price_0, price_1) = pool.calculate_price_pair();
         assert_eq!(price_0, Amount::from_str("21.2342").unwrap());
         assert_eq!(price_1, Amount::from_str("0.047093839183957955").unwrap());
+    }
+
+    #[test]
+    fn test_pool_mint_fee_matches_uniswap_v2_formula() {
+        let token_0 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
+        let token_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
+        let owner = AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+        )
+        .unwrap();
+        let chain_id =
+            ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+                .unwrap();
+        let creator = Account { chain_id, owner };
+
+        let mut pool = Pool::create(token_0, Some(token_1), 30, creator, 0.into());
+        pool.reserve_0 = Amount::from_tokens(121);
+        pool.reserve_1 = Amount::from_tokens(121);
+        pool.k_last = Amount::from_tokens(100);
+
+        assert_eq!(
+            pool.mint_fee(Amount::from_tokens(100)),
+            Amount::from_str("2.978723404255319148").unwrap(),
+        );
     }
 }

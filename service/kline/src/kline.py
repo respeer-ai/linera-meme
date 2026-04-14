@@ -5,6 +5,9 @@ import uvicorn
 import argparse
 import traceback
 import time
+import async_request
+from environment import running_in_k8s
+import position_metrics
 
 
 from swap import Swap
@@ -22,6 +25,36 @@ _ticker_task = None
 _db = None
 _ticker_db = None
 _db_config = None
+
+
+async def _default_position_metrics_fetcher(position: dict):
+    if _swap is None:
+        raise RuntimeError('Swap client is not initialized')
+    if _db is None:
+        raise RuntimeError('Db client is not initialized')
+    return await position_metrics.fetch_live_position_metrics(
+        position,
+        _swap.base_url,
+        liquidity_history=_db.get_position_liquidity_history(
+            owner=position['owner'],
+            pool_application=position['pool_application'],
+            pool_id=position['pool_id'],
+        ),
+        pool_transaction_history=_db.get_pool_transaction_history(
+            pool_application=position['pool_application'],
+            pool_id=position['pool_id'],
+        ),
+        pool_swap_count_since_open=_db.get_pool_swap_count_since(
+            pool_application=position['pool_application'],
+            pool_id=position['pool_id'],
+            created_at=position['opened_at'],
+        ),
+        post=async_request.post,
+        in_k8s=running_in_k8s(),
+    )
+
+
+_position_metrics_fetcher = _default_position_metrics_fetcher
 
 
 @app.get('/points/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
@@ -170,6 +203,43 @@ async def on_get_positions(
         )
     except Exception as e:
         print(f'Failed get positions: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/position-metrics')
+async def on_get_position_metrics(
+    owner: str = Query(...),
+    status: str = Query(default='active'),
+):
+    try:
+        positions = _db.get_positions(owner=owner, status=status)
+        metrics = []
+        for position in positions:
+            live_metrics = await _position_metrics_fetcher(position)
+            metrics.append({
+                'pool_application': position['pool_application'],
+                'pool_id': position['pool_id'],
+                'token_0': position['token_0'],
+                'token_1': position['token_1'],
+                'owner': position['owner'],
+                'status': position['status'],
+                'current_liquidity': position['current_liquidity'],
+                **live_metrics,
+            })
+        return {
+            'owner': owner,
+            'metrics': metrics,
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get position metrics: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

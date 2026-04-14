@@ -1,4 +1,4 @@
-import { _Account, type Account } from '../account'
+import { type Account } from '../account'
 import { NotifyType } from '../notify'
 import { usePoolStore } from './store'
 import { type LiquidityAmount } from './types'
@@ -39,7 +39,7 @@ export const liquidity = (
 ) => {
   pool.liquidity(
     {
-      owner: _Account.accountDescription(account),
+      owner: account,
       Message: {
         Error: {
           Title: 'Owner liquidity',

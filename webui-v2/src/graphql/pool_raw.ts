@@ -37,7 +37,7 @@ export const CALCULATE_AMOUNT_LIQUIDITY = gql`
 `
 
 export const LIQUIDITY = gql`
-  query liquidity($owner: String!) {
+  query liquidity($owner: Account!) {
     liquidity(owner: $owner) {
       liquidity
       amount0

@@ -79,15 +79,20 @@ impl<
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
-        // 1: Calculate liquidity amount pair
+        let timestamp = self
+            .block_timestamp
+            .unwrap_or(self.runtime.borrow_mut().system_time());
         let (amount_0, amount_1) = self
             .state
-            .borrow()
-            .try_calculate_liquidity_amount_pair(
+            .borrow_mut()
+            .remove_liquidity(
+                self.origin,
                 self.liquidity,
                 self.amount_0_out_min,
                 self.amount_1_out_min,
+                timestamp,
             )
+            .await
             .map_err(Into::into)?;
 
         // 2: Transfer tokens
@@ -107,14 +112,6 @@ impl<
                 .transfer(application, to, amount_1),
         };
 
-        // 3: Burn liquidity
-        self.state
-            .borrow_mut()
-            .burn(self.origin, self.liquidity)
-            .await
-            .map_err(Into::into)?;
-
-        let timestamp = self.runtime.borrow_mut().system_time();
         let transaction = self.state.borrow().build_transaction(
             self.origin,
             None,
@@ -122,7 +119,7 @@ impl<
             Some(amount_0),
             Some(amount_1),
             Some(self.liquidity),
-            self.block_timestamp.unwrap_or(timestamp),
+            timestamp,
         );
 
         let destination = self.runtime.borrow_mut().chain_id();

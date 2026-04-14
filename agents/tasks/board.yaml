@@ -129,6 +129,36 @@ groups:
         depends_on: []
         title: 核验 liquidity 字段是否可直接净额相减
         notes: 依赖后端字段单位和精度确认
+      - id: POS-021
+        status: Todo
+        priority: P0
+        depends_on: [POS-013]
+        title: 保持 /positions 为轻量列表接口
+        notes: 仅承载 position 列表和基础状态；不要在此接口内叠加真实 fees principal redeemable 重计算
+      - id: POS-022
+        status: Doing
+        priority: P0
+        depends_on: [POS-021]
+        title: service/kline 新增 position metrics 接口
+        notes: 已新增 /position-metrics，并接入 position 历史流动性记录、全池 transaction history 和开仓后池子 swap 计数；在当前锁定 virtual initial supply 语义下，无 swap 时无论是否 virtual initial liquidity 都可返回 exact principal=redeemable / fee=0；有 swap 时，现已支持“以用户最后一次流动性变更为基准，其之后池子再无任何 Add/RemoveLiquidity”的严格子集：若最后一次变更是 Add，则其之前不能有 swap；若最后一次变更是 Remove，则允许它之前已有 swap，并把这次 Remove 后的剩余仓位视为新的精确基准，因此已覆盖单次 Add、Add 后部分 Remove、以及 swap 后 Remove 再继续持仓/继续被后续 swap 稀释的剩余仓位。实现基于当前 Uniswap V2 fee-on 语义重放 total_supply/reserve/k_last 历史，并用 fee-free counterfactual swap path 精确拆分 principal/fee。其余开仓后仍有流动性变更、latest Add 之前已发生 swap、或历史无法重放的场景仍返回更具体 blockers
+      - id: POS-023
+        status: Doing
+        priority: P0
+        depends_on: [POS-022]
+        title: 前端接入真实 position fee 展示
+        notes: 前端已切到消费 /position-metrics，不再使用 24h 成交量近似 fee；当前在 exact_fee_supported=false 时显式降级为 Unavailable，待 POS-022/024 提供真实 fee_amount0 fee_amount1 后补齐展示
+      - id: POS-025
+        status: Todo
+        priority: P0
+        depends_on: [POS-022]
+        title: position-metrics 改为与池历史长度无关的物化查询
+        notes: 当前 /position-metrics 仍需按请求读取全池 transaction history 并重放，时间复杂度随池历史长度增长。下一步改为仅在 service/kline 侧实现写时物化和查询时常数级读取：为每个 pool 维护可增量更新的 live / fee-free 累积状态，为每个 owner+pool active position 维护“最近一次流动性变更”为 basis 的快照；查询时只读取 position basis snapshot 和 pool current snapshot，不再扫描全历史。该任务只涉及 kline/MySQL/同步逻辑与接口实现，不修改 pool/swap 合约侧语义
+      - id: POS-024
+        status: Doing
+        priority: P0
+        depends_on: []
+        title: pool/swap 语义对齐 Uniswap V2
+        notes: 已移除未生效的 protocol_fee_percent_mul_100，当前锁定为固定 Uniswap V2 fee-on 语义；swap 输出改为 constant-product with input-side fee，swap invariant 改为基于真实 amount_in/out 校验，非零 total_supply 的 add-liquidity mint 改为按 fee mint 后 total_supply 和现有 reserve 比例计算；同时修正 k_last 不再在 swap 时刷新，并让 remove_liquidity 也会结算 mint_fee 和更新 reserves。`validate_swap_invariant` / `mint_protocol_fee` / `update_k_last` 已从 StateInterface 顶层 helper 收回到 swap/add/remove 主流程，只保留 Pool 纯数学函数。pool service 的 `totalSupply` / `liquidity(owner)` / `calculate_amount_liquidity` 查询现已按 pending protocol fee 稀释后的 effective total supply 返回，避免把尚未 mint 的 protocol share 错算进用户可提资产；并新增了真实集成级 GraphQL 回归来断言 swap 后 `totalSupply/liquidity(owner)` 已体现 pending fee 稀释，不过该集成测在当前环境执行仍会被 Wasmer 模块实例化阶段的 os error 12 卡住，只能先完成 no-run 编译校验并依赖轻量 service 单测验证语义。virtual initial liquidity 现已转为锁定初始 supply，不再把初始储备注入首个真实 LP；contract 回归已覆盖初始 user liquidity=0、首次 add 后 user liquidity<total_supply、用户清空自身 LP 后池子仍保留锁定 supply/reserve。受限内存下 Wasmer 集成测仍需单独环境验证
   - name: Contract Tests
     tasks:
       - id: TEST-001

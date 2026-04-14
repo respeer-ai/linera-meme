@@ -535,7 +535,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(858000000000000000000000),
+        Amount::from_attos(793702900258497670180725),
     );
 
     suite
@@ -566,7 +566,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(1353000000000000000000000),
+        Amount::from_attos(1201588945967107624856252),
     );
 
     let descriptions = suite
@@ -754,7 +754,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_str("0.8").unwrap(),
+        Amount::from_str("0.83375020843755211").unwrap(),
     );
 
     let query = Request::new(
@@ -797,7 +797,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(857999200000000000000000),
+        Amount::from_attos(793702066508289232628615),
     );
 
     let query = Request::new(
@@ -818,7 +818,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(1352998800000000000000000),
+        Amount::from_attos(1201587745967107624856252),
     );
 
     suite
@@ -850,7 +850,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_str("2.0").unwrap(),
+        Amount::from_str("2.03375020843755211").unwrap(),
     );
 
     let query = Request::new(
@@ -871,7 +871,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_tokens(3),
+        Amount::from_str("2.927135999999999999").unwrap(),
     );
 
     let query = Request::new(
@@ -893,7 +893,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(857998000000000000000000),
+        Amount::from_attos(793700866508289232628615),
     );
 
     let query = Request::new(
@@ -914,7 +914,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(1352997000000000000000000),
+        Amount::from_attos(1201586018831107624856253),
     );
 
     let QueryOutcome { response, .. } = pool_chain_user
@@ -926,8 +926,8 @@ async fn meme_meme_pair_test() {
         open_chain_fee_budget(),
         pool_chain_user.chain_balance().await
     );
-    assert_eq!(Amount::from_tokens(3), pool.reserve_1);
-    assert_eq!(Amount::from_tokens(2), pool.reserve_0);
+    assert_eq!(Amount::from_str("2.927135999999999999").unwrap(), pool.reserve_1);
+    assert_eq!(Amount::from_str("2.03375020843755211").unwrap(), pool.reserve_0);
 
     let query = Request::new(
         r#"

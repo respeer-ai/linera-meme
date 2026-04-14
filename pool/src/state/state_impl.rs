@@ -25,7 +25,6 @@ impl StateInterface for PoolState {
             parameters.token_0,
             parameters.token_1,
             argument.pool_fee_percent_mul_100,
-            argument.protocol_fee_percent_mul_100,
             owner,
             block_timestamp,
         )));
@@ -43,8 +42,15 @@ impl StateInterface for PoolState {
                 liquidity = self
                     .mint_shares(argument.amount_0, argument.amount_1, owner)
                     .await?;
+            } else {
+                self.total_supply.set(pool.calculate_liquidity(
+                    Amount::ZERO,
+                    argument.amount_0,
+                    argument.amount_1,
+                ));
             }
             pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
+            pool.update_k_last();
         }
 
         self.pool.set(Some(pool));
@@ -67,6 +73,10 @@ impl StateInterface for PoolState {
 
     fn reserve_1(&self) -> Amount {
         self.pool().reserve_1
+    }
+
+    fn total_supply(&self) -> Amount {
+        *self.total_supply.get()
     }
 
     fn consume_transfer_id(&mut self) -> u64 {
@@ -110,16 +120,6 @@ impl StateInterface for PoolState {
 
     fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, Self::Error> {
         Ok(self.pool().calculate_swap_amount_1(amount_0)?)
-    }
-
-    fn calculate_adjusted_amount_pair(
-        &self,
-        amount_0_out: Amount,
-        amount_1_out: Amount,
-    ) -> Result<(Amount, Amount), Self::Error> {
-        Ok(self
-            .pool()
-            .calculate_adjusted_amount_pair(amount_0_out, amount_1_out)?)
     }
 
     fn try_calculate_swap_amount_pair(
@@ -172,8 +172,38 @@ impl StateInterface for PoolState {
             pool.reserve_1.try_add(amount_1)?,
             block_timestamp,
         );
+        pool.update_k_last();
         self.pool.set(Some(pool));
         Ok(liquidity)
+    }
+
+    async fn remove_liquidity(
+        &mut self,
+        from: Account,
+        liquidity: Amount,
+        amount_0_min: Option<Amount>,
+        amount_1_min: Option<Amount>,
+        block_timestamp: Timestamp,
+    ) -> Result<(Amount, Amount), Self::Error> {
+        let pool = self.pool();
+        let fee_share = pool.mint_fee(*self.total_supply.get());
+        self.mint(pool.fee_to, fee_share).await?;
+
+        let (amount_0, amount_1) =
+            self.try_calculate_liquidity_amount_pair(liquidity, amount_0_min, amount_1_min)?;
+
+        self.burn(from, liquidity).await?;
+
+        let mut pool = self.pool();
+        pool.liquid(
+            pool.reserve_0.try_sub(amount_0)?,
+            pool.reserve_1.try_sub(amount_1)?,
+            block_timestamp,
+        );
+        pool.update_k_last();
+        self.pool.set(Some(pool));
+
+        Ok((amount_0, amount_1))
     }
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error> {
@@ -208,12 +238,11 @@ impl StateInterface for PoolState {
         assert!(amount_1 > Amount::ZERO, "Invalid amount");
 
         let pool = self.pool();
-        let total_supply = *self.total_supply.get();
-
-        let fee_share = pool.mint_fee(total_supply);
+        let fee_share = pool.mint_fee(*self.total_supply.get());
         self.mint(pool.fee_to, fee_share).await?;
-
-        let liquidity = pool.calculate_liquidity(total_supply, amount_0, amount_1);
+        let liquidity =
+            self.pool()
+                .calculate_liquidity(*self.total_supply.get(), amount_0, amount_1);
         self.mint(to, liquidity).await?;
 
         Ok(liquidity)
