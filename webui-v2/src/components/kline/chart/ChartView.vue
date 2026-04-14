@@ -104,6 +104,7 @@ import { ChartType } from '../ChartType'
 import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 import {
   getChartDataRenderSignal,
+  resolveSparseFirstRenderLogicalRange,
   resolveVisibleLogicalRangeAfterPrimaryRender,
   shouldAnchorLatestAfterBootstrapExpansion,
   shouldFitContentOnFirstRender,
@@ -478,6 +479,7 @@ let latestPriceLine: IPriceLine | null = null
 let resizeObserver: ResizeObserver | null = null
 let pendingScrollToLatestFrame: number | null = null
 let pendingFitContentFrame: number | null = null
+let pendingSparseRangeFrame: number | null = null
 let lastRenderedPrimarySeriesData: KLineData[] = []
 const indicatorRenderScheduler = createIndicatorRenderScheduler({
   schedule: (run) => window.setTimeout(run, 0),
@@ -547,6 +549,33 @@ const scheduleFitContent = () => {
     logTimeScaleState('fit_content_before')
     chart?.timeScale().fitContent()
     logTimeScaleState('fit_content_after')
+  })
+}
+
+const scheduleSparseFirstRenderRange = (range: { from: number; to: number }) => {
+  if (!chart) return
+
+  if (pendingSparseRangeFrame !== null) {
+    window.cancelAnimationFrame(pendingSparseRangeFrame)
+  }
+  if (pendingScrollToLatestFrame !== null) {
+    window.cancelAnimationFrame(pendingScrollToLatestFrame)
+    pendingScrollToLatestFrame = null
+  }
+  if (pendingFitContentFrame !== null) {
+    window.cancelAnimationFrame(pendingFitContentFrame)
+    pendingFitContentFrame = null
+  }
+
+  pendingSparseRangeFrame = window.requestAnimationFrame(() => {
+    pendingSparseRangeFrame = null
+    chart?.timeScale().applyOptions({
+      barSpacing: DEFAULT_TIME_SCALE_BAR_SPACING,
+      rightOffset: INITIAL_TIME_SCALE_RIGHT_OFFSET,
+    })
+    logTimeScaleState('apply_sparse_first_render_range_before', { targetRange: range })
+    chart?.timeScale().setVisibleLogicalRange(range)
+    logTimeScaleState('apply_sparse_first_render_range_after', { targetRange: range })
   })
 }
 
@@ -1212,8 +1241,21 @@ const updateChartData = () => {
     previousRange: previousVisibleLogicalRange,
     minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
   })) {
-    logTimeScaleState('update_chart_data_decision', { action: 'fit_content_first_render', renderMode: primaryRenderPlan.mode })
-    scheduleFitContent()
+    const sparseRange = resolveSparseFirstRenderLogicalRange({
+      previousData: lastRenderedPrimarySeriesData,
+      nextData: props.data,
+      previousRange: previousVisibleLogicalRange,
+      minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+      rightOffset: INITIAL_TIME_SCALE_RIGHT_OFFSET,
+    })
+
+    if (sparseRange) {
+      logTimeScaleState('update_chart_data_decision', { action: 'apply_sparse_first_render_range', renderMode: primaryRenderPlan.mode, targetRange: sparseRange })
+      scheduleSparseFirstRenderRange(sparseRange)
+    } else {
+      logTimeScaleState('update_chart_data_decision', { action: 'fit_content_first_render', renderMode: primaryRenderPlan.mode })
+      scheduleFitContent()
+    }
   } else if (shouldScrollToLatestAfterIncrementalAppend({
     renderMode: primaryRenderPlan.mode,
     previousData: lastRenderedPrimarySeriesData,

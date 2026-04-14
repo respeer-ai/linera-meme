@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import type { KLineData } from './KlineData'
 import {
   getChartDataRenderSignal,
+  resolveSparseFirstRenderLogicalRange,
   shouldAnchorLatestAfterBootstrapExpansion,
   shouldFitContentOnFirstRender,
   shouldScrollToLatestAfterIncrementalAppend,
@@ -345,6 +346,37 @@ describe('shouldFitContentOnFirstRender', () => {
         minimumDataPointsToAnchor: 4,
       }),
     ).toBe(true)
+  })
+})
+
+describe('resolveSparseFirstRenderLogicalRange', () => {
+  test('pads the first render with a minimum logical window so sparse candles do not stretch across the chart', () => {
+    expect(
+      resolveSparseFirstRenderLogicalRange({
+        previousData: [],
+        nextData: [point(60, 1, 2, 0.5, 1.5, 10), point(120, 1.5, 2.5, 1, 2, 12)],
+        previousRange: null,
+        minimumDataPointsToAnchor: 4,
+        rightOffset: 2,
+      }),
+    ).toEqual({
+      from: -2,
+      to: 3,
+    })
+  })
+
+  test('returns null once enough bars exist to use the normal latest-edge anchor', () => {
+    expect(
+      resolveSparseFirstRenderLogicalRange({
+        previousData: [],
+        nextData: Array.from({ length: 4 }, (_, index) =>
+          point((index + 1) * 60, index + 1, index + 2, index + 0.5, index + 1.5, index + 10),
+        ),
+        previousRange: null,
+        minimumDataPointsToAnchor: 4,
+        rightOffset: 2,
+      }),
+    ).toBe(null)
   })
 })
 

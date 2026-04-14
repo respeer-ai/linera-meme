@@ -225,6 +225,36 @@ export const shouldFitContentOnFirstRender = ({
   nextData.length < minimumDataPointsToAnchor &&
   previousRange === null
 
+export const resolveSparseFirstRenderLogicalRange = ({
+  previousData,
+  nextData,
+  previousRange,
+  minimumDataPointsToAnchor = 1,
+  rightOffset = 0,
+}: {
+  previousData: KLineData[]
+  nextData: KLineData[]
+  previousRange: LogicalRange | null
+  minimumDataPointsToAnchor?: number
+  rightOffset?: number
+}): LogicalRange | null => {
+  if (
+    previousData.length ||
+    previousRange !== null ||
+    !nextData.length ||
+    nextData.length >= minimumDataPointsToAnchor
+  ) {
+    return null
+  }
+
+  const lastLogicalIndex = nextData.length - 1
+
+  return {
+    from: lastLogicalIndex - minimumDataPointsToAnchor + 1,
+    to: lastLogicalIndex + rightOffset,
+  }
+}
+
 export const shouldAnchorLatestAfterBootstrapExpansion = ({
   previousData,
   nextData,
