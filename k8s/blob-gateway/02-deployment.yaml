@@ -414,15 +414,23 @@ spec:
           fi
 
           EXPECTED=$(printf '%s' "$OWNERS" | jq -cS .)
+          ATTEMPT=1
           while true; do
+            echo "Convergence check attempt $ATTEMPT for chain $CHAIN_ID"
+            ./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db process-inbox >/dev/null 2>&1 || true
             CURRENT=$(./linera --wallet /wallet/wallet.json --keystore /wallet/keystore.json --storage rocksdb:/wallet/client.db show-ownership --chain-id $CHAIN_ID 2>/dev/null || true)
             if [ -n "$CURRENT" ]; then
               CURRENT_OWNERS=$(printf '%s\n' "$CURRENT" | jq -cS '.owners' 2>/dev/null || true)
               CURRENT_MULTI_LEADER_ROUNDS=$(printf '%s\n' "$CURRENT" | jq -r '.multi_leader_rounds' 2>/dev/null || true)
               if [ "$CURRENT_OWNERS" = "$EXPECTED" ] && [ "$CURRENT_MULTI_LEADER_ROUNDS" = "0" ]; then
+                echo "Single leader convergence reached for chain $CHAIN_ID"
                 break
               fi
+              echo "Still waiting for convergence: owners=$CURRENT_OWNERS multi_leader_rounds=$CURRENT_MULTI_LEADER_ROUNDS expected=$EXPECTED"
+            else
+              echo "show-ownership returned no data for chain $CHAIN_ID yet"
             fi
+            ATTEMPT=$((ATTEMPT + 1))
             sleep 10
           done
         volumeMounts:
