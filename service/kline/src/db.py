@@ -271,6 +271,25 @@ class Db:
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
 
+    def _reconnect_read_connection(self):
+        for cursor_name in ('cursor_dict', 'cursor'):
+            cursor = getattr(self, cursor_name, None)
+            if cursor is None:
+                continue
+            try:
+                cursor.close()
+            except Exception:
+                pass
+
+        try:
+            self.connection.close()
+        except Exception:
+            pass
+
+        self.connection = mysql.connector.connect(**self.config)
+        self.cursor = self.connection.cursor()
+        self.cursor_dict = self.connection.cursor(dictionary=True)
+
     def now_ms(self):
         return int(time.time() * 1000)
 
@@ -278,7 +297,13 @@ class Db:
         try:
             self.connection.rollback()
         except Exception:
-            pass
+            self._reconnect_read_connection()
+            return
+
+        try:
+            self.connection.ping(reconnect=True, attempts=1, delay=0)
+        except Exception:
+            self._reconnect_read_connection()
 
     def log_kline_event(self, event: str, **fields):
         print(build_kline_log_line(event, **fields))
@@ -1269,52 +1294,55 @@ class Db:
             raise ValueError('Invalid positions status')
 
         query_started_at = time.perf_counter()
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    t.pool_application,
-                    t.pool_id,
-                    p.token_0,
-                    p.token_1,
-                    t.from_account AS owner,
-                    COALESCE(SUM(CASE
-                        WHEN t.transaction_type = 'AddLiquidity' THEN t.liquidity
-                        ELSE 0
-                    END), 0) AS added_liquidity,
-                    COALESCE(SUM(CASE
-                        WHEN t.transaction_type = 'RemoveLiquidity' THEN t.liquidity
-                        ELSE 0
-                    END), 0) AS removed_liquidity,
-                    COALESCE(SUM(CASE
-                        WHEN t.transaction_type = 'AddLiquidity' THEN 1
-                        ELSE 0
-                    END), 0) AS add_tx_count,
-                    COALESCE(SUM(CASE
-                        WHEN t.transaction_type = 'RemoveLiquidity' THEN 1
-                        ELSE 0
-                    END), 0) AS remove_tx_count,
-                    MIN(CASE
-                        WHEN t.transaction_type = 'AddLiquidity' THEN t.created_at
-                        ELSE NULL
-                    END) AS opened_at,
-                    MAX(t.created_at) AS updated_at
-                FROM {self.transactions_table} t
-                JOIN {self.pools_table} p
-                  ON p.pool_id = t.pool_id
-                 AND p.pool_application = t.pool_application
-                WHERE
-                    t.from_account = %s
-                    AND t.transaction_type IN ('AddLiquidity', 'RemoveLiquidity')
-                GROUP BY
-                    t.pool_application,
-                    t.pool_id,
-                    p.token_0,
-                    p.token_1,
-                    t.from_account
-            ''',
-            (owner,),
-        )
-        rows = self.cursor_dict.fetchall()
+        query = f'''
+            SELECT
+                t.pool_application,
+                t.pool_id,
+                p.token_0,
+                p.token_1,
+                t.from_account AS owner,
+                COALESCE(SUM(CASE
+                    WHEN t.transaction_type = 'AddLiquidity' THEN t.liquidity
+                    ELSE 0
+                END), 0) AS added_liquidity,
+                COALESCE(SUM(CASE
+                    WHEN t.transaction_type = 'RemoveLiquidity' THEN t.liquidity
+                    ELSE 0
+                END), 0) AS removed_liquidity,
+                COALESCE(SUM(CASE
+                    WHEN t.transaction_type = 'AddLiquidity' THEN 1
+                    ELSE 0
+                END), 0) AS add_tx_count,
+                COALESCE(SUM(CASE
+                    WHEN t.transaction_type = 'RemoveLiquidity' THEN 1
+                    ELSE 0
+                END), 0) AS remove_tx_count,
+                MIN(CASE
+                    WHEN t.transaction_type = 'AddLiquidity' THEN t.created_at
+                    ELSE NULL
+                END) AS opened_at,
+                MAX(t.created_at) AS updated_at
+            FROM {self.transactions_table} t
+            JOIN {self.pools_table} p
+              ON p.pool_id = t.pool_id
+             AND p.pool_application = t.pool_application
+            WHERE
+                t.from_account = %s
+                AND t.transaction_type IN ('AddLiquidity', 'RemoveLiquidity')
+            GROUP BY
+                t.pool_application,
+                t.pool_id,
+                p.token_0,
+                p.token_1,
+                t.from_account
+        '''
+        try:
+            self.cursor_dict.execute(query, (owner,))
+            rows = self.cursor_dict.fetchall()
+        except Exception:
+            self._reconnect_read_connection()
+            self.cursor_dict.execute(query, (owner,))
+            rows = self.cursor_dict.fetchall()
         query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
 
         positions = []
@@ -2018,8 +2046,13 @@ class Db:
             ORDER BY
                 volume DESC;
         '''
-        self.cursor_dict.execute(query)
-        return self.cursor_dict.fetchall()
+        try:
+            self.cursor_dict.execute(query)
+            return self.cursor_dict.fetchall()
+        except Exception:
+            self._reconnect_read_connection()
+            self.cursor_dict.execute(query)
+            return self.cursor_dict.fetchall()
 
     def get_protocol_stats(self, pools: list[Pool]):
         self.ensure_fresh_read_connection()
