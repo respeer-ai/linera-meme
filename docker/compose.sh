@@ -406,7 +406,7 @@ function generate_nginx_conf() {
         \"service\": {
             \"mutation_endpoint\": \"$endpoint\",
             \"mutation_servers\": [$mutation_servers],
-            \"query_endpoint\": \"query-service\",
+            \"query_endpoint\": \"${endpoint}_query\",
             \"query_servers\": [$query_servers],
             \"domain\": \"$domain\",
             \"sub_domain\": \"$SUB_DOMAIN\",

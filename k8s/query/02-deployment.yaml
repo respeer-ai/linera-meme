@@ -49,6 +49,8 @@ spec:
         env:
         - name: RUST_LOG
           value: info
+        - name: ENABLE_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY
+          value: "true"
         volumeMounts:
         - name: query-pvc
           mountPath: /wallet

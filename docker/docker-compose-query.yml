@@ -10,4 +10,5 @@ services:
       - ../wallet/query/0:/wallet
     environment:
       RUST_LOG: info
+      ENABLE_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY: "true"
     restart: always
