@@ -60,6 +60,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('totalSupply', query['query'])
         self.assertIn('virtualInitialLiquidity', query['query'])
         self.assertIn('liquidity(owner: $owner)', query['query'])
+        self.assertIn('latestTransactions(startId: 0)', query['query'])
 
     async def test_fetch_live_position_metrics_parses_redeemable_and_swap_blockers(self):
         captured = {}
@@ -575,6 +576,88 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0.002500170477793218')
         self.assertEqual(metrics['computation_blockers'], [])
 
+    async def test_fetch_live_position_metrics_prefers_live_transactions_over_stale_db_history(self):
+        async def fake_post(url, json, timeout):
+            return FakeResponse({
+                'data': {
+                    'pool': {
+                        'fee_to': {
+                            'chain_id': 'chain-a',
+                            'owner': '0xowner-a',
+                        },
+                    },
+                    'totalSupply': '110.002500227305015907',
+                    'virtualInitialLiquidity': True,
+                    'liquidity': {
+                        'liquidity': '10.002500227305015907',
+                        'amount0': '9.095455926391324260',
+                        'amount1': '11.002500170477793218',
+                    },
+                    'latestTransactions': [
+                        {
+                            'transactionId': 1,
+                            'transactionType': 'AddLiquidity',
+                            'from': {
+                                'chain_id': 'chain-a',
+                                'owner': '0xbootstrap-owner',
+                            },
+                            'amount0In': '100',
+                            'amount0Out': None,
+                            'amount1In': '100',
+                            'amount1Out': None,
+                            'liquidity': '0',
+                            'createdAt': 1_800_000_000_000_000,
+                        },
+                        {
+                            'transactionId': 2,
+                            'transactionType': 'BuyToken0',
+                            'from': {
+                                'chain_id': 'chain-b',
+                                'owner': '0xswapper',
+                            },
+                            'amount0In': None,
+                            'amount0Out': '9.066108938801491316',
+                            'amount1In': '10',
+                            'amount1Out': None,
+                            'liquidity': None,
+                            'createdAt': 1_800_000_001_000_000,
+                        },
+                        {
+                            'transactionId': 3,
+                            'transactionType': 'AddLiquidity',
+                            'from': {
+                                'chain_id': 'chain-a',
+                                'owner': '0xowner-a',
+                            },
+                            'amount0In': '9.093389106119850868',
+                            'amount0Out': None,
+                            'amount1In': '11',
+                            'amount1Out': None,
+                            'liquidity': '10.000227293391365082',
+                            'createdAt': 1_800_000_002_000_000,
+                        },
+                    ],
+                },
+            })
+
+        metrics = await position_metrics.fetch_live_position_metrics(
+            {
+                'owner': 'chain-a:0xowner-a',
+                'pool_application': 'chain-b:0xpool-app',
+            },
+            'http://swap-host/api/swap',
+            liquidity_history=[],
+            pool_transaction_history=[],
+            pool_swap_count_since_open=0,
+            post=fake_post,
+            in_k8s=False,
+        )
+
+        self.assertTrue(metrics['exact_fee_supported'])
+        self.assertTrue(metrics['owner_is_fee_to'])
+        self.assertEqual(metrics['principal_amount0'], '9.093389106119850867')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0.002066820271473392')
+
     async def test_fetch_live_position_metrics_marks_exact_for_add_then_partial_remove_without_post_change(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
@@ -873,6 +956,108 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['principal_amount1'], '34.214293559470987611')
         self.assertEqual(metrics['fee_amount0'], '0.003726896234285846')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
+        self.assertEqual(metrics['computation_blockers'], [])
+
+    async def test_fetch_live_position_metrics_reconstructs_hidden_batch_boundary_swap(self):
+        async def fake_post(url, json, timeout):
+            return FakeResponse({
+                'data': {
+                    'totalSupply': '150.006948994788507744',
+                    'virtualInitialLiquidity': False,
+                    'liquidity': {
+                        'liquidity': '50',
+                        'amount0': '49.606603362181591253',
+                        'amount1': '50.419871525281752230',
+                    },
+                },
+            })
+
+        metrics = await position_metrics.fetch_live_position_metrics(
+            {
+                'owner': 'chain-a:0xowner-a',
+                'pool_application': 'chain-b:0xpool-app',
+            },
+            'http://swap-host/api/swap',
+            liquidity_history=[
+                {
+                    'transaction_id': 2,
+                    'transaction_type': 'AddLiquidity',
+                    'liquidity': '50',
+                    'created_at': 1_800_000_001_000,
+                },
+            ],
+            pool_transaction_history=[
+                {
+                    'transaction_id': 1,
+                    'transaction_type': 'AddLiquidity',
+                    'from_account': 'chain-a:0xbootstrap-owner',
+                    'amount_0_in': '100',
+                    'amount_1_in': '100',
+                    'amount_0_out': '0',
+                    'amount_1_out': '0',
+                    'liquidity': '100',
+                    'created_at': 1_800_000_000_000,
+                },
+                {
+                    'transaction_id': 2,
+                    'transaction_type': 'AddLiquidity',
+                    'from_account': 'chain-a:0xowner-a',
+                    'amount_0_in': '50',
+                    'amount_1_in': '50',
+                    'amount_0_out': '0',
+                    'amount_1_out': '0',
+                    'liquidity': '50',
+                    'created_at': 1_800_000_001_000,
+                },
+                {
+                    'transaction_id': 3,
+                    'transaction_type': 'BuyToken0',
+                    'from_account': 'chain-b:0xswapper-a',
+                    'amount_0_in': '0',
+                    'amount_1_in': '13',
+                    'amount_0_out': '11.930155067776952768',
+                    'amount_1_out': '0',
+                    'liquidity': None,
+                    'created_at': 1_800_000_002_000,
+                },
+                {
+                    'transaction_id': 4,
+                    'transaction_type': 'SellToken0',
+                    'from_account': 'chain-b:0xswapper-b',
+                    'amount_0_in': '5',
+                    'amount_0_out': '0',
+                    'amount_1_in': '0',
+                    'amount_1_out': '5.86609261977156109',
+                    'liquidity': None,
+                    'created_at': 1_800_000_003_000,
+                },
+                {
+                    'transaction_id': 5,
+                    'transaction_type': 'SellToken0',
+                    'from_account': 'chain-b:0xswapper-c',
+                    'amount_0_in': '8',
+                    'amount_0_out': '0',
+                    'amount_1_in': '0',
+                    'amount_1_out': '8.567285455893853961',
+                    'liquidity': None,
+                    'created_at': 1_800_000_003_000,
+                },
+            ],
+            pool_swap_count_since_open=3,
+            post=fake_post,
+            in_k8s=False,
+        )
+
+        self.assertTrue(metrics['exact_fee_supported'])
+        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
+        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertEqual(metrics['principal_amount0'], '49.593558462066005957')
+        self.assertEqual(metrics['principal_amount1'], '50.405102203900773274')
+        self.assertEqual(metrics['fee_amount0'], '0.013044900115585296')
+        self.assertEqual(metrics['fee_amount1'], '0.014769321380978956')
         self.assertEqual(metrics['protocol_fee_amount0'], '0')
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])

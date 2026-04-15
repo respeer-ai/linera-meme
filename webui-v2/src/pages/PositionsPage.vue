@@ -54,7 +54,7 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div class='position-summary-row'>
+              <div :class="['position-summary-row', { 'position-summary-row-fee-to': positionMetrics(position)?.owner_is_fee_to }]">
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
@@ -312,8 +312,8 @@ const positionFeesLabel = (position: Position) => {
 
   if (!metrics.exact_fee_supported) {
     return {
-      token0: 'Unavailable',
-      token1: 'Unavailable',
+      token0: 'Syncing',
+      token1: 'Syncing',
     }
   }
 
@@ -333,8 +333,8 @@ const positionProtocolFeesLabel = (position: Position) => {
 
   if (!metrics.exact_fee_supported) {
     return {
-      token0: 'Unavailable',
-      token1: 'Unavailable',
+      token0: 'Syncing',
+      token1: 'Syncing',
     }
   }
 
@@ -710,7 +710,7 @@ usePageSeo(() => ({
   gap: 14px 18px
 
 .position-summary-row-fee-to
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.5fr) repeat(3, minmax(0, 0.8fr))
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) repeat(3, minmax(0, 0.72fr))
 
 .position-menu-btn
   border: 0
@@ -741,8 +741,9 @@ usePageSeo(() => ({
 .metric-value-stack
   display: grid
   gap: 2px
-  white-space: normal
-  overflow-wrap: anywhere
+  white-space: nowrap
+  overflow: hidden
+  text-overflow: ellipsis
 
 .empty-card
   display: flex

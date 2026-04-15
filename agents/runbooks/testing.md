@@ -26,7 +26,10 @@ Default testing workflow and coverage expectations.
 - Prefer targeted tests first
 - Start from a failing test or a clearly defined missing-test case when changing behavior
 - A bug fix is not complete without regression coverage
-- When running Rust tests, always apply explicit memory limits to avoid host lockups
+- When running `cargo test`, always apply explicit memory limits to avoid host lockups
+- Do not run `cargo test` without an explicit memory limit
+- Treat that limit as an explicit virtual-memory cap, not as a statement about required physical RAM
+- If Wasmer-heavy tests still fail with `Failed to create memory` or `os error 12`, raise the virtual-memory cap gradually and rerun; sandboxed environments may need a larger cap than an unrestricted local machine
 - For heavier Rust suites, also reduce job count and test parallelism
 
 - Cover happy path and duplicate or replay delivery edges
@@ -39,6 +42,7 @@ Default testing workflow and coverage expectations.
 
 ## Checklist
 
-- When running Rust tests, set explicit memory limits before execution
+- When running `cargo test`, set explicit memory limits before execution
+- Prefer `cargo test -j 1` for heavy Rust integration suites, then raise the virtual-memory cap step by step if Wasmer module instantiation still fails
 - When running heavy Rust tests, reduce parallelism and memory pressure
 - Avoid host-freezing test settings

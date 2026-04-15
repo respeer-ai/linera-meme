@@ -194,7 +194,7 @@ impl StateInterface for StateAdapter {
     }
 
     fn build_transaction(
-        &self,
+        &mut self,
         owner: Account,
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,
@@ -203,7 +203,7 @@ impl StateInterface for StateAdapter {
         liquidity: Option<Amount>,
         timestamp: Timestamp,
     ) -> Transaction {
-        self.state.borrow().build_transaction(
+        self.state.borrow_mut().build_transaction(
             owner,
             amount_0_in,
             amount_1_in,

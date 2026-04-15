@@ -33,7 +33,7 @@ impl PoolContract {
             return;
         }
 
-        let transaction = self.state.borrow().build_transaction(
+        let transaction = self.state.borrow_mut().build_transaction(
             creator,
             Some(argument.amount_0),
             Some(argument.amount_1),

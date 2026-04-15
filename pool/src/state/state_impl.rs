@@ -277,7 +277,7 @@ impl StateInterface for PoolState {
     }
 
     fn build_transaction(
-        &self,
+        &mut self,
         owner: Account,
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,
@@ -299,8 +299,11 @@ impl StateInterface for PoolState {
                 unreachable!();
             };
 
+        let transaction_id = *self.transaction_id.get();
+        self.transaction_id.set(transaction_id + 1);
+
         Transaction {
-            transaction_id: None,
+            transaction_id: Some(transaction_id),
             transaction_type,
             from: owner,
             amount_0_in,
@@ -317,18 +320,26 @@ impl StateInterface for PoolState {
         mut transaction: Transaction,
     ) -> Result<Option<Transaction>, Self::Error> {
         let existing_transactions = self.latest_transactions.elements().await?;
-        let duplicate = existing_transactions.into_iter().any(|existing| {
-            let mut normalized_existing = existing;
-            normalized_existing.transaction_id = None;
-            normalized_existing == transaction
-        });
+        let duplicate = match transaction.transaction_id {
+            Some(transaction_id) => existing_transactions
+                .into_iter()
+                .any(|existing| existing.transaction_id == Some(transaction_id)),
+            None => existing_transactions.into_iter().any(|existing| {
+                let mut normalized_existing = existing;
+                normalized_existing.transaction_id = None;
+                normalized_existing == transaction
+            }),
+        };
         if duplicate {
             return Ok(None);
         }
 
-        let transaction_id = *self.transaction_id.get();
+        if transaction.transaction_id.is_none() {
+            let transaction_id = *self.transaction_id.get();
+            transaction.transaction_id = Some(transaction_id);
+            self.transaction_id.set(transaction_id + 1);
+        }
 
-        transaction.transaction_id = Some(transaction_id);
         self.latest_transactions.push_back(transaction.clone());
 
         const MAX_LAST_TRANSACTIONS: usize = 5000;
@@ -336,7 +347,6 @@ impl StateInterface for PoolState {
         if self.latest_transactions.count() > MAX_LAST_TRANSACTIONS {
             self.latest_transactions.delete_front();
         }
-        self.transaction_id.set(transaction_id + 1);
 
         Ok(Some(transaction))
     }

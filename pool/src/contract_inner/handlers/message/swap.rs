@@ -251,7 +251,7 @@ impl<
             .borrow_mut()
             .liquid(balance_0, balance_1, timestamp);
 
-        let transaction = self.state.borrow().build_transaction(
+        let transaction = self.state.borrow_mut().build_transaction(
             origin,
             amount_0_in,
             amount_1_in,

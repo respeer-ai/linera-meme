@@ -132,7 +132,7 @@ impl<
             };
         }
 
-        let transaction = self.state.borrow().build_transaction(
+        let transaction = self.state.borrow_mut().build_transaction(
             self.origin,
             Some(amount_0),
             Some(amount_1),

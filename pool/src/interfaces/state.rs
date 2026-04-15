@@ -100,7 +100,7 @@ pub trait StateInterface {
     fn calculate_price_pair(&self) -> (Amount, Amount);
 
     fn build_transaction(
-        &self,
+        &mut self,
         owner: Account,
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,

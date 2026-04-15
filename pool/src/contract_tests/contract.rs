@@ -398,7 +398,7 @@ async fn message_add_liquidity() {
         Amount::from_str("0.1").unwrap()
     );
 
-    let add_liquidity = pool.state.borrow().build_transaction(
+    let add_liquidity = pool.state.borrow_mut().build_transaction(
         owner,
         Some(Amount::ONE),
         Some(Amount::from_tokens(10)),
@@ -451,7 +451,7 @@ async fn message_add_liquidity() {
         Amount::from_str("0.05").unwrap()
     );
 
-    let remove_liquidity = pool.state.borrow().build_transaction(
+    let remove_liquidity = pool.state.borrow_mut().build_transaction(
         owner,
         None,
         None,
@@ -906,7 +906,7 @@ async fn add_liquidity_fund_success_only_queues_follow_up_message() {
 async fn message_new_transaction_is_idempotent() {
     let mut pool = create_and_instantiate_pool(true).await;
     let owner = authenticated_account(&pool);
-    let transaction = pool.state.borrow().build_transaction(
+    let transaction = pool.state.borrow_mut().build_transaction(
         owner,
         Some(Amount::ONE),
         None,
@@ -929,8 +929,53 @@ async fn message_new_transaction_is_idempotent() {
         .await
         .unwrap();
     assert_eq!(transactions.len(), 1);
-    assert_eq!(transactions[0].transaction_id, Some(1000));
+    assert_eq!(transactions[0].transaction_id, Some(1001));
     assert_eq!(transactions[0].from, owner);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_new_transaction_keeps_distinct_same_content_transactions() {
+    let mut pool = create_and_instantiate_pool(true).await;
+    let owner = authenticated_account(&pool);
+    let first = pool.state.borrow_mut().build_transaction(
+        owner,
+        Some(Amount::ONE),
+        None,
+        None,
+        Some(Amount::from_str("0.00997").unwrap()),
+        None,
+        1.into(),
+    );
+    let second = pool.state.borrow_mut().build_transaction(
+        owner,
+        Some(Amount::ONE),
+        None,
+        None,
+        Some(Amount::from_str("0.00997").unwrap()),
+        None,
+        1.into(),
+    );
+
+    pool.execute_message(PoolMessage::NewTransaction { transaction: first })
+        .await;
+    pool.execute_message(PoolMessage::NewTransaction {
+        transaction: second,
+    })
+    .await;
+
+    let transactions = pool
+        .state
+        .borrow()
+        .latest_transactions
+        .elements()
+        .await
+        .unwrap();
+    assert_eq!(transactions.len(), 2);
+    assert_eq!(transactions[0].transaction_id, Some(1001));
+    assert_eq!(transactions[1].transaction_id, Some(1002));
+    assert_eq!(transactions[0].created_at, transactions[1].created_at);
+    assert_eq!(transactions[0].from, owner);
+    assert_eq!(transactions[1].from, owner);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -962,9 +1007,9 @@ async fn message_new_transaction_queue_keeps_latest_5000() {
         .await
         .unwrap();
     assert_eq!(transactions.len(), 5000);
-    assert_eq!(transactions.first().unwrap().transaction_id, Some(1001));
+    assert_eq!(transactions.first().unwrap().transaction_id, Some(1002));
     assert_eq!(transactions.first().unwrap().created_at, 2.into());
-    assert_eq!(transactions.last().unwrap().transaction_id, Some(6000));
+    assert_eq!(transactions.last().unwrap().transaction_id, Some(6001));
     assert_eq!(transactions.last().unwrap().created_at, 5001.into());
 }
 

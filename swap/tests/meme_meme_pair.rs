@@ -904,6 +904,12 @@ async fn meme_meme_pair_test() {
         open_chain_fee_budget(),
         pool_chain_user.chain_balance().await
     );
-    assert_eq!(Amount::from_str("2.927135999999999999").unwrap(), pool.reserve_1);
-    assert_eq!(Amount::from_str("2.03375020843755211").unwrap(), pool.reserve_0);
+    assert_eq!(
+        Amount::from_str("2.927135999999999999").unwrap(),
+        pool.reserve_1
+    );
+    assert_eq!(
+        Amount::from_str("2.03375020843755211").unwrap(),
+        pool.reserve_0
+    );
 }

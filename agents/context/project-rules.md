@@ -41,7 +41,10 @@ Authority: High
 - Prefer concise rows over prose-heavy plans inside the task board
 - Keep completed tasks for history, but move stable conclusions into `context/` or `primitives/`
 - Prefer targeted tests first
-- When running Rust tests, always apply explicit memory limits to avoid host lockups
+- When running `cargo test`, always apply explicit memory limits to avoid host lockups
+- Do not run `cargo test` without an explicit memory limit
+- Treat the limit as an explicit virtual-memory cap such as `ulimit -v`, not as a requirement that the host must have the same amount of physical RAM
+- For Wasmer-heavy Rust suites, increase the virtual-memory cap gradually if module instantiation still fails with `os error 12`; the required cap can be higher in sandboxed or containerized environments than on a developer's local machine
 - For heavy Rust tests, reduce parallelism and memory pressure further
 - For async contract flows, test both happy path and message-chain failure or duplication edges
 

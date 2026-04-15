@@ -112,7 +112,7 @@ impl<
                 .transfer(application, to, amount_1),
         };
 
-        let transaction = self.state.borrow().build_transaction(
+        let transaction = self.state.borrow_mut().build_transaction(
             self.origin,
             None,
             None,

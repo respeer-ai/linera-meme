@@ -451,7 +451,10 @@ async fn meme_native_virtual_initial_liquidity_test() {
 
     assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     assert_eq!(Amount::from_attos(19800000000000000000), pool.reserve_1);
-    assert_eq!(Amount::from_attos(5563816980769425308286041), pool.reserve_0);
+    assert_eq!(
+        Amount::from_attos(5563816980769425308286041),
+        pool.reserve_0
+    );
 
     let user_account = suite.chain_owner_account(&user_chain);
     let query = Request::new(
@@ -586,7 +589,10 @@ async fn meme_native_virtual_initial_liquidity_test() {
     assert_eq!(open_chain_fee_budget(), pool_chain.chain_balance().await);
     // TODO: reserve should equal to balance ?
     assert_eq!(Amount::from_attos(19803863743830562123), pool.reserve_1);
-    assert_eq!(Amount::from_attos(5564902696099416451856693), pool.reserve_0);
+    assert_eq!(
+        Amount::from_attos(5564902696099416451856693),
+        pool.reserve_0
+    );
 
     let query = Request::new(
         r#"
@@ -613,10 +619,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .graphql_query(suite.pool_application_id.unwrap(), liquidity_query())
         .await;
     let liquidity: LiquidityAmount = serde_json::from_value(response["liquidity"].clone()).unwrap();
-    assert_eq!(
-        liquidity.liquidity,
-        Amount::from_attos(2046884035071322351),
-    );
+    assert_eq!(liquidity.liquidity, Amount::from_attos(2046884035071322351),);
 
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), "query { totalSupply }")
