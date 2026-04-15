@@ -35,6 +35,8 @@ Authority: High
 - When silent handling hides invalid user input, prefer explicit errors, but verify the caller or handler layer can surface them without breaking legitimate retry paths
 - Do not design local or k8s init flows that require reading a wallet after the corresponding service has started if that service may lock the wallet
 - Any runtime dependency needed after service startup, such as owner, chain id, or imported-chain metadata, must be resolved before the service starts and carried forward by the init flow without re-reading locked wallets
+- When investigating transactions, positions, pool state, or other runtime data during development, default to querying through the relevant API or local service interface first; do not assume `kubectl` access exists on the development machine
+- Use `kubectl` for runtime inspection only when the user explicitly asks for cluster-level checks or when the task is clearly a k8s environment issue rather than an application/API issue
 - Update [`../tasks/board.yaml`](../tasks/board.yaml) when work meaningfully changes status
 - Prefer concise rows over prose-heavy plans inside the task board
 - Keep completed tasks for history, but move stable conclusions into `context/` or `primitives/`

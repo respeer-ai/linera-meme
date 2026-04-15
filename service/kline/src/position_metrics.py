@@ -57,6 +57,16 @@ def _serialize_decimal(value: Decimal | None):
     return format(value.quantize(DISPLAY_QUANTUM).normalize(), 'f')
 
 
+def _account_payload_to_string(account: dict | None) -> str | None:
+    if not isinstance(account, dict):
+        return None
+    chain_id = account.get('chain_id')
+    owner = account.get('owner')
+    if chain_id is None or owner is None:
+        return None
+    return f'{chain_id}:{owner}'
+
+
 def _to_attos(value) -> int | None:
     if value is None:
         return None
@@ -96,6 +106,29 @@ def _history_liquidity(liquidity_history: list[dict]) -> Decimal:
             current_liquidity += liquidity
         elif row.get('transaction_type') == 'RemoveLiquidity':
             current_liquidity -= liquidity
+    return current_liquidity
+
+
+def _history_liquidity_before(
+    liquidity_history: list[dict],
+    latest_position_tx: dict,
+) -> Decimal:
+    current_liquidity = Decimal('0')
+    latest_created_at = int(latest_position_tx.get('created_at') or 0)
+    latest_transaction_id = int(latest_position_tx.get('transaction_id') or 0)
+
+    for row in liquidity_history:
+        row_created_at = int(row.get('created_at') or 0)
+        row_transaction_id = int(row.get('transaction_id') or 0)
+        if (row_created_at, row_transaction_id) >= (latest_created_at, latest_transaction_id):
+            break
+
+        liquidity = _to_decimal(row.get('liquidity')) or Decimal('0')
+        if row.get('transaction_type') == 'AddLiquidity':
+            current_liquidity += liquidity
+        elif row.get('transaction_type') == 'RemoveLiquidity':
+            current_liquidity -= liquidity
+
     return current_liquidity
 
 
@@ -258,11 +291,13 @@ def _try_enrich_metrics_with_swap_history(
     *,
     liquidity_history: list[dict],
     pool_transaction_history: list[dict] | None,
+    owner_is_fee_to: bool,
 ) -> tuple[dict | None, list[str]]:
     live_liquidity = _to_decimal(partial_metrics['position_liquidity_live'])
     total_supply = _to_decimal(partial_metrics['total_supply_live'])
     redeemable_amount0 = _to_decimal(partial_metrics['redeemable_amount0'])
     redeemable_amount1 = _to_decimal(partial_metrics['redeemable_amount1'])
+    history_liquidity = _history_liquidity(liquidity_history)
 
     if redeemable_amount0 is None or redeemable_amount1 is None:
         return None, ['missing_live_redeemable_amounts']
@@ -291,14 +326,29 @@ def _try_enrich_metrics_with_swap_history(
     if opening_index is None:
         return None, ['position_open_transaction_missing_from_pool_history']
 
+    fee_to_opening_mint_case = False
+    liquidity_basis = live_liquidity
+    if live_liquidity is not None and live_liquidity - history_liquidity > EPSILON:
+        prior_history_liquidity = _history_liquidity_before(liquidity_history, latest_position_tx)
+        fee_to_opening_mint_case = (
+            owner_is_fee_to
+            and latest_position_tx.get('transaction_type') == 'AddLiquidity'
+            and abs(prior_history_liquidity) <= EPSILON
+        )
+        if not fee_to_opening_mint_case:
+            return None, ['liquidity_history_mismatch']
+        liquidity_basis = history_liquidity
+
     if latest_position_tx.get('transaction_type') != 'RemoveLiquidity':
         for tx in (pool_transaction_history or [])[:opening_index]:
             if tx.get('transaction_type') in {'BuyToken0', 'SellToken0'}:
-                return None, ['pool_has_swaps_before_latest_position_liquidity_change']
+                if not fee_to_opening_mint_case:
+                    return None, ['pool_has_swaps_before_latest_position_liquidity_change']
+                break
 
     current_total_supply_attos = _to_attos(partial_metrics['total_supply_live'])
-    current_liquidity_attos = _to_attos(partial_metrics['position_liquidity_live'])
-    if current_total_supply_attos is None or current_liquidity_attos is None:
+    liquidity_basis_attos = _to_attos(liquidity_basis)
+    if current_total_supply_attos is None or liquidity_basis_attos is None:
         return None, ['missing_live_liquidity_or_total_supply']
     if _effective_total_supply_attos_from_state(states[-1]) != current_total_supply_attos:
         return None, ['pool_has_liquidity_changes_after_position_open']
@@ -311,10 +361,10 @@ def _try_enrich_metrics_with_swap_history(
         return None, blockers
 
     principal_amount0 = _from_attos(
-        current_liquidity_attos * fee_free_state['reserve0'] // current_total_supply_attos
+        liquidity_basis_attos * fee_free_state['reserve0'] // current_total_supply_attos
     )
     principal_amount1 = _from_attos(
-        current_liquidity_attos * fee_free_state['reserve1'] // current_total_supply_attos
+        liquidity_basis_attos * fee_free_state['reserve1'] // current_total_supply_attos
     )
     fee_amount0 = _normalize_non_negative(redeemable_amount0 - principal_amount0)
     fee_amount1 = _normalize_non_negative(redeemable_amount1 - principal_amount1)
@@ -339,6 +389,7 @@ def _enrich_metrics_with_history(
     liquidity_history: list[dict] | None,
     pool_transaction_history: list[dict] | None,
     pool_swap_count_since_open: int | None,
+    owner_is_fee_to: bool,
 ):
     blockers = list(partial_metrics['computation_blockers'])
     liquidity_history = liquidity_history or []
@@ -356,11 +407,16 @@ def _enrich_metrics_with_history(
         blockers.append('liquidity_history_mismatch')
 
     swap_count = int(pool_swap_count_since_open or 0)
-    if swap_count > 0:
+    has_pool_swap_history = any(
+        tx.get('transaction_type') in {'BuyToken0', 'SellToken0'}
+        for tx in (pool_transaction_history or [])
+    )
+    if swap_count > 0 or has_pool_swap_history:
         exact_metrics, swap_blockers = _try_enrich_metrics_with_swap_history(
             partial_metrics,
             liquidity_history=liquidity_history,
             pool_transaction_history=pool_transaction_history,
+            owner_is_fee_to=owner_is_fee_to,
         )
         if exact_metrics is not None:
             return exact_metrics
@@ -415,6 +471,9 @@ async def fetch_live_position_metrics(
     liquidity_value = liquidity.get('liquidity')
     total_supply_value = data.get('totalSupply')
     virtual_initial_liquidity = bool(data.get('virtualInitialLiquidity'))
+    owner_is_fee_to = (
+        _account_payload_to_string((data.get('pool') or {}).get('fee_to')) == position['owner']
+    )
     partial_metrics = _build_partial_metrics(
         liquidity,
         total_supply_value,
@@ -431,4 +490,5 @@ async def fetch_live_position_metrics(
         liquidity_history=liquidity_history,
         pool_transaction_history=pool_transaction_history,
         pool_swap_count_since_open=pool_swap_count_since_open,
+        owner_is_fee_to=owner_is_fee_to,
     )

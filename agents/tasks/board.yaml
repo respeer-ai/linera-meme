@@ -140,7 +140,7 @@ groups:
         priority: P0
         depends_on: [POS-021]
         title: service/kline 新增 position metrics 接口
-        notes: 已新增 /position-metrics，并接入 position 历史流动性记录、全池 transaction history 和开仓后池子 swap 计数；在当前锁定 virtual initial supply 语义下，无 swap 时无论是否 virtual initial liquidity 都可返回 exact principal=redeemable / fee=0；有 swap 时，现已支持“以用户最后一次流动性变更为基准，其之后池子再无任何 Add/RemoveLiquidity”的严格子集：若最后一次变更是 Add，则其之前不能有 swap；若最后一次变更是 Remove，则允许它之前已有 swap，并把这次 Remove 后的剩余仓位视为新的精确基准，因此已覆盖单次 Add、Add 后部分 Remove、以及 swap 后 Remove 再继续持仓/继续被后续 swap 稀释的剩余仓位。实现基于当前 Uniswap V2 fee-on 语义重放 total_supply/reserve/k_last 历史，并用 fee-free counterfactual swap path 精确拆分 principal/fee。其余开仓后仍有流动性变更、latest Add 之前已发生 swap、或历史无法重放的场景仍返回更具体 blockers
+        notes: 已新增 /position-metrics，并接入 position 历史流动性记录、全池 transaction history 和开仓后池子 swap 计数；在当前锁定 virtual initial supply 语义下，无 swap 时无论是否 virtual initial liquidity 都可返回 exact principal=redeemable / fee=0；有 swap 时，现已支持“以用户最后一次流动性变更为基准，其之后池子再无任何 Add/RemoveLiquidity”的严格子集：若最后一次变更是 Add，则其之前通常不能有 swap；但若 owner 当前就是 fee_to，且 latest Add 之前 owner 净流动性为 0，则允许把 latest Add 时同步 mint 到 owner 的 protocol fee shares 识别为 fee 而非 principal，因此 fee-on 池子里 fee_to 本人开仓后也可返回 exact fee，不再一律 Unavailable。若最后一次变更是 Remove，则允许它之前已有 swap，并把这次 Remove 后的剩余仓位视为新的精确基准，因此已覆盖单次 Add、Add 后部分 Remove、swap 后 Remove 再继续持仓/继续被后续 swap 稀释、以及 fee_to owner 领取 protocol fee shares 的场景。实现基于当前 Uniswap V2 fee-on 语义重放 total_supply/reserve/k_last 历史，并用 fee-free counterfactual swap path 精确拆分 principal/fee。其余开仓后仍有流动性变更、latest Add 之前已发生 swap 且无法归因为 fee_to protocol mint、或历史无法重放的场景仍返回更具体 blockers
       - id: POS-023
         status: Doing
         priority: P0
