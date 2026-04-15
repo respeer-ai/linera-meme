@@ -164,7 +164,11 @@ def _sqrt_attos_product(amount0: int | None, amount1: int | None) -> int | None:
     return math.isqrt(amount0 * amount1)
 
 
-def _simulate_pool_history(pool_transaction_history: list[dict]) -> tuple[list[dict] | None, list[str]]:
+def _simulate_pool_history(
+    pool_transaction_history: list[dict],
+    *,
+    virtual_initial_liquidity: bool,
+) -> tuple[list[dict] | None, list[str]]:
     if not pool_transaction_history:
         return None, ['missing_pool_transaction_history']
 
@@ -186,10 +190,19 @@ def _simulate_pool_history(pool_transaction_history: list[dict]) -> tuple[list[d
         if tx_type == 'AddLiquidity':
             if reserve0 == 0 and reserve1 == 0:
                 expected_liquidity = _sqrt_attos_product(amount0_in, amount1_in)
-                if expected_liquidity is None or liquidity != expected_liquidity:
+                if expected_liquidity is None:
                     blockers.append('pool_history_bootstrap_supply_unknown')
                     continue
-                total_supply = liquidity
+                if virtual_initial_liquidity:
+                    if liquidity != 0:
+                        blockers.append('pool_history_bootstrap_supply_unknown')
+                        continue
+                    total_supply = expected_liquidity
+                else:
+                    if liquidity != expected_liquidity:
+                        blockers.append('pool_history_bootstrap_supply_unknown')
+                        continue
+                    total_supply = liquidity
                 reserve0 += amount0_in
                 reserve1 += amount1_in
                 k_last = _sqrt_attos_product(reserve0, reserve1) or 0
@@ -307,7 +320,10 @@ def _try_enrich_metrics_with_swap_history(
     if not liquidity_history:
         return None, ['missing_liquidity_history']
 
-    states, blockers = _simulate_pool_history(pool_transaction_history or [])
+    states, blockers = _simulate_pool_history(
+        pool_transaction_history or [],
+        virtual_initial_liquidity=bool(partial_metrics.get('virtual_initial_liquidity')),
+    )
     if blockers:
         return None, blockers
 
