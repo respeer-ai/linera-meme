@@ -158,6 +158,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'metrics_status': 'partial_live_redeemable_only',
                 'exact_fee_supported': False,
                 'exact_principal_supported': False,
+                'owner_is_fee_to': False,
                 'computation_blockers': [
                     'missing_historical_total_supply',
                     'missing_fee_growth_trace',
@@ -167,6 +168,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'principal_amount1': None,
                 'fee_amount0': None,
                 'fee_amount1': None,
+                'protocol_fee_amount0': None,
+                'protocol_fee_amount1': None,
             }
 
         kline_module._db = fake_db
@@ -198,6 +201,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'metrics_status': 'partial_live_redeemable_only',
                     'exact_fee_supported': False,
                     'exact_principal_supported': False,
+                    'owner_is_fee_to': False,
                     'computation_blockers': [
                         'missing_historical_total_supply',
                         'missing_fee_growth_trace',
@@ -207,6 +211,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'principal_amount1': None,
                     'fee_amount0': None,
                     'fee_amount1': None,
+                    'protocol_fee_amount0': None,
+                    'protocol_fee_amount1': None,
                 },
             ],
         })

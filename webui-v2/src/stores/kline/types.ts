@@ -86,7 +86,10 @@ export interface ProtocolStat {
   pool_count: number
 }
 
-export type PositionMetricsStatus = 'partial_live_redeemable_only' | 'exact_no_swap_history'
+export type PositionMetricsStatus =
+  | 'partial_live_redeemable_only'
+  | 'exact_no_swap_history'
+  | 'exact_swap_history_no_post_open_liquidity_changes'
 
 export type PositionMetricsBlocker =
   | 'missing_liquidity_history'
@@ -114,11 +117,14 @@ export interface PositionMetricsEntry {
   metrics_status: PositionMetricsStatus
   exact_fee_supported: boolean
   exact_principal_supported: boolean
+  owner_is_fee_to: boolean
   computation_blockers: PositionMetricsBlocker[]
   principal_amount0: string | null
   principal_amount1: string | null
   fee_amount0: string | null
   fee_amount1: string | null
+  protocol_fee_amount0: string | null
+  protocol_fee_amount1: string | null
 }
 
 export interface PositionMetricsResponse {

@@ -90,12 +90,37 @@ def _build_partial_metrics(liquidity, total_supply_value, virtual_initial_liquid
         'metrics_status': 'partial_live_redeemable_only',
         'exact_fee_supported': False,
         'exact_principal_supported': False,
+        'owner_is_fee_to': False,
         'computation_blockers': [],
         'principal_amount0': None,
         'principal_amount1': None,
         'fee_amount0': None,
         'fee_amount1': None,
+        'protocol_fee_amount0': None,
+        'protocol_fee_amount1': None,
     }
+
+
+def _split_protocol_fee_redeemable_attos(
+    *,
+    redeemable_amount0: Decimal,
+    redeemable_amount1: Decimal,
+    live_liquidity: Decimal,
+    history_liquidity: Decimal,
+) -> tuple[int, int]:
+    redeemable_amount0_attos = _to_attos(redeemable_amount0) or 0
+    redeemable_amount1_attos = _to_attos(redeemable_amount1) or 0
+    live_liquidity_attos = _to_attos(live_liquidity) or 0
+    history_liquidity_attos = _to_attos(history_liquidity) or 0
+    protocol_fee_liquidity_attos = max(live_liquidity_attos - history_liquidity_attos, 0)
+
+    if protocol_fee_liquidity_attos == 0 or live_liquidity_attos == 0:
+        return 0, 0
+
+    return (
+        redeemable_amount0_attos * protocol_fee_liquidity_attos // live_liquidity_attos,
+        redeemable_amount1_attos * protocol_fee_liquidity_attos // live_liquidity_attos,
+    )
 
 
 def _history_liquidity(liquidity_history: list[dict]) -> Decimal:
@@ -139,7 +164,7 @@ def _is_close(left: Decimal | None, right: Decimal | None, tolerance: Decimal = 
 
 
 def _normalize_non_negative(value: Decimal, tolerance: Decimal = EPSILON) -> Decimal:
-    if value < 0 and abs(value) <= tolerance:
+    if abs(value) <= tolerance:
         return Decimal('0')
     return value
 
@@ -344,6 +369,8 @@ def _try_enrich_metrics_with_swap_history(
 
     fee_to_opening_mint_case = False
     liquidity_basis = live_liquidity
+    protocol_fee_amount0 = Decimal('0')
+    protocol_fee_amount1 = Decimal('0')
     if live_liquidity is not None and live_liquidity - history_liquidity > EPSILON:
         prior_history_liquidity = _history_liquidity_before(liquidity_history, latest_position_tx)
         fee_to_opening_mint_case = (
@@ -354,6 +381,14 @@ def _try_enrich_metrics_with_swap_history(
         if not fee_to_opening_mint_case:
             return None, ['liquidity_history_mismatch']
         liquidity_basis = history_liquidity
+        protocol_fee_amount0_attos, protocol_fee_amount1_attos = _split_protocol_fee_redeemable_attos(
+            redeemable_amount0=redeemable_amount0,
+            redeemable_amount1=redeemable_amount1,
+            live_liquidity=live_liquidity,
+            history_liquidity=history_liquidity,
+        )
+        protocol_fee_amount0 = _from_attos(protocol_fee_amount0_attos) or Decimal('0')
+        protocol_fee_amount1 = _from_attos(protocol_fee_amount1_attos) or Decimal('0')
 
     if latest_position_tx.get('transaction_type') != 'RemoveLiquidity':
         for tx in (pool_transaction_history or [])[:opening_index]:
@@ -382,8 +417,12 @@ def _try_enrich_metrics_with_swap_history(
     principal_amount1 = _from_attos(
         liquidity_basis_attos * fee_free_state['reserve1'] // current_total_supply_attos
     )
-    fee_amount0 = _normalize_non_negative(redeemable_amount0 - principal_amount0)
-    fee_amount1 = _normalize_non_negative(redeemable_amount1 - principal_amount1)
+    fee_amount0 = _normalize_non_negative(
+        redeemable_amount0 - protocol_fee_amount0 - principal_amount0
+    )
+    fee_amount1 = _normalize_non_negative(
+        redeemable_amount1 - protocol_fee_amount1 - principal_amount1
+    )
 
     if fee_amount0 < 0 or fee_amount1 < 0:
         return None, ['fee_simulation_exceeds_live_redeemable']
@@ -395,6 +434,8 @@ def _try_enrich_metrics_with_swap_history(
     partial_metrics['principal_amount1'] = _serialize_decimal(principal_amount1)
     partial_metrics['fee_amount0'] = _serialize_decimal(fee_amount0)
     partial_metrics['fee_amount1'] = _serialize_decimal(fee_amount1)
+    partial_metrics['protocol_fee_amount0'] = _serialize_decimal(protocol_fee_amount0)
+    partial_metrics['protocol_fee_amount1'] = _serialize_decimal(protocol_fee_amount1)
     partial_metrics['computation_blockers'] = []
     return partial_metrics, []
 
@@ -454,6 +495,8 @@ def _enrich_metrics_with_history(
         partial_metrics['principal_amount1'] = _serialize_decimal(redeemable_amount1)
         partial_metrics['fee_amount0'] = '0'
         partial_metrics['fee_amount1'] = '0'
+        partial_metrics['protocol_fee_amount0'] = '0'
+        partial_metrics['protocol_fee_amount1'] = '0'
     else:
         partial_metrics['metrics_status'] = 'partial_live_redeemable_only'
 
@@ -500,6 +543,7 @@ async def fetch_live_position_metrics(
         partial_metrics['exact_share_ratio'] = str(
             (Decimal(str(liquidity_value)) / Decimal(str(total_supply_value))).normalize()
         )
+    partial_metrics['owner_is_fee_to'] = owner_is_fee_to
 
     return _enrich_metrics_with_history(
         partial_metrics,

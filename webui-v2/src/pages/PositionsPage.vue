@@ -99,6 +99,12 @@
                   <span :class='["position-badge", `position-badge-${position.status}`]'>
                     {{ position.status === 'active' ? 'Active' : 'Closed' }}
                   </span>
+                  <span
+                    v-if='positionMetrics(position)?.owner_is_fee_to'
+                    class='position-badge position-badge-fee-to'
+                  >
+                    Protocol Fee Receiver
+                  </span>
                 </div>
               </div>
 
@@ -118,10 +124,17 @@
                   </span>
                 </div>
                 <div class='position-metric'>
-                  <span class='metric-label'>Fees</span>
+                  <span class='metric-label'>Trading Fees</span>
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionFeesLabel(position).token0 }}</span>
                     <span>{{ positionFeesLabel(position).token1 }}</span>
+                  </span>
+                </div>
+                <div v-if='positionMetrics(position)?.owner_is_fee_to' class='position-metric'>
+                  <span class='metric-label'>Protocol Fees</span>
+                  <span class='metric-value metric-value-stack'>
+                    <span>{{ positionProtocolFeesLabel(position).token0 }}</span>
+                    <span>{{ positionProtocolFeesLabel(position).token1 }}</span>
                   </span>
                 </div>
                 <div class='position-metric'>
@@ -307,6 +320,27 @@ const positionFeesLabel = (position: Position) => {
   return {
     token0: `${formatLiquidity(metrics.fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
     token1: `${formatLiquidity(metrics.fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
+  }
+}
+const positionProtocolFeesLabel = (position: Position) => {
+  const metrics = positionMetrics(position)
+  if (!metrics?.owner_is_fee_to) {
+    return {
+      token0: '--',
+      token1: '--',
+    }
+  }
+
+  if (!metrics.exact_fee_supported) {
+    return {
+      token0: 'Unavailable',
+      token1: 'Unavailable',
+    }
+  }
+
+  return {
+    token0: `${formatLiquidity(metrics.protocol_fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
+    token1: `${formatLiquidity(metrics.protocol_fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
   }
 }
 const positionAprLabel = (position: Position) => {
@@ -663,6 +697,10 @@ usePageSeo(() => ({
   background: rgba(255, 255, 255, 0.08)
   color: #d1d7e0
 
+.position-badge-fee-to
+  background: rgba(247, 196, 92, 0.14)
+  color: #f3cf7a
+
 .position-summary-row
   margin-top: 18px
   padding-top: 16px
@@ -670,6 +708,9 @@ usePageSeo(() => ({
   display: grid
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.65fr) repeat(2, minmax(0, 0.8fr))
   gap: 14px 18px
+
+.position-summary-row-fee-to
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.5fr) repeat(3, minmax(0, 0.8fr))
 
 .position-menu-btn
   border: 0

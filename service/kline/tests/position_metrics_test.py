@@ -162,6 +162,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(metrics['exact_fee_supported'])
         self.assertFalse(metrics['exact_principal_supported'])
         self.assertEqual(metrics['metrics_status'], 'partial_live_redeemable_only')
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertIn('pool_has_swap_history_after_position_open', metrics['computation_blockers'])
         self.assertIn('pool_history_bootstrap_supply_unknown', metrics['computation_blockers'])
         self.assertIn('uniswap_v2_fee_split_not_supported_yet', metrics['computation_blockers'])
@@ -200,10 +201,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '40')
         self.assertEqual(metrics['principal_amount1'], '80')
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_when_no_swaps_with_virtual_liquidity(self):
@@ -241,10 +245,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(metrics['virtual_initial_liquidity'])
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '40')
         self.assertEqual(metrics['principal_amount1'], '80')
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_bootstrap_lp_with_swap_history(self):
@@ -307,10 +314,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '90.907024652497691554')
         self.assertEqual(metrics['principal_amount1'], '109.997499829522206781')
         self.assertEqual(metrics['fee_amount0'], '0.024799588429343737')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_partial_lp_without_post_open_liquidity_changes(self):
@@ -384,10 +394,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '45.453512326248845777')
         self.assertEqual(metrics['principal_amount1'], '54.99874991476110339')
         self.assertEqual(metrics['fee_amount0'], '0.012399794214671869')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_fee_to_owner_opening_after_prior_swaps(self):
@@ -466,11 +479,14 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertEqual(metrics['principal_amount0'], '9.093389106119850867')
         self.assertEqual(metrics['principal_amount1'], '10.999999999999999999')
-        self.assertEqual(metrics['fee_amount0'], '0.002066820271473393')
-        self.assertEqual(metrics['fee_amount1'], '0.002500170477793219')
+        self.assertEqual(metrics['fee_amount0'], '0')
+        self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0.002066820271473392')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0.002500170477793218')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_fee_to_owner_with_virtual_initial_bootstrap(self):
@@ -549,11 +565,14 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertEqual(metrics['principal_amount0'], '9.093389106119850867')
         self.assertEqual(metrics['principal_amount1'], '10.999999999999999999')
-        self.assertEqual(metrics['fee_amount0'], '0.002066820271473393')
-        self.assertEqual(metrics['fee_amount1'], '0.002500170477793219')
+        self.assertEqual(metrics['fee_amount0'], '0')
+        self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0.002066820271473392')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0.002500170477793218')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_add_then_partial_remove_without_post_change(self):
@@ -644,10 +663,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '27.272107395749307466')
         self.assertEqual(metrics['principal_amount1'], '32.999249948856662034')
         self.assertEqual(metrics['fee_amount0'], '0.007439876528803121')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_remove_then_hold_after_swap_history(self):
@@ -738,10 +760,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '27.61341836823568525')
         self.assertEqual(metrics['principal_amount1'], '32.599349961114979873')
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_remove_then_swap_after_swap_history(self):
@@ -843,10 +868,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(metrics['exact_fee_supported'])
         self.assertTrue(metrics['exact_principal_supported'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
+        self.assertFalse(metrics['owner_is_fee_to'])
         self.assertEqual(metrics['principal_amount0'], '26.309420568294123204')
         self.assertEqual(metrics['principal_amount1'], '34.214293559470987611')
         self.assertEqual(metrics['fee_amount0'], '0.003726896234285846')
         self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['protocol_fee_amount0'], '0')
+        self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_blocks_when_latest_add_happens_after_swap_history(self):
