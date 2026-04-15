@@ -36,11 +36,32 @@ wait_pods() {
   status=$3
 
   while true; do
-    count=$(kubectl get pods -A | grep $pod_name | grep "$status" | wc -l)
-    if [ $count -eq $replicas ]; then
+    if [ "$replicas" -eq 0 ]; then
+      count=$(kubectl get pods -n kube-system --no-headers 2>/dev/null | awk -v prefix="$pod_name" '
+        $1 ~ ("^" prefix "(-|$)") { count++ }
+        END { print count + 0 }
+      ')
+      if [ "$count" -eq 0 ]; then
+        break
+      fi
+      echo "Waiting for $pod_name pods be deleted"
+      sleep 10
+      continue
+    fi
+
+    count=$(kubectl get pods -n kube-system --no-headers 2>/dev/null | awk -v prefix="$pod_name" -v expected_status="$status" '
+      $1 ~ ("^" prefix "(-|$)") {
+        split($2, ready, "/")
+        if ($3 == expected_status && ready[1] == ready[2]) {
+          count++
+        }
+      }
+      END { print count + 0 }
+    ')
+    if [ "$count" -eq "$replicas" ]; then
       break
     fi
-    echo "Waiting for $pod_name be $status"
+    echo "Waiting for $pod_name be $status and Ready ($count/$replicas)"
     sleep 10
   done
 }
