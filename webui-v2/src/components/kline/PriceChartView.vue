@@ -341,12 +341,10 @@ const getStoreKline = () => {
   }
 }
 
-watch(buyToken, () => {
-  // getStoreKline()
-})
-
-watch(sellToken, () => {
-  // getStoreKline()
+watch([buyToken, sellToken], ([newBuyToken, newSellToken], [oldBuyToken, oldSellToken]) => {
+  if (newBuyToken === oldBuyToken && newSellToken === oldSellToken) return
+  loading.value = false
+  getStoreKline()
 })
 
 watch(selectedPool, (newPool, oldPool) => {

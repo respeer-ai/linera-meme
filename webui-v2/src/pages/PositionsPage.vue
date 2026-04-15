@@ -54,7 +54,10 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div class='position-summary-row'>
+              <div
+                class='position-summary-row'
+                :style='{ "--position-summary-columns": "4" }'
+              >
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
@@ -67,14 +70,13 @@
             <article v-for='position in visiblePositions' :key='positionKey(position)' class='position-card'>
               <div class='position-card-header'>
                 <div class='position-pair-wrap'>
-                  <div class='position-pair-icons'>
-                    <q-avatar size='30px' class='position-token-avatar position-token-avatar-front'>
-                      <q-img :src='tokenLogo(position.token_0)' fit='contain' />
-                    </q-avatar>
-                    <q-avatar size='30px' class='position-token-avatar position-token-avatar-back'>
-                      <q-img :src='tokenLogo(position.token_1)' fit='contain' />
-                    </q-avatar>
-                  </div>
+                  <pool-pair-logo
+                    :token0-logo='tokenLogo(position.token_0)'
+                    :token1-logo='tokenLogo(position.token_1)'
+                    size='30px'
+                    overlap='20px'
+                    border-width='2px'
+                  />
                   <div>
                     <div class='position-pair'>{{ tokenTicker(position.token_0) }} / {{ tokenTicker(position.token_1) }}</div>
                   </div>
@@ -108,7 +110,10 @@
                 </div>
               </div>
 
-              <div class='position-summary-row'>
+              <div
+                class='position-summary-row'
+                :style='{ "--position-summary-columns": positionMetrics(position)?.owner_is_fee_to ? "5" : "4" }'
+              >
                 <div class='position-metric'>
                   <span class='metric-label'>Pool share</span>
                   <span class='metric-value metric-value-stack'>
@@ -186,6 +191,7 @@ import { usePositionsStore, type Position, type PositionStatusFilter } from 'src
 import { type PositionMetricsEntry } from 'src/stores/kline'
 import { ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
+import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -576,15 +582,18 @@ usePageSeo(() => ({
   position: relative
   display: inline-flex
   align-items: center
+  justify-content: center
   gap: 8px
-  height: 38px
-  padding: 0 14px
+  min-height: 40px
+  padding: 0 16px
   border-radius: 18px
   background: rgba(255, 255, 255, 0.06)
   color: var(--q-light)
   font-size: 14px
   font-weight: 700
+  line-height: 1
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03)
+  vertical-align: middle
 
 .filter-btn-primary
   background: #f5f5f7
@@ -595,8 +604,14 @@ usePageSeo(() => ({
   line-height: 1
 
 .filter-caret
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  height: 1em
   font-size: 12px
+  line-height: 1
   opacity: 0.75
+  transform: translateY(-1px)
 
 :global(.status-menu.q-menu)
   min-width: 176px
@@ -648,24 +663,6 @@ usePageSeo(() => ({
   align-items: center
   gap: 10px
 
-.position-pair-icons
-  position: relative
-  width: 52px
-  height: 30px
-
-.position-token-avatar
-  position: absolute
-  top: 0
-  border: 2px solid rgba(16, 18, 24, 0.88)
-  background: rgba(255, 255, 255, 0.1)
-
-.position-token-avatar-front
-  left: 0
-  z-index: 2
-
-.position-token-avatar-back
-  left: 20px
-
 .position-pair
   font-size: 18px
   font-weight: 700
@@ -683,11 +680,14 @@ usePageSeo(() => ({
 .position-badge
   display: inline-flex
   align-items: center
-  height: 28px
+  justify-content: center
+  min-height: 30px
   padding: 0 12px
   border-radius: 999px
   font-size: 12px
   font-weight: 700
+  line-height: 1
+  text-align: center
 
 .position-badge-active
   background: rgba(77, 214, 143, 0.12)
@@ -706,16 +706,14 @@ usePageSeo(() => ({
   padding-top: 16px
   border-top: 1px solid rgba(255, 255, 255, 0.06)
   display: grid
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.65fr) repeat(2, minmax(0, 0.8fr))
-  gap: 14px 18px
-
-.position-summary-row-fee-to
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) repeat(3, minmax(0, 0.72fr))
+  grid-template-columns: repeat(var(--position-summary-columns, 4), minmax(0, 1fr))
+  gap: 12px
 
 .position-menu-btn
   border: 0
-  border-radius: 12px
+  border-radius: 999px
   width: 30px
+  min-width: 30px
   height: 30px
   display: inline-flex
   align-items: center
@@ -727,6 +725,7 @@ usePageSeo(() => ({
   background: rgba(255, 255, 255, 0.06)
   color: var(--q-light)
   line-height: 1
+  padding: 0
 
 .position-metric
   display: grid
@@ -741,9 +740,8 @@ usePageSeo(() => ({
 .metric-value-stack
   display: grid
   gap: 2px
-  white-space: nowrap
-  overflow: hidden
-  text-overflow: ellipsis
+  white-space: normal
+  word-break: break-word
 
 .empty-card
   display: flex
@@ -862,7 +860,13 @@ usePageSeo(() => ({
     margin-top: 16px
 
   .position-summary-row
-    grid-template-columns: repeat(2, minmax(0, 1fr))
+    gap: 10px
+
+  .metric-label
+    font-size: 12px
+
+  .metric-value
+    font-size: 13px
 
   .empty-actions
     flex-direction: column

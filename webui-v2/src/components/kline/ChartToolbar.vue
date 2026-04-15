@@ -1,13 +1,14 @@
 <template>
-  <div class='chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary'>
+  <div class='chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary no-wrap'>
     <!-- 左侧：Token信息 + 图表类型 + 指标 + 时间周期 -->
-    <div class='row items-center q-gutter-sm'>
+    <div class='chart-toolbar-main row items-center no-wrap q-gutter-sm'>
       <pool-logo-view
         :token0-application='(token0ForLogo as ams.Application)'
         :token1-application='(token1ForLogo as ams.Application)'
         avatar-size='36px'
         :show-chips='false'
         pool-name-font-size='14px'
+        :no-wrap='true'
       />
       <q-separator vertical class='q-mx-sm' />
       <chart-type-selector v-model='chartType' />
@@ -229,6 +230,19 @@ onBeforeUnmount(() => {
 .chart-toolbar
   border-bottom: 1px solid var(--q-neutral-twenty-five)
   min-height: 44px
+  flex-wrap: nowrap
+
+.chart-toolbar-main
+  min-width: 0
+  flex: 1 1 auto
+  flex-wrap: nowrap
+
+:deep(.chart-toolbar-main .pool-logo-view)
+  min-width: 0
+  flex: 0 1 auto
+
+:deep(.chart-toolbar-main .q-separator)
+  flex: 0 0 auto
 
 :deep(.q-btn)
   &.outline

@@ -283,3 +283,35 @@ groups:
         depends_on: [REV-001]
         title: 为资金闭环补集成测试
         notes: 覆盖部分成功退款 输出发放失败 初始建池下游失败后的状态一致性
+  - name: WebUI
+    tasks:
+      - id: WEBUI-001
+        status: Todo
+        priority: P1
+        depends_on: []
+        title: 前端国际化
+        notes: 梳理当前硬编码文案并建立可持续的 i18n 接入与迁移范围
+      - id: WEBUI-002
+        status: Todo
+        priority: P1
+        depends_on: []
+        title: 优化 transactions 列表的拉取 加载与显示
+        notes: 聚焦 transactions 列表的数据获取时机 加载态 空态 分页或增量展示与可读性
+      - id: WEBUI-003
+        status: Todo
+        priority: P1
+        depends_on: []
+        title: 优化 FAQ
+        notes: 聚焦 FAQ 的信息结构 文案质量 品牌一致性与版面表现
+      - id: WEBUI-004
+        status: Todo
+        priority: P1
+        depends_on: []
+        title: 优化 Add Liquidity 和 Remove Liquidity 页面
+        notes: 聚焦加减池页面的布局 信息层级 交互状态与易用性
+      - id: WEBUI-005
+        status: Todo
+        priority: P1
+        depends_on: []
+        title: 实现侧边弹出菜单
+        notes: 明确触发入口 展开行为 响应式表现与菜单项结构

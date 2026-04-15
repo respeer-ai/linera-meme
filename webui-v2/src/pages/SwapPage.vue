@@ -11,12 +11,8 @@
       <div class='q-my-xl' role='region' aria-label='Meme token swap interface'>
         <trade-view />
       </div>
-      <section class='swap-faq q-mb-xl' aria-labelledby='swap-faq-title' aria-describedby='swap-faq-intro'>
-        <div class='faq-kicker text-primary text-weight-medium'>About Linera Meme Swap</div>
-        <h2 id='swap-faq-title' class='faq-title q-mt-sm q-mb-sm'>Trading FAQ</h2>
-        <p id='swap-faq-intro' class='q-ma-none text-neutral faq-intro'>
-          A concise guide to Linera, microchains, meme mining, and realtime token activity on the swap page.
-        </p>
+      <section class='swap-faq q-mb-xl' aria-labelledby='swap-faq-title'>
+        <h2 id='swap-faq-title' class='faq-title q-ma-none'>FAQ</h2>
         <div class='q-mt-lg'>
           <q-expansion-item
             v-for='item in faqItems'
@@ -53,27 +49,27 @@ import { constants } from 'src/constant'
 const route = useRoute()
 const faqItems = [
   {
-    question: 'What Is Linera and Why Does It Matter for Linera Meme Swap?',
+    question: 'What Is Linera and Why Does It Matter for MicroMeme?',
     answer:
-      'Linera is a protocol built for real-time Web3 applications. Linera Meme Swap uses that foundation to support responsive market updates, token trading flows, and application-specific interactions designed for active meme markets.',
+      'Linera is a protocol built for real-time Web3 applications. MicroMeme uses that foundation to support responsive market updates, token trading flows, and application-specific interactions designed for active meme markets.',
   },
   {
-    question: 'What Is Linera Meme Swap?',
+    question: 'What Is MicroMeme?',
     answer:
-      'Linera Meme Swap is the main trading interface for meme tokens in this product. It combines token discovery, live pricing, charting, swap execution, and mining-related participation into one Linera-native experience.',
+      'MicroMeme is the main trading interface for meme tokens in this product. It combines token discovery, live pricing, charting, swap execution, and mining-related participation into one Linera-native experience.',
   },
   {
-    question: 'How Do Linera Microchains Improve Meme Token Trading?',
+    question: 'How Do Linera Microchains Improve Meme Token Trading on MicroMeme?',
     answer:
       'Linera microchains are designed to handle activity in parallel and support responsive applications. For a meme trading interface, that helps create a smoother flow for market updates, token state changes, and real-time interaction across the app.',
   },
   {
-    question: 'What Is Meme Mining on Linera Meme Swap?',
+    question: 'What Is Meme Mining on MicroMeme?',
     answer:
       'Meme Mining refers to reward or incentive mechanisms around a meme token ecosystem. Depending on the token design, that can include mining supply, liquidity participation, trading activity, or other reward logic defined by the project.',
   },
   {
-    question: 'Can I Create My Own Meme Token on Linera Meme Swap?',
+    question: 'Can I Create My Own Meme Token on MicroMeme?',
     answer:
       'Yes. The current product includes a Create Meme flow. If your wallet type and environment support it, you can configure token details such as name, ticker, supply, description, liquidity settings, and optional mining parameters.',
   },
@@ -83,12 +79,12 @@ const faqItems = [
       'Income may come from several sources, including price appreciation, active trading, liquidity provision, or participation in mining and reward programs. The exact outcome depends on market conditions and on the rules of each meme token or pool.',
   },
   {
-    question: 'Are Meme Token Trades and Updates Real Time?',
+    question: 'Are Meme Token Trades and Updates Real Time on MicroMeme?',
     answer:
       'The interface is designed for a real-time experience and continuously refreshes token data, market activity, and charts. Actual completion still depends on chain execution and synchronization, but the product is built to feel fast and reactive.',
   },
   {
-    question: 'How Are Swap Fees Charged on Linera Meme Swap?',
+    question: 'How Are Swap Fees Charged on MicroMeme?',
     answer:
       `The trading flow includes estimated network gas and a pool trading fee shown in the swap details. In the current interface, the trade detail view displays a ${constants.PROTOCOL_SWAP_FEE_PERCENT_LABEL} fee and also estimates network gas before you confirm execution.`,
   },
@@ -98,7 +94,7 @@ const faqItems = [
       'You join Meme Mining by participating in a token or pool that enables mining-related rewards. In this product, mining is tied to token configuration and pool participation, so the exact entry path depends on whether the project has enabled mining.',
   },
   {
-    question: 'Where Can I Check My Meme Mining or Trading Earnings?',
+    question: 'Where Can I Check My Meme Mining or Trading Earnings on MicroMeme?',
     answer:
       'You can usually track earnings through wallet balances, token positions, trading history, pool participation, and any mining or reward views exposed by the token or application. Over time, these earnings can also be surfaced in more dedicated dashboards.',
   },
@@ -156,21 +152,14 @@ usePageSeo(() => ({
   white-space: nowrap
   border: 0
 
-.faq-kicker
-  letter-spacing: 0.12em
-  text-transform: uppercase
-  font-size: 15px
-
 .faq-title
   font-size: 34px
   line-height: 1.1
   letter-spacing: -0.03em
   font-weight: 500
 
-.faq-intro
-  max-width: 720px
-  line-height: 1.8
-  font-size: 22px
+.swap-faq
+  margin-top: 104px
 
 .faq-row
   border-top: 1px solid rgba(255, 255, 255, 0.08)
@@ -227,6 +216,9 @@ usePageSeo(() => ({
   transition: opacity 0.2s ease
 
 @media (max-width: 1023px)
+  .swap-faq
+    margin-top: 88px
+
   .faq-title
     font-size: 30px
 
@@ -238,20 +230,16 @@ usePageSeo(() => ({
     font-size: 19px
     padding-right: 0
 
-  .faq-intro
-    max-width: none
-    font-size: 20px
-
 @media (max-width: 599px)
+  .swap-faq
+    margin-top: 72px
+
   .faq-title
     font-size: 27px
 
   .faq-question
     font-size: 18px
     white-space: normal
-
-  .faq-intro
-    font-size: 18px
 
   .faq-answer
     font-size: 18px
