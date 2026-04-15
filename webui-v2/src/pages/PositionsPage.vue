@@ -54,7 +54,7 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div :class="['position-summary-row', { 'position-summary-row-fee-to': positionMetrics(position)?.owner_is_fee_to }]">
+              <div class='position-summary-row'>
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
