@@ -60,22 +60,22 @@
             <div class='remove-estimate-title'>You Receive</div>
             <div class='remove-estimate-list'>
               <div class='remove-estimate-row'>
+                <span>{{ tokenTicker(selectedPool.token0) }}</span>
                 <span class='remove-estimate-token'>
                   <q-avatar size='20px'>
                     <q-img :src='tokenLogo(selectedPool.token0)' fit='contain' />
                   </q-avatar>
-                  <span>{{ tokenTicker(selectedPool.token0) }}</span>
+                  <span>{{ formatAmount(estimatedAmount0) }}</span>
                 </span>
-                <span>{{ formatAmount(estimatedAmount0) }}</span>
               </div>
               <div class='remove-estimate-row'>
+                <span>{{ tokenTicker(selectedPool.token1 || constants.LINERA_NATIVE_ID) }}</span>
                 <span class='remove-estimate-token'>
                   <q-avatar size='20px'>
                     <q-img :src='tokenLogo(selectedPool.token1 || constants.LINERA_NATIVE_ID)' fit='contain' />
                   </q-avatar>
-                  <span>{{ tokenTicker(selectedPool.token1 || constants.LINERA_NATIVE_ID) }}</span>
+                  <span>{{ formatAmount(estimatedAmount1) }}</span>
                 </span>
-                <span>{{ formatAmount(estimatedAmount1) }}</span>
               </div>
             </div>
           </div>

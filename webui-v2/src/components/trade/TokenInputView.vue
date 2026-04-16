@@ -198,29 +198,11 @@ onUnmounted(() => {
 
 <style scoped lang='sass'>
 .token-input-card
-  position: relative
   overflow: hidden
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease
-
-  &::after
-    content: ''
-    position: absolute
-    left: 0
-    top: 0
-    width: 100%
-    height: 50%
-    pointer-events: none
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0))
-    opacity: 0
-    transition: opacity 0.18s ease
+  transition: background-color 0.18s ease
 
   &:hover
-    transform: translateY(-1px)
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18)
     background: rgba(255, 255, 255, 0.04)
-
-    &::after
-      opacity: 1
 
 ::v-deep(.q-input)
   .q-field__native,

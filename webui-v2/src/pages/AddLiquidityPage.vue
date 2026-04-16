@@ -140,6 +140,11 @@ const primaryActionLabel = computed(() => {
   return walletConnected.value ? 'ADD LIQUIDITY' : 'CONNECT WALLET'
 })
 
+const requestedRoutePair = computed(() => resolveRoutePoolPair({
+  token0: route.query.token0,
+  token1: route.query.token1,
+}))
+
 watch(selectedToken0, () => {
   if (
     selectedToken1.value?.applicationId &&
@@ -149,15 +154,38 @@ watch(selectedToken0, () => {
   }
 })
 
-const initializeFromRoute = () => {
-  const requestedPair = resolveRoutePoolPair({
-    token0: route.query.token0,
-    token1: route.query.token1,
-  })
-  if (!requestedPair) return
+const initializeDefaultTokens = () => {
+  if (requestedRoutePair.value) return
+  if (!tokenInputOptions.value.length) return
 
-  selectedToken0.value = tokenInputOptions.value.find((token) => token.applicationId === requestedPair.token0) as Token
-  selectedToken1.value = tokenInputOptions.value.find((token) => token.applicationId === requestedPair.token1) as Token
+  const nativeToken = tokenInputOptions.value.find((token) => token.applicationId === constants.LINERA_NATIVE_ID)
+  const firstNonNativeToken = tokenInputOptions.value.find((token) => token.applicationId !== constants.LINERA_NATIVE_ID)
+
+  if (!selectedToken0.value?.applicationId || selectedToken0.value.applicationId === selectedToken1.value?.applicationId) {
+    selectedToken0.value = (nativeToken || tokenInputOptions.value[0]) as Token
+  }
+
+  const token1Options = tokenInputOptions.value.filter(
+    (token) => token.applicationId !== selectedToken0.value?.applicationId,
+  )
+  const preferredToken1 = token1Options.find((token) => token.applicationId === firstNonNativeToken?.applicationId)
+
+  if (
+    !selectedToken1.value?.applicationId ||
+    selectedToken1.value.applicationId === selectedToken0.value?.applicationId
+  ) {
+    selectedToken1.value = (preferredToken1 || token1Options[0]) as Token
+  }
+}
+
+const initializeFromRoute = () => {
+  if (!requestedRoutePair.value) {
+    initializeDefaultTokens()
+    return
+  }
+
+  selectedToken0.value = tokenInputOptions.value.find((token) => token.applicationId === requestedRoutePair.value?.token0) as Token
+  selectedToken1.value = tokenInputOptions.value.find((token) => token.applicationId === requestedRoutePair.value?.token1) as Token
 }
 
 const onAddLiquidity = async () => {
@@ -285,4 +313,8 @@ onMounted(async () => {
   await swap.Swap.getPools()
   initializeFromRoute()
 })
+
+watch(tokenInputOptions, () => {
+  initializeFromRoute()
+}, { deep: false })
 </script>
