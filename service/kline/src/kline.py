@@ -49,12 +49,181 @@ async def _default_position_metrics_fetcher(position: dict):
             pool_id=position['pool_id'],
             created_at=position['opened_at'],
         ),
+        pool_history_gap_summary=_db.get_pool_transaction_gap_summary(
+            pool_application=position['pool_application'],
+            pool_id=position['pool_id'],
+        ),
         post=async_request.post,
         in_k8s=running_in_k8s(),
     )
 
 
 _position_metrics_fetcher = _default_position_metrics_fetcher
+
+
+async def _fetch_live_pool_transaction_ids(
+    pool_application: str,
+    *,
+    recent_window: int,
+):
+    if _swap is None:
+        raise RuntimeError('Swap client is not initialized')
+
+    url = position_metrics.pool_application_url(
+        _swap.base_url,
+        pool_application,
+        in_k8s=running_in_k8s(),
+    )
+    response = await async_request.post(
+        url=url,
+        json={'query': 'query {\n latestTransactions \n}'},
+        timeout=(3, 10),
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if 'errors' in payload:
+        raise RuntimeError(str(payload['errors']))
+
+    latest_transactions = payload['data']['latestTransactions'] or []
+    latest_ids = sorted(
+        int(transaction['transactionId'])
+        for transaction in latest_transactions
+        if transaction.get('transactionId') is not None
+    )
+    if recent_window > 0 and len(latest_ids) > recent_window:
+        latest_ids = latest_ids[-recent_window:]
+    return latest_ids
+
+
+async def _build_recent_transaction_window_audit(
+    *,
+    pool_id: int,
+    pool_application: str,
+    recent_window: int,
+):
+    if _db is None:
+        raise RuntimeError('Db client is not initialized')
+    if recent_window <= 0:
+        raise ValueError('recent_window must be positive')
+
+    live_ids = await _fetch_live_pool_transaction_ids(
+        pool_application,
+        recent_window=recent_window,
+    )
+    if not live_ids:
+        return {
+            'pool_id': pool_id,
+            'pool_application': pool_application,
+            'recent_window': recent_window,
+            'window_start_id': None,
+            'window_end_id': None,
+            'live_ids': [],
+            'db_ids': [],
+            'missing_in_db': [],
+            'missing_in_live': [],
+        }
+
+    window_start_id = live_ids[0]
+    window_end_id = live_ids[-1]
+    db_ids = _db.get_pool_transaction_ids(
+        pool_id=pool_id,
+        pool_application=pool_application,
+        start_id=window_start_id,
+        end_id=window_end_id,
+    )
+    live_id_set = set(live_ids)
+    db_id_set = set(db_ids)
+
+    return {
+        'pool_id': pool_id,
+        'pool_application': pool_application,
+        'recent_window': recent_window,
+        'window_start_id': window_start_id,
+        'window_end_id': window_end_id,
+        'live_ids': live_ids,
+        'db_ids': db_ids,
+        'missing_in_db': sorted(live_id_set - db_id_set),
+        'missing_in_live': sorted(db_id_set - live_id_set),
+    }
+
+
+@app.get('/transactions/audit/recent')
+async def on_get_recent_transaction_audit(
+    pool_id: int = Query(...),
+    pool_application: str = Query(...),
+    recent_window: int = Query(default=5000),
+):
+    try:
+        return await _build_recent_transaction_window_audit(
+            pool_id=pool_id,
+            pool_application=pool_application,
+            recent_window=recent_window,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed audit recent transactions: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/transactions/audit/replay')
+async def on_get_replay_transaction_audit(
+    pool_id: int = Query(...),
+    pool_application: str = Query(...),
+    virtual_initial_liquidity: bool = Query(default=False),
+    start_id: int | None = Query(default=None),
+    end_id: int | None = Query(default=None),
+    swap_out_tolerance_attos: int = Query(default=1),
+):
+    try:
+        if _db is None:
+            raise RuntimeError('Db client is not initialized')
+        if swap_out_tolerance_attos < 0:
+            raise ValueError('swap_out_tolerance_attos must be non-negative')
+
+        pool_transaction_history = _db.get_pool_transaction_history(
+            pool_application=pool_application,
+            pool_id=pool_id,
+        )
+        if start_id is not None or end_id is not None:
+            lower_bound = int(start_id or 0)
+            upper_bound = int(end_id or (2 ** 32 - 1))
+            pool_transaction_history = [
+                tx
+                for tx in pool_transaction_history
+                if lower_bound <= int(tx.get('transaction_id') or 0) <= upper_bound
+            ]
+
+        return {
+            'pool_id': pool_id,
+            'pool_application': pool_application,
+            'virtual_initial_liquidity': virtual_initial_liquidity,
+            'start_id': start_id,
+            'end_id': end_id,
+            'swap_out_tolerance_attos': swap_out_tolerance_attos,
+            'audit': position_metrics.inspect_pool_history_replay(
+                pool_transaction_history,
+                virtual_initial_liquidity=virtual_initial_liquidity,
+                swap_out_tolerance_attos=swap_out_tolerance_attos,
+            ),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed replay transaction audit: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 @app.get('/points/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}/interval/{interval}')
@@ -219,6 +388,34 @@ async def on_get_position_metrics(
         metrics = []
         for position in positions:
             live_metrics = await _position_metrics_fetcher(position)
+            if 'value_warning_codes' not in live_metrics:
+                live_metrics['value_warning_codes'] = []
+            if 'value_warning_message' not in live_metrics:
+                live_metrics['value_warning_message'] = None
+            for field_name in ('fee_amount0', 'fee_amount1', 'protocol_fee_amount0', 'protocol_fee_amount1'):
+                if live_metrics.get(field_name) is None:
+                    live_metrics[field_name] = '0'
+            if (
+                not bool(live_metrics.get('exact_fee_supported'))
+                or bool(live_metrics.get('computation_blockers'))
+                or bool(live_metrics.get('value_warning_codes'))
+            ):
+                _db.record_diagnostic_event(
+                    source='position_metrics',
+                    event_type='inexact_position_metrics',
+                    severity='warning',
+                    owner=position['owner'],
+                    pool_application=position['pool_application'],
+                    pool_id=position['pool_id'],
+                    status=position['status'],
+                    details={
+                        'metrics_status': live_metrics.get('metrics_status'),
+                        'exact_fee_supported': bool(live_metrics.get('exact_fee_supported')),
+                        'exact_principal_supported': bool(live_metrics.get('exact_principal_supported')),
+                        'computation_blockers': list(live_metrics.get('computation_blockers') or []),
+                        'value_warning_codes': list(live_metrics.get('value_warning_codes') or []),
+                    },
+                )
             metrics.append({
                 'pool_application': position['pool_application'],
                 'pool_id': position['pool_id'],
@@ -240,6 +437,114 @@ async def on_get_position_metrics(
         )
     except Exception as e:
         print(f'Failed get position metrics: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/diagnostics')
+async def on_get_diagnostics(
+    source: str | None = Query(default=None),
+    owner: str | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+    pool_id: int | None = Query(default=None),
+    limit: int = Query(default=200),
+):
+    try:
+        if _db is None:
+            raise RuntimeError('Db client is not initialized')
+        if limit <= 0:
+            raise ValueError('limit must be positive')
+        return {
+            'diagnostics': _db.get_diagnostic_events(
+                source=source,
+                owner=owner,
+                pool_application=pool_application,
+                pool_id=pool_id,
+                limit=limit,
+            ),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get diagnostics: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/pool')
+async def on_get_debug_pool_bundle(
+    pool_application: str = Query(...),
+    pool_id: int = Query(...),
+    owner: str | None = Query(default=None),
+    transaction_limit: int = Query(default=1000),
+    diagnostics_limit: int = Query(default=200),
+    include_live_recent: bool = Query(default=False),
+    recent_window: int = Query(default=5000),
+):
+    try:
+        if _db is None:
+            raise RuntimeError('Db client is not initialized')
+        if transaction_limit <= 0 or diagnostics_limit <= 0:
+            raise ValueError('limits must be positive')
+        if recent_window <= 0:
+            raise ValueError('recent_window must be positive')
+
+        transactions = _db.get_pool_transaction_history(
+            pool_application=pool_application,
+            pool_id=pool_id,
+        )
+        if len(transactions) > transaction_limit:
+            transactions = transactions[-transaction_limit:]
+
+        liquidity_history = []
+        if owner is not None:
+            liquidity_history = _db.get_position_liquidity_history(
+                owner=owner,
+                pool_application=pool_application,
+                pool_id=pool_id,
+            )
+
+        live_recent_audit = None
+        if include_live_recent:
+            live_recent_audit = await _build_recent_transaction_window_audit(
+                pool_id=pool_id,
+                pool_application=pool_application,
+                recent_window=recent_window,
+            )
+
+        return {
+            'pool_application': pool_application,
+            'pool_id': pool_id,
+            'owner': owner,
+            'transaction_count': len(transactions),
+            'transactions': transactions,
+            'liquidity_history': liquidity_history,
+            'gap_summary': _db.get_pool_transaction_gap_summary(
+                pool_application=pool_application,
+                pool_id=pool_id,
+            ),
+            'diagnostics': _db.get_diagnostic_events(
+                pool_application=pool_application,
+                pool_id=pool_id,
+                owner=owner,
+                limit=diagnostics_limit,
+            ),
+            'live_recent_audit': live_recent_audit,
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get debug pool bundle: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

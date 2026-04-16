@@ -2,6 +2,7 @@ import mysql.connector
 from swap import Transaction, Pool
 import time
 import warnings
+import json
 from decimal import Decimal
 from candle_schema import (
     INTERVAL_BUCKET_MS,
@@ -163,6 +164,7 @@ class Db:
         self.pools_table = 'pools'
         self.candles_table = 'candles'
         self.maker_events_table = 'maker_events'
+        self.diagnostics_table = 'diagnostics'
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -265,6 +267,24 @@ class Db:
             ''')
             self.connection.commit()
 
+        if self.diagnostics_table not in tables:
+            self.cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.diagnostics_table} (
+                    diagnostic_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    source VARCHAR(32) NOT NULL,
+                    event_type VARCHAR(64) NOT NULL,
+                    severity VARCHAR(16) NOT NULL,
+                    owner VARCHAR(256) NULL,
+                    pool_application VARCHAR(256) NULL,
+                    pool_id INT UNSIGNED NULL,
+                    status VARCHAR(16) NULL,
+                    details TEXT NULL,
+                    created_at BIGINT UNSIGNED NOT NULL,
+                    PRIMARY KEY (diagnostic_id)
+                )
+            ''')
+            self.connection.commit()
+
         self.ensure_kline_identity_columns()
         self.ensure_transactions_indexes()
         self.ensure_kline_columns()
@@ -313,6 +333,102 @@ class Db:
         for key in sorted(fields.keys()):
             parts.append(f'{key}={fields[key]}')
         print(' '.join(parts))
+
+    def record_diagnostic_event(
+        self,
+        *,
+        source: str,
+        event_type: str,
+        severity: str = 'warning',
+        owner: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        status: str | None = None,
+        details: dict | None = None,
+    ):
+        self.cursor.execute(
+            f'''
+                INSERT INTO {self.diagnostics_table}
+                (source, event_type, severity, owner, pool_application, pool_id, status, details, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''',
+            (
+                source,
+                event_type,
+                severity,
+                owner,
+                pool_application,
+                None if pool_id is None else int(pool_id),
+                status,
+                None if details is None else json.dumps(details, ensure_ascii=True, sort_keys=True),
+                self.now_ms(),
+            ),
+        )
+        self.connection.commit()
+
+    def get_diagnostic_events(
+        self,
+        *,
+        source: str | None = None,
+        owner: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        limit: int = 200,
+    ):
+        self.ensure_fresh_read_connection()
+        where_clauses = []
+        params = []
+        if source is not None:
+            where_clauses.append('source = %s')
+            params.append(source)
+        if owner is not None:
+            where_clauses.append('owner = %s')
+            params.append(owner)
+        if pool_application is not None:
+            where_clauses.append('pool_application = %s')
+            params.append(pool_application)
+        if pool_id is not None:
+            where_clauses.append('pool_id = %s')
+            params.append(int(pool_id))
+        where_sql = ''
+        if where_clauses:
+            where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    diagnostic_id,
+                    source,
+                    event_type,
+                    severity,
+                    owner,
+                    pool_application,
+                    pool_id,
+                    status,
+                    details,
+                    created_at
+                FROM {self.diagnostics_table}
+                {where_sql}
+                ORDER BY diagnostic_id DESC
+                LIMIT %s
+            ''',
+            (*params, int(limit)),
+        )
+        rows = []
+        for row in self.cursor_dict.fetchall():
+            rows.append({
+                'diagnostic_id': int(row['diagnostic_id']),
+                'source': row['source'],
+                'event_type': row['event_type'],
+                'severity': row['severity'],
+                'owner': row['owner'],
+                'pool_application': row['pool_application'],
+                'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
+                'status': row['status'],
+                'details': None if row['details'] is None else json.loads(row['details']),
+                'created_at': int(row['created_at']),
+            })
+        return rows
 
     def serialize_decimal(self, value):
         if isinstance(value, Decimal):
@@ -1257,6 +1373,35 @@ class Db:
             'max_transaction_id': int(row['max_transaction_id']),
         }
 
+    def get_pool_transaction_ids(
+        self,
+        pool_id: int,
+        pool_application: str | None = None,
+        start_id: int | None = None,
+        end_id: int | None = None,
+    ):
+        self.ensure_fresh_read_connection()
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
+        lower_bound = 0 if start_id is None else int(start_id)
+        upper_bound = 2 ** 32 - 1 if end_id is None else int(end_id)
+        self.cursor_dict.execute(
+            f'''
+                SELECT transaction_id
+                FROM {self.transactions_table}
+                WHERE pool_application = %s
+                AND pool_id = %s
+                AND token_reversed = 0
+                AND transaction_id >= %s
+                AND transaction_id <= %s
+                ORDER BY transaction_id ASC
+            ''',
+            (pool_application, pool_id, lower_bound, upper_bound),
+        )
+        return [
+            int(row['transaction_id'])
+            for row in self.cursor_dict.fetchall()
+        ]
+
     def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
         self.ensure_fresh_read_connection()
         if token_0 is None or token_1 is None:
@@ -1461,6 +1606,60 @@ class Db:
         )
         row = self.cursor_dict.fetchone()
         return int(row['swap_count']) if row is not None else 0
+
+    def get_pool_transaction_gap_summary(
+        self,
+        pool_application: str,
+        pool_id: int,
+        *,
+        start_id: int | None = None,
+        end_id: int | None = None,
+        sample_limit: int = 8,
+    ):
+        bounds = self.get_pool_transaction_id_bounds(pool_id, pool_application)
+        if bounds is None:
+            return {
+                'has_internal_gaps': False,
+                'start_id': None,
+                'end_id': None,
+                'missing_count': 0,
+                'missing_ids_sample': [],
+            }
+
+        lower_bound = int(bounds['min_transaction_id']) if start_id is None else max(int(start_id), int(bounds['min_transaction_id']))
+        upper_bound = int(bounds['max_transaction_id']) if end_id is None else min(int(end_id), int(bounds['max_transaction_id']))
+        if lower_bound > upper_bound:
+            return {
+                'has_internal_gaps': False,
+                'start_id': lower_bound,
+                'end_id': upper_bound,
+                'missing_count': 0,
+                'missing_ids_sample': [],
+            }
+
+        observed_ids = self.get_pool_transaction_ids(
+            pool_id=pool_id,
+            pool_application=pool_application,
+            start_id=lower_bound,
+            end_id=upper_bound,
+        )
+        observed_set = {int(transaction_id) for transaction_id in observed_ids}
+        missing_ids_sample = []
+        missing_count = 0
+        for transaction_id in range(lower_bound, upper_bound + 1):
+            if transaction_id in observed_set:
+                continue
+            missing_count += 1
+            if len(missing_ids_sample) < int(sample_limit):
+                missing_ids_sample.append(transaction_id)
+
+        return {
+            'has_internal_gaps': missing_count > 0,
+            'start_id': lower_bound,
+            'end_id': upper_bound,
+            'missing_count': missing_count,
+            'missing_ids_sample': missing_ids_sample,
+        }
 
     def get_kline_information(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
         self.ensure_fresh_read_connection()

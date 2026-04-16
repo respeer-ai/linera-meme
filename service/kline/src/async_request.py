@@ -1,5 +1,6 @@
 import aiohttp
 import time
+from decimal import Decimal
 
 class AsyncResponse:
     def __init__(self, status, headers, text, url):
@@ -15,7 +16,7 @@ class AsyncResponse:
 
     def json(self):
         import json
-        return json.loads(self._text)
+        return json.loads(self._text, parse_float=Decimal)
 
     def raise_for_status(self):
         if not (200 <= self.status_code < 300):

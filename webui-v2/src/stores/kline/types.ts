@@ -88,6 +88,7 @@ export interface ProtocolStat {
 
 export type PositionMetricsStatus =
   | 'partial_live_redeemable_only'
+  | 'estimated_live_redeemable_with_history'
   | 'exact_no_swap_history'
   | 'exact_swap_history_no_post_open_liquidity_changes'
 
@@ -97,6 +98,7 @@ export type PositionMetricsBlocker =
   | 'liquidity_history_mismatch'
   | 'virtual_initial_liquidity_present'
   | 'pool_has_swap_history_after_position_open'
+  | 'pool_history_has_internal_gaps'
   | 'uniswap_v2_fee_split_not_supported_yet'
   | 'missing_live_redeemable_amounts'
 
@@ -125,6 +127,8 @@ export interface PositionMetricsEntry {
   fee_amount1: string | null
   protocol_fee_amount0: string | null
   protocol_fee_amount1: string | null
+  value_warning_codes: string[]
+  value_warning_message: string | null
 }
 
 export interface PositionMetricsResponse {

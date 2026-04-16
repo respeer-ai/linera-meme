@@ -129,14 +129,28 @@
                   </span>
                 </div>
                 <div class='position-metric'>
-                  <span class='metric-label'>Trading Fees</span>
+                  <span class='metric-label'>
+                    Trading Fees
+                    <span v-if='hasMetricsWarning(position)' class='metric-warning'>!
+                      <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                        {{ metricsWarningMessage(position) }}
+                      </q-tooltip>
+                    </span>
+                  </span>
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionFeesLabel(position).token0 }}</span>
                     <span>{{ positionFeesLabel(position).token1 }}</span>
                   </span>
                 </div>
                 <div v-if='positionMetrics(position)?.owner_is_fee_to' class='position-metric'>
-                  <span class='metric-label'>Protocol Fees</span>
+                  <span class='metric-label'>
+                    Protocol Fees
+                    <span v-if='hasMetricsWarning(position)' class='metric-warning'>!
+                      <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                        {{ metricsWarningMessage(position) }}
+                      </q-tooltip>
+                    </span>
+                  </span>
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionProtocolFeesLabel(position).token0 }}</span>
                     <span>{{ positionProtocolFeesLabel(position).token1 }}</span>
@@ -316,13 +330,6 @@ const positionFeesLabel = (position: Position) => {
     }
   }
 
-  if (!metrics.exact_fee_supported) {
-    return {
-      token0: 'Syncing',
-      token1: 'Syncing',
-    }
-  }
-
   return {
     token0: `${formatLiquidity(metrics.fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
     token1: `${formatLiquidity(metrics.fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
@@ -337,17 +344,23 @@ const positionProtocolFeesLabel = (position: Position) => {
     }
   }
 
-  if (!metrics.exact_fee_supported) {
-    return {
-      token0: 'Syncing',
-      token1: 'Syncing',
-    }
-  }
-
   return {
     token0: `${formatLiquidity(metrics.protocol_fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
     token1: `${formatLiquidity(metrics.protocol_fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
   }
+}
+const hasMetricsWarning = (position: Position) => {
+  const metrics = positionMetrics(position)
+  return Boolean(metrics?.value_warning_message || (metrics?.value_warning_codes?.length || 0) > 0 || !metrics?.exact_fee_supported)
+}
+const metricsWarningMessage = (position: Position) => {
+  const metrics = positionMetrics(position)
+  if (!metrics) return 'Fee values are still updating.'
+  if (metrics.value_warning_message) return metrics.value_warning_message
+  if (!metrics.exact_fee_supported) {
+    return 'Current fee values are best-effort estimates and may change as more pool history is reconciled.'
+  }
+  return 'Current fee values are still updating.'
 }
 const positionAprLabel = (position: Position) => {
   const selectedPool = poolForPosition(position)
@@ -673,6 +686,21 @@ usePageSeo(() => ({
 .metric-label
   font-size: 13px
   color: #9aa0ab
+
+.metric-warning
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 14px
+  height: 14px
+  margin-left: 6px
+  border-radius: 999px
+  background: rgba(247, 196, 92, 0.16)
+  color: #f3cf7a
+  font-size: 10px
+  font-weight: 700
+  line-height: 1
+  cursor: help
 
 .position-subtitle
   margin-top: 4px

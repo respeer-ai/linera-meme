@@ -48,6 +48,34 @@ def build_position_metrics_query(owner: dict):
     }
 
 
+def build_position_metrics_legacy_query(owner: dict):
+    return {
+        'query': '''
+            query PositionMetricsLegacy($owner: Account!) {
+              pool
+              virtualInitialLiquidity
+              liquidity(owner: $owner) {
+                liquidity
+                amount0
+                amount1
+              }
+              latestTransactions(startId: 0)
+            }
+        ''',
+        'variables': {
+            'owner': owner,
+        },
+    }
+
+
+def _graphql_unknown_field(payload: dict, field_name: str) -> bool:
+    for error in payload.get('errors') or []:
+        message = str(error.get('message') or '')
+        if f'Unknown field "{field_name}"' in message:
+            return True
+    return False
+
+
 def _to_decimal(value):
     if value is None:
         return None
@@ -87,6 +115,36 @@ def _normalize_live_transaction(tx: dict) -> dict:
     }
 
 
+def _history_transaction_identity(tx: dict) -> tuple:
+    return (
+        int(tx.get('transaction_id') or 0),
+        int(tx.get('created_at') or 0),
+        tx.get('transaction_type'),
+        tx.get('from_account'),
+    )
+
+
+def _merge_transaction_history(
+    persisted_history: list[dict] | None,
+    live_history: list[dict] | None,
+) -> list[dict]:
+    merged: dict[tuple, dict] = {}
+
+    for tx in persisted_history or []:
+        merged[_history_transaction_identity(tx)] = tx
+
+    for tx in live_history or []:
+        merged[_history_transaction_identity(tx)] = tx
+
+    return sorted(
+        merged.values(),
+        key=lambda row: (
+            int(row.get('created_at') or 0),
+            int(row.get('transaction_id') or 0),
+        ),
+    )
+
+
 def _to_attos(value) -> int | None:
     if value is None:
         return None
@@ -122,11 +180,45 @@ def _build_partial_metrics(liquidity, total_supply_value, virtual_initial_liquid
         'computation_blockers': [],
         'principal_amount0': None,
         'principal_amount1': None,
-        'fee_amount0': None,
-        'fee_amount1': None,
-        'protocol_fee_amount0': None,
-        'protocol_fee_amount1': None,
+        'fee_amount0': '0',
+        'fee_amount1': '0',
+        'protocol_fee_amount0': '0',
+        'protocol_fee_amount1': '0',
+        'value_warning_codes': [],
+        'value_warning_message': None,
     }
+
+
+def _apply_data_quality_warnings(
+    metrics: dict,
+    *,
+    pool_history_gap_summary: dict | None = None,
+) -> dict:
+    warning_codes = list(metrics.get('value_warning_codes') or [])
+    warning_message = metrics.get('value_warning_message')
+    blockers = list(metrics.get('computation_blockers') or [])
+
+    if pool_history_gap_summary and bool(pool_history_gap_summary.get('has_internal_gaps')):
+        if 'pool_history_has_internal_gaps' not in blockers:
+            blockers.append('pool_history_has_internal_gaps')
+        metrics['exact_fee_supported'] = False
+        metrics['exact_principal_supported'] = False
+        warning_message = 'Current values are estimated from incomplete history and may change as data continues to reconcile.'
+
+    if not metrics.get('exact_fee_supported'):
+        if 'estimated_values' not in warning_codes:
+            warning_codes.append('estimated_values')
+        if warning_message is None:
+            warning_message = 'Current values are estimated and may change as data continues to reconcile.'
+
+    metrics['computation_blockers'] = blockers
+    metrics['value_warning_codes'] = warning_codes
+    metrics['value_warning_message'] = warning_message
+    metrics['fee_amount0'] = metrics.get('fee_amount0') or '0'
+    metrics['fee_amount1'] = metrics.get('fee_amount1') or '0'
+    metrics['protocol_fee_amount0'] = metrics.get('protocol_fee_amount0') or '0'
+    metrics['protocol_fee_amount1'] = metrics.get('protocol_fee_amount1') or '0'
+    return metrics
 
 
 def _split_protocol_fee_redeemable_attos(
@@ -160,6 +252,76 @@ def _history_liquidity(liquidity_history: list[dict]) -> Decimal:
         elif row.get('transaction_type') == 'RemoveLiquidity':
             current_liquidity -= liquidity
     return current_liquidity
+
+
+def _history_net_token_amounts(liquidity_history: list[dict]) -> tuple[Decimal, Decimal]:
+    amount0 = Decimal('0')
+    amount1 = Decimal('0')
+    for row in liquidity_history:
+        liquidity = _to_decimal(row.get('liquidity')) or Decimal('0')
+        # Ignore bootstrap-style rows that moved tokens but never minted
+        # redeemable LP shares for this owner; they should not inflate
+        # the estimated principal basis.
+        if liquidity <= Decimal('0'):
+            continue
+        if row.get('transaction_type') == 'AddLiquidity':
+            amount0 += _to_decimal(row.get('amount_0_in')) or Decimal('0')
+            amount1 += _to_decimal(row.get('amount_1_in')) or Decimal('0')
+        elif row.get('transaction_type') == 'RemoveLiquidity':
+            amount0 -= _to_decimal(row.get('amount_0_out')) or Decimal('0')
+            amount1 -= _to_decimal(row.get('amount_1_out')) or Decimal('0')
+    return amount0, amount1
+
+
+def _build_estimated_metrics_from_liquidity_history(
+    partial_metrics: dict,
+    *,
+    liquidity_history: list[dict],
+    live_liquidity: Decimal | None,
+    history_liquidity: Decimal,
+) -> dict:
+    redeemable_amount0 = _to_decimal(partial_metrics['redeemable_amount0'])
+    redeemable_amount1 = _to_decimal(partial_metrics['redeemable_amount1'])
+    if redeemable_amount0 is None or redeemable_amount1 is None:
+        return partial_metrics
+    has_token_amount_history = any(
+        row.get('amount_0_in') is not None
+        or row.get('amount_0_out') is not None
+        or row.get('amount_1_in') is not None
+        or row.get('amount_1_out') is not None
+        for row in liquidity_history
+    )
+    if not has_token_amount_history:
+        return partial_metrics
+
+    protocol_fee_amount0 = Decimal('0')
+    protocol_fee_amount1 = Decimal('0')
+    if live_liquidity is not None and live_liquidity > history_liquidity > Decimal('0'):
+        protocol_fee_amount0_attos, protocol_fee_amount1_attos = _split_protocol_fee_redeemable_attos(
+            redeemable_amount0=redeemable_amount0,
+            redeemable_amount1=redeemable_amount1,
+            live_liquidity=live_liquidity,
+            history_liquidity=history_liquidity,
+        )
+        protocol_fee_amount0 = _from_attos(protocol_fee_amount0_attos) or Decimal('0')
+        protocol_fee_amount1 = _from_attos(protocol_fee_amount1_attos) or Decimal('0')
+
+    net_amount0, net_amount1 = _history_net_token_amounts(liquidity_history)
+    redeemable_ex_protocol0 = _normalize_non_negative(redeemable_amount0 - protocol_fee_amount0)
+    redeemable_ex_protocol1 = _normalize_non_negative(redeemable_amount1 - protocol_fee_amount1)
+    principal_amount0 = min(redeemable_ex_protocol0, max(net_amount0, Decimal('0')))
+    principal_amount1 = min(redeemable_ex_protocol1, max(net_amount1, Decimal('0')))
+    fee_amount0 = _normalize_non_negative(redeemable_ex_protocol0 - principal_amount0)
+    fee_amount1 = _normalize_non_negative(redeemable_ex_protocol1 - principal_amount1)
+
+    partial_metrics['metrics_status'] = 'estimated_live_redeemable_with_history'
+    partial_metrics['principal_amount0'] = _serialize_decimal(principal_amount0)
+    partial_metrics['principal_amount1'] = _serialize_decimal(principal_amount1)
+    partial_metrics['fee_amount0'] = _serialize_decimal(fee_amount0)
+    partial_metrics['fee_amount1'] = _serialize_decimal(fee_amount1)
+    partial_metrics['protocol_fee_amount0'] = _serialize_decimal(protocol_fee_amount0)
+    partial_metrics['protocol_fee_amount1'] = _serialize_decimal(protocol_fee_amount1)
+    return partial_metrics
 
 
 def _history_liquidity_before(
@@ -682,6 +844,217 @@ def _reconstruct_pool_history(
     return effective_history, states, []
 
 
+def _serialize_attos_debug(value: int | None) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def inspect_pool_history_replay(
+    pool_transaction_history: list[dict],
+    *,
+    virtual_initial_liquidity: bool,
+    swap_out_tolerance_attos: int = SWAP_OUT_TOLERANCE_ATTOS,
+) -> dict:
+    if not pool_transaction_history:
+        return {
+            'ok': False,
+            'processed_count': 0,
+            'blockers': ['missing_pool_transaction_history'],
+            'first_failure': {
+                'reason': 'missing_pool_transaction_history',
+            },
+        }
+
+    reserve0 = 0
+    reserve1 = 0
+    total_supply = 0
+    k_last = 0
+    processed_count = 0
+
+    def failure(reason: str, tx: dict | None = None, **fields):
+        failure_payload = {
+            'reason': reason,
+            'reserve0_attos_before': _serialize_attos_debug(reserve0),
+            'reserve1_attos_before': _serialize_attos_debug(reserve1),
+            'total_supply_attos_before': _serialize_attos_debug(total_supply),
+            'k_last_before': _serialize_attos_debug(k_last),
+        }
+        if tx is not None:
+            failure_payload.update({
+                'transaction_id': tx.get('transaction_id'),
+                'transaction_type': tx.get('transaction_type'),
+                'created_at': tx.get('created_at'),
+                'from_account': tx.get('from_account'),
+            })
+        for key, value in fields.items():
+            if isinstance(value, int):
+                failure_payload[key] = _serialize_attos_debug(value)
+            else:
+                failure_payload[key] = value
+        return {
+            'ok': False,
+            'processed_count': processed_count,
+            'blockers': [reason],
+            'first_failure': failure_payload,
+        }
+
+    index = 0
+    while index < len(pool_transaction_history):
+        tx = pool_transaction_history[index]
+        tx_type = tx.get('transaction_type')
+        amount0_in = _to_attos(tx.get('amount_0_in')) or 0
+        amount0_out = _to_attos(tx.get('amount_0_out')) or 0
+        amount1_in = _to_attos(tx.get('amount_1_in')) or 0
+        amount1_out = _to_attos(tx.get('amount_1_out')) or 0
+        liquidity = _to_attos(tx.get('liquidity')) or 0
+
+        if tx_type in {'BuyToken0', 'SellToken0'}:
+            expected_out = _swap_expected_out_attos(
+                tx_type,
+                reserve0,
+                reserve1,
+                amount0_in,
+                amount1_in,
+            )
+            recorded_out = amount0_out if tx_type == 'BuyToken0' else amount1_out
+            if expected_out is None or not _swap_out_within_tolerance(
+                expected_out,
+                recorded_out,
+                tolerance=swap_out_tolerance_attos,
+            ):
+                hidden_swap = _infer_hidden_swap_before_batch(
+                    reserve0,
+                    reserve1,
+                    pool_transaction_history,
+                    index,
+                )
+                if hidden_swap is not None:
+                    hidden_type = hidden_swap.get('transaction_type')
+                    reserve0, reserve1 = _apply_recorded_swap_attos(
+                        hidden_type,
+                        reserve0,
+                        reserve1,
+                        amount0_in=_to_attos(hidden_swap.get('amount_0_in')) or 0,
+                        amount0_out=_to_attos(hidden_swap.get('amount_0_out')) or 0,
+                        amount1_in=_to_attos(hidden_swap.get('amount_1_in')) or 0,
+                        amount1_out=_to_attos(hidden_swap.get('amount_1_out')) or 0,
+                    )
+                    expected_out = _swap_expected_out_attos(
+                        tx_type,
+                        reserve0,
+                        reserve1,
+                        amount0_in,
+                        amount1_in,
+                    )
+                if expected_out is None or not _swap_out_within_tolerance(
+                    expected_out,
+                    recorded_out,
+                    tolerance=swap_out_tolerance_attos,
+                ):
+                    return failure(
+                        'pool_history_contains_invalid_swap_amounts',
+                        tx,
+                        expected_out_attos=expected_out,
+                        recorded_out_attos=recorded_out,
+                        swap_out_tolerance_attos=swap_out_tolerance_attos,
+                        hidden_swap_inferred=hidden_swap is not None,
+                    )
+
+        if tx_type == 'AddLiquidity':
+            if reserve0 == 0 and reserve1 == 0:
+                expected_liquidity = _sqrt_attos_product(amount0_in, amount1_in)
+                if expected_liquidity is None:
+                    return failure('pool_history_bootstrap_supply_unknown', tx)
+                if virtual_initial_liquidity:
+                    if liquidity != 0:
+                        return failure(
+                            'pool_history_bootstrap_supply_unknown',
+                            tx,
+                            expected_liquidity_attos=expected_liquidity,
+                            recorded_liquidity_attos=liquidity,
+                        )
+                    total_supply = expected_liquidity
+                else:
+                    if liquidity != expected_liquidity:
+                        return failure(
+                            'pool_history_bootstrap_supply_unknown',
+                            tx,
+                            expected_liquidity_attos=expected_liquidity,
+                            recorded_liquidity_attos=liquidity,
+                        )
+                    total_supply = liquidity
+                reserve0 += amount0_in
+                reserve1 += amount1_in
+                k_last = _sqrt_attos_product(reserve0, reserve1) or 0
+            else:
+                fee_share = _mint_fee_attos(total_supply, reserve0, reserve1, k_last)
+                total_supply += fee_share
+                expected_liquidity = min(
+                    amount0_in * total_supply // reserve0,
+                    amount1_in * total_supply // reserve1,
+                )
+                if not _attos_within_tolerance(liquidity, expected_liquidity):
+                    return failure(
+                        'pool_history_liquidity_mint_mismatch',
+                        tx,
+                        fee_share_attos=fee_share,
+                        expected_liquidity_attos=expected_liquidity,
+                        recorded_liquidity_attos=liquidity,
+                    )
+                total_supply += liquidity
+                reserve0 += amount0_in
+                reserve1 += amount1_in
+                k_last = _sqrt_attos_product(reserve0, reserve1) or 0
+        elif tx_type == 'RemoveLiquidity':
+            fee_share = _mint_fee_attos(total_supply, reserve0, reserve1, k_last)
+            total_supply += fee_share
+            if liquidity > total_supply or amount0_out > reserve0 or amount1_out > reserve1:
+                return failure(
+                    'pool_history_remove_liquidity_invalid',
+                    tx,
+                    fee_share_attos=fee_share,
+                    recorded_liquidity_attos=liquidity,
+                    amount0_out_attos=amount0_out,
+                    amount1_out_attos=amount1_out,
+                )
+            total_supply -= liquidity
+            reserve0 -= amount0_out
+            reserve1 -= amount1_out
+            k_last = _sqrt_attos_product(reserve0, reserve1) or 0
+        elif tx_type in {'BuyToken0', 'SellToken0'}:
+            reserve0, reserve1 = _apply_recorded_swap_attos(
+                tx_type,
+                reserve0,
+                reserve1,
+                amount0_in=amount0_in,
+                amount0_out=amount0_out,
+                amount1_in=amount1_in,
+                amount1_out=amount1_out,
+            )
+            if reserve0 < 0 or reserve1 < 0:
+                return failure('pool_history_contains_invalid_swap_amounts', tx)
+        else:
+            return failure('pool_history_contains_unknown_transaction_type', tx)
+
+        processed_count += 1
+        index += 1
+
+    return {
+        'ok': True,
+        'processed_count': processed_count,
+        'blockers': [],
+        'first_failure': None,
+        'swap_out_tolerance_attos': _serialize_attos_debug(swap_out_tolerance_attos),
+        'final_state': {
+            'reserve0_attos': _serialize_attos_debug(reserve0),
+            'reserve1_attos': _serialize_attos_debug(reserve1),
+            'total_supply_attos': _serialize_attos_debug(total_supply),
+            'k_last': _serialize_attos_debug(k_last),
+        },
+    }
+
+
 def _simulate_pool_history(
     pool_transaction_history: list[dict],
     *,
@@ -916,7 +1289,12 @@ def _enrich_metrics_with_history(
         partial_metrics['protocol_fee_amount0'] = '0'
         partial_metrics['protocol_fee_amount1'] = '0'
     else:
-        partial_metrics['metrics_status'] = 'partial_live_redeemable_only'
+        partial_metrics = _build_estimated_metrics_from_liquidity_history(
+            partial_metrics,
+            liquidity_history=liquidity_history,
+            live_liquidity=live_liquidity,
+            history_liquidity=history_liquidity,
+        )
 
     partial_metrics['computation_blockers'] = blockers
     return partial_metrics
@@ -929,19 +1307,32 @@ async def fetch_live_position_metrics(
     liquidity_history: list[dict] | None = None,
     pool_transaction_history: list[dict] | None = None,
     pool_swap_count_since_open: int | None = None,
+    pool_history_gap_summary: dict | None = None,
     post=async_request.post,
     in_k8s: bool | None = None,
 ):
-    query = build_position_metrics_query(parse_account(position['owner']))
+    owner = parse_account(position['owner'])
+    url = pool_application_url(swap_base_url, position['pool_application'], in_k8s=in_k8s)
+    query = build_position_metrics_query(owner)
     response = await post(
-        url=pool_application_url(swap_base_url, position['pool_application'], in_k8s=in_k8s),
+        url=url,
         json=query,
         timeout=(3, 10),
     )
     response.raise_for_status()
     payload = response.json()
     if 'errors' in payload:
-        raise RuntimeError(str(payload['errors']))
+        if _graphql_unknown_field(payload, 'totalSupply'):
+            legacy_query = build_position_metrics_legacy_query(owner)
+            response = await post(
+                url=url,
+                json=legacy_query,
+                timeout=(3, 10),
+            )
+            response.raise_for_status()
+            payload = response.json()
+        if 'errors' in payload:
+            raise RuntimeError(str(payload['errors']))
 
     data = payload['data']
     live_transactions = [
@@ -949,10 +1340,13 @@ async def fetch_live_position_metrics(
         for tx in (data.get('latestTransactions') or [])
     ]
     if live_transactions:
-        pool_transaction_history = live_transactions
+        pool_transaction_history = _merge_transaction_history(
+            pool_transaction_history,
+            live_transactions,
+        )
         liquidity_history = [
             tx
-            for tx in live_transactions
+            for tx in (pool_transaction_history or [])
             if tx.get('from_account') == position['owner']
             and tx.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
         ]
@@ -966,7 +1360,7 @@ async def fetch_live_position_metrics(
             )
             pool_swap_count_since_open = sum(
                 1
-                for tx in live_transactions
+                for tx in (pool_transaction_history or [])
                 if tx.get('transaction_type') in {'BuyToken0', 'SellToken0'}
                 and (
                     int(tx.get('created_at') or 0),
@@ -997,10 +1391,14 @@ async def fetch_live_position_metrics(
         )
     partial_metrics['owner_is_fee_to'] = owner_is_fee_to
 
-    return _enrich_metrics_with_history(
+    metrics = _enrich_metrics_with_history(
         partial_metrics,
         liquidity_history=liquidity_history,
         pool_transaction_history=pool_transaction_history,
         pool_swap_count_since_open=pool_swap_count_since_open,
         owner_is_fee_to=owner_is_fee_to,
+    )
+    return _apply_data_quality_warnings(
+        metrics,
+        pool_history_gap_summary=pool_history_gap_summary,
     )

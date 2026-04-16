@@ -2,7 +2,7 @@ import asyncio
 import sys
 import types
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from pathlib import Path
 
 
@@ -40,8 +40,10 @@ class FakeDb:
         self.persisted_transactions = []
         self.watermarks = {}
         self.transaction_bounds = {}
+        self.transaction_ids = {}
+        self.diagnostics = []
 
-    def get_kline(self, token_0, token_1, start_at, end_at, interval):
+    def get_kline(self, token_0, token_1, start_at, end_at, interval, pool_id=None, pool_application=None):
         points = [
             point
             for (_pool_id, _token_reversed, point_interval, _bucket_start_ms), point in self.points.items()
@@ -51,7 +53,7 @@ class FakeDb:
             and start_at <= point['bucket_start_ms'] <= end_at
         ]
         points.sort(key=lambda point: point['bucket_start_ms'])
-        return (token_0, token_1, points)
+        return (token_0, token_1, start_at, end_at, points)
 
     def new_pools(self, pools):
         self.persisted_pools.append(pools)
@@ -65,6 +67,19 @@ class FakeDb:
 
     def get_pool_transaction_id_bounds(self, pool_id, pool_application=None):
         return self.transaction_bounds.get((pool_id, pool_application))
+
+    def get_pool_transaction_ids(self, pool_id, pool_application=None, start_id=None, end_id=None):
+        ids = list(self.transaction_ids.get((pool_id, pool_application), []))
+        lower_bound = 0 if start_id is None else int(start_id)
+        upper_bound = 2 ** 32 - 1 if end_id is None else int(end_id)
+        return [
+            transaction_id
+            for transaction_id in ids
+            if lower_bound <= int(transaction_id) <= upper_bound
+        ]
+
+    def record_diagnostic_event(self, **kwargs):
+        self.diagnostics.append(dict(kwargs))
 
 
 def make_pool(pool_id=7, token_0='AAA', token_1='BBB'):
@@ -140,6 +155,8 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
 
         self.assertEqual(payload['5min'], [
             {
+                'pool_id': 7,
+                'pool_application': 'chain:app',
                 'token_0': 'AAA',
                 'token_1': 'BBB',
                 'interval': '5min',
@@ -148,6 +165,8 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
                 'points': [db.points[(7, False, '5min', 1_800_000_000_000)]],
             },
             {
+                'pool_id': 7,
+                'pool_application': 'chain:app',
                 'token_0': 'BBB',
                 'token_1': 'AAA',
                 'interval': '5min',
@@ -321,11 +340,60 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
 
 
 class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
+    async def test_audit_historical_pool_history_detects_old_internal_missing_ids(self):
+        db = FakeDb()
+        db.transaction_bounds = {
+            (7, 'chain:app'): {'min_transaction_id': 1000, 'max_transaction_id': 1010},
+        }
+        db.transaction_ids[(7, 'chain:app')] = [1000, 1001, 1002, 1004, 1005, 1010]
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        ticker.log_event = Mock()
+        pool = make_pool()
+        pool.latest_transaction = types.SimpleNamespace(transaction_id=1010)
+
+        missing_ids = await ticker.audit_historical_pool_history(pool)
+
+        self.assertEqual(missing_ids[:3], [1003, 1006, 1007])
+        ticker.log_event.assert_called_once()
+        self.assertEqual(ticker.log_event.call_args.args[0], 'pool_transactions_historical_gap_detected')
+        self.assertEqual(db.diagnostics[0]['event_type'], 'historical_pool_history_gap')
+
+    async def test_audit_historical_pool_history_only_scans_once_after_clean_pass(self):
+        db = FakeDb()
+        db.transaction_bounds = {
+            (7, 'chain:app'): {'min_transaction_id': 1000, 'max_transaction_id': 1003},
+        }
+        db.transaction_ids[(7, 'chain:app')] = [1000, 1001, 1002, 1003]
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        pool = make_pool()
+        pool.latest_transaction = types.SimpleNamespace(transaction_id=1003)
+
+        self.assertEqual(await ticker.audit_historical_pool_history(pool), [])
+        db.transaction_ids[(7, 'chain:app')] = [1000]
+        self.assertEqual(await ticker.audit_historical_pool_history(pool), [])
+
+    async def test_audit_recent_pool_history_detects_internal_missing_ids(self):
+        db = FakeDb()
+        db.transaction_ids[(7, 'chain:app')] = [351, 352, 354, 355, 400]
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        ticker.recent_backfill_transaction_count = 50
+        ticker.log_event = Mock()
+        pool = make_pool()
+        pool.latest_transaction = types.SimpleNamespace(transaction_id=400)
+
+        missing_ids = await ticker.audit_recent_pool_history(pool)
+
+        self.assertEqual(missing_ids[:3], [353, 356, 357])
+        ticker.log_event.assert_called_once()
+        self.assertEqual(ticker.log_event.call_args.args[0], 'pool_transactions_recent_gap_detected')
+        self.assertEqual(db.diagnostics[0]['event_type'], 'recent_pool_history_gap')
+
     async def test_run_iteration_repairs_missing_current_app_history_once_from_initial_transaction_id(self):
         db = FakeDb()
         db.transaction_bounds = {
             (7, 'chain:app'): {'min_transaction_id': 1500, 'max_transaction_id': 1510},
         }
+        db.transaction_ids[(7, 'chain:app')] = list(range(1500, 1511))
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
         ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
@@ -358,6 +426,53 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(ticker.get_pool_transactions.await_args_list[0].args, (pool, 1000))
         self.assertEqual(ticker.get_pool_transactions.await_args_list[1].args, (pool, 1600))
+        self.assertTrue(any(row['event_type'] == 'historical_repair_fetch' for row in db.diagnostics))
+
+    async def test_run_iteration_logs_old_internal_gap_and_continues_incremental_sync(self):
+        db = FakeDb()
+        db.transaction_bounds = {
+            (7, 'chain:app'): {'min_transaction_id': 1000, 'max_transaction_id': 7000},
+        }
+        db.transaction_ids[(7, 'chain:app')] = list(range(6501, 7001))
+        manager = types.SimpleNamespace(notify=AsyncMock())
+        swap = types.SimpleNamespace()
+        ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
+        ticker.recent_backfill_transaction_count = 500
+        ticker.initial_transaction_id = 1000
+        pool = make_pool()
+        pool.latest_transaction = types.SimpleNamespace(transaction_id=7000)
+        ticker.get_pools = AsyncMock(return_value=[pool])
+        ticker.get_pool_transactions = AsyncMock(return_value=[{
+            'transaction_id': 7000,
+            'transaction_type': 'BuyToken0',
+            'token_reversed': False,
+            'created_at': 1_800_000_002_000,
+        }])
+
+        last_timestamps = {make_pool_identity(): (1_800_000_001_000, 7000, 0)}
+        await ticker.run_iteration(last_timestamps)
+
+        self.assertEqual(ticker.get_pool_transactions.await_args_list[0].args, (pool, 6501))
+        self.assertEqual(ticker.get_pool_transactions.await_args_list[1].args, (pool, 7000))
+        event_types = [row['event_type'] for row in db.diagnostics]
+        self.assertIn('historical_pool_history_gap', event_types)
+        self.assertIn('recent_backfill_fetch', event_types)
+        self.assertIn('incremental_fetch', event_types)
+
+    async def test_repair_historical_pool_history_skips_internal_gap_when_prefix_exists(self):
+        db = FakeDb()
+        db.transaction_bounds = {
+            (7, 'chain:app'): {'min_transaction_id': 1000, 'max_transaction_id': 7000},
+        }
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        ticker.initial_transaction_id = 1000
+        pool = make_pool()
+        pool.latest_transaction = types.SimpleNamespace(transaction_id=7000)
+        ticker.get_pool_transactions = AsyncMock(return_value=[])
+
+        await ticker.repair_historical_pool_history(pool, {})
+
+        ticker.get_pool_transactions.assert_not_awaited()
 
     async def test_run_iteration_without_db_watermark_requests_full_incremental_window(self):
         db = FakeDb()
@@ -487,6 +602,7 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_iteration_backfills_recent_transactions_once_before_live_poll(self):
         db = FakeDb()
+        db.transaction_ids[(7, 'chain:app')] = list(range(351, 401))
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
         ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
@@ -514,6 +630,7 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_run_iteration_does_not_repeat_recent_backfill_after_first_pass(self):
         db = FakeDb()
+        db.transaction_ids[(7, 'chain:app')] = list(range(351, 401))
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
         ticker = Ticker(manager=manager, swap=swap, db=db, now_ms=lambda: 1_800_000_120_000)
@@ -539,6 +656,13 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ticker.get_pool_transactions.await_args_list[0].args, (pool, 351))
         self.assertEqual(ticker.get_pool_transactions.await_args_list[1].args, (pool, 400))
         self.assertEqual(ticker.get_pool_transactions.await_args_list[2].args, (pool, 400))
+
+    def test_find_missing_transaction_ids_returns_dense_gap_list(self):
+        ticker = Ticker(manager=None, swap=None, db=FakeDb())
+
+        missing_ids = ticker.find_missing_transaction_ids([1000, 1001, 1004, 1006], 1000, 1006)
+
+        self.assertEqual(missing_ids, [1002, 1003, 1005])
 
 
 if __name__ == '__main__':
