@@ -19,3 +19,4 @@ Cargo.lock
 
 .env
 *.log
+.tmp-browser/

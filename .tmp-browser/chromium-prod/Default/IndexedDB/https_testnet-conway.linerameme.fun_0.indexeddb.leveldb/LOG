@@ -1,5 +1,0 @@
-2026/04/16-12:31:40.790 269970 Creating DB /home/kk/linera-project/linera-meme/.tmp-browser/chromium-prod/Default/IndexedDB/https_testnet-conway.linerameme.fun_0.indexeddb.leveldb since it was missing.
-2026/04/16-12:31:40.807 269970 Reusing MANIFEST /home/kk/linera-project/linera-meme/.tmp-browser/chromium-prod/Default/IndexedDB/https_testnet-conway.linerameme.fun_0.indexeddb.leveldb/MANIFEST-000001
-2026/04/16-14:57:58.598 269972 Level-0 table #5: started
-2026/04/16-14:57:58.667 269972 Level-0 table #5: 1024555 bytes OK
-2026/04/16-14:57:58.677 269972 Delete type=0 #3
