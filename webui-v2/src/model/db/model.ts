@@ -25,3 +25,8 @@ export interface _Transaction extends TransactionExt {
   token0: string
   token1: string
 }
+
+export interface ClientMigrationRecord {
+  id: string
+  appliedAt: string
+}

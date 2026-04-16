@@ -5,6 +5,7 @@ import { type dbModel } from 'src/model'
 export const dbKline = new Dexie('KLineDatabase') as Dexie & {
   klinePoints: Table<dbModel.KlinePoint, [string, string, number, string, Interval, number]>
   transactions: Table<dbModel._Transaction, [string, string, number, boolean]>
+  clientMigrations: Table<dbModel.ClientMigrationRecord, string>
 }
 
 dbKline.version(11).stores({
@@ -59,9 +60,27 @@ dbKline
     return
   })
 
+dbKline.version(14).stores({
+  klinePoints: null,
+  transactions: null,
+  klinePointsV2: null,
+  klinePointsV3:
+    '++id, &[token0+token1+poolId+poolApplication+interval+timestamp], open, close, low, high, volume, timestamp',
+  transactionsV3:
+    '++id, &[token0+token1+transaction_id+token_reversed], &[created_timestamp+token0+token1+token_reversed], &[created_timestamp+token_reversed], transaction_type, from_account, amount_0_in, amount_1_in, amount_0_out, amount_1_out, liquidity, created_at, created_timestamp, price, volume, direction',
+  clientMigrations: '&id, appliedAt',
+})
+
 Object.defineProperty(dbKline, 'klinePoints', {
   configurable: true,
   get() {
     return dbKline.table('klinePointsV3')
+  },
+})
+
+Object.defineProperty(dbKline, 'clientMigrations', {
+  configurable: true,
+  get() {
+    return dbKline.table('clientMigrations')
   },
 })

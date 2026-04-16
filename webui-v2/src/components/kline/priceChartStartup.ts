@@ -95,6 +95,7 @@ type BackgroundHistoryScheduleInput = {
   backgroundHistoryQueued: boolean
   minPointTimestamp: number
   poolCreatedAt: number
+  latestWindowStart: number
 }
 
 type BackgroundHistoryStatusInput = {
@@ -103,6 +104,13 @@ type BackgroundHistoryStatusInput = {
   loadingDirection: 'new' | 'old' | null
   minPointTimestamp: number
   poolCreatedAt: number
+}
+
+type CachedRangeRefreshInput = {
+  isStartupCacheLoad: boolean
+  pointCount: number
+  timestampBegin: number | undefined
+  timestampEnd: number | undefined
 }
 
 export type BackgroundHistoryStatus = 'idle' | 'queued' | 'loading' | 'complete'
@@ -163,8 +171,12 @@ export const shouldScheduleBackgroundHistoryBackfill = ({
   backgroundHistoryQueued,
   minPointTimestamp,
   poolCreatedAt,
+  latestWindowStart,
 }: BackgroundHistoryScheduleInput): boolean =>
-  firstScreenReady && !backgroundHistoryQueued && minPointTimestamp > poolCreatedAt
+  firstScreenReady &&
+  !backgroundHistoryQueued &&
+  minPointTimestamp > poolCreatedAt &&
+  minPointTimestamp < latestWindowStart
 
 export const resolveBackgroundHistoryStatus = ({
   firstScreenReady,
@@ -202,6 +214,11 @@ type NextFetchDecisionInput = {
   maxPointTimestamp: number
 }
 
+type StartupEmptyResultContinuationInput = {
+  firstScreenReady: boolean
+  reverse: boolean
+}
+
 export const resolveNextFetchTimestamp = ({
   reverse,
   reason,
@@ -214,6 +231,22 @@ export const resolveNextFetchTimestamp = ({
 
   return reverse ? minPointTimestamp : maxPointTimestamp
 }
+
+export const shouldContinueStartupFetchAfterEmptyResult = ({
+  firstScreenReady,
+  reverse,
+}: StartupEmptyResultContinuationInput): boolean => firstScreenReady || reverse === false
+
+export const shouldRefreshCachedRangeFromNetwork = ({
+  isStartupCacheLoad,
+  pointCount,
+  timestampBegin,
+  timestampEnd,
+}: CachedRangeRefreshInput): boolean =>
+  !isStartupCacheLoad &&
+  pointCount > 0 &&
+  timestampBegin !== undefined &&
+  timestampEnd !== undefined
 
 export const resolveFetchSortDecision = ({
   reverse,

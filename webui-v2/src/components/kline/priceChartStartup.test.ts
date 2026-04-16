@@ -12,8 +12,10 @@ import {
   resolveStartupCatchupFetch,
   resolveStartupGapBackfillFetch,
   resolveStartupRequestPlan,
+  shouldContinueStartupFetchAfterEmptyResult,
   shouldRestartKlineOnSelectedPoolChange,
   shouldDeferHistoryLoadUntilFirstPaint,
+  shouldRefreshCachedRangeFromNetwork,
   shouldScheduleBackgroundHistoryBackfill,
   SortReason,
   type Reason,
@@ -257,6 +259,7 @@ describe('resolveNextFetchTimestamp', () => {
         backgroundHistoryQueued: false,
         minPointTimestamp: 2_000,
         poolCreatedAt: 1_000,
+        latestWindowStart: 3_000,
       }),
     ).toBe(true)
 
@@ -266,6 +269,7 @@ describe('resolveNextFetchTimestamp', () => {
         backgroundHistoryQueued: false,
         minPointTimestamp: 2_000,
         poolCreatedAt: 1_000,
+        latestWindowStart: 3_000,
       }),
     ).toBe(false)
 
@@ -275,6 +279,78 @@ describe('resolveNextFetchTimestamp', () => {
         backgroundHistoryQueued: true,
         minPointTimestamp: 2_000,
         poolCreatedAt: 1_000,
+        latestWindowStart: 3_000,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldScheduleBackgroundHistoryBackfill({
+        firstScreenReady: true,
+        backgroundHistoryQueued: false,
+        minPointTimestamp: 3_000,
+        poolCreatedAt: 1_000,
+        latestWindowStart: 3_000,
+      }),
+    ).toBe(false)
+  })
+
+  test('does not continue reverse history fetches before the first screen is ready', () => {
+    expect(
+      shouldContinueStartupFetchAfterEmptyResult({
+        firstScreenReady: false,
+        reverse: true,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldContinueStartupFetchAfterEmptyResult({
+        firstScreenReady: false,
+        reverse: false,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldContinueStartupFetchAfterEmptyResult({
+        firstScreenReady: true,
+        reverse: true,
+      }),
+    ).toBe(true)
+  })
+
+  test('refreshes non-startup cached history ranges from the network so stale rows self-heal', () => {
+    expect(
+      shouldRefreshCachedRangeFromNetwork({
+        isStartupCacheLoad: false,
+        pointCount: 10,
+        timestampBegin: 1_000,
+        timestampEnd: 2_000,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldRefreshCachedRangeFromNetwork({
+        isStartupCacheLoad: true,
+        pointCount: 10,
+        timestampBegin: undefined,
+        timestampEnd: undefined,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldRefreshCachedRangeFromNetwork({
+        isStartupCacheLoad: false,
+        pointCount: 0,
+        timestampBegin: 1_000,
+        timestampEnd: 2_000,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldRefreshCachedRangeFromNetwork({
+        isStartupCacheLoad: false,
+        pointCount: 10,
+        timestampBegin: undefined,
+        timestampEnd: 2_000,
       }),
     ).toBe(false)
   })

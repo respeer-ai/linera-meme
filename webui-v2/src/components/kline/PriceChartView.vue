@@ -22,7 +22,7 @@
 <script setup lang='ts'>
 import { ref, onMounted, onBeforeUnmount, computed, watch, onBeforeMount, toRef, nextTick } from 'vue'
 import { kline, swap, ams } from 'src/stores/export'
-import { dbKline } from 'src/controller'
+import { dbKline, ensureClientMigrations } from 'src/controller'
 // import { useRouter } from 'vue-router'
 import { klineWorker } from 'src/worker'
 import { KLineData } from './chart/KlineData'
@@ -31,7 +31,7 @@ import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldDeferHistoryLoadUntilFirstPaint, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
+import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldContinueStartupFetchAfterEmptyResult, shouldDeferHistoryLoadUntilFirstPaint, shouldRefreshCachedRangeFromNetwork, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
 import { chartStateChanged, mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
@@ -423,8 +423,12 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
 }
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
-  const _points = payload.points
   const { token0, token1, poolId, poolApplication, reverse, timestampBegin, timestampEnd, interval, requestId } = payload
+  const startupPlan = startupPlanRef.value
+  const isStartupCacheLoad = reverse && timestampBegin === undefined && timestampEnd === undefined
+  const _points = isStartupCacheLoad && startupPlan
+    ? payload.points.filter((point) => point.timestamp >= startupPlan.fetchLatest.startAt)
+    : payload.points
 
   console.log('[PriceChartView] onLoadedPoints, interval:', interval, 'selectedInterval:', selectedInterval.value, 'points count:', _points.length)
 
@@ -446,8 +450,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     pointCount: _points.length
   })
 
-  if (reverse && timestampBegin === undefined && timestampEnd === undefined && _points.length > 0) {
-    const startupPlan = startupPlanRef.value
+  if (isStartupCacheLoad && _points.length > 0) {
     const cacheLatestTimestamp = Math.max(..._points.map((point) => point.timestamp))
     const catchupFetch = startupPlan
       ? resolveStartupCatchupFetch({
@@ -461,6 +464,17 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     if (catchupFetch) {
       fetchKlineRange(catchupFetch.startAt, catchupFetch.endAt, catchupFetch.reverse)
     }
+  }
+
+  const shouldRefreshCachedRange = shouldRefreshCachedRangeFromNetwork({
+    isStartupCacheLoad,
+    pointCount: _points.length,
+    timestampBegin,
+    timestampEnd,
+  })
+
+  if (shouldRefreshCachedRange && timestampBegin !== undefined && timestampEnd !== undefined) {
+    fetchKlineRange(timestampBegin, timestampEnd, reverse)
   }
 
   const windowSize = getWindowSize(selectedInterval.value)
@@ -540,11 +554,15 @@ const flushPendingLoad = () => {
 }
 
 const queueBackgroundHistoryBackfill = () => {
+  const startupPlan = startupPlanRef.value
+  if (!startupPlan) return
+
   if (!shouldScheduleBackgroundHistoryBackfill({
     firstScreenReady: firstScreenReady.value,
     backgroundHistoryQueued: backgroundHistoryQueued.value,
     minPointTimestamp: minPointTimestamp.value,
-    poolCreatedAt: poolCreatedAt.value
+    poolCreatedAt: poolCreatedAt.value,
+    latestWindowStart: startupPlan.fetchLatest.startAt,
   })) return
 
   backgroundHistoryQueued.value = true
@@ -593,6 +611,11 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   if (requestId !== currentRequestId.value) return
 
   if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {
+    if (!shouldContinueStartupFetchAfterEmptyResult({
+      firstScreenReady: firstScreenReady.value,
+      reverse,
+    })) return
+
     const timestamp = resolveNextFetchTimestamp({
       reverse,
       reason: _reason,
@@ -656,16 +679,26 @@ onBeforeMount(() => {
 })
 
 onMounted(() => {
-  kline.Kline.initialize()
-  installStartupBaselineDebug(startupBaselineRecorder, async () => {
-    await dbKline.klinePoints.clear()
-  })
+  const bootChart = async () => {
+    try {
+      await ensureClientMigrations()
+    } catch (error) {
+      console.error('[ClientMigration] failed before K-line bootstrap', error)
+    }
 
-  klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
-  klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
-  klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
+    kline.Kline.initialize()
+    installStartupBaselineDebug(startupBaselineRecorder, async () => {
+      await dbKline.klinePoints.clear()
+    })
 
-  getStoreKline()
+    klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
+    klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
+    klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
+
+    getStoreKline()
+  }
+
+  void bootChart()
 })
 
 onBeforeUnmount(() => {
