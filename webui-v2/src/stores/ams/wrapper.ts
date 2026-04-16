@@ -1,6 +1,10 @@
 import { NotifyType } from '../notify'
 import { useAmsStore } from './store'
 import { type Application } from './types'
+import {
+  resolveApplicationsQueryCreatedAfter,
+  resolveNextApplicationsCursor,
+} from './pagination'
 
 const ams = useAmsStore()
 
@@ -11,7 +15,7 @@ export class Ams {
   ) => {
     ams.getApplications(
       {
-        createdAfter: createdAfter as number,
+        createdAfter: resolveApplicationsQueryCreatedAfter(createdAfter) as number,
         limit: 800,
         Message: {
           Error: {
@@ -24,7 +28,9 @@ export class Ams {
       },
       (error: boolean, rows?: Application[]) => {
         if (error || !rows?.length) return done?.(error, rows)
-        Ams.getApplications(Math.max(...rows.map((el) => el.createdAt)), done)
+        const nextCreatedAfter = resolveNextApplicationsCursor(createdAfter, rows)
+        if (nextCreatedAfter === undefined) return done?.(false, rows)
+        Ams.getApplications(nextCreatedAfter, done)
       },
     )
   }
