@@ -273,10 +273,63 @@ def _history_net_token_amounts(liquidity_history: list[dict]) -> tuple[Decimal, 
     return amount0, amount1
 
 
+def _latest_position_liquidity_tx(liquidity_history: list[dict]) -> dict | None:
+    if not liquidity_history:
+        return None
+    return max(
+        liquidity_history,
+        key=lambda row: (
+            int(row.get('created_at') or 0),
+            int(row.get('transaction_id') or 0),
+        ),
+    )
+
+
+def _build_observed_swap_fee_estimate(
+    *,
+    pool_transaction_history: list[dict] | None,
+    latest_position_tx: dict | None,
+    liquidity_basis: Decimal,
+    total_supply_live: Decimal,
+) -> tuple[Decimal, Decimal]:
+    if not pool_transaction_history or latest_position_tx is None:
+        return Decimal('0'), Decimal('0')
+    if liquidity_basis <= Decimal('0') or total_supply_live <= Decimal('0'):
+        return Decimal('0'), Decimal('0')
+
+    latest_created_at = int(latest_position_tx.get('created_at') or 0)
+    latest_transaction_id = int(latest_position_tx.get('transaction_id') or 0)
+    share_ratio = liquidity_basis / total_supply_live
+    fee_rate = Decimal(SWAP_FEE_DENOMINATOR - SWAP_FEE_NUMERATOR) / Decimal(SWAP_FEE_DENOMINATOR)
+
+    observed_fee0 = Decimal('0')
+    observed_fee1 = Decimal('0')
+    for tx in pool_transaction_history:
+        tx_key = (
+            int(tx.get('created_at') or 0),
+            int(tx.get('transaction_id') or 0),
+        )
+        if tx_key < (latest_created_at, latest_transaction_id):
+            continue
+
+        tx_type = tx.get('transaction_type')
+        if tx_type == 'SellToken0':
+            amount0_in = _to_decimal(tx.get('amount_0_in')) or Decimal('0')
+            if amount0_in > Decimal('0'):
+                observed_fee0 += amount0_in * fee_rate * share_ratio
+        elif tx_type == 'BuyToken0':
+            amount1_in = _to_decimal(tx.get('amount_1_in')) or Decimal('0')
+            if amount1_in > Decimal('0'):
+                observed_fee1 += amount1_in * fee_rate * share_ratio
+
+    return observed_fee0, observed_fee1
+
+
 def _build_estimated_metrics_from_liquidity_history(
     partial_metrics: dict,
     *,
     liquidity_history: list[dict],
+    pool_transaction_history: list[dict] | None,
     live_liquidity: Decimal | None,
     history_liquidity: Decimal,
 ) -> dict:
@@ -306,13 +359,21 @@ def _build_estimated_metrics_from_liquidity_history(
         protocol_fee_amount0 = _from_attos(protocol_fee_amount0_attos) or Decimal('0')
         protocol_fee_amount1 = _from_attos(protocol_fee_amount1_attos) or Decimal('0')
 
-    net_amount0, net_amount1 = _history_net_token_amounts(liquidity_history)
     redeemable_ex_protocol0 = _normalize_non_negative(redeemable_amount0 - protocol_fee_amount0)
     redeemable_ex_protocol1 = _normalize_non_negative(redeemable_amount1 - protocol_fee_amount1)
-    principal_amount0 = min(redeemable_ex_protocol0, max(net_amount0, Decimal('0')))
-    principal_amount1 = min(redeemable_ex_protocol1, max(net_amount1, Decimal('0')))
-    fee_amount0 = _normalize_non_negative(redeemable_ex_protocol0 - principal_amount0)
-    fee_amount1 = _normalize_non_negative(redeemable_ex_protocol1 - principal_amount1)
+    total_supply_live = _to_decimal(partial_metrics.get('total_supply_live')) or Decimal('0')
+    latest_position_tx = _latest_position_liquidity_tx(liquidity_history)
+    liquidity_basis = min(history_liquidity, live_liquidity or history_liquidity)
+    observed_fee0, observed_fee1 = _build_observed_swap_fee_estimate(
+        pool_transaction_history=pool_transaction_history,
+        latest_position_tx=latest_position_tx,
+        liquidity_basis=liquidity_basis,
+        total_supply_live=total_supply_live,
+    )
+    fee_amount0 = min(redeemable_ex_protocol0, _normalize_non_negative(observed_fee0))
+    fee_amount1 = min(redeemable_ex_protocol1, _normalize_non_negative(observed_fee1))
+    principal_amount0 = _normalize_non_negative(redeemable_ex_protocol0 - fee_amount0)
+    principal_amount1 = _normalize_non_negative(redeemable_ex_protocol1 - fee_amount1)
 
     partial_metrics['metrics_status'] = 'estimated_live_redeemable_with_history'
     partial_metrics['principal_amount0'] = _serialize_decimal(principal_amount0)
@@ -1292,6 +1353,7 @@ def _enrich_metrics_with_history(
         partial_metrics = _build_estimated_metrics_from_liquidity_history(
             partial_metrics,
             liquidity_history=liquidity_history,
+            pool_transaction_history=pool_transaction_history,
             live_liquidity=live_liquidity,
             history_liquidity=history_liquidity,
         )

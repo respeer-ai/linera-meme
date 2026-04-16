@@ -1534,7 +1534,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(metrics['exact_fee_supported'])
         self.assertEqual(metrics['metrics_status'], 'estimated_live_redeemable_with_history')
         self.assertEqual(metrics['fee_amount0'], '0')
-        self.assertEqual(metrics['fee_amount1'], '1.666249990808418012')
+        self.assertEqual(metrics['fee_amount1'], '0.004999963234483096')
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
 
     async def test_fetch_live_position_metrics_estimate_ignores_zero_liquidity_bootstrap_basis(self):
@@ -1620,12 +1620,23 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     'liquidity': None,
                     'created_at': 1_800_000_002_000,
                 },
+                {
+                    'transaction_id': 1010,
+                    'transaction_type': 'SellToken0',
+                    'from_account': 'chain-b:0xswapper',
+                    'amount_0_in': '3000000',
+                    'amount_1_in': '0',
+                    'amount_0_out': '0',
+                    'amount_1_out': '1',
+                    'liquidity': None,
+                    'created_at': 1_800_000_003_000,
+                },
             ],
-            pool_swap_count_since_open=1,
+            pool_swap_count_since_open=2,
             pool_history_gap_summary={
                 'has_internal_gaps': True,
                 'start_id': 1000,
-                'end_id': 1009,
+                'end_id': 1010,
                 'missing_count': 1,
                 'missing_ids_sample': [1005],
             },
@@ -1637,10 +1648,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['metrics_status'], 'estimated_live_redeemable_with_history')
         self.assertEqual(metrics['protocol_fee_amount0'], '2.815826584948614052')
         self.assertEqual(metrics['protocol_fee_amount1'], '0.002493643816370376')
-        self.assertEqual(metrics['principal_amount0'], '11.709629664829751178')
-        self.assertEqual(metrics['principal_amount1'], '0.01')
-        self.assertEqual(metrics['fee_amount0'], '0')
-        self.assertEqual(metrics['fee_amount1'], '0.000369830927007422')
+        self.assertEqual(metrics['principal_amount0'], '11.699324153185959156')
+        self.assertEqual(metrics['principal_amount1'], '0.010369830927007422')
+        self.assertEqual(metrics['fee_amount0'], '0.010305511643792022')
+        self.assertEqual(metrics['fee_amount1'], '0')
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
 
 

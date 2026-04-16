@@ -345,8 +345,9 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         db.transaction_bounds = {
             (7, 'chain:app'): {'min_transaction_id': 1000, 'max_transaction_id': 1010},
         }
-        db.transaction_ids[(7, 'chain:app')] = [1000, 1001, 1002, 1004, 1005, 1010]
+        db.transaction_ids[(7, 'chain:app')] = [1000, 1001, 1002, 1004, 1005, 1008, 1009, 1010]
         ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        ticker.recent_backfill_transaction_count = 3
         ticker.log_event = Mock()
         pool = make_pool()
         pool.latest_transaction = types.SimpleNamespace(transaction_id=1010)
@@ -357,6 +358,14 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         ticker.log_event.assert_called_once()
         self.assertEqual(ticker.log_event.call_args.args[0], 'pool_transactions_historical_gap_detected')
         self.assertEqual(db.diagnostics[0]['event_type'], 'historical_pool_history_gap')
+        self.assertEqual(
+            db.diagnostics[0]['details']['gap_root_cause'],
+            'historical_unrecoverable_outside_recent_window',
+        )
+        self.assertEqual(
+            db.diagnostics[0]['details']['gap_repairability'],
+            'requires_archive_rebuild',
+        )
 
     async def test_audit_historical_pool_history_only_scans_once_after_clean_pass(self):
         db = FakeDb()
@@ -372,12 +381,16 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         db.transaction_ids[(7, 'chain:app')] = [1000]
         self.assertEqual(await ticker.audit_historical_pool_history(pool), [])
 
-    async def test_audit_recent_pool_history_detects_internal_missing_ids(self):
+    async def test_audit_recent_pool_history_records_db_sync_gap_when_live_has_missing_ids(self):
         db = FakeDb()
         db.transaction_ids[(7, 'chain:app')] = [351, 352, 354, 355, 400]
         ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
         ticker.recent_backfill_transaction_count = 50
         ticker.log_event = Mock()
+        ticker.get_pool_transactions = AsyncMock(return_value=[
+            {'transaction_id': transaction_id}
+            for transaction_id in range(351, 401)
+        ])
         pool = make_pool()
         pool.latest_transaction = types.SimpleNamespace(transaction_id=400)
 
@@ -387,6 +400,40 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         ticker.log_event.assert_called_once()
         self.assertEqual(ticker.log_event.call_args.args[0], 'pool_transactions_recent_gap_detected')
         self.assertEqual(db.diagnostics[0]['event_type'], 'recent_pool_history_gap')
+        self.assertEqual(db.diagnostics[0]['details']['gap_root_cause'], 'db_sync_lag_or_write_missing')
+        self.assertEqual(
+            db.diagnostics[0]['details']['gap_repairability'],
+            'repairable_from_live_recent_window',
+        )
+        self.assertEqual(db.diagnostics[0]['details']['missing_in_live_count'], 0)
+        self.assertEqual(db.diagnostics[0]['details']['missing_in_db_sample'][:3], [353, 356, 357])
+
+    async def test_audit_recent_pool_history_records_live_gap_when_live_window_also_missing_ids(self):
+        db = FakeDb()
+        db.transaction_ids[(7, 'chain:app')] = [351, 352, 354, 355, 400]
+        ticker = Ticker(manager=None, swap=None, db=db, now_ms=lambda: 1_800_000_120_000)
+        ticker.recent_backfill_transaction_count = 50
+        ticker.log_event = Mock()
+        ticker.get_pool_transactions = AsyncMock(return_value=[
+            {'transaction_id': 351},
+            {'transaction_id': 352},
+            {'transaction_id': 354},
+            {'transaction_id': 355},
+            {'transaction_id': 400},
+        ])
+        pool = make_pool()
+        pool.latest_transaction = types.SimpleNamespace(transaction_id=400)
+
+        missing_ids = await ticker.audit_recent_pool_history(pool)
+
+        self.assertEqual(missing_ids[:3], [353, 356, 357])
+        self.assertEqual(db.diagnostics[0]['details']['gap_root_cause'], 'recent_live_window_missing')
+        self.assertEqual(
+            db.diagnostics[0]['details']['gap_repairability'],
+            'not_repairable_from_live_recent_window',
+        )
+        self.assertEqual(db.diagnostics[0]['details']['missing_in_db_count'], 0)
+        self.assertEqual(db.diagnostics[0]['details']['missing_in_live_sample'][:3], [353, 356, 357])
 
     async def test_run_iteration_repairs_missing_current_app_history_once_from_initial_transaction_id(self):
         db = FakeDb()
