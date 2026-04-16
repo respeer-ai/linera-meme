@@ -1448,6 +1448,119 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
 
+    async def test_fetch_live_position_metrics_clears_stale_gap_warning_when_live_history_fills_gap(self):
+        position = {
+            'pool_application': 'chain-pool:0xpool',
+            'pool_id': 7,
+            'owner': 'chain-a:0xowner-a',
+            'status': 'active',
+            'current_liquidity': '50',
+            'opened_at': 1_800_000_000_000,
+        }
+
+        async def fake_post(url, json, timeout):
+            self.assertEqual(timeout, (3, 10))
+            return FakeResponse({
+                'data': {
+                    'liquidity': {
+                        'liquidity': '50',
+                        'amount0': '47.2',
+                        'amount1': '58.1',
+                    },
+                    'totalSupply': '100',
+                    'virtualInitialLiquidity': False,
+                    'latestTransactions': [
+                        {
+                            'transactionId': 1,
+                            'transactionType': 'AddLiquidity',
+                            'from': {
+                                'chain_id': 'chain-a',
+                                'owner': '0xowner-a',
+                            },
+                            'amount0In': '45.2',
+                            'amount0Out': '0',
+                            'amount1In': '55.1',
+                            'amount1Out': '0',
+                            'liquidity': '50',
+                            'createdAt': 1_800_000_000_000,
+                        },
+                        {
+                            'transactionId': 2,
+                            'transactionType': 'BuyToken0',
+                            'from': {
+                                'chain_id': 'chain-b',
+                                'owner': '0xswapper',
+                            },
+                            'amount0In': '0',
+                            'amount0Out': '7.642796434518162414',
+                            'amount1In': '10',
+                            'amount1Out': '0',
+                            'liquidity': None,
+                            'createdAt': 1_800_000_001_000,
+                        },
+                    ],
+                    'pool': {
+                        'fee_to': None,
+                    },
+                },
+            })
+
+        metrics = await position_metrics.fetch_live_position_metrics(
+            position,
+            'https://swap.example',
+            liquidity_history=[
+                {
+                    'transaction_id': 1,
+                    'transaction_type': 'AddLiquidity',
+                    'from_account': 'chain-a:0xowner-a',
+                    'amount_0_in': '45.2',
+                    'amount_1_in': '55.1',
+                    'amount_0_out': '0',
+                    'amount_1_out': '0',
+                    'liquidity': '50',
+                    'created_at': 1_800_000_000_000,
+                },
+            ],
+            pool_transaction_history=[
+                {
+                    'transaction_id': 1,
+                    'transaction_type': 'AddLiquidity',
+                    'from_account': 'chain-a:0xowner-a',
+                    'amount_0_in': '45.2',
+                    'amount_1_in': '55.1',
+                    'amount_0_out': '0',
+                    'amount_1_out': '0',
+                    'liquidity': '50',
+                    'created_at': 1_800_000_000_000,
+                },
+                {
+                    'transaction_id': 3,
+                    'transaction_type': 'BuyToken0',
+                    'from_account': 'chain-b:0xother',
+                    'amount_0_in': '0',
+                    'amount_0_out': '6.269289240489408802',
+                    'amount_1_in': '10',
+                    'amount_1_out': '0',
+                    'liquidity': None,
+                    'created_at': 1_800_000_002_000,
+                },
+            ],
+            pool_swap_count_since_open=1,
+            pool_history_gap_summary={
+                'has_internal_gaps': True,
+                'start_id': 1,
+                'end_id': 3,
+                'missing_count': 1,
+                'missing_ids_sample': [2],
+            },
+            post=fake_post,
+            in_k8s=False,
+        )
+
+        self.assertNotIn('pool_history_has_internal_gaps', metrics['computation_blockers'])
+        self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
+        self.assertNotIn('incomplete history', metrics['value_warning_message'])
+
     async def test_fetch_live_position_metrics_estimates_non_zero_fee_from_liquidity_amount_history(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({

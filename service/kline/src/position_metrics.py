@@ -145,6 +145,59 @@ def _merge_transaction_history(
     )
 
 
+def _build_transaction_gap_summary(
+    transaction_history: list[dict] | None,
+    *,
+    start_id: int | None = None,
+    end_id: int | None = None,
+    sample_limit: int = 8,
+) -> dict:
+    transaction_ids = sorted(
+        {
+            int(tx.get('transaction_id'))
+            for tx in (transaction_history or [])
+            if tx.get('transaction_id') is not None
+        }
+    )
+    if not transaction_ids:
+        return {
+            'has_internal_gaps': False,
+            'start_id': None,
+            'end_id': None,
+            'missing_count': 0,
+            'missing_ids_sample': [],
+        }
+
+    lower_bound = transaction_ids[0] if start_id is None else max(int(start_id), transaction_ids[0])
+    upper_bound = transaction_ids[-1] if end_id is None else min(int(end_id), transaction_ids[-1])
+    if lower_bound > upper_bound:
+        return {
+            'has_internal_gaps': False,
+            'start_id': lower_bound,
+            'end_id': upper_bound,
+            'missing_count': 0,
+            'missing_ids_sample': [],
+        }
+
+    observed_set = set(transaction_ids)
+    missing_ids_sample = []
+    missing_count = 0
+    for transaction_id in range(lower_bound, upper_bound + 1):
+        if transaction_id in observed_set:
+            continue
+        missing_count += 1
+        if len(missing_ids_sample) < int(sample_limit):
+            missing_ids_sample.append(transaction_id)
+
+    return {
+        'has_internal_gaps': missing_count > 0,
+        'start_id': lower_bound,
+        'end_id': upper_bound,
+        'missing_count': missing_count,
+        'missing_ids_sample': missing_ids_sample,
+    }
+
+
 def _to_attos(value) -> int | None:
     if value is None:
         return None
@@ -1406,6 +1459,7 @@ async def fetch_live_position_metrics(
             pool_transaction_history,
             live_transactions,
         )
+        pool_history_gap_summary = _build_transaction_gap_summary(pool_transaction_history)
         liquidity_history = [
             tx
             for tx in (pool_transaction_history or [])
