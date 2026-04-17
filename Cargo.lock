@@ -21,6 +21,7 @@ dependencies = [
  "async-graphql-parser",
  "async-graphql-value",
  "base",
+ "bcs",
  "env_logger",
  "getrandom 0.2.17",
  "linera-sdk",
@@ -30,6 +31,7 @@ dependencies = [
  "primitive-types",
  "rust_decimal",
  "serde",
+ "serde_json",
  "thiserror 1.0.69",
 ]
 
