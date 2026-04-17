@@ -166,6 +166,7 @@ def _build_transaction_gap_summary(
             'end_id': None,
             'missing_count': 0,
             'missing_ids_sample': [],
+            'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
         }
 
     lower_bound = transaction_ids[0] if start_id is None else max(int(start_id), transaction_ids[0])
@@ -177,24 +178,16 @@ def _build_transaction_gap_summary(
             'end_id': upper_bound,
             'missing_count': 0,
             'missing_ids_sample': [],
+            'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
         }
 
-    observed_set = set(transaction_ids)
-    missing_ids_sample = []
-    missing_count = 0
-    for transaction_id in range(lower_bound, upper_bound + 1):
-        if transaction_id in observed_set:
-            continue
-        missing_count += 1
-        if len(missing_ids_sample) < int(sample_limit):
-            missing_ids_sample.append(transaction_id)
-
     return {
-        'has_internal_gaps': missing_count > 0,
+        'has_internal_gaps': False,
         'start_id': lower_bound,
         'end_id': upper_bound,
-        'missing_count': missing_count,
-        'missing_ids_sample': missing_ids_sample,
+        'missing_count': 0,
+        'missing_ids_sample': [],
+        'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
     }
 
 
@@ -251,7 +244,11 @@ def _apply_data_quality_warnings(
     warning_message = metrics.get('value_warning_message')
     blockers = list(metrics.get('computation_blockers') or [])
 
-    if pool_history_gap_summary and bool(pool_history_gap_summary.get('has_internal_gaps')):
+    if (
+        pool_history_gap_summary
+        and bool(pool_history_gap_summary.get('has_internal_gaps'))
+        and pool_history_gap_summary.get('basis') in {'archive_reconciliation', 'live_db_mismatch'}
+    ):
         if 'pool_history_has_internal_gaps' not in blockers:
             blockers.append('pool_history_has_internal_gaps')
         metrics['exact_fee_supported'] = False

@@ -123,35 +123,17 @@ class Ticker:
 
         return max(int(latest_transaction_id) - self.recent_backfill_transaction_count + 1, 0)
 
-    def find_missing_transaction_ids(self, transaction_ids, start_id: int, end_id: int):
-        if start_id > end_id:
-            return []
-
-        observed_ids = sorted({
-            int(transaction_id)
-            for transaction_id in transaction_ids
-            if transaction_id is not None
-        })
-        observed_set = set(observed_ids)
-        return [
-            transaction_id
-            for transaction_id in range(int(start_id), int(end_id) + 1)
-            if transaction_id not in observed_set
-        ]
-
     def _sample_transaction_ids(self, transaction_ids, limit: int = 8):
         return [
             int(transaction_id)
             for transaction_id in list(transaction_ids)[:limit]
         ]
 
-    def _build_recent_gap_details(
+    def _build_recent_mismatch_details(
         self,
         *,
-        start_id: int,
-        end_id: int,
-        missing_ids: list[int],
         live_transaction_ids: list[int],
+        db_transaction_ids: list[int],
     ):
         live_ids = sorted({
             int(transaction_id)
@@ -159,120 +141,46 @@ class Ticker:
             if transaction_id is not None
         })
         live_id_set = set(live_ids)
-        missing_in_live = [
+        db_ids = sorted({
             int(transaction_id)
-            for transaction_id in missing_ids
-            if int(transaction_id) not in live_id_set
-        ]
-        missing_in_db = [
-            int(transaction_id)
-            for transaction_id in missing_ids
-            if int(transaction_id) in live_id_set
-        ]
-        recent_window_covered = (
-            len(live_ids) > 0
-            and int(live_ids[0]) <= int(start_id)
-            and int(live_ids[-1]) >= int(end_id)
-        )
+            for transaction_id in db_transaction_ids
+            if transaction_id is not None
+        })
+        db_id_set = set(db_ids)
+        missing_in_db = sorted(live_id_set - db_id_set)
+        missing_in_live = sorted(db_id_set - live_id_set)
 
         if len(live_ids) == 0:
-            gap_root_cause = 'recent_live_window_empty'
-            gap_root_cause_confidence = 'medium'
-            gap_repairability = 'not_repairable_from_live_recent_window'
-        elif not recent_window_covered:
-            gap_root_cause = 'recent_live_window_partial_response'
-            gap_root_cause_confidence = 'medium'
-            if len(missing_in_db) == 0:
-                gap_repairability = 'not_repairable_from_live_recent_window'
-            elif len(missing_in_live) == 0:
-                gap_repairability = 'repairable_from_live_recent_window'
-            else:
-                gap_repairability = 'partially_repairable_from_live_recent_window'
-        elif len(missing_in_live) == 0:
-            gap_root_cause = 'db_sync_lag_or_write_missing'
-            gap_root_cause_confidence = 'high'
-            gap_repairability = 'repairable_from_live_recent_window'
-        elif len(missing_in_db) == 0:
-            gap_root_cause = 'recent_live_window_missing'
-            gap_root_cause_confidence = 'high'
-            gap_repairability = 'not_repairable_from_live_recent_window'
+            mismatch_root_cause = 'recent_live_window_empty'
+            mismatch_root_cause_confidence = 'medium'
+            mismatch_repairability = 'unknown'
+        elif len(missing_in_live) == 0 and len(missing_in_db) > 0:
+            mismatch_root_cause = 'db_sync_lag_or_write_missing'
+            mismatch_root_cause_confidence = 'high'
+            mismatch_repairability = 'repairable_from_live_recent_window'
+        elif len(missing_in_db) == 0 and len(missing_in_live) > 0:
+            mismatch_root_cause = 'db_contains_ids_absent_from_live_recent_window'
+            mismatch_root_cause_confidence = 'medium'
+            mismatch_repairability = 'requires_manual_investigation'
         else:
-            gap_root_cause = 'mixed_live_and_db_recent_gap'
-            gap_root_cause_confidence = 'medium'
-            gap_repairability = 'partially_repairable_from_live_recent_window'
+            mismatch_root_cause = 'db_and_live_recent_window_diverged'
+            mismatch_root_cause_confidence = 'medium'
+            mismatch_repairability = 'requires_manual_investigation'
 
         return {
-            'start_id': int(start_id),
-            'end_id': int(end_id),
-            'missing_count': len(missing_ids),
-            'missing_ids_sample': self._sample_transaction_ids(missing_ids),
-            'gap_root_cause': gap_root_cause,
-            'gap_root_cause_confidence': gap_root_cause_confidence,
-            'gap_repairability': gap_repairability,
-            'recent_window_covered': recent_window_covered,
             'live_window_start_id': None if len(live_ids) == 0 else int(live_ids[0]),
             'live_window_end_id': None if len(live_ids) == 0 else int(live_ids[-1]),
             'live_ids_sample': self._sample_transaction_ids(live_ids),
+            'db_window_start_id': None if len(db_ids) == 0 else int(db_ids[0]),
+            'db_window_end_id': None if len(db_ids) == 0 else int(db_ids[-1]),
+            'db_ids_sample': self._sample_transaction_ids(db_ids),
+            'mismatch_root_cause': mismatch_root_cause,
+            'mismatch_root_cause_confidence': mismatch_root_cause_confidence,
+            'mismatch_repairability': mismatch_repairability,
             'missing_in_live_count': len(missing_in_live),
             'missing_in_live_sample': self._sample_transaction_ids(missing_in_live),
             'missing_in_db_count': len(missing_in_db),
             'missing_in_db_sample': self._sample_transaction_ids(missing_in_db),
-        }
-
-    def _build_historical_gap_details(
-        self,
-        *,
-        pool: Pool,
-        start_id: int,
-        end_id: int,
-        missing_ids: list[int],
-    ):
-        latest_transaction = getattr(pool, 'latest_transaction', None)
-        latest_transaction_id = getattr(latest_transaction, 'transaction_id', None)
-        recent_window_start_id = self.resolve_recent_backfill_start_id(pool)
-
-        missing_in_recent_window = []
-        missing_outside_recent_window = []
-        if recent_window_start_id is None:
-            missing_outside_recent_window = [int(transaction_id) for transaction_id in missing_ids]
-        else:
-            for transaction_id in missing_ids:
-                if int(transaction_id) >= int(recent_window_start_id):
-                    missing_in_recent_window.append(int(transaction_id))
-                else:
-                    missing_outside_recent_window.append(int(transaction_id))
-
-        if recent_window_start_id is None or latest_transaction_id is None:
-            gap_root_cause = 'unknown'
-            gap_root_cause_confidence = 'low'
-            gap_repairability = 'unknown'
-        elif len(missing_outside_recent_window) == 0:
-            gap_root_cause = 'recent_window_overlap'
-            gap_root_cause_confidence = 'medium'
-            gap_repairability = 'repairable_from_live_recent_window'
-        elif len(missing_in_recent_window) == 0:
-            gap_root_cause = 'historical_unrecoverable_outside_recent_window'
-            gap_root_cause_confidence = 'high'
-            gap_repairability = 'requires_archive_rebuild'
-        else:
-            gap_root_cause = 'mixed_historical_and_recent_gap'
-            gap_root_cause_confidence = 'high'
-            gap_repairability = 'partially_repairable_requires_archive_rebuild'
-
-        return {
-            'start_id': int(start_id),
-            'end_id': int(end_id),
-            'missing_count': len(missing_ids),
-            'missing_ids_sample': self._sample_transaction_ids(missing_ids),
-            'gap_root_cause': gap_root_cause,
-            'gap_root_cause_confidence': gap_root_cause_confidence,
-            'gap_repairability': gap_repairability,
-            'recent_window_start_id': None if recent_window_start_id is None else int(recent_window_start_id),
-            'recent_window_end_id': None if latest_transaction_id is None else int(latest_transaction_id),
-            'missing_in_recent_window_count': len(missing_in_recent_window),
-            'missing_in_recent_window_sample': self._sample_transaction_ids(missing_in_recent_window),
-            'missing_outside_recent_window_count': len(missing_outside_recent_window),
-            'missing_outside_recent_window_sample': self._sample_transaction_ids(missing_outside_recent_window),
         }
 
     async def audit_recent_pool_history(self, pool: Pool):
@@ -283,107 +191,61 @@ class Ticker:
             return []
 
         pool_application = f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
-        transaction_ids = await asyncio.to_thread(
+        live_transactions = await self.get_pool_transactions(pool, start_id)
+        live_transaction_ids = [
+            self.transaction_id_value(transaction)
+            for transaction in live_transactions
+        ]
+        normalized_live_ids = sorted({
+            int(transaction_id)
+            for transaction_id in live_transaction_ids
+            if transaction_id is not None
+        })
+        if not normalized_live_ids:
+            return []
+
+        db_transaction_ids = await asyncio.to_thread(
             self.db.get_pool_transaction_ids,
             pool.pool_id,
             pool_application,
-            start_id,
-            int(latest_transaction_id),
+            normalized_live_ids[0],
+            normalized_live_ids[-1],
         )
-        missing_ids = self.find_missing_transaction_ids(
-            transaction_ids,
-            start_id,
-            int(latest_transaction_id),
+        details = self._build_recent_mismatch_details(
+            live_transaction_ids=normalized_live_ids,
+            db_transaction_ids=db_transaction_ids,
         )
-        if missing_ids:
-            live_transactions = await self.get_pool_transactions(pool, start_id)
-            live_transaction_ids = [
-                self.transaction_id_value(transaction)
-                for transaction in live_transactions
-            ]
-            details = self._build_recent_gap_details(
-                start_id=start_id,
-                end_id=int(latest_transaction_id),
-                missing_ids=missing_ids,
-                live_transaction_ids=live_transaction_ids,
-            )
-            preview = ','.join(str(transaction_id) for transaction_id in missing_ids[:8])
+        if details['missing_in_db_count'] > 0 or details['missing_in_live_count'] > 0:
+            preview = ','.join(str(transaction_id) for transaction_id in details['missing_in_db_sample'][:8])
             self.log_event(
-                'pool_transactions_recent_gap_detected',
-                gap_root_cause=details['gap_root_cause'],
+                'pool_transactions_recent_mismatch_detected',
+                mismatch_root_cause=details['mismatch_root_cause'],
                 pool_application=pool_application,
                 latest_transaction_id=int(latest_transaction_id),
-                missing_count=len(missing_ids),
-                missing_ids=preview if preview else 'none',
+                missing_in_db_count=details['missing_in_db_count'],
+                missing_in_live_count=details['missing_in_live_count'],
+                missing_in_db=preview if preview else 'none',
                 pool_id=pool.pool_id,
-                recent_window_end_id=int(latest_transaction_id),
-                recent_window_start_id=start_id,
+                recent_window_end_id=details['live_window_end_id'],
+                recent_window_start_id=details['live_window_start_id'],
             )
             await asyncio.to_thread(
                 self.db.record_diagnostic_event,
                 source='ticker',
-                event_type='recent_pool_history_gap',
+                event_type='recent_pool_history_mismatch',
                 severity='warning',
                 pool_application=pool_application,
                 pool_id=pool.pool_id,
                 details=details,
             )
-        return missing_ids
+        return list(details['missing_in_db_sample'])
 
     async def audit_historical_pool_history(self, pool: Pool):
         pool_identity = self.pool_identity(pool)
         if pool_identity in self.audited_historical_pools:
             return []
-
-        pool_application = f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
-        bounds = await asyncio.to_thread(
-            self.db.get_pool_transaction_id_bounds,
-            pool.pool_id,
-            pool_application,
-        )
-        if bounds is None:
-            self.audited_historical_pools.add(pool_identity)
-            return []
-
-        start_id = max(int(bounds['min_transaction_id']), self.initial_transaction_id)
-        end_id = int(bounds['max_transaction_id'])
-        transaction_ids = await asyncio.to_thread(
-            self.db.get_pool_transaction_ids,
-            pool.pool_id,
-            pool_application,
-            start_id,
-            end_id,
-        )
-        missing_ids = self.find_missing_transaction_ids(transaction_ids, start_id, end_id)
-        if missing_ids:
-            details = self._build_historical_gap_details(
-                pool=pool,
-                start_id=start_id,
-                end_id=end_id,
-                missing_ids=missing_ids,
-            )
-            preview = ','.join(str(transaction_id) for transaction_id in missing_ids[:8])
-            self.log_event(
-                'pool_transactions_historical_gap_detected',
-                gap_root_cause=details['gap_root_cause'],
-                pool_application=pool_application,
-                missing_count=len(missing_ids),
-                missing_ids=preview if preview else 'none',
-                pool_id=pool.pool_id,
-                history_end_id=end_id,
-                history_start_id=start_id,
-            )
-            await asyncio.to_thread(
-                self.db.record_diagnostic_event,
-                source='ticker',
-                event_type='historical_pool_history_gap',
-                severity='warning',
-                pool_application=pool_application,
-                pool_id=pool.pool_id,
-                details=details,
-            )
         self.audited_historical_pools.add(pool_identity)
-        return missing_ids
+        return []
 
     def resolve_historical_repair_start_id(self, pool: Pool, bounds):
         latest_transaction = getattr(pool, 'latest_transaction', None)

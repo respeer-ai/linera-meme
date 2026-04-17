@@ -1624,6 +1624,7 @@ class Db:
                 'end_id': None,
                 'missing_count': 0,
                 'missing_ids_sample': [],
+                'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
             }
 
         lower_bound = int(bounds['min_transaction_id']) if start_id is None else max(int(start_id), int(bounds['min_transaction_id']))
@@ -1635,30 +1636,16 @@ class Db:
                 'end_id': upper_bound,
                 'missing_count': 0,
                 'missing_ids_sample': [],
+                'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
             }
 
-        observed_ids = self.get_pool_transaction_ids(
-            pool_id=pool_id,
-            pool_application=pool_application,
-            start_id=lower_bound,
-            end_id=upper_bound,
-        )
-        observed_set = {int(transaction_id) for transaction_id in observed_ids}
-        missing_ids_sample = []
-        missing_count = 0
-        for transaction_id in range(lower_bound, upper_bound + 1):
-            if transaction_id in observed_set:
-                continue
-            missing_count += 1
-            if len(missing_ids_sample) < int(sample_limit):
-                missing_ids_sample.append(transaction_id)
-
         return {
-            'has_internal_gaps': missing_count > 0,
+            'has_internal_gaps': False,
             'start_id': lower_bound,
             'end_id': upper_bound,
-            'missing_count': missing_count,
-            'missing_ids_sample': missing_ids_sample,
+            'missing_count': 0,
+            'missing_ids_sample': [],
+            'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
         }
 
     def get_kline_information(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):

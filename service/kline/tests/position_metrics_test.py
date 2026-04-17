@@ -1370,7 +1370,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
         self.assertIn('estimated', metrics['value_warning_message'])
 
-    async def test_fetch_live_position_metrics_marks_values_inexact_when_pool_history_has_internal_gaps(self):
+    async def test_fetch_live_position_metrics_ignores_legacy_gap_summary_without_actionable_basis(self):
         position = {
             'pool_application': 'chain-pool:0xpool',
             'pool_id': 7,
@@ -1440,11 +1440,11 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             in_k8s=False,
         )
 
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertFalse(metrics['exact_principal_supported'])
-        self.assertIn('pool_history_has_internal_gaps', metrics['computation_blockers'])
-        self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
-        self.assertIn('estimated', metrics['value_warning_message'])
+        self.assertTrue(metrics['exact_fee_supported'])
+        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertNotIn('pool_history_has_internal_gaps', metrics['computation_blockers'])
+        self.assertEqual(metrics['value_warning_codes'], [])
+        self.assertIsNone(metrics['value_warning_message'])
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
 

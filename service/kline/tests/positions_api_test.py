@@ -310,7 +310,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             {
                 'diagnostic_id': 1,
                 'source': 'ticker',
-                'event_type': 'historical_pool_history_gap',
+                'event_type': 'recent_pool_history_mismatch',
                 'severity': 'warning',
                 'owner': None,
                 'pool_application': 'chain:pool-app',
