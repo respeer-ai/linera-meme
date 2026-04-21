@@ -21,4 +21,10 @@ exec python3 -u src/maker_api.py \
   --database-port "$DATABASE_PORT" \
   --database-user "$DATABASE_USER" \
   --database-password "$DATABASE_PASSWORD" \
-  --database-name "$DATABASE_NAME"
+  --database-name "$DATABASE_NAME" \
+  --maker-replicas "${MAKER_REPLICAS:-1}" \
+  --shared-app-data-dir "${SHARED_APP_DATA_DIR:-/shared-app-data}" \
+  --wallet-host-template "${MAKER_WALLET_HOST_TEMPLATE:-maker-wallet-service-{index}.maker-wallet-service}" \
+  --wallet-rpc-port "${MAKER_WALLET_RPC_PORT:-8080}" \
+  --wallet-metrics-port "${MAKER_WALLET_METRICS_PORT:-8082}" \
+  --wallet-memory-limit-bytes "${WALLET_MEMORY_LIMIT_BYTES:-0}"

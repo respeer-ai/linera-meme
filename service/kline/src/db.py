@@ -1521,6 +1521,29 @@ class Db:
 
         return watermarks
 
+    def get_pool_catalog(self):
+        self.ensure_fresh_read_connection()
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    pool_id,
+                    pool_application,
+                    token_0,
+                    token_1
+                FROM {self.pools_table}
+                ORDER BY pool_id ASC
+            '''
+        )
+        rows = []
+        for row in self.cursor_dict.fetchall():
+            rows.append({
+                'pool_id': int(row['pool_id']),
+                'pool_application': row['pool_application'],
+                'token_0': row['token_0'],
+                'token_1': row['token_1'],
+            })
+        return rows
+
     def get_pool_transaction_id_bounds(self, pool_id: int, pool_application: str | None = None):
         self.ensure_fresh_read_connection()
         pool_application = self.resolve_pool_application(pool_id, pool_application)

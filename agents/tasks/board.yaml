@@ -164,7 +164,25 @@ groups:
         priority: P0
         depends_on: []
         title: 排查生产环境 K 线自 03:00 起归零原因
-        notes: 聚焦线上已发生故障：用户最初描述为“03:00 起归零”，已校正为“03:00 之后没有新蜡烛、价格一直横着”。当前已证实对 production 活跃池 1000/1001/1002，`/points` 在 2026-04-20 03:00 CST 之后并未返回 `close=0`，而是继续返回非零价格；`pool 1000` 的最近真实成交停在约 2026-04-20 04:36:45 CST（kline 侧最近记录 tx 37990/37991），`/transactions/audit/recent` 也显示 recent live-vs-DB 无缺口，因此不是 recent window 丢交易导致的“假平线”。进一步线上取证显示，三个活跃池最后一批成交几乎全部来自同 3 个固定地址，且 3 池在相近时间一起停，强烈指向 maker-like 自动交易流；再查这 3 个地址的 native chain balance 仍约 96~99 TLINERA，基本排除 gas 不足；但查 3 个活跃池对应 meme token 余额时，这 3 个地址在各 token 上都只剩约 0.0002~0.0011，库存几乎耗尽。结合 `service/kline/src/trader.py` 当前策略在 sell path 依赖 token inventory，可初步判断“平线”更像生产 maker 库存枯竭/策略进入 no-op，而非 kline 服务异常。补充：`maker-wallet-service` 已确认发生 OOM；结合 `linera-protocol` 代码，当前 `linera service` 启动参数未收紧 worker TTL/并发/缓存，且会对 wallet 中全部链启动 listener，并为 full-chain listener 开启后台 `find_received_certificates` 同步，因此 wallet OOM 很可能直接导致 maker 无法继续稳定发单，进而表现为成交停止和 K 线横盘。另已在 `service/kline` 落地原始 debug trace 持久化：maker 发往 wallet/swap/proxy 的请求与响应、GraphQL errors 和异常文本会写入 `debug_traces`，并可通过 kline API 导出；同时修正 maker 不再把失败 swap 误记为 `executed`，而会写 `failed` 事件，便于后续直接按数据库与 API 对账。剩余未证实点是：maker 进程本身是否仍在跑、是否因为库存耗尽而只产生被过滤的 sell/no-trade 决策、OOM 重启与最后成交时间是否精确对齐、以及是否还存在某个特定前端流单独异常；若要彻证，需要 maker 日志、wallet metrics 或 maker_events 生产访问
+        notes: 聚焦线上已发生故障：用户最初描述为“03:00 起归零”，已校正为“03:00 之后没有新蜡烛、价格一直横着”。当前已证实对 production 活跃池 1000/1001/1002，`/points` 在 2026-04-20 03:00 CST 之后并未返回 `close=0`，而是继续返回非零价格；`pool 1000` 的最近真实成交停在约 2026-04-20 04:36:45 CST（kline 侧最近记录 tx 37990/37991），`/transactions/audit/recent` 也显示 recent live-vs-DB 无缺口，因此不是 recent window 丢交易导致的“假平线”。进一步线上取证显示，三个活跃池最后一批成交几乎全部来自同 3 个固定地址，且 3 池在相近时间一起停，强烈指向 maker-like 自动交易流；再查这 3 个地址的 native chain balance 仍约 96~99 TLINERA，基本排除 gas 不足；但查 3 个活跃池对应 meme token 余额时，这 3 个地址在各 token 上都只剩约 0.0002~0.0011，库存几乎耗尽。结合 `service/kline/src/trader.py` 当前策略在 sell path 依赖 token inventory，可初步判断“平线”更像生产 maker 库存枯竭/策略进入 no-op，而非 kline 服务异常。补充：`maker-wallet-service` 已确认发生 OOM；结合 `linera-protocol` 代码，当前 `linera service` 启动参数未收紧 worker TTL/并发/缓存，且会对 wallet 中全部链启动 listener，并为 full-chain listener 开启后台 `find_received_certificates` 同步，因此 wallet OOM 很可能直接导致 maker 无法继续稳定发单，进而表现为成交停止和 K 线横盘。另已在 `service/kline` 落地原始 debug trace 持久化：maker 发往 wallet/swap/proxy 的请求与响应、GraphQL errors 和异常文本会写入 `debug_traces`，并可通过 kline API 导出；同时修正 maker 不再把失败 swap 误记为 `executed`，而会写 `failed` 事件，便于后续直接按数据库与 API 对账。新增线上取证：2026-04-21 15:49 CST 左右 maker 仍在持续向 wallet 发起 `swap` mutation，wallet balances 与 token inventory 均正常，说明这次不是 maker 进程停掉、gas 不足或库存见底；但三个活跃池的 live `latestTransactions` 与 kline DB 都仍停在更早时间点（pool 1001 约 2026-04-21 13:13:34 CST，pool 1002 约 2026-04-21 12:54:28 CST，pool 1000 约 2026-04-21 11:53:25 CST），且 recent live-vs-DB audit 无缺口，说明当前断点不在 kline 同步，而在 wallet/chain 执行层：mutation 已被 wallet HTTP 层接收，但没有稳定推进为 pool 可见交易历史。后续排障重点从“kline 是否漏写”转为“maker-wallet OOM/重启是否打断 linera service 的后续执行、监听或证书处理”。实施清单拆到 POS-028/029/030
+      - id: POS-028
+        status: Done
+        priority: P0
+        depends_on: [POS-027]
+        title: maker-wallet-service 暴露 8082 metrics 端口
+        notes: 已在 `k8s/maker/02-deployment.yaml` 的 `maker-wallet-service` 容器声明 `containerPort: 8082`，并在同文件的 Service 增加 `maker-wallet-metrics` 端口，保持对外仍只走业务 `8080`。后续部署后可由 `maker-service` 通过 `http://maker-wallet-service-$index.maker-wallet-service:8082/metrics` 拉取指标
+      - id: POS-029
+        status: Done
+        priority: P0
+        depends_on: [POS-028]
+        title: maker-service 新增 wallet debug/export API
+        notes: 已直接扩展现有 `service/kline/src/maker_api.py`，复用 `Db` 与现有 trace/event 表，在 maker-service 原 `8080` 上提供只读 debug API，避免再起第三个进程和新端口。当前已落地 `/debug/wallets`、`/debug/wallets/{index}/metrics`、`/debug/wallets/{index}/balances`、`/debug/traces`、`/debug/pools/stall`、`/debug/health`；接口会聚合 wallet metrics、wallet GraphQL 余额、maker DB 事件和 pool 最新交易水位，并返回语义化 health/stall 结论
+      - id: POS-030
+        status: Doing
+        priority: P0
+        depends_on: [POS-029]
+        title: maker wallet 执行断点诊断闭环
+        notes: 已在 `/debug/pools/stall` 聚合最近 maker event、wallet swap trace、DB 最新 transaction 和 wallet health，并输出 `lag_seconds` 与 `suspected_stage`；当前已覆盖 `maker_idle` / `wallet_metrics_unreachable` / `wallet_low_gas` / `wallet_memory_high` / `mutation_accepted_but_not_settled` / `unknown`，并补了最小 API 假数据回归。剩余工作是部署后用 2026-04-21 13:10 CST 之后的真实线上数据核对指标名和 listener/backlog 语义，再决定是否需要追加 `wallet_listener_suspect` / `kline_sync_gap` 的更细分类
       - id: POS-024
         status: Doing
         priority: P0

@@ -53,6 +53,9 @@ spec:
         volumeMounts:
         - name: maker-wallet-pvc
           mountPath: /wallet
+        ports:
+        - containerPort: 8080
+        - containerPort: 8082
         resources:
           requests:
             cpu: "300m"
@@ -84,6 +87,9 @@ spec:
     - name: maker-wallet-service
       port: 8080
       targetPort: 8080
+    - name: maker-wallet-metrics
+      port: 8082
+      targetPort: 8082
   selector:
     app: maker-wallet-service
 
@@ -162,6 +168,18 @@ spec:
           value: "3306"
         - name: DATABASE_HOST
           value: mysql
+        - name: MAKER_REPLICAS
+          value: "${MAKER_REPLICAS}"
+        - name: SHARED_APP_DATA_DIR
+          value: /shared-app-data
+        - name: MAKER_WALLET_HOST_TEMPLATE
+          value: maker-wallet-service-{index}.maker-wallet-service
+        - name: MAKER_WALLET_RPC_PORT
+          value: "8080"
+        - name: MAKER_WALLET_METRICS_PORT
+          value: "8082"
+        - name: WALLET_MEMORY_LIMIT_BYTES
+          value: "1610612736"
         volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data
