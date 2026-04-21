@@ -467,10 +467,10 @@ spec:
           mountPath: /shared-app-data
         resources:
           requests:
-            cpu: "600m"
+            cpu: "100m"
             memory: "2560Mi"
           limits:
-            cpu: "1000m"
+            cpu: "800m"
             memory: "4096Mi"
       volumes:
       - name: shared-app-data

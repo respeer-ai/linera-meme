@@ -55,11 +55,11 @@ spec:
           mountPath: /wallet
         resources:
           requests:
-            cpu: "150m"
-            memory: "768Mi"
-          limits:
-            cpu: "200m"
+            cpu: "300m"
             memory: "1024Mi"
+          limits:
+            cpu: "500m"
+            memory: "1536Mi"
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:
@@ -165,6 +165,13 @@ spec:
         volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:

@@ -17,6 +17,13 @@ spec:
         - name: linera-meme-webui
           image: npool/linera-meme-webui:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
 
 ---
 apiVersion: v1

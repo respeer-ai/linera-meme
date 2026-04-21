@@ -47,6 +47,13 @@ spec:
         volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
       volumes:
       - name: shared-app-data
         persistentVolumeClaim:
