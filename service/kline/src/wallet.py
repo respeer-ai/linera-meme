@@ -2,15 +2,17 @@ import async_request
 import subprocess
 import os
 import shutil
+from request_trace import persist_http_trace
 
 
 class Wallet:
-    def __init__(self, wallet_host, owner, chain, faucet):
+    def __init__(self, wallet_host, owner, chain, faucet, db=None):
         self.wallet_host = wallet_host
         self.wallet_url = f'http://{wallet_host}'
         self.owner = owner
         self.chain = chain
         self.faucet = faucet
+        self.db = db
         self.wallet_path = '/tmp/linera-wallet'
         self.wallet_index = 0
 
@@ -31,26 +33,55 @@ class Wallet:
             chainId: "{self.chain}",
             owners: ["{self.owner}"]
         }}]'''
-        json = {
+        payload = {
             'query': f'query {{\n balances(chainOwners:{chain_owners}) \n}}'
         }
         try:
-            resp = await async_request.post(self.wallet_url, json=json, timeout=(3, 10))
+            resp = await async_request.post(self.wallet_url, json=payload, timeout=(3, 10))
         except Exception as e:
-            print(f'{self.wallet_url}, {json} -> ERROR: {e}')
+            print(f'{self.wallet_url}, {payload} -> ERROR: {e}')
+            persist_http_trace(
+                self.db,
+                source='maker',
+                component='wallet',
+                operation='balance',
+                target='wallet_service',
+                request_url=self.wallet_url,
+                request_payload=payload,
+                error=str(e),
+                owner=self.owner,
+                details={'chain': self.chain},
+            )
             return 0
+
+        payload_json = resp.json() if resp.text else {}
+        persist_http_trace(
+            self.db,
+            source='maker',
+            component='wallet',
+            operation='balance',
+            target='wallet_service',
+            request_url=self.wallet_url,
+            request_payload=payload,
+            response=resp,
+            owner=self.owner,
+            details={
+                'chain': self.chain,
+                'graphql_errors': payload_json.get('errors') if isinstance(payload_json, dict) else None,
+            },
+        )
 
         if resp.ok is not True:
-            print(f'{self.wallet_url}, {json} -> {resp.reason}')
+            print(f'{self.wallet_url}, {payload} -> {resp.reason}')
             return 0
 
-        if 'data' not in resp.json():
+        if 'data' not in payload_json:
             return 0
-        if 'errors' in resp.json():
-            print(f'{self.wallet_url}, {json} -> {resp.json()["errors"]}')
+        if 'errors' in payload_json:
+            print(f'{self.wallet_url}, {payload} -> {payload_json["errors"]}')
             return 0
 
-        balances = resp.json()['data']['balances']
+        balances = payload_json['data']['balances']
         if self.chain not in balances:
             print(f'{self.chain} not in wallet {self.wallet_url}: {resp.text}')
             return 0

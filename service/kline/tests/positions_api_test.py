@@ -93,6 +93,7 @@ class FakeDb:
         self.calls = []
         self.transaction_ids = []
         self.diagnostics = []
+        self.debug_traces = []
         self.gap_summary = {
             'has_internal_gaps': False,
             'start_id': None,
@@ -162,6 +163,38 @@ class FakeDb:
             rows = [row for row in rows if row.get('pool_application') == pool_application]
         if pool_id is not None:
             rows = [row for row in rows if row.get('pool_id') == pool_id]
+        return rows[:limit]
+
+    def get_debug_traces(
+        self,
+        *,
+        source=None,
+        component=None,
+        operation=None,
+        owner=None,
+        pool_application=None,
+        pool_id=None,
+        start_at=None,
+        end_at=None,
+        limit=200,
+    ):
+        rows = list(self.debug_traces)
+        if source is not None:
+            rows = [row for row in rows if row.get('source') == source]
+        if component is not None:
+            rows = [row for row in rows if row.get('component') == component]
+        if operation is not None:
+            rows = [row for row in rows if row.get('operation') == operation]
+        if owner is not None:
+            rows = [row for row in rows if row.get('owner') == owner]
+        if pool_application is not None:
+            rows = [row for row in rows if row.get('pool_application') == pool_application]
+        if pool_id is not None:
+            rows = [row for row in rows if row.get('pool_id') == pool_id]
+        if start_at is not None:
+            rows = [row for row in rows if row.get('created_at') is not None and row.get('created_at') >= start_at]
+        if end_at is not None:
+            rows = [row for row in rows if row.get('created_at') is not None and row.get('created_at') <= end_at]
         return rows[:limit]
 
 
@@ -335,6 +368,57 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response, {
             'diagnostics': fake_db.diagnostics,
         })
+
+    async def test_on_get_debug_traces_exports_persisted_rows(self):
+        original_db = kline_module._db
+        fake_db = FakeDb()
+        fake_db.debug_traces = [
+            {
+                'trace_id': 1,
+                'source': 'maker',
+                'component': 'swap',
+                'operation': 'swap',
+                'target': 'wallet_application_mutation',
+                'owner': 'chain:owner-a',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'request_url': 'http://wallet/query',
+                'request_payload': {'query': 'mutation { swap }'},
+                'response_status': 200,
+                'response_body': {'data': {'swap': True}},
+                'error': None,
+                'details': {'graphql_errors': None},
+                'created_at': 123,
+            },
+        ]
+        kline_module._db = fake_db
+
+        try:
+            response = await kline_module.on_get_debug_traces(
+                source='maker',
+                component='swap',
+                pool_application='chain:pool-app',
+                pool_id=7,
+                limit=50,
+            )
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response, {
+            'traces': fake_db.debug_traces,
+        })
+
+    async def test_on_get_debug_traces_rejects_non_positive_limit(self):
+        original_db = kline_module._db
+        kline_module._db = FakeDb()
+
+        try:
+            response = await kline_module.on_get_debug_traces(limit=0)
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"limit must be positive"}')
 
     async def test_on_get_debug_pool_bundle_exports_transactions_liquidity_history_and_diagnostics(self):
         original_db = kline_module._db

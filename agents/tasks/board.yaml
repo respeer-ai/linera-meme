@@ -159,6 +159,12 @@ groups:
         depends_on: []
         title: 设计基于链区块的可靠交易事件同步系统
         notes: 当前不仅 `position-metrics`，连 `ticker` / K 线 / 持仓 / fee 计算都依赖合约侧 `latestTransactions` 最近窗口，可靠性不足。先记录需求，不在本任务内展开 `linera-protocol` 细节学习与实现。目标方向：1) 订阅 chain 的新区块事件，实时获取区块推进；2) 支持按区块标识拉取完整区块并解析其中交易/消息，作为可靠补偿路径；3) 本地维护每条链已处理到的链上进度水位；4) 当订阅断开、主机资源不足导致处理落后、或本地进度与链上最新进度不一致时，按链上顺序补拉直到追平；5) 统一为交易落库、K 线、positions、fees 提供可重放的可靠事件源。若该能力成立，后续还需要专项评估合约内 `latestTransactions` 是否仍有保留必要，或可从“K 线依赖的最近窗口”退化为可选辅助查询，因为届时我们本地将具备自建可靠交易事件系统。具体采用区块高度、hash、cursor 或其他 Linera 原生位置语义，待后续结合 `linera-protocol` 代码确认
+      - id: POS-027
+        status: Doing
+        priority: P0
+        depends_on: []
+        title: 排查生产环境 K 线自 03:00 起归零原因
+        notes: 聚焦线上已发生故障：用户最初描述为“03:00 起归零”，已校正为“03:00 之后没有新蜡烛、价格一直横着”。当前已证实对 production 活跃池 1000/1001/1002，`/points` 在 2026-04-20 03:00 CST 之后并未返回 `close=0`，而是继续返回非零价格；`pool 1000` 的最近真实成交停在约 2026-04-20 04:36:45 CST（kline 侧最近记录 tx 37990/37991），`/transactions/audit/recent` 也显示 recent live-vs-DB 无缺口，因此不是 recent window 丢交易导致的“假平线”。进一步线上取证显示，三个活跃池最后一批成交几乎全部来自同 3 个固定地址，且 3 池在相近时间一起停，强烈指向 maker-like 自动交易流；再查这 3 个地址的 native chain balance 仍约 96~99 TLINERA，基本排除 gas 不足；但查 3 个活跃池对应 meme token 余额时，这 3 个地址在各 token 上都只剩约 0.0002~0.0011，库存几乎耗尽。结合 `service/kline/src/trader.py` 当前策略在 sell path 依赖 token inventory，可初步判断“平线”更像生产 maker 库存枯竭/策略进入 no-op，而非 kline 服务异常。补充：`maker-wallet-service` 已确认发生 OOM；结合 `linera-protocol` 代码，当前 `linera service` 启动参数未收紧 worker TTL/并发/缓存，且会对 wallet 中全部链启动 listener，并为 full-chain listener 开启后台 `find_received_certificates` 同步，因此 wallet OOM 很可能直接导致 maker 无法继续稳定发单，进而表现为成交停止和 K 线横盘。另已在 `service/kline` 落地原始 debug trace 持久化：maker 发往 wallet/swap/proxy 的请求与响应、GraphQL errors 和异常文本会写入 `debug_traces`，并可通过 kline API 导出；同时修正 maker 不再把失败 swap 误记为 `executed`，而会写 `failed` 事件，便于后续直接按数据库与 API 对账。剩余未证实点是：maker 进程本身是否仍在跑、是否因为库存耗尽而只产生被过滤的 sell/no-trade 决策、OOM 重启与最后成交时间是否精确对齐、以及是否还存在某个特定前端流单独异常；若要彻证，需要 maker 日志、wallet metrics 或 maker_events 生产访问
       - id: POS-024
         status: Doing
         priority: P0
@@ -264,6 +270,13 @@ groups:
         title: Review 当前资金闭环与退款一致性风险
         notes: 已确认 3 类高风险缺口 AddLiquidity 双腿部分成功后失败无退款 pool payout/refund 吞掉 MemeResponse::Fail 初始建池路径吞掉下游失败仍持久化成功
   - name: Funds Consistency
+    tasks:
+      - id: FUND-001
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: 审计 Reject 后残留资金与 reserve 副作用
+        notes: 术语约束：`transaction_id` 不连续本身不是缺记录，也不自动表示异常；只有当某笔已 `Reject` 的交易仍然影响了 pool 状态、资金、reserve、total supply、share 或其他副作用时，才定义为“状态不一致 / 不变量被破坏”。已确认存在这样一类严重一致性问题：`NewTransaction` 自消息若被 `Reject`，该笔交易不应成立；若此前已经扣款、改变 reserve、改变 total supply 或产生其他状态副作用，则必须回滚或走显式退款补偿。后续任务包含两部分：1) review pool/swap 及相关异步消息链路，排查是否还有其他 `Reject` / 下游失败 / 部分成功后导致状态不一致的路径；2) 设计并落地修复方案，明确每个阶段的原子边界、失败补偿、幂等语义与回归测试，确保失败交易要么完全不生效，要么用户与池子状态都进入可验证的一致结果
     tasks:
       - id: FUNDS-001
         status: Todo

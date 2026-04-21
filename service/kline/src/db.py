@@ -12,6 +12,7 @@ from candle_schema import (
     build_candle_bucket_key,
     get_interval_bucket_ms,
 )
+from request_trace import deserialize_trace_value, serialize_trace_value
 
 
 def align_timestamp_to_minute_ms(timestamp: int) -> int:
@@ -165,6 +166,7 @@ class Db:
         self.candles_table = 'candles'
         self.maker_events_table = 'maker_events'
         self.diagnostics_table = 'diagnostics'
+        self.debug_traces_table = 'debug_traces'
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -281,6 +283,29 @@ class Db:
                     details TEXT NULL,
                     created_at BIGINT UNSIGNED NOT NULL,
                     PRIMARY KEY (diagnostic_id)
+                )
+            ''')
+            self.connection.commit()
+
+        if self.debug_traces_table not in tables:
+            self.cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.debug_traces_table} (
+                    trace_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    source VARCHAR(32) NOT NULL,
+                    component VARCHAR(32) NOT NULL,
+                    operation VARCHAR(64) NOT NULL,
+                    target VARCHAR(64) NOT NULL,
+                    owner VARCHAR(256) NULL,
+                    pool_application VARCHAR(256) NULL,
+                    pool_id INT UNSIGNED NULL,
+                    request_url TEXT NOT NULL,
+                    request_payload LONGTEXT NULL,
+                    response_status INT NULL,
+                    response_body LONGTEXT NULL,
+                    error TEXT NULL,
+                    details LONGTEXT NULL,
+                    created_at BIGINT UNSIGNED NOT NULL,
+                    PRIMARY KEY (trace_id)
                 )
             ''')
             self.connection.commit()
@@ -426,6 +451,153 @@ class Db:
                 'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
                 'status': row['status'],
                 'details': None if row['details'] is None else json.loads(row['details']),
+                'created_at': int(row['created_at']),
+            })
+        return rows
+
+    def record_debug_trace(
+        self,
+        *,
+        source: str,
+        component: str,
+        operation: str,
+        target: str,
+        request_url: str,
+        request_payload,
+        response_status: int | None = None,
+        response_body=None,
+        error: str | None = None,
+        owner: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        details: dict | None = None,
+    ):
+        self.cursor.execute(
+            f'''
+                INSERT INTO {self.debug_traces_table}
+                (
+                    source,
+                    component,
+                    operation,
+                    target,
+                    owner,
+                    pool_application,
+                    pool_id,
+                    request_url,
+                    request_payload,
+                    response_status,
+                    response_body,
+                    error,
+                    details,
+                    created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''',
+            (
+                source,
+                component,
+                operation,
+                target,
+                owner,
+                pool_application,
+                None if pool_id is None else int(pool_id),
+                request_url,
+                serialize_trace_value(request_payload),
+                None if response_status is None else int(response_status),
+                serialize_trace_value(response_body),
+                error,
+                serialize_trace_value(details),
+                self.now_ms(),
+            ),
+        )
+        self.connection.commit()
+
+    def get_debug_traces(
+        self,
+        *,
+        source: str | None = None,
+        component: str | None = None,
+        operation: str | None = None,
+        owner: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        start_at: int | None = None,
+        end_at: int | None = None,
+        limit: int = 200,
+    ):
+        self.ensure_fresh_read_connection()
+        where_clauses = []
+        params = []
+        if source is not None:
+            where_clauses.append('source = %s')
+            params.append(source)
+        if component is not None:
+            where_clauses.append('component = %s')
+            params.append(component)
+        if operation is not None:
+            where_clauses.append('operation = %s')
+            params.append(operation)
+        if owner is not None:
+            where_clauses.append('owner = %s')
+            params.append(owner)
+        if pool_application is not None:
+            where_clauses.append('pool_application = %s')
+            params.append(pool_application)
+        if pool_id is not None:
+            where_clauses.append('pool_id = %s')
+            params.append(int(pool_id))
+        if start_at is not None:
+            where_clauses.append('created_at >= %s')
+            params.append(int(start_at))
+        if end_at is not None:
+            where_clauses.append('created_at <= %s')
+            params.append(int(end_at))
+        where_sql = ''
+        if where_clauses:
+            where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    trace_id,
+                    source,
+                    component,
+                    operation,
+                    target,
+                    owner,
+                    pool_application,
+                    pool_id,
+                    request_url,
+                    request_payload,
+                    response_status,
+                    response_body,
+                    error,
+                    details,
+                    created_at
+                FROM {self.debug_traces_table}
+                {where_sql}
+                ORDER BY trace_id DESC
+                LIMIT %s
+            ''',
+            (*params, int(limit)),
+        )
+        rows = []
+        for row in self.cursor_dict.fetchall():
+            rows.append({
+                'trace_id': int(row['trace_id']),
+                'source': row['source'],
+                'component': row['component'],
+                'operation': row['operation'],
+                'target': row['target'],
+                'owner': row['owner'],
+                'pool_application': row['pool_application'],
+                'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
+                'request_url': row['request_url'],
+                'request_payload': deserialize_trace_value(row['request_payload']),
+                'response_status': None if row['response_status'] is None else int(row['response_status']),
+                'response_body': deserialize_trace_value(row['response_body']),
+                'error': row['error'],
+                'details': deserialize_trace_value(row['details']),
                 'created_at': int(row['created_at']),
             })
         return rows

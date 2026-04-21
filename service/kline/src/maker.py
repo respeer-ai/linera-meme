@@ -31,14 +31,13 @@ async def main():
 
     args = parser.parse_args()
 
-    _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url)
+    _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, False)
+    _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url, db=_db)
     _meme = Meme(args.proxy_host, _wallet)
 
-    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, _wallet)
+    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, _wallet, db=_db)
 
-    _proxy = Proxy(args.proxy_host, args.proxy_chain_id, args.proxy_application_id)
-
-    _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, False)
+    _proxy = Proxy(args.proxy_host, args.proxy_chain_id, args.proxy_application_id, db=_db)
     try:
         _trader = Trader(_swap, _wallet, _meme, _proxy, db=_db)
         await _trader.run()

@@ -478,6 +478,50 @@ async def on_get_diagnostics(
         )
 
 
+@app.get('/debug/traces')
+async def on_get_debug_traces(
+    source: str | None = Query(default=None),
+    component: str | None = Query(default=None),
+    operation: str | None = Query(default=None),
+    owner: str | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+    pool_id: int | None = Query(default=None),
+    start_at: int | None = Query(default=None),
+    end_at: int | None = Query(default=None),
+    limit: int = Query(default=200),
+):
+    try:
+        if _db is None:
+            raise RuntimeError('Db client is not initialized')
+        if limit <= 0:
+            raise ValueError('limit must be positive')
+
+        return {
+            'traces': _db.get_debug_traces(
+                source=source,
+                component=component,
+                operation=operation,
+                owner=owner,
+                pool_application=pool_application,
+                pool_id=pool_id,
+                start_at=start_at,
+                end_at=end_at,
+                limit=limit,
+            ),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get debug traces: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 @app.get('/debug/pool')
 async def on_get_debug_pool_bundle(
     pool_application: str = Query(...),
@@ -658,8 +702,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None)
-
     _db_config = {
         'host': args.database_host,
         'port': args.database_port,
@@ -669,6 +711,7 @@ if __name__ == '__main__':
     }
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
+    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None, db=_db)
     manager = WebSocketManager(_swap, _db)
 
     uvicorn.run(app, host=args.host, port=args.port, ws_ping_interval=30, ws_ping_timeout=10)

@@ -34,7 +34,7 @@ class TraderPersistenceTest(unittest.IsolatedAsyncioTestCase):
             token_0_price='2',
             token_1_price='0.5',
             pool_application=types.SimpleNamespace(short_owner='pool-app'),
-            swap=AsyncMock(),
+            swap=AsyncMock(return_value=True),
         )
 
     def test_queue_trade_persists_planned_event(self):
@@ -84,6 +84,34 @@ class TraderPersistenceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.events[0]['amount_1'], 6.0)
         self.assertEqual(db.events[0]['quote_notional'], 6.0)
         pool.swap.assert_awaited_once()
+
+    async def test_execute_pending_in_pool_persists_failed_event_when_swap_fails(self):
+        db = FakeDb()
+        wallet = types.SimpleNamespace(
+            _chain=lambda: 'wallet-chain',
+            account=lambda: 'account',
+            balance=AsyncMock(return_value=10.0),
+        )
+        meme = types.SimpleNamespace(
+            creator_chain_id=AsyncMock(return_value='creator-chain'),
+            balance=AsyncMock(return_value=100.0),
+        )
+        trader = Trader(
+            swap=None,
+            wallet=wallet,
+            meme=meme,
+            proxy=None,
+            db=db,
+        )
+        pool = self.make_pool()
+        pool.swap = AsyncMock(return_value=False)
+
+        executed = await trader.execute_pending_in_pool(pool, 6.0)
+
+        self.assertEqual(executed, 0.0)
+        self.assertEqual(len(db.events), 1)
+        self.assertEqual(db.events[0]['event_type'], 'failed')
+        self.assertEqual(db.events[0]['details'], '{"reason": "swap_request_failed_or_rejected", "requested_quote_notional": 6.0}')
 
 
 if __name__ == '__main__':

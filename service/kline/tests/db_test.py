@@ -102,6 +102,12 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('CREATE TABLE IF NOT EXISTS debug_traces'):
+          if 'debug_traces' not in self.table_catalog:
+              self.table_catalog.append('debug_traces')
+          self._last_result = []
+          return
+
         if normalized.startswith('ALTER TABLE transactions ADD COLUMN pool_application'):
           if 'pool_application' not in self.connection.transaction_columns:
               self.connection.transaction_columns.insert(0, 'pool_application')
@@ -577,6 +583,49 @@ class FakeCursor:
           self._last_result = [result] if self.dictionary else [tuple(result.values())]
           return
 
+        if normalized.startswith('INSERT INTO debug_traces ( source, component, operation, target, owner, pool_application, pool_id, request_url, request_payload, response_status, response_body, error, details, created_at ) VALUES'):
+          self.connection.debug_trace_rows.append({
+              'trace_id': len(self.connection.debug_trace_rows) + 1,
+              'source': params[0],
+              'component': params[1],
+              'operation': params[2],
+              'target': params[3],
+              'owner': params[4],
+              'pool_application': params[5],
+              'pool_id': params[6],
+              'request_url': params[7],
+              'request_payload': params[8],
+              'response_status': params[9],
+              'response_body': params[10],
+              'error': params[11],
+              'details': params[12],
+              'created_at': params[13],
+          })
+          self.rowcount = 1
+          self._last_result = []
+          return
+
+        if normalized.startswith('SELECT trace_id, source, component, operation, target, owner, pool_application, pool_id, request_url, request_payload, response_status, response_body, error, details, created_at FROM debug_traces'):
+          rows = [row.copy() for row in self.connection.debug_trace_rows]
+          if 'WHERE ' in normalized:
+              clauses = normalized.split('WHERE ')[1].split(' ORDER BY ')[0].split(' AND ')
+              values = list(params[:-1])
+              for clause in clauses:
+                  value = values.pop(0)
+                  if clause.endswith(' = %s'):
+                      column = clause[:-5]
+                      rows = [row for row in rows if row.get(column) == value]
+                  elif clause.endswith(' >= %s'):
+                      column = clause[:-6]
+                      rows = [row for row in rows if row.get(column) is not None and row.get(column) >= value]
+                  elif clause.endswith(' <= %s'):
+                      column = clause[:-6]
+                      rows = [row for row in rows if row.get(column) is not None and row.get(column) <= value]
+          rows.sort(key=lambda row: row['trace_id'], reverse=True)
+          rows = rows[:params[-1]]
+          self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
+          return
+
         self._last_result = []
 
     def fetchall(self):
@@ -602,6 +651,7 @@ class FakeConnection:
         self.transaction_rows = []
         self.candle_rows = {}
         self.maker_event_rows = []
+        self.debug_trace_rows = []
         self.transaction_columns = [
             'pool_application', 'pool_id', 'transaction_id', 'transaction_type', 'from_account',
             'amount_0_in', 'amount_0_out', 'amount_1_in', 'amount_1_out',
@@ -682,6 +732,9 @@ class FakeConnection:
 
     def rollback(self):
         self.rollbacks += 1
+
+    def ping(self, reconnect=True, attempts=1, delay=0):
+        return None
 
     def close(self):
         self.closed = True
@@ -1044,7 +1097,7 @@ class DbIdentityMigrationTest(unittest.TestCase):
 class DbMakerEventsQueryTest(unittest.TestCase):
     def setUp(self):
         self.database_catalog = ['kline']
-        self.table_catalog = ['pools', 'transactions', 'candles', 'maker_events']
+        self.table_catalog = ['pools', 'transactions', 'candles', 'maker_events', 'debug_traces']
         self.index_catalog = [
             ('transactions', 0, 'PRIMARY', 1, 'pool_id'),
             ('transactions', 0, 'PRIMARY', 2, 'transaction_id'),
@@ -1089,6 +1142,59 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(info['count'], 2)
         self.assertEqual(info['timestamp_begin'], 2000)
         self.assertEqual(info['timestamp_end'], 1000)
+
+    @patch('db.mysql.connector.connect')
+    def test_records_and_reads_debug_traces(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        db.record_debug_trace(
+            source='maker',
+            component='swap',
+            operation='swap',
+            target='wallet_application_mutation',
+            owner='chain:owner-a',
+            pool_application='chain:pool-app',
+            pool_id=7,
+            request_url='http://wallet/chains/chain/applications/pool',
+            request_payload={'query': 'mutation { swap }'},
+            response_status=200,
+            response_body='{"data":{"swap":true}}',
+            error=None,
+            details={'graphql_errors': None},
+        )
+        db.record_debug_trace(
+            source='kline',
+            component='swap',
+            operation='get_pool_transactions',
+            target='pool_query',
+            owner=None,
+            pool_application='chain:pool-app',
+            pool_id=7,
+            request_url='http://swap/query',
+            request_payload={'query': 'query { latestTransactions }'},
+            response_status=500,
+            response_body='{"errors":["boom"]}',
+            error='HTTP 500',
+            details={'start_id': 1000},
+        )
+
+        maker_traces = db.get_debug_traces(source='maker', component='swap', limit=10)
+        self.assertEqual(len(maker_traces), 1)
+        self.assertEqual(maker_traces[0]['request_payload'], {'query': 'mutation { swap }'})
+        self.assertEqual(maker_traces[0]['response_body'], {'data': {'swap': True}})
+
+        all_traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
+        self.assertEqual(len(all_traces), 2)
+        self.assertEqual(all_traces[0]['error'], 'HTTP 500')
 
     @patch('db.mysql.connector.connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):

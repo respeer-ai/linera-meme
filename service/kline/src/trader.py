@@ -421,7 +421,20 @@ class Trader:
         print(f'      Amount1                {amount_1}')
         print(f'      DateTime               {time.time()}')
 
-        await pool.swap(amount_0, amount_1)
+        swap_succeeded = await pool.swap(amount_0, amount_1)
+        if swap_succeeded is not True:
+            self.persist_maker_event(
+                event_type='failed',
+                pool=pool,
+                amount_0=amount_0,
+                amount_1=amount_1,
+                quote_notional=quote_notional,
+                details={
+                    'requested_quote_notional': quote_notional,
+                    'reason': 'swap_request_failed_or_rejected',
+                },
+            )
+            return 0.0
         executed_quote = amount_1 if amount_1 is not None else -(amount_0 * price)
         self.persist_maker_event(
             event_type='executed',
