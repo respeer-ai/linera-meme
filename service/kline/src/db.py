@@ -139,6 +139,7 @@ def build_legacy_pool_application_value(pool_id: int) -> str:
 
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
+    TABLE_FULL_ERRNO = 1114
 
     def __init__(self, host, port, db_name, username, password, clean_kline):
         self.host = host
@@ -167,6 +168,7 @@ class Db:
         self.maker_events_table = 'maker_events'
         self.diagnostics_table = 'diagnostics'
         self.debug_traces_table = 'debug_traces'
+        self.debug_storage_degraded_tables = set()
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -360,6 +362,38 @@ class Db:
             parts.append(f'{key}={fields[key]}')
         print(' '.join(parts))
 
+    def _is_table_full_error(self, error: Exception) -> bool:
+        errno = getattr(error, 'errno', None)
+        if errno == self.TABLE_FULL_ERRNO:
+            return True
+        return "is full" in str(error).lower()
+
+    def _mark_debug_storage_degraded(self, *, table_name: str, operation: str, error: Exception):
+        if table_name in self.debug_storage_degraded_tables:
+            return
+        self.debug_storage_degraded_tables.add(table_name)
+        self.log_kline_event(
+            'debug_storage_degraded',
+            table=table_name,
+            operation=operation,
+            error=str(error),
+        )
+
+    def _run_debug_write(self, *, table_name: str, operation: str, callback):
+        try:
+            callback()
+            self.connection.commit()
+            return True
+        except Exception as error:
+            if self._is_table_full_error(error):
+                self._mark_debug_storage_degraded(
+                    table_name=table_name,
+                    operation=operation,
+                    error=error,
+                )
+                return False
+            raise
+
     def record_diagnostic_event(
         self,
         *,
@@ -372,25 +406,28 @@ class Db:
         status: str | None = None,
         details: dict | None = None,
     ):
-        self.cursor.execute(
-            f'''
-                INSERT INTO {self.diagnostics_table}
-                (source, event_type, severity, owner, pool_application, pool_id, status, details, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''',
-            (
-                source,
-                event_type,
-                severity,
-                owner,
-                pool_application,
-                None if pool_id is None else int(pool_id),
-                status,
-                None if details is None else json.dumps(details, ensure_ascii=True, sort_keys=True),
-                self.now_ms(),
+        self._run_debug_write(
+            table_name=self.diagnostics_table,
+            operation='insert',
+            callback=lambda: self.cursor.execute(
+                f'''
+                    INSERT INTO {self.diagnostics_table}
+                    (source, event_type, severity, owner, pool_application, pool_id, status, details, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''',
+                (
+                    source,
+                    event_type,
+                    severity,
+                    owner,
+                    pool_application,
+                    None if pool_id is None else int(pool_id),
+                    status,
+                    None if details is None else json.dumps(details, ensure_ascii=True, sort_keys=True),
+                    self.now_ms(),
+                ),
             ),
         )
-        self.connection.commit()
 
     def get_diagnostic_events(
         self,
@@ -473,9 +510,30 @@ class Db:
         pool_id: int | None = None,
         details: dict | None = None,
     ):
-        self.cursor.execute(
-            f'''
-                INSERT INTO {self.debug_traces_table}
+        self._run_debug_write(
+            table_name=self.debug_traces_table,
+            operation='insert',
+            callback=lambda: self.cursor.execute(
+                f'''
+                    INSERT INTO {self.debug_traces_table}
+                    (
+                        source,
+                        component,
+                        operation,
+                        target,
+                        owner,
+                        pool_application,
+                        pool_id,
+                        request_url,
+                        request_payload,
+                        response_status,
+                        response_body,
+                        error,
+                        details,
+                        created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''',
                 (
                     source,
                     component,
@@ -483,35 +541,17 @@ class Db:
                     target,
                     owner,
                     pool_application,
-                    pool_id,
+                    None if pool_id is None else int(pool_id),
                     request_url,
-                    request_payload,
-                    response_status,
-                    response_body,
+                    serialize_trace_value(request_payload),
+                    None if response_status is None else int(response_status),
+                    serialize_trace_value(response_body),
                     error,
-                    details,
-                    created_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''',
-            (
-                source,
-                component,
-                operation,
-                target,
-                owner,
-                pool_application,
-                None if pool_id is None else int(pool_id),
-                request_url,
-                serialize_trace_value(request_payload),
-                None if response_status is None else int(response_status),
-                serialize_trace_value(response_body),
-                error,
-                serialize_trace_value(details),
-                self.now_ms(),
+                    serialize_trace_value(details),
+                    self.now_ms(),
+                ),
             ),
         )
-        self.connection.commit()
 
     def get_debug_traces(
         self,
@@ -789,41 +829,55 @@ class Db:
         )
 
     def ensure_debug_indexes(self):
-        self.ensure_index(
-            self.maker_events_table,
-            'idx_maker_events_created_event',
-            ('created_at', 'event_id'),
-        )
-        self.ensure_index(
-            self.maker_events_table,
-            'idx_maker_events_pool_created_event',
-            ('pool_id', 'created_at', 'event_id'),
-        )
-        self.ensure_index(
-            self.debug_traces_table,
-            'idx_debug_traces_source_component_operation_created_trace',
-            ('source', 'component', 'operation', 'created_at', 'trace_id'),
-        )
-        self.ensure_index(
-            self.debug_traces_table,
-            'idx_debug_traces_pool_created_trace',
-            ('pool_id', 'created_at', 'trace_id'),
-        )
-        self.ensure_index(
-            self.debug_traces_table,
-            'idx_debug_traces_owner_created_trace',
-            ('owner', 'created_at', 'trace_id'),
-        )
-        self.ensure_index(
-            self.diagnostics_table,
-            'idx_diagnostics_pool_created_diag',
-            ('pool_id', 'created_at', 'diagnostic_id'),
-        )
-        self.ensure_index(
-            self.diagnostics_table,
-            'idx_diagnostics_owner_created_diag',
-            ('owner', 'created_at', 'diagnostic_id'),
-        )
+        index_specs = [
+            (
+                self.maker_events_table,
+                'idx_maker_events_created_event',
+                ('created_at', 'event_id'),
+            ),
+            (
+                self.maker_events_table,
+                'idx_maker_events_pool_created_event',
+                ('pool_id', 'created_at', 'event_id'),
+            ),
+            (
+                self.debug_traces_table,
+                'idx_debug_traces_source_component_operation_created_trace',
+                ('source', 'component', 'operation', 'created_at', 'trace_id'),
+            ),
+            (
+                self.debug_traces_table,
+                'idx_debug_traces_pool_created_trace',
+                ('pool_id', 'created_at', 'trace_id'),
+            ),
+            (
+                self.debug_traces_table,
+                'idx_debug_traces_owner_created_trace',
+                ('owner', 'created_at', 'trace_id'),
+            ),
+            (
+                self.diagnostics_table,
+                'idx_diagnostics_pool_created_diag',
+                ('pool_id', 'created_at', 'diagnostic_id'),
+            ),
+            (
+                self.diagnostics_table,
+                'idx_diagnostics_owner_created_diag',
+                ('owner', 'created_at', 'diagnostic_id'),
+            ),
+        ]
+        for table_name, index_name, columns in index_specs:
+            try:
+                self.ensure_index(table_name, index_name, columns)
+            except Exception as error:
+                if self._is_table_full_error(error):
+                    self._mark_debug_storage_degraded(
+                        table_name=table_name,
+                        operation=f'create_index:{index_name}',
+                        error=error,
+                    )
+                    continue
+                raise
 
     def ensure_kline_columns(self):
         self.cursor.execute(f'SHOW COLUMNS FROM {self.transactions_table}')
@@ -1052,27 +1106,30 @@ class Db:
         details: str,
         created_at: int,
     ):
-        self.cursor.execute(
-            f'''
-                INSERT INTO {self.maker_events_table}
-                (source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''',
-            (
-                'maker',
-                event_type,
-                pool_id,
-                token_0,
-                token_1,
-                amount_0,
-                amount_1,
-                quote_notional,
-                pool_price,
-                details,
-                created_at,
+        self._run_debug_write(
+            table_name=self.maker_events_table,
+            operation='insert',
+            callback=lambda: self.cursor.execute(
+                f'''
+                    INSERT INTO {self.maker_events_table}
+                    (source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''',
+                (
+                    'maker',
+                    event_type,
+                    pool_id,
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    quote_notional,
+                    pool_price,
+                    details,
+                    created_at,
+                ),
             ),
         )
-        self.connection.commit()
 
     def get_maker_events(self, token_0: str, token_1: str, start_at: int, end_at: int):
         self.ensure_fresh_read_connection()

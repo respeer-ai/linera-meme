@@ -28,6 +28,10 @@ class FakeCursor:
         self.executed.append((normalized, params))
         self.rowcount = 0
 
+        for prefix, error in self.connection.query_failures:
+          if normalized.startswith(prefix):
+              raise error
+
         if normalized == 'SHOW DATABASES':
           self._last_result = [(name,) for name in self.database_catalog]
           return
@@ -50,8 +54,9 @@ class FakeCursor:
           ]
           return
 
-        if normalized.startswith('SHOW INDEX FROM transactions'):
-          self._last_result = self.index_catalog
+        if normalized.startswith('SHOW INDEX FROM '):
+          table_name = normalized.split('SHOW INDEX FROM ')[1]
+          self._last_result = [row for row in self.index_catalog if row[0] == table_name]
           return
 
         if normalized.startswith('SELECT pool_id, pool_application FROM pools'):
@@ -191,8 +196,9 @@ class FakeCursor:
           self._last_result = []
           return
 
-        if normalized.startswith(f'DROP INDEX {Db.TRANSACTIONS_RANGE_INDEX} ON transactions'):
-          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != Db.TRANSACTIONS_RANGE_INDEX]
+        if normalized.startswith('DROP INDEX '):
+          index_name = normalized.split('DROP INDEX ')[1].split(' ON ')[0]
+          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != index_name]
           self._last_result = []
           return
 
@@ -210,13 +216,14 @@ class FakeCursor:
           self._last_result = []
           return
 
-        if normalized.startswith(f'CREATE INDEX {Db.TRANSACTIONS_RANGE_INDEX} ON transactions'):
-          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != Db.TRANSACTIONS_RANGE_INDEX]
+        if normalized.startswith('CREATE INDEX '):
+          index_name = normalized.split('CREATE INDEX ')[1].split(' ON ')[0]
+          table_name = normalized.split(' ON ')[1].split(' (')[0]
+          columns = normalized.split(' (', 1)[1].rstrip(')').split(', ')
+          self.index_catalog[:] = [row for row in self.index_catalog if row[2] != index_name]
           self.index_catalog.extend([
-              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_application'),
-              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 2, 'pool_id'),
-              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 3, 'token_reversed'),
-              ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 4, 'created_at'),
+              (table_name, 1, index_name, seq + 1, column)
+              for seq, column in enumerate(columns)
           ])
           self._last_result = []
           return
@@ -652,6 +659,7 @@ class FakeConnection:
         self.candle_rows = {}
         self.maker_event_rows = []
         self.debug_trace_rows = []
+        self.query_failures = []
         self.transaction_columns = [
             'pool_application', 'pool_id', 'transaction_id', 'transaction_type', 'from_account',
             'amount_0_in', 'amount_0_out', 'amount_1_in', 'amount_1_out',
@@ -840,6 +848,11 @@ class DbIndexInitializationTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
+    def create_connection_with_query_failure(self, prefix, error):
+        connection = self.create_connection()
+        connection.query_failures.append((prefix, error))
+        return connection
+
     @patch('db.mysql.connector.connect')
     def test_creates_range_query_index_when_missing(self, connect_mock):
         connect_mock.side_effect = self.create_connection
@@ -913,6 +926,36 @@ class DbIndexInitializationTest(unittest.TestCase):
         ))
         self.assertTrue(any(
             'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
+            in query for query in executed_queries
+        ))
+
+    @patch('db.mysql.connector.connect')
+    def test_skips_debug_index_creation_when_table_is_full(self, connect_mock):
+        class FakeTableFullError(Exception):
+            def __init__(self):
+                super().__init__("1114 (HY000): The table 'maker_events' is full")
+                self.errno = 1114
+
+        connect_mock.side_effect = lambda **kwargs: self.create_connection_with_query_failure(
+            'CREATE INDEX idx_maker_events_created_event ON maker_events',
+            FakeTableFullError(),
+        )
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        self.assertIn('maker_events', db.debug_storage_degraded_tables)
+
+        runtime_connection = self.connections[-1]
+        executed_queries = [query for cursor in runtime_connection.cursors for query, _ in cursor.executed]
+        self.assertTrue(any(
+            'CREATE INDEX idx_maker_events_created_event ON maker_events (created_at, event_id)'
             in query for query in executed_queries
         ))
 
@@ -1142,6 +1185,42 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(info['count'], 2)
         self.assertEqual(info['timestamp_begin'], 2000)
         self.assertEqual(info['timestamp_end'], 1000)
+
+    @patch('db.mysql.connector.connect')
+    def test_skips_maker_event_insert_when_table_is_full(self, connect_mock):
+        class FakeTableFullError(Exception):
+            def __init__(self):
+                super().__init__("1114 (HY000): The table 'maker_events' is full")
+                self.errno = 1114
+
+        def connect_with_failure(**_kwargs):
+            connection = FakeConnection(
+                self.database_catalog,
+                self.table_catalog,
+                self.index_catalog,
+            )
+            connection.query_failures.append((
+                'INSERT INTO maker_events (source, event_type, pool_id, token_0, token_1, amount_0, amount_1, quote_notional, pool_price, details, created_at) VALUES',
+                FakeTableFullError(),
+            ))
+            self.connections.append(connection)
+            return connection
+
+        connect_mock.side_effect = connect_with_failure
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        db.new_maker_event('planned', 1001, 'AAA', 'BBB', 1.0, 2.0, 2.0, 2.0, '{"step":1}', 1000)
+
+        self.assertEqual(db.get_maker_events('AAA', 'BBB', 0, 2000), [])
+        self.assertIn('maker_events', db.debug_storage_degraded_tables)
 
     @patch('db.mysql.connector.connect')
     def test_records_and_reads_debug_traces(self, connect_mock):
