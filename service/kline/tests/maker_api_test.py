@@ -124,6 +124,16 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         maker_api_module.async_request.get = self.original_get
         maker_api_module.async_request.post = self.original_post
 
+    async def test_build_wallet_host_tolerates_malformed_template(self):
+        maker_api_module._config.update({
+            'wallet_host_template': 'maker-wallet-service-{index.maker-wallet-service}',
+        })
+
+        self.assertEqual(
+            maker_api_module.build_wallet_host(2),
+            'maker-wallet-service-2.maker-wallet-service',
+        )
+
     async def test_on_get_debug_wallets_returns_wallet_metrics_and_balances(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             state_path = os.path.join(tmpdir, 'MAKER_WALLET_CHAIN_OWNER.0')
@@ -222,3 +232,43 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stalled_pool['suspected_stage'], 'mutation_accepted_but_not_settled')
         self.assertEqual(stalled_pool['latest_db_transaction']['transaction_id'], 7)
         self.assertEqual(stalled_pool['latest_wallet_trace']['trace_id'], 9)
+
+    async def test_on_get_debug_traces_defaults_to_lightweight_response(self):
+        class TraceDb(FakeDb):
+            def get_debug_traces(self, **kwargs):
+                rows = list(self.traces)
+                if kwargs.get('include_payloads') is not True:
+                    rows = [
+                        dict(row, request_payload=None, response_body=None, details=None)
+                        for row in rows
+                    ]
+                return rows
+
+        maker_api_module._db = TraceDb(
+            traces=[{
+                'trace_id': 11,
+                'source': 'maker',
+                'component': 'swap',
+                'operation': 'swap',
+                'target': 'wallet_application_mutation',
+                'owner': 'owner-a',
+                'pool_application': 'chain-a:pool-a',
+                'pool_id': 1001,
+                'request_url': 'http://wallet',
+                'request_payload': {'query': 'mutation { swap }'},
+                'response_status': 200,
+                'response_body': {'data': 'hash'},
+                'error': None,
+                'details': {'token_0': 'A'},
+                'created_at': 1234,
+            }],
+        )
+
+        response = await maker_api_module.on_get_debug_traces(limit=10)
+
+        self.assertEqual(len(response['traces']), 1)
+        trace = response['traces'][0]
+        self.assertEqual(trace['trace_id'], 11)
+        self.assertIsNone(trace['request_payload'])
+        self.assertIsNone(trace['response_body'])
+        self.assertIsNone(trace['details'])

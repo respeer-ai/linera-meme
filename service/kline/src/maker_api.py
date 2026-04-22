@@ -2,6 +2,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 import argparse
 import os
+import re
 import time
 import uvicorn
 
@@ -26,7 +27,27 @@ def now_ms() -> int:
 
 
 def build_wallet_host(index: int) -> str:
-    return _config['wallet_host_template'].format(index=index)
+    template = str(_config.get('wallet_host_template') or '').strip()
+    if template == '':
+        return f'maker-wallet-service-{index}.maker-wallet-service'
+
+    for placeholder in ('{index}', '${index}', '{{index}}'):
+        if placeholder in template:
+            return template.replace(placeholder, str(index))
+
+    malformed_match = re.match(r'^(.*)\{index(?:\.([^}]+))?\}(.*)$', template)
+    if malformed_match is not None:
+        prefix, embedded_suffix, trailing_suffix = malformed_match.groups()
+        suffix = trailing_suffix
+        if embedded_suffix:
+            suffix = embedded_suffix if embedded_suffix.startswith(('.', ':', '/')) else f'.{embedded_suffix}'
+            suffix += trailing_suffix
+        return f'{prefix}{index}{suffix}'
+
+    try:
+        return template.format(index=index)
+    except Exception:
+        return template
 
 
 def build_wallet_rpc_url(index: int) -> str:
@@ -380,6 +401,7 @@ async def on_get_debug_traces(
     start_at: int | None = Query(default=None),
     end_at: int | None = Query(default=None),
     limit: int = Query(default=200),
+    include_payloads: bool = Query(default=False),
 ):
     try:
         if _db is None:
@@ -398,6 +420,7 @@ async def on_get_debug_traces(
                 start_at=start_at,
                 end_at=end_at,
                 limit=limit,
+                include_payloads=include_payloads,
             ),
         }
     except ValueError as e:

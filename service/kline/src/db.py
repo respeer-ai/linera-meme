@@ -312,6 +312,7 @@ class Db:
 
         self.ensure_kline_identity_columns()
         self.ensure_transactions_indexes()
+        self.ensure_debug_indexes()
         self.ensure_kline_columns()
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
@@ -524,6 +525,7 @@ class Db:
         start_at: int | None = None,
         end_at: int | None = None,
         limit: int = 200,
+        include_payloads: bool = True,
     ):
         self.ensure_fresh_read_connection()
         where_clauses = []
@@ -593,11 +595,11 @@ class Db:
                 'pool_application': row['pool_application'],
                 'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
                 'request_url': row['request_url'],
-                'request_payload': deserialize_trace_value(row['request_payload']),
+                'request_payload': deserialize_trace_value(row['request_payload']) if include_payloads else None,
                 'response_status': None if row['response_status'] is None else int(row['response_status']),
-                'response_body': deserialize_trace_value(row['response_body']),
+                'response_body': deserialize_trace_value(row['response_body']) if include_payloads else None,
                 'error': row['error'],
-                'details': deserialize_trace_value(row['details']),
+                'details': deserialize_trace_value(row['details']) if include_payloads else None,
                 'created_at': int(row['created_at']),
             })
         return rows
@@ -784,6 +786,43 @@ class Db:
             self.transactions_table,
             self.TRANSACTIONS_RANGE_INDEX,
             ('pool_application', 'pool_id', 'token_reversed', 'created_at'),
+        )
+
+    def ensure_debug_indexes(self):
+        self.ensure_index(
+            self.maker_events_table,
+            'idx_maker_events_created_event',
+            ('created_at', 'event_id'),
+        )
+        self.ensure_index(
+            self.maker_events_table,
+            'idx_maker_events_pool_created_event',
+            ('pool_id', 'created_at', 'event_id'),
+        )
+        self.ensure_index(
+            self.debug_traces_table,
+            'idx_debug_traces_source_component_operation_created_trace',
+            ('source', 'component', 'operation', 'created_at', 'trace_id'),
+        )
+        self.ensure_index(
+            self.debug_traces_table,
+            'idx_debug_traces_pool_created_trace',
+            ('pool_id', 'created_at', 'trace_id'),
+        )
+        self.ensure_index(
+            self.debug_traces_table,
+            'idx_debug_traces_owner_created_trace',
+            ('owner', 'created_at', 'trace_id'),
+        )
+        self.ensure_index(
+            self.diagnostics_table,
+            'idx_diagnostics_pool_created_diag',
+            ('pool_id', 'created_at', 'diagnostic_id'),
+        )
+        self.ensure_index(
+            self.diagnostics_table,
+            'idx_diagnostics_owner_created_diag',
+            ('owner', 'created_at', 'diagnostic_id'),
         )
 
     def ensure_kline_columns(self):
