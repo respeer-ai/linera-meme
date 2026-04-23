@@ -154,11 +154,77 @@ groups:
         title: position-metrics 改为与池历史长度无关的物化查询
         notes: 当前 /position-metrics 仍需按请求读取全池 transaction history 并重放，时间复杂度随池历史长度增长。下一步改为仅在 service/kline 侧实现写时物化和查询时常数级读取：为每个 pool 维护可增量更新的 live / fee-free 累积状态，为每个 owner+pool active position 维护“最近一次流动性变更”为 basis 的快照；查询时只读取 position basis snapshot 和 pool current snapshot，不再扫描全历史。该任务只涉及 kline/MySQL/同步逻辑与接口实现，不修改 pool/swap 合约侧语义
       - id: POS-026
+        status: Doing
+        priority: P0
+        depends_on: []
+        title: 设计基于链区块的可靠观测与事件同步系统
+        notes: 当前不仅 `position-metrics`，连 `ticker` / K 线 / 持仓 / fee 计算都依赖合约侧 `latestTransactions` 最近窗口，可靠性不足。现已明确该项要独立推进，但它是整个 `service/kline` 重构里的核心子系统之一，不是全部范围；全服务目标架构见 `agents/context/kline-service-architecture.md`，整包迁移见 `agents/runbooks/kline-service-migration.md`，现有 endpoint/job/debug surface 到新模块的覆盖映射见 `agents/runbooks/kline-capability-mapping.md`，目标包结构与依赖方向见 `agents/primitives/kline-package-layout.md`，API 到 read model/serializer/compatibility 的契约见 `agents/primitives/kline-api-read-models.md`，第一阶段实施计划见 `agents/runbooks/kline-phase1-plan.md`。该子系统目标方向：1) 订阅 chain 的新区块事件，实时获取区块推进；2) 支持按链上位置拉取完整区块并解析交易、消息、`ReceiveMessages/Reject` 等执行结果，作为可靠补偿路径；3) 本地维护每条链已处理到的链上进度水位，统一为交易落库、K 线、positions、fees、reject 诊断提供同一真相源；4) 当订阅断开、主机资源不足导致处理落后、或本地进度与链上最新进度不一致时，按链上顺序补拉直到追平；5) 在该能力完成后，把 `latestTransactions` 从“历史真相源”降级为可选辅助查询或彻底移出。具体采用区块高度、hash、cursor 或其他 Linera 原生位置语义，待后续结合 `linera-protocol` 代码确认
+      - id: POS-031
+        status: Todo
+        priority: P0
+        depends_on: [POS-026]
+        title: 设计 Layer 1 raw schema 与主键
+        notes: 参考 `linera-explorer-new` 的 block / incoming bundle / posted message / operation / outgoing message / event / oracle response 分层，落地本地 raw 表结构、唯一键、索引与 block-atomic 写入边界；明确 `round` 不参与主键、水位与幂等。除 raw 表外，还需定义 `processing_cursors`、`ingestion_anomalies` 等配套 operational schema，并补齐建表顺序、索引顺序、外键顺序、回填顺序与上线闸门。交付物以 `agents/primitives/observability-schema.md`、`agents/primitives/observability-layer1-ops.md`、`agents/runbooks/observability-layer1-rollout.md` 和 `agents/runbooks/observability-deliverables.md` 为准
+      - id: POS-032
+        status: Todo
+        priority: P0
+        depends_on: [POS-031]
+        title: 实现 Layer 1 block ingestion 与 cursor
+        notes: 按 `chain_id + height` 顺序抓取、落库和推进 `chain_cursors`；支持补拉、重放、重启恢复；重复拉取必须由数据库唯一键保证幂等；失败不得部分推进 cursor。模块接口、cursor 和 replay 语义见 `agents/primitives/observability-interfaces.md`；block-atomic 事务顺序、冲突异常和 downstream cursor 细则见 `agents/primitives/observability-layer1-ops.md`；交付物与验收见 `agents/runbooks/observability-deliverables.md`
+      - id: POS-033
+        status: Todo
+        priority: P0
+        depends_on: [POS-032]
+        title: 设计 application registry 与 decoder registry
+        notes: 为 `pool` / `swap` / `meme` / `proxy` / `ams` / `blob-gateway` 建立 app 类型注册与 decoder 选择规则；`application_registry` 是持久数据，`decoder_registry` 是进程内代码注册；raw 层保留 bytes，decode 失败不阻断 ingestion。模块接口见 `agents/primitives/observability-interfaces.md`；规范见 `agents/primitives/application-decoding.md` 与 `agents/runbooks/observability-deliverables.md`
+      - id: POS-034
+        status: Todo
+        priority: P0
+        depends_on: [POS-033]
+        title: 定义 Layer 2 normalized events 与关联键
+        notes: 统一定义业务事件字典、source/target 关联键、decode failure 记录，以及 `Reject` 如何映射到业务事件；该层输出供后续 Layer 3 使用，但自身仍是事实层而非产品层。模块接口见 `agents/primitives/observability-interfaces.md`；规范见 `agents/primitives/normalized-event-model.md` 与 `agents/runbooks/observability-deliverables.md`
+      - id: POS-035
+        status: Todo
+        priority: P0
+        depends_on: [POS-034]
+        title: 定义 Layer 3 market-data 契约并替换 latestTransactions
+        notes: 定义 `settled_trade` 与 `settled_liquidity_change`，明确 K 线只吃标准金融语义下的已成交事件；随后将 `transactions` / `candles` / `positions` / `fees` / `pool` 的上游切换到 Layer 3，并让 `latestTransactions` 退出真相源角色。模块接口见 `agents/primitives/observability-interfaces.md`；字段级表映射和兼容约束见 `agents/runbooks/observability-product-mapping.md`；其余规范见 `agents/primitives/derived-market-state.md`、`agents/runbooks/observability-migration.md` 与 `agents/runbooks/observability-deliverables.md`
+      - id: POS-036
         status: Todo
         priority: P0
         depends_on: []
-        title: 设计基于链区块的可靠交易事件同步系统
-        notes: 当前不仅 `position-metrics`，连 `ticker` / K 线 / 持仓 / fee 计算都依赖合约侧 `latestTransactions` 最近窗口，可靠性不足。先记录需求，不在本任务内展开 `linera-protocol` 细节学习与实现。目标方向：1) 订阅 chain 的新区块事件，实时获取区块推进；2) 支持按区块标识拉取完整区块并解析其中交易/消息，作为可靠补偿路径；3) 本地维护每条链已处理到的链上进度水位；4) 当订阅断开、主机资源不足导致处理落后、或本地进度与链上最新进度不一致时，按链上顺序补拉直到追平；5) 统一为交易落库、K 线、positions、fees 提供可重放的可靠事件源。若该能力成立，后续还需要专项评估合约内 `latestTransactions` 是否仍有保留必要，或可从“K 线依赖的最近窗口”退化为可选辅助查询，因为届时我们本地将具备自建可靠交易事件系统。具体采用区块高度、hash、cursor 或其他 Linera 原生位置语义，待后续结合 `linera-protocol` 代码确认
+        title: 创建 kline phase-1 新包骨架
+        notes: 按 `agents/primitives/kline-package-layout.md` 创建 phase-1 所需的 `app / integration / storage / ingestion / projection / query / compatibility` 最小骨架，禁止继续把新实现塞回 legacy 平铺结构。范围与验收见 `agents/runbooks/kline-phase1-plan.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
+      - id: POS-037
+        status: Todo
+        priority: P0
+        depends_on: [POS-032, POS-035, POS-036]
+        title: 实现 transactions 与 candles 的 phase-1 read models
+        notes: 围绕 priority-1 endpoint 先落 `transactions` 与 `candles` 的 projection-backed read models，对应 `query.read_models.transactions` 和 `query.read_models.candles`，不允许 handler 内再做 correctness-critical replay。任务边界见 `agents/primitives/kline-api-read-models.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
+      - id: POS-038
+        status: Todo
+        priority: P0
+        depends_on: [POS-032, POS-035, POS-036]
+        title: 实现 positions 的 phase-1 read model
+        notes: 先落 `query.read_models.positions` 所需的 position basis 与 pool state 投影，使 `/positions` 摆脱 handler 内历史重放；`/position-metrics` 暂不在本任务切换。任务边界见 `agents/primitives/kline-api-read-models.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
+      - id: POS-039
+        status: Todo
+        priority: P0
+        depends_on: [POS-037]
+        title: 切换 points 与 transactions handlers 到新 read models
+        notes: 将 `/points/...`、`/points/.../information`、`/transactions/...`、`/transactions/information` 切到 `query.handlers.* + query.serializers.* + compatibility` 组合，不再从 legacy monolith 直接承载 correctness 逻辑。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
+      - id: POS-040
+        status: Todo
+        priority: P0
+        depends_on: [POS-038]
+        title: 切换 positions handler 到新 read model
+        notes: 将 `/positions` 切到 `query.handlers.positions` 和 `query.serializers.positions`，保持现有 API shape，但移除 legacy handler 内的 correctness-critical 聚合逻辑。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
+      - id: POS-041
+        status: Todo
+        priority: P0
+        depends_on: [POS-039, POS-040]
+        title: 为 phase-1 迁移增加 parity 与回退护栏
+        notes: 为 migrated endpoints 增加 parity 检查、shadow compare 或 diagnostics 护栏，确保可以在保留 public contract 的前提下逐步替换 legacy 路径。任务边界见 `agents/runbooks/kline-phase1-workbreakdown.md` 与 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-027
         status: Doing
         priority: P0
@@ -182,7 +248,7 @@ groups:
         priority: P0
         depends_on: [POS-029]
         title: maker wallet 执行断点诊断闭环
-        notes: 已在 `/debug/pools/stall` 聚合最近 maker event、wallet swap trace、DB 最新 transaction 和 wallet health，并输出 `lag_seconds` 与 `suspected_stage`；当前已覆盖 `maker_idle` / `wallet_metrics_unreachable` / `wallet_low_gas` / `wallet_memory_high` / `mutation_accepted_but_not_settled` / `unknown`，并补了最小 API 假数据回归。新增确认：2026-04-22 线上 maker-service CrashLoop 的直接原因不是 wallet，而是 `service/kline/src/db.py` 在启动时对超大 `maker_events` 表执行 `ensure_debug_indexes()`，MySQL 返回 `1114 The table 'maker_events' is full`，导致 maker 主进程与 maker API 进程双双退出。现已把 debug 索引创建与 debug 表写入改为 best-effort：表满时只记录 `debug_storage_degraded`，不再阻断 maker 启动和主交易循环。剩余工作是部署后继续核对 2026-04-21 13:10 CST 之后真实线上 wallet/listener 指标，确认 K 线停滞是否仍是 `mutation accepted but not settled`
+        notes: 已在 `/debug/pools/stall` 聚合最近 maker event、wallet swap trace、DB 最新 transaction 和 wallet health，并输出 `lag_seconds` 与 `suspected_stage`；当前已覆盖 `maker_idle` / `wallet_metrics_unreachable` / `wallet_low_gas` / `wallet_memory_high` / `mutation_accepted_but_not_settled` / `unknown`，并补了最小 API 假数据回归。新增确认：2026-04-22 线上 maker-service CrashLoop 的直接原因不是 wallet，而是 `service/kline/src/db.py` 在启动时对超大 `maker_events` 表执行 `ensure_debug_indexes()`，MySQL 返回 `1114 The table 'maker_events' is full`，导致 maker 主进程与 maker API 进程双双退出。现已把 debug 索引创建与 debug 表写入改为 best-effort：表满时只记录 `debug_storage_degraded`，不再阻断 maker 启动和主交易循环。后续线上复核已推翻“没有稳定 inbox 处理者”的中间结论：pool creator 链本身仍在持续出块并处理 inbox，但最近用户链发来的 `PoolMessage::Swap` 在 creator 链上稳定表现为 `ReceiveMessages + Reject`。maker trace 仍显示 wallet mutation 持续返回 200，pool `latestTransactions` 与 swap root 仍停在旧时间窗，同时 pool 合约真实资产余额与 `reserve` 明显漂移，说明断点已收敛到“资金/消息已到 creator 链，但 swap 执行阶段发生硬失败”，而不是 kline 漏同步或 creator 链无人监听。剩余工作是继续把一条最近 reject 对齐到具体 panic/运行时失败点，并补充必要的链上/DB 调试数据
       - id: POS-024
         status: Doing
         priority: P0
@@ -290,36 +356,29 @@ groups:
   - name: Funds Consistency
     tasks:
       - id: FUND-001
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: []
-        title: 审计 Reject 后残留资金与 reserve 副作用
-        notes: 术语约束：`transaction_id` 不连续本身不是缺记录，也不自动表示异常；只有当某笔已 `Reject` 的交易仍然影响了 pool 状态、资金、reserve、total supply、share 或其他副作用时，才定义为“状态不一致 / 不变量被破坏”。已确认存在这样一类严重一致性问题：`NewTransaction` 自消息若被 `Reject`，该笔交易不应成立；若此前已经扣款、改变 reserve、改变 total supply 或产生其他状态副作用，则必须回滚或走显式退款补偿。后续任务包含两部分：1) review pool/swap 及相关异步消息链路，排查是否还有其他 `Reject` / 下游失败 / 部分成功后导致状态不一致的路径；2) 设计并落地修复方案，明确每个阶段的原子边界、失败补偿、幂等语义与回归测试，确保失败交易要么完全不生效，要么用户与池子状态都进入可验证的一致结果
-    tasks:
-      - id: FUNDS-001
+        title: 定义跨链资金一致性协议边界与状态机
+        notes: 先收口协议边界，再分实现。已确认：1) `transaction_id` 不连续本身不是异常，只有某笔已 `Reject` 或下游失败的交易仍残留 reserve / total supply / share / 资金副作用，才算真实不一致；2) Linera Wasm 合约里 native `transfer` 失败不可在合约内 catch，也拿不到可恢复的 fail 返回，因此不能依赖“payout fail 回执”修复；3) 跨链消息无法原子，meme 输入链与 pool payout 链之间必须显式建模 pending / success-only completion / user-claim or escrow 类语义，不能继续假设“先入池再异步出款失败可自动回滚”；4) virtual liquidity、真实 reserve、可支付余额三者语义必须一并收口。该任务输出协议定义：哪些阶段可持久化、哪些阶段只能 pending、哪些资金在成功前不得最终归 pool 所有、以及 claim/refund/commit 的幂等边界
+      - id: FUND-002
         status: Todo
         priority: P0
-        depends_on: [REV-001]
-        title: 修复 AddLiquidity 双腿部分成功后的退款缺失
-        notes: 第一腿 FundSuccess 后第二腿 FundFail 只记失败 未退回第一腿资金
-      - id: FUNDS-002
+        depends_on: [FUND-001, REV-001]
+        title: 按统一协议修复 pool/swap 异步资金闭环
+        notes: 合并原先分散 TODO，一次性覆盖高风险路径：AddLiquidity 双腿部分成功后失败无退款；swap/remove/refund/payout 对下游 meme/native 发放缺少可靠闭环；初始建池路径吞掉下游失败仍持久化成功；`NewTransaction` 或其他后续消息 `Reject` 后仍残留资金/状态副作用。实现目标不是在合约内捕获 host transfer panic，而是让失败最多留下可验证的 pending，不留下错误 finalized 状态，并为成功路径补齐显式确认、幂等键与状态收敛
+      - id: FUND-003
         status: Todo
         priority: P0
-        depends_on: [REV-001]
-        title: 修复 pool payout / refund 对 MemeResponse::Fail 的静默吞错
-        notes: 涉及 swap 输出发放 swap refund add-liquidity excess refund remove-liquidity payout
-      - id: FUNDS-003
-        status: Todo
-        priority: P0
-        depends_on: [REV-001]
-        title: 修复初始建池链路的伪成功持久化
-        notes: PoolCreated / LiquidityFunded 等路径忽略下游 call 结果 可能出现 pool 已登记但初始资金或初始化未完成
-      - id: FUNDS-004
+        depends_on: [FUND-001]
+        title: 明确 gas/funder 覆盖与链级运行保障
+        notes: `funder` OOM 已证明 chain gas 不足会直接打断任何可靠协议推进，这条线需要和资金一致性并行治理。需要定义必须持续充值的链集合与覆盖来源，确认包含预创建链和运行期新增链；落实 `funder` 资源、链发现、监控告警与人工诊断接口，避免再次出现 chain balance 耗尽但 application balance 仍在、导致表面看像资金一致性故障的情况
+      - id: FUND-004
         status: Todo
         priority: P1
-        depends_on: [REV-001]
-        title: 为资金闭环补集成测试
-        notes: 覆盖部分成功退款 输出发放失败 初始建池下游失败后的状态一致性
+        depends_on: [FUND-002]
+        title: 为资金协议与失败收敛补回归测试
+        notes: 覆盖部分成功退款、pending 不 finalize、重复 success/commit/claim 幂等、初始建池下游失败、Reject 后无残留副作用，以及 virtual liquidity 与真实可支付余额边界
   - name: WebUI
     tasks:
       - id: WEBUI-001

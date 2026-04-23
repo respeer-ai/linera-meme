@@ -79,6 +79,23 @@ navigation:
       when_to_read:
         - checking whether a feature already exists
         - validating assumptions against recent findings
+    - path: agents/context/kline-service-architecture.md
+      canonical_for:
+        - kline_target_service_architecture
+        - kline_modular_rebuild_rules
+      when_to_read:
+        - redesigning the whole service/kline package
+        - deciding whether internals may be rebuilt from scratch
+        - placing observability inside the broader service architecture
+    - path: agents/context/observability-architecture.md
+      canonical_for:
+        - observability_system_architecture
+        - latest_transactions_replacement_plan
+        - layered_market_data_pipeline
+      when_to_read:
+        - designing the chain observability system
+        - replacing latestTransactions as a truth source
+        - aligning kline semantics with chain-event ingestion
   primitives:
     - path: agents/primitives/cross-chain.md
       canonical_for:
@@ -125,6 +142,93 @@ navigation:
         - modifying API call sites
         - changing ingress or local deployment wiring
         - debugging query-service behavior
+    - path: agents/primitives/kline-package-layout.md
+      canonical_for:
+        - kline_internal_package_structure
+        - kline_dependency_direction
+        - kline_boundary_rules
+      when_to_read:
+        - restructuring service/kline internals
+        - deciding where new modules should live
+        - reviewing whether a refactor preserves intended boundaries
+    - path: agents/primitives/kline-api-read-models.md
+      canonical_for:
+        - kline_api_to_read_model_contract
+        - kline_serializer_and_compatibility_mapping
+      when_to_read:
+        - rewriting kline handlers
+        - deciding which read model backs an endpoint
+        - isolating compatibility adapters from projections
+    - path: agents/primitives/observability-storage.md
+      canonical_for:
+        - observability_raw_schema
+        - block_bundle_message_identity_keys
+        - chain_cursor_and_replay_rules
+      when_to_read:
+        - designing raw event tables
+        - defining ingestion idempotency
+        - mapping explorer-new dimensions to local storage
+    - path: agents/primitives/observability-schema.md
+      canonical_for:
+        - layer1_schema_draft
+        - raw_table_columns_and_indexes
+      when_to_read:
+        - drafting MySQL schema for observability
+        - translating explorer-new models into local tables
+        - implementing POS-031
+    - path: agents/primitives/observability-layer1-ops.md
+      canonical_for:
+        - layer1_operational_schema
+        - ingestion_anomaly_schema
+        - processing_cursor_schema
+        - block_atomic_write_contract
+      when_to_read:
+        - implementing POS-031 or POS-032
+        - defining anomaly handling for raw ingestion
+        - defining downstream processing cursors
+    - path: agents/primitives/application-decoding.md
+      canonical_for:
+        - application_registry_design
+        - decoder_registry_design
+        - decoding_failure_policy
+      when_to_read:
+        - implementing POS-033
+        - deciding how application payloads are decoded
+        - designing app identity discovery
+    - path: agents/primitives/observability-interfaces.md
+      canonical_for:
+        - observability_module_interfaces
+        - layer_boundary_contracts
+        - replay_cursor_interfaces
+      when_to_read:
+        - implementing POS-032 through POS-035
+        - deciding module ownership and handoff shape
+        - defining replay or rebuild behavior between layers
+    - path: agents/primitives/normalized-event-model.md
+      canonical_for:
+        - normalized_event_families
+        - layer2_correlation_keys
+      when_to_read:
+        - implementing POS-034
+        - designing Layer 2 event schemas
+        - separating normalized facts from settled market data
+    - path: agents/primitives/derived-market-state.md
+      canonical_for:
+        - layer3_product_contracts
+        - settled_trade_and_liquidity_outputs
+      when_to_read:
+        - implementing POS-035
+        - defining Layer 3 outputs for transactions candles or positions
+        - replacing latestTransactions in product-facing paths
+    - path: agents/primitives/market-data-semantics.md
+      canonical_for:
+        - settled_trade_definition
+        - application_decoder_registry
+        - layer2_layer3_market_data_rules
+      when_to_read:
+        - defining kline semantics
+        - designing application payload decoding
+        - mapping normalized events into transactions positions or candles
   runbooks:
     - path: agents/runbooks/bug-investigation.md
       canonical_for:
@@ -173,6 +277,191 @@ navigation:
       stop_conditions:
         - required tests executed
         - verification blocker identified explicitly
+    - path: agents/runbooks/observability-implementation.md
+      canonical_for:
+        - observability_implementation_order
+        - latest_transactions_migration_sequence
+      when_to_read:
+        - implementing the observability system
+        - splitting POS-026 into execution phases
+      inputs:
+        - observability architecture
+        - storage model
+        - market data semantics
+      outputs:
+        - phased implementation order
+        - validation checkpoints
+      stop_conditions:
+        - raw ingestion is replay-safe
+        - kline is sourced from Layer 3 instead of latestTransactions
+    - path: agents/runbooks/kline-service-migration.md
+      canonical_for:
+        - kline_whole_service_migration
+        - monolith_to_modular_kline_sequence
+      when_to_read:
+        - planning migration of the whole service/kline package
+        - mapping current endpoints and responsibilities into the new service architecture
+        - keeping API compatibility during internal rebuild
+      inputs:
+        - kline target architecture
+        - current capabilities
+        - observability migration plan
+      outputs:
+        - whole-service migration slices
+        - endpoint-to-module mapping rules
+        - compatibility guidance
+      stop_conditions:
+        - all current kline responsibilities are rehomed into the new architecture
+        - public APIs remain covered
+    - path: agents/runbooks/kline-capability-mapping.md
+      canonical_for:
+        - current_kline_capability_inventory
+        - endpoint_to_module_mapping
+        - background_job_to_module_mapping
+      when_to_read:
+        - mapping existing kline endpoints into the new architecture
+        - ensuring no current capability is dropped during rebuild
+        - separating query-service responsibilities from diagnostics or operator flows
+      inputs:
+        - current kline handlers
+        - current background jobs
+        - target kline service architecture
+      outputs:
+        - endpoint-to-module mapping
+        - job-to-module mapping
+        - boundary guidance for operator surfaces
+      stop_conditions:
+        - all current kline capabilities are assigned to target modules
+        - non-query operator flows are explicitly separated
+    - path: agents/runbooks/kline-phase1-plan.md
+      canonical_for:
+        - kline_first_implementation_phase
+        - kline_migration_priority_order
+      when_to_read:
+        - starting implementation of the new kline architecture
+        - deciding which endpoints and modules move first
+        - deciding what remains in compatibility or legacy during phase 1
+      inputs:
+        - target architecture
+        - capability mapping
+        - package layout
+        - api/read-model contract
+      outputs:
+        - phase-1 module list
+        - phase-1 endpoint priority
+        - legacy retention rules
+      stop_conditions:
+        - phase-1 implementation scope is explicit
+        - phase-2 handoff is explicit
+    - path: agents/runbooks/kline-phase1-workbreakdown.md
+      canonical_for:
+        - kline_phase1_task_breakdown
+        - kline_phase1_work_packages
+      when_to_read:
+        - turning phase-1 design into executable tasks
+        - deciding which package or endpoint moves in which batch
+        - reviewing whether a task mixes too many layers at once
+      inputs:
+        - phase-1 plan
+        - package layout
+        - api/read-model contract
+      outputs:
+        - work-package boundaries
+        - package-to-task mapping
+        - cutover sequencing guidance
+      stop_conditions:
+        - phase-1 work is split into executable packages
+        - priority-1 endpoint migration has an explicit path
+    - path: agents/runbooks/kline-phase1-checklists.md
+      canonical_for:
+        - kline_phase1_task_checklists
+        - pos_036_to_pos_041_checklists
+      when_to_read:
+        - implementing POS-036 through POS-041
+        - reviewing whether a phase-1 task is actually complete
+        - checking migration acceptance for priority-1 endpoints
+      inputs:
+        - phase-1 plan
+        - phase-1 work breakdown
+        - api/read-model contract
+      outputs:
+        - per-task implementation checklists
+        - acceptance checkpoints
+      stop_conditions:
+        - each phase-1 task has an explicit checklist
+        - completion criteria are reviewable
+    - path: agents/runbooks/observability-migration.md
+      canonical_for:
+        - observability_product_migration
+        - existing_table_cutover_plan
+      when_to_read:
+        - planning cutover from latestTransactions
+        - mapping existing kline tables onto Layer 3
+      inputs:
+        - observability implementation order
+        - Layer 3 product contracts
+      outputs:
+        - migration phases
+        - product table mapping
+      stop_conditions:
+        - latestTransactions is no longer a truth source
+        - product-facing tables are fed by Layer 3
+    - path: agents/runbooks/observability-product-mapping.md
+      canonical_for:
+        - observability_existing_table_mapping
+        - layer3_to_product_contract_mapping
+      when_to_read:
+        - mapping current kline tables to Layer 3 outputs
+        - planning transactions or candles or positions cutover details
+        - deciding which current table names can remain
+      inputs:
+        - current kline table definitions
+        - Layer 3 product contracts
+        - migration sequence
+      outputs:
+        - field-level mapping
+        - compatibility constraints
+        - cutover shape guidance
+      stop_conditions:
+        - each existing product surface has a Layer 3 upstream mapping
+        - cutover preserves public query contract
+    - path: agents/runbooks/observability-layer1-rollout.md
+      canonical_for:
+        - layer1_schema_rollout_sequence
+        - pos_031_migration_order
+      when_to_read:
+        - preparing Layer 1 DDL migrations
+        - sequencing table or index or foreign-key rollout
+        - handing off POS-031 to implementation
+      inputs:
+        - Layer 1 schema draft
+        - Layer 1 operational schema
+        - POS-031 deliverables
+      outputs:
+        - DDL order
+        - backfill order
+        - rollout gates
+      stop_conditions:
+        - Layer 1 rollout order is implementation-ready
+        - POS-032 has a clean handoff point
+    - path: agents/runbooks/observability-deliverables.md
+      canonical_for:
+        - observability_task_deliverables
+        - pos_031_to_pos_035_execution_contract
+      when_to_read:
+        - selecting the next observability implementation slice
+        - defining deliverables and acceptance for POS-031 through POS-035
+      inputs:
+        - observability architecture
+        - schema and semantic primitives
+        - task dependency chain
+      outputs:
+        - per-task deliverables
+        - module boundaries
+        - acceptance checks
+      stop_conditions:
+        - each observability layer has explicit deliverables
+        - implementation slices are non-overlapping
   tasks:
     - path: agents/tasks/board.yaml
       canonical_for:
