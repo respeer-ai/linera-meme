@@ -24,6 +24,8 @@ Canonical architecture for the chain observability system that replaces `latestT
 - Kline semantics follow standard exchange semantics:
   - only settled trades enter candles
   - requests, pending actions, and rejects do not enter candles
+- Real-time progression should be event-driven from chain notifications or equivalent subscription signals
+- Catch-up is a compensating path, not a primary polling loop
 
 ## Semantics
 
@@ -74,6 +76,13 @@ flowchart LR
   - events
   - oracle responses
 - Preserve both source-side and target-side dimensions for incoming bundles
+- Do not make cron or periodic polling the primary ingestion driver
+- Use catch-up only for:
+  - service startup reconciliation
+  - subscription reconnect reconciliation
+  - explicit admin-triggered repair
+  - detected lag or gap recovery
+- Keep manual admin triggers available for diagnostics, but do not treat them as steady-state execution
 
 ## Checklist
 

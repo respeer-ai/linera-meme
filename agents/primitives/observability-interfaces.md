@@ -26,24 +26,30 @@ Canonical module-interface contract for Layer 1 ingestion, Layer 2 decoding and 
 - Do not couple registry refresh with block ingestion success
 - Do not require synchronous end-to-end completion across all layers for one block commit
 - Do not hide replay mode from downstream processors; every processor must know whether it is running incremental or catch-up work
+- Do not make cron or periodic polling the primary ingestion trigger
+- Treat startup reconciliation, subscription reconnect, explicit admin repair, and detected lag as catch-up triggers
+- For Linera public service integration, prefer the native GraphQL notification subscription over synthetic tip polling
 
 ## Flow
 
 ```mermaid
 flowchart LR
-    A[Chain client] --> B[Block ingestor]
-    B --> C[Layer 1 raw store]
-    C --> D[Decode scheduler]
-    D --> E[Application registry]
-    D --> F[Decoder registry]
-    E --> G[Decoded payload store]
-    F --> G
-    C --> H[Normalizer]
-    G --> H
-    H --> I[Layer 2 event store]
-    I --> J[Market deriver]
-    J --> K[Layer 3 settled store]
-    K --> L[Existing product queries]
+    A[Chain subscription] --> B[Realtime trigger]
+    B --> C[Catch-up runner or block ingestor]
+    D[Admin repair trigger] --> C
+    E[Startup or reconnect reconciliation] --> C
+    C --> F[Layer 1 raw store]
+    F --> G[Decode scheduler]
+    G --> H[Application registry]
+    G --> I[Decoder registry]
+    H --> J[Decoded payload store]
+    I --> J
+    F --> K[Normalizer]
+    J --> K
+    K --> L[Layer 2 event store]
+    L --> M[Market deriver]
+    M --> N[Layer 3 settled store]
+    N --> O[Existing product queries]
 ```
 
 ## Interfaces
@@ -57,6 +63,12 @@ flowchart LR
 - Input contract:
   - `chain_id`
   - `height`
+  - trigger reason:
+    - `notification`
+    - `startup_reconcile`
+    - `reconnect_reconcile`
+    - `admin_repair`
+    - `lag_recovery`
   - optional mode:
     - `live`
     - `catch_up`
@@ -204,6 +216,16 @@ flowchart LR
 - Layer 1 replay:
   - re-fetch same block
   - rely on storage uniqueness
+  - may be initiated by admin repair, startup reconciliation, reconnect reconciliation, or detected lag
+
+## Notification Source
+
+- Preferred transport:
+  - Linera GraphQL subscription over WebSocket with `graphql-transport-ws`
+- Preferred trigger:
+  - any chain notification for a subscribed chain should enqueue bounded catch-up
+- Reconnect rule:
+  - after a subscription reconnect, run bounded catch-up before trusting live notifications again
 - Decode replay:
   - rerun decode after registry or decoder update
   - replace or supersede decode result for the same raw identity

@@ -11,7 +11,9 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from ingestion.coordinator import IngestionCoordinator  # noqa: E402
+from ingestion.block_parser import LayerOneBlockParser  # noqa: E402
 from ingestion.cursors import ChainCursor  # noqa: E402
+from integration.block_not_available_error import BlockNotAvailableError  # noqa: E402
 
 
 class IngestionCoordinatorTest(unittest.IsolatedAsyncioTestCase):
@@ -47,15 +49,26 @@ class IngestionCoordinatorTest(unittest.IsolatedAsyncioTestCase):
         def mark_failure(self, chain_id: str, height: int, error_text: str) -> None:
             self.calls.append(('mark_failure', chain_id, height, error_text))
 
+        def record_failed_ingest_run(
+            self,
+            chain_id: str,
+            height: int,
+            mode: str,
+            error_text: str,
+        ) -> None:
+            self.calls.append(('record_failed_ingest_run', chain_id, height, mode, error_text))
+
     async def test_ingest_from_cursor_fetches_next_height_and_persists_block(self):
         chain_client = self.FakeChainClient(block={
-            'chain_id': 'chain-a',
-            'height': 6,
             'block_hash': 'hash-6',
             'timestamp_ms': 123456,
         })
         raw_repository = self.FakeRawRepository()
-        coordinator = IngestionCoordinator(chain_client=chain_client, raw_repository=raw_repository)
+        coordinator = IngestionCoordinator(
+            chain_client=chain_client,
+            block_parser=LayerOneBlockParser(),
+            raw_repository=raw_repository,
+        )
 
         result = await coordinator.ingest_from_cursor(
             ChainCursor(chain_id='chain-a', last_finalized_height=5),
@@ -70,7 +83,11 @@ class IngestionCoordinatorTest(unittest.IsolatedAsyncioTestCase):
     async def test_ingest_from_cursor_marks_failure_when_fetch_fails(self):
         chain_client = self.FakeChainClient(error=RuntimeError('rpc failed'))
         raw_repository = self.FakeRawRepository()
-        coordinator = IngestionCoordinator(chain_client=chain_client, raw_repository=raw_repository)
+        coordinator = IngestionCoordinator(
+            chain_client=chain_client,
+            block_parser=LayerOneBlockParser(),
+            raw_repository=raw_repository,
+        )
 
         with self.assertRaisesRegex(RuntimeError, 'rpc failed'):
             await coordinator.ingest_from_cursor(
@@ -78,4 +95,26 @@ class IngestionCoordinatorTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(raw_repository.calls[0], ('mark_attempt', 'chain-a', 0))
-        self.assertEqual(raw_repository.calls[1], ('mark_failure', 'chain-a', 0, 'rpc failed'))
+        self.assertEqual(
+            raw_repository.calls[1],
+            ('record_failed_ingest_run', 'chain-a', 0, 'live', 'rpc failed'),
+        )
+        self.assertEqual(raw_repository.calls[2], ('mark_failure', 'chain-a', 0, 'rpc failed'))
+
+    async def test_ingest_from_cursor_does_not_mark_failure_when_block_not_available(self):
+        chain_client = self.FakeChainClient(error=BlockNotAvailableError('tip height is 7'))
+        raw_repository = self.FakeRawRepository()
+        coordinator = IngestionCoordinator(
+            chain_client=chain_client,
+            block_parser=LayerOneBlockParser(),
+            raw_repository=raw_repository,
+        )
+
+        with self.assertRaisesRegex(BlockNotAvailableError, 'tip height is 7'):
+            await coordinator.ingest_from_cursor(
+                ChainCursor(chain_id='chain-a', last_finalized_height=7),
+            )
+
+        self.assertEqual(raw_repository.calls, [
+            ('mark_attempt', 'chain-a', 8),
+        ])

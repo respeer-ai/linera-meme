@@ -36,6 +36,11 @@ _ticker_task = None
 _db = None
 _ticker_db = None
 _db_config = None
+_catch_up_runner = None
+_catch_up_driver = None
+_observability_config = None
+_observability_container = None
+_observability_lifecycle = None
 
 
 def _build_priority1_rollout() -> PriorityOneRollout:
@@ -263,6 +268,36 @@ async def _build_recent_transaction_window_audit(
         'missing_in_db': sorted(live_id_set - db_id_set),
         'missing_in_live': sorted(db_id_set - live_id_set),
     }
+
+
+async def _ensure_observability_runtime():
+    global _observability_container, _observability_lifecycle, _catch_up_runner, _catch_up_driver
+    if _observability_config is None:
+        return
+    required_keys = {
+        'database_host',
+        'database_port',
+        'database_name',
+        'database_username',
+        'database_password',
+        'chain_graphql_url',
+    }
+    if not required_keys.issubset(set(_observability_config.keys())):
+        return
+    if _observability_container is not None:
+        return
+
+    from app.bootstrap import AppBootstrap
+    from app.config import KlineAppConfig
+    from app.lifecycle import AppLifecycle
+
+    lifecycle = AppLifecycle()
+    container = AppBootstrap().build_container(KlineAppConfig(**_observability_config))
+    await lifecycle.startup(container)
+    _observability_lifecycle = lifecycle
+    _observability_container = container
+    _catch_up_runner = container.get('catch_up_runner')
+    _catch_up_driver = container.get('catch_up_driver')
 
 
 @app.get('/transactions/audit/recent')
@@ -849,6 +884,119 @@ async def on_get_debug_pool_bundle(
         )
 
 
+@app.post('/debug/catch-up/run')
+async def on_post_debug_catch_up_run(
+    chain_id: str | None = Query(default=None),
+    max_blocks: int | None = Query(default=None),
+):
+    try:
+        await _ensure_observability_runtime()
+        if max_blocks is not None and max_blocks <= 0:
+            raise ValueError('max_blocks must be positive')
+
+        if chain_id is not None:
+            if _catch_up_runner is None:
+                raise RuntimeError('Catch-up runner is not initialized')
+            effective_max_blocks = (
+                max_blocks
+                if max_blocks is not None
+                else ((_observability_config or {}).get('catch_up_max_blocks_per_chain') or 50)
+            )
+            return {
+                'trigger': 'admin_repair',
+                'scope': 'single_chain',
+                'result': await _catch_up_runner.ingest_until_caught_up(
+                    chain_id,
+                    max_blocks=effective_max_blocks,
+                    mode='catch_up',
+                ),
+            }
+
+        if _catch_up_driver is None:
+            raise RuntimeError('Catch-up driver is not initialized')
+        return {
+            'trigger': 'admin_repair',
+            'scope': 'configured_chains',
+            'result': await _catch_up_driver.run_once(max_blocks_per_chain=max_blocks),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed run debug catch-up: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/observability')
+async def on_get_debug_observability(
+    chain_ids: str | None = Query(default=None),
+    run_statuses: str | None = Query(default=None),
+    anomaly_statuses: str | None = Query(default=None),
+    limit: int = Query(default=200),
+):
+    try:
+        await _ensure_observability_runtime()
+        if limit <= 0:
+            raise ValueError('limit must be positive')
+        if _observability_container is None:
+            raise RuntimeError('Observability runtime is not initialized')
+        raw_repository = _observability_container.get('raw_repository')
+        if raw_repository is None:
+            raise RuntimeError('Raw repository is not initialized')
+
+        parsed_chain_ids = tuple(
+            chain_id.strip()
+            for chain_id in (chain_ids or '').split(',')
+            if chain_id.strip()
+        )
+        parsed_run_statuses = tuple(
+            status.strip()
+            for status in (run_statuses or '').split(',')
+            if status.strip()
+        )
+        parsed_anomaly_statuses = tuple(
+            status.strip()
+            for status in (anomaly_statuses or '').split(',')
+            if status.strip()
+        )
+
+        return {
+            'chain_ids': list(parsed_chain_ids),
+            'run_statuses': list(parsed_run_statuses),
+            'anomaly_statuses': list(parsed_anomaly_statuses),
+            'cursors': raw_repository.list_chain_cursors(
+                chain_ids=parsed_chain_ids,
+                limit=limit,
+            ),
+            'recent_runs': raw_repository.list_recent_ingest_runs(
+                chain_ids=parsed_chain_ids,
+                statuses=parsed_run_statuses,
+                limit=limit,
+            ),
+            'anomalies': raw_repository.list_ingestion_anomalies(
+                chain_ids=parsed_chain_ids,
+                statuses=parsed_anomaly_statuses,
+                limit=limit,
+            ),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get debug observability: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 @app.get('/ticker/interval/{interval}')
 async def on_get_ticker(interval: str):
     try:
@@ -926,11 +1074,12 @@ async def on_startup():
     )
     _ticker = Ticker(manager, _swap, _ticker_db)
     _ticker_task = asyncio.create_task(run_ticker_forever())
+    await _ensure_observability_runtime()
 
 
 @app.on_event('shutdown')
 async def on_shutdown():
-    global _ticker_task
+    global _ticker_task, _observability_container, _observability_lifecycle, _catch_up_runner, _catch_up_driver
     if _ticker is not None:
         _ticker.stop()
     if _ticker_task is not None:
@@ -938,6 +1087,12 @@ async def on_shutdown():
         _ticker_task = None
     if _ticker_db is not None:
         _ticker_db.close()
+    if _observability_container is not None and _observability_lifecycle is not None:
+        await _observability_lifecycle.shutdown(_observability_container)
+    _observability_container = None
+    _observability_lifecycle = None
+    _catch_up_runner = None
+    _catch_up_driver = None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Linera Swap Kline')
@@ -953,6 +1108,12 @@ if __name__ == '__main__':
     parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Kline database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
     parser.add_argument('--clean-kline', action='store_true', help='Clean kline database')
+    parser.add_argument('--chain-graphql-url', type=str, default='', help='Linera node service GraphQL URL for raw block ingestion')
+    parser.add_argument('--chain-graphql-ws-url', type=str, default='', help='Optional Linera node service GraphQL WebSocket URL for notifications')
+    parser.add_argument('--catch-up-chain-ids', type=str, default='', help='Comma-separated chain ids for event-driven/admin catch-up')
+    parser.add_argument('--catch-up-max-blocks-per-chain', type=int, default=50, help='Bounded catch-up block limit per chain run')
+    parser.add_argument('--disable-catch-up-on-startup', action='store_true', help='Disable startup reconciliation catch-up for configured chains')
+    parser.add_argument('--notification-reconnect-delay-seconds', type=float, default=1.0, help='Reconnect backoff in seconds for Linera notification subscriptions')
 
     args = parser.parse_args()
 
@@ -963,6 +1124,25 @@ if __name__ == '__main__':
         'username': args.database_user,
         'password': args.database_password,
     }
+    parsed_catch_up_chain_ids = tuple(
+        chain_id.strip()
+        for chain_id in args.catch_up_chain_ids.split(',')
+        if chain_id.strip()
+    )
+    if args.chain_graphql_url:
+        _observability_config = {
+            'database_host': args.database_host,
+            'database_port': args.database_port,
+            'database_name': args.database_name,
+            'database_username': args.database_user,
+            'database_password': args.database_password,
+            'chain_graphql_url': args.chain_graphql_url,
+            'chain_graphql_ws_url': args.chain_graphql_ws_url or None,
+            'catch_up_chain_ids': parsed_catch_up_chain_ids,
+            'catch_up_max_blocks_per_chain': args.catch_up_max_blocks_per_chain,
+            'catch_up_on_startup': not args.disable_catch_up_on_startup,
+            'notification_reconnect_delay_seconds': args.notification_reconnect_delay_seconds,
+        }
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None, db=_db)

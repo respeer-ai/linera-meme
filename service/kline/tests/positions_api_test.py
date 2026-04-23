@@ -46,6 +46,9 @@ class DummyFastAPI:
     def get(self, *_args, **_kwargs):
         return lambda fn: fn
 
+    def post(self, *_args, **_kwargs):
+        return lambda fn: fn
+
     def websocket(self, *_args, **_kwargs):
         return lambda fn: fn
 
@@ -197,6 +200,26 @@ class FakeDb:
         if end_at is not None:
             rows = [row for row in rows if row.get('created_at') is not None and row.get('created_at') <= end_at]
         return rows[:limit]
+
+
+class FakeRawRepository:
+    def __init__(self):
+        self.calls = []
+        self.cursors = []
+        self.runs = []
+        self.anomalies = []
+
+    def list_chain_cursors(self, *, chain_ids=(), limit=200):
+        self.calls.append(('list_chain_cursors', chain_ids, limit))
+        return list(self.cursors)
+
+    def list_recent_ingest_runs(self, *, chain_ids=(), statuses=(), limit=200):
+        self.calls.append(('list_recent_ingest_runs', chain_ids, statuses, limit))
+        return list(self.runs)
+
+    def list_ingestion_anomalies(self, *, chain_ids=(), statuses=(), limit=200):
+        self.calls.append(('list_ingestion_anomalies', chain_ids, statuses, limit))
+        return list(self.anomalies)
 
 
 class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
@@ -436,6 +459,85 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"limit must be positive"}')
+
+    async def test_on_post_debug_catch_up_run_executes_configured_driver(self):
+        class FakeCatchUpDriver:
+            def __init__(self):
+                self.calls = []
+
+            async def run_once(self, *, max_blocks_per_chain=None):
+                self.calls.append(max_blocks_per_chain)
+                return {
+                    'chain_ids': ['chain-a', 'chain-b'],
+                    'total_ingested_count': 3,
+                }
+
+        original_driver = kline_module._catch_up_driver
+        original_runner = kline_module._catch_up_runner
+        fake_driver = FakeCatchUpDriver()
+        kline_module._catch_up_driver = fake_driver
+        kline_module._catch_up_runner = None
+
+        try:
+            response = await kline_module.on_post_debug_catch_up_run(max_blocks=12)
+        finally:
+            kline_module._catch_up_driver = original_driver
+            kline_module._catch_up_runner = original_runner
+
+        self.assertEqual(fake_driver.calls, [12])
+        self.assertEqual(response, {
+            'trigger': 'admin_repair',
+            'scope': 'configured_chains',
+            'result': {
+                'chain_ids': ['chain-a', 'chain-b'],
+                'total_ingested_count': 3,
+            },
+        })
+
+    async def test_on_post_debug_catch_up_run_can_target_single_chain(self):
+        class FakeCatchUpRunner:
+            def __init__(self):
+                self.calls = []
+
+            async def ingest_until_caught_up(self, chain_id: str, *, max_blocks: int, mode: str = 'catch_up'):
+                self.calls.append((chain_id, max_blocks, mode))
+                return {
+                    'chain_id': chain_id,
+                    'ingested_count': 2,
+                    'caught_up': True,
+                }
+
+        original_driver = kline_module._catch_up_driver
+        original_runner = kline_module._catch_up_runner
+        original_observability_config = kline_module._observability_config
+        fake_runner = FakeCatchUpRunner()
+        kline_module._catch_up_driver = None
+        kline_module._catch_up_runner = fake_runner
+        kline_module._observability_config = {'catch_up_max_blocks_per_chain': 15}
+
+        try:
+            response = await kline_module.on_post_debug_catch_up_run(chain_id='chain-a')
+        finally:
+            kline_module._catch_up_driver = original_driver
+            kline_module._catch_up_runner = original_runner
+            kline_module._observability_config = original_observability_config
+
+        self.assertEqual(fake_runner.calls, [('chain-a', 15, 'catch_up')])
+        self.assertEqual(response, {
+            'trigger': 'admin_repair',
+            'scope': 'single_chain',
+            'result': {
+                'chain_id': 'chain-a',
+                'ingested_count': 2,
+                'caught_up': True,
+            },
+        })
+
+    async def test_on_post_debug_catch_up_run_rejects_non_positive_max_blocks(self):
+        response = await kline_module.on_post_debug_catch_up_run(max_blocks=0)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"max_blocks must be positive"}')
 
     async def test_on_get_debug_pool_bundle_exports_transactions_liquidity_history_and_diagnostics(self):
         original_db = kline_module._db
@@ -718,6 +820,52 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"swap_out_tolerance_attos must be non-negative"}')
+
+    async def test_on_get_debug_observability_exports_raw_runtime_state(self):
+        original_ensure = kline_module._ensure_observability_runtime
+        original_container = kline_module._observability_container
+        fake_repo = FakeRawRepository()
+        fake_repo.cursors = [{'chain_id': 'chain-a', 'sync_status': 'idle'}]
+        fake_repo.runs = [{'run_id': 9, 'chain_id': 'chain-a', 'status': 'success'}]
+        fake_repo.anomalies = [{'anomaly_id': 3, 'chain_id': 'chain-a', 'status': 'open'}]
+
+        async def fake_ensure():
+            return None
+
+        kline_module._ensure_observability_runtime = fake_ensure
+        kline_module._observability_container = {'raw_repository': fake_repo}
+
+        try:
+            response = await kline_module.on_get_debug_observability(
+                chain_ids='chain-a, chain-b',
+                run_statuses='success,failed',
+                anomaly_statuses='open',
+                limit=50,
+            )
+        finally:
+            kline_module._ensure_observability_runtime = original_ensure
+            kline_module._observability_container = original_container
+
+        self.assertEqual(response['chain_ids'], ['chain-a', 'chain-b'])
+        self.assertEqual(response['run_statuses'], ['success', 'failed'])
+        self.assertEqual(response['anomaly_statuses'], ['open'])
+        self.assertEqual(response['cursors'], fake_repo.cursors)
+        self.assertEqual(response['recent_runs'], fake_repo.runs)
+        self.assertEqual(response['anomalies'], fake_repo.anomalies)
+        self.assertEqual(
+            fake_repo.calls,
+            [
+                ('list_chain_cursors', ('chain-a', 'chain-b'), 50),
+                ('list_recent_ingest_runs', ('chain-a', 'chain-b'), ('success', 'failed'), 50),
+                ('list_ingestion_anomalies', ('chain-a', 'chain-b'), ('open',), 50),
+            ],
+        )
+
+    async def test_on_get_debug_observability_rejects_non_positive_limit(self):
+        response = await kline_module.on_get_debug_observability(limit=0)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"limit must be positive"}')
 
 
 if __name__ == '__main__':

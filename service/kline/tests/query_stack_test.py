@@ -3,6 +3,7 @@ import types
 import unittest
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,9 @@ fastapi_stub = types.ModuleType('fastapi')
 
 class DummyFastAPI:
     def get(self, *_args, **_kwargs):
+        return lambda fn: fn
+
+    def post(self, *_args, **_kwargs):
         return lambda fn: fn
 
     def websocket(self, *_args, **_kwargs):
@@ -339,10 +343,11 @@ class QueryStackApiTest(unittest.IsolatedAsyncioTestCase):
         os.environ['KLINE_PRIORITY1_PARITY'] = '1'
 
         try:
-            response = await kline_module.on_get_positions(
-                owner='chain:owner-a',
-                status='active',
-            )
+            with patch('builtins.print'):
+                response = await kline_module.on_get_positions(
+                    owner='chain:owner-a',
+                    status='active',
+                )
         finally:
             kline_module._db = original_db
 

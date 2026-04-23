@@ -1,8 +1,12 @@
+from storage.mysql.canonical_fingerprint import CanonicalFingerprint
+
+
 class RawRepository:
     """Owns Layer 1 observability schema creation and raw-table access boundaries."""
 
     def __init__(self, connection):
         self.connection = connection
+        self.fingerprint = CanonicalFingerprint()
         self.chain_cursors_table = 'chain_cursors'
         self.raw_blocks_table = 'raw_blocks'
         self.raw_incoming_bundles_table = 'raw_incoming_bundles'
@@ -324,6 +328,137 @@ class RawRepository:
         finally:
             cursor.close()
 
+    def list_chain_cursors(self, chain_ids: tuple[str, ...] = (), limit: int = 200) -> list[dict]:
+        cursor = self.connection.cursor(dictionary=True)
+        try:
+            params: list[object] = []
+            where_sql = ''
+            if chain_ids:
+                placeholders = ', '.join(['%s'] * len(chain_ids))
+                where_sql = f'WHERE chain_id IN ({placeholders})'
+                params.extend(chain_ids)
+            params.append(int(limit))
+            cursor.execute(
+                f'''
+                SELECT
+                    chain_id,
+                    last_finalized_height,
+                    last_finalized_block_hash,
+                    last_attempted_height,
+                    last_attempted_at,
+                    last_success_at,
+                    sync_status,
+                    consecutive_failures,
+                    last_error,
+                    updated_at
+                FROM {self.chain_cursors_table}
+                {where_sql}
+                ORDER BY updated_at DESC, chain_id ASC
+                LIMIT %s
+                ''',
+                tuple(params),
+            )
+            return [dict(row) for row in (cursor.fetchall() or [])]
+        finally:
+            cursor.close()
+
+    def list_recent_ingest_runs(
+        self,
+        chain_ids: tuple[str, ...] = (),
+        statuses: tuple[str, ...] = (),
+        limit: int = 200,
+    ) -> list[dict]:
+        cursor = self.connection.cursor(dictionary=True)
+        try:
+            where_clauses = []
+            params: list[object] = []
+            if chain_ids:
+                placeholders = ', '.join(['%s'] * len(chain_ids))
+                where_clauses.append(f'chain_id IN ({placeholders})')
+                params.extend(chain_ids)
+            if statuses:
+                placeholders = ', '.join(['%s'] * len(statuses))
+                where_clauses.append(f'status IN ({placeholders})')
+                params.extend(statuses)
+            where_sql = ''
+            if where_clauses:
+                where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+            params.append(int(limit))
+            cursor.execute(
+                f'''
+                SELECT
+                    run_id,
+                    chain_id,
+                    height,
+                    mode,
+                    status,
+                    block_hash,
+                    started_at,
+                    finished_at,
+                    error_text,
+                    summary_json
+                FROM {self.raw_block_ingest_runs_table}
+                {where_sql}
+                ORDER BY started_at DESC, run_id DESC
+                LIMIT %s
+                ''',
+                tuple(params),
+            )
+            return [dict(row) for row in (cursor.fetchall() or [])]
+        finally:
+            cursor.close()
+
+    def list_ingestion_anomalies(
+        self,
+        chain_ids: tuple[str, ...] = (),
+        statuses: tuple[str, ...] = (),
+        limit: int = 200,
+    ) -> list[dict]:
+        cursor = self.connection.cursor(dictionary=True)
+        try:
+            where_clauses = []
+            params: list[object] = []
+            if chain_ids:
+                placeholders = ', '.join(['%s'] * len(chain_ids))
+                where_clauses.append(f'chain_id IN ({placeholders})')
+                params.extend(chain_ids)
+            if statuses:
+                placeholders = ', '.join(['%s'] * len(statuses))
+                where_clauses.append(f'status IN ({placeholders})')
+                params.extend(statuses)
+            where_sql = ''
+            if where_clauses:
+                where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+            params.append(int(limit))
+            cursor.execute(
+                f'''
+                SELECT
+                    anomaly_id,
+                    anomaly_type,
+                    severity,
+                    chain_id,
+                    height,
+                    block_hash,
+                    object_type,
+                    object_identity,
+                    expected_fingerprint,
+                    observed_fingerprint,
+                    details_json,
+                    first_seen_at,
+                    last_seen_at,
+                    occurrence_count,
+                    status
+                FROM {self.ingestion_anomalies_table}
+                {where_sql}
+                ORDER BY last_seen_at DESC, anomaly_id DESC
+                LIMIT %s
+                ''',
+                tuple(params),
+            )
+            return [dict(row) for row in (cursor.fetchall() or [])]
+        finally:
+            cursor.close()
+
     def mark_attempt(self, chain_id: str, height: int) -> None:
         cursor = self.connection.cursor()
         try:
@@ -450,13 +585,44 @@ class RawRepository:
         finally:
             cursor.close()
 
+    def record_failed_ingest_run(self, chain_id: str, height: int, mode: str, error_text: str) -> None:
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(
+                f'''
+                INSERT INTO {self.raw_block_ingest_runs_table}
+                (
+                    chain_id,
+                    height,
+                    mode,
+                    status,
+                    block_hash,
+                    started_at,
+                    finished_at,
+                    error_text,
+                    summary_json
+                )
+                VALUES (%s, %s, %s, %s, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6), %s, NULL)
+                ''',
+                (
+                    chain_id,
+                    int(height),
+                    mode,
+                    'failed',
+                    error_text,
+                ),
+            )
+            self.connection.commit()
+        finally:
+            cursor.close()
+
     def ingest_block(self, block: dict, mode: str = 'live') -> dict:
         chain_id = str(block['chain_id'])
         height = int(block['height'])
         block_hash = str(block['block_hash'])
         raw_block_bytes = block.get('raw_block_bytes')
         if raw_block_bytes is None:
-            raw_block_bytes = str(block).encode()
+            raw_block_bytes = self.fingerprint.build_bytes(block)
 
         existing = self.load_chain_cursor(chain_id)
         if existing is not None:
@@ -496,7 +662,7 @@ class RawRepository:
                         'block_hash': block_hash,
                         'expected_fingerprint': existing_hash,
                         'observed_fingerprint': block_hash,
-                        'details_json': str(block),
+                        'details_json': self.fingerprint.build_json(block),
                     }
                     raise ValueError(f'Conflicting block hash for {chain_id}@{height}')
             else:
@@ -598,10 +764,7 @@ class RawRepository:
                     mode,
                     'success',
                     block_hash,
-                    str({
-                        'operation_count': int(block.get('operation_count', 0)),
-                        'incoming_bundle_count': int(block.get('incoming_bundle_count', 0)),
-                    }),
+                    self._ingest_summary_json(block),
                 ),
             )
             self.connection.commit()
@@ -612,8 +775,10 @@ class RawRepository:
                 'ingest_status': 'ingested',
                 'cursor_advanced': True,
             }
-        except Exception:
+        except Exception as error:
             self._rollback_transaction()
+            if anomaly_to_record is None:
+                anomaly_to_record = self._extract_conflict_anomaly(error)
             if anomaly_to_record is not None:
                 self.record_anomaly(**anomaly_to_record)
             raise
@@ -690,7 +855,28 @@ class RawRepository:
                     'transaction_index': int(existing_bundle_id['transaction_index']),
                 })
                 if existing_bundle_fingerprint != bundle_fingerprint:
-                    raise ValueError(f'Conflicting incoming bundle for {block["block_hash"]}:{key_bundle_index}')
+                    raise self._build_conflict_error(
+                        message=f'Conflicting incoming bundle for {block["block_hash"]}:{key_bundle_index}',
+                        anomaly_type='incoming_bundle_mismatch',
+                        object_type='raw_incoming_bundle',
+                        object_identity=f'{block["block_hash"]}:{key_bundle_index}',
+                        chain_id=str(block['chain_id']),
+                        height=int(block['height']),
+                        block_hash=str(block['block_hash']),
+                        expected_fingerprint=existing_bundle_fingerprint,
+                        observed_fingerprint=bundle_fingerprint,
+                        details_payload={
+                            'existing': existing_bundle_id,
+                            'observed': {
+                                'origin_chain_id': str(bundle['origin_chain_id']),
+                                'action': str(bundle.get('action', 'Accept')),
+                                'source_height': int(bundle.get('source_height', 0)),
+                                'source_timestamp_ms': int(bundle.get('source_timestamp_ms', 0)),
+                                'source_cert_hash': str(bundle.get('source_cert_hash', '')),
+                                'transaction_index': int(bundle.get('transaction_index', 0)),
+                            },
+                        },
+                    )
                 bundle_id = int(existing_bundle_id['bundle_id'])
             for message_index, message in enumerate(bundle.get('posted_messages', [])):
                 key_message_index = int(message.get('message_index', message_index))
@@ -741,7 +927,38 @@ class RawRepository:
                 if existing_message is not None:
                     existing_message_fingerprint = self._fingerprint(existing_message)
                     if existing_message_fingerprint != message_fingerprint:
-                        raise ValueError(f'Conflicting posted message for bundle {bundle_id}:{key_message_index}')
+                        raise self._build_conflict_error(
+                            message=f'Conflicting posted message for bundle {bundle_id}:{key_message_index}',
+                            anomaly_type='posted_message_mismatch',
+                            object_type='raw_posted_message',
+                            object_identity=f'{bundle_id}:{key_message_index}',
+                            chain_id=str(block['chain_id']),
+                            height=int(block['height']),
+                            block_hash=str(block['block_hash']),
+                            expected_fingerprint=existing_message_fingerprint,
+                            observed_fingerprint=message_fingerprint,
+                            details_payload={
+                                'existing': existing_message,
+                                'observed': {
+                                    'origin_chain_id': str(message.get('origin_chain_id', bundle['origin_chain_id'])),
+                                    'source_cert_hash': str(message.get('source_cert_hash', bundle.get('source_cert_hash', ''))),
+                                    'transaction_index': int(message.get('transaction_index', bundle.get('transaction_index', 0))),
+                                    'authenticated_owner': message.get('authenticated_owner'),
+                                    'grant_amount': message.get('grant_amount'),
+                                    'refund_grant_to': message.get('refund_grant_to'),
+                                    'message_kind': str(message.get('message_kind', 'Simple')),
+                                    'message_type': str(message.get('message_type', 'User')),
+                                    'application_id': message.get('application_id'),
+                                    'system_message_type': message.get('system_message_type'),
+                                    'system_target': message.get('system_target'),
+                                    'system_amount': message.get('system_amount'),
+                                    'system_source': message.get('system_source'),
+                                    'system_owner': message.get('system_owner'),
+                                    'system_recipient': message.get('system_recipient'),
+                                    'raw_message_bytes': message.get('raw_message_bytes', b''),
+                                },
+                            },
+                        )
                     continue
                 write_cursor.execute(
                     f'''
@@ -791,6 +1008,23 @@ class RawRepository:
                     ),
                 )
 
+    def _ingest_summary_json(self, block: dict) -> str:
+        return self.fingerprint.build_json(
+            {
+                'operation_count': int(block.get('operation_count', len(block.get('operations', [])))),
+                'incoming_bundle_count': int(
+                    block.get('incoming_bundle_count', len(block.get('incoming_bundles', [])))
+                ),
+                'message_count': int(
+                    block.get('message_count', len(block.get('outgoing_messages', [])))
+                ),
+                'event_count': int(block.get('event_count', len(block.get('events', [])))),
+                'oracle_response_count': int(
+                    block.get('oracle_response_count', len(block.get('oracle_responses', [])))
+                ),
+            }
+        )
+
     def _insert_operations(self, read_cursor, write_cursor, block: dict) -> None:
         for operation_index, operation in enumerate(block.get('operations', [])):
             key_operation_index = int(operation.get('operation_index', operation_index))
@@ -818,7 +1052,27 @@ class RawRepository:
             )
             if existing_operation is not None:
                 if self._fingerprint(existing_operation) != operation_fingerprint:
-                    raise ValueError(f'Conflicting operation for {block["block_hash"]}:{key_operation_index}')
+                    raise self._build_conflict_error(
+                        message=f'Conflicting operation for {block["block_hash"]}:{key_operation_index}',
+                        anomaly_type='operation_mismatch',
+                        object_type='raw_operation',
+                        object_identity=f'{block["block_hash"]}:{key_operation_index}',
+                        chain_id=str(block['chain_id']),
+                        height=int(block['height']),
+                        block_hash=str(block['block_hash']),
+                        expected_fingerprint=self._fingerprint(existing_operation),
+                        observed_fingerprint=operation_fingerprint,
+                        details_payload={
+                            'existing': existing_operation,
+                            'observed': {
+                                'operation_type': str(operation.get('operation_type', 'User')),
+                                'application_id': operation.get('application_id'),
+                                'system_operation_type': operation.get('system_operation_type'),
+                                'authenticated_owner': operation.get('authenticated_owner'),
+                                'raw_operation_bytes': operation.get('raw_operation_bytes', b''),
+                            },
+                        },
+                    )
                 continue
             write_cursor.execute(
                 f'''
@@ -896,7 +1150,36 @@ class RawRepository:
             )
             if existing_message is not None:
                 if self._fingerprint(existing_message) != message_fingerprint:
-                    raise ValueError(f'Conflicting outgoing message for {block["block_hash"]}:{key_message_index}')
+                    raise self._build_conflict_error(
+                        message=f'Conflicting outgoing message for {block["block_hash"]}:{key_message_index}',
+                        anomaly_type='outgoing_message_mismatch',
+                        object_type='raw_outgoing_message',
+                        object_identity=f'{block["block_hash"]}:{int(message.get("transaction_index", 0))}:{key_message_index}',
+                        chain_id=str(block['chain_id']),
+                        height=int(block['height']),
+                        block_hash=str(block['block_hash']),
+                        expected_fingerprint=self._fingerprint(existing_message),
+                        observed_fingerprint=message_fingerprint,
+                        details_payload={
+                            'existing': existing_message,
+                            'observed': {
+                                'transaction_index': int(message.get('transaction_index', 0)),
+                                'destination_chain_id': str(message.get('destination_chain_id', '')),
+                                'authenticated_owner': message.get('authenticated_owner'),
+                                'grant_amount': message.get('grant_amount'),
+                                'message_kind': str(message.get('message_kind', 'Simple')),
+                                'message_type': str(message.get('message_type', 'User')),
+                                'application_id': message.get('application_id'),
+                                'system_message_type': message.get('system_message_type'),
+                                'system_target': message.get('system_target'),
+                                'system_amount': message.get('system_amount'),
+                                'system_source': message.get('system_source'),
+                                'system_owner': message.get('system_owner'),
+                                'system_recipient': message.get('system_recipient'),
+                                'raw_message_bytes': message.get('raw_message_bytes', b''),
+                            },
+                        },
+                    )
                 continue
             write_cursor.execute(
                 f'''
@@ -972,7 +1255,26 @@ class RawRepository:
             )
             if existing_event is not None:
                 if self._fingerprint(existing_event) != event_fingerprint:
-                    raise ValueError(f'Conflicting event for {block["block_hash"]}:{key_event_index}')
+                    raise self._build_conflict_error(
+                        message=f'Conflicting event for {block["block_hash"]}:{key_event_index}',
+                        anomaly_type='event_mismatch',
+                        object_type='raw_event',
+                        object_identity=f'{block["block_hash"]}:{int(event.get("transaction_index", 0))}:{key_event_index}',
+                        chain_id=str(block['chain_id']),
+                        height=int(block['height']),
+                        block_hash=str(block['block_hash']),
+                        expected_fingerprint=self._fingerprint(existing_event),
+                        observed_fingerprint=event_fingerprint,
+                        details_payload={
+                            'existing': existing_event,
+                            'observed': {
+                                'transaction_index': int(event.get('transaction_index', 0)),
+                                'stream_id': str(event.get('stream_id', '')),
+                                'stream_index': int(event.get('stream_index', 0)),
+                                'raw_event_bytes': event.get('raw_event_bytes', b''),
+                            },
+                        },
+                    )
                 continue
             write_cursor.execute(
                 f'''
@@ -1028,7 +1330,26 @@ class RawRepository:
             )
             if existing_response is not None:
                 if self._fingerprint(existing_response) != response_fingerprint:
-                    raise ValueError(f'Conflicting oracle response for {block["block_hash"]}:{key_response_index}')
+                    raise self._build_conflict_error(
+                        message=f'Conflicting oracle response for {block["block_hash"]}:{key_response_index}',
+                        anomaly_type='oracle_response_mismatch',
+                        object_type='raw_oracle_response',
+                        object_identity=f'{block["block_hash"]}:{int(response.get("transaction_index", 0))}:{key_response_index}',
+                        chain_id=str(block['chain_id']),
+                        height=int(block['height']),
+                        block_hash=str(block['block_hash']),
+                        expected_fingerprint=self._fingerprint(existing_response),
+                        observed_fingerprint=response_fingerprint,
+                        details_payload={
+                            'existing': existing_response,
+                            'observed': {
+                                'transaction_index': int(response.get('transaction_index', 0)),
+                                'response_type': str(response.get('response_type', 'unknown')),
+                                'blob_hash': response.get('blob_hash'),
+                                'raw_response_bytes': response.get('raw_response_bytes'),
+                            },
+                        },
+                    )
                 continue
             write_cursor.execute(
                 f'''
@@ -1083,4 +1404,43 @@ class RawRepository:
         return dict(row)
 
     def _fingerprint(self, payload) -> str:
-        return repr(payload)
+        return self.fingerprint.build(payload)
+
+    def _build_conflict_error(
+        self,
+        *,
+        message: str,
+        anomaly_type: str,
+        object_type: str,
+        object_identity: str,
+        chain_id: str,
+        height: int,
+        block_hash: str,
+        expected_fingerprint: str,
+        observed_fingerprint: str,
+        details_payload: dict,
+    ) -> ValueError:
+        return ValueError(
+            message,
+            {
+                'anomaly_type': anomaly_type,
+                'object_type': object_type,
+                'object_identity': object_identity,
+                'chain_id': chain_id,
+                'height': height,
+                'block_hash': block_hash,
+                'expected_fingerprint': expected_fingerprint,
+                'observed_fingerprint': observed_fingerprint,
+                'details_json': self.fingerprint.build_json(details_payload),
+            },
+        )
+
+    def _extract_conflict_anomaly(self, error: Exception) -> dict | None:
+        if not isinstance(error, ValueError):
+            return None
+        if len(error.args) < 2:
+            return None
+        anomaly = error.args[1]
+        if not isinstance(anomaly, dict):
+            return None
+        return dict(anomaly)
