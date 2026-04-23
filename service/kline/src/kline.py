@@ -22,6 +22,7 @@ from query.read_models.positions import PositionsReadModel
 from query.handlers.kline import KlineHandler
 from query.handlers.transactions import TransactionsHandler
 from query.handlers.positions import PositionsHandler
+from query.handlers.priority_one_rollout import PriorityOneRollout
 from query.serializers.kline import KlineSerializer
 from query.serializers.transactions import TransactionsSerializer
 from query.serializers.positions import PositionsSerializer
@@ -35,6 +36,10 @@ _ticker_task = None
 _db = None
 _ticker_db = None
 _db_config = None
+
+
+def _build_priority1_rollout() -> PriorityOneRollout:
+    return PriorityOneRollout(_db)
 
 
 def _build_projection_repository():
@@ -56,6 +61,88 @@ def _build_transactions_handler() -> TransactionsHandler:
 def _build_positions_handler() -> PositionsHandler:
     repository = _build_projection_repository()
     return PositionsHandler(PositionsReadModel(repository), PositionsSerializer())
+
+
+def _get_kline_legacy(
+    *,
+    token_0: str,
+    token_1: str,
+    start_at: int,
+    end_at: int,
+    interval: str,
+    pool_id: int | None = None,
+    pool_application: str | None = None,
+) -> dict:
+    response_pool_id, response_pool_application, resolved_token_0, resolved_token_1, points = _db.get_kline(
+        token_0=token_0,
+        token_1=token_1,
+        start_at=start_at,
+        end_at=end_at,
+        interval=interval,
+        pool_id=pool_id,
+        pool_application=pool_application,
+    )
+    return {
+        'pool_id': response_pool_id,
+        'pool_application': response_pool_application,
+        'token_0': resolved_token_0,
+        'token_1': resolved_token_1,
+        'interval': interval,
+        'start_at': start_at,
+        'end_at': end_at,
+        'points': points,
+    }
+
+
+def _get_kline_information_legacy(
+    *,
+    token_0: str,
+    token_1: str,
+    interval: str,
+    pool_id: int | None = None,
+    pool_application: str | None = None,
+):
+    return _db.get_kline_information(
+        token_0=token_0,
+        token_1=token_1,
+        interval=interval,
+        pool_id=pool_id,
+        pool_application=pool_application,
+    )
+
+
+def _get_transactions_legacy(
+    *,
+    token_0: str | None,
+    token_1: str | None,
+    start_at: int,
+    end_at: int,
+):
+    return _db.get_transactions(
+        token_0=token_0,
+        token_1=token_1,
+        start_at=start_at,
+        end_at=end_at,
+    )
+
+
+def _get_transactions_information_legacy(
+    *,
+    token_0: str | None,
+    token_1: str | None,
+):
+    return _db.get_transactions_information(token_0=token_0, token_1=token_1)
+
+
+def _get_positions_legacy(
+    *,
+    owner: str,
+    status: str,
+):
+    return {
+        'owner': owner,
+        'positions': _db.get_positions(owner=owner, status=status),
+    }
 
 
 async def _default_position_metrics_fetcher(position: dict):
@@ -295,15 +382,43 @@ async def on_get_kline(
     ))
 
     try:
-        payload = _build_kline_handler().get_points(
-            token_0=token0,
-            token_1=token1,
-            start_at=start_at,
-            end_at=end_at,
-            interval=interval,
-            pool_id=pool_id,
-            pool_application=pool_application,
-        )
+        rollout = _build_priority1_rollout()
+        if rollout.use_legacy():
+            payload = _get_kline_legacy(
+                token_0=token0,
+                token_1=token1,
+                start_at=start_at,
+                end_at=end_at,
+                interval=interval,
+                pool_id=pool_id,
+                pool_application=pool_application,
+            )
+        else:
+            payload = _build_kline_handler().get_points(
+                token_0=token0,
+                token_1=token1,
+                start_at=start_at,
+                end_at=end_at,
+                interval=interval,
+                pool_id=pool_id,
+                pool_application=pool_application,
+            )
+            legacy_payload = _get_kline_legacy(
+                token_0=token0,
+                token_1=token1,
+                start_at=start_at,
+                end_at=end_at,
+                interval=interval,
+                pool_id=pool_id,
+                pool_application=pool_application,
+            )
+            rollout.compare(
+                endpoint='/points',
+                legacy_payload=legacy_payload,
+                new_payload=payload,
+                pool_application=payload['pool_application'],
+                pool_id=payload['pool_id'],
+            )
         response_pool_id = payload['pool_id']
         response_pool_application = payload['pool_application']
         token_0 = payload['token_0']
@@ -342,13 +457,37 @@ async def on_get_kline_information(
     pool_application: str | None = Query(default=None),
 ):
     try:
-        return _build_kline_handler().get_information(
+        rollout = _build_priority1_rollout()
+        if rollout.use_legacy():
+            return _get_kline_information_legacy(
+                token_0=token0,
+                token_1=token1,
+                interval=interval,
+                pool_id=pool_id,
+                pool_application=pool_application,
+            )
+        payload = _build_kline_handler().get_information(
             token_0=token0,
             token_1=token1,
             interval=interval,
             pool_id=pool_id,
             pool_application=pool_application,
         )
+        legacy_payload = _get_kline_information_legacy(
+            token_0=token0,
+            token_1=token1,
+            interval=interval,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
+        rollout.compare(
+            endpoint='/points/information',
+            legacy_payload=legacy_payload,
+            new_payload=payload,
+            pool_application=pool_application,
+            pool_id=pool_id,
+        )
+        return payload
     except Exception as e:
         print(f'Failed get kline information: {e}')
         return JSONResponse(
@@ -359,28 +498,78 @@ async def on_get_kline_information(
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}')
 async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int):
-    return _build_transactions_handler().get_transactions(
+    rollout = _build_priority1_rollout()
+    if rollout.use_legacy():
+        return _get_transactions_legacy(
+            token_0=token0,
+            token_1=token1,
+            start_at=start_at,
+            end_at=end_at,
+        )
+    payload = _build_transactions_handler().get_transactions(
         token_0=token0,
         token_1=token1,
         start_at=start_at,
         end_at=end_at,
     )
+    legacy_payload = _get_transactions_legacy(
+        token_0=token0,
+        token_1=token1,
+        start_at=start_at,
+        end_at=end_at,
+    )
+    rollout.compare(
+        endpoint='/transactions',
+        legacy_payload=legacy_payload,
+        new_payload=payload,
+    )
+    return payload
 
 
 @app.get('/transactions/start_at/{start_at}/end_at/{end_at}')
 async def on_get_combined_transactions(start_at: int, end_at: int):
-    return _build_transactions_handler().get_transactions(
+    rollout = _build_priority1_rollout()
+    if rollout.use_legacy():
+        return _get_transactions_legacy(
+            token_0=None,
+            token_1=None,
+            start_at=start_at,
+            end_at=end_at,
+        )
+    payload = _build_transactions_handler().get_transactions(
         token_0=None,
         token_1=None,
         start_at=start_at,
         end_at=end_at,
     )
+    legacy_payload = _get_transactions_legacy(
+        token_0=None,
+        token_1=None,
+        start_at=start_at,
+        end_at=end_at,
+    )
+    rollout.compare(
+        endpoint='/transactions/combined',
+        legacy_payload=legacy_payload,
+        new_payload=payload,
+    )
+    return payload
 
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/information')
 async def on_get_transactions_information(token0: str, token1: str):
     try:
-        return _build_transactions_handler().get_information(token_0=token0, token_1=token1)
+        rollout = _build_priority1_rollout()
+        if rollout.use_legacy():
+            return _get_transactions_information_legacy(token_0=token0, token_1=token1)
+        payload = _build_transactions_handler().get_information(token_0=token0, token_1=token1)
+        legacy_payload = _get_transactions_information_legacy(token_0=token0, token_1=token1)
+        rollout.compare(
+            endpoint='/transactions/information',
+            legacy_payload=legacy_payload,
+            new_payload=payload,
+        )
+        return payload
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
@@ -392,7 +581,17 @@ async def on_get_transactions_information(token0: str, token1: str):
 @app.get('/transactions/information')
 async def on_get_combined_transactions_information():
     try:
-        return _build_transactions_handler().get_information(token_0=None, token_1=None)
+        rollout = _build_priority1_rollout()
+        if rollout.use_legacy():
+            return _get_transactions_information_legacy(token_0=None, token_1=None)
+        payload = _build_transactions_handler().get_information(token_0=None, token_1=None)
+        legacy_payload = _get_transactions_information_legacy(token_0=None, token_1=None)
+        rollout.compare(
+            endpoint='/transactions/information/combined',
+            legacy_payload=legacy_payload,
+            new_payload=payload,
+        )
+        return payload
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
@@ -407,7 +606,19 @@ async def on_get_positions(
     status: str = Query(default='active'),
 ):
     try:
-        return _build_positions_handler().get_positions(owner=owner, status=status)
+        rollout = _build_priority1_rollout()
+        if rollout.use_legacy():
+            return _get_positions_legacy(owner=owner, status=status)
+        payload = _build_positions_handler().get_positions(owner=owner, status=status)
+        legacy_payload = _get_positions_legacy(owner=owner, status=status)
+        rollout.compare(
+            endpoint='/positions',
+            legacy_payload=legacy_payload,
+            new_payload=payload,
+            owner=owner,
+            status=status,
+        )
+        return payload
     except ValueError as e:
         return JSONResponse(
             status_code=400,

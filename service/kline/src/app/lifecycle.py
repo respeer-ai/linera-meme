@@ -1,12 +1,10 @@
-from app.bootstrap import AppContainer
+class AppLifecycle:
+    async def startup(self, container: dict[str, object]) -> None:
+        raw_repository = container.get('raw_repository')
+        if raw_repository is not None and hasattr(raw_repository, 'ensure_schema'):
+            raw_repository.ensure_schema()
 
-
-async def startup(container: AppContainer) -> None:
-    """Phase-1 lifecycle hook placeholder."""
-    _ = container
-
-
-async def shutdown(container: AppContainer) -> None:
-    """Phase-1 lifecycle hook placeholder."""
-    _ = container
-
+    async def shutdown(self, container: dict[str, object]) -> None:
+        connection = container.get('connection')
+        if connection is not None and hasattr(connection, 'close'):
+            connection.close()

@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+import os
 from pathlib import Path
 
 
@@ -199,6 +200,22 @@ class FakeDb:
 
 
 class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.original_rollout_mode = os.environ.get('KLINE_PRIORITY1_ROLLOUT_MODE')
+        self.original_parity = os.environ.get('KLINE_PRIORITY1_PARITY')
+        os.environ.pop('KLINE_PRIORITY1_ROLLOUT_MODE', None)
+        os.environ.pop('KLINE_PRIORITY1_PARITY', None)
+
+    def tearDown(self):
+        if self.original_rollout_mode is None:
+            os.environ.pop('KLINE_PRIORITY1_ROLLOUT_MODE', None)
+        else:
+            os.environ['KLINE_PRIORITY1_ROLLOUT_MODE'] = self.original_rollout_mode
+        if self.original_parity is None:
+            os.environ.pop('KLINE_PRIORITY1_PARITY', None)
+        else:
+            os.environ['KLINE_PRIORITY1_PARITY'] = self.original_parity
+
     async def test_on_get_positions_returns_owner_and_positions(self):
         original_db = kline_module._db
         fake_db = FakeDb(positions=[
@@ -215,7 +232,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             'owner': 'chain:owner-a',
             'positions': [{'pool_id': 7, 'status': 'active'}],
         })
-        self.assertEqual(fake_db.calls, [{'owner': 'chain:owner-a', 'status': 'active'}])
+        self.assertEqual(fake_db.calls[0], {'owner': 'chain:owner-a', 'status': 'active'})
 
     async def test_on_get_positions_returns_400_for_invalid_status(self):
         original_db = kline_module._db

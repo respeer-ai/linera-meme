@@ -160,17 +160,17 @@ groups:
         title: 设计基于链区块的可靠观测与事件同步系统
         notes: 当前不仅 `position-metrics`，连 `ticker` / K 线 / 持仓 / fee 计算都依赖合约侧 `latestTransactions` 最近窗口，可靠性不足。现已明确该项要独立推进，但它是整个 `service/kline` 重构里的核心子系统之一，不是全部范围；全服务目标架构见 `agents/context/kline-service-architecture.md`，整包迁移见 `agents/runbooks/kline-service-migration.md`，现有 endpoint/job/debug surface 到新模块的覆盖映射见 `agents/runbooks/kline-capability-mapping.md`，目标包结构与依赖方向见 `agents/primitives/kline-package-layout.md`，API 到 read model/serializer/compatibility 的契约见 `agents/primitives/kline-api-read-models.md`，第一阶段实施计划见 `agents/runbooks/kline-phase1-plan.md`。该子系统目标方向：1) 订阅 chain 的新区块事件，实时获取区块推进；2) 支持按链上位置拉取完整区块并解析交易、消息、`ReceiveMessages/Reject` 等执行结果，作为可靠补偿路径；3) 本地维护每条链已处理到的链上进度水位，统一为交易落库、K 线、positions、fees、reject 诊断提供同一真相源；4) 当订阅断开、主机资源不足导致处理落后、或本地进度与链上最新进度不一致时，按链上顺序补拉直到追平；5) 在该能力完成后，把 `latestTransactions` 从“历史真相源”降级为可选辅助查询或彻底移出。具体采用区块高度、hash、cursor 或其他 Linera 原生位置语义，待后续结合 `linera-protocol` 代码确认
       - id: POS-031
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-026]
         title: 设计 Layer 1 raw schema 与主键
-        notes: 参考 `linera-explorer-new` 的 block / incoming bundle / posted message / operation / outgoing message / event / oracle response 分层，落地本地 raw 表结构、唯一键、索引与 block-atomic 写入边界；明确 `round` 不参与主键、水位与幂等。除 raw 表外，还需定义 `processing_cursors`、`ingestion_anomalies` 等配套 operational schema，并补齐建表顺序、索引顺序、外键顺序、回填顺序与上线闸门。交付物以 `agents/primitives/observability-schema.md`、`agents/primitives/observability-layer1-ops.md`、`agents/runbooks/observability-layer1-rollout.md` 和 `agents/runbooks/observability-deliverables.md` 为准
+        notes: 参考 `linera-explorer-new` 的 block / incoming bundle / posted message / operation / outgoing message / event / oracle response 分层，落地本地 raw 表结构、唯一键、索引与 block-atomic 写入边界；明确 `round` 不参与主键、水位与幂等。除 raw 表外，还需定义 `processing_cursors`、`ingestion_anomalies` 等配套 operational schema，并补齐建表顺序、索引顺序、外键顺序、回填顺序与上线闸门。当前已在 `service/kline/src/storage/mysql/raw_repo.py` 落地第一版 Layer 1 DDL 管理器，覆盖 `chain_cursors`、`raw_*`、`processing_cursors`、`ingestion_anomalies`、`raw_block_ingest_runs` 的建表顺序与外键顺序，并补了轻量单测锁住表顺序与 `ensure_schema()` 行为。下一步是把该 schema 接入实际 connection/bootstrap，并开始 `POS-032` 的 block-atomic ingestion。交付物以 `agents/primitives/observability-schema.md`、`agents/primitives/observability-layer1-ops.md`、`agents/runbooks/observability-layer1-rollout.md` 和 `agents/runbooks/observability-deliverables.md` 为准
       - id: POS-032
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-031]
         title: 实现 Layer 1 block ingestion 与 cursor
-        notes: 按 `chain_id + height` 顺序抓取、落库和推进 `chain_cursors`；支持补拉、重放、重启恢复；重复拉取必须由数据库唯一键保证幂等；失败不得部分推进 cursor。模块接口、cursor 和 replay 语义见 `agents/primitives/observability-interfaces.md`；block-atomic 事务顺序、冲突异常和 downstream cursor 细则见 `agents/primitives/observability-layer1-ops.md`；交付物与验收见 `agents/runbooks/observability-deliverables.md`
+        notes: 按 `chain_id + height` 顺序抓取、落库和推进 `chain_cursors`；支持补拉、重放、重启恢复；重复拉取必须由数据库唯一键保证幂等；失败不得部分推进 cursor。当前已把 phase-1 骨架推进到可执行且带基本安全约束的 ingest：`IngestionCoordinator` 现会执行 `mark_attempt -> fetch_block -> ingest_block -> mark_failure`，`RawRepository` 已支持 `chain_cursors` 读取/attempt/failure、`ingestion_anomalies` upsert，以及 `raw_blocks + raw_incoming_bundles + raw_posted_messages + raw_operations + raw_outgoing_messages + raw_events + raw_oracle_responses + chain_cursors + raw_block_ingest_runs` 的单块提交路径；当前实现已具备最小事务边界、失败 rollback、重复回放 skip、以及冲突内容触发 anomaly 的行为，并有 bootstrap/lifecycle/coordinator/raw repo 单测闭环。下一步是把 `repr` 级 fingerprint 提升到真正的 canonical serialization、把 conflict 分类细化到 child row/object identity，并接上真实 chain client/block parser。模块接口、cursor 和 replay 语义见 `agents/primitives/observability-interfaces.md`；block-atomic 事务顺序、冲突异常和 downstream cursor 细则见 `agents/primitives/observability-layer1-ops.md`；交付物与验收见 `agents/runbooks/observability-deliverables.md`
       - id: POS-033
         status: Todo
         priority: P0
@@ -220,11 +220,11 @@ groups:
         title: 切换 positions handler 到新 read model
         notes: `/positions` 已切到 `query.handlers.positions` 和 `query.serializers.positions`，现由新 read model 返回 owner envelope，API shape 与现有测试保持一致。当前仍通过 bridge 复用 legacy `Db.get_positions`，后续再替换为 phase-1 projection/read-store。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-041
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-039, POS-040]
         title: 为 phase-1 迁移增加 parity 与回退护栏
-        notes: 为 migrated endpoints 增加 parity 检查、shadow compare 或 diagnostics 护栏，确保可以在保留 public contract 的前提下逐步替换 legacy 路径。任务边界见 `agents/runbooks/kline-phase1-workbreakdown.md` 与 `agents/runbooks/kline-phase1-checklists.md`
+        notes: 已为 migrated priority-1 endpoints 增加第一版 cutover safety：`KLINE_PRIORITY1_ROLLOUT_MODE=legacy|new` 回退开关、`KLINE_PRIORITY1_PARITY=1` 时的新旧路径 shadow compare，以及 mismatch 时写入 `phase1_parity/priority1_mismatch` diagnostics。当前 `/points`、`/transactions`、`/positions` 均可在不改 public contract 的前提下对比新旧输出，并通过 targeted unittest 验证 rollout mode 与 parity mismatch 记录。后续仍需补 operator-facing rollback runbook，并在真正换掉 legacy backing store 后用这套护栏做实际对比。任务边界见 `agents/runbooks/kline-phase1-workbreakdown.md` 与 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-027
         status: Doing
         priority: P0
@@ -360,13 +360,13 @@ groups:
         priority: P0
         depends_on: []
         title: 定义跨链资金一致性协议边界与状态机
-        notes: 先收口协议边界，再分实现。已确认：1) `transaction_id` 不连续本身不是异常，只有某笔已 `Reject` 或下游失败的交易仍残留 reserve / total supply / share / 资金副作用，才算真实不一致；2) Linera Wasm 合约里 native `transfer` 失败不可在合约内 catch，也拿不到可恢复的 fail 返回，因此不能依赖“payout fail 回执”修复；3) 跨链消息无法原子，meme 输入链与 pool payout 链之间必须显式建模 pending / success-only completion / user-claim or escrow 类语义，不能继续假设“先入池再异步出款失败可自动回滚”；4) virtual liquidity、真实 reserve、可支付余额三者语义必须一并收口。该任务输出协议定义：哪些阶段可持久化、哪些阶段只能 pending、哪些资金在成功前不得最终归 pool 所有、以及 claim/refund/commit 的幂等边界
+        notes: 先收口协议边界，再分实现。已确认：1) `transaction_id` 不连续本身不是异常，只有某笔已 `Reject` 或下游失败的交易仍残留 reserve / total supply / share / 资金副作用，才算真实不一致；2) Linera Wasm 合约里 native `transfer` 失败不可在合约内 catch，也拿不到可恢复的 fail 返回，因此不能依赖“payout fail 回执”修复；3) 跨链消息无法原子，meme 输入链与 pool payout 链之间必须显式建模 pending / success-only completion / user-claim or escrow 类语义，不能继续假设“先入池再异步出款失败可自动回滚”；4) virtual liquidity、真实 reserve、可支付余额三者语义必须一并收口；5) Linera `tracked + bouncing` 应作为原生的一跳 reject receipt 机制纳入协议设计，用于把“目标链 reject”可靠反馈回源链并收敛 `pending -> failed/refund-ready`，但它只覆盖单跳消息，不能替代多跳业务流程的显式状态机。该任务输出协议定义：哪些阶段可持久化、哪些阶段只能 pending、哪些资金在成功前不得最终归 pool 所有、哪些消息必须 tracked、bounce 回来后如何幂等收敛，以及 claim/refund/commit 的幂等边界
       - id: FUND-002
         status: Todo
         priority: P0
         depends_on: [FUND-001, REV-001]
         title: 按统一协议修复 pool/swap 异步资金闭环
-        notes: 合并原先分散 TODO，一次性覆盖高风险路径：AddLiquidity 双腿部分成功后失败无退款；swap/remove/refund/payout 对下游 meme/native 发放缺少可靠闭环；初始建池路径吞掉下游失败仍持久化成功；`NewTransaction` 或其他后续消息 `Reject` 后仍残留资金/状态副作用。实现目标不是在合约内捕获 host transfer panic，而是让失败最多留下可验证的 pending，不留下错误 finalized 状态，并为成功路径补齐显式确认、幂等键与状态收敛
+        notes: 合并原先分散 TODO，一次性覆盖高风险路径：AddLiquidity 双腿部分成功后失败无退款；swap/remove/refund/payout 对下游 meme/native 发放缺少可靠闭环；初始建池路径吞掉下游失败仍持久化成功；`NewTransaction` 或其他后续消息 `Reject` 后仍残留资金/状态副作用。实现目标不是在合约内捕获 host transfer panic，而是让失败最多留下可验证的 pending，不留下错误 finalized 状态，并为成功路径补齐显式确认、幂等键与状态收敛。实现约束：优先利用 Linera `tracked + bouncing` 承接关键单跳消息的 reject 回执与源链收敛，但不能把它误当成全流程原子回滚；后续 hop 的失败仍必须由业务协议状态机显式处理
       - id: FUND-003
         status: Todo
         priority: P0

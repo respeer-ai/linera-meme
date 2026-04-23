@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+import os
 from pathlib import Path
 
 
@@ -100,6 +101,7 @@ class DummyRequest:
 class FakeDb:
     def __init__(self):
         self.calls = []
+        self.diagnostics = []
 
     def get_kline(self, **kwargs):
         self.calls.append(('get_kline', dict(kwargs)))
@@ -134,6 +136,9 @@ class FakeDb:
     def get_positions(self, *, owner: str, status: str):
         self.calls.append(('get_positions', {'owner': owner, 'status': status}))
         return [{'pool_id': 7, 'owner': owner, 'status': status}]
+
+    def record_diagnostic_event(self, **kwargs):
+        self.diagnostics.append(dict(kwargs))
 
 
 class FakeRepository:
@@ -211,6 +216,22 @@ class ReadModelBridgeTest(unittest.TestCase):
 
 
 class QueryStackApiTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.original_rollout_mode = os.environ.get('KLINE_PRIORITY1_ROLLOUT_MODE')
+        self.original_parity = os.environ.get('KLINE_PRIORITY1_PARITY')
+        os.environ.pop('KLINE_PRIORITY1_ROLLOUT_MODE', None)
+        os.environ.pop('KLINE_PRIORITY1_PARITY', None)
+
+    def tearDown(self):
+        if self.original_rollout_mode is None:
+            os.environ.pop('KLINE_PRIORITY1_ROLLOUT_MODE', None)
+        else:
+            os.environ['KLINE_PRIORITY1_ROLLOUT_MODE'] = self.original_rollout_mode
+        if self.original_parity is None:
+            os.environ.pop('KLINE_PRIORITY1_PARITY', None)
+        else:
+            os.environ['KLINE_PRIORITY1_PARITY'] = self.original_parity
+
     async def test_on_get_kline_uses_phase1_handler_stack(self):
         original_db = kline_module._db
         kline_module._db = FakeDb()
@@ -273,8 +294,62 @@ class QueryStackApiTest(unittest.IsolatedAsyncioTestCase):
         })
         self.assertEqual(combined, [{'transaction_id': 11}, {'transaction_id': 12}])
         self.assertEqual(fake_db.calls[0][0], 'get_transactions')
-        self.assertEqual(fake_db.calls[1][0], 'get_transactions_information')
-        self.assertEqual(fake_db.calls[2], (
-            'get_transactions',
-            {'token_0': None, 'token_1': None, 'start_at': 10, 'end_at': 20},
-        ))
+        self.assertIn(
+            ('get_transactions_information', {'token_0': 'AAA', 'token_1': 'BBB'}),
+            fake_db.calls,
+        )
+        self.assertIn(
+            ('get_transactions', {'token_0': None, 'token_1': None, 'start_at': 10, 'end_at': 20}),
+            fake_db.calls,
+        )
+
+    async def test_priority1_legacy_rollout_mode_uses_legacy_path_only(self):
+        original_db = kline_module._db
+        fake_db = FakeDb()
+        kline_module._db = fake_db
+        os.environ['KLINE_PRIORITY1_ROLLOUT_MODE'] = 'legacy'
+
+        try:
+            response = await kline_module.on_get_positions(
+                owner='chain:owner-a',
+                status='active',
+            )
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response, {
+            'owner': 'chain:owner-a',
+            'positions': [{'pool_id': 7, 'owner': 'chain:owner-a', 'status': 'active'}],
+        })
+        self.assertEqual(fake_db.calls, [
+            ('get_positions', {'owner': 'chain:owner-a', 'status': 'active'}),
+        ])
+
+    async def test_priority1_parity_mismatch_records_diagnostic_event(self):
+        class DivergingDb(FakeDb):
+            def get_positions(self, *, owner: str, status: str):
+                self.calls.append(('get_positions', {'owner': owner, 'status': status}))
+                if len(self.calls) == 1:
+                    return [{'pool_id': 7, 'owner': owner, 'status': status}]
+                return [{'pool_id': 8, 'owner': owner, 'status': status}]
+
+        original_db = kline_module._db
+        fake_db = DivergingDb()
+        kline_module._db = fake_db
+        os.environ['KLINE_PRIORITY1_PARITY'] = '1'
+
+        try:
+            response = await kline_module.on_get_positions(
+                owner='chain:owner-a',
+                status='active',
+            )
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response, {
+            'owner': 'chain:owner-a',
+            'positions': [{'pool_id': 7, 'owner': 'chain:owner-a', 'status': 'active'}],
+        })
+        self.assertEqual(len(fake_db.diagnostics), 1)
+        self.assertEqual(fake_db.diagnostics[0]['source'], 'phase1_parity')
+        self.assertEqual(fake_db.diagnostics[0]['event_type'], 'priority1_mismatch')

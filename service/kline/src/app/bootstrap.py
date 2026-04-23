@@ -1,15 +1,14 @@
-from dataclasses import dataclass
-
 from app.config import KlineAppConfig
+from storage.mysql.connection import MysqlConnectionFactory
+from storage.mysql.raw_repo import RawRepository
 
 
-@dataclass(slots=True)
-class AppContainer:
-    config: KlineAppConfig
-    services: dict[str, object]
-
-
-def build_container(config: KlineAppConfig) -> AppContainer:
-    """Create a minimal service container for phase-1 migration work."""
-    return AppContainer(config=config, services={})
-
+class AppBootstrap:
+    def build_container(self, config: KlineAppConfig) -> dict[str, object]:
+        connection = MysqlConnectionFactory().connect_from_app_config(config)
+        raw_repository = RawRepository(connection)
+        return {
+            'config': config,
+            'connection': connection,
+            'raw_repository': raw_repository,
+        }

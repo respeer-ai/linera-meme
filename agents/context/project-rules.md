@@ -25,6 +25,9 @@ Authority: High
 - Do not treat plan documents as task sources
 - Do not introduce parallel "latest" versions of the same assistant doc
 - If a document is superseded, update or remove it instead of leaving competing copies
+- For newly created or actively refactored Python modules, keep each file at or below 1000 lines
+- For newly created or actively refactored Python modules, define only one top-level object per file
+- Organize new Python code in an object-oriented way; do not keep expanding helper-function clusters in large legacy modules
 - Do not patch frontend display for problems that originate upstream in contracts or data services
 - Do not convert silent handling into hard errors without first auditing all call sites
 - Before changing a silent `Ok(())` or no-op path, classify it as one of:
