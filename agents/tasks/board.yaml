@@ -190,35 +190,35 @@ groups:
         title: 定义 Layer 3 market-data 契约并替换 latestTransactions
         notes: 定义 `settled_trade` 与 `settled_liquidity_change`，明确 K 线只吃标准金融语义下的已成交事件；随后将 `transactions` / `candles` / `positions` / `fees` / `pool` 的上游切换到 Layer 3，并让 `latestTransactions` 退出真相源角色。模块接口见 `agents/primitives/observability-interfaces.md`；字段级表映射和兼容约束见 `agents/runbooks/observability-product-mapping.md`；其余规范见 `agents/primitives/derived-market-state.md`、`agents/runbooks/observability-migration.md` 与 `agents/runbooks/observability-deliverables.md`
       - id: POS-036
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: []
         title: 创建 kline phase-1 新包骨架
-        notes: 按 `agents/primitives/kline-package-layout.md` 创建 phase-1 所需的 `app / integration / storage / ingestion / projection / query / compatibility` 最小骨架，禁止继续把新实现塞回 legacy 平铺结构。范围与验收见 `agents/runbooks/kline-phase1-plan.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
+        notes: 按 `agents/primitives/kline-package-layout.md` 创建 phase-1 所需的 `app / integration / storage / ingestion / projection / query / compatibility` 最小骨架，禁止继续把新实现塞回 legacy 平铺结构。现已落地 phase-1 新目录与最小模块：`app/{config,bootstrap,lifecycle}`、`integration/chain_client.py`、`storage/mysql/{connection,raw_repo,projection_repo}.py`、`ingestion/{coordinator,cursors,anomalies}.py`、`projection/{projector,trades,candles,positions,pools}`、`query/{handlers,read_models,serializers}`、`compatibility/legacy_response_shapes.py`，并通过 `py_compile` 做了最小导入校验。范围与验收见 `agents/runbooks/kline-phase1-plan.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-037
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-032, POS-035, POS-036]
         title: 实现 transactions 与 candles 的 phase-1 read models
-        notes: 围绕 priority-1 endpoint 先落 `transactions` 与 `candles` 的 projection-backed read models，对应 `query.read_models.transactions` 和 `query.read_models.candles`，不允许 handler 内再做 correctness-critical replay。任务边界见 `agents/primitives/kline-api-read-models.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
+        notes: 已先用 `storage.mysql.projection_repo.ProjectionRepository` 把 legacy `Db` 包装进 phase-1 边界，并落地 `query.read_models.transactions` / `query.read_models.candles`、对应 handlers 与 serializers；当前是 bridge 版 read model，已把 `/points` 与 `/transactions` 的 handler 读路径切到新分层，并用 targeted unittest 验证 shape 不变。后续再把底层数据源从 legacy `Db` 查询替换为真正 projection-backed 实现。任务边界见 `agents/primitives/kline-api-read-models.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-038
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-032, POS-035, POS-036]
         title: 实现 positions 的 phase-1 read model
-        notes: 先落 `query.read_models.positions` 所需的 position basis 与 pool state 投影，使 `/positions` 摆脱 handler 内历史重放；`/position-metrics` 暂不在本任务切换。任务边界见 `agents/primitives/kline-api-read-models.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
+        notes: 已先落 `query.read_models.positions`、对应 handler 与 serializer，并把 `/positions` 切到新查询栈；当前仍通过 `ProjectionRepository` 桥接 legacy `Db.get_positions`，确保 API shape 保持不变，`/position-metrics` 仍暂不切换。后续再将 positions 的 backing source 从 legacy 聚合查询替换为真正的 phase-1 projection/read-store。任务边界见 `agents/primitives/kline-api-read-models.md`、`agents/runbooks/kline-phase1-workbreakdown.md` 和 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-039
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-037]
         title: 切换 points 与 transactions handlers 到新 read models
-        notes: 将 `/points/...`、`/points/.../information`、`/transactions/...`、`/transactions/information` 切到 `query.handlers.* + query.serializers.* + compatibility` 组合，不再从 legacy monolith 直接承载 correctness 逻辑。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
+        notes: 已完成第一步 cutover：`/points/...`、`/points/.../information`、`/transactions/...`、`/transactions/information` 现通过 `query.handlers.* + query.serializers.* + compatibility` 组合读数据，不再直接在 endpoint 函数里调用 legacy `Db`。当前 correctness 仍由 bridge 到 legacy query 承载，下一步是在不改 public contract 的前提下替换到底层 projection/read-store。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-040
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [POS-038]
         title: 切换 positions handler 到新 read model
-        notes: 将 `/positions` 切到 `query.handlers.positions` 和 `query.serializers.positions`，保持现有 API shape，但移除 legacy handler 内的 correctness-critical 聚合逻辑。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
+        notes: `/positions` 已切到 `query.handlers.positions` 和 `query.serializers.positions`，现由新 read model 返回 owner envelope，API shape 与现有测试保持一致。当前仍通过 bridge 复用 legacy `Db.get_positions`，后续再替换为 phase-1 projection/read-store。范围见 `agents/runbooks/kline-phase1-plan.md` 与 `agents/runbooks/kline-phase1-checklists.md`
       - id: POS-041
         status: Todo
         priority: P0

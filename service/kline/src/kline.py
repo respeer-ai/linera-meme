@@ -15,6 +15,16 @@ from subscription import WebSocketManager
 from ticker import Ticker
 from db import Db, align_timestamp_to_minute_ms
 from request_trace import build_api_request_log_line, build_api_trace_context
+from storage.mysql.projection_repo import ProjectionRepository
+from query.read_models.candles import CandlesReadModel
+from query.read_models.transactions import TransactionsReadModel
+from query.read_models.positions import PositionsReadModel
+from query.handlers.kline import KlineHandler
+from query.handlers.transactions import TransactionsHandler
+from query.handlers.positions import PositionsHandler
+from query.serializers.kline import KlineSerializer
+from query.serializers.transactions import TransactionsSerializer
+from query.serializers.positions import PositionsSerializer
 
 
 app = FastAPI()
@@ -25,6 +35,27 @@ _ticker_task = None
 _db = None
 _ticker_db = None
 _db_config = None
+
+
+def _build_projection_repository():
+    if _db is None:
+        raise RuntimeError('Db client is not initialized')
+    return ProjectionRepository(_db)
+
+
+def _build_kline_handler() -> KlineHandler:
+    repository = _build_projection_repository()
+    return KlineHandler(CandlesReadModel(repository), KlineSerializer())
+
+
+def _build_transactions_handler() -> TransactionsHandler:
+    repository = _build_projection_repository()
+    return TransactionsHandler(TransactionsReadModel(repository), TransactionsSerializer())
+
+
+def _build_positions_handler() -> PositionsHandler:
+    repository = _build_projection_repository()
+    return PositionsHandler(PositionsReadModel(repository), PositionsSerializer())
 
 
 async def _default_position_metrics_fetcher(position: dict):
@@ -264,7 +295,7 @@ async def on_get_kline(
     ))
 
     try:
-        (response_pool_id, response_pool_application, token_0, token_1, points) = _db.get_kline(
+        payload = _build_kline_handler().get_points(
             token_0=token0,
             token_1=token1,
             start_at=start_at,
@@ -273,6 +304,11 @@ async def on_get_kline(
             pool_id=pool_id,
             pool_application=pool_application,
         )
+        response_pool_id = payload['pool_id']
+        response_pool_application = payload['pool_application']
+        token_0 = payload['token_0']
+        token_1 = payload['token_1']
+        points = payload['points']
     except Exception as e:
         print(f'Failed get kline: {e}')
     finally:
@@ -306,7 +342,7 @@ async def on_get_kline_information(
     pool_application: str | None = Query(default=None),
 ):
     try:
-        return _db.get_kline_information(
+        return _build_kline_handler().get_information(
             token_0=token0,
             token_1=token1,
             interval=interval,
@@ -323,18 +359,28 @@ async def on_get_kline_information(
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}')
 async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int):
-    return _db.get_transactions(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at)
+    return _build_transactions_handler().get_transactions(
+        token_0=token0,
+        token_1=token1,
+        start_at=start_at,
+        end_at=end_at,
+    )
 
 
 @app.get('/transactions/start_at/{start_at}/end_at/{end_at}')
 async def on_get_combined_transactions(start_at: int, end_at: int):
-    return _db.get_transactions(token_0=None, token_1=None, start_at=start_at, end_at=end_at)
+    return _build_transactions_handler().get_transactions(
+        token_0=None,
+        token_1=None,
+        start_at=start_at,
+        end_at=end_at,
+    )
 
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/information')
 async def on_get_transactions_information(token0: str, token1: str):
     try:
-        return _db.get_transactions_information(token_0=token0, token_1=token1)
+        return _build_transactions_handler().get_information(token_0=token0, token_1=token1)
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
@@ -346,7 +392,7 @@ async def on_get_transactions_information(token0: str, token1: str):
 @app.get('/transactions/information')
 async def on_get_combined_transactions_information():
     try:
-        return _db.get_transactions_information(token_0=None, token_1=None)
+        return _build_transactions_handler().get_information(token_0=None, token_1=None)
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
@@ -361,10 +407,7 @@ async def on_get_positions(
     status: str = Query(default='active'),
 ):
     try:
-        return {
-            'owner': owner,
-            'positions': _db.get_positions(owner=owner, status=status),
-        }
+        return _build_positions_handler().get_positions(owner=owner, status=status)
     except ValueError as e:
         return JSONResponse(
             status_code=400,

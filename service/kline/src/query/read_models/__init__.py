@@ -1,0 +1,1 @@
+"""Projection-backed read models."""
