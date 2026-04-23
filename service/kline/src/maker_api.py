@@ -29,11 +29,11 @@ def now_ms() -> int:
 def build_wallet_host(index: int) -> str:
     template = str(_config.get('wallet_host_template') or '').strip()
     if template == '':
-        return f'maker-wallet-service-{index}.maker-wallet-service'
+        return sanitize_wallet_host(f'maker-wallet-service-{index}.maker-wallet-service')
 
     for placeholder in ('{index}', '${index}', '{{index}}'):
         if placeholder in template:
-            return template.replace(placeholder, str(index))
+            return sanitize_wallet_host(template.replace(placeholder, str(index)))
 
     malformed_match = re.match(r'^(.*)\{index(?:\.([^}]+))?\}(.*)$', template)
     if malformed_match is not None:
@@ -42,12 +42,29 @@ def build_wallet_host(index: int) -> str:
         if embedded_suffix:
             suffix = embedded_suffix if embedded_suffix.startswith(('.', ':', '/')) else f'.{embedded_suffix}'
             suffix += trailing_suffix
-        return f'{prefix}{index}{suffix}'
+        return sanitize_wallet_host(f'{prefix}{index}{suffix}')
 
     try:
-        return template.format(index=index)
+        return sanitize_wallet_host(template.format(index=index))
     except Exception:
-        return template
+        return sanitize_wallet_host(template)
+
+
+def sanitize_wallet_host(host: str) -> str:
+    trimmed = str(host or '').strip().strip('{}')
+    if trimmed == '':
+        return ''
+
+    labels = []
+    for raw_label in trimmed.split('.'):
+        label = raw_label.strip().strip('{}')
+        if label == '':
+            continue
+        if len(labels) > 0 and labels[-1] == label:
+            continue
+        labels.append(label)
+
+    return '.'.join(labels)
 
 
 def build_wallet_rpc_url(index: int) -> str:
@@ -189,8 +206,7 @@ async def fetch_wallet_balances(index: int, descriptor: dict):
     url = build_wallet_rpc_url(index)
 
     try:
-        response = await async_request.post(url=url, json=payload, timeout=(3, 10))
-        payload_json = response.json() if response.text else {}
+        response, payload_json = await post_wallet_query(index, payload, timeout=(3, 10))
         if response.ok is not True:
             return {
                 'reachable': False,
@@ -220,6 +236,124 @@ async def fetch_wallet_balances(index: int, descriptor: dict):
             'chain_balance': chain_balance,
             'owner_balance': owner_balance,
             'total_balance': chain_balance + owner_balance,
+        }
+    except Exception as e:
+        return {
+            'reachable': False,
+            'status_code': None,
+            'error': str(e),
+            'wallet_url': url,
+        }
+
+
+async def post_wallet_query(index: int, payload: dict, timeout=(3, 10)):
+    url = build_wallet_rpc_url(index)
+    response = await async_request.post(url=url, json=payload, timeout=timeout)
+    payload_json = response.json() if response.text else {}
+    return response, payload_json
+
+
+async def fetch_wallet_block(index: int, chain_id: str, block_hash: str):
+    payload = {
+        'query': (
+            'query {'
+            f' block(chainId: "{chain_id}", hash: "{block_hash}") {{'
+            '  hash'
+            '  status'
+            '  block {'
+            '   header {'
+            '    chainId'
+            '    height'
+            '    timestamp'
+            '    previousBlockHash'
+            '   }'
+            '   body {'
+            '    messages {'
+            '     destination'
+            '     authenticatedSigner'
+            '     kind'
+            '     grant'
+            '     message'
+            '    }'
+            '   }'
+            '  }'
+            ' }'
+            '}'
+        )
+    }
+    url = build_wallet_rpc_url(index)
+
+    try:
+        response, payload_json = await post_wallet_query(index, payload, timeout=(3, 10))
+        if response.ok is not True:
+            return {
+                'reachable': False,
+                'status_code': response.status_code,
+                'error': f'HTTP {response.status_code}',
+                'wallet_url': url,
+            }
+        if 'errors' in payload_json:
+            return {
+                'reachable': False,
+                'status_code': response.status_code,
+                'error': payload_json['errors'],
+                'wallet_url': url,
+            }
+        return {
+            'reachable': True,
+            'status_code': response.status_code,
+            'wallet_url': url,
+            'block': payload_json.get('data', {}).get('block'),
+        }
+    except Exception as e:
+        return {
+            'reachable': False,
+            'status_code': None,
+            'error': str(e),
+            'wallet_url': url,
+        }
+
+
+async def fetch_wallet_pending_messages(index: int, chain_id: str):
+    payload = {
+        'query': (
+            'query {'
+            f' pendingMessages(chainId: "{chain_id}") {{'
+            '  action'
+            '  origin'
+            '  bundle {'
+            '   certificateHash'
+            '   height'
+            '   timestamp'
+            '   transactionIndex'
+            '  }'
+            ' }'
+            '}'
+        )
+    }
+    url = build_wallet_rpc_url(index)
+
+    try:
+        response, payload_json = await post_wallet_query(index, payload, timeout=(3, 10))
+        if response.ok is not True:
+            return {
+                'reachable': False,
+                'status_code': response.status_code,
+                'error': f'HTTP {response.status_code}',
+                'wallet_url': url,
+            }
+        if 'errors' in payload_json:
+            return {
+                'reachable': False,
+                'status_code': response.status_code,
+                'error': payload_json['errors'],
+                'wallet_url': url,
+            }
+        return {
+            'reachable': True,
+            'status_code': response.status_code,
+            'wallet_url': url,
+            'pending_messages': payload_json.get('data', {}).get('pendingMessages'),
         }
     except Exception as e:
         return {
@@ -377,6 +511,53 @@ async def on_get_debug_wallet_balances(index: int):
         return {
             'index': index,
             'balances': await fetch_wallet_balances(index, descriptor),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/wallets/{index}/block')
+async def on_get_debug_wallet_block(index: int, chain_id: str, block_hash: str):
+    try:
+        if index < 0 or index >= int(_config['maker_replicas']):
+            raise ValueError('wallet index out of range')
+
+        return {
+            'index': index,
+            'chain_id': chain_id,
+            'block_hash': block_hash,
+            'result': await fetch_wallet_block(index=index, chain_id=chain_id, block_hash=block_hash),
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/wallets/{index}/pending-messages')
+async def on_get_debug_wallet_pending_messages(index: int, chain_id: str):
+    try:
+        if index < 0 or index >= int(_config['maker_replicas']):
+            raise ValueError('wallet index out of range')
+
+        return {
+            'index': index,
+            'chain_id': chain_id,
+            'result': await fetch_wallet_pending_messages(index=index, chain_id=chain_id),
         }
     except ValueError as e:
         return JSONResponse(

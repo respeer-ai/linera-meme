@@ -134,6 +134,16 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
             'maker-wallet-service-2.maker-wallet-service',
         )
 
+    async def test_build_wallet_host_strips_duplicate_suffix_and_trailing_brace(self):
+        maker_api_module._config.update({
+            'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service.maker-wallet-service}',
+        })
+
+        self.assertEqual(
+            maker_api_module.build_wallet_host(0),
+            'maker-wallet-service-0.maker-wallet-service',
+        )
+
     async def test_on_get_debug_wallets_returns_wallet_metrics_and_balances(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             state_path = os.path.join(tmpdir, 'MAKER_WALLET_CHAIN_OWNER.0')
@@ -272,3 +282,56 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(trace['request_payload'])
         self.assertIsNone(trace['response_body'])
         self.assertIsNone(trace['details'])
+
+    async def test_on_get_debug_wallet_block_queries_specific_wallet(self):
+        maker_api_module._config.update({
+            'maker_replicas': 3,
+            'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service',
+            'wallet_rpc_port': 8080,
+        })
+
+        async def fake_post(url, json, **_kwargs):
+            self.assertEqual(url, 'http://maker-wallet-service-1.maker-wallet-service:8080')
+            self.assertIn('block(chainId: "chain-a", hash: "hash-a")', json['query'])
+            return FakeResponse(
+                text='{"data":{"block":{"hash":"hash-a","status":"confirmed","block":{"header":{"chainId":"chain-a","height":"7","timestamp":123,"previousBlockHash":"prev"},"body":{"messages":[]}}}}}'
+            )
+
+        maker_api_module.async_request.post = fake_post
+
+        response = await maker_api_module.on_get_debug_wallet_block(
+            index=1,
+            chain_id='chain-a',
+            block_hash='hash-a',
+        )
+
+        self.assertEqual(response['index'], 1)
+        self.assertEqual(response['result']['reachable'], True)
+        self.assertEqual(response['result']['block']['hash'], 'hash-a')
+        self.assertEqual(response['result']['block']['status'], 'confirmed')
+
+    async def test_on_get_debug_wallet_pending_messages_queries_specific_wallet(self):
+        maker_api_module._config.update({
+            'maker_replicas': 3,
+            'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service',
+            'wallet_rpc_port': 8080,
+        })
+
+        async def fake_post(url, json, **_kwargs):
+            self.assertEqual(url, 'http://maker-wallet-service-2.maker-wallet-service:8080')
+            self.assertIn('pendingMessages(chainId: "chain-pool")', json['query'])
+            return FakeResponse(
+                text='{"data":{"pendingMessages":[{"action":"Accept","origin":"chain-src","bundle":{"certificateHash":"hash-b","height":"9","timestamp":456,"transactionIndex":0}}]}}'
+            )
+
+        maker_api_module.async_request.post = fake_post
+
+        response = await maker_api_module.on_get_debug_wallet_pending_messages(
+            index=2,
+            chain_id='chain-pool',
+        )
+
+        self.assertEqual(response['index'], 2)
+        self.assertEqual(response['result']['reachable'], True)
+        self.assertEqual(len(response['result']['pending_messages']), 1)
+        self.assertEqual(response['result']['pending_messages'][0]['bundle']['certificateHash'], 'hash-b')
