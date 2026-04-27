@@ -36,6 +36,9 @@ fastapi_stub = types.ModuleType('fastapi')
 
 
 class DummyFastAPI:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
     def get(self, *_args, **_kwargs):
         return lambda fn: fn
 
@@ -96,6 +99,16 @@ class FakeDb:
         self.watermarks = watermarks or {}
         self.maker_events = maker_events or []
         self.traces = traces or []
+        self.debug_trace_storage = {
+            'table': 'debug_traces',
+            'table_bytes': 1024,
+            'max_bytes': 2048,
+            'usage_ratio': 0.5,
+            'over_budget': False,
+            'last_cleanup_at_ms': 0,
+            'storage_degraded': False,
+            'retention': {'max_bytes': 2048},
+        }
 
     def get_pool_catalog(self):
         return list(self.pool_catalog)
@@ -109,16 +122,21 @@ class FakeDb:
     def get_debug_traces(self, **_kwargs):
         return list(self.traces)
 
+    def get_debug_trace_storage_status(self):
+        return dict(self.debug_trace_storage)
+
 
 class MakerApiTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.original_db = maker_api_module._db
+        self.original_runtime = maker_api_module._runtime
         self.original_config = dict(maker_api_module._config)
         self.original_get = maker_api_module.async_request.get
         self.original_post = maker_api_module.async_request.post
 
     async def asyncTearDown(self):
         maker_api_module._db = self.original_db
+        maker_api_module._runtime = self.original_runtime
         maker_api_module._config.clear()
         maker_api_module._config.update(self.original_config)
         maker_api_module.async_request.get = self.original_get
@@ -233,6 +251,39 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stalled_pool['latest_db_transaction']['transaction_id'], 7)
         self.assertEqual(stalled_pool['latest_wallet_trace']['trace_id'], 9)
 
+    async def test_on_get_debug_trader_includes_cycle_snapshot(self):
+        class FakeRuntime:
+            def status(self):
+                return {
+                    'enabled': True,
+                    'running': True,
+                    'started_at_ms': 1,
+                    'last_iteration_started_at_ms': 2,
+                    'last_iteration_finished_at_ms': 3,
+                    'last_sleep_seconds': 4.0,
+                    'last_trade_duration_ms': 5,
+                    'last_error': None,
+                    'last_error_at_ms': None,
+                    'consecutive_failures': 0,
+                    'iterations': 6,
+                    'reason': 'queued_waiting_for_flush_window',
+                    'cycle': {
+                        'reason': 'queued_waiting_for_flush_window',
+                        'pool_count': 3,
+                        'planned_trade_count': 1,
+                    },
+                }
+
+        maker_api_module._runtime = FakeRuntime()
+
+        response = await maker_api_module.on_get_debug_trader()
+
+        self.assertTrue(response['enabled'])
+        self.assertTrue(response['running'])
+        self.assertEqual(response['iterations'], 6)
+        self.assertEqual(response['cycle']['reason'], 'queued_waiting_for_flush_window')
+        self.assertEqual(response['cycle']['planned_trade_count'], 1)
+
     async def test_on_get_debug_traces_defaults_to_lightweight_response(self):
         class TraceDb(FakeDb):
             def get_debug_traces(self, **kwargs):
@@ -272,3 +323,47 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(trace['request_payload'])
         self.assertIsNone(trace['response_body'])
         self.assertIsNone(trace['details'])
+
+    async def test_on_get_debug_traces_can_include_storage_status(self):
+        maker_api_module._db = FakeDb(
+            traces=[{
+                'trace_id': 12,
+                'created_at': 2234,
+            }],
+        )
+        maker_api_module._db.debug_trace_storage = {
+            'table': 'debug_traces',
+            'table_bytes': 4096,
+            'max_bytes': 8192,
+            'usage_ratio': 0.5,
+            'over_budget': False,
+            'last_cleanup_at_ms': 333,
+            'storage_degraded': False,
+            'retention': {'max_bytes': 8192},
+        }
+
+        response = await maker_api_module.on_get_debug_traces(limit=10, include_storage=True)
+
+        self.assertEqual(response, {
+            'traces': [{'trace_id': 12, 'created_at': 2234}],
+            'storage': maker_api_module._db.debug_trace_storage,
+        })
+
+    async def test_on_get_debug_storage_exports_storage_status(self):
+        maker_api_module._db = FakeDb()
+        maker_api_module._db.debug_trace_storage = {
+            'table': 'debug_traces',
+            'table_bytes': 1024,
+            'max_bytes': 2048,
+            'usage_ratio': 0.5,
+            'over_budget': False,
+            'last_cleanup_at_ms': 0,
+            'storage_degraded': False,
+            'retention': {'max_bytes': 2048},
+        }
+
+        response = await maker_api_module.on_get_debug_storage()
+
+        self.assertEqual(response, {
+            'debug_traces': maker_api_module._db.debug_trace_storage,
+        })

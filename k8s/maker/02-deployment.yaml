@@ -180,6 +180,22 @@ spec:
           value: "8082"
         - name: WALLET_MEMORY_LIMIT_BYTES
           value: "1610612736"
+        - name: KLINE_DEBUG_TRACES_MAX_BYTES
+          value: "1073741824"
+        - name: KLINE_DEBUG_TRACES_CLEANUP_INTERVAL_MS
+          value: "300000"
+        - name: KLINE_DEBUG_TRACES_RECENT_FULL_MS
+          value: "21600000"
+        - name: KLINE_DEBUG_TRACES_SUCCESS_RETENTION_MS
+          value: "604800000"
+        - name: KLINE_DEBUG_TRACES_FAILURE_RETENTION_MS
+          value: "1209600000"
+        - name: KLINE_DEBUG_TRACES_SUCCESS_SAMPLE_MOD
+          value: "25"
+        - name: KLINE_DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD
+          value: "100"
+        - name: KLINE_DEBUG_TRACES_CLEANUP_BATCH_SIZE
+          value: "2000"
         volumeMounts:
         - name: shared-app-data
           mountPath: /shared-app-data

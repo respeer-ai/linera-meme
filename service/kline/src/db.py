@@ -3,6 +3,7 @@ from swap import Transaction, Pool
 import time
 import warnings
 import json
+import os
 from decimal import Decimal
 from candle_schema import (
     INTERVAL_BUCKET_MS,
@@ -140,6 +141,34 @@ def build_legacy_pool_application_value(pool_id: int) -> str:
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
     TABLE_FULL_ERRNO = 1114
+    DEBUG_TRACES_MAX_BYTES = 1024 * 1024 * 1024
+    DEBUG_TRACES_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
+    DEBUG_TRACES_RECENT_FULL_MS = 6 * 60 * 60 * 1000
+    DEBUG_TRACES_SUCCESS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+    DEBUG_TRACES_FAILURE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
+    DEBUG_TRACES_SUCCESS_SAMPLE_MOD = 25
+    DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD = 100
+    DEBUG_TRACES_CLEANUP_BATCH_SIZE = 2000
+    DEBUG_TRACES_SUCCESS_FIELD_LIMITS = {
+        'request_payload': 16 * 1024,
+        'response_body': 32 * 1024,
+        'details': 16 * 1024,
+    }
+    DEBUG_TRACES_FAILURE_FIELD_LIMITS = {
+        'request_payload': 64 * 1024,
+        'response_body': 128 * 1024,
+        'details': 64 * 1024,
+    }
+    DEBUG_TRACES_ARCHIVED_SUCCESS_FIELD_LIMITS = {
+        'request_payload': 2 * 1024,
+        'response_body': 4 * 1024,
+        'details': 2 * 1024,
+    }
+    DEBUG_TRACES_ARCHIVED_FAILURE_FIELD_LIMITS = {
+        'request_payload': 16 * 1024,
+        'response_body': 32 * 1024,
+        'details': 16 * 1024,
+    }
 
     def __init__(self, host, port, db_name, username, password, clean_kline):
         self.host = host
@@ -169,6 +198,8 @@ class Db:
         self.diagnostics_table = 'diagnostics'
         self.debug_traces_table = 'debug_traces'
         self.debug_storage_degraded_tables = set()
+        self.last_debug_trace_cleanup_at_ms = 0
+        self._load_debug_trace_runtime_config()
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -318,6 +349,58 @@ class Db:
         self.ensure_kline_columns()
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
+
+    def _read_int_env(self, env_name: str, default_value: int) -> int:
+        raw_value = os.getenv(env_name)
+        if raw_value is None or str(raw_value).strip() == '':
+            return int(default_value)
+        try:
+            return int(str(raw_value).strip())
+        except ValueError:
+            self.log_kline_event(
+                'debug_trace_config_invalid',
+                env=env_name,
+                value=raw_value,
+                fallback=default_value,
+            )
+            return int(default_value)
+
+    def _load_debug_trace_runtime_config(self):
+        self.DEBUG_TRACES_MAX_BYTES = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_MAX_BYTES', self.DEBUG_TRACES_MAX_BYTES),
+            1024 * 1024,
+        )
+        self.DEBUG_TRACES_CLEANUP_INTERVAL_MS = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_CLEANUP_INTERVAL_MS', self.DEBUG_TRACES_CLEANUP_INTERVAL_MS),
+            1000,
+        )
+        self.DEBUG_TRACES_RECENT_FULL_MS = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_RECENT_FULL_MS', self.DEBUG_TRACES_RECENT_FULL_MS),
+            60 * 1000,
+        )
+        self.DEBUG_TRACES_SUCCESS_RETENTION_MS = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_SUCCESS_RETENTION_MS', self.DEBUG_TRACES_SUCCESS_RETENTION_MS),
+            self.DEBUG_TRACES_RECENT_FULL_MS,
+        )
+        self.DEBUG_TRACES_FAILURE_RETENTION_MS = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_FAILURE_RETENTION_MS', self.DEBUG_TRACES_FAILURE_RETENTION_MS),
+            self.DEBUG_TRACES_SUCCESS_RETENTION_MS,
+        )
+        self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_SUCCESS_SAMPLE_MOD', self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD),
+            1,
+        )
+        self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD = max(
+            self._read_int_env(
+                'KLINE_DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD',
+                self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD,
+            ),
+            self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD,
+        )
+        self.DEBUG_TRACES_CLEANUP_BATCH_SIZE = max(
+            self._read_int_env('KLINE_DEBUG_TRACES_CLEANUP_BATCH_SIZE', self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
+            1,
+        )
 
     def _reconnect_read_connection(self):
         for cursor_name in ('cursor_dict', 'cursor'):
@@ -510,7 +593,14 @@ class Db:
         pool_id: int | None = None,
         details: dict | None = None,
     ):
-        self._run_debug_write(
+        trace_values = self._prepare_debug_trace_values(
+            request_payload=request_payload,
+            response_status=response_status,
+            response_body=response_body,
+            error=error,
+            details=details,
+        )
+        wrote_trace = self._run_debug_write(
             table_name=self.debug_traces_table,
             operation='insert',
             callback=lambda: self.cursor.execute(
@@ -543,15 +633,19 @@ class Db:
                     pool_application,
                     None if pool_id is None else int(pool_id),
                     request_url,
-                    serialize_trace_value(request_payload),
+                    trace_values['request_payload'],
                     None if response_status is None else int(response_status),
-                    serialize_trace_value(response_body),
+                    trace_values['response_body'],
                     error,
-                    serialize_trace_value(details),
+                    trace_values['details'],
                     self.now_ms(),
                 ),
             ),
         )
+        if wrote_trace is False:
+            self._maybe_cleanup_debug_traces(force=True)
+            return
+        self._maybe_cleanup_debug_traces()
 
     def get_debug_traces(
         self,
@@ -777,6 +871,370 @@ class Db:
             f'CREATE INDEX {index_name} ON {table_name} ({", ".join(expected_columns)})'
         )
         self.connection.commit()
+
+    def _is_failure_trace(self, response_status: int | None, error: str | None) -> bool:
+        if error is not None:
+            return True
+        if response_status is None:
+            return False
+        return int(response_status) >= 400
+
+    def _clip_trace_text(self, value: str | None, max_bytes: int, field_name: str) -> str | None:
+        if value is None:
+            return None
+
+        encoded = value.encode('utf-8')
+        if len(encoded) <= max_bytes:
+            return value
+
+        suffix = f'...[truncated {len(encoded) - max_bytes} bytes from {field_name}]'
+        suffix_bytes = suffix.encode('utf-8')
+        if len(suffix_bytes) >= max_bytes:
+            return suffix_bytes[:max_bytes].decode('utf-8', errors='ignore')
+
+        prefix_bytes = encoded[:max_bytes - len(suffix_bytes)]
+        prefix = prefix_bytes.decode('utf-8', errors='ignore')
+        return f'{prefix}{suffix}'
+
+    def _serialize_and_clip_trace_value(self, value, max_bytes: int, field_name: str) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return self._clip_trace_text(value, max_bytes, field_name)
+
+        serialized = serialize_trace_value(value)
+        if serialized is None:
+            return None
+        encoded = serialized.encode('utf-8')
+        if len(encoded) <= max_bytes:
+            return serialized
+
+        preview = self._clip_trace_text(
+            serialized,
+            max(256, min(max_bytes // 2, 4096)),
+            field_name,
+        )
+        return json.dumps(
+            {
+                '_truncated': True,
+                '_field': field_name,
+                '_original_bytes': len(encoded),
+                '_preview': preview,
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+        )
+
+    def _get_trace_field_limits(
+        self,
+        *,
+        is_failure: bool,
+        archived: bool = False,
+        hard_pressure: bool = False,
+    ) -> dict[str, int]:
+        if archived:
+            limits = (
+                self.DEBUG_TRACES_ARCHIVED_FAILURE_FIELD_LIMITS
+                if is_failure
+                else self.DEBUG_TRACES_ARCHIVED_SUCCESS_FIELD_LIMITS
+            )
+        else:
+            limits = (
+                self.DEBUG_TRACES_FAILURE_FIELD_LIMITS
+                if is_failure
+                else self.DEBUG_TRACES_SUCCESS_FIELD_LIMITS
+            )
+
+        if hard_pressure is False:
+            return limits
+
+        return {
+            field_name: max(512, int(limit // 2))
+            for field_name, limit in limits.items()
+        }
+
+    def _prepare_debug_trace_values(
+        self,
+        *,
+        request_payload,
+        response_status: int | None,
+        response_body,
+        error: str | None,
+        details,
+        archived: bool = False,
+        hard_pressure: bool = False,
+    ) -> dict[str, str | None]:
+        is_failure = self._is_failure_trace(response_status, error)
+        limits = self._get_trace_field_limits(
+            is_failure=is_failure,
+            archived=archived,
+            hard_pressure=hard_pressure,
+        )
+        return {
+            'request_payload': self._serialize_and_clip_trace_value(
+                request_payload,
+                limits['request_payload'],
+                'request_payload',
+            ),
+            'response_body': self._serialize_and_clip_trace_value(
+                response_body,
+                limits['response_body'],
+                'response_body',
+            ),
+            'details': self._serialize_and_clip_trace_value(
+                details,
+                limits['details'],
+                'details',
+            ),
+        }
+
+    def _get_debug_trace_table_bytes(self) -> int:
+        self.cursor_dict.execute(
+            '''
+                SELECT COALESCE(DATA_LENGTH + INDEX_LENGTH, 0) AS table_bytes
+                FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
+            ''',
+            (self.db_name, self.debug_traces_table),
+        )
+        row = self.cursor_dict.fetchone()
+        if row is None:
+            return 0
+        value = row['table_bytes'] if isinstance(row, dict) else row[0]
+        return 0 if value is None else int(value)
+
+    def get_debug_trace_retention_config(self) -> dict:
+        return {
+            'max_bytes': int(self.DEBUG_TRACES_MAX_BYTES),
+            'cleanup_interval_ms': int(self.DEBUG_TRACES_CLEANUP_INTERVAL_MS),
+            'recent_full_ms': int(self.DEBUG_TRACES_RECENT_FULL_MS),
+            'success_retention_ms': int(self.DEBUG_TRACES_SUCCESS_RETENTION_MS),
+            'failure_retention_ms': int(self.DEBUG_TRACES_FAILURE_RETENTION_MS),
+            'success_sample_mod': int(self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD),
+            'hard_pressure_success_sample_mod': int(self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD),
+            'cleanup_batch_size': int(self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
+            'success_field_limits': dict(self.DEBUG_TRACES_SUCCESS_FIELD_LIMITS),
+            'failure_field_limits': dict(self.DEBUG_TRACES_FAILURE_FIELD_LIMITS),
+            'archived_success_field_limits': dict(self.DEBUG_TRACES_ARCHIVED_SUCCESS_FIELD_LIMITS),
+            'archived_failure_field_limits': dict(self.DEBUG_TRACES_ARCHIVED_FAILURE_FIELD_LIMITS),
+        }
+
+    def get_debug_trace_storage_status(self) -> dict:
+        table_bytes = self._get_debug_trace_table_bytes()
+        max_bytes = int(self.DEBUG_TRACES_MAX_BYTES)
+        usage_ratio = 0.0 if max_bytes <= 0 else round(table_bytes / max_bytes, 6)
+        return {
+            'table': self.debug_traces_table,
+            'table_bytes': table_bytes,
+            'table_mib': round(table_bytes / 1024 / 1024, 4),
+            'max_bytes': max_bytes,
+            'max_mib': round(max_bytes / 1024 / 1024, 4),
+            'usage_ratio': usage_ratio,
+            'over_budget': table_bytes > max_bytes,
+            'last_cleanup_at_ms': int(self.last_debug_trace_cleanup_at_ms or 0),
+            'storage_degraded': self.debug_traces_table in self.debug_storage_degraded_tables,
+            'retention': self.get_debug_trace_retention_config(),
+        }
+
+    def _compact_debug_trace_rows(
+        self,
+        *,
+        failure_only: bool,
+        older_than_ms: int,
+        hard_pressure: bool = False,
+    ) -> int:
+        where_clause = (
+            '(error IS NOT NULL OR response_status >= 400)'
+            if failure_only
+            else '(error IS NULL AND (response_status IS NULL OR response_status < 400))'
+        )
+        self.cursor_dict.execute(
+            f'''
+                SELECT trace_id, request_payload, response_status, response_body, error, details
+                FROM {self.debug_traces_table}
+                WHERE created_at < %s
+                AND {where_clause}
+                ORDER BY trace_id ASC
+                LIMIT %s
+            ''',
+            (int(older_than_ms), self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
+        )
+        rows = self.cursor_dict.fetchall()
+        updated_count = 0
+        for row in rows:
+            clipped = self._prepare_debug_trace_values(
+                request_payload=row['request_payload'],
+                response_status=row['response_status'],
+                response_body=row['response_body'],
+                error=row['error'],
+                details=row['details'],
+                archived=True,
+                hard_pressure=hard_pressure,
+            )
+            if (
+                clipped['request_payload'] == row['request_payload']
+                and clipped['response_body'] == row['response_body']
+                and clipped['details'] == row['details']
+            ):
+                continue
+
+            self.cursor.execute(
+                f'''
+                    UPDATE {self.debug_traces_table}
+                    SET request_payload = %s, response_body = %s, details = %s
+                    WHERE trace_id = %s
+                ''',
+                (
+                    clipped['request_payload'],
+                    clipped['response_body'],
+                    clipped['details'],
+                    int(row['trace_id']),
+                ),
+            )
+            updated_count += 1
+
+        if updated_count > 0:
+            self.connection.commit()
+        return updated_count
+
+    def _delete_expired_debug_traces(self, *, older_than_ms: int) -> int:
+        self.cursor.execute(
+            f'''
+                DELETE FROM {self.debug_traces_table}
+                WHERE created_at < %s
+                ORDER BY trace_id ASC
+                LIMIT %s
+            ''',
+            (int(older_than_ms), self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
+        )
+        deleted_count = int(self.cursor.rowcount)
+        if deleted_count > 0:
+            self.connection.commit()
+        return deleted_count
+
+    def _delete_sampled_success_debug_traces(
+        self,
+        *,
+        older_than_ms: int,
+        sample_mod: int,
+    ) -> int:
+        self.cursor.execute(
+            f'''
+                DELETE FROM {self.debug_traces_table}
+                WHERE created_at < %s
+                AND error IS NULL
+                AND (response_status IS NULL OR response_status < 400)
+                AND MOD(trace_id, %s) != 0
+                ORDER BY trace_id ASC
+                LIMIT %s
+            ''',
+            (
+                int(older_than_ms),
+                int(sample_mod),
+                self.DEBUG_TRACES_CLEANUP_BATCH_SIZE,
+            ),
+        )
+        deleted_count = int(self.cursor.rowcount)
+        if deleted_count > 0:
+            self.connection.commit()
+        return deleted_count
+
+    def _optimize_debug_traces_table(self):
+        self.cursor.execute(f'OPTIMIZE TABLE {self.debug_traces_table}')
+        self.connection.commit()
+
+    def _enforce_debug_trace_storage_budget(self, *, force: bool = False):
+        now_ms = self.now_ms()
+        if force is False and (
+            now_ms - self.last_debug_trace_cleanup_at_ms < self.DEBUG_TRACES_CLEANUP_INTERVAL_MS
+        ):
+            return
+        self.last_debug_trace_cleanup_at_ms = now_ms
+
+        table_bytes = self._get_debug_trace_table_bytes()
+        if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
+            return
+
+        changed = False
+        expired_before_ms = now_ms - self.DEBUG_TRACES_FAILURE_RETENTION_MS
+        success_before_ms = now_ms - self.DEBUG_TRACES_SUCCESS_RETENTION_MS
+        recent_before_ms = now_ms - self.DEBUG_TRACES_RECENT_FULL_MS
+
+        while table_bytes > self.DEBUG_TRACES_MAX_BYTES:
+            step_changed = False
+
+            if self._delete_expired_debug_traces(older_than_ms=expired_before_ms) > 0:
+                step_changed = True
+                changed = True
+            table_bytes = self._get_debug_trace_table_bytes()
+            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
+                break
+
+            if self._delete_sampled_success_debug_traces(
+                older_than_ms=success_before_ms,
+                sample_mod=self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD,
+            ) > 0:
+                step_changed = True
+                changed = True
+            table_bytes = self._get_debug_trace_table_bytes()
+            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
+                break
+
+            if self._compact_debug_trace_rows(
+                failure_only=False,
+                older_than_ms=recent_before_ms,
+                hard_pressure=False,
+            ) > 0:
+                step_changed = True
+                changed = True
+            table_bytes = self._get_debug_trace_table_bytes()
+            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
+                break
+
+            if self._compact_debug_trace_rows(
+                failure_only=True,
+                older_than_ms=recent_before_ms,
+                hard_pressure=False,
+            ) > 0:
+                step_changed = True
+                changed = True
+            table_bytes = self._get_debug_trace_table_bytes()
+            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
+                break
+
+            if self._delete_sampled_success_debug_traces(
+                older_than_ms=recent_before_ms,
+                sample_mod=self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD,
+            ) > 0:
+                step_changed = True
+                changed = True
+            table_bytes = self._get_debug_trace_table_bytes()
+            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
+                break
+
+            if self._compact_debug_trace_rows(
+                failure_only=True,
+                older_than_ms=recent_before_ms,
+                hard_pressure=True,
+            ) > 0:
+                step_changed = True
+                changed = True
+
+            table_bytes = self._get_debug_trace_table_bytes()
+            if step_changed is False:
+                break
+
+        if changed:
+            self._optimize_debug_traces_table()
+
+    def _maybe_cleanup_debug_traces(self, *, force: bool = False):
+        try:
+            self._enforce_debug_trace_storage_budget(force=force)
+        except Exception as error:
+            self.log_kline_event(
+                'debug_trace_cleanup_failed',
+                error=str(error),
+            )
 
     def backfill_legacy_pool_application(self):
         legacy_pool_application = f'CONCAT("legacy:", pool_id)'

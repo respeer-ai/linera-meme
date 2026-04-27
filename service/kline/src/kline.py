@@ -489,6 +489,7 @@ async def on_get_debug_traces(
     start_at: int | None = Query(default=None),
     end_at: int | None = Query(default=None),
     limit: int = Query(default=200),
+    include_storage: bool = Query(default=False),
 ):
     try:
         if _db is None:
@@ -496,7 +497,7 @@ async def on_get_debug_traces(
         if limit <= 0:
             raise ValueError('limit must be positive')
 
-        return {
+        response = {
             'traces': _db.get_debug_traces(
                 source=source,
                 component=component,
@@ -509,6 +510,9 @@ async def on_get_debug_traces(
                 limit=limit,
             ),
         }
+        if include_storage:
+            response['storage'] = _db.get_debug_trace_storage_status()
+        return response
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -516,6 +520,22 @@ async def on_get_debug_traces(
         )
     except Exception as e:
         print(f'Failed get debug traces: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/storage')
+async def on_get_debug_storage():
+    try:
+        if _db is None:
+            raise RuntimeError('Db client is not initialized')
+        return {
+            'debug_traces': _db.get_debug_trace_storage_status(),
+        }
+    except Exception as e:
+        print(f'Failed get debug storage: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 import argparse
@@ -8,9 +9,8 @@ import uvicorn
 
 import async_request
 from db import Db
+from maker_runtime import MakerRuntime
 
-
-app = FastAPI()
 _db = None
 _config = {
     'maker_replicas': 1,
@@ -19,11 +19,68 @@ _config = {
     'wallet_rpc_port': 8080,
     'wallet_metrics_port': 8082,
     'wallet_memory_limit_bytes': 0,
+    'swap_host': None,
+    'swap_chain_id': None,
+    'swap_application_id': None,
+    'wallet_host': None,
+    'wallet_owner': None,
+    'wallet_chain': None,
+    'proxy_host': None,
+    'proxy_chain_id': None,
+    'proxy_application_id': None,
+    'faucet_url': 'https://faucet.testnet-conway.linera.net',
+    'database_host': None,
+    'database_port': None,
+    'database_user': None,
+    'database_password': None,
+    'database_name': None,
 }
+_runtime = None
 
 
 def now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def build_trader_runtime_status() -> dict:
+    if _runtime is None:
+        return {
+            'enabled': False,
+            'running': False,
+            'started_at_ms': None,
+            'last_iteration_started_at_ms': None,
+            'last_iteration_finished_at_ms': None,
+            'last_sleep_seconds': None,
+            'last_trade_duration_ms': None,
+            'last_error': None,
+            'last_error_at_ms': None,
+            'consecutive_failures': 0,
+            'iterations': 0,
+            'cycle': None,
+        }
+    return _runtime.status()
+
+
+@asynccontextmanager
+async def app_lifespan(_app):
+    global _runtime
+
+    _runtime = MakerRuntime(now_ms=now_ms, config=_config)
+    _runtime.start()
+    try:
+        yield
+    finally:
+        if _runtime is not None:
+            _runtime.stop()
+            _runtime = None
+
+        global _db
+        if _db is not None:
+            _db.close()
+            _db = None
+
+
+app = FastAPI(lifespan=app_lifespan)
 
 
 def build_wallet_host(index: int) -> str:
@@ -402,6 +459,7 @@ async def on_get_debug_traces(
     end_at: int | None = Query(default=None),
     limit: int = Query(default=200),
     include_payloads: bool = Query(default=False),
+    include_storage: bool = Query(default=False),
 ):
     try:
         if _db is None:
@@ -409,7 +467,7 @@ async def on_get_debug_traces(
         if limit <= 0:
             raise ValueError('limit must be positive')
 
-        return {
+        response = {
             'traces': _db.get_debug_traces(
                 source=source,
                 component=component,
@@ -423,11 +481,29 @@ async def on_get_debug_traces(
                 include_payloads=include_payloads,
             ),
         }
+        if include_storage:
+            response['storage'] = _db.get_debug_trace_storage_status()
+        return response
     except ValueError as e:
         return JSONResponse(
             status_code=400,
             content={"error": str(e)}
         )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/storage')
+async def on_get_debug_storage():
+    try:
+        if _db is None:
+            raise RuntimeError('Db client is not initialized')
+        return {
+            'debug_traces': _db.get_debug_trace_storage_status(),
+        }
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -601,6 +677,7 @@ async def on_get_debug_health():
             'generated_at': now_ms(),
             'maker_replicas': int(_config['maker_replicas']),
             'wallet_state_files_found': len([row for row in wallets if row['state_file_exists'] is True]),
+            'trader': build_trader_runtime_status(),
             'wallets': wallets,
         }
     except Exception as e:
@@ -610,12 +687,15 @@ async def on_get_debug_health():
         )
 
 
-@app.on_event('shutdown')
-async def on_shutdown():
-    global _db
-    if _db is not None:
-        _db.close()
-        _db = None
+@app.get('/debug/trader')
+async def on_get_debug_trader():
+    try:
+        return build_trader_runtime_status()
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
 
 
 if __name__ == '__main__':
@@ -634,6 +714,16 @@ if __name__ == '__main__':
     parser.add_argument('--wallet-rpc-port', type=int, default=8080, help='Maker wallet rpc port')
     parser.add_argument('--wallet-metrics-port', type=int, default=8082, help='Maker wallet metrics port')
     parser.add_argument('--wallet-memory-limit-bytes', type=int, default=0, help='Maker wallet memory limit')
+    parser.add_argument('--swap-host', type=str, default='', help='Host of swap service')
+    parser.add_argument('--swap-chain-id', type=str, default='', help='Swap chain id')
+    parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
+    parser.add_argument('--wallet-host', type=str, default='', help='Host of wallet service')
+    parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
+    parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
+    parser.add_argument('--proxy-host', type=str, default='', help='Host of proxy service')
+    parser.add_argument('--proxy-chain-id', type=str, default='', help='Proxy chain id')
+    parser.add_argument('--proxy-application-id', type=str, default='', help='Proxy application id')
+    parser.add_argument('--faucet-url', type=str, default='https://faucet.testnet-conway.linera.net', help='Faucet url')
 
     args = parser.parse_args()
 
@@ -643,6 +733,21 @@ if __name__ == '__main__':
     _config['wallet_rpc_port'] = int(args.wallet_rpc_port)
     _config['wallet_metrics_port'] = int(args.wallet_metrics_port)
     _config['wallet_memory_limit_bytes'] = int(args.wallet_memory_limit_bytes)
+    _config['swap_host'] = args.swap_host
+    _config['swap_chain_id'] = args.swap_chain_id
+    _config['swap_application_id'] = args.swap_application_id
+    _config['wallet_host'] = args.wallet_host
+    _config['wallet_owner'] = args.wallet_owner
+    _config['wallet_chain'] = args.wallet_chain
+    _config['proxy_host'] = args.proxy_host
+    _config['proxy_chain_id'] = args.proxy_chain_id
+    _config['proxy_application_id'] = args.proxy_application_id
+    _config['faucet_url'] = args.faucet_url
+    _config['database_host'] = args.database_host
+    _config['database_port'] = args.database_port
+    _config['database_user'] = args.database_user
+    _config['database_password'] = args.database_password
+    _config['database_name'] = args.database_name
 
     _db = Db(
         args.database_host,

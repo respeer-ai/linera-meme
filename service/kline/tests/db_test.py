@@ -59,6 +59,12 @@ class FakeCursor:
           self._last_result = [row for row in self.index_catalog if row[0] == table_name]
           return
 
+        if normalized.startswith('SELECT COALESCE(DATA_LENGTH + INDEX_LENGTH, 0) AS table_bytes FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s'):
+          self._last_result = [{
+              'table_bytes': self.connection.get_table_bytes(params[1]),
+          }] if self.dictionary else [(self.connection.get_table_bytes(params[1]),)]
+          return
+
         if normalized.startswith('SELECT pool_id, pool_application FROM pools'):
           token_0 = normalized.split('token_0 = "')[1].split('"')[0]
           token_1 = normalized.split('token_1 = "')[1].split('"')[0]
@@ -612,6 +618,94 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('SELECT trace_id, request_payload, response_status, response_body, error, details FROM debug_traces'):
+          rows = [row.copy() for row in self.connection.debug_trace_rows]
+          older_than_ms, limit = params
+          rows = [row for row in rows if row['created_at'] < older_than_ms]
+          if '(error IS NOT NULL OR response_status >= 400)' in normalized:
+              rows = [
+                  row for row in rows
+                  if row['error'] is not None or (row['response_status'] is not None and row['response_status'] >= 400)
+              ]
+          else:
+              rows = [
+                  row for row in rows
+                  if row['error'] is None and (row['response_status'] is None or row['response_status'] < 400)
+              ]
+          rows.sort(key=lambda row: row['trace_id'])
+          rows = rows[:limit]
+          self._last_result = rows if self.dictionary else [
+              (
+                  row['trace_id'],
+                  row['request_payload'],
+                  row['response_status'],
+                  row['response_body'],
+                  row['error'],
+                  row['details'],
+              )
+              for row in rows
+          ]
+          return
+
+        if normalized.startswith('UPDATE debug_traces SET request_payload = %s, response_body = %s, details = %s WHERE trace_id = %s'):
+          request_payload, response_body, details, trace_id = params
+          updated_rows = []
+          self.rowcount = 0
+          for row in self.connection.debug_trace_rows:
+              if row['trace_id'] != trace_id:
+                  updated_rows.append(row)
+                  continue
+              updated_row = row.copy()
+              updated_row['request_payload'] = request_payload
+              updated_row['response_body'] = response_body
+              updated_row['details'] = details
+              updated_rows.append(updated_row)
+              self.rowcount = 1
+          self.connection.debug_trace_rows = updated_rows
+          self._last_result = []
+          return
+
+        if normalized.startswith('DELETE FROM debug_traces WHERE created_at < %s AND error IS NULL AND (response_status IS NULL OR response_status < 400) AND MOD(trace_id, %s) != 0 ORDER BY trace_id ASC LIMIT %s'):
+          older_than_ms, sample_mod, limit = params
+          retained = []
+          deleted = 0
+          for row in sorted(self.connection.debug_trace_rows, key=lambda item: item['trace_id']):
+              should_delete = (
+                  row['created_at'] < older_than_ms
+                  and row['error'] is None
+                  and (row['response_status'] is None or row['response_status'] < 400)
+                  and row['trace_id'] % sample_mod != 0
+                  and deleted < limit
+              )
+              if should_delete:
+                  deleted += 1
+                  continue
+              retained.append(row)
+          self.connection.debug_trace_rows = retained
+          self.rowcount = deleted
+          self._last_result = []
+          return
+
+        if normalized.startswith('DELETE FROM debug_traces WHERE created_at < %s ORDER BY trace_id ASC LIMIT %s'):
+          older_than_ms, limit = params
+          retained = []
+          deleted = 0
+          for row in sorted(self.connection.debug_trace_rows, key=lambda item: item['trace_id']):
+              should_delete = row['created_at'] < older_than_ms and deleted < limit
+              if should_delete:
+                  deleted += 1
+                  continue
+              retained.append(row)
+          self.connection.debug_trace_rows = retained
+          self.rowcount = deleted
+          self._last_result = []
+          return
+
+        if normalized.startswith('OPTIMIZE TABLE debug_traces'):
+          self.connection.optimized_tables.append('debug_traces')
+          self._last_result = []
+          return
+
         if normalized.startswith('SELECT trace_id, source, component, operation, target, owner, pool_application, pool_id, request_url, request_payload, response_status, response_body, error, details, created_at FROM debug_traces'):
           rows = [row.copy() for row in self.connection.debug_trace_rows]
           if 'WHERE ' in normalized:
@@ -659,6 +753,8 @@ class FakeConnection:
         self.candle_rows = {}
         self.maker_event_rows = []
         self.debug_trace_rows = []
+        self.optimized_tables = []
+        self.table_size_overrides = {}
         self.query_failures = []
         self.transaction_columns = [
             'pool_application', 'pool_id', 'transaction_id', 'transaction_type', 'from_account',
@@ -734,6 +830,22 @@ class FakeConnection:
         cursor.connection = self
         self.cursors.append(cursor)
         return cursor
+
+    def get_table_bytes(self, table_name):
+        if table_name in self.table_size_overrides:
+            return self.table_size_overrides[table_name]
+        if table_name != 'debug_traces':
+            return 0
+
+        total = 0
+        for row in self.debug_trace_rows:
+            total += 256
+            for field_name in ('source', 'component', 'operation', 'target', 'owner', 'pool_application', 'request_url', 'request_payload', 'response_body', 'error', 'details'):
+                value = row.get(field_name)
+                if value is None:
+                    continue
+                total += len(str(value).encode('utf-8'))
+        return total
 
     def commit(self):
         self.commits += 1
@@ -1274,6 +1386,166 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         all_traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
         self.assertEqual(len(all_traces), 2)
         self.assertEqual(all_traces[0]['error'], 'HTTP 500')
+
+    @patch('db.mysql.connector.connect')
+    def test_clips_large_success_debug_trace_payloads(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        db.record_debug_trace(
+            source='kline',
+            component='swap',
+            operation='latest_transactions',
+            target='pool_query',
+            owner=None,
+            pool_application='chain:pool-app',
+            pool_id=7,
+            request_url='http://swap/query',
+            request_payload='x' * (Db.DEBUG_TRACES_SUCCESS_FIELD_LIMITS['request_payload'] + 512),
+            response_status=200,
+            response_body='y' * (Db.DEBUG_TRACES_SUCCESS_FIELD_LIMITS['response_body'] + 512),
+            error=None,
+            details={'payload': 'z' * (Db.DEBUG_TRACES_SUCCESS_FIELD_LIMITS['details'] + 512)},
+        )
+
+        traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
+        self.assertEqual(len(traces), 1)
+        self.assertIn('[truncated', traces[0]['request_payload'])
+        self.assertIn('[truncated', traces[0]['response_body'])
+        self.assertTrue(traces[0]['details']['_truncated'])
+        self.assertEqual(traces[0]['details']['_field'], 'details')
+
+    @patch('db.mysql.connector.connect')
+    def test_debug_trace_cleanup_preserves_failure_rows_and_samples_old_successes(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        now_ms = 2_000_000_000_000
+        db.now_ms = lambda: now_ms
+        db.DEBUG_TRACES_MAX_BYTES = 20 * 1024
+        runtime_connection = self.connections[-1]
+        runtime_connection.debug_trace_rows = [
+            {
+                'trace_id': 1,
+                'source': 'maker',
+                'component': 'swap',
+                'operation': 'swap',
+                'target': 'wallet',
+                'owner': 'chain:owner',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'request_url': 'http://wallet',
+                'request_payload': 'a' * 9000,
+                'response_status': 200,
+                'response_body': 'b' * 9000,
+                'error': None,
+                'details': '{"note":"' + ('c' * 9000) + '"}',
+                'created_at': now_ms - Db.DEBUG_TRACES_SUCCESS_RETENTION_MS - 1000,
+            },
+            {
+                'trace_id': 25,
+                'source': 'maker',
+                'component': 'swap',
+                'operation': 'swap',
+                'target': 'wallet',
+                'owner': 'chain:owner',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'request_url': 'http://wallet',
+                'request_payload': 'd' * 9000,
+                'response_status': 200,
+                'response_body': 'e' * 9000,
+                'error': None,
+                'details': '{"note":"' + ('f' * 9000) + '"}',
+                'created_at': now_ms - Db.DEBUG_TRACES_SUCCESS_RETENTION_MS - 1000,
+            },
+            {
+                'trace_id': 26,
+                'source': 'maker',
+                'component': 'swap',
+                'operation': 'swap',
+                'target': 'wallet',
+                'owner': 'chain:owner',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'request_url': 'http://wallet',
+                'request_payload': 'g' * 9000,
+                'response_status': 500,
+                'response_body': 'h' * 500,
+                'error': 'boom',
+                'details': '{"note":"' + ('i' * 500) + '"}',
+                'created_at': now_ms - Db.DEBUG_TRACES_SUCCESS_RETENTION_MS - 1000,
+            },
+        ]
+
+        db._enforce_debug_trace_storage_budget(force=True)
+
+        remaining_trace_ids = [row['trace_id'] for row in runtime_connection.debug_trace_rows]
+        self.assertEqual(remaining_trace_ids, [25, 26])
+        failure_row = next(row for row in runtime_connection.debug_trace_rows if row['trace_id'] == 26)
+        sampled_success_row = next(row for row in runtime_connection.debug_trace_rows if row['trace_id'] == 25)
+        self.assertIn('[truncated', sampled_success_row['response_body'])
+        self.assertIn('debug_traces', runtime_connection.optimized_tables)
+
+    @patch.dict('os.environ', {
+        'KLINE_DEBUG_TRACES_MAX_BYTES': '2097152',
+        'KLINE_DEBUG_TRACES_CLEANUP_INTERVAL_MS': '30000',
+        'KLINE_DEBUG_TRACES_RECENT_FULL_MS': '600000',
+        'KLINE_DEBUG_TRACES_SUCCESS_RETENTION_MS': '1200000',
+        'KLINE_DEBUG_TRACES_FAILURE_RETENTION_MS': '2400000',
+        'KLINE_DEBUG_TRACES_SUCCESS_SAMPLE_MOD': '10',
+        'KLINE_DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD': '50',
+        'KLINE_DEBUG_TRACES_CLEANUP_BATCH_SIZE': '123',
+    }, clear=False)
+    @patch('db.mysql.connector.connect')
+    def test_debug_trace_runtime_config_and_storage_status(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_connection = self.connections[-1]
+        runtime_connection.table_size_overrides['debug_traces'] = 512 * 1024
+        db.last_debug_trace_cleanup_at_ms = 123456
+
+        retention = db.get_debug_trace_retention_config()
+        storage = db.get_debug_trace_storage_status()
+
+        self.assertEqual(retention['max_bytes'], 2 * 1024 * 1024)
+        self.assertEqual(retention['cleanup_interval_ms'], 30000)
+        self.assertEqual(retention['recent_full_ms'], 600000)
+        self.assertEqual(retention['success_retention_ms'], 1200000)
+        self.assertEqual(retention['failure_retention_ms'], 2400000)
+        self.assertEqual(retention['success_sample_mod'], 10)
+        self.assertEqual(retention['hard_pressure_success_sample_mod'], 50)
+        self.assertEqual(retention['cleanup_batch_size'], 123)
+        self.assertEqual(storage['table_bytes'], 512 * 1024)
+        self.assertEqual(storage['max_bytes'], 2 * 1024 * 1024)
+        self.assertEqual(storage['last_cleanup_at_ms'], 123456)
+        self.assertFalse(storage['over_budget'])
+        self.assertAlmostEqual(storage['usage_ratio'], 0.25, places=6)
 
     @patch('db.mysql.connector.connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):

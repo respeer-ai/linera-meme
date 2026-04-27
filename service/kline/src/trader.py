@@ -5,6 +5,7 @@ import asyncio
 import math
 import os
 import json
+from datetime import datetime
 from enum import Enum
 
 
@@ -62,6 +63,25 @@ class Trader:
         self.anchor_bias_penalty = float(os.getenv("ANCHOR_BIAS_PENALTY", "0.7"))
         self.long_term_bias_decay = float(os.getenv("LONG_TERM_BIAS_DECAY", "0.92"))
         self.window_started_at = time.monotonic()
+        self.last_cycle_summary = {
+            'reason': 'not_started',
+            'pool_count': 0,
+            'planned_trade_count': 0,
+            'pending_pool_count': 0,
+            'flush_triggered': False,
+            'flush_pool_count': 0,
+            'executed_pool_count': 0,
+            'failed_pool_count': 0,
+        }
+
+    def _log_prefix(self):
+        return f'[{datetime.now().astimezone().isoformat(timespec="milliseconds")} epoch={time.time():.3f}]'
+
+    def _log(self, message):
+        print(f'{self._log_prefix()} {message}')
+
+    def debug_snapshot(self):
+        return dict(self.last_cycle_summary)
 
     def _pool_price(self, pool):
         reserve_0 = float(pool.reserve_0)
@@ -324,14 +344,19 @@ class Trader:
             )
         net_notional = self._pending_imbalance(pool)
 
-        print('    Queue trade ----------------------------------')
-        print(f'      Pool                   {pool.pool_application.short_owner}')
-        print(f'      PendingBuyQuote        {self._pending_buy_notional(pool)}')
-        print(f'      PendingSellQuote       {self._pending_sell_notional(pool)}')
-        print(f'      PendingNetQuote        {net_notional}')
-        print(f'      DeltaBuyQuote          {delta_buy}')
-        print(f'      DeltaSellQuote         {delta_sell}')
-        print(f'      DateTime               {time.time()}')
+        self._log('Queue trade ----------------------------------')
+        self._log(f'  Pool                   {pool.pool_application.short_owner}')
+        self._log(f'  PendingBuyQuote        {self._pending_buy_notional(pool)}')
+        self._log(f'  PendingSellQuote       {self._pending_sell_notional(pool)}')
+        self._log(f'  PendingNetQuote        {net_notional}')
+        self._log(f'  DeltaBuyQuote          {delta_buy}')
+        self._log(f'  DeltaSellQuote         {delta_sell}')
+        self._log(f'  DateTime               {time.time()}')
+        self.last_cycle_summary['planned_trade_count'] += 1
+        self.last_cycle_summary['reason'] = 'trade_queued'
+        self.last_cycle_summary['pending_pool_count'] = len(
+            set(self.pending_buy_quote_notional) | set(self.pending_sell_quote_notional)
+        )
         self.persist_maker_event(
             event_type='planned',
             pool=pool,
@@ -358,28 +383,30 @@ class Trader:
         token_1_balance = float(await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1))
 
         if await self.wallet.balance() < 0.001:
-            print('Maker wallet balance is not enough for gas, please fund it')
+            self._log('Maker wallet balance is not enough for gas, please fund it')
+            self.last_cycle_summary['reason'] = 'wallet_low_gas'
             return
 
         (amount_0, amount_1) = self.trade_amounts(pool, token_0_balance, token_1_balance)
 
-        print('    Swap in pool ---------------------------------')
-        print(f'      Chain                  {pool.pool_application.chain_id}')
-        print(f'      Application            {pool.pool_application.short_owner}')
-        print(f'      Token0                 {pool.token_0}')
-        print(f'      Token1                 {pool.token_1}')
-        print(f'      Reserve0               {pool.reserve_0}')
-        print(f'      Reserve1               {pool.reserve_1}')
-        print(f'      Token0Balance          {token_0_balance}')
-        print(f'      Token1Balance          {token_1_balance}')
-        print(f'      Amount0                {amount_0}')
-        print(f'      Amount1                {amount_1}')
-        print(f'      Token0Price            {pool.token_0_price}')
-        print(f'      Token1Price            {pool.token_1_price}')
-        print(f'      BuyToken0              {not amount_0}')
-        print(f'      DateTime               {time.time()}')
+        self._log('Swap in pool ---------------------------------')
+        self._log(f'  Chain                  {pool.pool_application.chain_id}')
+        self._log(f'  Application            {pool.pool_application.short_owner}')
+        self._log(f'  Token0                 {pool.token_0}')
+        self._log(f'  Token1                 {pool.token_1}')
+        self._log(f'  Reserve0               {pool.reserve_0}')
+        self._log(f'  Reserve1               {pool.reserve_1}')
+        self._log(f'  Token0Balance          {token_0_balance}')
+        self._log(f'  Token1Balance          {token_1_balance}')
+        self._log(f'  Amount0                {amount_0}')
+        self._log(f'  Amount1                {amount_1}')
+        self._log(f'  Token0Price            {pool.token_0_price}')
+        self._log(f'  Token1Price            {pool.token_1_price}')
+        self._log(f'  BuyToken0              {not amount_0}')
+        self._log(f'  DateTime               {time.time()}')
 
         if amount_0 is None and amount_1 is None:
+            self.last_cycle_summary['reason'] = 'strategy_no_trade'
             return
 
         self.queue_trade(pool, amount_0, amount_1)
@@ -398,7 +425,8 @@ class Trader:
         token_1_balance = float(await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1))
 
         if await self.wallet.balance() < 0.001:
-            print('Maker wallet balance is not enough for gas, please fund it')
+            self._log('Maker wallet balance is not enough for gas, please fund it')
+            self.last_cycle_summary['reason'] = 'wallet_low_gas'
             return 0.0
 
         price = max(self._pool_price(pool), 1e-12)
@@ -408,21 +436,25 @@ class Trader:
         if quote_notional > 0:
             amount_1 = min(quote_notional, token_1_balance * 0.30)
             if amount_1 < 1e-6:
+                self.last_cycle_summary['reason'] = 'quote_balance_too_small'
                 return 0.0
         else:
             amount_0 = min(abs(quote_notional) / price, token_0_balance * 0.30)
             if amount_0 < 1e-6:
+                self.last_cycle_summary['reason'] = 'base_balance_too_small'
                 return 0.0
 
-        print('    Flush trade ----------------------------------')
-        print(f'      Pool                   {pool.pool_application.short_owner}')
-        print(f'      QuoteNotional          {quote_notional}')
-        print(f'      Amount0                {amount_0}')
-        print(f'      Amount1                {amount_1}')
-        print(f'      DateTime               {time.time()}')
+        self._log('Flush trade ----------------------------------')
+        self._log(f'  Pool                   {pool.pool_application.short_owner}')
+        self._log(f'  QuoteNotional          {quote_notional}')
+        self._log(f'  Amount0                {amount_0}')
+        self._log(f'  Amount1                {amount_1}')
+        self._log(f'  DateTime               {time.time()}')
 
         swap_succeeded = await pool.swap(amount_0, amount_1)
         if swap_succeeded is not True:
+            self.last_cycle_summary['failed_pool_count'] += 1
+            self.last_cycle_summary['reason'] = 'swap_request_failed_or_rejected'
             self.persist_maker_event(
                 event_type='failed',
                 pool=pool,
@@ -435,6 +467,8 @@ class Trader:
                 },
             )
             return 0.0
+        self.last_cycle_summary['executed_pool_count'] += 1
+        self.last_cycle_summary['reason'] = 'swap_executed'
         executed_quote = amount_1 if amount_1 is not None else -(amount_0 * price)
         self.persist_maker_event(
             event_type='executed',
@@ -455,7 +489,7 @@ class Trader:
             try:
                 await self.plan_trade_in_pool(pool)
             except Exception as e:
-                print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
+                self._log(f'Failed trade token {pool.token_0}: ERROR {e}')
                 traceback.print_exc()
 
     async def _flush_pool(self, pool, quote_notional):
@@ -463,7 +497,7 @@ class Trader:
             try:
                 return await self.execute_pending_in_pool(pool, quote_notional)
             except Exception as e:
-                print(f'Failed flush token {pool.token_0} at {time.time()}: ERROR {e}')
+                self._log(f'Failed flush token {pool.token_0}: ERROR {e}')
                 traceback.print_exc()
                 return 0.0
 
@@ -476,6 +510,8 @@ class Trader:
             | set(self.pending_sell_quote_notional)
             | set(self.long_term_quote_bias)
         )
+        self.last_cycle_summary['flush_triggered'] = True
+        self.last_cycle_summary['flush_pool_count'] = 0
         for pool_id in pool_ids:
             pool = pool_map.get(pool_id)
             decayed_bias = self.long_term_quote_bias.get(pool_id, 0.0) * self.long_term_bias_decay
@@ -488,6 +524,9 @@ class Trader:
             if pool is None or abs(quote_notional) < 1e-6:
                 continue
             tasks.append((pool_id, pool, self._flush_pool(pool, quote_notional)))
+        self.last_cycle_summary['flush_pool_count'] = len(tasks)
+        if len(tasks) == 0 and self.last_cycle_summary['reason'] == 'trade_queued':
+            self.last_cycle_summary['reason'] = 'pending_below_flush_threshold'
 
         if tasks:
             results = await asyncio.gather(*(task for _, _, task in tasks))
@@ -502,14 +541,36 @@ class Trader:
         self.pending_buy_quote_notional.clear()
         self.pending_sell_quote_notional.clear()
         self.window_started_at = time.monotonic()
+        self.last_cycle_summary['pending_pool_count'] = 0
 
     async def trade(self) -> float:
         pools = await self.swap.get_pools()
+        self.last_cycle_summary = {
+            'reason': 'trade_cycle_started',
+            'pool_count': len(pools),
+            'planned_trade_count': 0,
+            'pending_pool_count': len(set(self.pending_buy_quote_notional) | set(self.pending_sell_quote_notional)),
+            'flush_triggered': False,
+            'flush_pool_count': 0,
+            'executed_pool_count': 0,
+            'failed_pool_count': 0,
+        }
+        if len(pools) == 0:
+            self.last_cycle_summary['reason'] = 'no_pools_available'
         tasks = [self._trade_in_pool(pool) for pool in pools]
         await asyncio.gather(*tasks)
 
         if self.execution_window_secs <= 0 or time.monotonic() - self.window_started_at >= self.execution_window_secs:
             await self.flush_pending_trades(pools)
+        elif self.last_cycle_summary['planned_trade_count'] == 0:
+            self.last_cycle_summary['reason'] = 'waiting_for_trade_signal'
+        else:
+            self.last_cycle_summary['reason'] = 'queued_waiting_for_flush_window'
+
+        if self.last_cycle_summary['executed_pool_count'] > 0:
+            self.last_cycle_summary['reason'] = 'swap_executed'
+        elif self.last_cycle_summary['failed_pool_count'] > 0:
+            self.last_cycle_summary['reason'] = 'swap_request_failed_or_rejected'
 
         interval = os.getenv("TRADE_INTERVAL_SECS")
         return float(interval) if interval is not None else random.uniform(2, 4)
@@ -519,5 +580,5 @@ class Trader:
             start_at = time.time()
             timeout = await self.trade()
             elapsed = time.time() - start_at
-            print(f'Trade pools took {elapsed} seconds')
+            self._log(f'Trade pools took {elapsed} seconds')
             await asyncio.sleep(timeout)

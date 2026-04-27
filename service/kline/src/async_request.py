@@ -1,6 +1,7 @@
 import aiohttp
 import time
 from decimal import Decimal
+from datetime import datetime
 
 class AsyncResponse:
     def __init__(self, status, headers, text, url):
@@ -35,6 +36,10 @@ def _convert_timeout(timeout):
     raise TypeError("timeout must be None, number, or (connect, read) tuple")
 
 
+def _log_prefix():
+    return f'[{datetime.now().astimezone().isoformat(timespec="milliseconds")}]'
+
+
 async def post(url, data=None, json=None, headers=None, timeout=None, **kwargs):
     """
     asyncio 版本的 requests.post
@@ -47,7 +52,7 @@ async def post(url, data=None, json=None, headers=None, timeout=None, **kwargs):
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             async with session.post(url, data=data, json=json, headers=headers) as resp:
                 elapsed = time.time() - start_at
-                print(f'SUCCESS Request {url}, {json} took {elapsed:.3f} seconds')
+                print(f'{_log_prefix()} SUCCESS Request {url}, {json} took {elapsed:.3f} seconds')
 
                 text = await resp.text()
                 return AsyncResponse(
@@ -58,7 +63,7 @@ async def post(url, data=None, json=None, headers=None, timeout=None, **kwargs):
                 )
     except Exception as e:
         elapsed = time.time() - start_at
-        print(f'FAIL Request {url}, {json} took {elapsed:.3f} seconds')
+        print(f'{_log_prefix()} FAIL Request {url}, {json} took {elapsed:.3f} seconds')
         raise e
 
 
@@ -70,7 +75,7 @@ async def get(url, params=None, headers=None, timeout=None, **kwargs):
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             async with session.get(url, params=params, headers=headers) as resp:
                 elapsed = time.time() - start_at
-                print(f'SUCCESS Request {url}, {params} took {elapsed:.3f} seconds')
+                print(f'{_log_prefix()} SUCCESS Request {url}, {params} took {elapsed:.3f} seconds')
 
                 text = await resp.text()
                 return AsyncResponse(
@@ -81,5 +86,5 @@ async def get(url, params=None, headers=None, timeout=None, **kwargs):
                 )
     except Exception as e:
         elapsed = time.time() - start_at
-        print(f'FAIL Request {url}, {params} took {elapsed:.3f} seconds')
+        print(f'{_log_prefix()} FAIL Request {url}, {params} took {elapsed:.3f} seconds')
         raise e

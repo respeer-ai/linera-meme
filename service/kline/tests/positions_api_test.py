@@ -94,6 +94,18 @@ class FakeDb:
         self.transaction_ids = []
         self.diagnostics = []
         self.debug_traces = []
+        self.debug_trace_storage = {
+            'table': 'debug_traces',
+            'table_bytes': 1024,
+            'max_bytes': 2048,
+            'usage_ratio': 0.5,
+            'over_budget': False,
+            'last_cleanup_at_ms': 0,
+            'storage_degraded': False,
+            'retention': {
+                'max_bytes': 2048,
+            },
+        }
         self.gap_summary = {
             'has_internal_gaps': False,
             'start_id': None,
@@ -196,6 +208,9 @@ class FakeDb:
         if end_at is not None:
             rows = [row for row in rows if row.get('created_at') is not None and row.get('created_at') <= end_at]
         return rows[:limit]
+
+    def get_debug_trace_storage_status(self):
+        return dict(self.debug_trace_storage)
 
 
 class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
@@ -408,6 +423,32 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             'traces': fake_db.debug_traces,
         })
 
+    async def test_on_get_debug_traces_can_include_storage_status(self):
+        original_db = kline_module._db
+        fake_db = FakeDb()
+        fake_db.debug_traces = [{'trace_id': 1, 'created_at': 123}]
+        fake_db.debug_trace_storage = {
+            'table': 'debug_traces',
+            'table_bytes': 4096,
+            'max_bytes': 8192,
+            'usage_ratio': 0.5,
+            'over_budget': False,
+            'last_cleanup_at_ms': 111,
+            'storage_degraded': False,
+            'retention': {'max_bytes': 8192},
+        }
+        kline_module._db = fake_db
+
+        try:
+            response = await kline_module.on_get_debug_traces(limit=10, include_storage=True)
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response, {
+            'traces': fake_db.debug_traces,
+            'storage': fake_db.debug_trace_storage,
+        })
+
     async def test_on_get_debug_traces_rejects_non_positive_limit(self):
         original_db = kline_module._db
         kline_module._db = FakeDb()
@@ -419,6 +460,30 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"limit must be positive"}')
+
+    async def test_on_get_debug_storage_exports_storage_status(self):
+        original_db = kline_module._db
+        fake_db = FakeDb()
+        fake_db.debug_trace_storage = {
+            'table': 'debug_traces',
+            'table_bytes': 1024,
+            'max_bytes': 2048,
+            'usage_ratio': 0.5,
+            'over_budget': False,
+            'last_cleanup_at_ms': 0,
+            'storage_degraded': False,
+            'retention': {'max_bytes': 2048},
+        }
+        kline_module._db = fake_db
+
+        try:
+            response = await kline_module.on_get_debug_storage()
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response, {
+            'debug_traces': fake_db.debug_trace_storage,
+        })
 
     async def test_on_get_debug_pool_bundle_exports_transactions_liquidity_history_and_diagnostics(self):
         original_db = kline_module._db
