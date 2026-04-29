@@ -272,6 +272,130 @@ class RawRepositoryTest(unittest.TestCase):
             {'run_id': 1, 'chain_id': 'chain-a', 'status': 'success'},
         ])
 
+    def test_list_normalization_candidates_returns_operation_items(self):
+        connection = FakeConnection()
+        repository = RawRepository(connection)
+        connection.add_select_result(
+            f'''
+            SELECT
+                operation_id,
+                chain_id,
+                block_hash,
+                height,
+                operation_index,
+                application_id,
+                authenticated_owner,
+                raw_operation_bytes
+            FROM raw_operations
+            WHERE application_id IS NOT NULL AND operation_id > %s
+            ORDER BY operation_id ASC
+            LIMIT %s
+            ''',
+            (7, 2),
+            [
+                {
+                    'operation_id': 8,
+                    'chain_id': 'chain-a',
+                    'block_hash': 'block-8',
+                    'height': 8,
+                    'operation_index': 3,
+                    'application_id': 'app-ops',
+                    'authenticated_owner': 'owner-a',
+                    'raw_operation_bytes': b'op',
+                },
+            ],
+        )
+
+        items = repository.list_normalization_candidates(
+            raw_table='raw_operations',
+            after_sequence=7,
+            limit=2,
+        )
+
+        self.assertEqual(items, [
+            {
+                'raw_fact_id': '8',
+                'raw_table': 'raw_operations',
+                'application_id': 'app-ops',
+                'payload_kind': 'operation',
+                'raw_bytes': b'op',
+                'chain_id': 'chain-a',
+                'target_chain_id': 'chain-a',
+                'block_hash': 'block-8',
+                'target_block_hash': 'block-8',
+                'transaction_index': 3,
+                'authenticated_owner': 'owner-a',
+            },
+        ])
+
+    def test_list_normalization_candidates_returns_posted_message_items_with_reject(self):
+        connection = FakeConnection()
+        repository = RawRepository(connection)
+        connection.add_select_result(
+            f'''
+            SELECT
+                m.posted_message_id,
+                m.origin_chain_id,
+                m.source_cert_hash,
+                m.transaction_index,
+                m.message_index,
+                m.authenticated_owner,
+                m.application_id,
+                m.raw_message_bytes,
+                b.target_chain_id,
+                b.target_block_hash,
+                b.action
+            FROM raw_posted_messages AS m
+            INNER JOIN raw_incoming_bundles AS b
+                ON b.bundle_id = m.bundle_id
+            WHERE m.application_id IS NOT NULL AND m.posted_message_id > %s
+            ORDER BY m.posted_message_id ASC
+            LIMIT %s
+            ''',
+            (5, 2),
+            [
+                {
+                    'posted_message_id': 6,
+                    'origin_chain_id': 'chain-user',
+                    'source_cert_hash': 'cert-6',
+                    'transaction_index': 4,
+                    'message_index': 1,
+                    'authenticated_owner': 'owner-b',
+                    'application_id': 'app-msg',
+                    'raw_message_bytes': b'msg',
+                    'target_chain_id': 'chain-pool',
+                    'target_block_hash': 'block-6',
+                    'action': 'Reject',
+                },
+            ],
+        )
+
+        items = repository.list_normalization_candidates(
+            raw_table='raw_posted_messages',
+            after_sequence=5,
+            limit=2,
+        )
+
+        self.assertEqual(items, [
+            {
+                'raw_fact_id': '6',
+                'raw_table': 'raw_posted_messages',
+                'application_id': 'app-msg',
+                'payload_kind': 'message',
+                'raw_bytes': b'msg',
+                'chain_id': 'chain-pool',
+                'source_chain_id': 'chain-user',
+                'target_chain_id': 'chain-pool',
+                'target_block_hash': 'block-6',
+                'source_cert_hash': 'cert-6',
+                'transaction_index': 4,
+                'message_index': 1,
+                'authenticated_owner': 'owner-b',
+                'execution_status': 'rejected',
+                'reject_reason': 'incoming bundle action Reject',
+            },
+        ])
+
     def test_list_ingestion_anomalies_filters_by_status(self):
         connection = FakeConnection()
         repository = RawRepository(connection)

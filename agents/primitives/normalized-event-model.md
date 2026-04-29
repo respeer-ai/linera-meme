@@ -59,7 +59,16 @@ Canonical Layer 2 event model for turning raw chain facts into business-oriented
 - `decode_unimplemented`
 - `decode_failed`
 
-### Message Observation Events
+### Generic Application Observation Events
+
+- `application_operation_observed`
+- `application_message_observed`
+- `application_event_observed`
+- `application_operation_rejected`
+- `application_message_rejected`
+- `application_event_rejected`
+
+### Transport Observation Events
 
 - `incoming_bundle_observed`
 - `incoming_bundle_rejected`
@@ -69,11 +78,23 @@ Canonical Layer 2 event model for turning raw chain facts into business-oriented
 
 - `pool_swap_message_observed`
 - `pool_swap_message_rejected`
+- `pool_swap_requested`
 - `pool_add_liquidity_message_observed`
+- `pool_add_liquidity_message_rejected`
+- `pool_add_liquidity_requested`
 - `pool_remove_liquidity_message_observed`
+- `pool_remove_liquidity_message_rejected`
+- `pool_remove_liquidity_requested`
+- `pool_fund_request_recorded`
 - `fund_success_recorded`
 - `fund_fail_recorded`
 - `transaction_recorded`
+- `pool_set_fee_to_requested`
+- `pool_set_fee_to_message_observed`
+- `pool_set_fee_to_message_rejected`
+- `pool_set_fee_to_setter_requested`
+- `pool_set_fee_to_setter_message_observed`
+- `pool_set_fee_to_setter_message_rejected`
 - `liquidity_change_recorded`
 
 ## Rules
@@ -106,6 +127,7 @@ sequenceDiagram
 - A `Reject` path must stay visible in Layer 2 even if no product view consumes it
 - A decode failure must remain separate from a business rejection
 - A single incoming bundle may generate multiple Layer 2 events if multiple messages matter
+- Generic application observation families are allowed as the first POS-034 normalization stage before app-specific families are split out
 
 ## Sources
 

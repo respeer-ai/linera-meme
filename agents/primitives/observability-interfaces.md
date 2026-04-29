@@ -29,6 +29,9 @@ Canonical module-interface contract for Layer 1 ingestion, Layer 2 decoding and 
 - Do not make cron or periodic polling the primary ingestion trigger
 - Treat startup reconciliation, subscription reconnect, explicit admin repair, and detected lag as catch-up triggers
 - For Linera public service integration, prefer the native GraphQL notification subscription over synthetic tip polling
+- Do not let Layer 1 observability startup, catch-up, or debug persistence prevent core query API startup
+- Observability workers and operator endpoints must fail open: on dependency or storage failure they may expose degraded status, but must not terminate the broader `service/kline` process
+- Future Layer 2 and Layer 3 workers must report into the same observability status surface instead of inventing separate health or recovery protocols
 
 ## Flow
 
@@ -60,6 +63,7 @@ flowchart LR
   - fetch confirmed block by `chain_id + height`
   - persist all Layer 1 rows for that block
   - advance `chain_cursors` atomically
+  - preserve fail-open service behavior when ingestion dependencies are unavailable
 - Input contract:
   - `chain_id`
   - `height`
@@ -83,6 +87,7 @@ flowchart LR
 - Failure contract:
   - if any Layer 1 child write fails, commit must not happen
   - if a uniqueness conflict implies shape mismatch, emit ingestion anomaly and stop cursor advancement
+  - ingestion failure must not be allowed to take down the query-serving process; degradation must remain local to the observability subsystem
 
 ### Decode Scheduler
 
@@ -135,6 +140,7 @@ flowchart LR
 - Responsibilities:
   - join Layer 1 facts and decode results
   - emit Layer 2 events with stable correlation keys
+  - advance its own `processing_cursors` checkpoint independently from Layer 1
 - Input contract:
   - raw object identity keys
   - decode result
@@ -158,6 +164,9 @@ flowchart LR
   - `rejected`
   - `decode_failed`
   - `derived`
+- First implementation note:
+  - a synchronous `normalization_worker` may own `decode_scheduler -> normalized_event_materializer -> processing_cursor_repository` as one local boundary before background workers are introduced
+  - a `normalization_replay_driver` may select Layer 1 candidates per raw-table partition and feed them into the same worker boundary
 
 ### Market Deriver
 
@@ -203,6 +212,9 @@ flowchart LR
   - normalizer worker name plus source partition
 - Meaning:
   - highest raw or decode sequence fully materialized into Layer 2
+- First implementation:
+  - `last_sequence` may be the latest `raw_fact_id`
+  - `last_block_hash` may be the latest source or target block hash carried by the batch
 
 ### Derive Cursor
 
@@ -232,6 +244,7 @@ flowchart LR
 - Normalize replay:
   - recompute events for one raw identity or one chain range
   - preserve stable correlation keys
+  - first implementation may replay per raw table such as `raw_operations` and `raw_posted_messages` before introducing a richer global sequence
 - Derive replay:
   - rebuild one pool, one owner, or one global projection from Layer 2
 
@@ -249,3 +262,4 @@ flowchart LR
 - `agents/primitives/normalized-event-model.md`
 - `agents/primitives/derived-market-state.md`
 - `agents/runbooks/observability-deliverables.md`
+- `agents/runbooks/observability-fail-open-operations.md`

@@ -3,6 +3,7 @@ import types
 import unittest
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,6 +11,14 @@ SRC_ROOT = ROOT / 'src'
 
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
+
+
+mysql_stub = types.ModuleType('mysql')
+mysql_connector_stub = types.ModuleType('mysql.connector')
+mysql_connector_stub.connect = lambda **_kwargs: None
+mysql_stub.connector = mysql_connector_stub
+sys.modules['mysql'] = mysql_stub
+sys.modules['mysql.connector'] = mysql_connector_stub
 
 
 swap_stub = sys.modules.get('swap', types.ModuleType('swap'))
@@ -363,6 +372,93 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fake_db.diagnostics[0]['event_type'], 'inexact_position_metrics')
         self.assertEqual(fake_db.diagnostics[0]['owner'], 'chain:owner-a')
 
+    async def test_build_position_metrics_fetcher_uses_projection_repository_bridge(self):
+        class FakeSwap:
+            base_url = 'http://swap.example'
+
+        original_db = kline_module._db
+        original_swap = kline_module._swap
+        fake_db = FakeDb(positions=[
+            {
+                'transaction_id': 10,
+                'transaction_type': 'AddLiquidity',
+                'created_at': 1000,
+            },
+            {
+                'transaction_id': 11,
+                'transaction_type': 'BuyToken0',
+                'created_at': 2000,
+            },
+        ])
+        fake_db.gap_summary = {
+            'has_internal_gaps': False,
+            'start_id': 10,
+            'end_id': 11,
+            'missing_count': 0,
+            'missing_ids_sample': [],
+        }
+        kline_module._db = fake_db
+        kline_module._swap = FakeSwap()
+        captured = {}
+
+        async def fake_get_position_metrics_payload(*, pool_application, owner):
+            captured['pool_application'] = pool_application
+            captured['owner'] = dict(owner)
+            return {'data': {'latestTransactions': []}}
+
+        def fake_enrich_position_metrics_from_payload(position, payload, **kwargs):
+            captured['position'] = position
+            captured['payload'] = payload
+            captured.update(kwargs)
+            return {'metrics_status': 'ok'}
+
+        try:
+            with patch.object(
+                kline_module.PoolApplicationClient,
+                'get_position_metrics_payload',
+                side_effect=fake_get_position_metrics_payload,
+            ), patch.object(
+                kline_module.position_metrics,
+                'enrich_position_metrics_from_payload',
+                side_effect=fake_enrich_position_metrics_from_payload,
+            ):
+                fetcher = kline_module._build_position_metrics_fetcher(
+                    kline_module._build_projection_repository()
+                )
+                response = await fetcher({
+                    'owner': 'chain:owner-a',
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 7,
+                    'opened_at': 1500,
+                })
+        finally:
+            kline_module._db = original_db
+            kline_module._swap = original_swap
+
+        self.assertEqual(response['live_metrics'], {'metrics_status': 'ok'})
+        self.assertIn('snapshot_shadow', response)
+        self.assertEqual(captured['pool_application'], 'chain:pool-app')
+        self.assertEqual(captured['owner'], {'chain_id': 'chain', 'owner': 'owner-a'})
+        self.assertEqual(captured['payload'], {'data': {'latestTransactions': []}})
+        self.assertEqual(
+            captured['liquidity_history'],
+            [
+                {
+                    'transaction_id': 10,
+                    'transaction_type': 'AddLiquidity',
+                    'created_at': 1000,
+                },
+                {
+                    'transaction_id': 11,
+                    'transaction_type': 'BuyToken0',
+                    'created_at': 2000,
+                },
+            ],
+        )
+        self.assertEqual(captured['pool_transaction_history'][0]['transaction_id'], 10)
+        self.assertEqual(captured['pool_swap_count_since_open'], 1)
+        self.assertEqual(captured['pool_history_gap_summary']['start_id'], 10)
+
     async def test_on_get_position_metrics_returns_400_for_invalid_status(self):
         original_db = kline_module._db
         fake_db = FakeDb(error=ValueError('Invalid positions status'))
@@ -408,6 +504,637 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response, {
             'diagnostics': fake_db.diagnostics,
         })
+
+    async def test_on_get_position_metrics_readiness_debug_aggregates_samples(self):
+        original_fetcher = kline_module._position_metrics_fetcher
+        original_db = kline_module._db
+        kline_module._db = FakeDb(positions=[
+            {
+                'pool_application': 'chain:pool-a',
+                'pool_id': 1,
+                'token_0': 'AAA',
+                'token_1': 'BBB',
+                'owner': 'chain:owner-a',
+                'status': 'active',
+                'current_liquidity': '5',
+            },
+            {
+                'pool_application': 'chain:pool-b',
+                'pool_id': 2,
+                'token_0': 'CCC',
+                'token_1': 'DDD',
+                'owner': 'chain:owner-a',
+                'status': 'active',
+                'current_liquidity': '9',
+            },
+            {
+                'pool_application': 'chain:pool-c',
+                'pool_id': 3,
+                'token_0': 'EEE',
+                'token_1': 'FFF',
+                'owner': 'chain:owner-a',
+                'status': 'active',
+                'current_liquidity': '12',
+            },
+            {
+                'pool_application': 'chain:pool-d',
+                'pool_id': 4,
+                'token_0': 'GGG',
+                'token_1': 'HHH',
+                'owner': 'chain:owner-a',
+                'status': 'active',
+                'current_liquidity': '10',
+            },
+        ])
+
+        async def fake_fetcher(position):
+            if position['pool_id'] == 1:
+                return {
+                    'live_metrics': {
+                        'metrics_status': 'exact',
+                        'exact_fee_supported': True,
+                        'exact_principal_supported': True,
+                    },
+                    'snapshot_shadow': {
+                        'owner': position['owner'],
+                        'pool_application': position['pool_application'],
+                        'pool_id': position['pool_id'],
+                        'status': position['status'],
+                        'metrics_status': 'exact',
+                        'exact_fee_supported': True,
+                        'exact_principal_supported': True,
+                        'snapshot_shadow': {
+                            'readiness': 'candidate',
+                            'exact_case': 'post_basis_swaps',
+                            'position_basis_snapshot': {
+                                'basis_type': 'add_liquidity',
+                                'basis_opens_current_round': True,
+                                'has_only_zero_liquidity_before_basis': True,
+                                'current_round_liquidity_event_count': 1,
+                                'current_round_trade_count_before_basis': 0,
+                                'trade_count_between_basis_and_fee_free_basis': 0,
+                                'exact_current_principal_case': 'post_basis_swaps_without_liquidity_changes',
+                                'materialized_protocol_fee_split_case': 'fee_to_opening_add_from_zero',
+                                'fee_to_continuity_case': 'continuous_no_changes_after_basis',
+                                'fee_to_continuity_change_count_after_basis': 0,
+                                'fee_to_continuity_known_before_basis': True,
+                                'fee_to_account_at_basis': 'chain:owner-a',
+                                'fee_to_account_latest_known': 'chain:owner-a',
+                                'protocol_fee_current_owner_provenance_case': 'no_protocol_fee_mints',
+                                'basis_protocol_fee_liquidity_owned_by_current_owner': '0',
+                                'post_basis_protocol_fee_liquidity_owned_by_current_owner': '0',
+                                'post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add': '0',
+                                'protocol_fee_liquidity_owned_by_current_owner_current': '0',
+                                'protocol_fee_liquidity_owned_by_other_accounts': '0',
+                                'protocol_fee_liquidity_owner_unknown': '0',
+                                'current_round_started_at': 1000,
+                                'current_round_started_transaction_id': 10,
+                            },
+                            'readiness_reason_codes': [],
+                            'mismatch_codes': ['pool_last_trade_time_mismatch'],
+                        },
+                    },
+            }
+            if position['pool_id'] == 2:
+                return {
+                'live_metrics': {
+                    'metrics_status': 'partial',
+                    'exact_fee_supported': False,
+                    'exact_principal_supported': False,
+                },
+                'snapshot_shadow': {
+                    'owner': position['owner'],
+                    'pool_application': position['pool_application'],
+                    'pool_id': position['pool_id'],
+                    'status': position['status'],
+                    'metrics_status': 'partial',
+                    'exact_fee_supported': False,
+                    'exact_principal_supported': False,
+                    'snapshot_shadow': {
+                        'readiness': 'financial_semantics_pending',
+                        'exact_case': None,
+                            'position_basis_snapshot': {
+                                'basis_type': 'remove_liquidity',
+                                'basis_opens_current_round': False,
+                                'has_only_zero_liquidity_before_basis': False,
+                                'current_round_liquidity_event_count': 3,
+                                'current_round_trade_count_before_basis': 2,
+                                'trade_count_between_basis_and_fee_free_basis': 1,
+                                'exact_current_principal_case': None,
+                                'materialized_protocol_fee_split_case': 'fee_to_nonzero_prior_add_basis_unresolved',
+                                'fee_to_continuity_case': 'changed_after_basis',
+                                'fee_to_continuity_change_count_after_basis': 1,
+                                'fee_to_continuity_known_before_basis': True,
+                                'fee_to_account_at_basis': 'chain:owner-a',
+                                'fee_to_account_latest_known': 'chain:owner-b',
+                                'protocol_fee_current_owner_provenance_case': 'owner_and_non_owner_mints',
+                                'basis_protocol_fee_liquidity_owned_by_current_owner': '2',
+                                'post_basis_protocol_fee_liquidity_owned_by_current_owner': '0',
+                                'post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add': '0',
+                                'protocol_fee_liquidity_owned_by_current_owner_current': '2',
+                                'protocol_fee_liquidity_owned_by_other_accounts': '3',
+                                'protocol_fee_liquidity_owner_unknown': '0',
+                                'current_round_started_at': 900,
+                                'current_round_started_transaction_id': 8,
+                            },
+                        'readiness_reason_codes': [
+                            'unresolved_fee_to_nonzero_prior_add__basis_only__changed_after_basis__owner_and_non_owner_mints',
+                            'materialized_protocol_fee_split_unresolved',
+                            'exact_fee_not_supported',
+                            'estimated_values',
+                        ],
+                            'mismatch_codes': [],
+                    },
+                },
+            }
+            if position['pool_id'] == 3:
+                return {
+                'live_metrics': {
+                    'metrics_status': 'exact',
+                    'exact_fee_supported': True,
+                    'exact_principal_supported': True,
+                },
+                'snapshot_shadow': {
+                    'owner': position['owner'],
+                    'pool_application': position['pool_application'],
+                    'pool_id': position['pool_id'],
+                    'status': position['status'],
+                    'metrics_status': 'exact',
+                    'exact_fee_supported': True,
+                    'exact_principal_supported': True,
+                    'snapshot_shadow': {
+                        'readiness': 'candidate',
+                        'exact_case': 'materialized_current_principal_with_later_liquidity',
+                        'position_basis_snapshot': {
+                            'basis_type': 'add_liquidity',
+                            'basis_opens_current_round': False,
+                            'has_only_zero_liquidity_before_basis': False,
+                            'current_round_liquidity_event_count': 4,
+                            'current_round_trade_count_before_basis': 1,
+                            'trade_count_between_basis_and_fee_free_basis': 2,
+                            'exact_current_principal_case': 'materialized_current_principal_with_later_adds',
+                            'materialized_protocol_fee_split_case': 'fee_to_continuous_nonzero_prior_add_basis',
+                            'fee_to_continuity_case': 'continuous_no_changes_after_basis',
+                            'fee_to_continuity_change_count_after_basis': 0,
+                            'fee_to_continuity_known_before_basis': True,
+                            'fee_to_account_at_basis': 'chain:owner-a',
+                            'fee_to_account_latest_known': 'chain:owner-a',
+                            'protocol_fee_current_owner_provenance_case': 'all_mints_owned_by_current_owner',
+                            'basis_protocol_fee_liquidity_owned_by_current_owner': '2',
+                            'post_basis_protocol_fee_liquidity_owned_by_current_owner': '0',
+                            'post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add': '0',
+                            'protocol_fee_liquidity_owned_by_current_owner_current': '2',
+                            'protocol_fee_liquidity_owned_by_other_accounts': '0',
+                            'protocol_fee_liquidity_owner_unknown': '0',
+                            'current_round_started_at': 800,
+                            'current_round_started_transaction_id': 6,
+                        },
+                        'readiness_reason_codes': [],
+                        'mismatch_codes': [],
+                    },
+                },
+            }
+            return {
+                'live_metrics': {
+                    'metrics_status': 'exact',
+                    'exact_fee_supported': True,
+                    'exact_principal_supported': True,
+                },
+                'snapshot_shadow': {
+                    'owner': position['owner'],
+                    'pool_application': position['pool_application'],
+                    'pool_id': position['pool_id'],
+                    'status': position['status'],
+                    'metrics_status': 'exact',
+                    'exact_fee_supported': True,
+                    'exact_principal_supported': True,
+                    'snapshot_shadow': {
+                        'readiness': 'candidate',
+                        'exact_case': 'materialized_current_principal_with_later_liquidity',
+                        'position_basis_snapshot': {
+                            'basis_type': 'add_liquidity',
+                            'basis_opens_current_round': False,
+                            'has_only_zero_liquidity_before_basis': False,
+                            'current_round_liquidity_event_count': 5,
+                            'current_round_trade_count_before_basis': 2,
+                            'trade_count_between_basis_and_fee_free_basis': 2,
+                            'exact_current_principal_case': 'post_basis_liquidity_changes_with_intervening_swaps',
+                            'materialized_protocol_fee_split_case': 'current_owner_protocol_fee_component_proven',
+                            'fee_to_continuity_case': 'changed_after_basis',
+                            'fee_to_continuity_change_count_after_basis': 2,
+                            'fee_to_continuity_known_before_basis': True,
+                            'fee_to_account_at_basis': 'chain:owner-a',
+                            'fee_to_account_latest_known': 'chain:owner-b',
+                            'protocol_fee_current_owner_provenance_case': 'owner_and_non_owner_mints',
+                            'basis_protocol_fee_liquidity_owned_by_current_owner': '2',
+                            'post_basis_protocol_fee_liquidity_owned_by_current_owner': '0',
+                            'post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add': '0',
+                            'protocol_fee_liquidity_owned_by_current_owner_current': '2',
+                            'protocol_fee_liquidity_owned_by_other_accounts': '3',
+                            'protocol_fee_liquidity_owner_unknown': '0',
+                            'current_round_started_at': 700,
+                            'current_round_started_transaction_id': 5,
+                        },
+                        'readiness_reason_codes': [],
+                        'mismatch_codes': [],
+                    },
+                },
+            }
+
+        kline_module._position_metrics_fetcher = fake_fetcher
+
+        try:
+            response = await kline_module.on_get_position_metrics_readiness_debug(
+                owner='chain:owner-a',
+                status='active',
+                sample_limit=10,
+            )
+        finally:
+            kline_module._position_metrics_fetcher = original_fetcher
+            kline_module._db = original_db
+
+        self.assertEqual(response['owner'], 'chain:owner-a')
+        self.assertEqual(response['status'], 'active')
+        self.assertEqual(response['total_positions'], 4)
+        self.assertEqual(
+            response['readiness_counts'],
+            {
+                'candidate': 3,
+                'snapshot_missing': 0,
+                'structure_mismatch': 0,
+                'financial_semantics_pending': 1,
+                'shadow_unavailable': 0,
+            },
+        )
+        self.assertEqual(
+            response['exact_case_counts'],
+            {
+                'post_basis_swaps': 1,
+                'materialized_current_principal_with_later_liquidity': 2,
+            },
+        )
+        self.assertEqual(
+            response['readiness_reason_counts'],
+            {
+                'unresolved_fee_to_nonzero_prior_add__basis_only__changed_after_basis__owner_and_non_owner_mints': 1,
+                'materialized_protocol_fee_split_unresolved': 1,
+                'exact_fee_not_supported': 1,
+                'estimated_values': 1,
+            },
+        )
+        self.assertEqual(
+            response['mismatch_code_counts'],
+            {
+                'pool_last_trade_time_mismatch': 1,
+            },
+        )
+        self.assertEqual(
+            response['basis_profile_counts'],
+            {
+                'add_liquidity|current_round|zero_bootstrap_only': 1,
+                'remove_liquidity|not_current_round|non_zero_or_unknown_prefix': 1,
+                'add_liquidity|not_current_round|non_zero_or_unknown_prefix': 2,
+            },
+        )
+        self.assertEqual(
+            response['current_round_liquidity_event_count_counts'],
+            {
+                '1': 1,
+                '3': 1,
+                '4': 1,
+                '5': 1,
+            },
+        )
+        self.assertEqual(
+            response['current_round_trade_count_before_basis_counts'],
+            {
+                '0': 1,
+                '1': 1,
+                '2': 2,
+            },
+        )
+        self.assertEqual(
+            response['trade_count_between_basis_and_fee_free_basis_counts'],
+            {
+                '0': 1,
+                '1': 1,
+                '2': 2,
+            },
+        )
+        self.assertEqual(
+            response['exact_current_principal_case_counts'],
+            {
+                'post_basis_swaps_without_liquidity_changes': 1,
+                'materialized_current_principal_with_later_adds': 1,
+                'post_basis_liquidity_changes_with_intervening_swaps': 1,
+            },
+        )
+        self.assertEqual(
+            response['materialized_protocol_fee_split_case_counts'],
+            {
+                'fee_to_opening_add_from_zero': 1,
+                'fee_to_nonzero_prior_add_basis_unresolved': 1,
+                'fee_to_continuous_nonzero_prior_add_basis': 1,
+                'current_owner_protocol_fee_component_proven': 1,
+            },
+        )
+        self.assertEqual(
+            response['protocol_fee_split_semantic_counts'],
+            {
+                'fee_to_opening_add_from_zero_exact': 1,
+                'fee_to_nonzero_prior_add_unresolved': 1,
+                'fee_to_continuous_nonzero_prior_add_exact': 1,
+                'historical_protocol_fee_component_owned_by_current_owner_exact': 1,
+            },
+        )
+        self.assertEqual(
+            response['protocol_fee_split_timing_case_counts'],
+            {
+                'fee_to_opening_add_from_zero|no_current_owner_protocol_fee': 1,
+                'fee_to_nonzero_prior_add_basis_unresolved|basis_only': 1,
+                'fee_to_continuous_nonzero_prior_add_basis|basis_only': 1,
+                'current_owner_protocol_fee_component_proven|basis_only': 1,
+            },
+        )
+        self.assertEqual(
+            response['unresolved_protocol_fee_timing_case_counts'],
+            {
+                'fee_to_nonzero_prior_add_basis_unresolved|basis_only': 1,
+            },
+        )
+        self.assertEqual(
+            response['unresolved_protocol_fee_profile_counts'],
+            {
+                'basis_only|changed_after_basis|owner_and_non_owner_mints': 1,
+            },
+        )
+        self.assertEqual(
+            response['unresolved_protocol_fee_semantic_counts'],
+            {
+                'current_owner_basis_protocol_fee_known_but_fee_to_changed_and_non_owner_mints_present': 1,
+            },
+        )
+        self.assertEqual(
+            response['unresolved_protocol_fee_boundary_status_counts'],
+            {
+                'unsupported_in_current_snapshot_model': 1,
+            },
+        )
+        self.assertEqual(
+            response['unresolved_protocol_fee_explanation_counts'],
+            {
+                'The current owner basis protocol-fee component is known, but fee_to changed after basis and protocol-fee mints for non-owner accounts are also present, so the snapshot cannot prove which later fee dilution belongs to this position.': 1,
+            },
+        )
+        self.assertEqual(
+            response['fee_to_continuity_case_counts'],
+            {
+                'continuous_no_changes_after_basis': 2,
+                'changed_after_basis': 2,
+            },
+        )
+        self.assertEqual(
+            response['protocol_fee_current_owner_provenance_case_counts'],
+            {
+                'no_protocol_fee_mints': 1,
+                'owner_and_non_owner_mints': 2,
+                'all_mints_owned_by_current_owner': 1,
+            },
+        )
+        self.assertEqual(
+            response['protocol_fee_current_owner_timing_case_counts'],
+            {
+                'no_current_owner_protocol_fee': 1,
+                'basis_only': 3,
+            },
+        )
+        self.assertEqual(
+            response['safe_fee_to_restored_counts'],
+            {
+                'restored': 1,
+                'not_restored': 3,
+            },
+        )
+        self.assertEqual(len(response['samples']), 4)
+        self.assertEqual(response['samples'][0]['readiness'], 'candidate')
+        self.assertEqual(response['samples'][0]['exact_case'], 'post_basis_swaps')
+        self.assertEqual(response['samples'][0]['basis_profile'], 'add_liquidity|current_round|zero_bootstrap_only')
+        self.assertEqual(response['samples'][0]['basis_type'], 'add_liquidity')
+        self.assertTrue(response['samples'][0]['basis_opens_current_round'])
+        self.assertTrue(response['samples'][0]['has_only_zero_liquidity_before_basis'])
+        self.assertEqual(response['samples'][0]['current_round_liquidity_event_count'], 1)
+        self.assertEqual(response['samples'][0]['current_round_trade_count_before_basis'], 0)
+        self.assertEqual(response['samples'][0]['trade_count_between_basis_and_fee_free_basis'], 0)
+        self.assertEqual(
+            response['samples'][0]['exact_current_principal_case'],
+            'post_basis_swaps_without_liquidity_changes',
+        )
+        self.assertEqual(
+            response['samples'][0]['materialized_protocol_fee_split_case'],
+            'fee_to_opening_add_from_zero',
+        )
+        self.assertEqual(
+            response['samples'][0]['protocol_fee_split_semantic'],
+            'fee_to_opening_add_from_zero_exact',
+        )
+        self.assertEqual(response['samples'][0]['fee_to_continuity_case'], 'continuous_no_changes_after_basis')
+        self.assertEqual(response['samples'][0]['fee_to_continuity_change_count_after_basis'], 0)
+        self.assertTrue(response['samples'][0]['fee_to_continuity_known_before_basis'])
+        self.assertEqual(response['samples'][0]['fee_to_account_at_basis'], 'chain:owner-a')
+        self.assertEqual(response['samples'][0]['fee_to_account_latest_known'], 'chain:owner-a')
+        self.assertEqual(response['samples'][0]['protocol_fee_current_owner_provenance_case'], 'no_protocol_fee_mints')
+        self.assertEqual(response['samples'][0]['protocol_fee_current_owner_timing_case'], 'no_current_owner_protocol_fee')
+        self.assertIsNone(response['samples'][0]['unresolved_protocol_fee_profile'])
+        self.assertEqual(response['samples'][0]['unresolved_protocol_fee_semantic'], 'not_applicable_or_unknown')
+        self.assertEqual(response['samples'][0]['unresolved_protocol_fee_boundary_status'], 'not_applicable_or_unknown')
+        self.assertIsNone(response['samples'][0]['unresolved_protocol_fee_explanation'])
+        self.assertEqual(response['samples'][0]['basis_protocol_fee_liquidity_owned_by_current_owner'], '0')
+        self.assertEqual(response['samples'][0]['post_basis_protocol_fee_liquidity_owned_by_current_owner'], '0')
+        self.assertEqual(
+            response['samples'][0]['post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add'],
+            '0',
+        )
+        self.assertEqual(response['samples'][0]['protocol_fee_liquidity_owned_by_current_owner_current'], '0')
+        self.assertEqual(response['samples'][0]['protocol_fee_liquidity_owned_by_other_accounts'], '0')
+        self.assertEqual(response['samples'][0]['protocol_fee_liquidity_owner_unknown'], '0')
+        self.assertFalse(response['samples'][0]['safe_fee_to_restored'])
+        self.assertEqual(response['samples'][0]['current_round_started_at'], 1000)
+        self.assertEqual(response['samples'][0]['current_round_started_transaction_id'], 10)
+        self.assertEqual(response['samples'][0]['mismatch_codes'], ['pool_last_trade_time_mismatch'])
+        self.assertEqual(response['samples'][1]['readiness'], 'financial_semantics_pending')
+        self.assertIsNone(response['samples'][1]['exact_case'])
+        self.assertEqual(
+            response['samples'][1]['basis_profile'],
+            'remove_liquidity|not_current_round|non_zero_or_unknown_prefix',
+        )
+        self.assertEqual(response['samples'][1]['current_round_liquidity_event_count'], 3)
+        self.assertEqual(response['samples'][1]['current_round_trade_count_before_basis'], 2)
+        self.assertEqual(response['samples'][1]['trade_count_between_basis_and_fee_free_basis'], 1)
+        self.assertIsNone(response['samples'][1]['exact_current_principal_case'])
+        self.assertEqual(
+            response['samples'][1]['materialized_protocol_fee_split_case'],
+            'fee_to_nonzero_prior_add_basis_unresolved',
+        )
+        self.assertEqual(
+            response['samples'][1]['protocol_fee_split_semantic'],
+            'fee_to_nonzero_prior_add_unresolved',
+        )
+        self.assertEqual(response['samples'][1]['fee_to_continuity_case'], 'changed_after_basis')
+        self.assertEqual(response['samples'][1]['fee_to_continuity_change_count_after_basis'], 1)
+        self.assertTrue(response['samples'][1]['fee_to_continuity_known_before_basis'])
+        self.assertEqual(response['samples'][1]['fee_to_account_at_basis'], 'chain:owner-a')
+        self.assertEqual(response['samples'][1]['fee_to_account_latest_known'], 'chain:owner-b')
+        self.assertEqual(response['samples'][1]['protocol_fee_current_owner_provenance_case'], 'owner_and_non_owner_mints')
+        self.assertEqual(response['samples'][1]['protocol_fee_current_owner_timing_case'], 'basis_only')
+        self.assertEqual(
+            response['samples'][1]['unresolved_protocol_fee_profile'],
+            'basis_only|changed_after_basis|owner_and_non_owner_mints',
+        )
+        self.assertEqual(
+            response['samples'][1]['unresolved_protocol_fee_semantic'],
+            'current_owner_basis_protocol_fee_known_but_fee_to_changed_and_non_owner_mints_present',
+        )
+        self.assertEqual(
+            response['samples'][1]['unresolved_protocol_fee_boundary_status'],
+            'unsupported_in_current_snapshot_model',
+        )
+        self.assertEqual(
+            response['samples'][1]['unresolved_protocol_fee_explanation'],
+            'The current owner basis protocol-fee component is known, but fee_to changed after basis and protocol-fee mints for non-owner accounts are also present, so the snapshot cannot prove which later fee dilution belongs to this position.',
+        )
+        self.assertEqual(response['samples'][1]['basis_protocol_fee_liquidity_owned_by_current_owner'], '2')
+        self.assertEqual(response['samples'][1]['post_basis_protocol_fee_liquidity_owned_by_current_owner'], '0')
+        self.assertEqual(
+            response['samples'][1]['post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add'],
+            '0',
+        )
+        self.assertEqual(response['samples'][1]['protocol_fee_liquidity_owned_by_current_owner_current'], '2')
+        self.assertEqual(response['samples'][1]['protocol_fee_liquidity_owned_by_other_accounts'], '3')
+        self.assertEqual(response['samples'][1]['protocol_fee_liquidity_owner_unknown'], '0')
+        self.assertFalse(response['samples'][1]['safe_fee_to_restored'])
+        self.assertEqual(response['samples'][1]['current_round_started_at'], 900)
+        self.assertEqual(response['samples'][1]['current_round_started_transaction_id'], 8)
+        self.assertEqual(
+            response['samples'][1]['readiness_reason_codes'],
+            [
+                'unresolved_fee_to_nonzero_prior_add__basis_only__changed_after_basis__owner_and_non_owner_mints',
+                'materialized_protocol_fee_split_unresolved',
+                'exact_fee_not_supported',
+                'estimated_values',
+            ],
+        )
+        self.assertEqual(response['samples'][2]['readiness'], 'candidate')
+        self.assertEqual(
+            response['samples'][2]['exact_case'],
+            'materialized_current_principal_with_later_liquidity',
+        )
+        self.assertEqual(
+            response['samples'][2]['basis_profile'],
+            'add_liquidity|not_current_round|non_zero_or_unknown_prefix',
+        )
+        self.assertEqual(response['samples'][2]['current_round_liquidity_event_count'], 4)
+        self.assertEqual(response['samples'][2]['current_round_trade_count_before_basis'], 1)
+        self.assertEqual(response['samples'][2]['trade_count_between_basis_and_fee_free_basis'], 2)
+        self.assertEqual(
+            response['samples'][2]['exact_current_principal_case'],
+            'materialized_current_principal_with_later_adds',
+        )
+        self.assertEqual(
+            response['samples'][2]['materialized_protocol_fee_split_case'],
+            'fee_to_continuous_nonzero_prior_add_basis',
+        )
+        self.assertEqual(
+            response['samples'][2]['protocol_fee_split_semantic'],
+            'fee_to_continuous_nonzero_prior_add_exact',
+        )
+        self.assertEqual(response['samples'][2]['fee_to_continuity_case'], 'continuous_no_changes_after_basis')
+        self.assertEqual(response['samples'][2]['fee_to_continuity_change_count_after_basis'], 0)
+        self.assertTrue(response['samples'][2]['fee_to_continuity_known_before_basis'])
+        self.assertEqual(response['samples'][2]['fee_to_account_at_basis'], 'chain:owner-a')
+        self.assertEqual(response['samples'][2]['fee_to_account_latest_known'], 'chain:owner-a')
+        self.assertEqual(
+            response['samples'][2]['protocol_fee_current_owner_provenance_case'],
+            'all_mints_owned_by_current_owner',
+        )
+        self.assertEqual(response['samples'][2]['protocol_fee_current_owner_timing_case'], 'basis_only')
+        self.assertIsNone(response['samples'][2]['unresolved_protocol_fee_profile'])
+        self.assertEqual(response['samples'][2]['unresolved_protocol_fee_semantic'], 'not_applicable_or_unknown')
+        self.assertEqual(response['samples'][2]['unresolved_protocol_fee_boundary_status'], 'not_applicable_or_unknown')
+        self.assertIsNone(response['samples'][2]['unresolved_protocol_fee_explanation'])
+        self.assertEqual(response['samples'][2]['basis_protocol_fee_liquidity_owned_by_current_owner'], '2')
+        self.assertEqual(response['samples'][2]['post_basis_protocol_fee_liquidity_owned_by_current_owner'], '0')
+        self.assertEqual(
+            response['samples'][2]['post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add'],
+            '0',
+        )
+        self.assertEqual(response['samples'][2]['protocol_fee_liquidity_owned_by_current_owner_current'], '2')
+        self.assertEqual(response['samples'][2]['protocol_fee_liquidity_owned_by_other_accounts'], '0')
+        self.assertEqual(response['samples'][2]['protocol_fee_liquidity_owner_unknown'], '0')
+        self.assertTrue(response['samples'][2]['safe_fee_to_restored'])
+        self.assertEqual(response['samples'][2]['current_round_started_at'], 800)
+        self.assertEqual(response['samples'][2]['current_round_started_transaction_id'], 6)
+        self.assertEqual(response['samples'][2]['readiness_reason_codes'], [])
+        self.assertEqual(response['samples'][3]['readiness'], 'candidate')
+        self.assertEqual(
+            response['samples'][3]['exact_case'],
+            'materialized_current_principal_with_later_liquidity',
+        )
+        self.assertEqual(
+            response['samples'][3]['basis_profile'],
+            'add_liquidity|not_current_round|non_zero_or_unknown_prefix',
+        )
+        self.assertEqual(response['samples'][3]['current_round_liquidity_event_count'], 5)
+        self.assertEqual(response['samples'][3]['current_round_trade_count_before_basis'], 2)
+        self.assertEqual(response['samples'][3]['trade_count_between_basis_and_fee_free_basis'], 2)
+        self.assertEqual(
+            response['samples'][3]['exact_current_principal_case'],
+            'post_basis_liquidity_changes_with_intervening_swaps',
+        )
+        self.assertEqual(
+            response['samples'][3]['materialized_protocol_fee_split_case'],
+            'current_owner_protocol_fee_component_proven',
+        )
+        self.assertEqual(
+            response['samples'][3]['protocol_fee_split_semantic'],
+            'historical_protocol_fee_component_owned_by_current_owner_exact',
+        )
+        self.assertEqual(response['samples'][3]['fee_to_continuity_case'], 'changed_after_basis')
+        self.assertEqual(response['samples'][3]['fee_to_continuity_change_count_after_basis'], 2)
+        self.assertTrue(response['samples'][3]['fee_to_continuity_known_before_basis'])
+        self.assertEqual(response['samples'][3]['fee_to_account_at_basis'], 'chain:owner-a')
+        self.assertEqual(response['samples'][3]['fee_to_account_latest_known'], 'chain:owner-b')
+        self.assertEqual(
+            response['samples'][3]['protocol_fee_current_owner_provenance_case'],
+            'owner_and_non_owner_mints',
+        )
+        self.assertEqual(response['samples'][3]['protocol_fee_current_owner_timing_case'], 'basis_only')
+        self.assertIsNone(response['samples'][3]['unresolved_protocol_fee_profile'])
+        self.assertEqual(response['samples'][3]['unresolved_protocol_fee_semantic'], 'not_applicable_or_unknown')
+        self.assertEqual(response['samples'][3]['unresolved_protocol_fee_boundary_status'], 'not_applicable_or_unknown')
+        self.assertIsNone(response['samples'][3]['unresolved_protocol_fee_explanation'])
+        self.assertEqual(response['samples'][3]['basis_protocol_fee_liquidity_owned_by_current_owner'], '2')
+        self.assertEqual(response['samples'][3]['post_basis_protocol_fee_liquidity_owned_by_current_owner'], '0')
+        self.assertEqual(
+            response['samples'][3]['post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add'],
+            '0',
+        )
+        self.assertEqual(response['samples'][3]['protocol_fee_liquidity_owned_by_current_owner_current'], '2')
+        self.assertEqual(response['samples'][3]['protocol_fee_liquidity_owned_by_other_accounts'], '3')
+        self.assertEqual(response['samples'][3]['protocol_fee_liquidity_owner_unknown'], '0')
+        self.assertFalse(response['samples'][3]['safe_fee_to_restored'])
+        self.assertEqual(response['samples'][3]['current_round_started_at'], 700)
+        self.assertEqual(response['samples'][3]['current_round_started_transaction_id'], 5)
+        self.assertEqual(response['samples'][3]['readiness_reason_codes'], [])
+
+    async def test_on_get_position_metrics_readiness_debug_validates_sample_limit(self):
+        response = await kline_module.on_get_position_metrics_readiness_debug(
+            owner='chain:owner-a',
+            status='active',
+            sample_limit=0,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"sample_limit must be positive"}')
 
     async def test_on_get_debug_traces_exports_persisted_rows(self):
         original_db = kline_module._db
@@ -461,30 +1188,31 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.body, b'{"error":"limit must be positive"}')
 
     async def test_on_post_debug_catch_up_run_executes_configured_driver(self):
-        class FakeCatchUpDriver:
+        class FakeObservabilityFacade:
             def __init__(self):
                 self.calls = []
 
-            async def run_once(self, *, max_blocks_per_chain=None):
-                self.calls.append(max_blocks_per_chain)
+            async def run_catch_up(self, *, chain_id=None, max_blocks=None):
+                self.calls.append((chain_id, max_blocks))
                 return {
-                    'chain_ids': ['chain-a', 'chain-b'],
-                    'total_ingested_count': 3,
+                    'trigger': 'admin_repair',
+                    'scope': 'configured_chains',
+                    'result': {
+                        'chain_ids': ['chain-a', 'chain-b'],
+                        'total_ingested_count': 3,
+                    },
                 }
 
-        original_driver = kline_module._catch_up_driver
-        original_runner = kline_module._catch_up_runner
-        fake_driver = FakeCatchUpDriver()
-        kline_module._catch_up_driver = fake_driver
-        kline_module._catch_up_runner = None
+        original_facade = kline_module._observability_facade
+        fake_facade = FakeObservabilityFacade()
+        kline_module._observability_facade = fake_facade
 
         try:
             response = await kline_module.on_post_debug_catch_up_run(max_blocks=12)
         finally:
-            kline_module._catch_up_driver = original_driver
-            kline_module._catch_up_runner = original_runner
+            kline_module._observability_facade = original_facade
 
-        self.assertEqual(fake_driver.calls, [12])
+        self.assertEqual(fake_facade.calls, [(None, 12)])
         self.assertEqual(response, {
             'trigger': 'admin_repair',
             'scope': 'configured_chains',
@@ -495,34 +1223,32 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         })
 
     async def test_on_post_debug_catch_up_run_can_target_single_chain(self):
-        class FakeCatchUpRunner:
+        class FakeObservabilityFacade:
             def __init__(self):
                 self.calls = []
 
-            async def ingest_until_caught_up(self, chain_id: str, *, max_blocks: int, mode: str = 'catch_up'):
-                self.calls.append((chain_id, max_blocks, mode))
+            async def run_catch_up(self, *, chain_id=None, max_blocks=None):
+                self.calls.append((chain_id, max_blocks))
                 return {
-                    'chain_id': chain_id,
-                    'ingested_count': 2,
-                    'caught_up': True,
+                    'trigger': 'admin_repair',
+                    'scope': 'single_chain',
+                    'result': {
+                        'chain_id': chain_id,
+                        'ingested_count': 2,
+                        'caught_up': True,
+                    },
                 }
 
-        original_driver = kline_module._catch_up_driver
-        original_runner = kline_module._catch_up_runner
-        original_observability_config = kline_module._observability_config
-        fake_runner = FakeCatchUpRunner()
-        kline_module._catch_up_driver = None
-        kline_module._catch_up_runner = fake_runner
-        kline_module._observability_config = {'catch_up_max_blocks_per_chain': 15}
+        original_facade = kline_module._observability_facade
+        fake_facade = FakeObservabilityFacade()
+        kline_module._observability_facade = fake_facade
 
         try:
             response = await kline_module.on_post_debug_catch_up_run(chain_id='chain-a')
         finally:
-            kline_module._catch_up_driver = original_driver
-            kline_module._catch_up_runner = original_runner
-            kline_module._observability_config = original_observability_config
+            kline_module._observability_facade = original_facade
 
-        self.assertEqual(fake_runner.calls, [('chain-a', 15, 'catch_up')])
+        self.assertEqual(fake_facade.calls, [('chain-a', None)])
         self.assertEqual(response, {
             'trigger': 'admin_repair',
             'scope': 'single_chain',
@@ -596,7 +1322,54 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['liquidity_history'], fake_db.positions)
         self.assertEqual(response['gap_summary']['missing_ids_sample'], [1002])
         self.assertEqual(response['diagnostics'], fake_db.diagnostics)
+        self.assertIsNone(response['position_basis_snapshot'])
+        self.assertIsNone(response['pool_state_snapshot'])
         self.assertIsNone(response['live_recent_audit'])
+
+    async def test_on_get_debug_pool_bundle_can_include_snapshot_state(self):
+        original_db = kline_module._db
+        original_builder = kline_module._build_position_metrics_repository
+        fake_db = FakeDb(positions=[])
+
+        class FakePositionMetricsRepository:
+            def get_position_basis_snapshot(self, **kwargs):
+                self.position_kwargs = dict(kwargs)
+                return {'position_state_id': 'pos-1', 'status': 'active'}
+
+            def get_pool_state_snapshot(self, **kwargs):
+                self.pool_kwargs = dict(kwargs)
+                return {'pool_state_id': 'pool-1', 'last_transaction_id': 99}
+
+        repository = FakePositionMetricsRepository()
+        kline_module._db = fake_db
+        kline_module._build_position_metrics_repository = lambda: repository
+
+        try:
+            response = await kline_module.on_get_debug_pool_bundle(
+                pool_application='chain:pool-app',
+                pool_id=7,
+                owner='chain:owner-a',
+                transaction_limit=50,
+                diagnostics_limit=20,
+            )
+        finally:
+            kline_module._db = original_db
+            kline_module._build_position_metrics_repository = original_builder
+
+        self.assertEqual(response['position_basis_snapshot'], {'position_state_id': 'pos-1', 'status': 'active'})
+        self.assertEqual(response['pool_state_snapshot'], {'pool_state_id': 'pool-1', 'last_transaction_id': 99})
+        self.assertEqual(
+            repository.position_kwargs,
+            {
+                'owner': 'chain:owner-a',
+                'pool_application_id': 'chain:pool-app',
+                'status': 'active',
+            },
+        )
+        self.assertEqual(
+            repository.pool_kwargs,
+            {'pool_application_id': 'chain:pool-app'},
+        )
 
     async def test_on_get_debug_pool_bundle_can_include_live_recent_window_diff(self):
         original_db = kline_module._db
@@ -822,18 +1595,33 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.body, b'{"error":"swap_out_tolerance_attos must be non-negative"}')
 
     async def test_on_get_debug_observability_exports_raw_runtime_state(self):
-        original_ensure = kline_module._ensure_observability_runtime
-        original_container = kline_module._observability_container
-        fake_repo = FakeRawRepository()
-        fake_repo.cursors = [{'chain_id': 'chain-a', 'sync_status': 'idle'}]
-        fake_repo.runs = [{'run_id': 9, 'chain_id': 'chain-a', 'status': 'success'}]
-        fake_repo.anomalies = [{'anomaly_id': 3, 'chain_id': 'chain-a', 'status': 'open'}]
+        original_facade = kline_module._observability_facade
 
-        async def fake_ensure():
-            return None
+        class FakeObservabilityFacade:
+            def __init__(self):
+                self.calls = []
 
-        kline_module._ensure_observability_runtime = fake_ensure
-        kline_module._observability_container = {'raw_repository': fake_repo}
+            def get_debug_observability(self, *, chain_ids, run_statuses, anomaly_statuses, limit):
+                self.calls.append((chain_ids, run_statuses, anomaly_statuses, limit))
+                return {
+                    'status': {
+                        'configured': True,
+                        'state': 'ready',
+                        'ready': True,
+                        'last_error': None,
+                        'last_transition_at': 123.0,
+                        'starting_in_background': False,
+                    },
+                    'chain_ids': list(chain_ids),
+                    'run_statuses': list(run_statuses),
+                    'anomaly_statuses': list(anomaly_statuses),
+                    'cursors': [{'chain_id': 'chain-a', 'sync_status': 'idle'}],
+                    'recent_runs': [{'run_id': 9, 'chain_id': 'chain-a', 'status': 'success'}],
+                    'anomalies': [{'anomaly_id': 3, 'chain_id': 'chain-a', 'status': 'open'}],
+                }
+
+        fake_facade = FakeObservabilityFacade()
+        kline_module._observability_facade = fake_facade
 
         try:
             response = await kline_module.on_get_debug_observability(
@@ -843,22 +1631,18 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 limit=50,
             )
         finally:
-            kline_module._ensure_observability_runtime = original_ensure
-            kline_module._observability_container = original_container
+            kline_module._observability_facade = original_facade
 
+        self.assertEqual(response['status']['state'], 'ready')
         self.assertEqual(response['chain_ids'], ['chain-a', 'chain-b'])
         self.assertEqual(response['run_statuses'], ['success', 'failed'])
         self.assertEqual(response['anomaly_statuses'], ['open'])
-        self.assertEqual(response['cursors'], fake_repo.cursors)
-        self.assertEqual(response['recent_runs'], fake_repo.runs)
-        self.assertEqual(response['anomalies'], fake_repo.anomalies)
+        self.assertEqual(response['cursors'], [{'chain_id': 'chain-a', 'sync_status': 'idle'}])
+        self.assertEqual(response['recent_runs'], [{'run_id': 9, 'chain_id': 'chain-a', 'status': 'success'}])
+        self.assertEqual(response['anomalies'], [{'anomaly_id': 3, 'chain_id': 'chain-a', 'status': 'open'}])
         self.assertEqual(
-            fake_repo.calls,
-            [
-                ('list_chain_cursors', ('chain-a', 'chain-b'), 50),
-                ('list_recent_ingest_runs', ('chain-a', 'chain-b'), ('success', 'failed'), 50),
-                ('list_ingestion_anomalies', ('chain-a', 'chain-b'), ('open',), 50),
-            ],
+            fake_facade.calls,
+            [(('chain-a', 'chain-b'), ('success', 'failed'), ('open',), 50)],
         )
 
     async def test_on_get_debug_observability_rejects_non_positive_limit(self):
@@ -866,6 +1650,108 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"limit must be positive"}')
+
+    async def test_on_post_debug_observability_recover_delegates_to_facade(self):
+        original_facade = kline_module._observability_facade
+
+        class FakeObservabilityFacade:
+            def __init__(self):
+                self.calls = 0
+
+            async def recover(self):
+                self.calls += 1
+                return {
+                    'recovered': True,
+                    'status': {
+                        'configured': True,
+                        'state': 'ready',
+                        'ready': True,
+                        'last_error': None,
+                        'last_transition_at': 1.0,
+                        'starting_in_background': False,
+                        'recovery_allowed': True,
+                    },
+                }
+
+        fake_facade = FakeObservabilityFacade()
+        kline_module._observability_facade = fake_facade
+
+        try:
+            response = await kline_module.on_post_debug_observability_recover()
+        finally:
+            kline_module._observability_facade = original_facade
+
+        self.assertEqual(fake_facade.calls, 1)
+        self.assertTrue(response['recovered'])
+        self.assertEqual(response['status']['state'], 'ready')
+
+    async def test_on_post_debug_market_derivation_replay_delegates_to_facade(self):
+        original_facade = kline_module._observability_facade
+
+        class FakeObservabilityFacade:
+            def __init__(self):
+                self.calls = []
+
+            async def run_market_derivation_replay(
+                self,
+                *,
+                raw_table,
+                batch_limit,
+                max_batches,
+                reprocess_reason,
+            ):
+                self.calls.append((raw_table, batch_limit, max_batches, reprocess_reason))
+                return {
+                    'result': {
+                        'raw_table': raw_table,
+                        'batch_limit': batch_limit,
+                        'max_batches': max_batches,
+                        'reprocess_reason': reprocess_reason,
+                    }
+                }
+
+        fake_facade = FakeObservabilityFacade()
+        kline_module._observability_facade = fake_facade
+
+        try:
+            response = await kline_module.on_post_debug_market_derivation_replay_run(
+                raw_table='raw_posted_messages',
+                batch_limit=10,
+                max_batches=2,
+                reprocess_reason='manual',
+            )
+        finally:
+            kline_module._observability_facade = original_facade
+
+        self.assertEqual(
+            fake_facade.calls,
+            [('raw_posted_messages', 10, 2, 'manual')],
+        )
+        self.assertEqual(response['result']['raw_table'], 'raw_posted_messages')
+
+    async def test_on_post_debug_market_derivation_replay_rejects_invalid_raw_table(self):
+        response = await kline_module.on_post_debug_market_derivation_replay_run(
+            raw_table='raw_operations'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.body,
+            b'{"error":"raw_table must be one of raw_posted_messages"}',
+        )
+
+    async def test_on_post_debug_observability_recover_returns_disabled_when_unconfigured(self):
+        original_facade = kline_module._observability_facade
+        kline_module._observability_facade = None
+
+        try:
+            response = await kline_module.on_post_debug_observability_recover()
+        finally:
+            kline_module._observability_facade = original_facade
+
+        self.assertFalse(response['recovered'])
+        self.assertEqual(response['status']['state'], 'disabled')
+        self.assertFalse(response['status']['recovery_allowed'])
 
 
 if __name__ == '__main__':

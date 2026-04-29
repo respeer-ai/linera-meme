@@ -25,3 +25,9 @@ class DecoderRegistry:
             }
             for (app_type, payload_kind), decoder in sorted(self._decoders.items())
         ]
+
+    def register_known_pairs(self, registrations: tuple[tuple[str, str], ...]) -> None:
+        for app_type, payload_kind in registrations:
+            key = (str(app_type), str(payload_kind))
+            if key not in self._decoders:
+                self._decoders[key] = None

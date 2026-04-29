@@ -27,8 +27,20 @@ Canonical semantics for normalized events, decoder responsibilities, and the der
 - Decoder registry maps app type plus payload kind to a decoder
 - Decoder failures create explicit decode-failure facts; they do not block raw ingestion
 - Normalized business events may include:
+  - `pool_swap_requested`
+  - `swap_update_pool_requested`
+  - `swap_update_pool_message_observed`
+  - `swap_pool_created_recorded`
   - `swap_message_observed`
   - `swap_message_rejected`
+  - `pool_add_liquidity_requested`
+  - `pool_add_liquidity_message_observed`
+  - `pool_remove_liquidity_requested`
+  - `pool_remove_liquidity_message_observed`
+  - `meme_transfer_requested`
+  - `meme_transfer_message_observed`
+  - `meme_liquidity_funded_recorded`
+  - `pool_fund_request_recorded`
   - `fund_success_recorded`
   - `fund_fail_recorded`
   - `transaction_recorded`

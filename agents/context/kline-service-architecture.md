@@ -25,9 +25,13 @@ Canonical target architecture for rebuilding `service/kline` as a coherent servi
 
 - Do not treat the current `service/kline` internal structure as canonical
 - Do not preserve temporary coupling just because it exists today
+- Do not introduce compensating implementations that patch over unclear architecture; every new implementation must start from an explicit top-down model with clear concepts and ownership boundaries
 - Do not mix chain ingestion, domain derivation, query serving, diagnostics, and debug tooling in one monolithic module
 - Do not break current product APIs during internal refactor unless the user explicitly approves contract changes
 - Do not let query handlers compute correctness-critical state by ad hoc replay of raw history once stable projections exist
+- Do not let diagnostics, debug persistence, raw ingestion, or operator tooling block query-service startup or steady-state liveness
+- Do not make the broader `service/kline` process health depend on observability runtime success; observability must fail open and degrade independently
+- When a legacy module such as `kline.py` or `position_metrics.py` clearly needs structural cleanup, record the refactor boundary and continue the planned product migration first; do not derail the current phase by expanding local compensating logic
 
 ## Service Responsibilities
 
@@ -130,6 +134,7 @@ flowchart LR
   - handlers should switch after projections are trustworthy
 - Debug isolation:
   - diagnostic and operator endpoints should depend on dedicated diagnostic models, not random core internals
+  - observability startup, catch-up, trace persistence, and anomaly recording must degrade without taking down core query serving
 
 ## Implications
 
@@ -155,3 +160,4 @@ flowchart LR
 - `agents/context/current-capabilities.md`
 - `agents/context/observability-architecture.md`
 - `agents/runbooks/observability-product-mapping.md`
+- `agents/runbooks/observability-fail-open-operations.md`

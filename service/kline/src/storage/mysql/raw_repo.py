@@ -459,6 +459,25 @@ class RawRepository:
         finally:
             cursor.close()
 
+    def list_normalization_candidates(
+        self,
+        *,
+        raw_table: str,
+        after_sequence: int | None,
+        limit: int,
+    ) -> list[dict]:
+        if raw_table == self.raw_operations_table:
+            return self._list_operation_candidates(
+                after_sequence=after_sequence,
+                limit=limit,
+            )
+        if raw_table == self.raw_posted_messages_table:
+            return self._list_posted_message_candidates(
+                after_sequence=after_sequence,
+                limit=limit,
+            )
+        raise ValueError(f'unsupported normalization raw_table: {raw_table}')
+
     def mark_attempt(self, chain_id: str, height: int) -> None:
         cursor = self.connection.cursor()
         try:
@@ -487,6 +506,123 @@ class RawRepository:
                 (chain_id, int(height), 'syncing'),
             )
             self.connection.commit()
+        finally:
+            cursor.close()
+
+    def _list_operation_candidates(
+        self,
+        *,
+        after_sequence: int | None,
+        limit: int,
+    ) -> list[dict]:
+        cursor = self.connection.cursor(dictionary=True)
+        try:
+            params: list[object] = []
+            where_clauses = ['application_id IS NOT NULL']
+            if after_sequence is not None:
+                where_clauses.append('operation_id > %s')
+                params.append(int(after_sequence))
+            params.append(int(limit))
+            cursor.execute(
+                f'''
+                SELECT
+                    operation_id,
+                    chain_id,
+                    block_hash,
+                    height,
+                    operation_index,
+                    application_id,
+                    authenticated_owner,
+                    raw_operation_bytes
+                FROM {self.raw_operations_table}
+                WHERE {' AND '.join(where_clauses)}
+                ORDER BY operation_id ASC
+                LIMIT %s
+                ''',
+                tuple(params),
+            )
+            rows = cursor.fetchall() or []
+            return [
+                {
+                    'raw_fact_id': str(row['operation_id']),
+                    'raw_table': self.raw_operations_table,
+                    'application_id': row['application_id'],
+                    'payload_kind': 'operation',
+                    'raw_bytes': row['raw_operation_bytes'],
+                    'chain_id': row['chain_id'],
+                    'target_chain_id': row['chain_id'],
+                    'block_hash': row['block_hash'],
+                    'target_block_hash': row['block_hash'],
+                    'transaction_index': row['operation_index'],
+                    'authenticated_owner': row.get('authenticated_owner'),
+                }
+                for row in rows
+            ]
+        finally:
+            cursor.close()
+
+    def _list_posted_message_candidates(
+        self,
+        *,
+        after_sequence: int | None,
+        limit: int,
+    ) -> list[dict]:
+        cursor = self.connection.cursor(dictionary=True)
+        try:
+            params: list[object] = []
+            where_clauses = ['m.application_id IS NOT NULL']
+            if after_sequence is not None:
+                where_clauses.append('m.posted_message_id > %s')
+                params.append(int(after_sequence))
+            params.append(int(limit))
+            cursor.execute(
+                f'''
+                SELECT
+                    m.posted_message_id,
+                    m.origin_chain_id,
+                    m.source_cert_hash,
+                    m.transaction_index,
+                    m.message_index,
+                    m.authenticated_owner,
+                    m.application_id,
+                    m.raw_message_bytes,
+                    b.target_chain_id,
+                    b.target_block_hash,
+                    b.action
+                FROM {self.raw_posted_messages_table} AS m
+                INNER JOIN {self.raw_incoming_bundles_table} AS b
+                    ON b.bundle_id = m.bundle_id
+                WHERE {' AND '.join(where_clauses)}
+                ORDER BY m.posted_message_id ASC
+                LIMIT %s
+                ''',
+                tuple(params),
+            )
+            rows = cursor.fetchall() or []
+            return [
+                {
+                    'raw_fact_id': str(row['posted_message_id']),
+                    'raw_table': self.raw_posted_messages_table,
+                    'application_id': row['application_id'],
+                    'payload_kind': 'message',
+                    'raw_bytes': row['raw_message_bytes'],
+                    'chain_id': row['target_chain_id'],
+                    'source_chain_id': row['origin_chain_id'],
+                    'target_chain_id': row['target_chain_id'],
+                    'target_block_hash': row['target_block_hash'],
+                    'source_cert_hash': row['source_cert_hash'],
+                    'transaction_index': row['transaction_index'],
+                    'message_index': row['message_index'],
+                    'authenticated_owner': row.get('authenticated_owner'),
+                    'execution_status': 'rejected' if row['action'] == 'Reject' else 'observed',
+                    'reject_reason': (
+                        'incoming bundle action Reject'
+                        if row['action'] == 'Reject'
+                        else None
+                    ),
+                }
+                for row in rows
+            ]
         finally:
             cursor.close()
 

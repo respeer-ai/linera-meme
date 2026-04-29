@@ -1,3 +1,22 @@
+FROM rust:1.86 AS rust-decoder-builder
+
+ARG all_proxy
+
+WORKDIR /workspace
+
+COPY Cargo.toml ./
+COPY abi ./abi
+COPY ams ./ams
+COPY base ./base
+COPY blob-gateway ./blob-gateway
+COPY meme ./meme
+COPY pool ./pool
+COPY proxy ./proxy
+COPY runtime ./runtime
+COPY swap ./swap
+
+RUN CARGO_NET_GIT_FETCH_WITH_CLI=true all_proxy=${all_proxy} cargo build --release -p abi --bin canonical_decoder -j 1
+
 FROM python:3.10
 
 ARG swap_application_id
@@ -12,6 +31,9 @@ ENV SWAP_HOST=${swap_host}
 ENV WALLET_HOST=${wallet_host}
 ENV WALLET_OWNER=${wallet_owner}
 ENV WALLET_CHAIN=${wallet_chain}
+ENV KLINE_RUST_DECODER_BIN=/usr/local/bin/kline-canonical-decoder
+
+COPY --from=rust-decoder-builder /workspace/target/release/canonical_decoder /usr/local/bin/kline-canonical-decoder
 
 COPY docker/kline kline
 

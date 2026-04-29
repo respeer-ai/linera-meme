@@ -114,8 +114,10 @@ Canonical executable task breakdown for phase 1 of the kline rebuild.
   - shadow comparison paths
   - diagnostics for migrated endpoints
   - rollback instructions
+  - shared rollout status surface for operators
 - Acceptance:
   - migrated endpoints can be validated against legacy outputs before full legacy removal
+  - operators can inspect current rollout mode and recent mismatches without reading raw diagnostics rows
 
 ## Suggested Task Mapping
 
@@ -149,3 +151,4 @@ Canonical executable task breakdown for phase 1 of the kline rebuild.
 - `agents/primitives/kline-package-layout.md`
 - `agents/primitives/kline-api-read-models.md`
 - `agents/runbooks/observability-deliverables.md`
+- `agents/runbooks/kline-phase1-rollout.md`

@@ -514,6 +514,8 @@ PIP3=$VENV_DIR/bin/pip3
 all_proxy= $PIP3 install PySocks
 
 function run_kline() {
+    cargo build --release -p abi --bin canonical_decoder -j 1
+
     cd service/kline
 
     $PIP3 install 'uvicorn[standard]'
@@ -525,7 +527,7 @@ function run_kline() {
     $PIP3 uninstall websocket-client -y
     $PIP3 install websocket-client
 
-    all_proxy= $PYTHON3 -u src/kline.py \
+    KLINE_RUST_DECODER_BIN=$PWD/../../target/release/canonical_decoder all_proxy= $PYTHON3 -u src/kline.py \
         --swap-chain-id "$SWAP_CHAIN_ID" \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --database-host "$DATABASE_HOST" \

@@ -37,6 +37,7 @@ Canonical design for `application_registry`, `decoder_registry`, and payload dec
 - Do not require a separate microservice for decoder dispatch in the first implementation
 - Do not infer `app_type` from raw bytes alone when `application_registry` can provide it
 - Do not drop undecodable payloads; preserve them as raw facts and explicit decode failures
+- For complex ABI/BCS payloads, treat Rust application types as the canonical decoder implementation; Python should orchestrate dispatch, not reimplement fragile field-level BCS parsing
 
 ## Flow
 

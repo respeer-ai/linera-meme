@@ -21,6 +21,9 @@ Canonical execution contract for `POS-031` through `POS-035`.
 - Do not start Layer 2 business derivation before Layer 1 replay and cursor semantics are stable
 - Do not start Layer 3 product cutover before `settled_trade` and `settled_liquidity_change` are explicit
 - Do not let `latestTransactions` participate in parity decisions once Layer 3 shadow outputs exist
+- Do not treat fail-open lifecycle and operator recovery semantics as optional; they are part of the Layer 1/phase-1 observability foundation
+- Do not ship compensating implementations that blur layer responsibilities; every task must be anchored in a clear top-down model before code is added
+- If `fee exactness` recording or `kline.py` service entry needs structural refactor, record it as an explicit follow-up boundary and continue the current mainline deliverables first
 
 ## Flow
 
@@ -103,6 +106,8 @@ flowchart LR
   - reject mapping rules
   - decode-failure event rules
   - business observation event rules for known app types
+  - Layer 2 worker or materializer boundary that can advance `processing_cursors`
+  - Layer 2 candidate-selection boundary from Layer 1 raw tables
 - Explicit non-goals:
   - no product-facing candles or positions tables
   - no reliance on `latestTransactions`
@@ -110,6 +115,8 @@ flowchart LR
   - each normalized event is reproducible from Layer 1 plus decoder output
   - `Reject` remains visible as a first-class normalized fact
   - normalized replay is idempotent
+  - normalizer replay can resume from `processing_cursors` without consulting chain RPC
+  - operator can trigger explicit Layer 2 replay repair without restarting the query service
 
 ### `POS-035`
 
@@ -184,4 +191,5 @@ flowchart LR
 - `agents/primitives/derived-market-state.md`
 - `agents/runbooks/observability-implementation.md`
 - `agents/runbooks/observability-migration.md`
+- `agents/runbooks/observability-fail-open-operations.md`
 - `agents/tasks/board.yaml` (`POS-031`, `POS-032`, `POS-033`, `POS-034`, `POS-035`)

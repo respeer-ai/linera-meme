@@ -64,6 +64,7 @@ flowchart LR
 
 - Observability is not the whole kline architecture
 - Query serving, diagnostics packaging, and non-observability read models belong to the broader `service/kline` architecture
+- Do not use observability work as a reason to grow compensating business logic around unresolved read-model design; downstream product reads must be driven by explicit Layer 2 and Layer 3 concepts
 - Do not derive `transactions`, `candles`, `positions`, or `fees` directly from `latestTransactions`
 - Do not parse application payload bytes in Layer 1
 - Do not use `round` as a cursor, dedup key, or event primary key

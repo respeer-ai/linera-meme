@@ -16,16 +16,30 @@ from ticker import Ticker
 from db import Db, align_timestamp_to_minute_ms
 from request_trace import build_api_request_log_line, build_api_trace_context
 from storage.mysql.projection_repo import ProjectionRepository
+from storage.mysql.position_metrics_diagnostic_recorder import PositionMetricsDiagnosticRecorder
+from storage.mysql.position_metrics_projection_repo import PositionMetricsProjectionRepository
 from query.read_models.candles import CandlesReadModel
+from query.read_models.live_position_metrics_fetcher import LivePositionMetricsFetcher
 from query.read_models.transactions import TransactionsReadModel
 from query.read_models.positions import PositionsReadModel
+from query.read_models.position_metrics import PositionMetricsReadModel
+from query.read_models.position_metrics_snapshot_fast_path import PositionMetricsSnapshotFastPath
+from query.read_models.position_metrics_protocol_fee_split_semantics import PositionMetricsProtocolFeeSplitSemantics
+from query.read_models.position_metrics_snapshot_shadow_evaluator import PositionMetricsSnapshotShadowEvaluator
 from query.handlers.kline import KlineHandler
 from query.handlers.transactions import TransactionsHandler
 from query.handlers.positions import PositionsHandler
+from query.handlers.position_metrics import PositionMetricsHandler
 from query.handlers.priority_one_rollout import PriorityOneRollout
 from query.serializers.kline import KlineSerializer
 from query.serializers.transactions import TransactionsSerializer
 from query.serializers.positions import PositionsSerializer
+from query.serializers.position_metrics import PositionMetricsSerializer
+from app.observability_facade import ObservabilityFacade
+from app.observability_supervisor import ObservabilitySupervisor
+from app.observability_runtime import ObservabilityRuntime
+from app.config import KlineAppConfig
+from integration.pool_application_client import PoolApplicationClient
 
 
 app = FastAPI()
@@ -36,11 +50,59 @@ _ticker_task = None
 _db = None
 _ticker_db = None
 _db_config = None
-_catch_up_runner = None
-_catch_up_driver = None
 _observability_config = None
-_observability_container = None
-_observability_lifecycle = None
+_observability_supervisor = None
+_observability_facade = None
+_position_metrics_protocol_fee_split_semantics = PositionMetricsProtocolFeeSplitSemantics()
+
+
+def _protocol_fee_current_owner_timing_case(position_basis_snapshot: dict) -> str | None:
+    basis_owned = _int_or_zero(position_basis_snapshot.get('basis_protocol_fee_liquidity_owned_by_current_owner'))
+    post_basis_owned = _int_or_zero(position_basis_snapshot.get('post_basis_protocol_fee_liquidity_owned_by_current_owner'))
+    post_basis_owned_before_first_add = _int_or_zero(
+        position_basis_snapshot.get('post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add')
+    )
+    if (
+        basis_owned == 0
+        and post_basis_owned == 0
+        and post_basis_owned_before_first_add == 0
+    ):
+        return 'no_current_owner_protocol_fee'
+    if post_basis_owned_before_first_add > post_basis_owned:
+        return 'inconsistent_before_first_add_exceeds_post_basis'
+    if basis_owned > 0 and post_basis_owned == 0:
+        return 'basis_only'
+    if basis_owned == 0 and post_basis_owned > 0:
+        if post_basis_owned_before_first_add == post_basis_owned:
+            return 'post_basis_only_before_first_add_only'
+        return 'post_basis_only_with_later_add_present'
+    if basis_owned > 0 and post_basis_owned > 0:
+        if post_basis_owned_before_first_add == post_basis_owned:
+            return 'basis_and_post_basis_before_first_add_only'
+        return 'basis_and_post_basis_with_later_add_present'
+    return 'unknown_or_partial'
+
+
+def _int_or_zero(value: object) -> int:
+    if value in (None, ''):
+        return 0
+    return int(value)
+
+
+def _protocol_fee_unresolved_profile(
+    *,
+    materialized_protocol_fee_split_case: object,
+    protocol_fee_current_owner_timing_case: object,
+    fee_to_continuity_case: object,
+    protocol_fee_current_owner_provenance_case: object,
+) -> str | None:
+    if materialized_protocol_fee_split_case != 'fee_to_nonzero_prior_add_basis_unresolved':
+        return None
+    return '|'.join([
+        str(protocol_fee_current_owner_timing_case or 'unknown_timing'),
+        str(fee_to_continuity_case or 'unknown_continuity'),
+        str(protocol_fee_current_owner_provenance_case or 'unknown_provenance'),
+    ])
 
 
 def _build_priority1_rollout() -> PriorityOneRollout:
@@ -51,6 +113,12 @@ def _build_projection_repository():
     if _db is None:
         raise RuntimeError('Db client is not initialized')
     return ProjectionRepository(_db)
+
+
+def _build_position_metrics_repository():
+    if _db is None:
+        raise RuntimeError('Db client is not initialized')
+    return PositionMetricsProjectionRepository(_db)
 
 
 def _build_kline_handler() -> KlineHandler:
@@ -66,6 +134,320 @@ def _build_transactions_handler() -> TransactionsHandler:
 def _build_positions_handler() -> PositionsHandler:
     repository = _build_projection_repository()
     return PositionsHandler(PositionsReadModel(repository), PositionsSerializer())
+
+
+def _build_position_metrics_handler() -> PositionMetricsHandler:
+    repository = _build_position_metrics_repository()
+
+    async def default_fetcher(position: dict):
+        return await _build_position_metrics_fetcher(repository)(position)
+
+    fetcher = _position_metrics_fetcher or default_fetcher
+    return PositionMetricsHandler(
+        PositionMetricsReadModel(repository, fetcher),
+        PositionMetricsSerializer(),
+        PositionMetricsDiagnosticRecorder(_db),
+    )
+
+
+async def _build_position_metrics_readiness_debug_payload(
+    *,
+    owner: str,
+    status: str,
+    sample_limit: int,
+):
+    repository = _build_position_metrics_repository()
+
+    async def default_fetcher(position: dict):
+        return await _build_position_metrics_fetcher(repository)(position)
+
+    fetcher = _position_metrics_fetcher or default_fetcher
+    payload = await PositionMetricsReadModel(repository, fetcher).get_position_metrics(
+        owner=owner,
+        status=status,
+    )
+    shadow_diagnostics = list(payload.pop('_shadow_diagnostics', []) or [])
+    shadow_by_key = {
+        (
+            row['owner'],
+            row['pool_application'],
+            int(row['pool_id']),
+            row['status'],
+        ): row
+        for row in shadow_diagnostics
+    }
+    readiness_counts = {
+        'candidate': 0,
+        'snapshot_missing': 0,
+        'structure_mismatch': 0,
+        'financial_semantics_pending': 0,
+        'shadow_unavailable': 0,
+    }
+    exact_case_counts = {}
+    readiness_reason_counts = {}
+    mismatch_code_counts = {}
+    basis_profile_counts = {}
+    current_round_liquidity_event_count_counts = {}
+    current_round_trade_count_before_basis_counts = {}
+    trade_count_between_basis_and_fee_free_basis_counts = {}
+    exact_current_principal_case_counts = {}
+    materialized_protocol_fee_split_case_counts = {}
+    protocol_fee_split_semantic_counts = {}
+    protocol_fee_split_timing_case_counts = {}
+    unresolved_protocol_fee_timing_case_counts = {}
+    unresolved_protocol_fee_profile_counts = {}
+    unresolved_protocol_fee_semantic_counts = {}
+    unresolved_protocol_fee_boundary_status_counts = {}
+    unresolved_protocol_fee_explanation_counts = {}
+    fee_to_continuity_case_counts = {}
+    protocol_fee_current_owner_provenance_case_counts = {}
+    protocol_fee_current_owner_timing_case_counts = {}
+    safe_fee_to_restored_counts = {
+        'restored': 0,
+        'not_restored': 0,
+    }
+    samples = []
+    for metric in payload.get('metrics') or []:
+        key = (
+            metric['owner'],
+            metric['pool_application'],
+            int(metric['pool_id']),
+            metric['status'],
+        )
+        shadow_row = shadow_by_key.get(key)
+        shadow = (shadow_row or {}).get('snapshot_shadow') or {}
+        readiness = str(shadow.get('readiness') or 'shadow_unavailable')
+        if readiness not in readiness_counts:
+            readiness_counts[readiness] = 0
+        readiness_counts[readiness] += 1
+        exact_case = shadow.get('exact_case')
+        if exact_case:
+            exact_case = str(exact_case)
+            exact_case_counts[exact_case] = exact_case_counts.get(exact_case, 0) + 1
+        position_basis_snapshot = dict(shadow.get('position_basis_snapshot') or {})
+        basis_type = position_basis_snapshot.get('basis_type')
+        basis_opens_current_round = position_basis_snapshot.get('basis_opens_current_round')
+        has_only_zero_liquidity_before_basis = position_basis_snapshot.get('has_only_zero_liquidity_before_basis')
+        if basis_type is not None:
+            basis_profile = '|'.join([
+                str(basis_type),
+                'current_round' if bool(basis_opens_current_round) else 'not_current_round',
+                'zero_bootstrap_only' if bool(has_only_zero_liquidity_before_basis) else 'non_zero_or_unknown_prefix',
+            ])
+            basis_profile_counts[basis_profile] = basis_profile_counts.get(basis_profile, 0) + 1
+        else:
+            basis_profile = None
+        current_round_liquidity_event_count = position_basis_snapshot.get('current_round_liquidity_event_count')
+        if current_round_liquidity_event_count not in (None, ''):
+            current_round_liquidity_event_count = int(current_round_liquidity_event_count)
+            count_key = str(current_round_liquidity_event_count)
+            current_round_liquidity_event_count_counts[count_key] = (
+                current_round_liquidity_event_count_counts.get(count_key, 0) + 1
+            )
+        current_round_trade_count_before_basis = position_basis_snapshot.get('current_round_trade_count_before_basis')
+        if current_round_trade_count_before_basis not in (None, ''):
+            current_round_trade_count_before_basis = int(current_round_trade_count_before_basis)
+            trade_count_key = str(current_round_trade_count_before_basis)
+            current_round_trade_count_before_basis_counts[trade_count_key] = (
+                current_round_trade_count_before_basis_counts.get(trade_count_key, 0) + 1
+            )
+        trade_count_between_basis_and_fee_free_basis = position_basis_snapshot.get(
+            'trade_count_between_basis_and_fee_free_basis'
+        )
+        if trade_count_between_basis_and_fee_free_basis not in (None, ''):
+            trade_count_between_basis_and_fee_free_basis = int(trade_count_between_basis_and_fee_free_basis)
+            trade_count_key = str(trade_count_between_basis_and_fee_free_basis)
+            trade_count_between_basis_and_fee_free_basis_counts[trade_count_key] = (
+                trade_count_between_basis_and_fee_free_basis_counts.get(trade_count_key, 0) + 1
+            )
+        exact_current_principal_case = position_basis_snapshot.get('exact_current_principal_case')
+        if exact_current_principal_case not in (None, ''):
+            exact_current_principal_case = str(exact_current_principal_case)
+            exact_current_principal_case_counts[exact_current_principal_case] = (
+                exact_current_principal_case_counts.get(exact_current_principal_case, 0) + 1
+            )
+        materialized_protocol_fee_split_case = position_basis_snapshot.get('materialized_protocol_fee_split_case')
+        if materialized_protocol_fee_split_case not in (None, ''):
+            materialized_protocol_fee_split_case = str(materialized_protocol_fee_split_case)
+            materialized_protocol_fee_split_case_counts[materialized_protocol_fee_split_case] = (
+                materialized_protocol_fee_split_case_counts.get(materialized_protocol_fee_split_case, 0) + 1
+            )
+        protocol_fee_split_semantic = _position_metrics_protocol_fee_split_semantics.semantic_for_case(
+            materialized_protocol_fee_split_case
+        )
+        protocol_fee_split_semantic_counts[protocol_fee_split_semantic] = (
+            protocol_fee_split_semantic_counts.get(protocol_fee_split_semantic, 0) + 1
+        )
+        fee_to_continuity_case = position_basis_snapshot.get('fee_to_continuity_case')
+        if fee_to_continuity_case not in (None, ''):
+            fee_to_continuity_case = str(fee_to_continuity_case)
+            fee_to_continuity_case_counts[fee_to_continuity_case] = (
+                fee_to_continuity_case_counts.get(fee_to_continuity_case, 0) + 1
+            )
+        protocol_fee_current_owner_provenance_case = position_basis_snapshot.get(
+            'protocol_fee_current_owner_provenance_case'
+        )
+        if protocol_fee_current_owner_provenance_case not in (None, ''):
+            protocol_fee_current_owner_provenance_case = str(protocol_fee_current_owner_provenance_case)
+            protocol_fee_current_owner_provenance_case_counts[protocol_fee_current_owner_provenance_case] = (
+                protocol_fee_current_owner_provenance_case_counts.get(
+                    protocol_fee_current_owner_provenance_case,
+                    0,
+                ) + 1
+            )
+        protocol_fee_current_owner_timing_case = _protocol_fee_current_owner_timing_case(position_basis_snapshot)
+        if protocol_fee_current_owner_timing_case not in (None, ''):
+            protocol_fee_current_owner_timing_case_counts[protocol_fee_current_owner_timing_case] = (
+                protocol_fee_current_owner_timing_case_counts.get(
+                    protocol_fee_current_owner_timing_case,
+                    0,
+                ) + 1
+            )
+        if (
+            materialized_protocol_fee_split_case not in (None, '')
+            and protocol_fee_current_owner_timing_case not in (None, '')
+        ):
+            split_timing_key = (
+                f'{materialized_protocol_fee_split_case}|'
+                f'{protocol_fee_current_owner_timing_case}'
+            )
+            protocol_fee_split_timing_case_counts[split_timing_key] = (
+                protocol_fee_split_timing_case_counts.get(split_timing_key, 0) + 1
+            )
+            if materialized_protocol_fee_split_case == 'fee_to_nonzero_prior_add_basis_unresolved':
+                unresolved_protocol_fee_timing_case_counts[split_timing_key] = (
+                    unresolved_protocol_fee_timing_case_counts.get(split_timing_key, 0) + 1
+                )
+        unresolved_protocol_fee_profile = _protocol_fee_unresolved_profile(
+            materialized_protocol_fee_split_case=materialized_protocol_fee_split_case,
+            protocol_fee_current_owner_timing_case=protocol_fee_current_owner_timing_case,
+            fee_to_continuity_case=fee_to_continuity_case,
+            protocol_fee_current_owner_provenance_case=protocol_fee_current_owner_provenance_case,
+        )
+        if unresolved_protocol_fee_profile not in (None, ''):
+            unresolved_protocol_fee_profile_counts[unresolved_protocol_fee_profile] = (
+                unresolved_protocol_fee_profile_counts.get(unresolved_protocol_fee_profile, 0) + 1
+            )
+        unresolved_protocol_fee_semantic = _position_metrics_protocol_fee_split_semantics.unresolved_semantic(
+            unresolved_protocol_fee_profile
+        )
+        unresolved_protocol_fee_explanation = _position_metrics_protocol_fee_split_semantics.unresolved_explanation(
+            unresolved_protocol_fee_semantic
+        )
+        unresolved_protocol_fee_boundary_status = _position_metrics_protocol_fee_split_semantics.unresolved_boundary_status(
+            unresolved_protocol_fee_semantic
+        )
+        if unresolved_protocol_fee_profile not in (None, ''):
+            unresolved_protocol_fee_semantic_counts[unresolved_protocol_fee_semantic] = (
+                unresolved_protocol_fee_semantic_counts.get(unresolved_protocol_fee_semantic, 0) + 1
+            )
+            unresolved_protocol_fee_boundary_status_counts[unresolved_protocol_fee_boundary_status] = (
+                unresolved_protocol_fee_boundary_status_counts.get(unresolved_protocol_fee_boundary_status, 0) + 1
+            )
+        if unresolved_protocol_fee_explanation not in (None, ''):
+            unresolved_protocol_fee_explanation_counts[unresolved_protocol_fee_explanation] = (
+                unresolved_protocol_fee_explanation_counts.get(unresolved_protocol_fee_explanation, 0) + 1
+            )
+        safe_fee_to_restored = _position_metrics_protocol_fee_split_semantics.is_safe_restored_case(
+            materialized_protocol_fee_split_case
+        )
+        safe_fee_to_restored_counts['restored' if safe_fee_to_restored else 'not_restored'] += 1
+        readiness_reason_codes = [str(code) for code in (shadow.get('readiness_reason_codes') or [])]
+        mismatch_codes = [str(code) for code in (shadow.get('mismatch_codes') or [])]
+        for code in readiness_reason_codes:
+            readiness_reason_counts[code] = readiness_reason_counts.get(code, 0) + 1
+        for code in mismatch_codes:
+            mismatch_code_counts[code] = mismatch_code_counts.get(code, 0) + 1
+        if len(samples) < sample_limit:
+            samples.append({
+                'owner': metric['owner'],
+                'pool_application': metric['pool_application'],
+                'pool_id': metric['pool_id'],
+                'status': metric['status'],
+                'metrics_status': metric.get('metrics_status'),
+                'exact_fee_supported': bool(metric.get('exact_fee_supported')),
+                'exact_principal_supported': bool(metric.get('exact_principal_supported')),
+                'readiness': readiness,
+                'exact_case': exact_case,
+                'basis_profile': basis_profile,
+                'basis_type': basis_type,
+                'basis_opens_current_round': basis_opens_current_round,
+                'has_only_zero_liquidity_before_basis': has_only_zero_liquidity_before_basis,
+                'current_round_liquidity_event_count': current_round_liquidity_event_count,
+                'current_round_trade_count_before_basis': current_round_trade_count_before_basis,
+                'trade_count_between_basis_and_fee_free_basis': trade_count_between_basis_and_fee_free_basis,
+                'exact_current_principal_case': exact_current_principal_case,
+                'materialized_protocol_fee_split_case': materialized_protocol_fee_split_case,
+                'protocol_fee_split_semantic': protocol_fee_split_semantic,
+                'fee_to_continuity_case': fee_to_continuity_case,
+                'fee_to_continuity_change_count_after_basis': position_basis_snapshot.get(
+                    'fee_to_continuity_change_count_after_basis'
+                ),
+                'fee_to_continuity_known_before_basis': position_basis_snapshot.get(
+                    'fee_to_continuity_known_before_basis'
+                ),
+                'fee_to_account_at_basis': position_basis_snapshot.get('fee_to_account_at_basis'),
+                'fee_to_account_latest_known': position_basis_snapshot.get('fee_to_account_latest_known'),
+                'protocol_fee_current_owner_provenance_case': protocol_fee_current_owner_provenance_case,
+                'protocol_fee_current_owner_timing_case': protocol_fee_current_owner_timing_case,
+                'unresolved_protocol_fee_profile': unresolved_protocol_fee_profile,
+                'unresolved_protocol_fee_semantic': unresolved_protocol_fee_semantic,
+                'unresolved_protocol_fee_boundary_status': unresolved_protocol_fee_boundary_status,
+                'unresolved_protocol_fee_explanation': unresolved_protocol_fee_explanation,
+                'basis_protocol_fee_liquidity_owned_by_current_owner': position_basis_snapshot.get(
+                    'basis_protocol_fee_liquidity_owned_by_current_owner'
+                ),
+                'post_basis_protocol_fee_liquidity_owned_by_current_owner': position_basis_snapshot.get(
+                    'post_basis_protocol_fee_liquidity_owned_by_current_owner'
+                ),
+                'post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add': (
+                    position_basis_snapshot.get('post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add')
+                ),
+                'protocol_fee_liquidity_owned_by_current_owner_current': position_basis_snapshot.get(
+                    'protocol_fee_liquidity_owned_by_current_owner_current'
+                ),
+                'protocol_fee_liquidity_owned_by_other_accounts': position_basis_snapshot.get(
+                    'protocol_fee_liquidity_owned_by_other_accounts'
+                ),
+                'protocol_fee_liquidity_owner_unknown': position_basis_snapshot.get(
+                    'protocol_fee_liquidity_owner_unknown'
+                ),
+                'safe_fee_to_restored': safe_fee_to_restored,
+                'current_round_started_at': position_basis_snapshot.get('current_round_started_at'),
+                'current_round_started_transaction_id': position_basis_snapshot.get(
+                    'current_round_started_transaction_id'
+                ),
+                'readiness_reason_codes': readiness_reason_codes,
+                'mismatch_codes': mismatch_codes,
+            })
+    return {
+        'owner': owner,
+        'status': status,
+        'total_positions': len(payload.get('metrics') or []),
+        'sample_limit': sample_limit,
+        'readiness_counts': readiness_counts,
+        'exact_case_counts': exact_case_counts,
+        'readiness_reason_counts': readiness_reason_counts,
+        'mismatch_code_counts': mismatch_code_counts,
+        'basis_profile_counts': basis_profile_counts,
+        'current_round_liquidity_event_count_counts': current_round_liquidity_event_count_counts,
+        'current_round_trade_count_before_basis_counts': current_round_trade_count_before_basis_counts,
+        'trade_count_between_basis_and_fee_free_basis_counts': trade_count_between_basis_and_fee_free_basis_counts,
+        'exact_current_principal_case_counts': exact_current_principal_case_counts,
+        'materialized_protocol_fee_split_case_counts': materialized_protocol_fee_split_case_counts,
+        'protocol_fee_split_semantic_counts': protocol_fee_split_semantic_counts,
+        'protocol_fee_split_timing_case_counts': protocol_fee_split_timing_case_counts,
+        'unresolved_protocol_fee_timing_case_counts': unresolved_protocol_fee_timing_case_counts,
+        'unresolved_protocol_fee_profile_counts': unresolved_protocol_fee_profile_counts,
+        'unresolved_protocol_fee_semantic_counts': unresolved_protocol_fee_semantic_counts,
+        'unresolved_protocol_fee_boundary_status_counts': unresolved_protocol_fee_boundary_status_counts,
+        'unresolved_protocol_fee_explanation_counts': unresolved_protocol_fee_explanation_counts,
+        'fee_to_continuity_case_counts': fee_to_continuity_case_counts,
+        'protocol_fee_current_owner_provenance_case_counts': protocol_fee_current_owner_provenance_case_counts,
+        'protocol_fee_current_owner_timing_case_counts': protocol_fee_current_owner_timing_case_counts,
+        'safe_fee_to_restored_counts': safe_fee_to_restored_counts,
+        'samples': samples,
+    }
 
 
 def _get_kline_legacy(
@@ -150,38 +532,24 @@ def _get_positions_legacy(
     }
 
 
-async def _default_position_metrics_fetcher(position: dict):
+def _build_position_metrics_fetcher(repository) -> LivePositionMetricsFetcher:
     if _swap is None:
         raise RuntimeError('Swap client is not initialized')
-    if _db is None:
-        raise RuntimeError('Db client is not initialized')
-    return await position_metrics.fetch_live_position_metrics(
-        position,
-        _swap.base_url,
-        liquidity_history=_db.get_position_liquidity_history(
-            owner=position['owner'],
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
+    return LivePositionMetricsFetcher(
+        repository=repository,
+        pool_application_client=PoolApplicationClient(
+            base_url=_swap.base_url,
+            post=async_request.post,
+            in_k8s=running_in_k8s(),
         ),
-        pool_transaction_history=_db.get_pool_transaction_history(
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-        ),
-        pool_swap_count_since_open=_db.get_pool_swap_count_since(
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-            created_at=position['opened_at'],
-        ),
-        pool_history_gap_summary=_db.get_pool_transaction_gap_summary(
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-        ),
-        post=async_request.post,
-        in_k8s=running_in_k8s(),
+        parse_owner_account=position_metrics.parse_account,
+        enrich_payload=position_metrics.enrich_position_metrics_from_payload,
+        snapshot_fast_path=PositionMetricsSnapshotFastPath(),
+        snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
     )
 
 
-_position_metrics_fetcher = _default_position_metrics_fetcher
+_position_metrics_fetcher = None
 
 
 async def _fetch_live_pool_transaction_ids(
@@ -270,10 +638,9 @@ async def _build_recent_transaction_window_audit(
     }
 
 
-async def _ensure_observability_runtime():
-    global _observability_container, _observability_lifecycle, _catch_up_runner, _catch_up_driver
+def _build_observability_supervisor():
     if _observability_config is None:
-        return
+        return ObservabilitySupervisor(None)
     required_keys = {
         'database_host',
         'database_port',
@@ -283,21 +650,9 @@ async def _ensure_observability_runtime():
         'chain_graphql_url',
     }
     if not required_keys.issubset(set(_observability_config.keys())):
-        return
-    if _observability_container is not None:
-        return
-
-    from app.bootstrap import AppBootstrap
-    from app.config import KlineAppConfig
-    from app.lifecycle import AppLifecycle
-
-    lifecycle = AppLifecycle()
-    container = AppBootstrap().build_container(KlineAppConfig(**_observability_config))
-    await lifecycle.startup(container)
-    _observability_lifecycle = lifecycle
-    _observability_container = container
-    _catch_up_runner = container.get('catch_up_runner')
-    _catch_up_driver = container.get('catch_up_driver')
+        return ObservabilitySupervisor(None)
+    runtime = ObservabilityRuntime(KlineAppConfig(**_observability_config))
+    return ObservabilitySupervisor(runtime)
 
 
 @app.get('/transactions/audit/recent')
@@ -673,52 +1028,10 @@ async def on_get_position_metrics(
     status: str = Query(default='active'),
 ):
     try:
-        positions = _db.get_positions(owner=owner, status=status)
-        metrics = []
-        for position in positions:
-            live_metrics = await _position_metrics_fetcher(position)
-            if 'value_warning_codes' not in live_metrics:
-                live_metrics['value_warning_codes'] = []
-            if 'value_warning_message' not in live_metrics:
-                live_metrics['value_warning_message'] = None
-            for field_name in ('fee_amount0', 'fee_amount1', 'protocol_fee_amount0', 'protocol_fee_amount1'):
-                if live_metrics.get(field_name) is None:
-                    live_metrics[field_name] = '0'
-            if (
-                not bool(live_metrics.get('exact_fee_supported'))
-                or bool(live_metrics.get('computation_blockers'))
-                or bool(live_metrics.get('value_warning_codes'))
-            ):
-                _db.record_diagnostic_event(
-                    source='position_metrics',
-                    event_type='inexact_position_metrics',
-                    severity='warning',
-                    owner=position['owner'],
-                    pool_application=position['pool_application'],
-                    pool_id=position['pool_id'],
-                    status=position['status'],
-                    details={
-                        'metrics_status': live_metrics.get('metrics_status'),
-                        'exact_fee_supported': bool(live_metrics.get('exact_fee_supported')),
-                        'exact_principal_supported': bool(live_metrics.get('exact_principal_supported')),
-                        'computation_blockers': list(live_metrics.get('computation_blockers') or []),
-                        'value_warning_codes': list(live_metrics.get('value_warning_codes') or []),
-                    },
-                )
-            metrics.append({
-                'pool_application': position['pool_application'],
-                'pool_id': position['pool_id'],
-                'token_0': position['token_0'],
-                'token_1': position['token_1'],
-                'owner': position['owner'],
-                'status': position['status'],
-                'current_liquidity': position['current_liquidity'],
-                **live_metrics,
-            })
-        return {
-            'owner': owner,
-            'metrics': metrics,
-        }
+        return await _build_position_metrics_handler().get_position_metrics(
+            owner=owner,
+            status=status,
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -726,6 +1039,33 @@ async def on_get_position_metrics(
         )
     except Exception as e:
         print(f'Failed get position metrics: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/position-metrics/readiness')
+async def on_get_position_metrics_readiness_debug(
+    owner: str = Query(...),
+    status: str = Query(default='active'),
+    sample_limit: int = Query(default=100),
+):
+    try:
+        if sample_limit <= 0:
+            raise ValueError('sample_limit must be positive')
+        return await _build_position_metrics_readiness_debug_payload(
+            owner=owner,
+            status=status,
+            sample_limit=sample_limit,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get position metrics readiness debug: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -761,6 +1101,27 @@ async def on_get_diagnostics(
         )
     except Exception as e:
         print(f'Failed get diagnostics: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/priority1-rollout')
+async def on_get_debug_priority1_rollout(
+    limit: int = Query(default=20),
+):
+    try:
+        if limit <= 0:
+            raise ValueError('limit must be positive')
+        return _build_priority1_rollout().status(limit=limit)
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get priority1 rollout debug: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -852,6 +1213,23 @@ async def on_get_debug_pool_bundle(
                 recent_window=recent_window,
             )
 
+        position_basis_snapshot = None
+        pool_state_snapshot = None
+        try:
+            position_metrics_repository = _build_position_metrics_repository()
+            pool_state_snapshot = position_metrics_repository.get_pool_state_snapshot(
+                pool_application_id=pool_application,
+            )
+            if owner is not None:
+                position_basis_snapshot = position_metrics_repository.get_position_basis_snapshot(
+                    owner=owner,
+                    pool_application_id=pool_application,
+                    status='active',
+                )
+        except Exception:
+            position_basis_snapshot = None
+            pool_state_snapshot = None
+
         return {
             'pool_application': pool_application,
             'pool_id': pool_id,
@@ -869,6 +1247,8 @@ async def on_get_debug_pool_bundle(
                 owner=owner,
                 limit=diagnostics_limit,
             ),
+            'position_basis_snapshot': position_basis_snapshot,
+            'pool_state_snapshot': pool_state_snapshot,
             'live_recent_audit': live_recent_audit,
         }
     except ValueError as e:
@@ -890,35 +1270,14 @@ async def on_post_debug_catch_up_run(
     max_blocks: int | None = Query(default=None),
 ):
     try:
-        await _ensure_observability_runtime()
         if max_blocks is not None and max_blocks <= 0:
             raise ValueError('max_blocks must be positive')
-
-        if chain_id is not None:
-            if _catch_up_runner is None:
-                raise RuntimeError('Catch-up runner is not initialized')
-            effective_max_blocks = (
-                max_blocks
-                if max_blocks is not None
-                else ((_observability_config or {}).get('catch_up_max_blocks_per_chain') or 50)
-            )
-            return {
-                'trigger': 'admin_repair',
-                'scope': 'single_chain',
-                'result': await _catch_up_runner.ingest_until_caught_up(
-                    chain_id,
-                    max_blocks=effective_max_blocks,
-                    mode='catch_up',
-                ),
-            }
-
-        if _catch_up_driver is None:
-            raise RuntimeError('Catch-up driver is not initialized')
-        return {
-            'trigger': 'admin_repair',
-            'scope': 'configured_chains',
-            'result': await _catch_up_driver.run_once(max_blocks_per_chain=max_blocks),
-        }
+        if _observability_facade is None:
+            raise RuntimeError('Observability runtime is not configured')
+        return await _observability_facade.run_catch_up(
+            chain_id=chain_id,
+            max_blocks=max_blocks,
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -926,6 +1285,76 @@ async def on_post_debug_catch_up_run(
         )
     except Exception as e:
         print(f'Failed run debug catch-up: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post('/debug/normalization/replay/run')
+async def on_post_debug_normalization_replay_run(
+    raw_table: str | None = Query(default=None),
+    batch_limit: int | None = Query(default=None),
+    max_batches: int | None = Query(default=None),
+    reprocess_reason: str | None = Query(default=None),
+):
+    try:
+        if batch_limit is not None and batch_limit <= 0:
+            raise ValueError('batch_limit must be positive')
+        if max_batches is not None and max_batches <= 0:
+            raise ValueError('max_batches must be positive')
+        if raw_table is not None and raw_table not in {'raw_operations', 'raw_posted_messages'}:
+            raise ValueError('raw_table must be one of raw_operations, raw_posted_messages')
+        if _observability_facade is None:
+            raise RuntimeError('Observability runtime is not configured')
+        return await _observability_facade.run_normalization_replay(
+            raw_table=raw_table,
+            batch_limit=batch_limit,
+            max_batches=max_batches,
+            reprocess_reason=reprocess_reason,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed run debug normalization replay: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post('/debug/market-derivation/replay/run')
+async def on_post_debug_market_derivation_replay_run(
+    raw_table: str | None = Query(default=None),
+    batch_limit: int | None = Query(default=None),
+    max_batches: int | None = Query(default=None),
+    reprocess_reason: str | None = Query(default=None),
+):
+    try:
+        if batch_limit is not None and batch_limit <= 0:
+            raise ValueError('batch_limit must be positive')
+        if max_batches is not None and max_batches <= 0:
+            raise ValueError('max_batches must be positive')
+        if raw_table is not None and raw_table not in {'raw_posted_messages'}:
+            raise ValueError('raw_table must be one of raw_posted_messages')
+        if _observability_facade is None:
+            raise RuntimeError('Observability runtime is not configured')
+        return await _observability_facade.run_market_derivation_replay(
+            raw_table=raw_table,
+            batch_limit=batch_limit,
+            max_batches=max_batches,
+            reprocess_reason=reprocess_reason,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed run debug market derivation replay: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -940,14 +1369,8 @@ async def on_get_debug_observability(
     limit: int = Query(default=200),
 ):
     try:
-        await _ensure_observability_runtime()
         if limit <= 0:
             raise ValueError('limit must be positive')
-        if _observability_container is None:
-            raise RuntimeError('Observability runtime is not initialized')
-        raw_repository = _observability_container.get('raw_repository')
-        if raw_repository is None:
-            raise RuntimeError('Raw repository is not initialized')
 
         parsed_chain_ids = tuple(
             chain_id.strip()
@@ -965,25 +1388,30 @@ async def on_get_debug_observability(
             if status.strip()
         )
 
-        return {
-            'chain_ids': list(parsed_chain_ids),
-            'run_statuses': list(parsed_run_statuses),
-            'anomaly_statuses': list(parsed_anomaly_statuses),
-            'cursors': raw_repository.list_chain_cursors(
-                chain_ids=parsed_chain_ids,
-                limit=limit,
-            ),
-            'recent_runs': raw_repository.list_recent_ingest_runs(
-                chain_ids=parsed_chain_ids,
-                statuses=parsed_run_statuses,
-                limit=limit,
-            ),
-            'anomalies': raw_repository.list_ingestion_anomalies(
-                chain_ids=parsed_chain_ids,
-                statuses=parsed_anomaly_statuses,
-                limit=limit,
-            ),
-        }
+        if _observability_facade is None:
+            return {
+                'status': {
+                    'configured': False,
+                    'state': 'disabled',
+                    'ready': False,
+                    'last_error': 'observability is not configured',
+                    'last_transition_at': None,
+                    'starting_in_background': False,
+                    'components': {},
+                },
+                'chain_ids': list(parsed_chain_ids),
+                'run_statuses': list(parsed_run_statuses),
+                'anomaly_statuses': list(parsed_anomaly_statuses),
+                'cursors': [],
+                'recent_runs': [],
+                'anomalies': [],
+            }
+        return _observability_facade.get_debug_observability(
+            chain_ids=parsed_chain_ids,
+            run_statuses=parsed_run_statuses,
+            anomaly_statuses=parsed_anomaly_statuses,
+            limit=limit,
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -991,6 +1419,32 @@ async def on_get_debug_observability(
         )
     except Exception as e:
         print(f'Failed get debug observability: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post('/debug/observability/recover')
+async def on_post_debug_observability_recover():
+    try:
+        if _observability_facade is None:
+            return {
+                'recovered': False,
+                'status': {
+                    'configured': False,
+                    'state': 'disabled',
+                    'ready': False,
+                    'last_error': 'observability is not configured',
+                    'last_transition_at': None,
+                    'starting_in_background': False,
+                    'recovery_allowed': False,
+                    'components': {},
+                },
+            }
+        return await _observability_facade.recover()
+    except Exception as e:
+        print(f'Failed recover observability: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -1074,12 +1528,13 @@ async def on_startup():
     )
     _ticker = Ticker(manager, _swap, _ticker_db)
     _ticker_task = asyncio.create_task(run_ticker_forever())
-    await _ensure_observability_runtime()
+    if _observability_supervisor is not None:
+        _observability_supervisor.start_in_background()
 
 
 @app.on_event('shutdown')
 async def on_shutdown():
-    global _ticker_task, _observability_container, _observability_lifecycle, _catch_up_runner, _catch_up_driver
+    global _ticker_task
     if _ticker is not None:
         _ticker.stop()
     if _ticker_task is not None:
@@ -1087,12 +1542,8 @@ async def on_shutdown():
         _ticker_task = None
     if _ticker_db is not None:
         _ticker_db.close()
-    if _observability_container is not None and _observability_lifecycle is not None:
-        await _observability_lifecycle.shutdown(_observability_container)
-    _observability_container = None
-    _observability_lifecycle = None
-    _catch_up_runner = None
-    _catch_up_driver = None
+    if _observability_supervisor is not None:
+        await _observability_supervisor.shutdown()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Linera Swap Kline')
@@ -1102,6 +1553,9 @@ if __name__ == '__main__':
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
     parser.add_argument('--swap-chain-id', type=str, required=True, help='Swap chain id')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
+    parser.add_argument('--proxy-host', type=str, default='', help='Host of proxy service')
+    parser.add_argument('--proxy-chain-id', type=str, default='', help='Proxy chain id')
+    parser.add_argument('--proxy-application-id', type=str, default='', help='Proxy application id')
     parser.add_argument('--database-host', type=str, default='localhost', help='Kline database host')
     parser.add_argument('--database-port', type=str, default='3306', help='Kline database port')
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
@@ -1142,7 +1596,15 @@ if __name__ == '__main__':
             'catch_up_max_blocks_per_chain': args.catch_up_max_blocks_per_chain,
             'catch_up_on_startup': not args.disable_catch_up_on_startup,
             'notification_reconnect_delay_seconds': args.notification_reconnect_delay_seconds,
+            'swap_host': args.swap_host,
+            'swap_chain_id': args.swap_chain_id,
+            'swap_application_id': args.swap_application_id,
+            'proxy_host': args.proxy_host or None,
+            'proxy_chain_id': args.proxy_chain_id or None,
+            'proxy_application_id': args.proxy_application_id or None,
         }
+    _observability_supervisor = _build_observability_supervisor()
+    _observability_facade = ObservabilityFacade(_observability_supervisor)
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None, db=_db)

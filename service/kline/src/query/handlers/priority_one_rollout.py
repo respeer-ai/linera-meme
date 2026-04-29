@@ -16,6 +16,18 @@ class PriorityOneRollout:
         value = os.getenv('KLINE_PRIORITY1_PARITY', '0').strip().lower()
         return value in {'1', 'true', 'yes', 'on'}
 
+    def status(self, *, limit: int = 20) -> dict:
+        normalized_limit = max(1, int(limit))
+        recent_mismatches = self._recent_mismatches(limit=normalized_limit)
+        return {
+            'rollout_mode': self.mode(),
+            'legacy_mode_enabled': self.use_legacy(),
+            'parity_enabled': self.parity_enabled(),
+            'recent_mismatch_count': len(recent_mismatches),
+            'recent_mismatches': recent_mismatches,
+            'operator_actions': self._operator_actions(recent_mismatches),
+        }
+
     def compare(
         self,
         *,
@@ -73,6 +85,38 @@ class PriorityOneRollout:
                 'rollout_mode': self.mode(),
             },
         )
+
+    def _recent_mismatches(self, *, limit: int) -> list[dict]:
+        if self.db is None or not hasattr(self.db, 'get_diagnostic_events'):
+            return []
+        rows = self.db.get_diagnostic_events(
+            source='phase1_parity',
+            limit=limit,
+        )
+        return [
+            row
+            for row in rows
+            if row.get('event_type') == 'priority1_mismatch'
+        ]
+
+    def _operator_actions(self, recent_mismatches: list[dict]) -> list[dict[str, str]]:
+        actions = []
+        if not self.parity_enabled():
+            actions.append({
+                'action': 'enable_priority1_parity',
+                'reason': 'set KLINE_PRIORITY1_PARITY=1 before full legacy removal',
+            })
+        if recent_mismatches:
+            actions.append({
+                'action': 'rollback_to_legacy_mode',
+                'reason': 'set KLINE_PRIORITY1_ROLLOUT_MODE=legacy while investigating parity mismatches',
+            })
+        if not actions:
+            actions.append({
+                'action': 'none',
+                'reason': 'no active parity mismatch requires rollback',
+            })
+        return actions
 
     def _to_json(self, payload) -> str:
         return json.dumps(payload, ensure_ascii=True, sort_keys=True, default=str)

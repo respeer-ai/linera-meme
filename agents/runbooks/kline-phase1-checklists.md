@@ -98,6 +98,7 @@ Canonical implementation checklists for `POS-036` through `POS-041`.
 - Add parity comparison path for migrated endpoints
 - Add diagnostics or shadow-compare output for mismatches
 - Define rollback switch or rollback procedure for migrated handlers
+- Add one shared operator-visible rollout status surface
 - Ensure legacy fallback remains callable for non-migrated endpoints
 - Add operator-visible signal when new and legacy outputs diverge
 - Document cutover safety conditions before removing legacy code
@@ -118,3 +119,4 @@ Canonical implementation checklists for `POS-036` through `POS-041`.
 - `agents/runbooks/kline-phase1-workbreakdown.md`
 - `agents/primitives/kline-package-layout.md`
 - `agents/primitives/kline-api-read-models.md`
+- `agents/runbooks/kline-phase1-rollout.md`

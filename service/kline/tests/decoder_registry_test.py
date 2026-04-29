@@ -41,3 +41,53 @@ class DecoderRegistryTest(unittest.TestCase):
                 {'app_type': 'swap', 'payload_kind': 'operation', 'implemented': False},
             ],
         )
+
+    def test_register_known_pairs_keeps_unimplemented_slots_explicit(self):
+        registry = DecoderRegistry()
+
+        registry.register_known_pairs(
+            (
+                ('pool', 'operation'),
+                ('pool', 'message'),
+            )
+        )
+
+        self.assertEqual(
+            registry.list_supported_pairs(),
+            [
+                {'app_type': 'pool', 'payload_kind': 'message', 'implemented': False},
+                {'app_type': 'pool', 'payload_kind': 'operation', 'implemented': False},
+            ],
+        )
+
+    def test_register_real_decoder_marks_pair_as_implemented(self):
+        registry = DecoderRegistry()
+        registry.register_known_pairs((('blob-gateway', 'operation'),))
+        registry.register(
+            app_type='blob-gateway',
+            payload_kind='operation',
+            decoder=object(),
+        )
+
+        self.assertEqual(
+            registry.list_supported_pairs(),
+            [
+                {'app_type': 'blob-gateway', 'payload_kind': 'operation', 'implemented': True},
+            ],
+        )
+
+    def test_register_real_decoder_marks_ams_pair_as_implemented(self):
+        registry = DecoderRegistry()
+        registry.register_known_pairs((('ams', 'operation'),))
+        registry.register(
+            app_type='ams',
+            payload_kind='operation',
+            decoder=object(),
+        )
+
+        self.assertEqual(
+            registry.list_supported_pairs(),
+            [
+                {'app_type': 'ams', 'payload_kind': 'operation', 'implemented': True},
+            ],
+        )
