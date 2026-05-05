@@ -369,18 +369,6 @@ groups:
           当前目标明确为纯新架构，不再允许 runtime legacy path、handler shadow compare 或 rollout debug surface。
           之前规划中的 `compatibility/legacy_response_shapes.py` 未成为活跃运行时依赖，
           现已不再保留兼容层运行时代码。
-      - id: POS-045
-        status: Todo
-        priority: P1
-        depends_on: [POS-044]
-        title: review kline OO 架构并消除 facade/URL 透传中间态
-        notes: |
-          专门的结构审查任务，不在当前主线切题范围内扩散实现。
-          目标：
-          - review `service/kline` 当前新旧模块边界是否符合 OO 概念分层
-          - 识别没有独立语义、只有委托行为的 facade/pass-through object
-          - 把“resolved endpoint/full base URL” 中间态继续收敛为外层注入 configured client / transport object
-          - 记录需要重做而不是值得补丁式优化的结构点
       - id: OBS-E2E-001
         status: Todo
         priority: P1
@@ -402,6 +390,18 @@ groups:
           - 日志包含预期的 lifecycle 消息
 
           实现文件：`service/kline/tests/observability_e2e_test.sh`
+      - id: POS-045
+        status: Todo
+        priority: P1
+        depends_on: [POS-044]
+        title: review kline OO 架构并消除 facade/URL 透传中间态
+        notes: |
+          专门的结构审查任务，不在当前主线切题范围内扩散实现。
+          目标：
+          - review `service/kline` 当前新旧模块边界是否符合 OO 概念分层
+          - 识别没有独立语义、只有委托行为的 facade/pass-through object
+          - 把“resolved endpoint/full base URL” 中间态继续收敛为外层注入 configured client / transport object
+          - 记录需要重做而不是值得补丁式优化的结构点
       - id: POS-027
         status: Doing
         priority: P0
