@@ -1,18 +1,17 @@
 class PositionMetricsHandler:
-    def __init__(self, read_model, serializer, diagnostic_recorder):
+    def __init__(self, read_model, diagnostic_recorder):
         self.read_model = read_model
-        self.serializer = serializer
         self.diagnostic_recorder = diagnostic_recorder
 
     async def get_position_metrics(self, **kwargs):
-        payload = await self.read_model.get_position_metrics(**kwargs)
-        shadow_diagnostics = list(payload.pop('_shadow_diagnostics', []) or [])
-        self._record_inexact_metrics(payload)
-        self._record_shadow_diagnostics(shadow_diagnostics)
-        return self.serializer.serialize_position_metrics(payload)
+        read_result = await self.read_model.get_position_metrics(**kwargs)
+        payload = read_result.public_payload()
+        self._record_inexact_metrics(read_result.metric_diagnostics)
+        self._record_shadow_diagnostics(read_result.shadow_diagnostics)
+        return dict(payload)
 
-    def _record_inexact_metrics(self, payload: dict):
-        for metric in payload.get('metrics') or []:
+    def _record_inexact_metrics(self, metrics: list[dict]) -> None:
+        for metric in metrics:
             if not self._should_record(metric):
                 continue
             self.diagnostic_recorder.record_inexact_metric(metric)

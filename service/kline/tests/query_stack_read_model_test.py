@@ -23,7 +23,6 @@ from query.read_models.position_metrics_read_result import PositionMetricsReadRe
 from query.read_models.positions import PositionsReadModel  # noqa: E402
 from query.read_models.transactions import TransactionsReadModel  # noqa: E402
 from query.handlers.position_metrics import PositionMetricsHandler  # noqa: E402
-from query.serializers.position_metrics import PositionMetricsSerializer  # noqa: E402
 from storage.mysql.position_metrics_diagnostic_recorder import PositionMetricsDiagnosticRecorder  # noqa: E402
 from storage.mysql.projection_query_unavailable_error import ProjectionQueryUnavailableError  # noqa: E402
 from storage.mysql.position_metrics_positions_projection_repo import PositionMetricsPositionsProjectionRepository  # noqa: E402
@@ -487,7 +486,7 @@ class ReadModelBridgeTest(
 
         recorder = FakeDiagnosticRecorder()
         payload = asyncio.run(
-            PositionMetricsHandler(FakeReadModel(), PositionMetricsSerializer(), recorder).get_position_metrics(
+            PositionMetricsHandler(FakeReadModel(), recorder).get_position_metrics(
                 owner='chain:owner-a',
                 status='active',
             )
@@ -706,7 +705,7 @@ class ReadModelBridgeTest(
 
         recorder = FakeDiagnosticRecorder()
         payload = asyncio.run(
-            PositionMetricsHandler(FakeReadModel(), PositionMetricsSerializer(), recorder).get_position_metrics(
+            PositionMetricsHandler(FakeReadModel(), recorder).get_position_metrics(
                 owner='chain:owner-a',
                 status='active',
             )
