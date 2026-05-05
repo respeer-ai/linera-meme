@@ -1,7 +1,6 @@
 import sys
 import types
 import unittest
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -42,6 +41,12 @@ async def dummy_post(*_args, **_kwargs):
 
 async_request_stub.post = dummy_post
 sys.modules['async_request'] = async_request_stub
+
+
+def dummy_async_return(value):
+    async def _inner():
+        return value
+    return _inner
 
 db_stub = types.ModuleType('db')
 db_stub.Db = object
@@ -97,9 +102,85 @@ sys.modules['uvicorn'] = uvicorn_stub
 
 
 import kline as kline_module  # noqa: E402
+from query.read_models.position_metrics_product_state_query_input_provider import PositionMetricsProductStateQueryInputProvider  # noqa: E402
+from position_metrics_payload_decision import PositionMetricsPayloadDecision  # noqa: E402
+from position_metrics_payload_result import PositionMetricsPayloadResult  # noqa: E402
 
 
 class FakeDb:
+    class FakeCursor:
+        def __init__(self, outer):
+            self.outer = outer
+            self.last_sql = ''
+            self.last_params = ()
+
+        def execute(self, sql, params=()):
+            self.last_sql = sql
+            self.last_params = params
+
+        def fetchall(self):
+            if 'FROM diagnostics' in self.last_sql:
+                rows = list(self.outer.diagnostics)
+                param_index = 0
+                if 'source = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('source') == self.last_params[param_index]]
+                    param_index += 1
+                if 'owner = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('owner') == self.last_params[param_index]]
+                    param_index += 1
+                if 'pool_application = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_application') == self.last_params[param_index]]
+                    param_index += 1
+                if 'pool_id = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_id') == int(self.last_params[param_index])]
+                    param_index += 1
+                limit = int(self.last_params[-1]) if self.last_params else len(rows)
+                return [
+                    {
+                        **row,
+                        'details': None if row.get('details') is None else __import__('json').dumps(row.get('details')),
+                    }
+                    for row in rows[:limit]
+                ]
+            if 'FROM debug_traces' in self.last_sql:
+                rows = list(self.outer.debug_traces)
+                param_index = 0
+                if 'source = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('source') == self.last_params[param_index]]
+                    param_index += 1
+                if 'component = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('component') == self.last_params[param_index]]
+                    param_index += 1
+                if 'operation = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('operation') == self.last_params[param_index]]
+                    param_index += 1
+                if 'owner = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('owner') == self.last_params[param_index]]
+                    param_index += 1
+                if 'pool_application = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_application') == self.last_params[param_index]]
+                    param_index += 1
+                if 'pool_id = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_id') == int(self.last_params[param_index])]
+                    param_index += 1
+                if 'created_at >= %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('created_at') >= int(self.last_params[param_index])]
+                    param_index += 1
+                if 'created_at <= %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('created_at') <= int(self.last_params[param_index])]
+                    param_index += 1
+                limit = int(self.last_params[-1]) if self.last_params else len(rows)
+                return [
+                    {
+                        **row,
+                        'request_payload': row.get('request_payload'),
+                        'response_body': row.get('response_body'),
+                        'details': row.get('details'),
+                    }
+                    for row in rows[:limit]
+                ]
+            return []
+
     def __init__(self, positions=None, error=None):
         self.positions = positions or []
         self.error = error
@@ -107,6 +188,9 @@ class FakeDb:
         self.transaction_ids = []
         self.diagnostics = []
         self.debug_traces = []
+        self.diagnostics_table = 'diagnostics'
+        self.debug_traces_table = 'debug_traces'
+        self.cursor_dict = self.FakeCursor(self)
         self.gap_summary = {
             'has_internal_gaps': False,
             'start_id': None,
@@ -114,6 +198,9 @@ class FakeDb:
             'missing_count': 0,
             'missing_ids_sample': [],
         }
+
+    def ensure_fresh_read_connection(self):
+        return None
 
     def get_positions(self, owner: str, status: str):
         self.calls.append({'owner': owner, 'status': status})
@@ -231,68 +318,239 @@ class FakeRawRepository:
         return list(self.anomalies)
 
 
-class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        self.original_rollout_mode = os.environ.get('KLINE_PRIORITY1_ROLLOUT_MODE')
-        self.original_parity = os.environ.get('KLINE_PRIORITY1_PARITY')
-        os.environ.pop('KLINE_PRIORITY1_ROLLOUT_MODE', None)
-        os.environ.pop('KLINE_PRIORITY1_PARITY', None)
+class PositionMetricsEntrypointOverrideState:
+    def __init__(self):
+        self.entrypoint_overrides = kline_module._position_metrics_entrypoint_overrides
 
-    def tearDown(self):
-        if self.original_rollout_mode is None:
-            os.environ.pop('KLINE_PRIORITY1_ROLLOUT_MODE', None)
-        else:
-            os.environ['KLINE_PRIORITY1_ROLLOUT_MODE'] = self.original_rollout_mode
-        if self.original_parity is None:
-            os.environ.pop('KLINE_PRIORITY1_PARITY', None)
-        else:
-            os.environ['KLINE_PRIORITY1_PARITY'] = self.original_parity
+    def restore(self):
+        kline_module._position_metrics_entrypoint_overrides = self.entrypoint_overrides
+
+
+def set_position_metrics_entrypoint_overrides(
+    *,
+    positions_repository_builder=None,
+    snapshot_inputs_repository_builder=None,
+    replay_facts_repository_builder=None,
+    pool_history_repository_builder=None,
+    fetcher_override=None,
+):
+    kline_module._position_metrics_entrypoint_overrides = {
+        'positions_repository_builder': positions_repository_builder,
+        'snapshot_inputs_repository_builder': snapshot_inputs_repository_builder,
+        'replay_facts_repository_builder': replay_facts_repository_builder,
+        'pool_history_repository_builder': pool_history_repository_builder,
+        'fetcher_override': fetcher_override,
+    }
+
+
+class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
+    async def test_positions_serializer_strips_non_allowed_fields(self):
+        from query.serializers.positions import PositionsSerializer
+
+        serializer = PositionsSerializer()
+        payload = {
+            'owner': 'chain:owner-a',
+            'positions': [
+                {
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': 'chain:owner-a',
+                    'status': 'active',
+                    'current_liquidity': '1.5',
+                    'added_liquidity': '2.0',
+                    'removed_liquidity': '0.5',
+                    'add_tx_count': 1,
+                    'remove_tx_count': 1,
+                    'opened_at': 1000,
+                    'updated_at': 2000,
+                    'closed_at': None,
+                    'fee_amount0': '0.1',
+                    'fee_amount1': '0.2',
+                    'principal_amount0': '1.0',
+                    'principal_amount1': '2.0',
+                    'redeemable_amount0': '1.2',
+                    'redeemable_amount1': '2.3',
+                    'metrics_status': 'exact',
+                    'computation_blockers': [],
+                },
+            ],
+        }
+
+        result = serializer.serialize_positions(payload)
+        position = result['positions'][0]
+
+        self.assertEqual(position['pool_id'], 7)
+        self.assertEqual(position['current_liquidity'], '1.5')
+        self.assertNotIn('fee_amount0', position)
+        self.assertNotIn('fee_amount1', position)
+        self.assertNotIn('principal_amount0', position)
+        self.assertNotIn('principal_amount1', position)
+        self.assertNotIn('redeemable_amount0', position)
+        self.assertNotIn('redeemable_amount1', position)
+        self.assertNotIn('metrics_status', position)
+        self.assertNotIn('computation_blockers', position)
+
+    async def test_positions_serializer_preserves_all_allowed_fields(self):
+        from query.serializers.positions import PositionsSerializer
+
+        serializer = PositionsSerializer()
+        position = {
+            'pool_application': 'chain:pool-app',
+            'pool_id': 7,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'owner': 'chain:owner-a',
+            'status': 'active',
+            'current_liquidity': '0',
+            'added_liquidity': '0',
+            'removed_liquidity': '0',
+            'add_tx_count': 0,
+            'remove_tx_count': 0,
+            'opened_at': None,
+            'updated_at': 3000,
+            'closed_at': 3000,
+        }
+        payload = {'owner': 'chain:owner-a', 'positions': [position]}
+
+        result = serializer.serialize_positions(payload)
+        output = result['positions'][0]
+
+        for key in serializer.ALLOWED_FIELDS:
+            self.assertIn(key, output, f'Missing allowed field: {key}')
+
+    async def test_positions_serializer_handles_empty_list(self):
+        from query.serializers.positions import PositionsSerializer
+
+        serializer = PositionsSerializer()
+        result = serializer.serialize_positions({'owner': 'chain:owner-a', 'positions': []})
+
+        self.assertEqual(result['owner'], 'chain:owner-a')
+        self.assertEqual(result['positions'], [])
+
+    async def test_on_get_ticker_uses_market_stats_projection_repository(self):
+        original_runtime = kline_module._runtime
+
+        class FakeRuntime:
+            def get_ticker_stats(self, **kwargs):
+                self.kwargs = dict(kwargs)
+                return [{'token': 'AAA', 'volume': 12.5}]
+
+        runtime = FakeRuntime()
+        kline_module._runtime = lambda: runtime
+
+        try:
+            response = await kline_module.on_get_ticker(interval='1d')
+        finally:
+            kline_module._runtime = original_runtime
+
+        self.assertEqual(response, {
+            'interval': '1d',
+            'stats': [{'token': 'AAA', 'volume': 12.5}],
+        })
+        self.assertEqual(runtime.kwargs, {'interval': '1d'})
+
+    async def test_on_get_pool_stats_uses_market_stats_projection_repository(self):
+        original_runtime = kline_module._runtime
+
+        class FakeRuntime:
+            def get_pool_stats(self, **kwargs):
+                self.kwargs = dict(kwargs)
+                return [{'pool_id': 7, 'volume': 42.0}]
+
+        runtime = FakeRuntime()
+        kline_module._runtime = lambda: runtime
+
+        try:
+            response = await kline_module.on_get_pool_stats(interval='1w')
+        finally:
+            kline_module._runtime = original_runtime
+
+        self.assertEqual(response, {
+            'interval': '1w',
+            'stats': [{'pool_id': 7, 'volume': 42.0}],
+        })
+        self.assertEqual(runtime.kwargs, {'interval': '1w'})
+
+    async def test_get_protocol_stats_uses_market_stats_projection_repository(self):
+        original_runtime = kline_module._runtime
+
+        class FakeRuntime:
+            async def get_protocol_stats(self):
+                self.called = True
+                return {'tvl': 100.0, 'pool_count': 2}
+
+        runtime = FakeRuntime()
+        kline_module._runtime = lambda: runtime
+
+        try:
+            response = await kline_module.get_protocol_stats()
+        finally:
+            kline_module._runtime = original_runtime
+
+        self.assertEqual(response, {'tvl': 100.0, 'pool_count': 2})
+        self.assertTrue(runtime.called)
 
     async def test_on_get_positions_returns_owner_and_positions(self):
-        original_db = kline_module._db
-        fake_db = FakeDb(positions=[
-            {'pool_id': 7, 'status': 'active'},
-        ])
-        kline_module._db = fake_db
+        class FakeHandler:
+            def get_positions(self, **kwargs):
+                self.kwargs = dict(kwargs)
+                return {
+                    'owner': kwargs['owner'],
+                    'positions': [{'pool_id': 7, 'status': 'active'}],
+                }
+
+        handler = FakeHandler()
+        original_builder = kline_module._build_positions_handler
+        kline_module._build_positions_handler = lambda: handler
 
         try:
             response = await kline_module.on_get_positions(owner='chain:owner-a', status='active')
         finally:
-            kline_module._db = original_db
+            kline_module._build_positions_handler = original_builder
 
         self.assertEqual(response, {
             'owner': 'chain:owner-a',
             'positions': [{'pool_id': 7, 'status': 'active'}],
         })
-        self.assertEqual(fake_db.calls[0], {'owner': 'chain:owner-a', 'status': 'active'})
+        self.assertEqual(handler.kwargs, {'owner': 'chain:owner-a', 'status': 'active'})
 
     async def test_on_get_positions_returns_400_for_invalid_status(self):
-        original_db = kline_module._db
-        fake_db = FakeDb(error=ValueError('Invalid positions status'))
-        kline_module._db = fake_db
+        class FakeHandler:
+            def get_positions(self, **_kwargs):
+                raise ValueError('Invalid positions status')
+
+        original_builder = kline_module._build_positions_handler
+        kline_module._build_positions_handler = lambda: FakeHandler()
 
         try:
             response = await kline_module.on_get_positions(owner='chain:owner-a', status='bad')
         finally:
-            kline_module._db = original_db
+            kline_module._build_positions_handler = original_builder
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"Invalid positions status"}')
 
     async def test_on_get_position_metrics_returns_live_metrics(self):
+        original_overrides = PositionMetricsEntrypointOverrideState()
         original_db = kline_module._db
-        original_fetcher = kline_module._position_metrics_fetcher
-        fake_db = FakeDb(positions=[
-            {
-                'pool_application': 'chain:pool-app',
-                'pool_id': 7,
-                'token_0': 'QQQ',
-                'token_1': 'TLINERA',
-                'owner': 'chain:owner-a',
-                'status': 'active',
-                'current_liquidity': '0.346087',
-            },
-        ])
+        fake_db = FakeDb()
+
+        class FakeRepository:
+            def get_positions(self, **kwargs):
+                fake_db.calls.append(dict(kwargs))
+                return [
+                    {
+                        'pool_application': 'chain:pool-app',
+                        'pool_id': 7,
+                        'token_0': 'QQQ',
+                        'token_1': 'TLINERA',
+                        'owner': 'chain:owner-a',
+                        'status': 'active',
+                        'current_liquidity': '0.346087',
+                    },
+                ]
 
         async def fake_fetcher(position):
             self.assertEqual(position['pool_id'], 7)
@@ -323,13 +581,16 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
 
         kline_module._db = fake_db
-        kline_module._position_metrics_fetcher = fake_fetcher
+        set_position_metrics_entrypoint_overrides(
+            positions_repository_builder=lambda: FakeRepository(),
+            fetcher_override=fake_fetcher,
+        )
 
         try:
             response = await kline_module.on_get_position_metrics(owner='chain:owner-a', status='active')
         finally:
             kline_module._db = original_db
-            kline_module._position_metrics_fetcher = original_fetcher
+            original_overrides.restore()
 
         self.assertEqual(response, {
             'owner': 'chain:owner-a',
@@ -372,102 +633,170 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fake_db.diagnostics[0]['event_type'], 'inexact_position_metrics')
         self.assertEqual(fake_db.diagnostics[0]['owner'], 'chain:owner-a')
 
-    async def test_build_position_metrics_fetcher_uses_projection_repository_bridge(self):
+    async def test_build_position_metrics_fetcher_uses_projection_inputs_contract(self):
         class FakeSwap:
             base_url = 'http://swap.example'
 
-        original_db = kline_module._db
         original_swap = kline_module._swap
-        fake_db = FakeDb(positions=[
-            {
-                'transaction_id': 10,
-                'transaction_type': 'AddLiquidity',
-                'created_at': 1000,
-            },
-            {
-                'transaction_id': 11,
-                'transaction_type': 'BuyToken0',
-                'created_at': 2000,
-            },
-        ])
-        fake_db.gap_summary = {
-            'has_internal_gaps': False,
-            'start_id': 10,
-            'end_id': 11,
-            'missing_count': 0,
-            'missing_ids_sample': [],
-        }
-        kline_module._db = fake_db
         kline_module._swap = FakeSwap()
         captured = {}
 
-        async def fake_get_position_metrics_payload(*, pool_application, owner):
-            captured['pool_application'] = pool_application
-            captured['owner'] = dict(owner)
-            return {'data': {'latestTransactions': []}}
+        class FakeRepository:
+            def get_snapshot_inputs(self, **_kwargs):
+                return {
+                    'position_basis_snapshot': {
+                        'current_liquidity': '2.5',
+                    },
+                    'pool_state_snapshot': {
+                        'live_total_supply': '10',
+                        'live_reserve_0': '20',
+                        'live_reserve_1': '30',
+                        'state_payload_json': {
+                            'virtual_initial_liquidity': False,
+                        },
+                    },
+                }
+
+            def get_replay_facts(self, **_kwargs):
+                pool_transaction_history = [
+                    {
+                        'transaction_id': 10,
+                        'transaction_type': 'AddLiquidity',
+                        'created_at': 1000,
+                        'from_account': 'chain:owner-a',
+                    },
+                    {
+                        'transaction_id': 11,
+                        'transaction_type': 'BuyToken0',
+                        'created_at': 2000,
+                        'from_account': 'chain:swapper-b',
+                    },
+                ]
+                return {
+                    'liquidity_history': [pool_transaction_history[0]],
+                    'pool_transaction_history': pool_transaction_history,
+                    'pool_swap_count_since_open': 1,
+                    'pool_history_gap_summary': {
+                        'has_internal_gaps': False,
+                        'start_id': 10,
+                        'end_id': 11,
+                        'missing_count': 0,
+                        'missing_ids_sample': [],
+                    },
+                    'replay_summary': {
+                        'latest_position_transaction_id': 10,
+                        'latest_position_created_at': 1000,
+                        'latest_pool_transaction_id': 11,
+                        'latest_pool_trade_time_ms': 2000,
+                        'latest_pool_liquidity_event_time_ms': 1000,
+                    },
+                }
 
         def fake_enrich_position_metrics_from_payload(position, payload, **kwargs):
             captured['position'] = position
             captured['payload'] = payload
             captured.update(kwargs)
-            return {'metrics_status': 'ok'}
+            return PositionMetricsPayloadResult(
+                metrics={'metrics_status': 'ok'},
+                decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
+                reason_code='payload_requires_history',
+            )
+
+        def fake_plan_position_metrics_from_payload(position, payload):
+            captured['planned_position'] = position
+            captured['planned_payload'] = payload
+            return PositionMetricsPayloadResult(
+                metrics={'metrics_status': 'partial_live_redeemable_only'},
+                decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
+                reason_code='payload_requires_history',
+            )
 
         try:
-            with patch.object(
-                kline_module.PoolApplicationClient,
-                'get_position_metrics_payload',
-                side_effect=fake_get_position_metrics_payload,
-            ), patch.object(
-                kline_module.position_metrics,
-                'enrich_position_metrics_from_payload',
+            with patch(
+                'position_metrics_entrypoint.PositionMetricsEntrypoint.plan_position_metrics_from_payload',
+                side_effect=fake_plan_position_metrics_from_payload,
+            ), patch(
+                'position_metrics_entrypoint.PositionMetricsEntrypoint.enrich_position_metrics_from_payload_result',
                 side_effect=fake_enrich_position_metrics_from_payload,
             ):
-                fetcher = kline_module._build_position_metrics_fetcher(
-                    kline_module._build_projection_repository()
+                repository = FakeRepository()
+                fetcher = kline_module._runtime().position_metrics_public_api().build_fetcher(
+                    query_input_provider=PositionMetricsProductStateQueryInputProvider(
+                        snapshot_inputs_repository=repository,
+                        replay_facts_repository=repository,
+                    )
                 )
                 response = await fetcher({
                     'owner': 'chain:owner-a',
                     'pool_application': 'chain:pool-app',
                     'pool_id': 7,
                     'opened_at': 1500,
+                    'current_liquidity': '2.5',
                 })
         finally:
-            kline_module._db = original_db
             kline_module._swap = original_swap
 
-        self.assertEqual(response['live_metrics'], {'metrics_status': 'ok'})
-        self.assertIn('snapshot_shadow', response)
-        self.assertEqual(captured['pool_application'], 'chain:pool-app')
-        self.assertEqual(captured['owner'], {'chain_id': 'chain', 'owner': 'owner-a'})
-        self.assertEqual(captured['payload'], {'data': {'latestTransactions': []}})
+        self.assertEqual(response.live_metrics, {'metrics_status': 'ok'})
+        self.assertIsNotNone(response.snapshot_shadow)
+        self.assertEqual(captured['planned_payload'], {
+            'data': {
+                'pool': {'fee_to': None},
+                'totalSupply': '10',
+                'virtualInitialLiquidity': False,
+                'liquidity': {
+                    'liquidity': '2.5',
+                    'amount0': '5',
+                    'amount1': '7.5',
+                },
+            },
+        })
+        self.assertEqual(captured['payload'], captured['planned_payload'])
         self.assertEqual(
-            captured['liquidity_history'],
+            captured['replay_bundle'].liquidity_history(),
             [
                 {
                     'transaction_id': 10,
                     'transaction_type': 'AddLiquidity',
                     'created_at': 1000,
-                },
-                {
-                    'transaction_id': 11,
-                    'transaction_type': 'BuyToken0',
-                    'created_at': 2000,
+                    'from_account': 'chain:owner-a',
                 },
             ],
         )
-        self.assertEqual(captured['pool_transaction_history'][0]['transaction_id'], 10)
-        self.assertEqual(captured['pool_swap_count_since_open'], 1)
-        self.assertEqual(captured['pool_history_gap_summary']['start_id'], 10)
+        self.assertEqual(captured['replay_bundle'].pool_transaction_history()[0]['transaction_id'], 10)
+        self.assertEqual(captured['replay_bundle'].pool_swap_count_since_open(), 1)
+        self.assertEqual(captured['replay_bundle'].pool_history_gap_summary()['start_id'], 10)
 
     async def test_on_get_position_metrics_returns_400_for_invalid_status(self):
-        original_db = kline_module._db
-        fake_db = FakeDb(error=ValueError('Invalid positions status'))
-        kline_module._db = fake_db
+        class FakeRepository:
+            def get_positions(self, **_kwargs):
+                raise ValueError('Invalid positions status')
+
+        class FakePoolHistoryRepository:
+            def get_pool_transaction_history(self, **_kwargs):
+                return []
+
+            def get_pool_transaction_gap_summary(self, **_kwargs):
+                return {
+                    'has_internal_gaps': False,
+                    'start_id': None,
+                    'end_id': None,
+                    'missing_count': 0,
+                    'missing_ids_sample': [],
+                    'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
+                }
+
+        original_overrides = PositionMetricsEntrypointOverrideState()
+        set_position_metrics_entrypoint_overrides(
+            positions_repository_builder=lambda: FakeRepository(),
+            snapshot_inputs_repository_builder=lambda: FakeRepository(),
+            replay_facts_repository_builder=lambda: FakeRepository(),
+            pool_history_repository_builder=lambda: FakePoolHistoryRepository(),
+        )
 
         try:
             response = await kline_module.on_get_position_metrics(owner='chain:owner-a', status='bad')
         finally:
-            kline_module._db = original_db
+            original_overrides.restore()
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"Invalid positions status"}')
@@ -506,50 +835,53 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         })
 
     async def test_on_get_position_metrics_readiness_debug_aggregates_samples(self):
-        original_fetcher = kline_module._position_metrics_fetcher
-        original_db = kline_module._db
-        kline_module._db = FakeDb(positions=[
-            {
-                'pool_application': 'chain:pool-a',
-                'pool_id': 1,
-                'token_0': 'AAA',
-                'token_1': 'BBB',
-                'owner': 'chain:owner-a',
-                'status': 'active',
-                'current_liquidity': '5',
-            },
-            {
-                'pool_application': 'chain:pool-b',
-                'pool_id': 2,
-                'token_0': 'CCC',
-                'token_1': 'DDD',
-                'owner': 'chain:owner-a',
-                'status': 'active',
-                'current_liquidity': '9',
-            },
-            {
-                'pool_application': 'chain:pool-c',
-                'pool_id': 3,
-                'token_0': 'EEE',
-                'token_1': 'FFF',
-                'owner': 'chain:owner-a',
-                'status': 'active',
-                'current_liquidity': '12',
-            },
-            {
-                'pool_application': 'chain:pool-d',
-                'pool_id': 4,
-                'token_0': 'GGG',
-                'token_1': 'HHH',
-                'owner': 'chain:owner-a',
-                'status': 'active',
-                'current_liquidity': '10',
-            },
-        ])
+        original_overrides = PositionMetricsEntrypointOverrideState()
+
+        class FakeRepository:
+            def get_positions(self, **_kwargs):
+                return [
+                    {
+                        'pool_application': 'chain:pool-a',
+                        'pool_id': 1,
+                        'token_0': 'AAA',
+                        'token_1': 'BBB',
+                        'owner': 'chain:owner-a',
+                        'status': 'active',
+                        'current_liquidity': '5',
+                    },
+                    {
+                        'pool_application': 'chain:pool-b',
+                        'pool_id': 2,
+                        'token_0': 'CCC',
+                        'token_1': 'DDD',
+                        'owner': 'chain:owner-a',
+                        'status': 'active',
+                        'current_liquidity': '9',
+                    },
+                    {
+                        'pool_application': 'chain:pool-c',
+                        'pool_id': 3,
+                        'token_0': 'EEE',
+                        'token_1': 'FFF',
+                        'owner': 'chain:owner-a',
+                        'status': 'active',
+                        'current_liquidity': '12',
+                    },
+                    {
+                        'pool_application': 'chain:pool-d',
+                        'pool_id': 4,
+                        'token_0': 'GGG',
+                        'token_1': 'HHH',
+                        'owner': 'chain:owner-a',
+                        'status': 'active',
+                        'current_liquidity': '10',
+                    },
+                ]
 
         async def fake_fetcher(position):
             if position['pool_id'] == 1:
                 return {
+                    'fetch_stage': 'snapshot_fast_path',
                     'live_metrics': {
                         'metrics_status': 'exact',
                         'exact_fee_supported': True,
@@ -597,6 +929,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
             if position['pool_id'] == 2:
                 return {
+                'fetch_stage': 'payload_only',
                 'live_metrics': {
                     'metrics_status': 'partial',
                     'exact_fee_supported': False,
@@ -649,6 +982,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
             if position['pool_id'] == 3:
                 return {
+                'fetch_stage': 'replay_fallback',
                 'live_metrics': {
                     'metrics_status': 'exact',
                     'exact_fee_supported': True,
@@ -695,6 +1029,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 },
             }
             return {
+                'fetch_stage': 'replay_fallback',
                 'live_metrics': {
                     'metrics_status': 'exact',
                     'exact_fee_supported': True,
@@ -741,7 +1076,13 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 },
             }
 
-        kline_module._position_metrics_fetcher = fake_fetcher
+        set_position_metrics_entrypoint_overrides(
+            positions_repository_builder=lambda: FakeRepository(),
+            snapshot_inputs_repository_builder=lambda: FakeRepository(),
+            replay_facts_repository_builder=lambda: FakeRepository(),
+            pool_history_repository_builder=lambda: FakeRepository(),
+            fetcher_override=fake_fetcher,
+        )
 
         try:
             response = await kline_module.on_get_position_metrics_readiness_debug(
@@ -750,8 +1091,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 sample_limit=10,
             )
         finally:
-            kline_module._position_metrics_fetcher = original_fetcher
-            kline_module._db = original_db
+            original_overrides.restore()
 
         self.assertEqual(response['owner'], 'chain:owner-a')
         self.assertEqual(response['status'], 'active')
@@ -764,6 +1104,28 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'structure_mismatch': 0,
                 'financial_semantics_pending': 1,
                 'shadow_unavailable': 0,
+            },
+        )
+        self.assertEqual(
+            response['fetch_stage_counts'],
+            {
+                'snapshot_fast_path': 1,
+                'payload_only': 1,
+                'replay_fallback': 2,
+            },
+        )
+        self.assertEqual(
+            response['readiness_by_fetch_stage'],
+            {
+                'snapshot_fast_path': {
+                    'candidate': 1,
+                },
+                'payload_only': {
+                    'financial_semantics_pending': 1,
+                },
+                'replay_fallback': {
+                    'candidate': 2,
+                },
             },
         )
         self.assertEqual(
@@ -916,6 +1278,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             },
         )
         self.assertEqual(len(response['samples']), 4)
+        self.assertEqual(response['samples'][0]['fetch_stage'], 'snapshot_fast_path')
         self.assertEqual(response['samples'][0]['readiness'], 'candidate')
         self.assertEqual(response['samples'][0]['exact_case'], 'post_basis_swaps')
         self.assertEqual(response['samples'][0]['basis_profile'], 'add_liquidity|current_round|zero_bootstrap_only')
@@ -961,6 +1324,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['samples'][0]['current_round_started_at'], 1000)
         self.assertEqual(response['samples'][0]['current_round_started_transaction_id'], 10)
         self.assertEqual(response['samples'][0]['mismatch_codes'], ['pool_last_trade_time_mismatch'])
+        self.assertEqual(response['samples'][1]['fetch_stage'], 'payload_only')
         self.assertEqual(response['samples'][1]['readiness'], 'financial_semantics_pending')
         self.assertIsNone(response['samples'][1]['exact_case'])
         self.assertEqual(
@@ -1023,6 +1387,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'estimated_values',
             ],
         )
+        self.assertEqual(response['samples'][2]['fetch_stage'], 'replay_fallback')
         self.assertEqual(response['samples'][2]['readiness'], 'candidate')
         self.assertEqual(
             response['samples'][2]['exact_case'],
@@ -1074,6 +1439,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['samples'][2]['current_round_started_at'], 800)
         self.assertEqual(response['samples'][2]['current_round_started_transaction_id'], 6)
         self.assertEqual(response['samples'][2]['readiness_reason_codes'], [])
+        self.assertEqual(response['samples'][3]['fetch_stage'], 'replay_fallback')
         self.assertEqual(response['samples'][3]['readiness'], 'candidate')
         self.assertEqual(
             response['samples'][3]['exact_case'],
@@ -1267,6 +1633,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_get_debug_pool_bundle_exports_transactions_liquidity_history_and_diagnostics(self):
         original_db = kline_module._db
+        original_overrides = PositionMetricsEntrypointOverrideState()
         fake_db = FakeDb(positions=[
             {
                 'transaction_id': 1001,
@@ -1298,10 +1665,43 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             'has_internal_gaps': True,
             'start_id': 1000,
             'end_id': 1010,
-            'missing_count': 1,
-            'missing_ids_sample': [1002],
+                'missing_count': 1,
+                'missing_ids_sample': [1002],
         }
+
+        class FakePoolHistoryRepository:
+            def get_pool_transaction_history(self, **kwargs):
+                self.history_kwargs = dict(kwargs)
+                return list(fake_db.positions)
+
+            def get_pool_transaction_gap_summary(self, **kwargs):
+                self.gap_kwargs = dict(kwargs)
+                return dict(fake_db.gap_summary)
+
+        class FakeReplayFacts:
+            def __init__(self):
+                self.liquidity_history = list(fake_db.positions)
+
+        class FakeReplayFactsRepository:
+            def __init__(self):
+                self.settled_pool_history_projection_repo = FakePoolHistoryRepository()
+
+            def get_replay_facts(self, **kwargs):
+                self.replay_kwargs = dict(kwargs)
+                return FakeReplayFacts()
+
+        class EmptySnapshotRepository:
+            def get_snapshot_inputs(self, **_kwargs):
+                return {}
+
+        replay_repository = FakeReplayFactsRepository()
+        pool_history_repository = replay_repository.settled_pool_history_projection_repo
         kline_module._db = fake_db
+        set_position_metrics_entrypoint_overrides(
+            snapshot_inputs_repository_builder=lambda: EmptySnapshotRepository(),
+            replay_facts_repository_builder=lambda: replay_repository,
+            pool_history_repository_builder=lambda: pool_history_repository,
+        )
 
         try:
             response = await kline_module.on_get_debug_pool_bundle(
@@ -1313,6 +1713,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             )
         finally:
             kline_module._db = original_db
+            original_overrides.restore()
 
         self.assertEqual(response['pool_application'], 'chain:pool-app')
         self.assertEqual(response['pool_id'], 7)
@@ -1324,25 +1725,72 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['diagnostics'], fake_db.diagnostics)
         self.assertIsNone(response['position_basis_snapshot'])
         self.assertIsNone(response['pool_state_snapshot'])
-        self.assertIsNone(response['live_recent_audit'])
+        self.assertNotIn('live_recent_audit', response)
+        self.assertEqual(
+            replay_repository.settled_pool_history_projection_repo.history_kwargs,
+            {
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+            },
+        )
+        self.assertEqual(
+            replay_repository.replay_kwargs,
+            {
+                'owner': 'chain:owner-a',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'opened_at': None,
+            },
+        )
+        self.assertEqual(
+            replay_repository.settled_pool_history_projection_repo.gap_kwargs,
+            {
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+            },
+        )
 
     async def test_on_get_debug_pool_bundle_can_include_snapshot_state(self):
         original_db = kline_module._db
-        original_builder = kline_module._build_position_metrics_repository
+        original_overrides = PositionMetricsEntrypointOverrideState()
         fake_db = FakeDb(positions=[])
 
         class FakePositionMetricsRepository:
-            def get_position_basis_snapshot(self, **kwargs):
-                self.position_kwargs = dict(kwargs)
-                return {'position_state_id': 'pos-1', 'status': 'active'}
+            def get_snapshot_inputs(self, **kwargs):
+                self.snapshot_kwargs = dict(kwargs)
+                return {
+                    'position_basis_snapshot': {'position_state_id': 'pos-1', 'status': 'active'},
+                    'pool_state_snapshot': {'pool_state_id': 'pool-1', 'last_transaction_id': 99},
+                }
 
-            def get_pool_state_snapshot(self, **kwargs):
-                self.pool_kwargs = dict(kwargs)
-                return {'pool_state_id': 'pool-1', 'last_transaction_id': 99}
+        class FakePoolHistoryRepository:
+            def get_pool_transaction_history(self, **_kwargs):
+                return []
+
+            def get_pool_transaction_gap_summary(self, **_kwargs):
+                return {
+                    'has_internal_gaps': False,
+                    'start_id': None,
+                    'end_id': None,
+                    'missing_count': 0,
+                    'missing_ids_sample': [],
+                    'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
+                }
+
+        class FakeReplayFactsRepository:
+            def __init__(self):
+                self.settled_pool_history_projection_repo = FakePoolHistoryRepository()
+
+            def get_replay_facts(self, **_kwargs):
+                return type('ReplayFacts', (), {'liquidity_history': []})()
 
         repository = FakePositionMetricsRepository()
         kline_module._db = fake_db
-        kline_module._build_position_metrics_repository = lambda: repository
+        set_position_metrics_entrypoint_overrides(
+            snapshot_inputs_repository_builder=lambda: repository,
+            replay_facts_repository_builder=lambda: FakeReplayFactsRepository(),
+            pool_history_repository_builder=lambda: FakePoolHistoryRepository(),
+        )
 
         try:
             response = await kline_module.on_get_debug_pool_bundle(
@@ -1354,175 +1802,22 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             )
         finally:
             kline_module._db = original_db
-            kline_module._build_position_metrics_repository = original_builder
+            original_overrides.restore()
 
         self.assertEqual(response['position_basis_snapshot'], {'position_state_id': 'pos-1', 'status': 'active'})
         self.assertEqual(response['pool_state_snapshot'], {'pool_state_id': 'pool-1', 'last_transaction_id': 99})
         self.assertEqual(
-            repository.position_kwargs,
+            repository.snapshot_kwargs,
             {
                 'owner': 'chain:owner-a',
                 'pool_application_id': 'chain:pool-app',
                 'status': 'active',
             },
         )
-        self.assertEqual(
-            repository.pool_kwargs,
-            {'pool_application_id': 'chain:pool-app'},
-        )
-
-    async def test_on_get_debug_pool_bundle_can_include_live_recent_window_diff(self):
-        original_db = kline_module._db
-        original_swap = kline_module._swap
-        original_post = kline_module.async_request.post
-        fake_db = FakeDb(positions=[
-            {
-                'transaction_id': 1001,
-                'transaction_type': 'AddLiquidity',
-                'from_account': 'chain:owner-a',
-                'amount_0_in': '10',
-                'amount_0_out': '0',
-                'amount_1_in': '20',
-                'amount_1_out': '0',
-                'liquidity': '5',
-                'created_at': 100,
-            },
-        ])
-        fake_db.transaction_ids = [1002, 1003, 1005]
-
-        async def fake_post(url, json, timeout):
-            self.assertIn('/applications/pool-app', url)
-            self.assertEqual(json['query'].strip(), 'query {\n latestTransactions \n}')
-            self.assertEqual(timeout, (3, 10))
-            return types.SimpleNamespace(
-                raise_for_status=lambda: None,
-                json=lambda: {
-                    'data': {
-                        'latestTransactions': [
-                            {'transactionId': 1001},
-                            {'transactionId': 1002},
-                            {'transactionId': 1003},
-                            {'transactionId': 1004},
-                            {'transactionId': 1005},
-                        ],
-                    },
-                },
-            )
-
-        kline_module._db = fake_db
-        kline_module._swap = types.SimpleNamespace(base_url='http://swap-host/api/swap')
-        kline_module.async_request.post = fake_post
-
-        try:
-            response = await kline_module.on_get_debug_pool_bundle(
-                pool_application='chain:0xpool-app',
-                pool_id=7,
-                owner=None,
-                transaction_limit=50,
-                diagnostics_limit=20,
-                include_live_recent=True,
-                recent_window=5,
-            )
-        finally:
-            kline_module._db = original_db
-            kline_module._swap = original_swap
-            kline_module.async_request.post = original_post
-
-        self.assertEqual(response['live_recent_audit'], {
-            'pool_id': 7,
-            'pool_application': 'chain:0xpool-app',
-            'recent_window': 5,
-            'window_start_id': 1001,
-            'window_end_id': 1005,
-            'live_ids': [1001, 1002, 1003, 1004, 1005],
-            'db_ids': [1002, 1003, 1005],
-            'missing_in_db': [1001, 1004],
-            'missing_in_live': [],
-        })
-        self.assertIn({
-            'pool_id': 7,
-            'pool_application': 'chain:0xpool-app',
-            'start_id': 1001,
-            'end_id': 1005,
-        }, fake_db.calls)
-
-    async def test_on_get_recent_transaction_audit_returns_db_vs_live_window_diff(self):
-        original_db = kline_module._db
-        original_swap = kline_module._swap
-        original_post = kline_module.async_request.post
-        fake_db = FakeDb()
-        fake_db.transaction_ids = [1002, 1003, 1005]
-
-        async def fake_post(url, json, timeout):
-            self.assertIn('/applications/pool-app', url)
-            self.assertEqual(json['query'].strip(), 'query {\n latestTransactions \n}')
-            self.assertEqual(timeout, (3, 10))
-            return types.SimpleNamespace(
-                raise_for_status=lambda: None,
-                json=lambda: {
-                    'data': {
-                        'latestTransactions': [
-                            {'transactionId': 1001},
-                            {'transactionId': 1002},
-                            {'transactionId': 1003},
-                            {'transactionId': 1004},
-                            {'transactionId': 1005},
-                        ],
-                    },
-                },
-            )
-
-        kline_module._db = fake_db
-        kline_module._swap = types.SimpleNamespace(base_url='http://swap-host/api/swap')
-        kline_module.async_request.post = fake_post
-
-        try:
-            response = await kline_module.on_get_recent_transaction_audit(
-                pool_id=7,
-                pool_application='chain:0xpool-app',
-                recent_window=5,
-            )
-        finally:
-            kline_module._db = original_db
-            kline_module._swap = original_swap
-            kline_module.async_request.post = original_post
-
-        self.assertEqual(response, {
-            'pool_id': 7,
-            'pool_application': 'chain:0xpool-app',
-            'recent_window': 5,
-            'window_start_id': 1001,
-            'window_end_id': 1005,
-            'live_ids': [1001, 1002, 1003, 1004, 1005],
-            'db_ids': [1002, 1003, 1005],
-            'missing_in_db': [1001, 1004],
-            'missing_in_live': [],
-        })
-        self.assertEqual(fake_db.calls, [{
-            'pool_id': 7,
-            'pool_application': 'chain:0xpool-app',
-            'start_id': 1001,
-            'end_id': 1005,
-        }])
-
-    async def test_on_get_recent_transaction_audit_returns_400_for_bad_window(self):
-        original_db = kline_module._db
-        kline_module._db = FakeDb()
-
-        try:
-            response = await kline_module.on_get_recent_transaction_audit(
-                pool_id=7,
-                pool_application='chain:0xpool-app',
-                recent_window=0,
-            )
-        finally:
-            kline_module._db = original_db
-
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.body, b'{"error":"recent_window must be positive"}')
 
     async def test_on_get_replay_transaction_audit_returns_first_failure_details(self):
         original_db = kline_module._db
+        original_overrides = PositionMetricsEntrypointOverrideState()
         fake_db = FakeDb(positions=[
             {
                 'transaction_id': 1,
@@ -1547,7 +1842,23 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'created_at': 1_800_000_001_000,
             },
         ])
+
+        class FakePoolHistoryRepository:
+            def get_pool_transaction_history(self, **kwargs):
+                self.history_kwargs = dict(kwargs)
+                return list(fake_db.positions)
+
+        class FakeReplayFactsRepository:
+            def __init__(self):
+                self.settled_pool_history_projection_repo = FakePoolHistoryRepository()
+
+        replay_repository = FakeReplayFactsRepository()
+        pool_history_repository = replay_repository.settled_pool_history_projection_repo
         kline_module._db = fake_db
+        set_position_metrics_entrypoint_overrides(
+            replay_facts_repository_builder=lambda: replay_repository,
+            pool_history_repository_builder=lambda: pool_history_repository,
+        )
 
         try:
             response = await kline_module.on_get_replay_transaction_audit(
@@ -1560,6 +1871,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             )
         finally:
             kline_module._db = original_db
+            original_overrides.restore()
 
         self.assertEqual(response['pool_id'], 7)
         self.assertEqual(response['pool_application'], 'chain:0xpool-app')
@@ -1571,8 +1883,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             'pool_history_contains_invalid_swap_amounts',
         )
         self.assertEqual(
-            fake_db.calls,
-            [{'pool_application': 'chain:0xpool-app', 'pool_id': 7, 'history': True}],
+            replay_repository.settled_pool_history_projection_repo.history_kwargs,
+            {'pool_application': 'chain:0xpool-app', 'pool_id': 7},
         )
 
     async def test_on_get_replay_transaction_audit_returns_400_for_negative_tolerance(self):
@@ -1739,6 +2051,40 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             response.body,
             b'{"error":"raw_table must be one of raw_posted_messages"}',
         )
+
+    async def test_on_post_debug_market_derivation_replay_accepts_raw_posted_messages(self):
+        original_facade = kline_module._observability_facade
+
+        class FakeObservabilityFacade:
+            def __init__(self):
+                self.calls = []
+
+            async def run_normalization_replay(
+                self,
+                *,
+                raw_table,
+                batch_limit,
+                max_batches,
+                reprocess_reason,
+            ):
+                self.calls.append((raw_table, batch_limit, max_batches, reprocess_reason))
+                return {'result': {'raw_table': raw_table}}
+
+        fake_facade = FakeObservabilityFacade()
+        kline_module._observability_facade = fake_facade
+
+        try:
+            response = await kline_module.on_post_debug_normalization_replay_run(
+                raw_table='raw_posted_messages',
+                batch_limit=5,
+                max_batches=1,
+                reprocess_reason='manual',
+            )
+        finally:
+            kline_module._observability_facade = original_facade
+
+        self.assertEqual(fake_facade.calls, [('raw_posted_messages', 5, 1, 'manual')])
+        self.assertEqual(response['result']['raw_table'], 'raw_posted_messages')
 
     async def test_on_post_debug_observability_recover_returns_disabled_when_unconfigured(self):
         original_facade = kline_module._observability_facade

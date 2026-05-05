@@ -1,9 +1,43 @@
-from compatibility.legacy_response_shapes import LegacyResponseShapeAdapter
+"""Position bounded context serializer.
+
+This serializer enforces the boundary between Position (lightweight list view)
+and PositionMetrics (computed enrichment). Only fields in ALLOWED_FIELDS
+may appear in the /positions response. Adding a field here requires explicit
+review of whether it belongs to the Position or PositionMetrics context.
+"""
 
 
 class PositionsSerializer:
-    def __init__(self):
-        self.adapter = LegacyResponseShapeAdapter()
+    ALLOWED_FIELDS = frozenset({
+        'pool_application',
+        'pool_id',
+        'token_0',
+        'token_1',
+        'owner',
+        'status',
+        'current_liquidity',
+        'added_liquidity',
+        'removed_liquidity',
+        'add_tx_count',
+        'remove_tx_count',
+        'opened_at',
+        'updated_at',
+        'closed_at',
+    })
 
     def serialize_positions(self, payload: dict) -> dict:
-        return self.adapter.preserve(payload)
+        if isinstance(payload, dict):
+            positions = payload.get('positions', [])
+            return {
+                'owner': payload.get('owner', ''),
+                'positions': self._filter_fields(positions),
+            }
+        if isinstance(payload, list):
+            return self._filter_fields(payload)
+        return payload
+
+    def _filter_fields(self, items: list) -> list:
+        return [
+            {key: item[key] for key in self.ALLOWED_FIELDS if key in item}
+            for item in items
+        ]
