@@ -11,7 +11,7 @@ class RustFixtureLoader:
                 'run',
                 '--quiet',
                 '-p',
-                'abi',
+                'decoder',
                 '--bin',
                 'test_payload_fixture',
                 '--',

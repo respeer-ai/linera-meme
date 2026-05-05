@@ -23,8 +23,7 @@ Canonical Layer 2 event model for turning raw chain facts into business-oriented
   - observation
   - rejection
   - decode failure
-  - recorded transaction history
-  - recorded liquidity change
+  - finalized pool execution fact observed in a block
 - A normalized event is not automatically a settled market event
 
 ## Correlation Keys
@@ -88,14 +87,16 @@ Canonical Layer 2 event model for turning raw chain facts into business-oriented
 - `pool_fund_request_recorded`
 - `fund_success_recorded`
 - `fund_fail_recorded`
-- `transaction_recorded`
+- `pool_new_transaction_recorded`
+  - current first-stage pool execution fact family
+  - emitted from block-observed decoded `PoolMessage::NewTransaction`
+  - valid Layer 3 input while the contract still uses this carrier
 - `pool_set_fee_to_requested`
 - `pool_set_fee_to_message_observed`
 - `pool_set_fee_to_message_rejected`
 - `pool_set_fee_to_setter_requested`
 - `pool_set_fee_to_setter_message_observed`
 - `pool_set_fee_to_setter_message_rejected`
-- `liquidity_change_recorded`
 
 ## Rules
 

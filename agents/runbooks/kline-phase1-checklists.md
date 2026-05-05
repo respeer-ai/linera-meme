@@ -20,6 +20,7 @@ Canonical implementation checklists for `POS-036` through `POS-041`.
 - Do not skip compatibility checks for migrated endpoints
 - Do not let a handler-cutover task finish while still depending on legacy correctness logic
 - Do not merge unrelated checklist items across tasks just because they touch the same files
+- Do not require runtime parity or rollback controls once a migrated endpoint is intentionally single-path
 
 ## `POS-036` Checklist
 
@@ -95,13 +96,11 @@ Canonical implementation checklists for `POS-036` through `POS-041`.
 
 ## `POS-041` Checklist
 
-- Add parity comparison path for migrated endpoints
-- Add diagnostics or shadow-compare output for mismatches
-- Define rollback switch or rollback procedure for migrated handlers
-- Add one shared operator-visible rollout status surface
-- Ensure legacy fallback remains callable for non-migrated endpoints
-- Add operator-visible signal when new and legacy outputs diverge
-- Document cutover safety conditions before removing legacy code
+- Remove or rewrite outdated parity, rollback, and legacy-fallback guidance for already migrated priority-1 endpoints
+- Preserve compatibility adapters only where they preserve external response shape
+- Make phase-1 docs explicit that migrated priority-1 endpoints are single-path
+- Ensure no current implementation task depends on resurrecting rollout-mode switches or parity diagnostics
+- Document cutover safety in terms of targeted tests and projection contracts, not dual-path runtime controls
 
 ## Validation
 

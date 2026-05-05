@@ -32,6 +32,10 @@ Canonical target architecture for rebuilding `service/kline` as a coherent servi
 - Do not let diagnostics, debug persistence, raw ingestion, or operator tooling block query-service startup or steady-state liveness
 - Do not make the broader `service/kline` process health depend on observability runtime success; observability must fail open and degrade independently
 - When a legacy module such as `kline.py` or `position_metrics.py` clearly needs structural cleanup, record the refactor boundary and continue the planned product migration first; do not derail the current phase by expanding local compensating logic
+- Do not make core modules, public APIs, runtime factories, or read models depend on deployment-environment booleans such as `running_in_k8s` or `in_k8s`
+- Endpoint selection belongs to the outer composition/integration boundary
+- Resolved endpoints or full base URLs may be passed inward as a migration step, but the preferred steady-state is: outer composition builds configured transport/client objects and inner modules depend on those objects, not raw URL strings
+- Review refactors for unnecessary facade or pass-through objects; if an object owns no independent concept, policy, or lifecycle, collapse it instead of preserving delegation-only layers
 
 ## Service Responsibilities
 

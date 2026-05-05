@@ -109,15 +109,14 @@ Canonical executable task breakdown for phase 1 of the kline rebuild.
 ### `PKG-7` Parity And Safety
 
 - Goal:
-  - add parity checking and rollback-safe cutover guards
+  - remove obsolete migration guardrails and align phase-1 execution docs with the current single-path architecture
 - Outputs:
-  - shadow comparison paths
-  - diagnostics for migrated endpoints
-  - rollback instructions
-  - shared rollout status surface for operators
+  - updated phase-1 guidance
+  - explicit rule that compatibility means response-shape preservation only
+  - explicit rule that migrated priority-1 endpoints stay single-path
 - Acceptance:
-  - migrated endpoints can be validated against legacy outputs before full legacy removal
-  - operators can inspect current rollout mode and recent mismatches without reading raw diagnostics rows
+  - phase-1 docs no longer instruct parity, rollback, or runtime fallback for already migrated priority-1 endpoints
+  - future work cannot mistake compatibility adapters for migration guardrails
 
 ## Suggested Task Mapping
 
@@ -137,7 +136,7 @@ Canonical executable task breakdown for phase 1 of the kline rebuild.
 - `PKG-6`
   - first query cutover tasks
 - `PKG-7`
-  - parity checks and compatibility hardening
+  - compatibility-boundary clarification and stale rollout-guard removal
 
 ## Validation
 

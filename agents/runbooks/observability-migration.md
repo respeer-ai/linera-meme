@@ -23,7 +23,7 @@ Migration sequence for moving existing `service/kline` product tables and querie
 4. Add Layer 3 settled outputs in parallel with existing product tables
 5. Shadow-compare Layer 3 outputs against current product tables
 6. Switch product-facing writes and reads to Layer 3
-7. Remove `latestTransactions` from truth-source paths
+7. Remove `latestTransactions` from the code path entirely
 
 ## Rules
 
@@ -31,7 +31,8 @@ Migration sequence for moving existing `service/kline` product tables and querie
 - Do not delete existing product tables during the first migration pass
 - Do not let Layer 3 write directly into raw tables
 - Do not mix old and new candle inputs in the same aggregation path
-- Do not claim migration complete while `latestTransactions` still participates in correctness decisions
+- Do not claim migration complete while `latestTransactions` still exists in any product, correctness, or observability path
+- In this implementation track, do not preserve `latestTransactions` as optional fallback or auxiliary bridge code
 
 ## Checklist
 
@@ -64,8 +65,8 @@ Migration sequence for moving existing `service/kline` product tables and querie
 
 1. Switch product-facing derivation to Layer 3
 2. Switch diagnostics to query Layer 1/2/3 explicitly
-3. Remove `latestTransactions` from correctness-critical paths
-4. Keep old code only as temporary fallback if explicitly needed
+3. Remove `latestTransactions` from all product and observability paths
+4. Delete old `latestTransactions` code instead of keeping runtime fallback branches
 
 ## Product Mapping
 
@@ -106,12 +107,15 @@ Migration sequence for moving existing `service/kline` product tables and querie
 - Candle parity checks use only settled trades
 - Transactions parity checks do not silently treat rejects as settled history
 - Positions and fee outputs do not depend on re-reading raw bytes after cutover
+- Public query handlers and websocket emitters do not call pool-application history endpoints after cutover
+- `ticker` and debug packaging read persisted projections only; any remaining live pool GraphQL is limited to scalar state that has not yet been materialized
 
 ## Stop Conditions
 
-- Product-facing paths no longer use `latestTransactions` as a truth source
+- Product-facing and observability paths no longer reference `latestTransactions`
 - Layer 3 outputs are authoritative for `transactions`, `candles`, `positions`, and `fees`
 - Differences between old and new outputs are either zero or explicitly explained
+- Query-path regression covering `/points`, `/transactions`, `/positions`, and `/position-metrics` passes on projection-only wiring
 
 ## Sources
 

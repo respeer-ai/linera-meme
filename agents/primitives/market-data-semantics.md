@@ -26,6 +26,14 @@ Canonical semantics for normalized events, decoder responsibilities, and the der
 - Application registry maps `application_id` to app type and discovery metadata
 - Decoder registry maps app type plus payload kind to a decoder
 - Decoder failures create explicit decode-failure facts; they do not block raw ingestion
+- Current-stage pool execution facts are observed from `PoolMessage::NewTransaction`
+  - `latestTransactions` state is not the truth source
+  - the block message itself is the truth source
+  - this is a temporary carrier and may later be replaced by official class-EVM-event-like capabilities when available upstream
+- Current Layer 3 contract is decoded `NewTransaction.transaction`
+  - Layer 2 decoders should emit `decoded_payload_json.transaction`
+  - Layer 3 must not depend on decoder-specific ad-hoc field layouts
+- Future pool execution-fact carriers must decode into one stable contract before Layer 3 consumes them
 - Normalized business events may include:
   - `pool_swap_requested`
   - `swap_update_pool_requested`
@@ -43,13 +51,18 @@ Canonical semantics for normalized events, decoder responsibilities, and the der
   - `pool_fund_request_recorded`
   - `fund_success_recorded`
   - `fund_fail_recorded`
-  - `transaction_recorded`
-  - `liquidity_change_recorded`
+  - `pool_swap_message_observed`
+  - `pool_add_liquidity_message_observed`
+  - `pool_remove_liquidity_message_observed`
+  - `pool_new_transaction_recorded`
 - Derived market events are stricter than normalized business events
 - `settled_trade` means:
   - a trade is finalized under product semantics
   - the event is allowed to affect candles and trade history
 - Requests, pending states, and rejects are not settled trades
+- Current pool `new_transaction` is the temporary new-trade observability fact carrier
+  - it must be consumed from block messages, not from pool `latestTransactions` state
+  - it remains a temporary carrier, not a permanent architecture commitment
 
 ## Flow
 

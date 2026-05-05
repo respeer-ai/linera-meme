@@ -1,7 +1,7 @@
-use abi::ams::AmsOperation;
-use abi::blob_gateway::BlobGatewayOperation;
+use abi::ams::{AmsMessage, AmsOperation};
+use abi::blob_gateway::{BlobGatewayMessage, BlobGatewayOperation};
 use abi::meme::{MemeMessage, MemeOperation};
-use abi::proxy::ProxyOperation;
+use abi::proxy::{ProxyMessage, ProxyOperation};
 use abi::swap::pool::{PoolMessage, PoolOperation};
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
@@ -19,37 +19,87 @@ struct DecodeRequest {
 }
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
+    let mut input = String::new();
+    if io::stdin().read_to_string(&mut input).is_err() {
+        eprintln!("failed to read stdin");
         std::process::exit(1);
+    }
+    let input = input.trim().to_owned();
+
+    // Batch mode: JSON array
+    if input.starts_with('[') {
+        let requests: Vec<DecodeRequest> = match serde_json::from_str(&input) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("failed to parse batch request: {e}");
+                std::process::exit(1);
+            }
+        };
+        let results: Vec<Value> = requests.iter().map(decode_single).collect();
+        println!("{}", serde_json::to_string(&results).unwrap());
+        return;
+    }
+
+    // Single mode: JSON object (backwards-compatible)
+    let request: DecodeRequest = match serde_json::from_str(&input) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("failed to parse request: {e}");
+            std::process::exit(1);
+        }
+    };
+    match decode_single(&request) {
+        Value::Object(map) if map.get("status").and_then(|v| v.as_str()) == Some("error") => {
+            eprintln!("{}", map["error"].as_str().unwrap_or("decode failed"));
+            std::process::exit(1);
+        }
+        result => {
+            println!("{}", serde_json::to_string(&result).unwrap());
+        }
     }
 }
 
-fn run() -> anyhow::Result<()> {
-    let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
-    let request: DecodeRequest = serde_json::from_str(&input)?;
-    let raw_bytes = decode_hex(&request.raw_bytes_hex)?;
-    let output = match (request.app_type.as_str(), request.payload_kind.as_str()) {
-        ("pool", "operation") => decode_pool_operation(&request.application_id, &raw_bytes)?,
-        ("pool", "message") => decode_pool_message(&request.application_id, &raw_bytes)?,
-        ("swap", "operation") => decode_swap_operation(&request.application_id, &raw_bytes)?,
-        ("swap", "message") => decode_swap_message(&request.application_id, &raw_bytes)?,
-        ("meme", "operation") => decode_meme_operation(&request.application_id, &raw_bytes)?,
-        ("meme", "message") => decode_meme_message(&request.application_id, &raw_bytes)?,
-        ("proxy", "operation") => decode_proxy_operation(&request.application_id, &raw_bytes)?,
-        ("ams", "operation") => decode_ams_operation(&request.application_id, &raw_bytes)?,
+fn decode_single(request: &DecodeRequest) -> Value {
+    let raw_bytes = match decode_hex(&request.raw_bytes_hex) {
+        Ok(b) => b,
+        Err(e) => return json!({"status": "error", "error": format!("invalid hex: {e}")}),
+    };
+    let result = match (request.app_type.as_str(), request.payload_kind.as_str()) {
+        ("pool", "operation") => decode_pool_operation(&request.application_id, &raw_bytes),
+        ("pool", "message") => decode_pool_message(&request.application_id, &raw_bytes),
+        ("pool", "event") => Err(anyhow::anyhow!("pool:event canonical decoding is not implemented")),
+        ("swap", "operation") => decode_swap_operation(&request.application_id, &raw_bytes),
+        ("swap", "message") => decode_swap_message(&request.application_id, &raw_bytes),
+        ("meme", "operation") => decode_meme_operation(&request.application_id, &raw_bytes),
+        ("meme", "message") => decode_meme_message(&request.application_id, &raw_bytes),
+        ("proxy", "operation") => decode_proxy_operation(&request.application_id, &raw_bytes),
+        ("proxy", "message") => decode_proxy_message(&request.application_id, &raw_bytes),
+        ("ams", "operation") => decode_ams_operation(&request.application_id, &raw_bytes),
+        ("ams", "message") => decode_ams_message(&request.application_id, &raw_bytes),
         ("blob-gateway", "operation") => {
-            decode_blob_gateway_operation(&request.application_id, &raw_bytes)?
+            decode_blob_gateway_operation(&request.application_id, &raw_bytes)
         }
-        _ => anyhow::bail!(
+        ("blob-gateway", "message") => {
+            decode_blob_gateway_message(&request.application_id, &raw_bytes)
+        }
+        _ => Err(anyhow::anyhow!(
             "unsupported canonical decoder target: {}:{}",
             request.app_type,
             request.payload_kind
-        ),
+        )),
     };
-    println!("{}", serde_json::to_string(&output)?);
-    Ok(())
+    match result {
+        Ok(payload) => {
+            let mut output = json!({"status": "ok"});
+            if let Value::Object(ref mut map) = output {
+                if let Value::Object(payload_map) = payload {
+                    map.extend(payload_map);
+                }
+            }
+            output
+        }
+        Err(e) => json!({"status": "error", "error": e.to_string()}),
+    }
 }
 
 fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
@@ -292,6 +342,138 @@ fn decode_proxy_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Res
             "application_id": application_id,
         },
     }))
+}
+
+fn decode_proxy_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
+    let message = bcs::from_bytes::<ProxyMessage>(raw_bytes)?;
+    let output = match message {
+        ProxyMessage::ProposeAddGenesisMiner { operator, owner } => json!({
+            "payload_type": "propose_add_genesis_miner",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "propose_add_genesis_miner",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::ApproveAddGenesisMiner { operator, owner } => json!({
+            "payload_type": "approve_add_genesis_miner",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "approve_add_genesis_miner",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::ProposeRemoveGenesisMiner { operator, owner } => json!({
+            "payload_type": "propose_remove_genesis_miner",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "propose_remove_genesis_miner",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::ApproveRemoveGenesisMiner { operator, owner } => json!({
+            "payload_type": "approve_remove_genesis_miner",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "approve_remove_genesis_miner",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::RegisterMiner { owner } => json!({
+            "payload_type": "register_miner",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "register_miner",
+                "application_id": application_id,
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::DeregisterMiner { owner } => json!({
+            "payload_type": "deregister_miner",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "deregister_miner",
+                "application_id": application_id,
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::CreateMeme { .. } => json!({
+            "payload_type": "create_meme",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "create_meme",
+                "application_id": application_id,
+            },
+        }),
+        ProxyMessage::CreateMemeExt { bytecode_id, .. } => json!({
+            "payload_type": "create_meme_ext",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "create_meme_ext",
+                "application_id": application_id,
+                "bytecode_id": bytecode_id.to_string(),
+            },
+        }),
+        ProxyMessage::MemeCreated { chain_id, token } => json!({
+            "payload_type": "meme_created",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "meme_created",
+                "application_id": application_id,
+                "chain_id": chain_id.to_string(),
+                "token": token.to_string(),
+            },
+        }),
+        ProxyMessage::ProposeAddOperator { operator, owner } => json!({
+            "payload_type": "propose_add_operator",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "propose_add_operator",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::ApproveAddOperator { operator, owner } => json!({
+            "payload_type": "approve_add_operator",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "approve_add_operator",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::ProposeBanOperator { operator, owner } => json!({
+            "payload_type": "propose_ban_operator",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "propose_ban_operator",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+        ProxyMessage::ApproveBanOperator { operator, owner } => json!({
+            "payload_type": "approve_ban_operator",
+            "decoder_version": "proxy-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "approve_ban_operator",
+                "application_id": application_id,
+                "operator": encode_account(operator),
+                "owner": encode_account(owner),
+            },
+        }),
+    };
+    Ok(output)
 }
 
 fn decode_swap_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
@@ -774,6 +956,59 @@ fn decode_ams_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resul
     Ok(output)
 }
 
+fn decode_ams_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
+    let message = bcs::from_bytes::<AmsMessage>(raw_bytes)?;
+    let output = match message {
+        AmsMessage::Register { metadata } => json!({
+            "payload_type": "register",
+            "decoder_version": "ams-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "register",
+                "application_id": application_id,
+                "registered_application_id": metadata.application_id.to_string(),
+                "application_type": metadata.application_type,
+                "application_name": metadata.application_name,
+            },
+        }),
+        AmsMessage::Claim { application_id: claimed_application_id } => json!({
+            "payload_type": "claim",
+            "decoder_version": "ams-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "claim",
+                "application_id": application_id,
+                "claimed_application_id": claimed_application_id.to_string(),
+            },
+        }),
+        AmsMessage::AddApplicationType { owner, application_type } => json!({
+            "payload_type": "add_application_type",
+            "decoder_version": "ams-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "add_application_type",
+                "application_id": application_id,
+                "owner": encode_account(owner),
+                "application_type": application_type,
+            },
+        }),
+        AmsMessage::Update {
+            owner,
+            application_id: updated_application_id,
+            metadata,
+        } => json!({
+            "payload_type": "update",
+            "decoder_version": "ams-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "update",
+                "application_id": application_id,
+                "owner": encode_account(owner),
+                "updated_application_id": updated_application_id.to_string(),
+                "application_type": metadata.application_type,
+                "application_name": metadata.application_name,
+            },
+        }),
+    };
+    Ok(output)
+}
+
 fn decode_blob_gateway_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
     let operation = bcs::from_bytes::<BlobGatewayOperation>(raw_bytes)?;
     let output = match operation {
@@ -790,6 +1025,26 @@ fn decode_blob_gateway_operation(application_id: &str, raw_bytes: &[u8]) -> anyh
                 "store_type": format!("{store_type:?}").to_lowercase(),
                 "data_type": format!("{data_type:?}").to_lowercase(),
                 "blob_hash_hex": encode_bytes(blob_hash.as_bytes().as_ref()),
+            },
+        }),
+    };
+    Ok(output)
+}
+
+fn decode_blob_gateway_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
+    let message = bcs::from_bytes::<BlobGatewayMessage>(raw_bytes)?;
+    let output = match message {
+        BlobGatewayMessage::Register { blob_data } => json!({
+            "payload_type": "blob_gateway_register",
+            "decoder_version": "blob-gateway-message-rust-v1",
+            "decoded_payload_json": {
+                "message_type": "register",
+                "application_id": application_id,
+                "store_type": format!("{:?}", blob_data.store_type).to_lowercase(),
+                "data_type": format!("{:?}", blob_data.data_type).to_lowercase(),
+                "blob_hash_hex": encode_bytes(blob_data.blob_hash.as_bytes().as_ref()),
+                "creator": encode_account(blob_data.creator),
+                "created_at_micros": blob_data.created_at.micros(),
             },
         }),
     };

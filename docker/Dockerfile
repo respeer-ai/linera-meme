@@ -14,8 +14,9 @@ COPY pool ./pool
 COPY proxy ./proxy
 COPY runtime ./runtime
 COPY swap ./swap
+COPY service/decoder ./service/decoder
 
-RUN CARGO_NET_GIT_FETCH_WITH_CLI=true all_proxy=${all_proxy} cargo build --release -p abi --bin canonical_decoder -j 1
+RUN CARGO_NET_GIT_FETCH_WITH_CLI=true all_proxy=${all_proxy} cargo build --release -p decoder --bin canonical_decoder -j 1
 
 FROM python:3.10
 

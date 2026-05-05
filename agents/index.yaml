@@ -5,9 +5,14 @@ required_read_order:
   - agents/index.yaml
   - agents/context/project-rules.md
   - agents/context/doc-standard.md
+  - agents/context/prompt-economy.md
+  - agents/tasks/prompt-state.yaml
+optional_read_after_prompt_state:
   - agents/tasks/board.yaml
 task_source:
   primary: agents/tasks/board.yaml
+  derived_prompt_state: agents/tasks/prompt-state.yaml
+  board_read_policy: read only when prompted by prompt-state or when updating task state
 rules_source:
   primary: agents/context/project-rules.md
 assistant_doc_roots:
@@ -51,9 +56,17 @@ decision_map:
     read_first:
       - agents/runbooks/testing.md
       - agents/context/project-rules.md
-      - agents/tasks/board.yaml
+      - agents/tasks/prompt-state.yaml
 navigation:
   context:
+    - path: agents/context/prompt-economy.md
+      canonical_for:
+        - prompt_context_minimization_rules
+        - task_board_vs_prompt_state_split
+      when_to_read:
+        - deciding how much task history to load
+        - updating task status and prompt relevance
+        - reducing prompt token usage
     - path: agents/context/doc-standard.md
       canonical_for:
         - assistant_doc_format
@@ -463,15 +476,24 @@ navigation:
         - each observability layer has explicit deliverables
         - implementation slices are non-overlapping
   tasks:
+    - path: agents/tasks/prompt-state.yaml
+      canonical_for:
+        - default_prompt_task_selection
+        - active_task_compaction
+        - done_task_omission_policy
+      when_to_read:
+        - starting a new turn
+        - deciding whether board details are needed
+        - minimizing prompt footprint
     - path: agents/tasks/board.yaml
       canonical_for:
         - live_task_status
         - task_priority
         - task_dependencies
       when_to_read:
-        - selecting next task
         - updating task status
-        - checking dependencies
+        - reading full notes for tasks selected by prompt-state
+        - checking dependencies for active tasks
 generated:
   directory: agents/generated/
   rule: Never store hand-maintained truth here.

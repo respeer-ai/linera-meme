@@ -82,7 +82,6 @@ service/kline/src/
     websocket_hub.py
     publisher.py
   compatibility/
-    legacy_response_shapes.py
     endpoint_aliases.py
 ```
 
@@ -148,8 +147,10 @@ service/kline/src/
 
 ### `compatibility`
 
-- Owns temporary adapters that preserve old response shapes and aliases during migration
-- Must be removable after cutover
+- Owns adapters that preserve externally required response shapes and aliases
+- Must not reintroduce legacy correctness paths or rollout guardrails
+- May outlive the phase-1 cutover if public API shape compatibility still requires it
+- May also be empty or absent in runtime code when no active adapter remains
 
 ## Dependency Direction
 

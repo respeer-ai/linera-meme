@@ -1,4 +1,8 @@
+use abi::ams::AmsMessage;
+use abi::blob_gateway::{BlobData, BlobDataType, BlobGatewayMessage};
 use abi::meme::{MemeMessage, MemeOperation};
+use abi::proxy::ProxyMessage;
+use abi::store_type::StoreType;
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Timestamp};
@@ -11,6 +15,9 @@ fn main() {
         "swap_update_pool_message" => bcs::to_bytes(&build_swap_update_pool_message()).unwrap(),
         "meme_transfer_operation" => bcs::to_bytes(&build_meme_transfer_operation()).unwrap(),
         "meme_transfer_message" => bcs::to_bytes(&build_meme_transfer_message()).unwrap(),
+        "proxy_register_miner_message" => bcs::to_bytes(&build_proxy_register_miner_message()).unwrap(),
+        "ams_add_application_type_message" => bcs::to_bytes(&build_ams_add_application_type_message()).unwrap(),
+        "blob_gateway_register_message" => bcs::to_bytes(&build_blob_gateway_register_message()).unwrap(),
         _ => {
             eprintln!("unknown fixture: {fixture}");
             std::process::exit(1);
@@ -55,6 +62,31 @@ fn build_meme_transfer_message() -> MemeMessage {
         from: Account::new(sample_chain_id(0x77), AccountOwner::from([0x88; 32])),
         to: Account::new(sample_chain_id(0x55), AccountOwner::from([0x66; 32])),
         amount: Amount::from_attos(13),
+    }
+}
+
+fn build_proxy_register_miner_message() -> ProxyMessage {
+    ProxyMessage::RegisterMiner {
+        owner: Account::new(sample_chain_id(0x11), AccountOwner::from([0x22; 32])),
+    }
+}
+
+fn build_ams_add_application_type_message() -> AmsMessage {
+    AmsMessage::AddApplicationType {
+        owner: Account::new(sample_chain_id(0x11), AccountOwner::from([0x22; 32])),
+        application_type: "DeFi".to_owned(),
+    }
+}
+
+fn build_blob_gateway_register_message() -> BlobGatewayMessage {
+    BlobGatewayMessage::Register {
+        blob_data: BlobData {
+            store_type: StoreType::Ipfs,
+            data_type: BlobDataType::Html,
+            blob_hash: sample_hash(0x22),
+            creator: Account::new(sample_chain_id(0x11), AccountOwner::from([0x33; 32])),
+            created_at: Timestamp::from(99),
+        },
     }
 }
 

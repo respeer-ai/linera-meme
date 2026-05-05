@@ -6,7 +6,7 @@ Authority: High
 
 ## Purpose
 
-Canonical architecture for the chain observability system that replaces `latestTransactions` as the primary truth source for `service/kline`.
+Canonical architecture for the chain observability system that removes `latestTransactions` entirely from `service/kline`.
 
 ## Facts
 
@@ -40,6 +40,10 @@ Canonical architecture for the chain observability system that replaces `latestT
 - Layer 3 is derived market state
   - powers `transactions`, `candles`, `positions`, `fees`, and diagnostics
   - only consumes finalized business events that satisfy product semantics
+  - product-facing HTTP and websocket read paths must consume Layer 3 projections or explicit projection-backed snapshots/replay facts only
+  - current first-stage new-trade/liquidity fact carrier is block-observed `PoolMessage::NewTransaction`
+  - `latestTransactions` state is not a truth source
+  - future upstream class-EVM-event-like capabilities may replace `NewTransaction`, but are not required for the first-stage system
 
 ## Flow
 
@@ -65,7 +69,17 @@ flowchart LR
 - Observability is not the whole kline architecture
 - Query serving, diagnostics packaging, and non-observability read models belong to the broader `service/kline` architecture
 - Do not use observability work as a reason to grow compensating business logic around unresolved read-model design; downstream product reads must be driven by explicit Layer 2 and Layer 3 concepts
-- Do not derive `transactions`, `candles`, `positions`, or `fees` directly from `latestTransactions`
+- Do not derive `transactions`, `candles`, `positions`, `fees`, or `position-metrics` from `latestTransactions`
+- Do not keep `latestTransactions` as a fallback, auxiliary source, live merge input, audit bridge, parity input, or diagnostics shortcut
+- In the current stage, use block-observed `PoolMessage::NewTransaction` as the Layer 3 execution fact carrier
+- Do not read pool `latestTransactions` state, snapshot windows, or any equivalent transaction-history list as product truth
+- Keep the carrier boundary explicit so future upstream event-like capabilities can replace `NewTransaction` without changing Layer 3 product semantics
+- All product and observability facts must come from block ingestion and block-parsed downstream projections
+- Do not let public query handlers read pool-application GraphQL for product history, recent windows, or diagnostics once projection-backed read models exist
+- `ticker` is a projection consumer only
+  - it may read persisted pool transaction history and candles
+  - it must not perform chain-history repair, recent-window backfill, or pool-application transaction queries
+- Do not preserve schema-compatibility query fallbacks in product read paths once the target pool-application schema is part of the supported rollout contract
 - Do not parse application payload bytes in Layer 1
 - Do not use `round` as a cursor, dedup key, or event primary key
 - Keep explorer-style object boundaries:

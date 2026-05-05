@@ -11,6 +11,7 @@ Authority: High
 - `yaml` is preferred for indexes, navigation, task boards, machine-updated metadata, and stable enumerations with little explanation
 - `md` is preferred for semantics, rules, architecture slices, workflows, implications, and checklists with non-trivial exceptions
 - Task status lives only in `agents/tasks/board.yaml`
+- Prompt inclusion defaults may live in `agents/tasks/prompt-state.yaml`
 - Each durable fact should have one canonical file
 
 ## Rules
@@ -27,6 +28,9 @@ Authority: High
 - If a fact is reused, point to the canonical file instead of re-explaining it
 - If a file is superseded, update or delete it; do not leave parallel versions
 - Do not keep live status in prose docs
+- Do not keep default prompt-routing state in prose docs
+- Do not duplicate `prompt-state.yaml` summaries into broad prose files unless they are canonical semantics
+- In YAML task files, use block scalars for long notes and keep notes machine-safe
 - If a runbook or context file mentions a task, reference its task id only
 
 ## Checklist

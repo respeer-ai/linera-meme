@@ -7,6 +7,7 @@ Authority: High
 ## Facts
 
 - The only task board is [`../tasks/board.yaml`](../tasks/board.yaml)
+- The prompt routing state is [`../tasks/prompt-state.yaml`](../tasks/prompt-state.yaml)
 - Assistant-facing durable knowledge belongs under `agents/` or in directory-local `AGENTS.md`
 - Human-facing plans, proposals, reports, and background belong under `documents/`
 - Chain contracts are protocol truth
@@ -20,6 +21,7 @@ Authority: High
 - Optimize assistant docs for execution and maintenance, not for human readability
 - For assistant docs with non-trivial semantics, prefer Markdown with a fixed section contract over forcing pure YAML or TOML
 - Use YAML for navigation, indexes, and task metadata; use Markdown for semantics, rules, implications, and workflows
+- Treat [`../tasks/prompt-state.yaml`](../tasks/prompt-state.yaml) as derived prompt-routing state only; never as the task source
 - Before changing files in a directory, check for a local `AGENTS.md` in that directory or its parent directories
 - Do not create feature-specific task boards
 - Do not treat plan documents as task sources
@@ -41,8 +43,13 @@ Authority: High
 - When investigating transactions, positions, pool state, or other runtime data during development, default to querying through the relevant API or local service interface first; do not assume `kubectl` access exists on the development machine
 - Use `kubectl` for runtime inspection only when the user explicitly asks for cluster-level checks or when the task is clearly a k8s environment issue rather than an application/API issue
 - Update [`../tasks/board.yaml`](../tasks/board.yaml) when work meaningfully changes status
+- Update [`../tasks/prompt-state.yaml`](../tasks/prompt-state.yaml) when prompt relevance changes because of task status or scope change
+- Validate prompt routing state with `python3 scripts/validate_prompt_state.py` whenever either of those files changes
 - Prefer concise rows over prose-heavy plans inside the task board
+- Keep `board.yaml` machine-safe YAML; for long notes use block scalars, not long plain scalars
 - Keep completed tasks for history, but move stable conclusions into `context/` or `primitives/`
+- Do not keep completed tasks in default prompt routing once their durable conclusions are promoted
+- Do not use full `board.yaml` as the default assistant prompt payload when `prompt-state.yaml` is sufficient
 - Prefer targeted tests first
 - When running `cargo test`, always apply explicit memory limits to avoid host lockups
 - Do not run `cargo test` without an explicit memory limit
@@ -59,3 +66,5 @@ Authority: High
 4. Patch only after the evidence chain is explicit
 5. Add or update tests
 6. Update [`../tasks/board.yaml`](../tasks/board.yaml) if task status changed
+7. Update [`../tasks/prompt-state.yaml`](../tasks/prompt-state.yaml) if prompt relevance changed
+8. Run `python3 scripts/validate_prompt_state.py` if either task file changed

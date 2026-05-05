@@ -222,7 +222,7 @@ Canonical mapping from existing kline APIs to target read models, serializers, a
 
 ## Compatibility Strategy
 
-### `compatibility.legacy_response_shapes`
+### `compatibility` response-shape boundary
 
 - Owns:
   - current JSON field names
@@ -232,6 +232,10 @@ Canonical mapping from existing kline APIs to target read models, serializers, a
   - DB queries
   - projection math
   - remote fetching
+
+- Note:
+  - this is now a conceptual boundary, not necessarily a standalone runtime module
+  - do not preserve dead adapter files merely to mirror this section
 
 ### `compatibility.endpoint_aliases`
 

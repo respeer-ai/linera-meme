@@ -20,7 +20,8 @@ Canonical first implementation phase for rebuilding `service/kline` under the ne
 - Do not try to migrate every endpoint in the first code change
 - Do not move low-value debug surfaces ahead of correctness-critical data paths
 - Do not keep adding features to the legacy monolith while phase-1 replacement modules exist
-- Do not remove legacy paths until their phase-1 replacements have parity checks
+- Do not reintroduce runtime dual-path rollout, parity, or rollback controls for already migrated priority-1 endpoints
+- Do not confuse API shape compatibility with migration fallback; compatibility only preserves response shape
 
 ## Phase 1 Goals
 
@@ -56,7 +57,7 @@ Canonical first implementation phase for rebuilding `service/kline` under the ne
 - `query/read_models/candles.py`
 - `query/read_models/transactions.py`
 - `query/read_models/positions.py`
-- `compatibility/legacy_response_shapes.py`
+- compatibility-only response-shape handling, but only if an active adapter is still required
 
 ### May Stay Legacy In Phase 1
 
@@ -89,6 +90,7 @@ Reason:
 
 Reason:
 - important, but should build on the first projection-backed foundations
+- in this implementation they must not retain any `latestTransactions` query, merge, or bridge path
 
 ### Priority 3
 
@@ -121,6 +123,7 @@ Reason:
 - handler-owned correctness logic for priority-1 endpoints
 - direct dependence on `latestTransactions` for priority-1 data paths
 - ad hoc transaction replay inside priority-1 handlers
+- any `latestTransactions` dependency in migrated priority-2 paths, especially `position-metrics`
 
 ## Phase 1 Validation
 
@@ -135,12 +138,13 @@ Reason:
 - priority-1 endpoints have projection-backed read models
 - handler logic for priority-1 endpoints is thin
 - `latestTransactions` is no longer the correctness source for priority-1 endpoints
+- migrated priority-2 endpoints no longer reference `latestTransactions` either
 
 ### Safety
 
 - public API shapes remain unchanged for migrated endpoints
-- legacy fallback remains available for non-migrated endpoints
-- diagnostics exist for parity checking between legacy and new paths
+- compatibility adapters preserve legacy response shape without reviving legacy correctness paths
+- migrated priority-1 endpoints remain single-path and are guarded by targeted tests plus projection contracts
 
 ## Handoff To Phase 2
 

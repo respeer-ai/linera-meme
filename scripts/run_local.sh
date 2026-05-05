@@ -514,7 +514,7 @@ PIP3=$VENV_DIR/bin/pip3
 all_proxy= $PIP3 install PySocks
 
 function run_kline() {
-    cargo build --release -p abi --bin canonical_decoder -j 1
+    cargo build --release -p decoder --bin canonical_decoder -j 1
 
     cd service/kline
 

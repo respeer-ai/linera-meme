@@ -21,6 +21,25 @@ Canonical Layer 3 model for product-facing market data derived from normalized e
 - `settled_liquidity_change` is the canonical input for position and liquidity derivation
 - Product tables may remain physically separate from Layer 3 event tables
 - Product views are valid only if they can be explained backward from Layer 3 to Layer 2 and then to Layer 1
+- `settled_trade` and `settled_liquidity_change` must be derived from real pool execution facts observed in blocks
+- Current first-stage carrier is block-observed `PoolMessage::NewTransaction`
+- This carrier is temporary and may later be replaced by official class-EVM-event-like capabilities when available upstream
+- Current Layer 3 runtime consumes decoded `PoolMessage::NewTransaction.transaction`
+  - required decoded payload shape:
+    - `transaction.transaction_id`
+    - `transaction.transaction_type`
+    - `transaction.created_at_micros`
+    - `transaction.from.chain_id`
+    - `transaction.from.owner`
+  - trade fields:
+    - `transaction.amount_0_in`
+    - `transaction.amount_0_out`
+    - `transaction.amount_1_in`
+    - `transaction.amount_1_out`
+  - liquidity fields:
+    - `transaction.liquidity`
+    - `transaction.amount_0_in` or `transaction.amount_0_out`
+    - `transaction.amount_1_in` or `transaction.amount_1_out`
 
 ## Rules
 
@@ -28,6 +47,9 @@ Canonical Layer 3 model for product-facing market data derived from normalized e
 - Do not derive positions from raw pool history once Layer 3 is authoritative
 - Do not let `transactions` mix Layer 1 reject facts with settled trade rows unless the UI explicitly models multiple statuses
 - Do not keep direct `latestTransactions` reads in `ticker`, `candles`, `positions`, or `fees` after Layer 3 migration
+- Do not let Layer 3 depend on pool `latestTransactions` state or any equivalent transaction-history snapshot path
+- It is acceptable in the current stage for Layer 3 to depend on block-observed `PoolMessage::NewTransaction`
+  while that remains the contract's final execution-fact carrier
 
 ## Flow
 
@@ -71,6 +93,7 @@ flowchart LR
 - Idempotent replay
 - Stable ordering within a pool
 - Traceable back to Layer 2 correlation keys
+- Must be explainable from the current `NewTransaction.transaction` contract, not ad-hoc per-consumer field probing
 
 ### Invalid Inputs
 
@@ -78,6 +101,7 @@ flowchart LR
 - pending payout or pending commit states
 - rejected incoming bundles
 - decode failures
+- any source other than block-observed `NewTransaction.transaction`
 
 ## `settled_liquidity_change`
 
@@ -85,6 +109,7 @@ flowchart LR
 
 - A finalized liquidity delta that satisfies product semantics
 - Valid for positions, pool liquidity views, and downstream fee calculations
+- Must come from block-observed `NewTransaction.transaction` liquidity facts, not from pool state snapshots
 
 ### Minimum Fields
 
@@ -107,6 +132,7 @@ flowchart LR
 - Idempotent replay
 - Traceable back to Layer 2 correlation keys
 - Distinguishes add and remove semantics
+- Must be explainable from the current `NewTransaction.transaction` contract, not ad-hoc per-consumer field probing
 
 ## Product-Facing Outputs
 

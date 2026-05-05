@@ -29,6 +29,8 @@ Canonical design for `application_registry`, `decoder_registry`, and payload dec
 - Decoder implementations answer:
   - whether raw bytes decode successfully
   - what structured payload was found
+  - for pool executed events, whether the decoded payload satisfies the
+    `decoded_payload_json.execution` contract expected by Layer 2/3
 
 ## Rules
 
@@ -114,6 +116,7 @@ flowchart LR
 - Example dimensions:
   - `pool + operation`
   - `pool + message`
+  - `pool + event`
   - `swap + operation`
   - `swap + message`
   - `meme + operation`
@@ -126,8 +129,7 @@ flowchart LR
 - `payload_kind` is one of:
   - `operation`
   - `message`
-  - optionally later:
-    - `event`
+  - `event`
 - A future version may add `abi_version` dispatch
 - The first version should not add network RPC boundaries
 
@@ -141,6 +143,22 @@ flowchart LR
   - `payload_type`
   - `decode_error`
   - optional version hints
+- Pool event decoders should target this normalized shape:
+  - `decoded_payload_json.execution.transaction_id`
+  - `decoded_payload_json.execution.executed_at_micros`
+  - `decoded_payload_json.execution.from.chain_id`
+  - `decoded_payload_json.execution.from.owner`
+  - trade:
+    - `decoded_payload_json.execution.trade_type`
+    - `decoded_payload_json.execution.amount_0_in`
+    - `decoded_payload_json.execution.amount_0_out`
+    - `decoded_payload_json.execution.amount_1_in`
+    - `decoded_payload_json.execution.amount_1_out`
+  - liquidity:
+    - `decoded_payload_json.execution.change_type`
+    - `decoded_payload_json.execution.amount_0_in` or `amount_0_out`
+    - `decoded_payload_json.execution.amount_1_in` or `amount_1_out`
+    - `decoded_payload_json.execution.liquidity`
 
 ## Validation
 
