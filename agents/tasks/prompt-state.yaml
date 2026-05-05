@@ -24,18 +24,16 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
-  - id: POS-032
-    why: Layer 1 block ingestion 与 cursor
+  - id: OBS-E2E-001
+    why: 端到端 observability 集成测试
     summary: >
-      Event-driven catch-up and notification flow are active. Fail-open lifecycle
-      is separated into POS-042. Decoder/normalizer layers connected.
+      Shell-level integration test validating L1→L2→L3 pipeline end-to-end.
+      References scripts/run_local.sh for environment setup.
     read_if_working_on:
-      - raw ingestion
-      - catch-up
-      - notification listener
+      - E2E verification
+      - integration testing
     canonical_refs:
-      - agents/primitives/observability-layer1-ops.md
-      - agents/runbooks/observability-layer1-rollout.md
+      - agents/tasks/board.yaml
   - id: POS-030
     why: maker wallet 执行断点诊断
     summary: >
@@ -77,6 +75,10 @@ on_demand_done:
       - agents/tasks/board.yaml
   - id: POS-044
     why: latestTransactions dependency removal across all product paths
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-032
+    why: Layer 1 block ingestion cursor infrastructure
     canonical_refs:
       - agents/tasks/board.yaml
 maintenance_rules:

@@ -182,20 +182,19 @@ groups:
           DDL 已落地 raw_repo.py。Operational tables（chain_cursors, processing_cursors, ingestion_anomalies, raw_block_ingest_runs）已定义。Raw root/child tables 已定义。
           RawRepository 14 tests pass。下一步连接 bootstrap 见 POS-032。
       - id: POS-032
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-031]
         title: 实现 Layer 1 block ingestion 与 cursor
         notes: |
-          按 `chain_id + height` 顺序抓取、落库和推进 `chain_cursors`，支持补拉、重放、重启恢复。
-          当前硬目标：它必须成为唯一原始事实入口，后续 Layer 2/3 与产品读路径不能再回头读 `latestTransactions`。
-          当前已完成：
-          - `IngestionCoordinator` 的 `mark_attempt -> fetch_block -> parse -> ingest_block -> mark_failure` 骨架
-          - `LayerOneBlockParser`、`LineraGraphqlChainClient`、`ChainCursorStore`
-          - event-driven `CatchUpRunner` / `CatchUpDriver` / `ChainEventProcessor` / `LineraGraphqlNotificationListener`
-          - `GET /debug/observability`
-          - fail-open lifecycle 已剥离到 POS-042
-          - decoder/normalizer 层已接入 POS-033/034
+          已完成。E2E 验证见 OBS-E2E-001。
+          - `IngestionCoordinator`: mark_attempt → fetch → parse → ingest → mark_failure
+          - `CatchUpRunner` / `CatchUpDriver` / `ChainEventProcessor` / `LineraGraphqlNotificationListener`
+          - `PostIngestPipeline` 连接 ingestion → normalization → market derivation
+          - `ObservabilityRuntime` 编排 schema/registry/catch-up/listener 各阶段
+          - `ObservabilitySupervisor` 提供 fail-open 生命周期
+          - Unit tests: ingestion_coordinator / catch_up_runner / catch_up_driver / post_ingest_pipeline / app_bootstrap
+          - 验证：所有 ingestion tests 通过
       - id: POS-042
         status: Done
         priority: P0
@@ -382,6 +381,27 @@ groups:
           - 识别没有独立语义、只有委托行为的 facade/pass-through object
           - 把“resolved endpoint/full base URL” 中间态继续收敛为外层注入 configured client / transport object
           - 记录需要重做而不是值得补丁式优化的结构点
+      - id: OBS-E2E-001
+        status: Todo
+        priority: P1
+        depends_on: [POS-032, POS-035, POS-044]
+        title: 端到端 observability 集成测试
+        notes: |
+          参考 `scripts/run_local.sh` 搭建本地完整测试环境，验证 L1→L2→L3 全管线。
+          环境准备：
+          - 启动 MySQL (docker-compose)
+          - 编译 `canonical_decoder` (cargo build --release -p decoder --bin canonical_decoder)
+          - 安装 Python 依赖 (pip install -r requirements.txt)
+          - 启动 kline service，配置 observability 参数指向本地/测试网
+
+          验证检查点：
+          - `GET /debug/observability` 返回非空 cursors
+          - `POST /debug/normalization/replay/run` 执行 normalization
+          - `POST /debug/market-derivation/replay/run` 执行 market derivation
+          - `/transactions` 和 `/points` 返回 Layer 3 数据
+          - 日志包含预期的 lifecycle 消息
+
+          实现文件：`service/kline/tests/observability_e2e_test.sh`
       - id: POS-027
         status: Doing
         priority: P0
