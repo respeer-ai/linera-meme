@@ -35,19 +35,21 @@ class FakeSwap:
         return self.pools
 
 
-class FakeDb:
+class FakeCandleReader:
     def __init__(self):
         self.calls = []
 
-    def get_last_kline(self, token_0, token_1, interval):
-        self.calls.append((token_0, token_1, interval))
-        return (
-            token_0,
-            token_1,
-            1_000,
-            2_000,
-            interval,
-            [{
+    def get_last_points(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            'pool_id': kwargs.get('pool_id'),
+            'pool_application': kwargs.get('pool_application'),
+            'token_0': kwargs['token_0'],
+            'token_1': kwargs['token_1'],
+            'interval': kwargs['interval'],
+            'start_at': 1_000,
+            'end_at': 2_000,
+            'points': [{
                 'timestamp': 1_000,
                 'open': 1.0,
                 'high': 1.0,
@@ -56,17 +58,27 @@ class FakeDb:
                 'base_volume': 1.0,
                 'quote_volume': 2.0,
             }],
-        )
+        }
 
 
 class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         pools = [
-            types.SimpleNamespace(token_0='AAA', token_1='BBB'),
-            types.SimpleNamespace(token_0='CCC', token_1='DDD'),
+            types.SimpleNamespace(
+                token_0='AAA',
+                token_1='BBB',
+                pool_id=1001,
+                pool_application=types.SimpleNamespace(chain_id='chain-a', owner='owner-a'),
+            ),
+            types.SimpleNamespace(
+                token_0='CCC',
+                token_1='DDD',
+                pool_id=1002,
+                pool_application=types.SimpleNamespace(chain_id='chain-b', owner='owner-b'),
+            ),
         ]
-        self.db = FakeDb()
-        self.manager = WebSocketManager(FakeSwap(pools), self.db)
+        self.candle_reader = FakeCandleReader()
+        self.manager = WebSocketManager(FakeSwap(pools), self.candle_reader)
 
     def test_handle_message_tracks_pair_aware_interval_aware_subscription(self):
         websocket = FakeWebSocket()
@@ -97,11 +109,19 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
 
         await self.manager.notify_kline()
 
-        self.assertEqual(self.db.calls, [('AAA', 'BBB', '5min')])
+        self.assertEqual(self.candle_reader.calls, [{
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'interval': '5min',
+            'pool_id': None,
+            'pool_application': None,
+        }])
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': {
                 '5min': [{
+                    'pool_id': None,
+                    'pool_application': None,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
                     'interval': '5min',
@@ -127,9 +147,27 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
 
         await self.manager.notify_kline()
 
-        self.assertIn(('AAA', 'BBB', '1min'), self.db.calls)
-        self.assertIn(('BBB', 'AAA', '1min'), self.db.calls)
-        self.assertIn(('CCC', 'DDD', '1ME'), self.db.calls)
+        self.assertIn({
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'interval': '1min',
+            'pool_id': 1001,
+            'pool_application': 'chain-a:owner-a',
+        }, self.candle_reader.calls)
+        self.assertIn({
+            'token_0': 'BBB',
+            'token_1': 'AAA',
+            'interval': '1min',
+            'pool_id': 1001,
+            'pool_application': 'chain-a:owner-a',
+        }, self.candle_reader.calls)
+        self.assertIn({
+            'token_0': 'CCC',
+            'token_1': 'DDD',
+            'interval': '1ME',
+            'pool_id': 1002,
+            'pool_application': 'chain-b:owner-b',
+        }, self.candle_reader.calls)
         self.assertEqual(websocket.sent[0]['notification'], 'kline')
         self.assertIn('1min', websocket.sent[0]['value'])
         self.assertIn('1ME', websocket.sent[0]['value'])
@@ -196,7 +234,7 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             ],
         })
 
-        self.assertEqual(self.db.calls, [])
+        self.assertEqual(self.candle_reader.calls, [])
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': {
@@ -247,7 +285,7 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
 
         await self.manager.notify_kline(payload)
 
-        self.assertEqual(self.db.calls, [])
+        self.assertEqual(self.candle_reader.calls, [])
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': payload,

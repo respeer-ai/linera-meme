@@ -10,8 +10,8 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 
-from storage.mysql.projection_repo import ProjectionRepository  # noqa: E402
 from storage.mysql.settled_liquidity_projection_repo import SettledLiquidityProjectionRepository  # noqa: E402
+from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistoryProjectionRepository  # noqa: E402
 
 
 class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
@@ -131,31 +131,9 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         }])
         self.assertEqual([row['pool_id'] for row in all_rows], [8, 7])
 
-    def test_projection_repository_falls_back_to_legacy_when_projection_is_unavailable(self):
+    def test_settled_liquidity_projection_keeps_empty_positions_without_legacy_fallback(self):
         db = self.FakeDb()
-
-        class MissingSettledLiquidityProjectionRepository:
-            def get_positions(self, **_kwargs):
-                return None
-
-        repository = ProjectionRepository(
-            db,
-            settled_liquidity_projection_repo=MissingSettledLiquidityProjectionRepository(),
-        )
-
-        rows = repository.get_positions(
-            owner='chain-a:owner-a',
-            status='active',
-        )
-
-        self.assertEqual(rows, [{'pool_id': 99}])
-
-    def test_projection_repository_keeps_empty_positions_without_legacy_fallback(self):
-        db = self.FakeDb()
-        repository = ProjectionRepository(
-            db,
-            settled_liquidity_projection_repo=SettledLiquidityProjectionRepository(db),
-        )
+        repository = SettledLiquidityProjectionRepository(db)
 
         rows = repository.get_positions(
             owner='chain-a:owner-a',
@@ -165,9 +143,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(rows, [])
         self.assertEqual(db.calls, ['ensure_fresh_read_connection'])
 
-    def test_projection_repository_combines_trade_and_liquidity_history_for_position_metrics_inputs(self):
-        db = self.FakeDb()
-
+    def test_pool_transaction_history_projection_combines_trade_and_liquidity_history(self):
         class FakeTradeProjectionRepository:
             def get_pool_trade_history(self, **_kwargs):
                 return [
@@ -196,18 +172,6 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                 return None
 
         class FakeLiquidityProjectionRepository:
-            def get_positions(self, **_kwargs):
-                return None
-
-            def get_position_liquidity_history(self, **_kwargs):
-                return [
-                    {
-                        'transaction_id': 10,
-                        'transaction_type': 'AddLiquidity',
-                        'created_at': 1000,
-                    }
-                ]
-
             def get_pool_liquidity_history(self, **_kwargs):
                 return [
                     {
@@ -217,16 +181,9 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                     }
                 ]
 
-        repository = ProjectionRepository(
-            db,
+        repository = SettledPoolHistoryProjectionRepository(
             settled_trade_projection_repo=FakeTradeProjectionRepository(),
             settled_liquidity_projection_repo=FakeLiquidityProjectionRepository(),
-        )
-
-        liquidity_history = repository.get_position_liquidity_history(
-            owner='chain-a:owner-a',
-            pool_application='chain-a:pool-app',
-            pool_id=7,
         )
         pool_history = repository.get_pool_transaction_history(
             pool_application='chain-a:pool-app',
@@ -242,11 +199,6 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
             pool_id=7,
         )
 
-        self.assertEqual(liquidity_history, [{
-            'transaction_id': 10,
-            'transaction_type': 'AddLiquidity',
-            'created_at': 1000,
-        }])
         self.assertEqual([row['transaction_id'] for row in pool_history], [10, 11, 12])
         self.assertEqual(swap_count, 2)
         self.assertEqual(gap_summary['start_id'], 10)

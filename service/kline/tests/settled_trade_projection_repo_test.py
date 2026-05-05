@@ -1,4 +1,3 @@
-import json
 import sys
 import unittest
 from pathlib import Path
@@ -11,7 +10,6 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 
-from storage.mysql.projection_repo import ProjectionRepository  # noqa: E402
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository  # noqa: E402
 
 
@@ -21,14 +19,41 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
             self.executed = []
             self.rows = []
             self.responses = []
+            self.pool_rows = [{
+                'pool_id': 7,
+                'pool_application': 'chain-a:pool-app',
+                'token_0': 'AAA',
+                'token_1': 'BBB',
+            }]
+            self.last_sql = ''
+            self.last_params = ()
 
         def execute(self, sql, params=()):
             self.executed.append((sql, params))
+            self.last_sql = sql
+            self.last_params = params
 
         def fetchall(self):
+            if 'FROM pools' in self.last_sql:
+                if 'WHERE token_0 = %s' in self.last_sql and 'AND token_1 = %s' in self.last_sql:
+                    return [
+                        row for row in self.pool_rows
+                        if row['token_0'] == self.last_params[0] and row['token_1'] == self.last_params[1]
+                    ]
+                if 'WHERE pool_id = %s' in self.last_sql:
+                    return [
+                        row for row in self.pool_rows
+                        if int(row['pool_id']) == int(self.last_params[0])
+                    ]
             if self.responses:
                 return list(self.responses.pop(0))
             return list(self.rows)
+
+        def fetchone(self):
+            rows = self.fetchall()
+            if not rows:
+                return None
+            return rows[0]
 
     class FakeDb:
         def __init__(self):
@@ -39,20 +64,6 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
 
         def ensure_fresh_read_connection(self):
             self.calls.append('ensure_fresh_read_connection')
-
-        def get_pool_identity(self, token_0, token_1):
-            self.calls.append(('get_pool_identity', token_0, token_1))
-            return (7, 'chain-a:pool-app', token_0, token_1, False)
-
-        def resolve_pool_identity_for_read(self, token_0, token_1, *, pool_id=None, pool_application=None):
-            self.calls.append(('resolve_pool_identity_for_read', token_0, token_1, pool_id, pool_application))
-            return (
-                7,
-                pool_application or 'chain-a:pool-app',
-                token_0,
-                token_1,
-                False,
-            )
 
         def now_ms(self):
             return self.current_now_ms
@@ -85,18 +96,14 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 'transaction_id': 11,
                 'trade_time_ms': 1200,
                 'side': 'buy_token_0',
+                'from_account': 'chain-user:owner-user',
+                'amount_0_in': None,
+                'amount_0_out': '300',
+                'amount_1_in': '25',
+                'amount_1_out': None,
                 'amount_in': '25',
                 'amount_out': '300',
-                'event_payload_json': json.dumps({
-                    'transaction': {
-                        'from': {'chain_id': 'chain-user', 'owner': 'owner-user'},
-                        'amount_0_in': None,
-                        'amount_0_out': '300',
-                        'amount_1_in': '25',
-                        'amount_1_out': None,
-                        'liquidity': None,
-                    }
-                }),
+                'event_payload_json': {},
             }
         ]
         repository = SettledTradeProjectionRepository(db)
@@ -110,6 +117,7 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
 
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0]['transaction_type'], 'BuyToken0')
+        self.assertEqual(rows[0]['from_account'], 'chain-user:owner-user')
         self.assertEqual(rows[0]['direction'], 'Buy')
         self.assertEqual(rows[0]['volume'], 300.0)
         self.assertAlmostEqual(rows[0]['price'], 25 / 300)
@@ -129,9 +137,14 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 'transaction_id': 10,
                 'trade_time_ms': 1_000,
                 'side': 'buy_token_0',
+                'from_account': 'c:o',
+                'amount_0_in': None,
+                'amount_0_out': '10',
+                'amount_1_in': '20',
+                'amount_1_out': None,
                 'amount_in': '20',
                 'amount_out': '10',
-                'event_payload_json': json.dumps({'transaction': {'from': {'chain_id': 'c', 'owner': 'o'}}}),
+                'event_payload_json': {},
             },
             {
                 'pool_id': 7,
@@ -142,9 +155,14 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 'transaction_id': 11,
                 'trade_time_ms': 20_000,
                 'side': 'sell_token_0',
+                'from_account': 'c:o',
+                'amount_0_in': '6',
+                'amount_0_out': None,
+                'amount_1_in': None,
+                'amount_1_out': '18',
                 'amount_in': '6',
                 'amount_out': '18',
-                'event_payload_json': json.dumps({'transaction': {'from': {'chain_id': 'c', 'owner': 'o'}}}),
+                'event_payload_json': {},
             },
         ]
         repository = SettledTradeProjectionRepository(db)
@@ -184,9 +202,14 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                     'transaction_id': 9,
                     'trade_time_ms': 59_000,
                     'side': 'buy_token_0',
+                    'from_account': 'c:o',
+                    'amount_0_in': None,
+                    'amount_0_out': '10',
+                    'amount_1_in': '20',
+                    'amount_1_out': None,
                     'amount_in': '20',
                     'amount_out': '10',
-                    'event_payload_json': json.dumps({'transaction': {'from': {'chain_id': 'c', 'owner': 'o'}}}),
+                    'event_payload_json': {},
                 }
             ],
         ]
@@ -250,88 +273,50 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
             {'count': 0, 'timestamp_begin': None, 'timestamp_end': None},
         )
 
-    def test_projection_repository_falls_back_to_legacy_when_settled_projection_is_unavailable(self):
+    def test_settled_trade_projection_uses_projection_pool_identity_boundary(self):
         db = self.FakeDb()
 
-        class MissingSettledTradeProjectionRepository:
-            def get_transactions(self, **_kwargs):
-                return None
+        class FakePoolIdentityProjectionRepository:
+            def __init__(self):
+                self.calls = []
 
-            def get_transactions_information(self, **_kwargs):
-                return None
+            def resolve_for_tokens(self, token_0, token_1):
+                self.calls.append(('resolve_for_tokens', token_0, token_1))
+                return (7, 'chain-a:pool-app', token_0, token_1, False)
 
-            def get_candles(self, **_kwargs):
-                return None
+            def resolve_for_read(self, token_0, token_1, *, pool_id=None, pool_application=None):
+                self.calls.append(('resolve_for_read', token_0, token_1, pool_id, pool_application))
+                return (7, pool_application or 'chain-a:pool-app', token_0, token_1, False)
 
-            def get_candles_information(self, **_kwargs):
-                return None
-
-        repository = ProjectionRepository(
-            db,
-            settled_trade_projection_repo=MissingSettledTradeProjectionRepository(),
-        )
-
-        transactions = repository.get_transactions(
-            token_0='AAA',
-            token_1='BBB',
-            start_at=100,
-            end_at=200,
-        )
-        info = repository.get_transactions_information(
-            token_0='AAA',
-            token_1='BBB',
-        )
-        candles = repository.get_candles(
-            token_0='AAA',
-            token_1='BBB',
-            start_at=100,
-            end_at=200,
-            interval='1min',
-        )
-
-        self.assertEqual(transactions, [{'transaction_id': 99}])
-        self.assertEqual(info, {'count': 9})
-        self.assertEqual(candles[4], [{'close': '9'}])
-
-    def test_projection_repository_keeps_empty_projection_results_without_legacy_fallback(self):
-        db = self.FakeDb()
-        repository = ProjectionRepository(
-            db,
-            settled_trade_projection_repo=SettledTradeProjectionRepository(db),
-        )
-
+        pool_identity_repo = FakePoolIdentityProjectionRepository()
         db.cursor_dict.responses = [
             [],
             [],
             [],
-            [],
         ]
+        repository = SettledTradeProjectionRepository(
+            db,
+            pool_identity_projection_repo=pool_identity_repo,
+        )
 
-        transactions = repository.get_transactions(
+        repository.get_transactions(
             token_0='AAA',
             token_1='BBB',
             start_at=100,
             end_at=200,
         )
-        info = repository.get_transactions_information(
-            token_0='AAA',
-            token_1='BBB',
-        )
-        candles = repository.get_candles(
+        repository.get_candles(
             token_0='AAA',
             token_1='BBB',
             start_at=0,
             end_at=59_999,
             interval='1min',
         )
-        candle_info = repository.get_candles_information(
-            token_0='AAA',
-            token_1='BBB',
-            interval='1min',
-        )
 
-        self.assertEqual(transactions, [])
-        self.assertEqual(info, {'count': 0, 'timestamp_begin': None, 'timestamp_end': None})
-        self.assertEqual(candles[4], [])
-        self.assertEqual(candle_info, {'count': 0, 'timestamp_begin': None, 'timestamp_end': None})
-        self.assertFalse(any(call[0].startswith('legacy_') for call in db.calls))
+        self.assertEqual(
+            pool_identity_repo.calls,
+            [
+                ('resolve_for_tokens', 'AAA', 'BBB'),
+                ('resolve_for_read', 'AAA', 'BBB', None, None),
+            ],
+        )

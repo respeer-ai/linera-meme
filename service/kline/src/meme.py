@@ -1,13 +1,17 @@
 import async_request
-from environment import running_in_k8s
 from request_trace import persist_http_trace
 
 class Meme:
-    def __init__(self, host, wallet):
+    def __init__(self, host, wallet, query_base_url: str | None = None):
         self.host = host
         self.wallet = wallet
         self.db = getattr(wallet, 'db', None)
-        self.base_url = f'http://{host}' + ('/api/proxy' if not running_in_k8s() else '')
+        self.query_base_url = self._resolve_query_base_url(host, query_base_url)
+
+    def _resolve_query_base_url(self, host: str, query_base_url: str | None) -> str:
+        if query_base_url is not None:
+            return str(query_base_url).rstrip('/')
+        return f'http://{host}/api/proxy/query'
 
     # chain_id: token creator chain id
     # token: token application id
@@ -16,8 +20,7 @@ class Meme:
             'query': f'query {{\n balanceOf(\n owner: {owner}) \n}}'
         }
 
-        prefix = '' if running_in_k8s() else '/query'
-        url = f'{self.base_url}{prefix}/chains/{chain_id}/applications/{token}'
+        url = f'{self.query_base_url}/chains/{chain_id}/applications/{token}'
         resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
         payload_json = resp.json() if resp.text else {}
         persist_http_trace(
@@ -46,8 +49,7 @@ class Meme:
             'query': 'query {\n miningInfo { miningStarted } \n}'
         }
 
-        prefix = '' if running_in_k8s() else '/query'
-        url = f'{self.base_url}{prefix}/chains/{chain_id}/applications/{token}'
+        url = f'{self.query_base_url}/chains/{chain_id}/applications/{token}'
         resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
         payload_json = resp.json() if resp.text else {}
         persist_http_trace(

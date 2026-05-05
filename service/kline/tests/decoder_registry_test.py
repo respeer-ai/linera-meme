@@ -49,12 +49,14 @@ class DecoderRegistryTest(unittest.TestCase):
             (
                 ('pool', 'operation'),
                 ('pool', 'message'),
+                ('pool', 'event'),
             )
         )
 
         self.assertEqual(
             registry.list_supported_pairs(),
             [
+                {'app_type': 'pool', 'payload_kind': 'event', 'implemented': False},
                 {'app_type': 'pool', 'payload_kind': 'message', 'implemented': False},
                 {'app_type': 'pool', 'payload_kind': 'operation', 'implemented': False},
             ],

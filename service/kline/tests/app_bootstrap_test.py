@@ -174,6 +174,12 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 payload_kind='message',
                 decoder=object(),
             )
+            decoder_registry.register_known_pairs((('pool', 'event'),))
+            decoder_registry.register(
+                app_type='pool',
+                payload_kind='event',
+                decoder=object(),
+            )
             decoder_registry.register_known_pairs((('swap', 'operation'),))
             decoder_registry.register(
                 app_type='swap',
@@ -204,16 +210,34 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 payload_kind='operation',
                 decoder=object(),
             )
+            decoder_registry.register_known_pairs((('blob-gateway', 'message'),))
+            decoder_registry.register(
+                app_type='blob-gateway',
+                payload_kind='message',
+                decoder=object(),
+            )
             decoder_registry.register_known_pairs((('proxy', 'operation'),))
             decoder_registry.register(
                 app_type='proxy',
                 payload_kind='operation',
                 decoder=object(),
             )
+            decoder_registry.register_known_pairs((('proxy', 'message'),))
+            decoder_registry.register(
+                app_type='proxy',
+                payload_kind='message',
+                decoder=object(),
+            )
             decoder_registry.register_known_pairs((('ams', 'operation'),))
             decoder_registry.register(
                 app_type='ams',
                 payload_kind='operation',
+                decoder=object(),
+            )
+            decoder_registry.register_known_pairs((('ams', 'message'),))
+            decoder_registry.register(
+                app_type='ams',
+                payload_kind='message',
                 decoder=object(),
             )
             container = {
@@ -242,6 +266,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 'settled_market_materializer': object(),
                 'market_derivation_worker': object(),
                 'market_derivation_replay_driver': object(),
+                'post_ingest_pipeline': object(),
                 'chain_cursor_store': object(),
             }
             if config.swap_host and config.swap_chain_id and config.swap_application_id:
@@ -361,8 +386,24 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn(
             {
+                'app_type': 'pool',
+                'payload_kind': 'event',
+                'implemented': True,
+            },
+            container['decoder_registry'].list_supported_pairs(),
+        )
+        self.assertIn(
+            {
                 'app_type': 'blob-gateway',
                 'payload_kind': 'operation',
+                'implemented': True,
+            },
+            container['decoder_registry'].list_supported_pairs(),
+        )
+        self.assertIn(
+            {
+                'app_type': 'blob-gateway',
+                'payload_kind': 'message',
                 'implemented': True,
             },
             container['decoder_registry'].list_supported_pairs(),
@@ -377,8 +418,24 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn(
             {
+                'app_type': 'proxy',
+                'payload_kind': 'message',
+                'implemented': True,
+            },
+            container['decoder_registry'].list_supported_pairs(),
+        )
+        self.assertIn(
+            {
                 'app_type': 'ams',
                 'payload_kind': 'operation',
+                'implemented': True,
+            },
+            container['decoder_registry'].list_supported_pairs(),
+        )
+        self.assertIn(
+            {
+                'app_type': 'ams',
+                'payload_kind': 'message',
                 'implemented': True,
             },
             container['decoder_registry'].list_supported_pairs(),
@@ -614,6 +671,38 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(supervisor.snapshot()['state'], 'degraded')
         self.assertEqual(supervisor.snapshot()['last_error'], 'startup failed')
 
+    async def test_observability_runtime_clears_container_when_startup_stage_raises(self):
+        class ExplodingLifecycle:
+            def __init__(self):
+                self.shutdown_calls = []
+
+            async def shutdown(self, container):
+                self.shutdown_calls.append(container)
+
+        runtime = ObservabilityRuntime(
+            config=KlineAppConfig(
+                database_host='db.example',
+                database_port=3306,
+                database_name='linera_swap_kline',
+                database_username='user',
+                database_password='pass',
+                chain_graphql_url='http://chain.example/graphql',
+            ),
+            bootstrap=types.SimpleNamespace(build_container=lambda _config: {'connection': object()}),
+            lifecycle=ExplodingLifecycle(),
+        )
+
+        async def exploding_run_startup_stages(_container):
+            raise RuntimeError('startup failed mid-stage')
+
+        runtime._run_startup_stages = exploding_run_startup_stages
+
+        with self.assertRaisesRegex(RuntimeError, 'startup failed mid-stage'):
+            await runtime.start()
+
+        self.assertIsNone(runtime.container)
+        self.assertEqual(len(runtime.lifecycle.shutdown_calls), 1)
+
     async def test_observability_supervisor_marks_degraded_when_catch_up_fails(self):
         class FailingCatchUpRuntime:
             def __init__(self):
@@ -637,6 +726,44 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, 'catch-up failed'):
             await supervisor.run_catch_up(chain_id='chain-a', max_blocks=5)
 
+        self.assertEqual(supervisor.snapshot()['state'], 'degraded')
+
+    async def test_observability_supervisor_allows_catch_up_when_runtime_is_degraded_but_started(self):
+        class DegradedButStartedRuntime:
+            def __init__(self):
+                self.started = False
+
+            def is_started(self):
+                return self.started
+
+            async def start(self):
+                self.started = True
+                return {
+                    'schema': {'status': 'ready', 'error': None},
+                    'registry': {'status': 'ready', 'error': None},
+                    'startup_catch_up': {'status': 'degraded', 'error': 'catch-up failed'},
+                    'listener': {'status': 'ready', 'error': None},
+                    'decode_scheduler': {'status': 'ready', 'error': None},
+                    'normalizer': {'status': 'ready', 'error': None},
+                    'market_deriver': {'status': 'ready', 'error': None},
+                }
+
+            async def shutdown(self):
+                self.started = False
+
+            async def run_catch_up(self, *, chain_id, max_blocks):
+                return {
+                    'chain_id': chain_id,
+                    'max_blocks': max_blocks,
+                }
+
+        supervisor = ObservabilitySupervisor(DegradedButStartedRuntime())
+        await supervisor.start_if_configured()
+
+        result = await supervisor.run_catch_up(chain_id='chain-a', max_blocks=5)
+
+        self.assertEqual(result['chain_id'], 'chain-a')
+        self.assertEqual(result['max_blocks'], 5)
         self.assertEqual(supervisor.snapshot()['state'], 'degraded')
 
     async def test_observability_supervisor_marks_normalizer_degraded_when_replay_fails(self):
@@ -871,6 +998,60 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('run_targeted_catch_up_or_inspect_chain_client', actions)
         self.assertIn('check_graphql_ws_connectivity', actions)
         self.assertNotIn('none_decode_scheduler_not_started', actions)
+
+    async def test_observability_facade_exports_debug_data_even_when_runtime_is_degraded(self):
+        class DegradedButStartedRuntime:
+            def __init__(self):
+                self.started = False
+
+            def is_started(self):
+                return self.started
+
+            async def start(self):
+                self.started = True
+                return {
+                    'schema': {'status': 'ready', 'error': None},
+                    'registry': {'status': 'ready', 'error': None},
+                    'startup_catch_up': {'status': 'degraded', 'error': 'catch-up failed'},
+                    'listener': {'status': 'ready', 'error': None},
+                    'decode_scheduler': {'status': 'ready', 'error': None},
+                    'normalizer': {'status': 'ready', 'error': None},
+                    'market_deriver': {'status': 'ready', 'error': None},
+                }
+
+            async def shutdown(self):
+                self.started = False
+
+            def export_debug_observability(self, **_kwargs):
+                return {
+                    'cursors': [{'chain_id': 'chain-a'}],
+                    'processing_cursors': [{'cursor_name': 'layer2_normalizer'}],
+                    'recent_runs': [{'status': 'success'}],
+                    'anomalies': [],
+                }
+
+        supervisor = ObservabilitySupervisor(DegradedButStartedRuntime())
+        await supervisor.start_if_configured()
+        facade = ObservabilityFacade(supervisor)
+
+        payload = facade.get_debug_observability(
+            chain_ids=('chain-a',),
+            run_statuses=('success',),
+            anomaly_statuses=('open',),
+            limit=10,
+        )
+
+        self.assertEqual(payload['status']['state'], 'degraded')
+        self.assertEqual(payload['cursors'], [{'chain_id': 'chain-a'}])
+        self.assertEqual(
+            payload['processing_cursors'],
+            [{'cursor_name': 'layer2_normalizer'}],
+        )
+        self.assertEqual(payload['recent_runs'], [{'status': 'success'}])
+        self.assertEqual(
+            payload['status']['components']['debug_export']['status'],
+            'ready',
+        )
 
     async def test_observability_facade_surfaces_normalizer_operator_action(self):
         class NormalizerFailingRuntime:

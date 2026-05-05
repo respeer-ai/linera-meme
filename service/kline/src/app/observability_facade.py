@@ -71,7 +71,7 @@ class ObservabilityFacade:
         }
         payload['operator_actions'] = self._build_operator_actions(payload['status'])
         runtime = self.supervisor.runtime
-        if runtime is None or not self.supervisor.status.is_ready():
+        if runtime is None or not self.supervisor.has_started_runtime():
             return payload
         try:
             payload.update(
@@ -85,6 +85,8 @@ class ObservabilityFacade:
             self.supervisor.status.mark_component_ready(
                 self.supervisor.status.COMPONENT_DEBUG_EXPORT
             )
+            payload['status'] = self.supervisor.snapshot()
+            payload['operator_actions'] = self._build_operator_actions(payload['status'])
         except Exception as error:
             self.supervisor.status.mark_component_degraded(
                 self.supervisor.status.COMPONENT_DEBUG_EXPORT,

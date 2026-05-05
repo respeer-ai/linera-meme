@@ -175,10 +175,13 @@ class LayerOneBlockParser:
         normalized = []
         for transaction_index, events in enumerate(transactions):
             for event_index, event in enumerate(events or []):
+                stream_id = event.get('streamId')
                 normalized.append({
                     'transaction_index': transaction_index,
                     'event_index': event_index,
-                    'stream_id': self._stream_id(event.get('streamId')),
+                    'stream_id': self._stream_id(stream_id),
+                    'application_id': self._stream_application_id(stream_id),
+                    'stream_name': self._stream_name(stream_id),
                     'stream_index': int(event.get('index', 0)),
                     'raw_event_bytes': self._encode_raw_bytes(event.get('value')),
                 })
@@ -270,12 +273,26 @@ class LayerOneBlockParser:
 
     def _stream_id(self, stream_id) -> str:
         if isinstance(stream_id, dict):
-            application_id = stream_id.get('applicationId') or ''
-            stream_name = stream_id.get('streamName') or ''
-            return f'{application_id}:{stream_name}'
+            return f'{self._stream_application_id(stream_id)}:{self._stream_name(stream_id)}'
         if stream_id is None:
             return ''
         return str(stream_id)
+
+    def _stream_application_id(self, stream_id) -> str | None:
+        if not isinstance(stream_id, dict):
+            return None
+        application_id = stream_id.get('applicationId')
+        if application_id in (None, ''):
+            return None
+        return str(application_id)
+
+    def _stream_name(self, stream_id) -> str | None:
+        if not isinstance(stream_id, dict):
+            return None
+        stream_name = stream_id.get('streamName')
+        if stream_name in (None, ''):
+            return None
+        return str(stream_name)
 
     def _oracle_response_type(self, response) -> str:
         if isinstance(response, dict) and len(response) == 1:
@@ -387,6 +404,8 @@ class LayerOneBlockParser:
                 'transaction_index': int(event.get('transaction_index', 0)),
                 'event_index': int(event.get('event_index', event_index)),
                 'stream_id': str(event.get('stream_id', '')),
+                'application_id': event.get('application_id'),
+                'stream_name': event.get('stream_name'),
                 'stream_index': int(event.get('stream_index', 0)),
                 'raw_event_bytes': event.get('raw_event_bytes', b''),
             })

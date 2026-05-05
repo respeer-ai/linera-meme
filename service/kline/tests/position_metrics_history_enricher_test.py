@@ -11,6 +11,9 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from position_metrics_history_enricher import PositionMetricsHistoryEnricher  # noqa: E402
+from position_metrics_estimated_fallback_resolver import PositionMetricsEstimatedFallbackResolver  # noqa: E402
+from position_metrics_history_semantic_resolver import PositionMetricsHistorySemanticResolver  # noqa: E402
+from position_metrics_no_swap_exact_resolver import PositionMetricsNoSwapExactResolver  # noqa: E402
 
 
 class PositionMetricsHistoryEnricherTest(unittest.TestCase):
@@ -19,8 +22,14 @@ class PositionMetricsHistoryEnricherTest(unittest.TestCase):
             to_decimal=lambda value: None if value is None else __import__('decimal').Decimal(str(value)),
             history_liquidity=lambda history: __import__('decimal').Decimal('2.0'),
             try_enrich_metrics_with_swap_history=lambda *_args, **_kwargs: (None, []),
-            serialize_decimal=lambda value: format(value.normalize(), 'f'),
-            build_estimated_metrics_from_liquidity_history=lambda partial_metrics, **_kwargs: partial_metrics,
+            semantic_resolver=PositionMetricsHistorySemanticResolver(
+                no_swap_exact_resolver=PositionMetricsNoSwapExactResolver(
+                    serialize_decimal=lambda value: format(value.normalize(), 'f'),
+                ),
+                estimated_fallback_resolver=PositionMetricsEstimatedFallbackResolver(
+                    build_estimated_metrics_from_liquidity_history=lambda partial_metrics, **_kwargs: partial_metrics,
+                ),
+            ),
         )
 
         result = enricher.enrich(
@@ -62,11 +71,17 @@ class PositionMetricsHistoryEnricherTest(unittest.TestCase):
             to_decimal=lambda value: None if value is None else __import__('decimal').Decimal(str(value)),
             history_liquidity=lambda history: __import__('decimal').Decimal('2.0'),
             try_enrich_metrics_with_swap_history=lambda *_args, **_kwargs: (None, ['pool_history_bootstrap_supply_unknown']),
-            serialize_decimal=lambda value: format(value.normalize(), 'f'),
-            build_estimated_metrics_from_liquidity_history=lambda partial_metrics, **_kwargs: {
-                **partial_metrics,
-                **estimated,
-            },
+            semantic_resolver=PositionMetricsHistorySemanticResolver(
+                no_swap_exact_resolver=PositionMetricsNoSwapExactResolver(
+                    serialize_decimal=lambda value: format(value.normalize(), 'f'),
+                ),
+                estimated_fallback_resolver=PositionMetricsEstimatedFallbackResolver(
+                    build_estimated_metrics_from_liquidity_history=lambda partial_metrics, **_kwargs: {
+                        **partial_metrics,
+                        **estimated,
+                    },
+                ),
+            ),
         )
 
         result = enricher.enrich(

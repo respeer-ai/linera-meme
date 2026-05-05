@@ -1252,18 +1252,18 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         )
         db.record_debug_trace(
             source='kline',
-            component='swap',
-            operation='get_pool_transactions',
-            target='pool_query',
+            component='ticker',
+            operation='load_pool_transactions',
+            target='projection_repo',
             owner=None,
             pool_application='chain:pool-app',
             pool_id=7,
-            request_url='http://swap/query',
-            request_payload={'query': 'query { latestTransactions }'},
-            response_status=500,
-            response_body='{"errors":["boom"]}',
-            error='HTTP 500',
-            details={'start_id': 1000},
+            request_url='mysql://projection/pool_transaction_history',
+            request_payload={'pool_application': 'chain:pool-app', 'pool_id': 7, 'start_id': 1000},
+            response_status=200,
+            response_body='{"rows":2}',
+            error=None,
+            details={'start_id': 1000, 'fetched_count': 2},
         )
 
         maker_traces = db.get_debug_traces(source='maker', component='swap', limit=10)
@@ -1273,7 +1273,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
 
         all_traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
         self.assertEqual(len(all_traces), 2)
-        self.assertEqual(all_traces[0]['error'], 'HTTP 500')
+        self.assertIsNone(all_traces[0]['error'])
 
     @patch('db.mysql.connector.connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):
@@ -1354,82 +1354,6 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertEqual(
             build_kline_log_line('request_complete', pool_id=7, source='candles', point_count=15),
             '[kline] event=request_complete point_count=15 pool_id=7 source=candles',
-        )
-
-    @patch('db.mysql.connector.connect')
-    def test_get_latest_transaction_watermarks_reads_latest_persisted_trade_per_pool(self, connect_mock):
-        database_catalog = ['kline']
-        table_catalog = ['pools', 'transactions', 'candles']
-        index_catalog = []
-        connections = []
-
-        def create_connection(**_kwargs):
-            connection = FakeConnection(database_catalog, table_catalog, index_catalog)
-            if len(connections) == 1:
-                connection.pool_rows[7] = {'pool_id': 7, 'pool_application': 'chain:app', 'token_0': 'AAA', 'token_1': 'BBB'}
-                connection.pool_rows[8] = {'pool_id': 8, 'pool_application': 'chain:app-2', 'token_0': 'CCC', 'token_1': 'DDD'}
-                connection.transaction_rows = [
-                    (7, 10, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
-                    (7, 11, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_001_000),
-                    (7, 12, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_060_000),
-                    (8, 3, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_020_000),
-                ]
-            connections.append(connection)
-            return connection
-
-        connect_mock.side_effect = create_connection
-
-        db = Db(
-            host='localhost',
-            port=3306,
-            db_name='kline',
-            username='user',
-            password='pass',
-            clean_kline=False,
-        )
-
-        self.assertEqual(
-            db.get_latest_transaction_watermarks(),
-            {
-                (7, 'chain', 'app'): (1_800_000_060_000, 12, 0),
-                (8, 'chain', 'app-2'): (1_800_000_020_000, 3, 0),
-            },
-        )
-
-    @patch('db.mysql.connector.connect')
-    def test_get_pool_transaction_id_bounds_reads_current_pool_application_only(self, connect_mock):
-        database_catalog = ['kline']
-        table_catalog = ['pools', 'transactions', 'candles']
-        index_catalog = []
-        connections = []
-
-        def create_connection(**_kwargs):
-            connection = FakeConnection(database_catalog, table_catalog, index_catalog)
-            if len(connections) == 1:
-                connection.pool_rows[7] = {'pool_id': 7, 'pool_application': 'chain:app', 'token_0': 'AAA', 'token_1': 'BBB'}
-                connection.transaction_rows = [
-                    ('legacy:7', 7, 1005, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
-                    ('chain:app', 7, 1010, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_002_000),
-                    ('chain:app', 7, 1022, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_003_000),
-                    ('chain:app', 7, 1022, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_003_000),
-                ]
-            connections.append(connection)
-            return connection
-
-        connect_mock.side_effect = create_connection
-
-        db = Db(
-            host='localhost',
-            port=3306,
-            db_name='kline',
-            username='user',
-            password='pass',
-            clean_kline=False,
-        )
-
-        self.assertEqual(
-            db.get_pool_transaction_id_bounds(7),
-            {'min_transaction_id': 1010, 'max_transaction_id': 1022},
         )
 
 
@@ -2055,38 +1979,40 @@ class DbCandleQueryTest(unittest.TestCase):
 
         self.assertEqual(points, [])
 
-    def test_get_kline_falls_back_to_transactions_only_when_no_candle_points_exist(self):
+    def test_load_candle_returns_none_for_legacy_rows_without_quote_volume(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 1.5,
+            'close': 2.5,
+            'volume': 10.0,
+            'quote_volume': None,
+            'trade_count': 2,
+            'first_trade_id': 10,
+            'last_trade_id': 11,
+            'first_trade_at_ms': 1_800_000_001_000,
+            'last_trade_at_ms': 1_800_000_030_000,
+        }
+
+        candle = db.load_candle(
+            pool_id=7,
+            token_reversed=False,
+            interval='1min',
+            bucket_start_ms=1_800_000_000_000,
+        )
+
+        self.assertIsNone(candle)
+
+    def test_get_kline_returns_empty_when_no_materialized_candle_points_exist(self):
         db = self.create_db()
 
-        with patch.object(db, 'get_kline_from_candles', return_value=[]) as candle_mock, patch.object(db, 'get_kline_from_transactions', return_value=[
-            {
-                'timestamp': 1_800_000_000_000,
-                'open': 2.0,
-                'high': 3.0,
-                'low': 1.5,
-                'close': 2.5,
-                'base_volume': 10.0,
-                'quote_volume': 25.0,
-            },
-            {
-                'timestamp': 1_800_000_120_000,
-                'open': 2.5,
-                'high': 2.8,
-                'low': 2.4,
-                'close': 2.6,
-                'base_volume': 6.0,
-                'quote_volume': 15.600000000000001,
-            },
-            {
-                'timestamp': 1_800_000_180_000,
-                'open': 2.6,
-                'high': 2.9,
-                'low': 2.5,
-                'close': 2.7,
-                'base_volume': 5.0,
-                'quote_volume': 13.5,
-            },
-        ]) as transaction_mock, patch.object(db, 'log_kline_event') as log_mock:
+        with patch.object(db, 'get_kline_from_candles', return_value=[]) as candle_mock, patch.object(db, 'log_kline_event') as log_mock:
             _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
@@ -2096,13 +2022,11 @@ class DbCandleQueryTest(unittest.TestCase):
             )
 
         candle_mock.assert_called_once()
-        transaction_mock.assert_called_once()
         self.assertEqual(
             [call.kwargs['event'] for call in log_mock.call_args_list],
-            ['request_start', 'candles_result', 'transactions_fallback_start', 'transactions_result', 'request_complete'],
+            ['request_start', 'candles_result', 'request_complete'],
         )
-        self.assertEqual(points[0]['timestamp'], 1_800_000_000_000)
-        self.assertEqual(len(points), 3)
+        self.assertEqual(points, [])
 
     def test_get_kline_prefers_sparse_candle_history_without_falling_back(self):
         db = self.create_db()
@@ -2127,7 +2051,7 @@ class DbCandleQueryTest(unittest.TestCase):
             },
         ]
 
-        with patch.object(db, 'get_kline_from_candles', return_value=candle_points) as candle_mock, patch.object(db, 'get_kline_from_transactions') as transaction_mock:
+        with patch.object(db, 'get_kline_from_candles', return_value=candle_points) as candle_mock:
             _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
@@ -2137,111 +2061,7 @@ class DbCandleQueryTest(unittest.TestCase):
             )
 
         candle_mock.assert_called_once()
-        transaction_mock.assert_not_called()
         self.assertEqual(points, candle_points)
-
-    def test_get_kline_from_transactions_materializes_candles_for_historical_backfill(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            (
-                7, 10, 'BuyToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                2.0, 10.0, 'Buy', False, 1_800_000_001_000,
-            ),
-            (
-                7, 11, 'SellToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                3.0, 4.0, 'Sell', False, 1_800_000_030_000,
-            ),
-            (
-                7, 12, 'BuyToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                5.0, 6.0, 'Buy', False, 1_800_000_061_000,
-            ),
-        ])
-
-        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            points = db.get_kline_from_transactions(
-                pool_id=7,
-                token_reversed=False,
-                start_at=1_800_000_000_000,
-                end_at=1_800_000_120_000,
-                interval='1min',
-            )
-
-        self.assertEqual(points, [
-            {
-                'timestamp': 1_800_000_000_000,
-                'bucket_start_ms': 1_800_000_000_000,
-                'bucket_end_ms': 1_800_000_059_999,
-                'is_final': True,
-                'open': 2.0,
-                'high': 3.0,
-                'low': 2.0,
-                'close': 3.0,
-                'base_volume': 14.0,
-                'quote_volume': 32.0,
-            },
-            {
-                'timestamp': 1_800_000_060_000,
-                'bucket_start_ms': 1_800_000_060_000,
-                'bucket_end_ms': 1_800_000_119_999,
-                'is_final': True,
-                'open': 5.0,
-                'high': 5.0,
-                'low': 5.0,
-                'close': 5.0,
-                'base_volume': 6.0,
-                'quote_volume': 30.0,
-            },
-            {
-                'timestamp': 1_800_000_120_000,
-                'bucket_start_ms': 1_800_000_120_000,
-                'bucket_end_ms': 1_800_000_179_999,
-                'is_final': True,
-                'open': 5.0,
-                'high': 5.0,
-                'low': 5.0,
-                'close': 5.0,
-                'base_volume': 0.0,
-                'quote_volume': 0.0,
-            },
-        ])
-        self.assertIn((7, False, '1min', 1_800_000_000_000), connection.candle_rows)
-        self.assertIn((7, False, '1min', 1_800_000_060_000), connection.candle_rows)
-
-    def test_get_kline_uses_materialized_candles_after_transaction_backfill(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.append(
-            (
-                7, 10, 'BuyToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                2.0, 10.0, 'Buy', False, 1_800_000_001_000,
-            ),
-        )
-
-        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            first_points = db.get_kline(
-                token_0='AAA',
-                token_1='BBB',
-                start_at=1_800_000_000_000,
-                end_at=1_800_000_060_000,
-                interval='1min',
-            )[2]
-
-        with patch.object(db, 'get_kline_from_transactions') as transaction_mock, patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            second_points = db.get_kline(
-                token_0='AAA',
-                token_1='BBB',
-                start_at=1_800_000_000_000,
-                end_at=1_800_000_060_000,
-                interval='1min',
-            )[2]
-
-        transaction_mock.assert_not_called()
-        self.assertEqual(second_points, first_points)
 
     def test_get_kline_marks_latest_forming_bucket_explicitly(self):
         db = self.create_db()
@@ -2388,91 +2208,3 @@ class DbPositionsQueryTest(unittest.TestCase):
             False,
             created_at,
         )
-
-    def test_get_positions_returns_active_and_closed_positions(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
-            self.transaction_row(7, 11, 'RemoveLiquidity', 'chain:owner-a', 40, 1_800_000_010_000),
-            self.transaction_row(8, 12, 'AddLiquidity', 'chain:owner-a', 50, 1_800_000_020_000),
-            self.transaction_row(8, 13, 'RemoveLiquidity', 'chain:owner-a', 50, 1_800_000_030_000),
-            self.transaction_row(7, 14, 'AddLiquidity', 'chain:owner-b', 999, 1_800_000_040_000),
-        ])
-
-        positions = db.get_positions('chain:owner-a', status='all')
-
-        self.assertEqual(len(positions), 2)
-        self.assertEqual(
-            positions,
-            [
-                {
-                    'pool_application': 'chain:app',
-                    'pool_id': 8,
-                    'token_0': 'CCC',
-                    'token_1': 'DDD',
-                    'owner': 'chain:owner-a',
-                    'status': 'closed',
-                    'current_liquidity': '0',
-                    'added_liquidity': '50',
-                    'removed_liquidity': '50',
-                    'add_tx_count': 1,
-                    'remove_tx_count': 1,
-                    'opened_at': 1_800_000_020_000,
-                    'updated_at': 1_800_000_030_000,
-                    'closed_at': 1_800_000_030_000,
-                },
-                {
-                    'pool_application': 'chain:app',
-                    'pool_id': 7,
-                    'token_0': 'AAA',
-                    'token_1': 'BBB',
-                    'owner': 'chain:owner-a',
-                    'status': 'active',
-                    'current_liquidity': '60',
-                    'added_liquidity': '100',
-                    'removed_liquidity': '40',
-                    'add_tx_count': 1,
-                    'remove_tx_count': 1,
-                    'opened_at': 1_800_000_001_000,
-                    'updated_at': 1_800_000_010_000,
-                    'closed_at': None,
-                },
-            ],
-        )
-
-    def test_get_positions_filters_active_only(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
-            self.transaction_row(8, 12, 'AddLiquidity', 'chain:owner-a', 50, 1_800_000_020_000),
-            self.transaction_row(8, 13, 'RemoveLiquidity', 'chain:owner-a', 50, 1_800_000_030_000),
-        ])
-
-        positions = db.get_positions('chain:owner-a', status='active')
-
-        self.assertEqual(len(positions), 1)
-        self.assertEqual(positions[0]['pool_id'], 7)
-        self.assertEqual(positions[0]['status'], 'active')
-
-    def test_get_positions_filters_closed_only(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
-            self.transaction_row(7, 11, 'RemoveLiquidity', 'chain:owner-a', 100, 1_800_000_010_000),
-        ])
-
-        positions = db.get_positions('chain:owner-a', status='closed')
-
-        self.assertEqual(len(positions), 1)
-        self.assertEqual(positions[0]['pool_id'], 7)
-        self.assertEqual(positions[0]['status'], 'closed')
-        self.assertEqual(positions[0]['closed_at'], 1_800_000_010_000)
-
-    def test_get_positions_rejects_invalid_status(self):
-        db = self.create_db()
-
-        with self.assertRaises(ValueError):
-            db.get_positions('chain:owner-a', status='bad')

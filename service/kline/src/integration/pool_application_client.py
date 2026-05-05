@@ -1,47 +1,58 @@
-from position_metrics_pool_application_support import PositionMetricsPoolApplicationSupport
-
-
 class PoolApplicationClient:
+    POSITION_METRICS_QUERY = '''
+                query PositionMetrics($owner: Account!) {
+                  pool
+                  totalSupply
+                  virtualInitialLiquidity
+                  liquidity(owner: $owner) {
+                    liquidity
+                    amount0
+                    amount1
+                  }
+                }
+            '''
+
     def __init__(
         self,
         *,
-        base_url: str,
+        application_url: str,
         post,
-        in_k8s: bool,
     ):
-        self.base_url = base_url
+        self.application_url = application_url
         self.post = post
-        self.in_k8s = in_k8s
-        self.support = PositionMetricsPoolApplicationSupport(
-            running_in_k8s=lambda: self.in_k8s,
-        )
 
     async def get_position_metrics_payload(
         self,
         *,
-        pool_application: str,
         owner: dict,
     ) -> dict:
-        url = self.support.pool_application_url(
-            self.base_url,
-            pool_application,
-            in_k8s=self.in_k8s,
-        )
         payload = await self._post_position_metrics_query(
-            url=url,
-            query=self.support.build_position_metrics_query(owner),
+            url=self.application_url,
+            query=self.build_position_metrics_query(owner),
         )
-        if 'errors' not in payload:
-            return payload
-        if not self.support.graphql_unknown_field(payload, 'totalSupply'):
+        if 'errors' in payload:
             raise RuntimeError(str(payload['errors']))
-        legacy_payload = await self._post_position_metrics_query(
-            url=url,
-            query=self.support.build_position_metrics_legacy_query(owner),
-        )
-        if 'errors' in legacy_payload:
-            raise RuntimeError(str(legacy_payload['errors']))
-        return legacy_payload
+        return payload
+
+    @classmethod
+    def build_application_url(
+        cls,
+        *,
+        swap_base_url: str,
+        pool_application: str,
+    ) -> str:
+        chain_id, application_id = pool_application.split(':', 1)
+        short_application_id = application_id[2:] if application_id.startswith('0x') else application_id
+        return f'{swap_base_url}/chains/{chain_id}/applications/{short_application_id}'
+
+    @classmethod
+    def build_position_metrics_query(cls, owner: dict) -> dict:
+        return {
+            'query': cls.POSITION_METRICS_QUERY,
+            'variables': {
+                'owner': owner,
+            },
+        }
 
     async def _post_position_metrics_query(
         self,

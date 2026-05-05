@@ -5,7 +5,7 @@ class NormalizationReplayDriver:
         raw_repository,
         processing_cursor_repository,
         normalization_worker,
-        raw_tables: tuple[str, ...] = ('raw_operations', 'raw_posted_messages'),
+        raw_tables: tuple[str, ...] = ('raw_operations', 'raw_posted_messages', 'raw_events'),
         batch_limit: int = 100,
     ):
         self.raw_repository = raw_repository
@@ -119,6 +119,62 @@ class NormalizationReplayDriver:
             'normalized_event_count': normalized_event_count,
             'results': results,
         }
+
+    def run_all_until_caught_up(
+        self,
+        *,
+        batch_limit: int | None = None,
+        reprocess_reason: str | None = None,
+    ) -> dict[str, object]:
+        results = []
+        processed_count = 0
+        normalized_event_count = 0
+        for raw_table in self.raw_tables:
+            result = self._run_table_until_caught_up(
+                raw_table=raw_table,
+                batch_limit=batch_limit,
+                reprocess_reason=reprocess_reason,
+            )
+            results.append(result)
+            processed_count += int(result.get('processed_count', 0))
+            normalized_event_count += int(result.get('normalized_event_count', 0))
+        return {
+            'raw_tables': list(self.raw_tables),
+            'table_count': len(self.raw_tables),
+            'processed_count': processed_count,
+            'normalized_event_count': normalized_event_count,
+            'caught_up': all(result.get('caught_up', False) for result in results),
+            'results': results,
+        }
+
+    def _run_table_until_caught_up(
+        self,
+        *,
+        raw_table: str,
+        batch_limit: int | None = None,
+        reprocess_reason: str | None = None,
+    ) -> dict[str, object]:
+        results = []
+        total_processed_count = 0
+        total_normalized_event_count = 0
+        while True:
+            result = self.run_once(
+                raw_table=raw_table,
+                batch_limit=batch_limit,
+                reprocess_reason=reprocess_reason,
+            )
+            results.append(result)
+            total_processed_count += int(result.get('processed_count', 0))
+            total_normalized_event_count += int(result.get('normalized_event_count', 0))
+            if result.get('caught_up'):
+                return {
+                    'raw_table': raw_table,
+                    'batch_count': len(results),
+                    'processed_count': total_processed_count,
+                    'normalized_event_count': total_normalized_event_count,
+                    'caught_up': True,
+                    'results': results,
+                }
 
     def _parse_sequence(self, cursor: dict | None) -> int | None:
         if cursor is None:

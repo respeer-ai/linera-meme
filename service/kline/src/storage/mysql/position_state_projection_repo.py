@@ -1,7 +1,21 @@
+from storage.mysql.position_metrics_snapshot_semantic_facts_projector import (
+    PositionMetricsSnapshotSemanticFactsProjector,
+)
+
+
 class PositionStateProjectionRepository:
-    def __init__(self, db):
+    def __init__(
+        self,
+        db,
+        *,
+        snapshot_semantic_facts_projector=None,
+    ):
         self.db = db
         self.position_state_table = 'position_state_v2'
+        self.snapshot_semantic_facts_projector = (
+            snapshot_semantic_facts_projector
+            or PositionMetricsSnapshotSemanticFactsProjector()
+        )
 
     def get_position_basis_snapshot(
         self,
@@ -10,10 +24,6 @@ class PositionStateProjectionRepository:
         pool_application_id: str,
         status: str = 'active',
     ) -> dict | None:
-        if not hasattr(self.db, 'ensure_fresh_read_connection'):
-            return None
-        if not hasattr(self.db, 'cursor_dict'):
-            return None
         self.db.ensure_fresh_read_connection()
         cursor = self.db.cursor_dict
         try:
@@ -28,6 +38,6 @@ class PositionStateProjectionRepository:
                 ''',
                 (owner, pool_application_id, status),
             )
-            return cursor.fetchone()
+            return self.snapshot_semantic_facts_projector.project(cursor.fetchone())
         except Exception:
             return None

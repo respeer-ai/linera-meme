@@ -192,12 +192,15 @@ class RawRepository:
                     transaction_index INT NOT NULL,
                     event_index INT NOT NULL,
                     stream_id VARCHAR(255) NOT NULL,
+                    application_id VARCHAR(128) NULL,
+                    stream_name VARCHAR(255) NULL,
                     stream_index BIGINT NOT NULL,
                     raw_event_bytes LONGBLOB NOT NULL,
                     indexed_at DATETIME(6) NOT NULL,
                     PRIMARY KEY (event_id),
                     UNIQUE KEY uq_raw_events_block_tx_event (block_hash, transaction_index, event_index),
                     KEY idx_raw_events_stream (stream_id, stream_index),
+                    KEY idx_raw_events_app_stream (application_id, stream_name, stream_index),
                     KEY idx_raw_events_chain_height (chain_id, height),
                     CONSTRAINT fk_raw_events_block
                         FOREIGN KEY (block_hash) REFERENCES {self.raw_blocks_table}(block_hash)
@@ -476,6 +479,11 @@ class RawRepository:
                 after_sequence=after_sequence,
                 limit=limit,
             )
+        if raw_table == self.raw_events_table:
+            return self._list_event_candidates(
+                after_sequence=after_sequence,
+                limit=limit,
+            )
         raise ValueError(f'unsupported normalization raw_table: {raw_table}')
 
     def mark_attempt(self, chain_id: str, height: int) -> None:
@@ -620,6 +628,65 @@ class RawRepository:
                         if row['action'] == 'Reject'
                         else None
                     ),
+                }
+                for row in rows
+            ]
+        finally:
+            cursor.close()
+
+    def _list_event_candidates(
+        self,
+        *,
+        after_sequence: int | None,
+        limit: int,
+    ) -> list[dict]:
+        cursor = self.connection.cursor(dictionary=True)
+        try:
+            params: list[object] = []
+            where_clauses = ['application_id IS NOT NULL']
+            if after_sequence is not None:
+                where_clauses.append('event_id > %s')
+                params.append(int(after_sequence))
+            params.append(int(limit))
+            cursor.execute(
+                f'''
+                SELECT
+                    event_id,
+                    chain_id,
+                    block_hash,
+                    height,
+                    transaction_index,
+                    event_index,
+                    stream_id,
+                    application_id,
+                    stream_name,
+                    stream_index,
+                    raw_event_bytes
+                FROM {self.raw_events_table}
+                WHERE {' AND '.join(where_clauses)}
+                ORDER BY event_id ASC
+                LIMIT %s
+                ''',
+                tuple(params),
+            )
+            rows = cursor.fetchall() or []
+            return [
+                {
+                    'raw_fact_id': str(row['event_id']),
+                    'raw_table': self.raw_events_table,
+                    'application_id': row['application_id'],
+                    'payload_kind': 'event',
+                    'raw_bytes': row['raw_event_bytes'],
+                    'chain_id': row['chain_id'],
+                    'target_chain_id': row['chain_id'],
+                    'block_hash': row['block_hash'],
+                    'target_block_hash': row['block_hash'],
+                    'transaction_index': row['transaction_index'],
+                    'event_index': row['event_index'],
+                    'stream_id': row['stream_id'],
+                    'stream_name': row['stream_name'],
+                    'stream_index': row['stream_index'],
+                    'execution_status': 'observed',
                 }
                 for row in rows
             ]
@@ -1371,6 +1438,8 @@ class RawRepository:
             event_fingerprint = self._fingerprint({
                 'transaction_index': int(event.get('transaction_index', 0)),
                 'stream_id': str(event.get('stream_id', '')),
+                'application_id': event.get('application_id'),
+                'stream_name': event.get('stream_name'),
                 'stream_index': int(event.get('stream_index', 0)),
                 'raw_event_bytes': event.get('raw_event_bytes', b''),
             })
@@ -1380,6 +1449,8 @@ class RawRepository:
                 select_columns=(
                     'transaction_index',
                     'stream_id',
+                    'application_id',
+                    'stream_name',
                     'stream_index',
                     'raw_event_bytes',
                 ),
@@ -1406,6 +1477,8 @@ class RawRepository:
                             'observed': {
                                 'transaction_index': int(event.get('transaction_index', 0)),
                                 'stream_id': str(event.get('stream_id', '')),
+                                'application_id': event.get('application_id'),
+                                'stream_name': event.get('stream_name'),
                                 'stream_index': int(event.get('stream_index', 0)),
                                 'raw_event_bytes': event.get('raw_event_bytes', b''),
                             },
@@ -1415,30 +1488,34 @@ class RawRepository:
             write_cursor.execute(
                 f'''
                 INSERT INTO {self.raw_events_table}
-                (
-                    block_hash,
-                    chain_id,
-                    height,
-                    transaction_index,
-                    event_index,
-                    stream_id,
-                    stream_index,
-                    raw_event_bytes,
-                    indexed_at
+                    (
+                        block_hash,
+                        chain_id,
+                        height,
+                        transaction_index,
+                        event_index,
+                        stream_id,
+                        application_id,
+                        stream_name,
+                        stream_index,
+                        raw_event_bytes,
+                        indexed_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP(6))
+                    ''',
+                    (
+                        str(block['block_hash']),
+                        str(block['chain_id']),
+                        int(block['height']),
+                        int(event.get('transaction_index', 0)),
+                        key_event_index,
+                        str(event.get('stream_id', '')),
+                        event.get('application_id'),
+                        event.get('stream_name'),
+                        int(event.get('stream_index', 0)),
+                        event.get('raw_event_bytes', b''),
+                    ),
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, UTC_TIMESTAMP(6))
-                ''',
-                (
-                    str(block['block_hash']),
-                    str(block['chain_id']),
-                    int(block['height']),
-                    int(event.get('transaction_index', 0)),
-                    key_event_index,
-                    str(event.get('stream_id', '')),
-                    int(event.get('stream_index', 0)),
-                    event.get('raw_event_bytes', b''),
-                ),
-            )
 
     def _insert_oracle_responses(self, read_cursor, write_cursor, block: dict) -> None:
         for response_index, response in enumerate(block.get('oracle_responses', [])):

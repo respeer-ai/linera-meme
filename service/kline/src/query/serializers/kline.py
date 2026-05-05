@@ -1,12 +1,10 @@
-from compatibility.legacy_response_shapes import LegacyResponseShapeAdapter
-
-
 class KlineSerializer:
-    def __init__(self):
-        self.adapter = LegacyResponseShapeAdapter()
-
     def serialize_points(self, payload: dict) -> dict:
-        return self.adapter.preserve(payload)
+        if isinstance(payload, dict):
+            return dict(payload)
+        return payload
 
     def serialize_information(self, payload: dict) -> dict:
-        return self.adapter.preserve(payload)
+        if isinstance(payload, dict):
+            return dict(payload)
+        return payload

@@ -1,14 +1,12 @@
 import async_request
 
-from environment import running_in_k8s
-
 
 class SwapCatalogClient:
-    def __init__(self, *, host: str, chain_id: str, application_id: str):
+    def __init__(self, *, host: str, chain_id: str, application_id: str, query_base_url: str | None = None):
         self.host = host
         self.chain_id = chain_id
         self.application_id = application_id
-        self.base_url = f'http://{host}' + ('/api/swap' if not running_in_k8s() else '')
+        self.query_base_url = self._resolve_query_base_url(host, query_base_url)
 
     async def list_pools(self) -> list[dict]:
         response = await async_request.post(
@@ -25,5 +23,9 @@ class SwapCatalogClient:
         return payload['data']['pools'] or []
 
     def _application_url(self) -> str:
-        prefix = '' if running_in_k8s() else '/query'
-        return f'{self.base_url}{prefix}/chains/{self.chain_id}/applications/{self.application_id}'
+        return f'{self.query_base_url}/chains/{self.chain_id}/applications/{self.application_id}'
+
+    def _resolve_query_base_url(self, host: str, query_base_url: str | None) -> str:
+        if query_base_url is not None:
+            return str(query_base_url).rstrip('/')
+        return f'http://{host}/api/swap/query'

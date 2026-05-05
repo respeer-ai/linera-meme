@@ -1,9 +1,12 @@
 from decimal import Decimal
 
+from storage.mysql.settled_product_transaction_adapter import SettledProductTransactionAdapter
+
 
 class SettledLiquidityProjectionRepository:
-    def __init__(self, db):
+    def __init__(self, db, *, transaction_adapter=None):
         self.db = db
+        self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
 
     def get_positions(
         self,
@@ -70,7 +73,7 @@ class SettledLiquidityProjectionRepository:
         params: list[object] = []
         if owner is not None:
             where_clauses.append('slc.owner = %s')
-            params.append(self._to_settled_owner(owner))
+            params.append(self.transaction_adapter.settled_owner_from_public_owner(owner))
         if pool_application is not None:
             where_clauses.append('p.pool_application = %s')
             params.append(pool_application)
@@ -179,32 +182,11 @@ class SettledLiquidityProjectionRepository:
         return positions
 
     def _build_history_row(self, row: dict) -> dict:
-        change_type = str(row['change_type'])
-        amount_0_delta = self._serialize_decimal(Decimal(str(row['amount_0_delta'])))
-        amount_1_delta = self._serialize_decimal(Decimal(str(row['amount_1_delta'])))
-        liquidity_delta = self._serialize_decimal(Decimal(str(row['liquidity_delta'])))
-        is_add = change_type == 'add_liquidity'
-        return {
-            'transaction_id': int(row['transaction_id']) if row.get('transaction_id') is not None else None,
-            'transaction_type': 'AddLiquidity' if is_add else 'RemoveLiquidity',
-            'amount_0_in': amount_0_delta if is_add else None,
-            'amount_0_out': None if is_add else amount_0_delta,
-            'amount_1_in': amount_1_delta if is_add else None,
-            'amount_1_out': None if is_add else amount_1_delta,
-            'liquidity': liquidity_delta,
-            'created_at': int(row['event_time_ms']) if row.get('event_time_ms') is not None else None,
-            'from_account': self._from_account(row.get('owner')),
-        }
-
-    def _to_settled_owner(self, owner: str) -> str:
-        chain_id, owner_id = owner.split(':', 1)
-        return f'{owner_id}@{chain_id}'
-
-    def _from_account(self, owner: str | None) -> str | None:
-        if owner is None or '@' not in owner:
-            return None
-        owner_id, chain_id = owner.split('@', 1)
-        return f'{chain_id}:{owner_id}'
+        serialized_row = dict(row)
+        serialized_row['amount_0_delta'] = self._serialize_decimal(Decimal(str(row['amount_0_delta'])))
+        serialized_row['amount_1_delta'] = self._serialize_decimal(Decimal(str(row['amount_1_delta'])))
+        serialized_row['liquidity_delta'] = self._serialize_decimal(Decimal(str(row['liquidity_delta'])))
+        return self.transaction_adapter.build_liquidity_history_row(serialized_row)
 
     def _serialize_decimal(self, value: Decimal) -> str:
         normalized = format(value.normalize(), 'f')

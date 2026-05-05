@@ -21,10 +21,6 @@ async def dummy_post(*_args, **_kwargs):
 async_request_stub.post = dummy_post
 sys.modules['async_request'] = async_request_stub
 
-environment_stub = types.ModuleType('environment')
-environment_stub.running_in_k8s = lambda: False
-sys.modules['environment'] = environment_stub
-
 
 from integration.pool_application_client import PoolApplicationClient  # noqa: E402
 
@@ -40,39 +36,26 @@ class PoolApplicationClientTest(unittest.IsolatedAsyncioTestCase):
         def json(self):
             return self.payload
 
-    async def test_get_position_metrics_payload_falls_back_to_legacy_query(self):
+    async def test_get_position_metrics_payload_raises_for_total_supply_schema_mismatch(self):
         calls = []
 
         async def fake_post(*, url, json, timeout):
             calls.append({'url': url, 'json': json, 'timeout': timeout})
-            if len(calls) == 1:
-                return PoolApplicationClientTest.FakeResponse({
-                    'errors': [{'message': 'Unknown field "totalSupply" on type "Pool"'}],
-                })
             return PoolApplicationClientTest.FakeResponse({
-                'data': {
-                    'pool': {'fee_to': None},
-                    'virtualInitialLiquidity': False,
-                    'liquidity': {'liquidity': '1', 'amount0': '2', 'amount1': '3'},
-                    'latestTransactions': [],
-                }
+                'errors': [{'message': 'Unknown field "totalSupply" on type "Pool"'}],
             })
 
         client = PoolApplicationClient(
-            base_url='http://swap.example',
+            application_url='http://swap.example/chains/chain/applications/pool-app',
             post=fake_post,
-            in_k8s=False,
         )
 
-        payload = await client.get_position_metrics_payload(
-            pool_application='chain:0xpool-app',
-            owner={'chain_id': 'chain-a', 'owner': 'owner-a'},
-        )
-
-        self.assertIn('data', payload)
-        self.assertEqual(len(calls), 2)
+        with self.assertRaises(RuntimeError):
+            await client.get_position_metrics_payload(
+                owner={'chain_id': 'chain-a', 'owner': 'owner-a'},
+            )
+        self.assertEqual(len(calls), 1)
         self.assertIn('totalSupply', calls[0]['json']['query'])
-        self.assertNotIn('totalSupply', calls[1]['json']['query'])
 
     async def test_get_position_metrics_payload_raises_for_non_legacy_graphql_errors(self):
         async def fake_post(*, url, json, timeout):
@@ -81,14 +64,12 @@ class PoolApplicationClientTest(unittest.IsolatedAsyncioTestCase):
             })
 
         client = PoolApplicationClient(
-            base_url='http://swap.example',
+            application_url='http://swap.example/chains/chain/applications/pool-app',
             post=fake_post,
-            in_k8s=False,
         )
 
         with self.assertRaises(RuntimeError):
             await client.get_position_metrics_payload(
-                pool_application='chain:0xpool-app',
                 owner={'chain_id': 'chain-a', 'owner': 'owner-a'},
             )
 

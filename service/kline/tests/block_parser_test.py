@@ -28,7 +28,12 @@ class BlockParserTest(unittest.TestCase):
             ],
             'operations': [{'raw_operation_bytes': b'op'}],
             'outgoing_messages': [{'destination_chain_id': 'chain-c', 'raw_message_bytes': b'out'}],
-            'events': [{'stream_id': 'stream-1', 'raw_event_bytes': b'evt'}],
+            'events': [{
+                'stream_id': 'stream-1',
+                'application_id': 'app-stream',
+                'stream_name': 'fills',
+                'raw_event_bytes': b'evt',
+            }],
             'oracle_responses': [{'response_type': 'blob', 'raw_response_bytes': b'oracle'}],
         })
 
@@ -40,6 +45,8 @@ class BlockParserTest(unittest.TestCase):
         self.assertEqual(block['message_count'], 1)
         self.assertEqual(block['event_count'], 1)
         self.assertEqual(block['incoming_bundles'][0]['posted_messages'][0]['message_index'], 0)
+        self.assertEqual(block['events'][0]['application_id'], 'app-stream')
+        self.assertEqual(block['events'][0]['stream_name'], 'fills')
 
     def test_parse_requires_block_hash(self):
         parser = LayerOneBlockParser()
@@ -161,4 +168,6 @@ class BlockParserTest(unittest.TestCase):
             b'{"User":{"application_id":"app-out","bytes":"6869"}}',
         )
         self.assertEqual(block['events'][0]['stream_id'], 'app-stream:fills')
+        self.assertEqual(block['events'][0]['application_id'], 'app-stream')
+        self.assertEqual(block['events'][0]['stream_name'], 'fills')
         self.assertEqual(block['oracle_responses'][0]['response_type'], 'Blob')

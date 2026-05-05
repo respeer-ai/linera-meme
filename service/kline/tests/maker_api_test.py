@@ -96,18 +96,110 @@ class FakeDb:
         self.watermarks = watermarks or {}
         self.maker_events = maker_events or []
         self.traces = traces or []
+        self.sql_history = []
+        self.pools_table = 'pools'
+        self.transactions_table = 'transactions'
+        self.maker_events_table = 'maker_events'
+        self.debug_traces_table = 'debug_traces'
+        self.cursor_dict = self.FakeCursor(self)
 
-    def get_pool_catalog(self):
-        return list(self.pool_catalog)
+    class FakeCursor:
+        def __init__(self, outer):
+            self.outer = outer
+            self.last_sql = ''
+            self.last_params = ()
+            self._last_rows = []
 
-    def get_latest_transaction_watermarks(self):
-        return dict(self.watermarks)
+        def execute(self, sql, params=()):
+            self.last_sql = ' '.join(sql.split())
+            self.last_params = params
+            self.outer.sql_history.append((self.last_sql, params))
+            self._last_rows = self._resolve_rows()
 
-    def get_maker_events(self, token_0, token_1, start_at, end_at):
-        return list(self.maker_events)
+        def fetchall(self):
+            return list(self._last_rows)
 
-    def get_debug_traces(self, **_kwargs):
-        return list(self.traces)
+        def fetchone(self):
+            if len(self._last_rows) == 0:
+                return None
+            return dict(self._last_rows[0])
+
+        def _resolve_rows(self):
+            if 'FROM pools' in self.last_sql:
+                return list(self.outer.pool_catalog)
+            if 'FROM maker_events' in self.last_sql and 'COUNT(*) AS count' not in self.last_sql:
+                rows = list(self.outer.maker_events)
+                if 'WHERE token_0 = %s' in self.last_sql:
+                    token_0, token_1, start_at, end_at = self.last_params
+                    rows = [
+                        row for row in rows
+                        if row.get('token_0') == token_0
+                        and row.get('token_1') == token_1
+                        and int(row.get('created_at') or 0) >= int(start_at)
+                        and int(row.get('created_at') or 0) <= int(end_at)
+                    ]
+                elif 'WHERE created_at >= %s' in self.last_sql:
+                    start_at, end_at = self.last_params
+                    rows = [
+                        row for row in rows
+                        if int(row.get('created_at') or 0) >= int(start_at)
+                        and int(row.get('created_at') or 0) <= int(end_at)
+                    ]
+                return list(rows)
+            if 'FROM maker_events' in self.last_sql and 'COUNT(*) AS count' in self.last_sql:
+                rows = list(self.outer.maker_events)
+                if 'WHERE token_0 = %s' in self.last_sql:
+                    token_0, token_1 = self.last_params
+                    rows = [
+                        row for row in rows
+                        if row.get('token_0') == token_0
+                        and row.get('token_1') == token_1
+                    ]
+                created_values = [int(row['created_at']) for row in rows if row.get('created_at') is not None]
+                return [{
+                    'count': len(rows),
+                    'timestamp_begin': None if len(created_values) == 0 else max(created_values),
+                    'timestamp_end': None if len(created_values) == 0 else min(created_values),
+                }]
+            if 'FROM debug_traces' in self.last_sql:
+                rows = list(self.outer.traces)
+                param_index = 0
+                for clause, field in (
+                    ('source = %s', 'source'),
+                    ('component = %s', 'component'),
+                    ('operation = %s', 'operation'),
+                    ('owner = %s', 'owner'),
+                    ('pool_application = %s', 'pool_application'),
+                ):
+                    if clause in self.last_sql:
+                        rows = [row for row in rows if row.get(field) == self.last_params[param_index]]
+                        param_index += 1
+                if 'pool_id = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_id') == int(self.last_params[param_index])]
+                    param_index += 1
+                if 'created_at >= %s' in self.last_sql:
+                    rows = [row for row in rows if int(row.get('created_at') or 0) >= int(self.last_params[param_index])]
+                    param_index += 1
+                if 'created_at <= %s' in self.last_sql:
+                    rows = [row for row in rows if int(row.get('created_at') or 0) <= int(self.last_params[param_index])]
+                    param_index += 1
+                limit = int(self.last_params[-1]) if self.last_params else len(rows)
+                return list(rows[:limit])
+            if 'FROM settled_trades st' in self.last_sql:
+                return [
+                    {
+                        'pool_id': pool_id,
+                        'pool_application': f'{chain_id}:{owner}',
+                        'created_at': payload[0],
+                        'transaction_id': payload[1],
+                        'token_reversed': payload[2],
+                    }
+                    for (pool_id, chain_id, owner), payload in self.outer.watermarks.items()
+                ]
+            return []
+
+    def ensure_fresh_read_connection(self):
+        return None
 
 
 class MakerApiTest(unittest.IsolatedAsyncioTestCase):
@@ -216,6 +308,9 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
             }],
             traces=[{
                 'trace_id': 9,
+                'source': 'maker',
+                'component': 'swap',
+                'operation': 'swap',
                 'pool_application': 'chain-x:pool-owner',
                 'pool_id': 1001,
                 'owner': 'wallet-owner',
@@ -242,19 +337,95 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stalled_pool['suspected_stage'], 'mutation_accepted_but_not_settled')
         self.assertEqual(stalled_pool['latest_db_transaction']['transaction_id'], 7)
         self.assertEqual(stalled_pool['latest_wallet_trace']['trace_id'], 9)
+        self.assertTrue(
+            any(
+                'FROM settled_trades st' in sql
+                for sql, _params in maker_api_module._db.sql_history
+            )
+        )
+
+    async def test_debug_pools_stall_uses_query_repository_boundaries(self):
+        class GuardedDb:
+            def close(self):
+                return None
+
+        class FakePoolCatalogQueryRepository:
+            def get_pool_catalog(self):
+                return [{
+                    'pool_id': 1001,
+                    'pool_application': 'chain-x:pool-owner',
+                    'token_0': 'TOKEN0',
+                    'token_1': 'TOKEN1',
+                }]
+
+        class FakeTransactionWatermarksQueryRepository:
+            def get_latest_transaction_watermarks(self):
+                return {
+                    (1001, 'chain-x', 'pool-owner'): (1_000, 7, 0),
+                }
+
+        class FakeMakerEventsQueryRepository:
+            def get_maker_events(self, **_kwargs):
+                return [{
+                    'event_id': 1,
+                    'pool_id': 1001,
+                    'event_type': 'executed',
+                    'created_at': 4_000,
+                }]
+
+        class FakeDebugTracesQueryRepository:
+            def get_debug_traces(self, **_kwargs):
+                return [{
+                    'trace_id': 9,
+                    'source': 'maker',
+                    'component': 'swap',
+                    'operation': 'swap',
+                    'pool_application': 'chain-x:pool-owner',
+                    'pool_id': 1001,
+                    'owner': 'wallet-owner',
+                    'created_at': 4_500,
+                }]
+
+        class GuardedMakerApiRuntime(maker_api_module.MakerApiRuntime):
+            def pool_catalog_query_repository(self):
+                return FakePoolCatalogQueryRepository()
+
+            def transaction_watermarks_query_repository(self):
+                return FakeTransactionWatermarksQueryRepository()
+
+            def maker_events_query_repository(self):
+                return FakeMakerEventsQueryRepository()
+
+            def debug_traces_query_repository(self):
+                return FakeDebugTracesQueryRepository()
+
+        runtime = GuardedMakerApiRuntime(
+            db=GuardedDb(),
+            config={
+                'maker_replicas': 0,
+                'wallet_memory_limit_bytes': 0,
+            },
+            request_client=types.SimpleNamespace(),
+            clock_ms=lambda: 10_000,
+        )
+
+        response = await runtime.get_debug_pools_stall(
+            pool_id=None,
+            owner=None,
+            lookback_minutes=10,
+            stall_seconds=2,
+            include_wallets=False,
+        )
+
+        self.assertEqual(len(response['stalled_pools']), 1)
+        stalled_pool = response['stalled_pools'][0]
+        self.assertEqual(stalled_pool['pool_id'], 1001)
+        self.assertEqual(stalled_pool['suspected_stage'], 'mutation_accepted_but_not_settled')
+        self.assertEqual(stalled_pool['latest_db_transaction']['transaction_id'], 7)
+        self.assertEqual(stalled_pool['latest_wallet_trace']['trace_id'], 9)
 
     async def test_on_get_debug_traces_defaults_to_lightweight_response(self):
-        class TraceDb(FakeDb):
-            def get_debug_traces(self, **kwargs):
-                rows = list(self.traces)
-                if kwargs.get('include_payloads') is not True:
-                    rows = [
-                        dict(row, request_payload=None, response_body=None, details=None)
-                        for row in rows
-                    ]
-                return rows
-
-        maker_api_module._db = TraceDb(
+        maker_api_module._db = FakeDb(
             traces=[{
                 'trace_id': 11,
                 'source': 'maker',
@@ -282,6 +453,78 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(trace['request_payload'])
         self.assertIsNone(trace['response_body'])
         self.assertIsNone(trace['details'])
+
+    async def test_on_get_maker_events_reads_projection_query_repo_shape(self):
+        maker_api_module._db = FakeDb(
+            maker_events=[{
+                'event_id': 3,
+                'source': 'maker',
+                'event_type': 'executed',
+                'pool_id': 1001,
+                'token_0': 'AAA',
+                'token_1': 'BBB',
+                'amount_0': '1.25',
+                'amount_1': '7.5',
+                'quote_notional': '9.0',
+                'pool_price': '7.2',
+                'details': '{"side":"sell"}',
+                'created_at': 1234,
+            }],
+        )
+
+        response = await maker_api_module.on_get_maker_events(
+            token0='AAA',
+            token1='BBB',
+            start_at=1000,
+            end_at=2000,
+        )
+
+        self.assertEqual(len(response), 1)
+        self.assertEqual(response[0]['event_id'], 3)
+        self.assertEqual(response[0]['details']['side'], 'sell')
+
+    async def test_on_get_maker_events_information_reads_projection_query_repo_shape(self):
+        maker_api_module._db = FakeDb(
+            maker_events=[
+                {
+                    'event_id': 1,
+                    'source': 'maker',
+                    'event_type': 'queued',
+                    'pool_id': 1001,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'amount_0': '1',
+                    'amount_1': None,
+                    'quote_notional': '2',
+                    'pool_price': '2',
+                    'details': None,
+                    'created_at': 1200,
+                },
+                {
+                    'event_id': 2,
+                    'source': 'maker',
+                    'event_type': 'executed',
+                    'pool_id': 1001,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'amount_0': '3',
+                    'amount_1': None,
+                    'quote_notional': '4',
+                    'pool_price': '4',
+                    'details': None,
+                    'created_at': 1800,
+                },
+            ],
+        )
+
+        response = await maker_api_module.on_get_maker_events_information(
+            token0='AAA',
+            token1='BBB',
+        )
+
+        self.assertEqual(response['count'], 2)
+        self.assertEqual(response['timestamp_begin'], 1800)
+        self.assertEqual(response['timestamp_end'], 1200)
 
     async def test_on_get_debug_wallet_block_queries_specific_wallet(self):
         maker_api_module._config.update({

@@ -43,7 +43,7 @@ class PoolDecoderTest(unittest.TestCase):
         self.assertEqual(decoded['decoded_payload_json']['message_type'], 'fund_success')
         self.assertEqual(decoded['decoded_payload_json']['transfer_id'], 9)
 
-    def test_pool_message_decoder_reads_new_transaction_fields(self):
+    def test_pool_message_decoder_reads_legacy_new_transaction_history_message(self):
         decoder = PoolMessageDecoder()
         raw_bytes = b''.join([
             bytes([8]),
@@ -71,9 +71,10 @@ class PoolDecoderTest(unittest.TestCase):
         )
 
         self.assertEqual(decoded['payload_type'], 'new_transaction')
+        self.assertEqual(decoded['decoded_payload_json']['message_type'], 'new_transaction')
         transaction = decoded['decoded_payload_json']['transaction']
         self.assertEqual(transaction['transaction_id'], 12)
-        self.assertEqual(transaction['transaction_type'], 'add_liquidity')
+        self.assertEqual(transaction['transaction_type'], 'AddLiquidity')
         self.assertEqual(transaction['from']['chain_id'], '11' * 32)
         self.assertEqual(transaction['from']['owner'], '22' * 32)
         self.assertEqual(transaction['amount_0_in'], '3')

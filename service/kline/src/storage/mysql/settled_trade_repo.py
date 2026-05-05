@@ -17,11 +17,16 @@ class SettledTradeRepository:
                     normalized_event_id VARCHAR(255) NOT NULL,
                     pool_application_id VARCHAR(128) NOT NULL,
                     pool_chain_id VARCHAR(64) NULL,
+                    from_account VARCHAR(255) NULL,
                     block_hash VARCHAR(64) NULL,
                     trade_time_ms BIGINT NULL,
                     transaction_index INT NULL,
                     transaction_id BIGINT NULL,
                     side VARCHAR(32) NOT NULL,
+                    amount_0_in VARCHAR(64) NULL,
+                    amount_0_out VARCHAR(64) NULL,
+                    amount_1_in VARCHAR(64) NULL,
+                    amount_1_out VARCHAR(64) NULL,
                     amount_in VARCHAR(64) NOT NULL,
                     amount_out VARCHAR(64) NOT NULL,
                     price_numerator VARCHAR(64) NOT NULL,
@@ -35,6 +40,41 @@ class SettledTradeRepository:
                     KEY idx_settled_trades_pool_time (pool_application_id, trade_time_ms, transaction_index),
                     KEY idx_settled_trades_source_event (source_event_key)
                 )
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_trades_table}
+                ADD COLUMN IF NOT EXISTS from_account VARCHAR(255) NULL
+                AFTER pool_chain_id
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_trades_table}
+                ADD COLUMN IF NOT EXISTS amount_0_in VARCHAR(64) NULL
+                AFTER side
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_trades_table}
+                ADD COLUMN IF NOT EXISTS amount_0_out VARCHAR(64) NULL
+                AFTER amount_0_in
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_trades_table}
+                ADD COLUMN IF NOT EXISTS amount_1_in VARCHAR(64) NULL
+                AFTER amount_0_out
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_trades_table}
+                ADD COLUMN IF NOT EXISTS amount_1_out VARCHAR(64) NULL
+                AFTER amount_1_in
                 '''
             )
             self.connection.commit()
@@ -54,26 +94,36 @@ class SettledTradeRepository:
                         normalized_event_id,
                         pool_application_id,
                         pool_chain_id,
+                        from_account,
                         block_hash,
                         trade_time_ms,
                         transaction_index,
                         transaction_id,
                         side,
+                        amount_0_in,
+                        amount_0_out,
+                        amount_1_in,
+                        amount_1_out,
                         amount_in,
                         amount_out,
                         price_numerator,
                         price_denominator,
                         source_event_key,
                         event_payload_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         pool_application_id = VALUES(pool_application_id),
                         pool_chain_id = VALUES(pool_chain_id),
+                        from_account = VALUES(from_account),
                         block_hash = VALUES(block_hash),
                         trade_time_ms = VALUES(trade_time_ms),
                         transaction_index = VALUES(transaction_index),
                         transaction_id = VALUES(transaction_id),
                         side = VALUES(side),
+                        amount_0_in = VALUES(amount_0_in),
+                        amount_0_out = VALUES(amount_0_out),
+                        amount_1_in = VALUES(amount_1_in),
+                        amount_1_out = VALUES(amount_1_out),
                         amount_in = VALUES(amount_in),
                         amount_out = VALUES(amount_out),
                         price_numerator = VALUES(price_numerator),
@@ -86,11 +136,16 @@ class SettledTradeRepository:
                         trade['normalized_event_id'],
                         trade['pool_application_id'],
                         trade.get('pool_chain_id'),
+                        trade.get('from_account'),
                         trade.get('block_hash'),
                         trade.get('trade_time_ms'),
                         trade.get('transaction_index'),
                         trade.get('transaction_id'),
                         trade['side'],
+                        trade.get('amount_0_in'),
+                        trade.get('amount_0_out'),
+                        trade.get('amount_1_in'),
+                        trade.get('amount_1_out'),
                         trade['amount_in'],
                         trade['amount_out'],
                         trade['price_numerator'],

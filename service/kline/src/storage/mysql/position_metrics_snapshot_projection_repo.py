@@ -1,3 +1,6 @@
+from query.read_models.position_metrics_snapshot_inputs import PositionMetricsSnapshotInputs
+
+
 class PositionMetricsSnapshotProjectionRepository:
     def __init__(
         self,
@@ -11,21 +14,23 @@ class PositionMetricsSnapshotProjectionRepository:
     def get_snapshot_inputs(
         self,
         *,
-        owner: str,
+        owner: str | None,
         pool_application_id: str,
         status: str = 'active',
-    ) -> dict | None:
-        position_basis_snapshot = self.position_state_projection_repo.get_position_basis_snapshot(
-            owner=owner,
-            pool_application_id=pool_application_id,
-            status=status,
-        )
+    ) -> PositionMetricsSnapshotInputs | None:
+        position_basis_snapshot = None
+        if owner is not None:
+            position_basis_snapshot = self.position_state_projection_repo.get_position_basis_snapshot(
+                owner=owner,
+                pool_application_id=pool_application_id,
+                status=status,
+            )
         pool_state_snapshot = self.pool_state_projection_repo.get_pool_state_snapshot(
             pool_application_id=pool_application_id,
         )
         if position_basis_snapshot is None and pool_state_snapshot is None:
             return None
-        return {
+        return PositionMetricsSnapshotInputs({
             'position_basis_snapshot': position_basis_snapshot,
             'pool_state_snapshot': pool_state_snapshot,
-        }
+        })

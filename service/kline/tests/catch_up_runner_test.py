@@ -43,6 +43,18 @@ class CatchUpRunnerTest(unittest.IsolatedAsyncioTestCase):
                 'ingest_status': 'ingested',
             }
 
+    class FakePostIngestPipeline:
+        def __init__(self):
+            self.calls = []
+
+        def run_until_caught_up(self, *, reprocess_reason=None):
+            self.calls.append(reprocess_reason)
+            return {
+                'reprocess_reason': reprocess_reason,
+                'normalization': {'caught_up': True},
+                'market_derivation': {'caught_up': True},
+            }
+
     async def test_ingest_next_loads_cursor_and_advances_one_step(self):
         store = self.FakeChainCursorStore(
             ChainCursor(
@@ -105,3 +117,45 @@ class CatchUpRunnerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(coordinator.calls), 2)
         self.assertEqual(result['ingested_count'], 2)
         self.assertFalse(result['caught_up'])
+
+    async def test_ingest_until_caught_up_runs_post_ingest_pipeline_after_ingesting_blocks(self):
+        store = self.FakeChainCursorStore(ChainCursor(chain_id='chain-a'))
+        coordinator = self.FakeCoordinator(results=[
+            {'chain_id': 'chain-a', 'height': 0, 'ingest_status': 'ingested'},
+            BlockNotAvailableError('tip height is 0'),
+        ])
+        pipeline = self.FakePostIngestPipeline()
+        runner = CatchUpRunner(
+            store,
+            coordinator,
+            post_ingest_pipeline=pipeline,
+        )
+
+        result = await runner.ingest_until_caught_up('chain-a', max_blocks=5, mode='live')
+
+        self.assertEqual(pipeline.calls, ['live:chain-a'])
+        self.assertEqual(
+            result['post_ingest_result'],
+            {
+                'reprocess_reason': 'live:chain-a',
+                'normalization': {'caught_up': True},
+                'market_derivation': {'caught_up': True},
+            },
+        )
+
+    async def test_ingest_until_caught_up_skips_post_ingest_pipeline_when_nothing_new_was_ingested(self):
+        store = self.FakeChainCursorStore(ChainCursor(chain_id='chain-a'))
+        coordinator = self.FakeCoordinator(results=[
+            BlockNotAvailableError('tip height is 0'),
+        ])
+        pipeline = self.FakePostIngestPipeline()
+        runner = CatchUpRunner(
+            store,
+            coordinator,
+            post_ingest_pipeline=pipeline,
+        )
+
+        result = await runner.ingest_until_caught_up('chain-a', max_blocks=5)
+
+        self.assertEqual(pipeline.calls, [])
+        self.assertIsNone(result['post_ingest_result'])

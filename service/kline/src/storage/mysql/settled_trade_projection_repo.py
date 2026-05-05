@@ -2,11 +2,20 @@ import json
 from decimal import Decimal
 
 from candle_schema import CandleUpdate, apply_candle_update, build_candle_bucket_key, get_interval_bucket_ms
+from storage.mysql.pool_identity_projection_repo import PoolIdentityProjectionRepository
+from storage.mysql.settled_product_transaction_adapter import SettledProductTransactionAdapter
+from transaction_family_codec import TransactionFamilyCodec
 
 
 class SettledTradeProjectionRepository:
-    def __init__(self, db):
+    def __init__(self, db, *, pool_identity_projection_repo=None, transaction_adapter=None, transaction_family_codec=None):
         self.db = db
+        self.pool_identity_projection_repo = (
+            pool_identity_projection_repo
+            or PoolIdentityProjectionRepository(db)
+        )
+        self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
+        self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
 
     def get_transactions(
         self,
@@ -76,7 +85,7 @@ class SettledTradeProjectionRepository:
             return None
         history = []
         for row in rows:
-            history.append(self._build_transaction_row(row, self._decode_trade_payload(row), token_reversed=False))
+            history.append(self._build_transaction_row(row, token_reversed=False))
         return history
 
     def get_candles(
@@ -92,7 +101,7 @@ class SettledTradeProjectionRepository:
     ) -> tuple[int | None, str | None, str, str, list[dict]] | None:
         try:
             resolved_pool_id, resolved_pool_application, resolved_token_0, resolved_token_1, token_reversed = (
-                self.db.resolve_pool_identity_for_read(
+                self.pool_identity_projection_repo.resolve_for_read(
                     token_0,
                     token_1,
                     pool_id=pool_id,
@@ -107,6 +116,7 @@ class SettledTradeProjectionRepository:
             start_at=start_at,
             end_at=end_at,
             pool_application=resolved_pool_application,
+            pool_id=resolved_pool_id,
         )
         if rows is None:
             return None
@@ -187,16 +197,22 @@ class SettledTradeProjectionRepository:
         where_clauses = []
         params: list[object] = []
         if token_0 is not None and token_1 is not None:
-            try:
-                resolved_pool_id, resolved_pool_application, _resolved_token_0, _resolved_token_1, _token_reversed = (
-                    self.db.get_pool_identity(token_0, token_1)
-                )
-            except Exception:
-                return []
-            where_clauses.append('p.pool_id = %s')
-            params.append(int(resolved_pool_id))
-            where_clauses.append('p.pool_application = %s')
-            params.append(pool_application or resolved_pool_application)
+            if pool_id is not None and pool_application is not None:
+                where_clauses.append('p.pool_id = %s')
+                params.append(int(pool_id))
+                where_clauses.append('p.pool_application = %s')
+                params.append(pool_application)
+            else:
+                try:
+                    resolved_pool_id, resolved_pool_application, _resolved_token_0, _resolved_token_1, _token_reversed = (
+                        self.pool_identity_projection_repo.resolve_for_tokens(token_0, token_1)
+                    )
+                except Exception:
+                    return []
+                where_clauses.append('p.pool_id = %s')
+                params.append(int(resolved_pool_id))
+                where_clauses.append('p.pool_application = %s')
+                params.append(pool_application or resolved_pool_application)
         elif pool_application is not None:
             where_clauses.append('p.pool_application = %s')
             params.append(pool_application)
@@ -224,6 +240,11 @@ class SettledTradeProjectionRepository:
                     st.transaction_id,
                     st.trade_time_ms,
                     st.side,
+                    st.from_account,
+                    st.amount_0_in,
+                    st.amount_0_out,
+                    st.amount_1_in,
+                    st.amount_1_out,
                     st.amount_in,
                     st.amount_out,
                     st.event_payload_json
@@ -240,20 +261,14 @@ class SettledTradeProjectionRepository:
             return None
 
     def _build_transaction_rows(self, row: dict, *, duplicate_reverse: bool) -> list[dict]:
-        payload = self._decode_trade_payload(row)
-        forward = self._build_transaction_row(row, payload, token_reversed=False)
+        forward = self._build_transaction_row(row, token_reversed=False)
         if not duplicate_reverse:
             return [forward]
-        reverse = self._build_transaction_row(row, payload, token_reversed=True)
+        reverse = self._build_transaction_row(row, token_reversed=True)
         return [forward, reverse]
 
-    def _build_transaction_row(self, row: dict, payload: dict, *, token_reversed: bool) -> dict:
-        transaction = payload.get('transaction') or {}
-        transaction_type = self._legacy_transaction_type(str(row['side']))
-        amount_0_in = self._string_or_none(transaction.get('amount_0_in'))
-        amount_0_out = self._string_or_none(transaction.get('amount_0_out'))
-        amount_1_in = self._string_or_none(transaction.get('amount_1_in'))
-        amount_1_out = self._string_or_none(transaction.get('amount_1_out'))
+    def _build_transaction_row(self, row: dict, *, token_reversed: bool) -> dict:
+        base_row = self.transaction_adapter.build_trade_history_row(row)
         base_volume, quote_volume, price = self._trade_metrics(
             row=row,
             token_reversed=token_reversed,
@@ -261,20 +276,12 @@ class SettledTradeProjectionRepository:
         return {
             'pool_application': row['pool_application'],
             'pool_id': int(row['pool_id']),
-            'transaction_id': int(row['transaction_id']),
-            'transaction_type': transaction_type,
-            'from_account': self._from_account(transaction),
-            'amount_0_in': amount_0_in,
-            'amount_0_out': amount_0_out,
-            'amount_1_in': amount_1_in,
-            'amount_1_out': amount_1_out,
-            'liquidity': self._string_or_none(transaction.get('liquidity')),
+            **base_row,
             'price': float(price),
             'volume': float(base_volume),
             'quote_volume': float(quote_volume),
-            'direction': self._direction(transaction_type, token_reversed=token_reversed),
+            'direction': self._direction(str(base_row['transaction_type']), token_reversed=token_reversed),
             'token_reversed': bool(token_reversed),
-            'created_at': int(row['trade_time_ms']),
         }
 
     def _build_candle_points(
@@ -370,6 +377,11 @@ class SettledTradeProjectionRepository:
                     st.transaction_id,
                     st.trade_time_ms,
                     st.side,
+                    st.from_account,
+                    st.amount_0_in,
+                    st.amount_0_out,
+                    st.amount_1_in,
+                    st.amount_1_out,
                     st.amount_in,
                     st.amount_out,
                     st.event_payload_json
@@ -406,32 +418,11 @@ class SettledTradeProjectionRepository:
             price = quote_volume / base_volume
         return base_volume, quote_volume, price
 
-    def _decode_trade_payload(self, row: dict) -> dict:
-        payload = row.get('event_payload_json')
-        if isinstance(payload, dict):
-            return payload
-        if payload in (None, ''):
-            return {}
-        return json.loads(payload)
-
-    def _from_account(self, transaction: dict) -> str | None:
-        account = transaction.get('from') or {}
-        chain_id = account.get('chain_id')
-        owner = account.get('owner')
-        if chain_id is None or owner is None:
-            return None
-        return f'{chain_id}:{owner}'
-
-    def _legacy_transaction_type(self, side: str) -> str:
-        return {
-            'buy_token_0': 'BuyToken0',
-            'sell_token_0': 'SellToken0',
-        }[side]
-
     def _direction(self, transaction_type: str, *, token_reversed: bool) -> str:
-        if transaction_type == 'BuyToken0':
-            return 'Sell' if token_reversed else 'Buy'
-        return 'Buy' if token_reversed else 'Sell'
+        return self.transaction_family_codec.trade_direction(
+            transaction_type,
+            token_reversed=token_reversed,
+        )
 
     def _string_or_none(self, value: object) -> str | None:
         if value is None:

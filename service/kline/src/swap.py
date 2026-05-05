@@ -1,5 +1,4 @@
 import async_request
-from environment import running_in_k8s
 from request_trace import persist_http_trace
 
 
@@ -75,7 +74,6 @@ class Pool:
         self.token_0 = _dict['token0']
         self.token_1 = _dict['token1']
         self.pool_application = Account(_dict['poolApplication'])
-        self.latest_transaction = Transaction(_dict['latestTransaction']) if _dict['latestTransaction'] is not None else None
         self.token_0_price = _dict['token0Price']
         self.token_1_price = _dict['token1Price']
         self.reserve_0 = _dict['reserve0']
@@ -142,21 +140,33 @@ class Pool:
 
 
 class Swap:
-    def __init__(self, host: str, chain_id: str, application_id: str, wallet, db=None):
+    def __init__(
+        self,
+        host: str,
+        chain_id: str,
+        application_id: str,
+        wallet,
+        db=None,
+        query_base_url: str | None = None,
+    ):
         self.host = host
-        self.base_url = f'http://{host}' + ('/api/swap' if not running_in_k8s() else '')
+        self.base_url = self._resolve_query_base_url(host, query_base_url)
         self.chain = chain_id
         self.application = application_id
         self.wallet = wallet
         self.db = db if db is not None else getattr(wallet, 'db', None)
 
     def application_url(self) -> str:
-        prefix = '' if running_in_k8s() else '/query'
-        return f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
+        return f'{self.base_url}/chains/{self.chain}/applications/{self.application}'
+
+    def _resolve_query_base_url(self, host: str, query_base_url: str | None) -> str:
+        if query_base_url is not None:
+            return str(query_base_url).rstrip('/')
+        return f'http://{host}/api/swap/query'
 
     async def get_pools(self) -> list[Pool]:
         payload = {
-            'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n latestTransaction\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
+            'query': 'query {\n pools {\n poolId\n token0\n token1\n poolApplication\n token0Price\n token1Price\n reserve0\n reserve1\n }\n}'
         }
         try:
             url = self.application_url()
@@ -200,33 +210,3 @@ class Swap:
             )
             return []
         return [Pool(v, self.wallet) for v in payload_json['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]
-
-    async def get_pool_transactions(self, pool: Pool, start_id: int = None) -> list[Transaction]:
-        payload = {
-            'query': f'query {{\n latestTransactions(startId:{start_id}) \n}}'
-        } if start_id is not None else {
-            'query': 'query {\n latestTransactions \n}'
-        }
-        prefix = '' if running_in_k8s() else '/query'
-        url = f'{self.base_url}{prefix}/chains/{pool.pool_application.chain_id}/applications/{pool.pool_application.short_owner}'
-        resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
-        payload_json = resp.json() if resp.text else {}
-        persist_http_trace(
-            self.db,
-            source='kline' if self.wallet is None else 'maker',
-            component='swap',
-            operation='get_pool_transactions',
-            target='pool_query',
-            request_url=url,
-            request_payload=payload,
-            response=resp,
-            owner=getattr(self.wallet, 'owner', None),
-            pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
-            pool_id=pool.pool_id,
-            details={
-                'start_id': start_id,
-                'graphql_errors': payload_json.get('errors') if isinstance(payload_json, dict) else None,
-            },
-        )
-
-        return [Transaction(v) for v in payload_json['data']['latestTransactions']]

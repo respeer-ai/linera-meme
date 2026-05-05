@@ -137,7 +137,13 @@ class RawRepositoryTest(unittest.TestCase):
                 {'message_index': 0, 'destination_chain_id': 'chain-c', 'raw_message_bytes': b'out'},
             ],
             'events': [
-                {'event_index': 0, 'stream_id': 'stream-1', 'raw_event_bytes': b'evt'},
+                {
+                    'event_index': 0,
+                    'stream_id': 'stream-1',
+                    'application_id': 'app-evt',
+                    'stream_name': 'fills',
+                    'raw_event_bytes': b'evt',
+                },
             ],
             'oracle_responses': [
                 {'response_index': 0, 'response_type': 'blob', 'raw_response_bytes': b'oracle'},
@@ -393,6 +399,72 @@ class RawRepositoryTest(unittest.TestCase):
                 'authenticated_owner': 'owner-b',
                 'execution_status': 'rejected',
                 'reject_reason': 'incoming bundle action Reject',
+            },
+        ])
+
+    def test_list_normalization_candidates_returns_event_items(self):
+        connection = FakeConnection()
+        repository = RawRepository(connection)
+        connection.add_select_result(
+            f'''
+            SELECT
+                event_id,
+                chain_id,
+                block_hash,
+                height,
+                transaction_index,
+                event_index,
+                stream_id,
+                application_id,
+                stream_name,
+                stream_index,
+                raw_event_bytes
+            FROM raw_events
+            WHERE application_id IS NOT NULL AND event_id > %s
+            ORDER BY event_id ASC
+            LIMIT %s
+            ''',
+            (11, 3),
+            [
+                {
+                    'event_id': 12,
+                    'chain_id': 'chain-pool',
+                    'block_hash': 'block-12',
+                    'height': 42,
+                    'transaction_index': 5,
+                    'event_index': 2,
+                    'stream_id': 'app-pool:fills',
+                    'application_id': 'app-pool',
+                    'stream_name': 'fills',
+                    'stream_index': 9,
+                    'raw_event_bytes': b'evt',
+                },
+            ],
+        )
+
+        items = repository.list_normalization_candidates(
+            raw_table='raw_events',
+            after_sequence=11,
+            limit=3,
+        )
+
+        self.assertEqual(items, [
+            {
+                'raw_fact_id': '12',
+                'raw_table': 'raw_events',
+                'application_id': 'app-pool',
+                'payload_kind': 'event',
+                'raw_bytes': b'evt',
+                'chain_id': 'chain-pool',
+                'target_chain_id': 'chain-pool',
+                'block_hash': 'block-12',
+                'target_block_hash': 'block-12',
+                'transaction_index': 5,
+                'event_index': 2,
+                'stream_id': 'app-pool:fills',
+                'stream_name': 'fills',
+                'stream_index': 9,
+                'execution_status': 'observed',
             },
         ])
 

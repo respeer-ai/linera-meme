@@ -26,7 +26,7 @@ def main():
         False,
     )
     try:
-        results = db.rebuild_pair_candles(
+        results = db.legacy_candle_materialization_tool.rebuild_pair_candles(
             token_0=args.token_0,
             token_1=args.token_1,
             start_at=args.start_at,

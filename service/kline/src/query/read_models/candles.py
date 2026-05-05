@@ -1,3 +1,6 @@
+from storage.mysql.projection_query_unavailable_error import ProjectionQueryUnavailableError
+
+
 class CandlesReadModel:
     def __init__(self, repository):
         self.repository = repository
@@ -13,7 +16,7 @@ class CandlesReadModel:
         pool_id: int | None = None,
         pool_application: str | None = None,
     ) -> dict:
-        resolved_pool_id, resolved_pool_application, resolved_token_0, resolved_token_1, points = self.repository.get_candles(
+        payload = self.repository.get_candles(
             token_0=token_0,
             token_1=token_1,
             start_at=start_at,
@@ -22,6 +25,9 @@ class CandlesReadModel:
             pool_id=pool_id,
             pool_application=pool_application,
         )
+        if payload is None:
+            raise ProjectionQueryUnavailableError('candles')
+        resolved_pool_id, resolved_pool_application, resolved_token_0, resolved_token_1, points = payload
         return {
             'pool_id': resolved_pool_id,
             'pool_application': resolved_pool_application,
@@ -42,10 +48,13 @@ class CandlesReadModel:
         pool_id: int | None = None,
         pool_application: str | None = None,
     ) -> dict:
-        return self.repository.get_candles_information(
+        payload = self.repository.get_candles_information(
             token_0=token_0,
             token_1=token_1,
             interval=interval,
             pool_id=pool_id,
             pool_application=pool_application,
         )
+        if payload is None:
+            raise ProjectionQueryUnavailableError('candles_information')
+        return payload

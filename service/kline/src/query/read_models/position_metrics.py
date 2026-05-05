@@ -1,6 +1,10 @@
+from query.read_models.position_metrics_fetched_result import PositionMetricsFetchedResult
+from query.read_models.position_metrics_read_result import PositionMetricsReadResult
+
+
 class PositionMetricsReadModel:
-    def __init__(self, repository, fetcher):
-        self.repository = repository
+    def __init__(self, positions_repository, fetcher):
+        self.positions_repository = positions_repository
         self.fetcher = fetcher
 
     async def get_position_metrics(
@@ -9,22 +13,35 @@ class PositionMetricsReadModel:
         owner: str,
         status: str,
     ) -> dict:
-        positions = self.repository.get_positions(owner=owner, status=status)
+        positions = self.positions_repository.get_positions(owner=owner, status=status)
         metrics = []
+        metric_diagnostics = []
         shadow_diagnostics = []
         for position in positions:
-            fetched = await self.fetcher(position)
-            live_metrics, shadow_snapshot = self._unpack_fetch_result(fetched)
-            metrics.append(self._build_position_metrics_row(position, live_metrics))
-            if shadow_snapshot is not None:
-                shadow_diagnostics.append(shadow_snapshot)
-        payload = {
-            'owner': owner,
-            'metrics': metrics,
-        }
-        if shadow_diagnostics:
-            payload['_shadow_diagnostics'] = shadow_diagnostics
-        return payload
+            fetched_result = PositionMetricsFetchedResult.from_fetcher_payload(await self.fetcher(position))
+            metric_row = self._build_position_metrics_row(position, fetched_result.live_metrics)
+            metrics.append(metric_row)
+            metric_diagnostics.append(
+                self._build_metric_diagnostic(
+                    metric_row=metric_row,
+                    fetch_stage=fetched_result.fetch_stage,
+                    fetch_reason_code=fetched_result.fetch_reason_code,
+                )
+            )
+            if fetched_result.snapshot_shadow is not None:
+                shadow_diagnostics.append(
+                    self._build_shadow_diagnostic(
+                        diagnostic=fetched_result.snapshot_shadow,
+                        fetch_stage=fetched_result.fetch_stage,
+                        fetch_reason_code=fetched_result.fetch_reason_code,
+                    )
+                )
+        return PositionMetricsReadResult(
+            owner=owner,
+            metrics=metrics,
+            metric_diagnostics=metric_diagnostics,
+            shadow_diagnostics=shadow_diagnostics,
+        )
 
     def _build_position_metrics_row(
         self,
@@ -55,12 +72,26 @@ class PositionMetricsReadModel:
             **normalized_metrics,
         }
 
-    def _unpack_fetch_result(
+    def _build_metric_diagnostic(
         self,
-        fetched,
-    ) -> tuple[dict, dict | None]:
-        if not isinstance(fetched, dict):
-            return fetched, None
-        if 'live_metrics' not in fetched:
-            return fetched, None
-        return fetched['live_metrics'], fetched.get('snapshot_shadow')
+        *,
+        metric_row: dict,
+        fetch_stage: str | None,
+        fetch_reason_code: str | None,
+    ) -> dict:
+        diagnostic = dict(metric_row)
+        diagnostic['fetch_stage'] = fetch_stage
+        diagnostic['fetch_reason_code'] = fetch_reason_code
+        return diagnostic
+
+    def _build_shadow_diagnostic(
+        self,
+        *,
+        diagnostic: dict,
+        fetch_stage: str | None,
+        fetch_reason_code: str | None,
+    ) -> dict:
+        normalized_diagnostic = dict(diagnostic)
+        normalized_diagnostic['fetch_stage'] = fetch_stage
+        normalized_diagnostic['fetch_reason_code'] = fetch_reason_code
+        return normalized_diagnostic

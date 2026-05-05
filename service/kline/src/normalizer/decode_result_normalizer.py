@@ -1,14 +1,16 @@
 from normalizer.application_event_family_resolver import ApplicationEventFamilyResolver
+from normalizer.pool_executed_event_shape_validator import PoolExecutedEventShapeValidator
 from normalizer.normalized_event_result import NormalizedEventResult
 
 
 class DecodeResultNormalizer:
     def __init__(self):
         self.event_family_resolver = ApplicationEventFamilyResolver()
+        self.pool_executed_event_shape_validator = PoolExecutedEventShapeValidator()
 
     def normalize_item(self, item: dict) -> dict[str, object]:
         self._validate_item(item)
-        normalized_event = self._build_event(item)
+        normalized_event = self._build_event(self._normalized_item(item))
         return {
             'raw_fact_id': item['raw_fact_id'],
             'raw_table': item['raw_table'],
@@ -50,6 +52,36 @@ class DecodeResultNormalizer:
             decode_status=decode_status,
             reprocess_reason=item.get('reprocess_reason'),
         )
+
+    def _normalized_item(self, item: dict) -> dict[str, object]:
+        decode_result = item['decode_result']
+        shape_error = self.pool_executed_event_shape_validator.validate(decode_result)
+        if shape_error is None:
+            return item
+        normalized_item = dict(item)
+        normalized_item['decode_result'] = self._decode_failed_shape_result(
+            decode_result=decode_result,
+            error_text=shape_error,
+        )
+        return normalized_item
+
+    def _decode_failed_shape_result(
+        self,
+        *,
+        decode_result: dict[str, object],
+        error_text: str,
+    ) -> dict[str, object]:
+        return {
+            'status': 'decode_failed',
+            'application_id': decode_result.get('application_id'),
+            'payload_kind': decode_result.get('payload_kind'),
+            'app_type': decode_result.get('app_type'),
+            'payload_type': decode_result.get('payload_type'),
+            'decoded_payload_json': decode_result.get('decoded_payload_json'),
+            'decode_error': error_text,
+            'metadata_json': decode_result.get('metadata_json'),
+            'decoder_version': decode_result.get('decoder_version'),
+        }
 
     def _event_family(self, item: dict) -> str:
         return self.event_family_resolver.resolve(item)

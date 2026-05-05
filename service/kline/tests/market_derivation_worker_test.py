@@ -66,7 +66,7 @@ class MarketDerivationWorkerTest(unittest.TestCase):
                     'target_block_hash': 'block-2',
                 },
             ],
-            partition_key='raw_posted_messages',
+            partition_key='raw_events',
         )
 
         self.assertEqual(result['processed_count'], 2)
@@ -74,7 +74,7 @@ class MarketDerivationWorkerTest(unittest.TestCase):
         self.assertEqual(result['last_sequence'], '11')
         self.assertEqual(result['last_block_hash'], 'block-2')
         self.assertEqual(cursor_repo.attempts[0]['cursor_scope'], 'derive')
-        self.assertEqual(cursor_repo.successes[0]['partition_key'], 'raw_posted_messages')
+        self.assertEqual(cursor_repo.successes[0]['partition_key'], 'raw_events')
         self.assertEqual(cursor_repo.failures, [])
 
     def test_process_items_marks_failure_when_materializer_raises(self):

@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from market.position_metrics_protocol_fee_ownership_tracker import PositionMetricsProtocolFeeOwnershipTracker
 from market.position_metrics_snapshot_principal_simulator import PositionMetricsSnapshotPrincipalSimulator
+from market.settled_output_batch_factory import SettledOutputBatchFactory
 from position_metrics_pool_history_reconstructor import PositionMetricsPoolHistoryReconstructor
 from position_metrics_swap_math_support import PositionMetricsSwapMathSupport
 from position_metrics_value_support import PositionMetricsValueSupport
@@ -11,7 +12,7 @@ class PositionMetricsSnapshotBuilder:
     def __init__(
         self,
         *,
-        snapshot_source_repository,
+        snapshot_materialization_inputs_repository,
         attos_scale: int = 10 ** 18,
         swap_fee_numerator: int = 997,
         swap_fee_denominator: int = 1000,
@@ -19,8 +20,13 @@ class PositionMetricsSnapshotBuilder:
         epsilon: Decimal = Decimal('0.000000000001'),
         liquidity_mint_tolerance_attos: int = 100,
         swap_out_tolerance_attos: int = 1,
+        settled_output_batch_factory=None,
     ):
-        self.snapshot_source_repository = snapshot_source_repository
+        self.snapshot_materialization_inputs_repository = snapshot_materialization_inputs_repository
+        self.settled_output_batch_factory = (
+            settled_output_batch_factory
+            or SettledOutputBatchFactory()
+        )
         self.value_support = PositionMetricsValueSupport(
             attos_scale=attos_scale,
             display_quantum=display_quantum,
@@ -48,10 +54,10 @@ class PositionMetricsSnapshotBuilder:
 
     def build_materialization_plan(
         self,
-        outputs: list[dict[str, object]],
+        output_batch,
     ) -> dict[str, object]:
-        affected_pools = self._collect_affected_pools(outputs)
-        affected_positions = self._collect_affected_positions(outputs)
+        affected_pools = self._collect_affected_pools(output_batch)
+        affected_positions = self._collect_affected_positions(output_batch)
         pool_states = []
         position_replacements = []
 
@@ -83,6 +89,14 @@ class PositionMetricsSnapshotBuilder:
             'affected_pool_count': len(affected_pools),
             'affected_position_count': len(affected_positions),
         }
+
+    def build_materialization_plan_from_outputs(
+        self,
+        outputs: list[dict[str, object]],
+    ) -> dict[str, object]:
+        return self.build_materialization_plan(
+            self.settled_output_batch_factory.build(outputs)
+        )
 
     def _build_pool_state(
         self,
@@ -175,21 +189,25 @@ class PositionMetricsSnapshotBuilder:
         pool_application_id: str,
         pool_chain_id: str | None,
     ) -> dict[str, object] | None:
-        history = self.snapshot_source_repository.list_position_liquidity_history(
+        history = self.snapshot_materialization_inputs_repository.list_position_liquidity_history(
             owner=owner,
             pool_application_id=pool_application_id,
         )
         if not history:
             return None
-        pool_trade_history = self.snapshot_source_repository.list_pool_trade_history(
-            pool_application_id=pool_application_id,
-        )
-        pool_liquidity_history = self.snapshot_source_repository.list_pool_liquidity_history(
-            pool_application_id=pool_application_id,
-        )
         pool_transaction_history = self._load_pool_transaction_history(
             pool_application_id=pool_application_id,
         )
+        pool_trade_history = [
+            row
+            for row in pool_transaction_history
+            if row.get('transaction_type') in {'BuyToken0', 'SellToken0'}
+        ]
+        pool_liquidity_history = [
+            row
+            for row in pool_transaction_history
+            if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
+        ]
         latest_transaction = history[-1]
         latest_pool_liquidity_transaction = self._latest_row(pool_liquidity_history)
         running_liquidity = 0
@@ -329,45 +347,23 @@ class PositionMetricsSnapshotBuilder:
 
     def _collect_affected_pools(
         self,
-        outputs: list[dict[str, object]],
+        output_batch,
     ) -> list[tuple[str, str | None]]:
-        pools = {
-            (str(output['pool_application_id']), self._string_or_none(output.get('pool_chain_id')))
-            for output in outputs
-            if output.get('pool_application_id') is not None
-        }
-        return sorted(pools)
+        return output_batch.affected_pools()
 
     def _collect_affected_positions(
         self,
-        outputs: list[dict[str, object]],
+        output_batch,
     ) -> list[tuple[str, str, str | None]]:
-        positions = {
-            (
-                self._public_owner(str(output['owner'])),
-                str(output['pool_application_id']),
-                self._string_or_none(output.get('pool_chain_id')),
-            )
-            for output in outputs
-            if output.get('settled_output_type') == 'settled_liquidity_change'
-            and output.get('owner') is not None
-            and output.get('pool_application_id') is not None
-        }
-        return sorted(positions)
+        return output_batch.affected_positions()
 
     def _load_pool_transaction_history(
         self,
         *,
         pool_application_id: str,
     ) -> list[dict[str, object]]:
-        history = []
-        history.extend(
-            self.snapshot_source_repository.list_pool_trade_history(
-                pool_application_id=pool_application_id,
-            )
-        )
-        history.extend(
-            self.snapshot_source_repository.list_pool_liquidity_history(
+        history = list(
+            self.snapshot_materialization_inputs_repository.list_pool_transaction_history(
                 pool_application_id=pool_application_id,
             )
         )
@@ -539,8 +535,8 @@ class PositionMetricsSnapshotBuilder:
         if blockers or not effective_history or not states:
             return None
         fee_to_history = None
-        if hasattr(self.snapshot_source_repository, 'list_pool_fee_to_history'):
-            fee_to_history = self.snapshot_source_repository.list_pool_fee_to_history(
+        if hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
+            fee_to_history = self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
                 pool_application_id=pool_application_id,
             )
         return self.protocol_fee_ownership_tracker.summarize(
@@ -579,9 +575,9 @@ class PositionMetricsSnapshotBuilder:
         basis_time_ms: object,
         basis_transaction_id: object,
     ) -> dict[str, object]:
-        if not hasattr(self.snapshot_source_repository, 'list_pool_fee_to_history'):
+        if not hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
             return {'continuity_case': 'unsupported_source', 'owner': owner}
-        history = self.snapshot_source_repository.list_pool_fee_to_history(
+        history = self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
             pool_application_id=pool_application_id,
         )
         basis_key = (

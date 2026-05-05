@@ -12,6 +12,8 @@ class PositionMetricsDiagnosticRecorder:
             pool_id=metric['pool_id'],
             status=metric['status'],
             details={
+                'fetch_stage': metric.get('fetch_stage'),
+                'fetch_reason_code': metric.get('fetch_reason_code'),
                 'metrics_status': metric.get('metrics_status'),
                 'exact_fee_supported': bool(metric.get('exact_fee_supported')),
                 'exact_principal_supported': bool(metric.get('exact_principal_supported')),
@@ -31,6 +33,8 @@ class PositionMetricsDiagnosticRecorder:
             pool_id=diagnostic['pool_id'],
             status=diagnostic['status'],
             details={
+                'fetch_stage': diagnostic.get('fetch_stage'),
+                'fetch_reason_code': diagnostic.get('fetch_reason_code'),
                 'metrics_status': diagnostic.get('metrics_status'),
                 'exact_fee_supported': bool(diagnostic.get('exact_fee_supported')),
                 'exact_principal_supported': bool(diagnostic.get('exact_principal_supported')),

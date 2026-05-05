@@ -8,10 +8,6 @@ class PoolStateProjectionRepository:
         *,
         pool_application_id: str,
     ) -> dict | None:
-        if not hasattr(self.db, 'ensure_fresh_read_connection'):
-            return None
-        if not hasattr(self.db, 'cursor_dict'):
-            return None
         self.db.ensure_fresh_read_connection()
         cursor = self.db.cursor_dict
         try:

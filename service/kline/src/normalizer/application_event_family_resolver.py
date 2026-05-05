@@ -23,6 +23,18 @@ class ApplicationEventFamilyResolver:
             family = self._resolve_meme_family(item)
             if family is not None:
                 return family
+        if app_type == 'proxy':
+            family = self._resolve_proxy_family(item)
+            if family is not None:
+                return family
+        if app_type == 'ams':
+            family = self._resolve_ams_family(item)
+            if family is not None:
+                return family
+        if app_type == 'blob-gateway':
+            family = self._resolve_blob_gateway_family(item)
+            if family is not None:
+                return family
         if self._is_rejected(item):
             return {
                 'operation': NormalizedEventResult.FAMILY_APPLICATION_OPERATION_REJECTED,
@@ -55,7 +67,7 @@ class ApplicationEventFamilyResolver:
             if payload_type == 'fund_fail':
                 return NormalizedEventResult.FAMILY_POOL_FUND_FAIL_RECORDED
             if payload_type == 'new_transaction':
-                return NormalizedEventResult.FAMILY_POOL_TRANSACTION_RECORDED
+                return NormalizedEventResult.FAMILY_POOL_NEW_TRANSACTION_RECORDED
             if payload_type == 'swap':
                 return (
                     NormalizedEventResult.FAMILY_POOL_SWAP_REJECTED
@@ -86,6 +98,12 @@ class ApplicationEventFamilyResolver:
                     if rejected
                     else NormalizedEventResult.FAMILY_POOL_SET_FEE_TO_SETTER_MESSAGE_OBSERVED
                 )
+        if payload_kind == 'event':
+            return {
+                'swap_executed': NormalizedEventResult.FAMILY_POOL_SWAP_EXECUTED,
+                'add_liquidity_executed': NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_EXECUTED,
+                'remove_liquidity_executed': NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_EXECUTED,
+            }.get(payload_type)
         return None
 
     def _resolve_swap_family(self, item: dict) -> str | None:
@@ -131,6 +149,7 @@ class ApplicationEventFamilyResolver:
         rejected = self._is_rejected(item)
         if payload_kind == 'operation':
             return {
+                'creator_chain_id': NormalizedEventResult.FAMILY_MEME_CREATOR_CHAIN_ID_REQUESTED,
                 'transfer': NormalizedEventResult.FAMILY_MEME_TRANSFER_REQUESTED,
                 'transfer_from': NormalizedEventResult.FAMILY_MEME_TRANSFER_FROM_REQUESTED,
                 'transfer_from_application': NormalizedEventResult.FAMILY_MEME_TRANSFER_FROM_APPLICATION_REQUESTED,
@@ -193,6 +212,112 @@ class ApplicationEventFamilyResolver:
                     if rejected
                     else NormalizedEventResult.FAMILY_MEME_REDEEM_MESSAGE_OBSERVED
                 )
+        return None
+
+    def _resolve_proxy_family(self, item: dict) -> str | None:
+        payload_kind = item['payload_kind']
+        payload_type = item['decode_result'].get('payload_type')
+        rejected = self._is_rejected(item)
+        if payload_kind == 'operation':
+            return {
+                'propose_add_genesis_miner': NormalizedEventResult.FAMILY_PROXY_PROPOSE_ADD_GENESIS_MINER_REQUESTED,
+                'approve_add_genesis_miner': NormalizedEventResult.FAMILY_PROXY_APPROVE_ADD_GENESIS_MINER_REQUESTED,
+                'propose_remove_genesis_miner': NormalizedEventResult.FAMILY_PROXY_PROPOSE_REMOVE_GENESIS_MINER_REQUESTED,
+                'approve_remove_genesis_miner': NormalizedEventResult.FAMILY_PROXY_APPROVE_REMOVE_GENESIS_MINER_REQUESTED,
+                'register_miner': NormalizedEventResult.FAMILY_PROXY_REGISTER_MINER_REQUESTED,
+                'deregister_miner': NormalizedEventResult.FAMILY_PROXY_DEREGISTER_MINER_REQUESTED,
+                'create_meme': NormalizedEventResult.FAMILY_PROXY_CREATE_MEME_REQUESTED,
+                'propose_add_operator': NormalizedEventResult.FAMILY_PROXY_PROPOSE_ADD_OPERATOR_REQUESTED,
+                'approve_add_operator': NormalizedEventResult.FAMILY_PROXY_APPROVE_ADD_OPERATOR_REQUESTED,
+                'propose_ban_operator': NormalizedEventResult.FAMILY_PROXY_PROPOSE_BAN_OPERATOR_REQUESTED,
+                'approve_ban_operator': NormalizedEventResult.FAMILY_PROXY_APPROVE_BAN_OPERATOR_REQUESTED,
+            }.get(payload_type)
+        if payload_kind == 'message':
+            if payload_type == 'meme_created':
+                return NormalizedEventResult.FAMILY_PROXY_MEME_CREATED_RECORDED
+            message_family_map = {
+                'propose_add_genesis_miner': (
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_ADD_GENESIS_MINER_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_ADD_GENESIS_MINER_REJECTED,
+                ),
+                'approve_add_genesis_miner': (
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_ADD_GENESIS_MINER_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_ADD_GENESIS_MINER_REJECTED,
+                ),
+                'propose_remove_genesis_miner': (
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_REMOVE_GENESIS_MINER_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_REMOVE_GENESIS_MINER_REJECTED,
+                ),
+                'approve_remove_genesis_miner': (
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_REMOVE_GENESIS_MINER_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_REMOVE_GENESIS_MINER_REJECTED,
+                ),
+                'register_miner': (
+                    NormalizedEventResult.FAMILY_PROXY_REGISTER_MINER_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_REGISTER_MINER_REJECTED,
+                ),
+                'deregister_miner': (
+                    NormalizedEventResult.FAMILY_PROXY_DEREGISTER_MINER_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_DEREGISTER_MINER_REJECTED,
+                ),
+                'create_meme': (
+                    NormalizedEventResult.FAMILY_PROXY_CREATE_MEME_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_CREATE_MEME_REJECTED,
+                ),
+                'create_meme_ext': (
+                    NormalizedEventResult.FAMILY_PROXY_CREATE_MEME_EXT_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_CREATE_MEME_EXT_REJECTED,
+                ),
+                'propose_add_operator': (
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_ADD_OPERATOR_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_ADD_OPERATOR_REJECTED,
+                ),
+                'approve_add_operator': (
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_ADD_OPERATOR_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_ADD_OPERATOR_REJECTED,
+                ),
+                'propose_ban_operator': (
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_BAN_OPERATOR_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_PROPOSE_BAN_OPERATOR_REJECTED,
+                ),
+                'approve_ban_operator': (
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_BAN_OPERATOR_MESSAGE_OBSERVED,
+                    NormalizedEventResult.FAMILY_PROXY_APPROVE_BAN_OPERATOR_REJECTED,
+                ),
+            }
+            family_pair = message_family_map.get(payload_type)
+            if family_pair is not None:
+                return family_pair[1] if rejected else family_pair[0]
+        return None
+
+    def _resolve_ams_family(self, item: dict) -> str | None:
+        payload_kind = item['payload_kind']
+        payload_type = item['decode_result'].get('payload_type')
+        if payload_kind == 'operation':
+            return {
+                'register': NormalizedEventResult.FAMILY_AMS_REGISTER_REQUESTED,
+                'claim': NormalizedEventResult.FAMILY_AMS_CLAIM_REQUESTED,
+                'add_application_type': NormalizedEventResult.FAMILY_AMS_ADD_APPLICATION_TYPE_REQUESTED,
+                'update': NormalizedEventResult.FAMILY_AMS_UPDATE_REQUESTED,
+            }.get(payload_type)
+        if payload_kind == 'message':
+            return {
+                'register': NormalizedEventResult.FAMILY_AMS_REGISTER_RECORDED,
+                'claim': NormalizedEventResult.FAMILY_AMS_CLAIM_RECORDED,
+                'add_application_type': NormalizedEventResult.FAMILY_AMS_ADD_APPLICATION_TYPE_RECORDED,
+                'update': NormalizedEventResult.FAMILY_AMS_UPDATE_RECORDED,
+            }.get(payload_type)
+        return None
+
+    def _resolve_blob_gateway_family(self, item: dict) -> str | None:
+        payload_kind = item['payload_kind']
+        payload_type = item['decode_result'].get('payload_type')
+        if payload_type != 'blob_gateway_register':
+            return None
+        if payload_kind == 'operation':
+            return NormalizedEventResult.FAMILY_BLOB_GATEWAY_REGISTER_REQUESTED
+        if payload_kind == 'message':
+            return NormalizedEventResult.FAMILY_BLOB_GATEWAY_REGISTER_RECORDED
         return None
 
     def _is_rejected(self, item: dict) -> bool:

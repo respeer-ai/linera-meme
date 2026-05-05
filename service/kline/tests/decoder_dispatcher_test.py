@@ -112,6 +112,106 @@ class DecoderDispatcherTest(unittest.TestCase):
         self.assertEqual(result.to_dict()['metadata_json'], {'token_0': 'a'})
         self.assertIsNone(result.to_dict()['decoder_version'])
 
+    def test_dispatch_returns_unimplemented_for_known_pool_event_slot(self):
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+        registry.register_known_application(
+            application_id='app-pool',
+            app_type='pool',
+        )
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register_known_pairs((('pool', 'event'),))
+        dispatcher = DecoderDispatcher(
+            application_registry=registry,
+            decoder_registry=decoder_registry,
+        )
+
+        result = dispatcher.dispatch(
+            application_id='app-pool',
+            payload_kind='event',
+            raw_bytes=b'\x01',
+        )
+
+        self.assertEqual(result.to_dict()['status'], 'unimplemented_decoder')
+        self.assertEqual(result.to_dict()['app_type'], 'pool')
+        self.assertEqual(result.to_dict()['payload_kind'], 'event')
+
+    def test_dispatch_reports_decode_failed_for_pool_event_when_decoder_exists_but_rust_side_is_unimplemented(self):
+        class PoolEventDecoder:
+            def decode(self, *, raw_bytes: bytes, application: dict, payload_kind: str) -> dict:
+                raise ValueError('pool:event canonical decoding is not implemented')
+
+            def decoder_version(self) -> str:
+                return 'pool-event-rust-v1'
+
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+        registry.register_known_application(
+            application_id='app-pool',
+            app_type='pool',
+        )
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register(
+            app_type='pool',
+            payload_kind='event',
+            decoder=PoolEventDecoder(),
+        )
+        dispatcher = DecoderDispatcher(
+            application_registry=registry,
+            decoder_registry=decoder_registry,
+        )
+
+        result = dispatcher.dispatch(
+            application_id='app-pool',
+            payload_kind='event',
+            raw_bytes=b'\x01',
+        )
+
+        self.assertEqual(result.to_dict()['status'], 'decode_failed')
+        self.assertEqual(result.to_dict()['app_type'], 'pool')
+        self.assertEqual(result.to_dict()['payload_kind'], 'event')
+        self.assertEqual(result.to_dict()['decoder_version'], 'pool-event-rust-v1')
+        self.assertIn('pool:event canonical decoding is not implemented', result.to_dict()['decode_error'])
+
+    def test_dispatch_uses_real_pool_event_decoder_boundary(self):
+        from registry.pool_event_decoder import PoolEventDecoder
+
+        class FailingRunner:
+            def decode(self, *, app_type: str, payload_kind: str, application_id: str, raw_bytes: bytes) -> dict:
+                self.last_call = (app_type, payload_kind, application_id, raw_bytes)
+                raise ValueError('pool:event canonical decoding is not implemented')
+
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+        registry.register_known_application(
+            application_id='app-pool',
+            app_type='pool',
+        )
+        runner = FailingRunner()
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register(
+            app_type='pool',
+            payload_kind='event',
+            decoder=PoolEventDecoder(runner=runner),
+        )
+        dispatcher = DecoderDispatcher(
+            application_registry=registry,
+            decoder_registry=decoder_registry,
+        )
+
+        result = dispatcher.dispatch(
+            application_id='app-pool',
+            payload_kind='event',
+            raw_bytes=b'\x09',
+        )
+
+        self.assertEqual(
+            runner.last_call,
+            ('pool', 'event', 'app-pool', b'\x09'),
+        )
+        self.assertEqual(result.to_dict()['status'], 'decode_failed')
+        self.assertEqual(result.to_dict()['decoder_version'], 'pool-event-rust-v1')
+
     def test_dispatch_returns_decode_failed_when_decoder_raises(self):
         repository = self.FakeRepository()
         registry = ApplicationRegistry(repository)
@@ -350,6 +450,39 @@ class DecoderDispatcherTest(unittest.TestCase):
             },
         )
 
+    def test_dispatch_decodes_real_ams_add_application_type_message(self):
+        from registry.ams_message_decoder import AmsMessageDecoder
+
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+        registry.register_known_application(
+            application_id='app-ams',
+            app_type='ams',
+        )
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register(
+            app_type='ams',
+            payload_kind='message',
+            decoder=AmsMessageDecoder(),
+        )
+        dispatcher = DecoderDispatcher(
+            application_registry=registry,
+            decoder_registry=decoder_registry,
+        )
+
+        result = dispatcher.dispatch(
+            application_id='app-ams',
+            payload_kind='message',
+            raw_bytes=self.FIXTURES.load_bytes('ams_add_application_type_message'),
+        )
+
+        self.assertEqual(result.to_dict()['payload_type'], 'add_application_type')
+        self.assertEqual(result.to_dict()['decoder_version'], 'ams-message-rust-v1')
+        self.assertEqual(
+            result.to_dict()['decoded_payload_json']['application_type'],
+            'DeFi',
+        )
+
     def test_dispatch_decodes_real_swap_update_pool_operation(self):
         from registry.swap_operation_decoder import SwapOperationDecoder
 
@@ -380,7 +513,7 @@ class DecoderDispatcherTest(unittest.TestCase):
         self.assertEqual(result.to_dict()['decoder_version'], 'swap-operation-rust-v1')
         self.assertEqual(
             result.to_dict()['decoded_payload_json']['transaction']['transaction_type'],
-            'add_liquidity',
+            'AddLiquidity',
         )
 
     def test_dispatch_decodes_real_swap_update_pool_message(self):
@@ -511,7 +644,73 @@ class DecoderDispatcherTest(unittest.TestCase):
         self.assertEqual(result.to_dict()['payload_type'], 'swap')
         self.assertEqual(result.to_dict()['decoder_version'], 'pool-operation-rust-v1')
 
-    def test_dispatch_decodes_real_pool_new_transaction_message(self):
+    def test_dispatch_decodes_real_proxy_register_miner_message(self):
+        from registry.proxy_message_decoder import ProxyMessageDecoder
+
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+        registry.register_known_application(
+            application_id='app-proxy',
+            app_type='proxy',
+        )
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register(
+            app_type='proxy',
+            payload_kind='message',
+            decoder=ProxyMessageDecoder(),
+        )
+        dispatcher = DecoderDispatcher(
+            application_registry=registry,
+            decoder_registry=decoder_registry,
+        )
+
+        result = dispatcher.dispatch(
+            application_id='app-proxy',
+            payload_kind='message',
+            raw_bytes=self.FIXTURES.load_bytes('proxy_register_miner_message'),
+        )
+
+        self.assertEqual(result.to_dict()['payload_type'], 'register_miner')
+        self.assertEqual(result.to_dict()['decoder_version'], 'proxy-message-rust-v1')
+        self.assertEqual(
+            result.to_dict()['decoded_payload_json']['owner']['chain_id'],
+            '11' * 32,
+        )
+
+    def test_dispatch_decodes_real_blob_gateway_register_message(self):
+        from registry.blob_gateway_message_decoder import BlobGatewayMessageDecoder
+
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+        registry.register_known_application(
+            application_id='app-blob',
+            app_type='blob-gateway',
+        )
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register(
+            app_type='blob-gateway',
+            payload_kind='message',
+            decoder=BlobGatewayMessageDecoder(),
+        )
+        dispatcher = DecoderDispatcher(
+            application_registry=registry,
+            decoder_registry=decoder_registry,
+        )
+
+        result = dispatcher.dispatch(
+            application_id='app-blob',
+            payload_kind='message',
+            raw_bytes=self.FIXTURES.load_bytes('blob_gateway_register_message'),
+        )
+
+        self.assertEqual(result.to_dict()['payload_type'], 'blob_gateway_register')
+        self.assertEqual(result.to_dict()['decoder_version'], 'blob-gateway-message-rust-v1')
+        self.assertEqual(
+            result.to_dict()['decoded_payload_json']['blob_hash_hex'],
+            '22' * 32,
+        )
+
+    def test_dispatch_decodes_legacy_pool_new_transaction_history_message(self):
         from registry.pool_message_decoder import PoolMessageDecoder
 
         repository = self.FakeRepository()
@@ -556,3 +755,11 @@ class DecoderDispatcherTest(unittest.TestCase):
 
         self.assertEqual(result.to_dict()['payload_type'], 'new_transaction')
         self.assertEqual(result.to_dict()['decoder_version'], 'pool-message-rust-v1')
+        self.assertEqual(
+            result.to_dict()['decoded_payload_json']['message_type'],
+            'new_transaction',
+        )
+        self.assertEqual(
+            result.to_dict()['decoded_payload_json']['transaction']['transaction_type'],
+            'AddLiquidity',
+        )

@@ -1,9 +1,14 @@
 import json
 
 from storage.mysql.canonical_fingerprint import CanonicalFingerprint
+from normalizer.normalized_event_result import NormalizedEventResult
 
 
 class NormalizedEventRepository:
+    MARKET_DERIVATION_EVENT_FAMILIES = (
+        'pool_new_transaction_recorded',
+    )
+
     def __init__(self, connection):
         self.connection = connection
         self.fingerprint = CanonicalFingerprint()
@@ -137,11 +142,13 @@ class NormalizedEventRepository:
         try:
             where_clauses = [
                 'raw_table = %s',
-                'event_family = %s',
+                f'event_family IN ({", ".join(["%s"] * len(self.MARKET_DERIVATION_EVENT_FAMILIES))})',
+                'normalization_status = %s',
             ]
             params: list[object] = [
                 raw_table,
-                'pool_transaction_recorded',
+                *self.MARKET_DERIVATION_EVENT_FAMILIES,
+                NormalizedEventResult.STATUS_OBSERVED,
             ]
             if after_sequence is not None:
                 where_clauses.append('CAST(raw_fact_id AS UNSIGNED) > %s')

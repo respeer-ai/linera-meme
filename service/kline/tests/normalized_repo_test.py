@@ -112,7 +112,7 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
                 'raw_table': 'raw_posted_messages',
                 'application_id': 'pool-app',
                 'payload_kind': 'message',
-                'event_family': 'pool_transaction_recorded',
+                'event_family': 'pool_new_transaction_recorded',
                 'event_type': 'new_transaction',
                 'correlation_key': 'pool:key',
                 'normalization_status': 'observed',
@@ -122,11 +122,11 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
                 'target_block_hash': 'block-1',
                 'source_cert_hash': 'cert-1',
                 'transaction_index': 7,
-                'message_index': 0,
+                'message_index': 1,
                 'app_type': 'pool',
                 'payload_type': 'new_transaction',
                 'decode_status': 'decoded',
-                'event_payload_json': '{"decoded_payload_json":{"transaction":{"transaction_type":"buy_token_0"}}}',
+                'event_payload_json': '{"decoded_payload_json":{"transaction":{"transaction_type":"BuyToken0"}}}',
                 'reprocess_reason': None,
             }
         ]
@@ -139,4 +139,32 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
             limit=5,
         )
 
-        self.assertEqual(rows[0]['event_payload_json']['decoded_payload_json']['transaction']['transaction_type'], 'buy_token_0')
+        self.assertEqual(rows[0]['event_payload_json']['decoded_payload_json']['transaction']['transaction_type'], 'BuyToken0')
+
+    def test_list_market_derivation_candidates_filters_to_pool_new_transaction_family(self):
+        connection = FakeConnection()
+        repository = NormalizedEventRepository(connection)
+        cursor = FakeCursor(connection)
+        connection.cursor_instances.append(cursor)
+        connection.cursor = lambda **_kwargs: connection.cursor_instances.pop(0)
+
+        repository.list_market_derivation_candidates(
+            raw_table='raw_posted_messages',
+            after_sequence=10,
+            limit=5,
+        )
+
+        executed_sql, params = cursor.executed[0]
+        self.assertIn('raw_table = %s', executed_sql)
+        self.assertIn('event_family IN (%s)', executed_sql)
+        self.assertIn('normalization_status = %s', executed_sql)
+        self.assertEqual(
+            params,
+            (
+                'raw_posted_messages',
+                'pool_new_transaction_recorded',
+                'observed',
+                10,
+                5,
+            ),
+        )

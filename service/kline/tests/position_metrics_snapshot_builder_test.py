@@ -11,21 +11,18 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from market.position_metrics_snapshot_builder import PositionMetricsSnapshotBuilder  # noqa: E402
+from market.settled_output_batch_factory import SettledOutputBatchFactory  # noqa: E402
 
 
 class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
     class FakeSnapshotSourceRepository:
         def __init__(self):
-            self.pool_trade_history = {}
-            self.pool_liquidity_history = {}
+            self.pool_transaction_history = {}
             self.position_liquidity_history = {}
             self.pool_fee_to_history = {}
 
-        def list_pool_trade_history(self, *, pool_application_id):
-            return list(self.pool_trade_history.get(pool_application_id, []))
-
-        def list_pool_liquidity_history(self, *, pool_application_id):
-            return list(self.pool_liquidity_history.get(pool_application_id, []))
+        def list_pool_transaction_history(self, *, pool_application_id):
+            return list(self.pool_transaction_history.get(pool_application_id, []))
 
         def list_position_liquidity_history(self, *, owner, pool_application_id):
             return list(self.position_liquidity_history.get((owner, pool_application_id), []))
@@ -33,12 +30,16 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         def list_pool_fee_to_history(self, *, pool_application_id):
             return list(self.pool_fee_to_history.get(pool_application_id, []))
 
+    @staticmethod
+    def _build_output_batch(outputs):
+        return SettledOutputBatchFactory().build(outputs)
+
     def test_build_materialization_plan_rebuilds_pool_and_closed_position_snapshots(self):
         source_repository = self.FakeSnapshotSourceRepository()
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -63,21 +64,28 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            [
+                row
+                for row in source_repository.pool_transaction_history[pool_application_id]
+                if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
+            ]
         )
         builder = PositionMetricsSnapshotBuilder(
-            snapshot_source_repository=source_repository,
+            snapshot_materialization_inputs_repository=source_repository,
+            settled_output_batch_factory=SettledOutputBatchFactory(),
         )
 
         plan = builder.build_materialization_plan(
-            [
-                {
-                    'settled_output_type': 'settled_liquidity_change',
-                    'pool_application_id': pool_application_id,
-                    'pool_chain_id': 'chain-a',
-                    'owner': settled_owner,
-                }
-            ]
+            self._build_output_batch(
+                [
+                    {
+                        'settled_output_type': 'settled_liquidity_change',
+                        'pool_application_id': pool_application_id,
+                        'pool_chain_id': 'chain-a',
+                        'owner': settled_owner,
+                    }
+                ]
+            )
         )
 
         self.assertEqual(plan['affected_pool_count'], 1)
@@ -113,17 +121,20 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
     def test_build_materialization_plan_ignores_trade_only_position_rebuilds(self):
         source_repository = self.FakeSnapshotSourceRepository()
         builder = PositionMetricsSnapshotBuilder(
-            snapshot_source_repository=source_repository,
+            snapshot_materialization_inputs_repository=source_repository,
+            settled_output_batch_factory=SettledOutputBatchFactory(),
         )
 
         plan = builder.build_materialization_plan(
-            [
-                {
-                    'settled_output_type': 'settled_trade',
-                    'pool_application_id': 'chain-a:pool-app',
-                    'pool_chain_id': 'chain-a',
-                }
-            ]
+            self._build_output_batch(
+                [
+                    {
+                        'settled_output_type': 'settled_trade',
+                        'pool_application_id': 'chain-a:pool-app',
+                        'pool_chain_id': 'chain-a',
+                    }
+                ]
+            )
         )
 
         self.assertEqual(plan['affected_pool_count'], 1)
@@ -133,7 +144,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
     def test_build_materialization_plan_tracks_fee_free_state_from_latest_liquidity_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
         pool_application_id = 'chain-a:pool-app'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -157,7 +168,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'from_account': 'chain-user:owner-user',
             },
         ]
-        source_repository.pool_trade_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id].extend([
             {
                 'transaction_id': 12,
                 'transaction_type': 'BuyToken0',
@@ -169,19 +180,21 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'created_at': 3000,
                 'from_account': 'chain-user:trader',
             }
-        ]
+        ])
         builder = PositionMetricsSnapshotBuilder(
-            snapshot_source_repository=source_repository,
+            snapshot_materialization_inputs_repository=source_repository,
+            settled_output_batch_factory=SettledOutputBatchFactory(),
         )
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_trade',
                     'pool_application_id': pool_application_id,
                     'pool_chain_id': 'chain-a',
                 }
             ]
+            )
         )
 
         pool_state = plan['pool_states'][0]
@@ -201,7 +214,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -226,12 +239,16 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            [
+                row
+                for row in source_repository.pool_transaction_history[pool_application_id]
+                if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
+            ]
         )
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -239,6 +256,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         position_state = plan['position_replacements'][0]['states'][0]
@@ -257,7 +275,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -270,11 +288,14 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'from_account': owner,
             },
         ]
-        source_repository.pool_trade_history[pool_application_id] = []
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            [
+                row
+                for row in source_repository.pool_transaction_history[pool_application_id]
+                if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
+            ]
         )
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         class FakePrincipalSimulator:
             def simulate_current_principal(self, **_kwargs):
@@ -306,7 +327,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         builder.protocol_fee_ownership_tracker = FakeProtocolFeeOwnershipTracker()
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -314,6 +335,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         exact_current_principal = plan['position_replacements'][0]['states'][0]['state_payload_json']['exact_current_principal']
@@ -342,7 +364,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -367,12 +389,12 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            source_repository.pool_transaction_history[pool_application_id]
         )
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -380,6 +402,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         position_state = plan['position_replacements'][0]['states'][0]
@@ -397,7 +420,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -433,12 +456,12 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            source_repository.pool_transaction_history[pool_application_id]
         )
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -446,6 +469,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         position_state = plan['position_replacements'][0]['states'][0]
@@ -463,7 +487,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -487,7 +511,29 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'from_account': owner,
             },
         ]
-        source_repository.pool_trade_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
+            {
+                'transaction_id': 10,
+                'transaction_type': 'AddLiquidity',
+                'amount_0_in': '4',
+                'amount_0_out': None,
+                'amount_1_in': '9',
+                'amount_1_out': None,
+                'liquidity': '4',
+                'created_at': 1000,
+                'from_account': owner,
+            },
+            {
+                'transaction_id': 11,
+                'transaction_type': 'AddLiquidity',
+                'amount_0_in': '2',
+                'amount_0_out': None,
+                'amount_1_in': '3',
+                'amount_1_out': None,
+                'liquidity': '2',
+                'created_at': 2000,
+                'from_account': owner,
+            },
             {
                 'transaction_id': 9,
                 'transaction_type': 'BuyToken0',
@@ -512,12 +558,16 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            [
+                row
+                for row in source_repository.pool_transaction_history[pool_application_id]
+                if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
+            ]
         )
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -525,6 +575,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         position_state = plan['position_replacements'][0]['states'][0]
@@ -536,7 +587,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -559,8 +610,6 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'created_at': 2000,
                 'from_account': 'chain-user:owner-b',
             },
-        ]
-        source_repository.pool_trade_history[pool_application_id] = [
             {
                 'transaction_id': 11,
                 'transaction_type': 'BuyToken0',
@@ -585,12 +634,14 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = [
-            source_repository.pool_liquidity_history[pool_application_id][0],
+            row
+            for row in source_repository.pool_transaction_history[pool_application_id]
+            if row.get('from_account') == owner and row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
         ]
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -598,6 +649,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         position_state = plan['position_replacements'][0]['states'][0]
@@ -608,7 +660,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -622,9 +674,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             },
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            source_repository.pool_transaction_history[pool_application_id]
         )
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         class FakePrincipalSimulator:
             def simulate_current_principal(self, **_kwargs):
@@ -642,7 +694,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         builder.protocol_fee_ownership_tracker = FakeProtocolFeeOwnershipTracker()
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -650,6 +702,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         position_state = plan['position_replacements'][0]['states'][0]
@@ -667,7 +720,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -681,7 +734,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             }
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            source_repository.pool_transaction_history[pool_application_id]
         )
         source_repository.pool_fee_to_history[pool_application_id] = [
             {
@@ -690,10 +743,10 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'fee_to_account': 'chain-fee:0xfee-owner',
             }
         ]
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -701,6 +754,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         continuity = plan['position_replacements'][0]['states'][0]['state_payload_json']['fee_to_continuity']
@@ -715,7 +769,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         pool_application_id = 'chain-a:pool-app'
         owner = 'chain-user:owner-user'
         settled_owner = 'owner-user@chain-user'
-        source_repository.pool_liquidity_history[pool_application_id] = [
+        source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
                 'transaction_type': 'AddLiquidity',
@@ -729,7 +783,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
             }
         ]
         source_repository.position_liquidity_history[(owner, pool_application_id)] = list(
-            source_repository.pool_liquidity_history[pool_application_id]
+            source_repository.pool_transaction_history[pool_application_id]
         )
         source_repository.pool_fee_to_history[pool_application_id] = [
             {
@@ -743,10 +797,10 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'fee_to_account': 'chain-fee:0xfee-owner-b',
             },
         ]
-        builder = PositionMetricsSnapshotBuilder(snapshot_source_repository=source_repository)
+        builder = PositionMetricsSnapshotBuilder(snapshot_materialization_inputs_repository=source_repository)
 
         plan = builder.build_materialization_plan(
-            [
+            self._build_output_batch([
                 {
                     'settled_output_type': 'settled_liquidity_change',
                     'pool_application_id': pool_application_id,
@@ -754,6 +808,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                     'owner': settled_owner,
                 }
             ]
+            )
         )
 
         continuity = plan['position_replacements'][0]['states'][0]['state_payload_json']['fee_to_continuity']

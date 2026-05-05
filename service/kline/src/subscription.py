@@ -12,11 +12,11 @@ class KlineSubscription:
 
 
 class WebSocketManager:
-    def __init__(self, swap, db):
+    def __init__(self, swap, candle_reader):
         self.connections: list[WebSocket] = []
         self.kline_subscriptions: dict[WebSocket, set[KlineSubscription]] = {}
         self.swap = swap
-        self.db = db
+        self.candle_reader = candle_reader
 
     async def connect(self, websocket: WebSocket):
         print(f'New connection {len(self.connections)} from {websocket.scope["client"]}')
@@ -109,61 +109,34 @@ class WebSocketManager:
                 for interval in intervals:
                     interval_points = []
                     for pool in pools:
-                        (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
-                            pool.token_0,
-                            pool.token_1,
-                            interval,
+                        point_payload = self.candle_reader.get_last_points(
+                            token_0=pool.token_0,
+                            token_1=pool.token_1,
+                            interval=interval,
                             pool_id=pool.pool_id,
                             pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
                         )
-                        interval_points.append({
-                            'pool_id': pool_id,
-                            'pool_application': pool_application,
-                            'token_0': token_0,
-                            'token_1': token_1,
-                            'interval': interval,
-                            'start_at': start_at,
-                            'end_at': end_at,
-                            'points': _points,
-                        })
-                        (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
-                            pool.token_1,
-                            pool.token_0,
-                            interval,
+                        interval_points.append(point_payload)
+                        point_payload = self.candle_reader.get_last_points(
+                            token_0=pool.token_1,
+                            token_1=pool.token_0,
+                            interval=interval,
                             pool_id=pool.pool_id,
                             pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
                         )
-                        interval_points.append({
-                            'pool_id': pool_id,
-                            'pool_application': pool_application,
-                            'token_0': token_0,
-                            'token_1': token_1,
-                            'interval': interval,
-                            'start_at': start_at,
-                            'end_at': end_at,
-                            'points': _points,
-                        })
+                        interval_points.append(point_payload)
                     points[interval] = interval_points
             else:
                 for subscription in subscriptions:
-                    (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, _points) = self.db.get_last_kline(
-                        subscription.token_0,
-                        subscription.token_1,
-                        subscription.interval,
+                    point_payload = self.candle_reader.get_last_points(
+                        token_0=subscription.token_0,
+                        token_1=subscription.token_1,
+                        interval=subscription.interval,
                         pool_id=subscription.pool_id,
                         pool_application=subscription.pool_application,
                     )
                     interval_points = points.get(subscription.interval, [])
-                    interval_points.append({
-                        'pool_id': pool_id,
-                        'pool_application': pool_application,
-                        'token_0': token_0,
-                        'token_1': token_1,
-                        'interval': interval,
-                        'start_at': start_at,
-                        'end_at': end_at,
-                        'points': _points,
-                    })
+                    interval_points.append(point_payload)
                     points[subscription.interval] = interval_points
 
             await connection.send_json({

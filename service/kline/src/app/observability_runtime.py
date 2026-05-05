@@ -20,7 +20,14 @@ class ObservabilityRuntime:
             return {}
         container = self.bootstrap.build_container(self.config)
         self.container = container
-        return await self._run_startup_stages(container)
+        try:
+            return await self._run_startup_stages(container)
+        except Exception:
+            try:
+                await self.lifecycle.shutdown(container)
+            finally:
+                self.container = None
+            raise
 
     async def shutdown(self) -> None:
         if self.container is None:

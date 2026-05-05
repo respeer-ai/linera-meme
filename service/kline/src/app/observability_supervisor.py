@@ -59,7 +59,7 @@ class ObservabilitySupervisor:
             self.status.mark_stopped()
 
     async def run_catch_up(self, *, chain_id: str | None, max_blocks: int | None) -> dict[str, object]:
-        if self.runtime is None or not self.status.is_ready():
+        if not self.has_started_runtime():
             raise RuntimeError('Observability runtime is not ready')
         try:
             return await self.runtime.run_catch_up(chain_id=chain_id, max_blocks=max_blocks)
@@ -75,7 +75,7 @@ class ObservabilitySupervisor:
         max_batches: int | None,
         reprocess_reason: str | None,
     ) -> dict[str, object]:
-        if self.runtime is None or not self.status.is_ready():
+        if not self.has_started_runtime():
             raise RuntimeError('Observability runtime is not ready')
         try:
             return await self.runtime.run_normalization_replay(
@@ -100,7 +100,7 @@ class ObservabilitySupervisor:
         max_batches: int | None,
         reprocess_reason: str | None,
     ) -> dict[str, object]:
-        if self.runtime is None or not self.status.is_ready():
+        if not self.has_started_runtime():
             raise RuntimeError('Observability runtime is not ready')
         try:
             return await self.runtime.run_market_derivation_replay(
@@ -122,6 +122,9 @@ class ObservabilitySupervisor:
         snapshot['starting_in_background'] = self._start_task is not None and not self._start_task.done()
         snapshot['recovery_allowed'] = self.runtime is not None
         return snapshot
+
+    def has_started_runtime(self) -> bool:
+        return self.runtime is not None and self.runtime.is_started()
 
     def _apply_stage_results(self, stage_results: dict[str, dict[str, object]]) -> None:
         component_map = {

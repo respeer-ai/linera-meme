@@ -19,12 +19,10 @@ async def dummy_post(*_args, **_kwargs):
 async_request_stub.post = dummy_post
 sys.modules['async_request'] = async_request_stub
 
-environment_stub = types.ModuleType('environment')
-environment_stub.running_in_k8s = lambda: False
-sys.modules['environment'] = environment_stub
+from position_metrics_bootstrap import PositionMetricsBootstrap  # noqa: E402
+from integration.pool_application_client import PoolApplicationClient  # noqa: E402
 
-
-import position_metrics  # noqa: E402
+public_api = PositionMetricsBootstrap().public_api()
 
 
 class FakeResponse:
@@ -40,7 +38,7 @@ class FakeResponse:
 
 class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
     def test_inspect_pool_history_replay_reports_first_invalid_swap_with_state(self):
-        audit = position_metrics.inspect_pool_history_replay(
+        audit = public_api.inspect_pool_history_replay(
             [
                 {
                     'transaction_id': 1,
@@ -83,7 +81,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_inspect_pool_history_replay_can_tolerate_small_swap_rounding_difference(self):
-        audit = position_metrics.inspect_pool_history_replay(
+        audit = public_api.inspect_pool_history_replay(
             [
                 {
                     'transaction_id': 1,
@@ -116,37 +114,14 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(audit['processed_count'], 2)
         self.assertEqual(audit['swap_out_tolerance_attos'], '30000')
 
-    def test_pool_application_url_strips_hex_prefix_outside_k8s(self):
-        url = position_metrics.pool_application_url(
-            'http://swap-host/api/swap',
-            'chain-a:0xpool-app',
-            in_k8s=False,
-        )
-        self.assertEqual(
-            url,
-            'http://swap-host/api/swap/query/chains/chain-a/applications/pool-app',
-        )
-
     def test_build_position_metrics_query_uses_account_object(self):
-        query = position_metrics.build_position_metrics_query({
+        query = PoolApplicationClient.build_position_metrics_query({
             'chain_id': 'chain-a',
             'owner': '0xowner-a',
         })
         self.assertEqual(query['variables']['owner']['chain_id'], 'chain-a')
         self.assertEqual(query['variables']['owner']['owner'], '0xowner-a')
         self.assertIn('totalSupply', query['query'])
-        self.assertIn('virtualInitialLiquidity', query['query'])
-        self.assertIn('liquidity(owner: $owner)', query['query'])
-        self.assertIn('latestTransactions(startId: 0)', query['query'])
-
-    def test_build_position_metrics_legacy_query_omits_total_supply(self):
-        query = position_metrics.build_position_metrics_legacy_query({
-            'chain_id': 'chain-a',
-            'owner': '0xowner-a',
-        })
-        self.assertEqual(query['variables']['owner']['chain_id'], 'chain-a')
-        self.assertEqual(query['variables']['owner']['owner'], '0xowner-a')
-        self.assertNotIn('totalSupply', query['query'])
         self.assertIn('virtualInitialLiquidity', query['query'])
         self.assertIn('liquidity(owner: $owner)', query['query'])
 
@@ -169,12 +144,12 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
             },
-            'http://swap-host/api/swap',
+            'http://swap-host/api/swap/query',
             liquidity_history=[
                 {
                     'transaction_id': 11,
@@ -231,7 +206,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=1,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertEqual(
@@ -270,7 +244,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -284,7 +258,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=0,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
@@ -313,7 +286,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -327,7 +300,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=0,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
@@ -354,26 +326,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                         'amount0': '40',
                         'amount1': '80',
                     },
-                    'latestTransactions': [
-                        {
-                            'transactionId': 22,
-                            'transactionType': 'AddLiquidity',
-                            'from': {
-                                'chain_id': 'chain-a',
-                                'owner': '0xother-owner',
-                            },
-                            'amount0In': '1.0',
-                            'amount1In': '2.0',
-                            'amount0Out': '0',
-                            'amount1Out': '0',
-                            'liquidity': '0.5',
-                            'createdAt': 1_900_000_000_000,
-                        },
-                    ],
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -403,7 +359,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=0,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -415,58 +370,37 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['fee_amount1'], '0')
         self.assertNotIn('missing_liquidity_history', metrics['computation_blockers'])
 
-    async def test_fetch_live_position_metrics_falls_back_when_total_supply_field_is_missing(self):
+    async def test_fetch_live_position_metrics_raises_when_total_supply_field_is_missing(self):
         captured_queries = []
 
         async def fake_post(url, json, timeout):
             captured_queries.append(json['query'])
-            if len(captured_queries) == 1:
-                return FakeResponse({
-                    'data': None,
-                    'errors': [{
-                        'message': 'Unknown field "totalSupply" on type "QueryRoot".',
-                    }],
-                })
             return FakeResponse({
-                'data': {
-                    'virtualInitialLiquidity': False,
-                    'liquidity': {
-                        'liquidity': '2.0',
-                        'amount0': '40',
-                        'amount1': '80',
-                    },
-                    'latestTransactions': [],
-                },
+                'data': None,
+                'errors': [{
+                    'message': 'Unknown field "totalSupply" on type "QueryRoot".',
+                }],
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
-            {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
-            },
-            'http://swap-host/api/swap',
-            liquidity_history=[
+        with self.assertRaises(RuntimeError):
+            await public_api.fetch_live_position_metrics(
                 {
-                    'transaction_type': 'AddLiquidity',
-                    'liquidity': '2.0',
+                    'owner': 'chain-a:0xowner-a',
+                    'pool_application': 'chain-b:0xpool-app',
                 },
-            ],
-            pool_swap_count_since_open=0,
-            post=fake_post,
-            in_k8s=False,
-        )
+                'http://swap-host/api/swap',
+                liquidity_history=[
+                    {
+                        'transaction_type': 'AddLiquidity',
+                        'liquidity': '2.0',
+                    },
+                ],
+                pool_swap_count_since_open=0,
+                post=fake_post,
+            )
 
-        self.assertEqual(len(captured_queries), 2)
+        self.assertEqual(len(captured_queries), 1)
         self.assertIn('totalSupply', captured_queries[0])
-        self.assertNotIn('totalSupply', captured_queries[1])
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertIsNone(metrics['total_supply_live'])
-        self.assertEqual(metrics['principal_amount0'], '40')
-        self.assertEqual(metrics['principal_amount1'], '80')
-        self.assertEqual(metrics['fee_amount0'], '0')
-        self.assertEqual(metrics['fee_amount1'], '0')
-        self.assertEqual(metrics['computation_blockers'], [])
 
     async def test_fetch_live_position_metrics_marks_exact_for_bootstrap_lp_with_swap_history(self):
         async def fake_post(url, json, timeout):
@@ -482,7 +416,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -522,7 +456,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=1,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
@@ -551,7 +484,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -602,7 +535,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=1,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
@@ -637,7 +569,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -688,7 +620,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=0,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -723,7 +654,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -774,7 +705,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=0,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -789,7 +719,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0.002500170477793218')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_prefers_live_transactions_over_stale_db_history(self):
+    async def test_fetch_live_position_metrics_does_not_repair_stale_db_history_from_payload(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -806,54 +736,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                         'amount0': '9.095455926391324260',
                         'amount1': '11.002500170477793218',
                     },
-                    'latestTransactions': [
-                        {
-                            'transactionId': 1,
-                            'transactionType': 'AddLiquidity',
-                            'from': {
-                                'chain_id': 'chain-a',
-                                'owner': '0xbootstrap-owner',
-                            },
-                            'amount0In': '100',
-                            'amount0Out': None,
-                            'amount1In': '100',
-                            'amount1Out': None,
-                            'liquidity': '0',
-                            'createdAt': 1_800_000_000_000_000,
-                        },
-                        {
-                            'transactionId': 2,
-                            'transactionType': 'BuyToken0',
-                            'from': {
-                                'chain_id': 'chain-b',
-                                'owner': '0xswapper',
-                            },
-                            'amount0In': None,
-                            'amount0Out': '9.066108938801491316',
-                            'amount1In': '10',
-                            'amount1Out': None,
-                            'liquidity': None,
-                            'createdAt': 1_800_000_001_000_000,
-                        },
-                        {
-                            'transactionId': 3,
-                            'transactionType': 'AddLiquidity',
-                            'from': {
-                                'chain_id': 'chain-a',
-                                'owner': '0xowner-a',
-                            },
-                            'amount0In': '9.093389106119850868',
-                            'amount0Out': None,
-                            'amount1In': '11',
-                            'amount1Out': None,
-                            'liquidity': '10.000227293391365082',
-                            'createdAt': 1_800_000_002_000_000,
-                        },
-                    ],
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -863,13 +749,11 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             pool_transaction_history=[],
             pool_swap_count_since_open=0,
             post=fake_post,
-            in_k8s=False,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
+        self.assertFalse(metrics['exact_fee_supported'])
         self.assertTrue(metrics['owner_is_fee_to'])
-        self.assertEqual(metrics['principal_amount0'], '9.093389106119850867')
-        self.assertEqual(metrics['protocol_fee_amount0'], '0.002066820271473392')
+        self.assertIn('missing_liquidity_history', metrics['computation_blockers'])
 
     async def test_fetch_live_position_metrics_marks_exact_for_add_then_partial_remove_without_post_change(self):
         async def fake_post(url, json, timeout):
@@ -885,7 +769,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -953,7 +837,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=1,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
@@ -982,7 +865,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -1050,7 +933,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=1,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -1079,7 +961,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -1158,7 +1040,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=2,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -1187,7 +1068,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -1260,7 +1141,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=3,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -1289,7 +1169,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -1351,7 +1231,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=2,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertFalse(metrics['exact_fee_supported'])
@@ -1392,14 +1271,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     },
                     'totalSupply': '100',
                     'virtualInitialLiquidity': False,
-                    'latestTransactions': [],
                     'pool': {
                         'fee_to': None,
                     },
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             position,
             'https://swap.example',
             liquidity_history=[
@@ -1437,7 +1315,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 'missing_ids_sample': [1234, 1456],
             },
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertTrue(metrics['exact_fee_supported'])
@@ -1448,7 +1325,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
 
-    async def test_fetch_live_position_metrics_clears_stale_gap_warning_when_live_history_fills_gap(self):
+    async def test_fetch_live_position_metrics_does_not_clear_stale_gap_warning_from_payload(self):
         position = {
             'pool_application': 'chain-pool:0xpool',
             'pool_id': 7,
@@ -1469,43 +1346,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     },
                     'totalSupply': '100',
                     'virtualInitialLiquidity': False,
-                    'latestTransactions': [
-                        {
-                            'transactionId': 1,
-                            'transactionType': 'AddLiquidity',
-                            'from': {
-                                'chain_id': 'chain-a',
-                                'owner': '0xowner-a',
-                            },
-                            'amount0In': '45.2',
-                            'amount0Out': '0',
-                            'amount1In': '55.1',
-                            'amount1Out': '0',
-                            'liquidity': '50',
-                            'createdAt': 1_800_000_000_000,
-                        },
-                        {
-                            'transactionId': 2,
-                            'transactionType': 'BuyToken0',
-                            'from': {
-                                'chain_id': 'chain-b',
-                                'owner': '0xswapper',
-                            },
-                            'amount0In': '0',
-                            'amount0Out': '7.642796434518162414',
-                            'amount1In': '10',
-                            'amount1Out': '0',
-                            'liquidity': None,
-                            'createdAt': 1_800_000_001_000,
-                        },
-                    ],
                     'pool': {
                         'fee_to': None,
                     },
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             position,
             'https://swap.example',
             liquidity_history=[
@@ -1554,7 +1401,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 'missing_ids_sample': [2],
             },
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertNotIn('pool_history_has_internal_gaps', metrics['computation_blockers'])
@@ -1575,7 +1421,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -1641,7 +1487,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             ],
             pool_swap_count_since_open=2,
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertFalse(metrics['exact_fee_supported'])
@@ -1667,11 +1512,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                         'amount0': '14.52545624977836523',
                         'amount1': '0.012863474743377798',
                     },
-                    'latestTransactions': [],
                 },
             })
 
-        metrics = await position_metrics.fetch_live_position_metrics(
+        metrics = await public_api.fetch_live_position_metrics(
             {
                 'owner': 'chain-a:0xowner-a',
                 'pool_application': 'chain-b:0xpool-app',
@@ -1754,7 +1598,6 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 'missing_ids_sample': [1005],
             },
             post=fake_post,
-            in_k8s=False,
         )
 
         self.assertFalse(metrics['exact_fee_supported'])

@@ -11,6 +11,7 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from market.position_metrics_snapshot_materializer import PositionMetricsSnapshotMaterializer  # noqa: E402
+from market.settled_output_batch_factory import SettledOutputBatchFactory  # noqa: E402
 
 
 class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
@@ -19,8 +20,8 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
             self.should_fail = should_fail
             self.calls = []
 
-        def build_materialization_plan(self, outputs):
-            self.calls.append(list(outputs))
+        def build_materialization_plan(self, output_batch):
+            self.calls.append(output_batch)
             if self.should_fail:
                 raise RuntimeError('snapshot rebuild failed')
             return {
@@ -60,16 +61,22 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
             position_state_snapshot_repository=position_repository,
             pool_state_snapshot_repository=pool_repository,
         )
-
-        summary = materializer.materialize_outputs(
+        output_batch = SettledOutputBatchFactory().build(
             [{'settled_output_type': 'settled_trade', 'pool_application_id': 'chain-a:pool-app'}]
         )
+
+        summary = materializer.materialize_output_batch(output_batch)
 
         self.assertFalse(summary['degraded'])
         self.assertEqual(summary['persisted_pool_state_count'], 1)
         self.assertEqual(summary['persisted_position_state_count'], 1)
         self.assertEqual(len(position_repository.calls), 1)
         self.assertEqual(len(pool_repository.calls), 1)
+        self.assertEqual(len(materializer.snapshot_builder.calls), 1)
+        self.assertEqual(
+            materializer.snapshot_builder.calls[0].trades(),
+            [{'settled_output_type': 'settled_trade', 'pool_application_id': 'chain-a:pool-app'}],
+        )
 
     def test_materialize_outputs_is_fail_open_when_snapshot_rebuild_raises(self):
         position_repository = self.FakePositionStateSnapshotRepository()
@@ -79,15 +86,17 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
             position_state_snapshot_repository=position_repository,
             pool_state_snapshot_repository=pool_repository,
         )
-
-        summary = materializer.materialize_outputs(
+        output_batch = SettledOutputBatchFactory().build(
             [{'settled_output_type': 'settled_trade', 'pool_application_id': 'chain-a:pool-app'}]
         )
+
+        summary = materializer.materialize_output_batch(output_batch)
 
         self.assertTrue(summary['degraded'])
         self.assertEqual(summary['error_text'], 'snapshot rebuild failed')
         self.assertEqual(position_repository.calls, [])
         self.assertEqual(pool_repository.calls, [])
+        self.assertEqual(len(materializer.snapshot_builder.calls), 1)
 
 
 if __name__ == '__main__':

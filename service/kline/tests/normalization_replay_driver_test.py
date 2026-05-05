@@ -99,6 +99,9 @@ class NormalizationReplayDriverTest(unittest.TestCase):
         raw_repository.items_by_table['raw_posted_messages'] = [
             {'raw_fact_id': '2', 'application_id': 'app-2', 'payload_kind': 'message'},
         ]
+        raw_repository.items_by_table['raw_events'] = [
+            {'raw_fact_id': '3', 'application_id': 'app-3', 'payload_kind': 'event'},
+        ]
         driver = NormalizationReplayDriver(
             raw_repository=raw_repository,
             processing_cursor_repository=self.FakeProcessingCursorRepository(),
@@ -107,8 +110,8 @@ class NormalizationReplayDriverTest(unittest.TestCase):
 
         result = driver.run_all()
 
-        self.assertEqual(result['table_count'], 2)
-        self.assertEqual(result['processed_count'], 2)
+        self.assertEqual(result['table_count'], 3)
+        self.assertEqual(result['processed_count'], 3)
 
     def test_run_until_caught_up_runs_multiple_batches(self):
         class SequencedRawRepository(self.FakeRawRepository):
@@ -141,4 +144,67 @@ class NormalizationReplayDriverTest(unittest.TestCase):
         )
 
         self.assertEqual(result['batch_count'], 2)
+        self.assertTrue(result['caught_up'])
+
+    def test_run_all_until_caught_up_drains_all_configured_tables(self):
+        class SequencedRawRepository(self.FakeRawRepository):
+            def __init__(self):
+                super().__init__()
+                self.responses = {
+                    ('raw_operations', None): [
+                        {'raw_fact_id': '1', 'application_id': 'app-1', 'payload_kind': 'operation'},
+                    ],
+                    ('raw_operations', 1): [],
+                    ('raw_posted_messages', None): [
+                        {'raw_fact_id': '2', 'application_id': 'app-2', 'payload_kind': 'message'},
+                    ],
+                    ('raw_posted_messages', 2): [],
+                    ('raw_events', None): [
+                        {'raw_fact_id': '3', 'application_id': 'app-3', 'payload_kind': 'event'},
+                    ],
+                    ('raw_events', 3): [],
+                }
+
+            def list_normalization_candidates(self, *, raw_table, after_sequence, limit):
+                self.calls.append((raw_table, after_sequence, limit))
+                return list(self.responses.get((raw_table, after_sequence), []))
+
+        class PartitionedCursorRepository:
+            def __init__(self):
+                self.loaded_cursors = {}
+                self.calls = []
+
+            def load_cursor(self, *, cursor_name, partition_key):
+                self.calls.append((cursor_name, partition_key))
+                return self.loaded_cursors.get(partition_key)
+
+        class PartitionedWorker(self.FakeNormalizationWorker):
+            def process_items(self, items, *, partition_key, reprocess_reason=None):
+                self.calls.append((items, partition_key, reprocess_reason))
+                if self.cursor_repository is not None:
+                    self.cursor_repository.loaded_cursors[partition_key] = {
+                        'last_sequence': items[-1]['raw_fact_id']
+                    }
+                return {
+                    'processed_count': len(items),
+                    'normalized_event_count': len(items),
+                    'last_sequence': items[-1]['raw_fact_id'],
+                    'last_block_hash': items[-1].get('target_block_hash'),
+                }
+
+        raw_repository = SequencedRawRepository()
+        cursor_repository = PartitionedCursorRepository()
+        worker = PartitionedWorker(cursor_repository)
+        driver = NormalizationReplayDriver(
+            raw_repository=raw_repository,
+            processing_cursor_repository=cursor_repository,
+            normalization_worker=worker,
+            batch_limit=1,
+        )
+
+        result = driver.run_all_until_caught_up(reprocess_reason='post_ingest')
+
+        self.assertEqual(result['table_count'], 3)
+        self.assertEqual(result['processed_count'], 3)
+        self.assertEqual(result['normalized_event_count'], 3)
         self.assertTrue(result['caught_up'])

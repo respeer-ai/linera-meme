@@ -10,11 +10,11 @@ class PositionMetricsSnapshotMaterializer:
         self.position_state_snapshot_repository = position_state_snapshot_repository
         self.pool_state_snapshot_repository = pool_state_snapshot_repository
 
-    def materialize_outputs(self, outputs: list[dict[str, object]]) -> dict[str, object]:
-        if not outputs:
+    def materialize_output_batch(self, output_batch) -> dict[str, object]:
+        if not output_batch.outputs:
             return self._summary()
         try:
-            plan = self.snapshot_builder.build_materialization_plan(outputs)
+            plan = self.snapshot_builder.build_materialization_plan(output_batch)
             for replacement in plan['position_replacements']:
                 self.position_state_snapshot_repository.replace_position_states(
                     owner=replacement['owner'],
