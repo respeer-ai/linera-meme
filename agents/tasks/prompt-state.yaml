@@ -1,0 +1,111 @@
+version: 1
+type: prompt-state
+authority: high
+derived_from:
+  - agents/tasks/board.yaml
+purpose: >
+  Default low-token task routing state for assistants. This file is derived from the
+  task board and canonical docs. It is not a task source.
+read_policy:
+  read_before:
+    - agents/tasks/board.yaml
+  read_board_when:
+    - updating task status
+    - needing full notes for an active task listed here
+    - checking dependencies or neighboring tasks for an active task
+defaults:
+  include_statuses:
+    - Doing
+    - Blocked
+  exclude_statuses:
+    - Done
+  include_done_only_when:
+    - active_semantic_dependency
+    - unresolved_caveat_still_relevant
+    - canonical_doc_promotion_incomplete
+active_focus:
+  - id: POS-032
+    why: Layer 1 block ingestion 与 cursor
+    summary: >
+      Event-driven catch-up and notification flow are active. Fail-open lifecycle
+      is separated into POS-042. Decoder/normalizer layers connected via POS-033/034.
+    read_if_working_on:
+      - raw ingestion
+      - catch-up
+      - notification listener
+    canonical_refs:
+      - agents/primitives/observability-layer1-ops.md
+      - agents/runbooks/observability-layer1-rollout.md
+  - id: POS-033
+    why: app registry 与 decoder registry
+    summary: >
+      Registry and canonical Rust-backed decoders are active. Keep decode boundaries explicit;
+      do not reintroduce Python BCS decoding for complex app payloads.
+    read_if_working_on:
+      - decoder wiring
+      - application discovery
+    canonical_refs:
+      - agents/primitives/application-decoding.md
+  - id: POS-034
+    why: Layer 2 normalized events
+    summary: >
+      Normalization worker and replay path exist. Layer 2 covers operations, posted messages,
+      and raw events. Python-side latestTransactions fully removed.
+    read_if_working_on:
+      - normalization
+      - reject semantics
+    canonical_refs:
+      - agents/primitives/normalized-event-model.md
+  - id: POS-035
+    why: Layer 3 market-data 契约
+    summary: >
+      First-stage Layer 3 uses block-observed PoolMessage::NewTransaction as the
+      temporary new-trade observability fact. Runtime cut over to
+      raw_posted_messages + pool_new_transaction_recorded. Python-side
+      latestTransactions fully removed from kline source.
+    read_if_working_on:
+      - transactions
+      - candles
+      - positions
+      - market derivation
+    canonical_refs:
+      - agents/primitives/derived-market-state.md
+  - id: POS-044
+    why: latestTransactions 产品路径删除
+    summary: >
+      Python kline source-side cleanup complete. Contract-side latestTransactions
+      (pool state/service) remains for future contract deployment. No remaining
+      latestTransactions references in service/kline/src Python code.
+    read_if_working_on:
+      - service/kline query path cleanup
+      - latestTransactions removal validation
+    canonical_refs:
+      - agents/context/observability-architecture.md
+      - agents/runbooks/observability-migration.md
+  - id: POS-030
+    why: maker wallet 执行断点诊断
+    summary: >
+      Production diagnosis remains active. Current focus is reject or runtime failure at
+      creator-chain execution, not kline sync.
+    read_if_working_on:
+      - maker diagnostics
+      - production stall analysis
+    canonical_refs:
+      - agents/tasks/board.yaml
+on_demand_done:
+  - id: POS-041
+    why: explains why parity or rollback guardrails were intentionally removed
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-028
+    why: useful only when touching maker wallet metrics exposure
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-029
+    why: useful only when touching maker debug API surfaces
+    canonical_refs:
+      - agents/tasks/board.yaml
+maintenance_rules:
+  - Update this file whenever a task changes status between Todo, Doing, Blocked, or Done
+  - Remove Done tasks from `active_focus` unless they still satisfy `include_done_only_when`
+  - If a task note grows beyond prompt value, move durable semantics to canonical docs and shorten the board note
