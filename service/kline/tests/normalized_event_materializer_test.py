@@ -54,7 +54,7 @@ class NormalizedEventMaterializerTest(unittest.TestCase):
         self.assertEqual(len(repository.events), 1)
         self.assertEqual(
             repository.events[0]['event_family'],
-            'application_operation_observed',
+            'ams_add_application_type_requested',
         )
 
     def test_materialize_batch_flattens_and_persists_all_events(self):
