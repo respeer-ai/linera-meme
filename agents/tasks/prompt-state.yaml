@@ -28,7 +28,7 @@ active_focus:
     why: Layer 1 block ingestion 与 cursor
     summary: >
       Event-driven catch-up and notification flow are active. Fail-open lifecycle
-      is separated into POS-042. Decoder/normalizer layers connected via POS-033/034.
+      is separated into POS-042. Decoder/normalizer layers connected.
     read_if_working_on:
       - raw ingestion
       - catch-up
@@ -36,54 +36,6 @@ active_focus:
     canonical_refs:
       - agents/primitives/observability-layer1-ops.md
       - agents/runbooks/observability-layer1-rollout.md
-  - id: POS-033
-    why: app registry 与 decoder registry
-    summary: >
-      Registry and canonical Rust-backed decoders are active. Rust decoder crate
-      migrated from abi/ to service/decoder/ with batch subprocess interface
-      (one subprocess per block, not per item). Keep decode boundaries explicit;
-      do not reintroduce Python BCS decoding for complex app payloads.
-    read_if_working_on:
-      - decoder wiring
-      - application discovery
-    canonical_refs:
-      - agents/primitives/application-decoding.md
-  - id: POS-034
-    why: Layer 2 normalized events
-    summary: >
-      Normalization worker and replay path exist. Layer 2 covers operations, posted messages,
-      and raw events. Python-side latestTransactions fully removed.
-    read_if_working_on:
-      - normalization
-      - reject semantics
-    canonical_refs:
-      - agents/primitives/normalized-event-model.md
-  - id: POS-035
-    why: Layer 3 market-data 契约
-    summary: >
-      First-stage Layer 3 uses block-observed PoolMessage::NewTransaction as the
-      temporary new-trade observability fact. Runtime cut over to
-      raw_posted_messages + pool_new_transaction_recorded. Python-side
-      latestTransactions fully removed from kline source.
-    read_if_working_on:
-      - transactions
-      - candles
-      - positions
-      - market derivation
-    canonical_refs:
-      - agents/primitives/derived-market-state.md
-  - id: POS-044
-    why: latestTransactions 产品路径删除
-    summary: >
-      Python kline source-side cleanup complete. Contract-side latestTransactions
-      (pool state/service) remains for future contract deployment. No remaining
-      latestTransactions references in service/kline/src Python code.
-    read_if_working_on:
-      - service/kline query path cleanup
-      - latestTransactions removal validation
-    canonical_refs:
-      - agents/context/observability-architecture.md
-      - agents/runbooks/observability-migration.md
   - id: POS-030
     why: maker wallet 执行断点诊断
     summary: >
@@ -105,6 +57,26 @@ on_demand_done:
       - agents/tasks/board.yaml
   - id: POS-029
     why: useful only when touching maker debug API surfaces
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-046
+    why: Rust decoder crate migration and batch subprocess optimization
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-033
+    why: application registry and decoder registry design
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-034
+    why: Layer 2 normalized events family mappings and normalizer coverage
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-035
+    why: Layer 3 market-data contract and product read path cutover
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-044
+    why: latestTransactions dependency removal across all product paths
     canonical_refs:
       - agents/tasks/board.yaml
 maintenance_rules:

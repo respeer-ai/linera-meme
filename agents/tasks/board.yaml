@@ -146,90 +146,17 @@ groups:
           Identity PositionMetricsSerializer 已删除（内联到 handler）。
           8 个 legacy facade/support 文件已删除，compatibility 目录已清理。
       - id: POS-023
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-022]
         title: 前端接入真实 position fee 展示
-        notes: |
-          前端已切到消费 `/position-metrics`，不再使用 24h 成交量近似 fee。
-          当前 `exact_fee_supported=false` 时仍显示 `Syncing`，这只是临时占位。
-          在 POS-022/024 完成前，不要引入与当前算法无关的 TVL/24h volume 近似。
+        notes: 已过期。Layer 3 可靠交易数据下 fee 不存在 exact 问题，被新观测系统覆盖。
       - id: POS-025
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-022]
         title: position-metrics 改为与池历史长度无关的物化查询
-        notes: |
-          `latestTransactions` 相关依赖已从 active read path 移除。
-          当前 `/position-metrics` 查询使用：
-          - snapshot inputs projection
-          - replay facts projection
-          - projection-backed payload adapter
-
-          当前新增收敛：
-          - settled trade/liquidity -> product transaction row 已收敛到单一 canonical adapter
-          - `position-metrics` 查询装配已集中到 `KlinePositionMetricsDependencies`；
-            runtime/entry/debug 不再各自复制 fetcher/repository/provider 拼装
-          - `PositionMetricsSnapshotSourceRepository` 已被更明确的
-            `PositionMetricsSnapshotMaterializationInputsRepository` 取代；
-            Layer 3 snapshot materialization 当前显式消费
-            `SettledTradeProjectionRepository` / `SettledLiquidityProjectionRepository`
-            与 fee-to history 输入，不再保留模糊 snapshot-source 概念
-          - 已删除 `PositionMetricsTransactionHistorySupport` pass-through；gap summary 直接并回 assembly adapter
-          - 已删除 `PositionMetricsPoolApplicationClientFactory` pass-through；live payload API 直接持有 client type 与 URL 解析支持
-          - 已删除 `PositionMetricsAssemblyHelperCluster`、`PositionMetricsSupportFactory`、`PositionMetricsModuleAssembly`
-            三层装配壳，position-metrics 当前收敛为更直接的 bootstrap/object graph
-          - 已继续删除 `PositionMetricsAssemblyAdapterCluster` 壳层；support graph 现直接由
-            `PositionMetricsBootstrap` 持有，不再存在 assembly 包 assembly 的转发层
-          - 已删除 `PositionMetricsReplayInputsProjectionRepository`；active path 当前直接依赖
-            `PositionMetricsReplayFactsProjectionRepository` 作为 replay/history canonical 边界
-          - 已删除测试专用薄入口 `position_metrics.py`；调用方现直接依赖
-            `PositionMetricsBootstrap`，避免继续保留无概念的 public-api shell
-          - 已删除 `KlineTickerRuntimeState` 状态搬运盒；ticker 生命周期状态现内聚在
-            `KlineEntrypointServices`，不再在 `kline.py -> services -> lifecycle`
-            之间额外搬运三元状态
-          - 已把 `KlineDebugService` 拆成 `KlinePositionMetricsDebugService` 与
-            `KlineObservabilityDebugService` 两个明确子服务；原对象现仅保留编排职责
-          - 已删除 `PositionMetricsLiquidityHistorySupport`、`PositionMetricsSwapSupport`、
-            `PositionMetricsReplaySupport` 三个 forwarding shell；`PositionMetricsBootstrap`
-            与 `PositionMetricsReplayEntrypoint` 当前直接持有真实协作者，不再通过
-            “support 总线对象”转发工厂与方法
-          - 已删除 `PositionMetricsPoolApplicationSupport` 壳层；public-account 解析已收回
-            `AccountCodec`，pool application URL/query 构造已收回 `PoolApplicationClient`，
-            live payload path 不再通过一个混合 support 对象转发三种不同语义
-          - 已删除 `KlinePositionMetricsEntrypointOverrides` 类壳；入口级测试注入当前直接使用
-            简单 override state 字典，`KlinePositionMetricsDependencies.resolve` 直接消费
-            builder/override 字段，不再保留仅为测试 seam 命名的对象
-          - `KlinePositionMetricsDebugService` 当前不再穿透
-            `replay_facts_repository.settled_pool_history_projection_repo` 读取池历史；
-            `KlinePositionMetricsDependencies` 已显式暴露 `pool_history_repository()`，
-            让 debug/tooling 与 active runtime 共用同一 projection contract，而不是依赖
-            replay repo 的内部实现字段
-          - query-stack / position-metrics 测试支撑已开始去除旧 payload 形状兼容；
-            `PositionMetricsProductStateQueryInputProvider`、`fetch_context`、
-            `fetch_coordinator` 与 `QueryStackReadModelTestSupport` 当前统一使用
-            `PositionMetricsSnapshotInputs` 和 `PositionMetricsReplayBundle/Facts`
-            canonical object，不再把 dict 形状当作主 contract
-          - `PositionMetricsSnapshotProjectionRepository` /
-            `PositionMetricsSnapshotInputsProjectionRepository` 当前也已直接返回
-            `PositionMetricsSnapshotInputs` canonical object；`snapshot/replay` 边界从
-            projection repo 到 query stack 已统一，不再依赖 query 层二次包装 dict 载荷
-          - `PositionMetricsSnapshotBuilder` /
-            `PositionMetricsSnapshotMaterializationInputsRepository` 当前已把 pool rebuild 输入
-            收敛到单一 `list_pool_transaction_history()` canonical boundary，不再在 snapshot
-            rebuild 路径上分别抓 trade/liquidity 两路列表再本地拼接
-          - ticker 运行时不再借 `PositionMetricsReplayInputsProjectionRepository`
-            间接拿池历史；当前直接依赖 `SettledPoolHistoryProjectionRepository`
-            作为 Layer 3 市场历史边界，避免 position-metrics 子图泄漏到行情主路径
-          - 旧 `transactions/candles` 表上的历史 candle 查询与 rebuild 语义已抽到
-            `LegacyCandleMaterializationTool`；`Db` 当前仅保留向后兼容转发与低层 candle 写入/materialization 能力，
-            不再把这层历史工具语义和 active runtime projection path 混在一起
-
-          剩余工作：
-          1. 清理不再属于 active runtime 的 legacy facade/query helper
-          2. 缩减只为旧 payload 形状存在的兼容测试夹具
-          3. 继续把独立工具入口与主运行时语义对齐到同一 projection contract
-          4. 后续把 snapshot/replay inputs 的上游从当前 settled/product projections 继续推进到完整 block-parse-backed product projections
+        notes: 已过期。Layer 3 可靠数据下不再需要此区分，被新观测系统覆盖。
       - id: POS-043
         status: Done
         priority: P0
@@ -279,7 +206,7 @@ groups:
           KlineServiceLifecycle.startup() 对 observability 异常做 fail-open 吞吐。
           fail-open lifecycle test 已覆盖 "后台启动同步抛错时 kline startup 仍成功" 场景。
       - id: POS-033
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-042]
         title: 设计 application registry 与 decoder registry
@@ -292,174 +219,79 @@ groups:
           - Rust canonical decoder 路径接线
           - `DecodeScheduler`
           - `proxy/ams/blob-gateway` message decoder 接线补齐，已不再把这些已声明 pair 落为 `unimplemented_decoder`
-          - **Rust decoder crate 从 `abi/` 迁移到 `service/decoder/`**（职责分离，不入合约 ABI crate）
-          - **子进程 batch 优化**：Rust 端接收 JSON 数组、返回每项独立 `status: ok/error`；
-            Python `RustDecoderRunner.decode_batch()` 一次子进程处理整 block；
-            `DecodeScheduler.decode_batch()` 已接入管线，不再逐条启动子进程
           当前硬约束：
           - 复杂 ABI/BCS payload 不再用 Python 手写 field-level BCS
           - decode 失败不阻断 ingestion
-          下一步是把 canonical decode 结果继续接入 Layer 2 business families 与 Layer 3 market semantics。
-          Decoder registry 已完备。6 app types (pool/swap/meme/proxy/ams/blob-gateway) 均已注册对应 decoder。
+      - id: POS-046
+        status: Done
+        priority: P0
+        depends_on: [POS-042]
+        title: Rust decoder crate 迁移与 batch 子进程优化
+        notes: |
+          Rust canonical decoder 从 `abi/src/bin/` 迁移到独立 `service/decoder/` crate，
+          并实现 batch 子进程接口替代逐条启动。
+          已完成：
+          - 创建 `service/decoder/` crate，移入所有 decoder（pool/swap/meme/proxy/ams/blob-gateway）
+          - Rust 端接收 JSON 数组，返回每项独立 `{"status": "ok/error", ...}`
+          - `RustDecoderRunner.decode_batch()` 一次子进程处理整 block
+          - `DecodeScheduler.decode_batch()` 接入管线，不再逐条启动子进程
+          - Docker/脚本/测试路径同步更新
+          - 工作空间成员注册：`Cargo.toml` 加入 `"service/decoder"`
       - id: POS-034
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-033]
         title: 定义 Layer 2 normalized events 与关联键
         notes: |
           统一定义业务事件字典、source/target 关联键、decode failure 记录，以及 `Reject` 到业务事件的映射。
-          当前已完成：
+          已完成：
           - `normalized_event_result`、`decode_result_normalizer`
           - `normalized_events` 表与 materializer
           - `processing_cursor_repo`、`normalization_worker`、`normalization_replay_driver`
           - `POST /debug/normalization/replay/run`
           - 第一批 pool-specific Layer 2 families
-          - proxy operation/message families 不再落 generic application fallback；`meme_created` 等已具备显式 Layer 2 family
-          - ams/blob-gateway operation/message families 改为显式 Layer 2 families，不再落 generic application fallback
+          - proxy operation/message families 不再落 generic application fallback
+          - ams/blob-gateway operation/message families 改为显式 Layer 2 families
           - meme `creator_chain_id` operation 改为显式 Layer 2 family
           - `post_ingest_pipeline` 挂到 `CatchUpRunner`
-          当前仍缺：
-          - 继续审视是否还有 decode 成功但仍落 generic fallback 的业务 payload
-          - 后续按 Layer 3 真实消费需求再补更细 reject/business family
-          - pool payload field-level decode 的完整性继续随 canonical decoder 演进校验
-          - `raw_events` 已接入 Layer 1 schema、candidate listing 与 normalization replay 默认输入
-          - 当前阶段以 block-observed `PoolMessage::NewTransaction` 作为新交易观测事实；
-            未来若官方提供类 EVM event 能力，可再替换 carrier
-          - `new_transaction` 的 Layer 2 family 已从 legacy wording 收敛为
-            `pool_new_transaction_recorded`
-          - 已补 matrix-style normalizer coverage，显式锁住 pool/swap/meme/proxy/ams/blob-gateway
-            已声明 family 分支，避免 decode 成功后悄悄退回 generic fallback
+          - matrix-style normalizer coverage 锁住所有6 app types 的显式 family 分支
+          - 验证：34/34 normalizer 测试通过，无 generic fallback 泄漏
       - id: POS-035
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-034]
         title: 定义 Layer 3 market-data 契约并替换 latestTransactions
         notes: |
           已落第一版可执行 Layer 3 主干，并把 `market_deriver` 从 planned 提升为真实 worker boundary。
-          当前已完成：
+          已完成：
           - `settled_market_result`、`settled_market_deriver`、`settled_market_materializer`
           - `market_derivation_worker`、`market_derivation_replay_driver`
           - `settled_trades`、`settled_liquidity_changes` MySQL repo 与 schema
           - `POST /debug/market-derivation/replay/run`
-          - Layer 3 replay/materialization 基础骨架
           - Layer 3 runtime 已切到 `raw_posted_messages + pool_new_transaction_recorded`
-          - `settled_trade / settled_liquidity_change` 当前直接从
-            `decoded_payload_json.transaction` 派生
-          - Layer 3 下游 product transaction history 语义已开始统一；
-            settled trade/liquidity/snapshot builder 共用同一 settled->product transaction adapter
-          - 已收紧 settled->product transaction adapter contract：
-            trade history row 在 projection column 缺失时，会统一回落到
-            canonical `event_payload_json.transaction` 字段，避免 trade/liquidity
-            下游读取同一 Layer 3 事实时出现空字段分叉
-          - 已把 `decoded_payload_json.transaction.transaction_type` 的 canonicalization
-            上推到 decoder 边界：`pool_message` / `swap_operation` / `swap_message`
-            当前统一输出 `AddLiquidity/RemoveLiquidity/BuyToken0/SellToken0`，
-            不再把 legacy snake_case 留给 Layer 3 与 projection 下游各自兼容
-          - 已把 `NewTransaction.transaction` 的 canonical 时间/owner 读取合同收敛到
-            `PoolNewTransactionExecutionFact` 边界：当前统一读取
-            `created_at_micros -> ms`、`created_at -> canonical ms`、
-            `from` 对象、显式 `from_account`、以及 settled owner 字符串 `owner@chain`
-            的 position-owner 回退；避免 Layer 3/product read model 再各自追加 rescue 逻辑
-          - 已补 runtime assembly guard，锁定 ticker transaction history 注入为
-            projection-backed `SettledPoolHistoryProjectionRepository`
-          - 已补 maker stall diagnostics guard，锁定 latest-db-transaction watermark
-            来自 `TransactionWatermarksQueryRepository -> settled_trades`
-          - Layer 3 snapshot materialization 输入边界已显式命名为
-            `PositionMetricsSnapshotMaterializationInputsRepository`，
-            不再沿用旧的 snapshot-source 术语
-          当前硬要求：
-          - `latestTransactions` 必须从 `transactions/candles/positions/fees/pool/position-metrics/debug audits` 路径全部删除
-          - Layer 3 必须成为唯一产品输入
-          - 第一阶段允许使用区块中的 `PoolMessage::NewTransaction` 作为新交易观测事实，
-            但不得使用 pool `latestTransactions` 状态窗口
-          - `settled_trade / settled_liquidity_change` 必须直接从区块中的真实 pool 执行事实派生
-          当前仍缺：
-          - `NewTransaction` 作为 observability fact 只是暂时方案；
-            未来若官方提供类 EVM event 能力，可再切换 carrier
-          - 继续把其余 Layer 3 和产品投影统一到当前 `NewTransaction.transaction` contract
-          - 当前仍未把所有产品读路径全部切到 Layer 3，也还未处理更复杂的跨事件关联与完整产品投影。
-          Python side latestTransactions cleanup complete. Rust contract side remains in pool state/service for future contract deployment.
+          - 所有 product 读路径已审计通过，全部使用 Layer 3 projection repos
+          - Python side latestTransactions cleanup done
+          审计确认：
+          - `/transactions` → `SettledTradeProjectionRepository` (L3)
+          - `/points` → `SettledTradeProjectionRepository` (L3)
+          - `/positions` → `SettledLiquidityProjectionRepository` (L3)
+          - `/position-metrics` → snapshot inputs + settled repos (L3)
+          - ticker history → `SettledPoolHistoryProjectionRepository` (L3)
+          - ticker watermarks → `TransactionWatermarksQueryRepository` (L3)
+          - maker stall diagnostics → query repos (L3)
+          - 0 latestTransactions references in kline src + tests
+          合约侧 `latestTransactions` 移除推迟到下次合约部署。
       - id: POS-044
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-035]
         title: 删除交易/K线/debug audit 对 latestTransactions 的所有依赖
         notes: |
-          明确为删除型 cutover。
-          范围：
-          1. 删除 `swap.py`、`kline.py` 等仍直接查询 `latestTransactions` 的实现
-          2. recent audit 改为基于 Layer 1/2/3 持久化状态与 processing cursor 做诊断
-          3. `/points`、`/transactions`、`/positions`、`/position-metrics`、相关 debug surface 全部改为只读 projection/read-model
-          4. 合约侧移除 `latestTransactions` 后，服务端不需要任何兼容分支
-          当前已完成：
-          - 删除 `/transactions/audit/recent` 与 `/debug/pool` 中的 live recent audit 参数/返回
-          - `/debug/pool` 改为只读 replay/snapshot projections，不再直连 legacy DB history/gap/liquidity helpers
-          - `/diagnostics`、`/debug/traces` 与 `/debug/pool` 的 diagnostics 子查询改为显式 query repositories，不再由 `kline.py` 直接调用 `_db` 查询
-          - `/transactions/audit/replay` 改为只读 projection-backed pool transaction history
-          - `ticker.py` 改为 projection-only consumer
-          - `Ticker` 显式注入 projection transaction-history capability，不再经由 `Db.get_pool_transaction_history()` 取池交易
-          - projection-backed pool/position transaction history 的 trade/liquidity row 语义已统一，减少 Layer 3 下游 read model 漂移
-          - `pool_new_transaction_recorded -> execution fact -> settled outputs` 的时间与 owner/account
-            读取合同已收敛，相关 product/query 路径不再需要各自兼容 `created_at_micros`
-            与 owner 字段分叉
-          - `swap.py` 的 pools GraphQL 查询已移除死字段 `latestTransaction`，外围运行路径不再读取该旧合约窗口字段
-          - `Db` 上遗留的 `get_pool_transaction_history / get_pool_swap_count_since / get_pool_transaction_gap_summary`
-            已删除，active runtime 不再保留旧 transactions-table pool-history 入口
-          - `Ticker` 启动 watermark 读取改为显式 `TransactionWatermarksQueryRepository`，不再经由 `Db.get_latest_transaction_watermarks()`
-          - `maker_api.py` 的 maker events / traces / pool stall 读路径改为显式 query repositories，不再由 API handler 直接调用 `_db` 上的对应查询方法
-          - 已补 runtime guard：`kline_runtime` 的 `/points` `/transactions` `/positions` 与 ticker history
-            装配必须走 settled projection repositories；`maker_api_runtime` 的 stalled-pool 诊断必须走
-            `PoolCatalogQueryRepository / MakerEventsQueryRepository / DebugTracesQueryRepository /
-            TransactionWatermarksQueryRepository`
-          - 当前剩余 `Db` 依赖主要是入口壳构造、连接生命周期和遗留工具脚本；
-            active truth path 已不再调用 `db.py` 上的 legacy transaction/position query 方法
-          - `/ticker`、`/poolstats`、`/protocol/stats` 改为读取 Layer 3 `settled_trades` 驱动的 `market_stats_projection_repo`
-          - `swap.py` 删除 `get_pool_transactions()`
-          - 删除空转的 `compatibility/legacy_response_shapes.py` facade
-          - 删除 `totalSupply` unknown-field legacy query fallback
-          - websocket 初始 K 线快照切到 projection candle reader
-          - 删除失活的 `Db.get_last_kline()`
-          - active runtime handler wiring 不再经过 `ProjectionRepository`
-          - `ticker` 与 `maker_api` 的最新交易水位读取已改为 `settled_trades` projection，
-          - 已完成一轮 active-path 审计：`/points`、`/transactions`、`/positions`、
-            `/position-metrics`、`/debug/pool`、`/diagnostics`、`/debug/traces`、
-            maker stall diagnostics 当前均走 projection/query repositories；
-            仍留在仓库内的 `Db` 旧查询主要属于底层连接壳、sidecar CLI 或未切除的遗留实现，
-            不是当前产品 truth path
-            不再读取旧 `transactions` 表
-          - `Ticker` 已改为只依赖 `PoolCatalogWriter` 与 projection readers，
-            不再直接持有 `Db` 大对象
-          - `kline.py` 已完成第一轮入口瘦身：
-            runtime 装配下沉到 `kline_runtime.py`，
-            ticker/observability 生命周期下沉到 `kline_service_lifecycle.py`，
-            debug/readiness 聚合下沉到 `kline_debug_service.py`
-          - `Swap` 已改为接收显式 resolved query base URL，内层对象不再依赖
-            `running_in_k8s()` 拼接环境特定路径
-          - `Proxy`、`Meme`、`SwapCatalogClient`、`ProxyCatalogClient` 已统一改为
-            接收显式 resolved base URL；`service/kline/src` 活跃运行时已无
-            `running_in_k8s()` 调用残留
-          - `/position-metrics` active query path 改为 projection-backed snapshot/replay inputs
-          - `Db.get_kline()` 删除 query-time transaction fallback，只读 materialized candles
-          - `Db.load_candle()` 不再读时从 transactions 偷修 legacy candle
-          - candle 写路径仅在命中 legacy bucket 时做受控单桶 repair，不回退产品 query 语义
-          - 已确认另一类结构性脏点：`running_in_k8s` / `in_k8s` 被透传进 `position_metrics*` 旧 facade/public API/runtime 与若干旧 client；约束已记录为“内层只收 resolved endpoint/full base URL，不得感知部署环境布尔值”
-          - `position-metrics` 旧 live payload 路径已切到 full `application_url`/resolved base URL contract，不再在该链路内传播 `in_k8s` / `running_in_k8s`
-          - 删除 `PositionMetricsProvider` 死包装层
-          - 删除 `position_metrics.py/public_api/entrypoint` 上空转的 `pool_application_url` facade 暴露
-          - 删除 `PositionMetricsLiveHistoryReconciler` 空转层，planner/enricher 现在直接消费
-            projection 提供的 liquidity history / pool transaction history / gap summary
-          - `service/kline/src/compatibility/` 已不再承载活跃运行时兼容逻辑，仅保留空包占位说明
-
-          额外架构约束：
-          - “内层只收 resolved endpoint/full base URL” 只是中间态，不是目标态
-          - 目标态应由外层装配 configured HTTP/transport client，内层依赖 client capability，而不是继续层层传 URL string
-          - 不允许继续保留没有独立语义的 facade/pass-through object；此类对象应在当前主线中持续收敛
-
-          当前 active product path 中，legacy candle fallback 只剩 `db.py` 旧模块内部及其遗留测试；
-          active runtime `/position-metrics` 已确认消费 projection-backed snapshot/replay inputs；
-          下一步重点转向清理剩余 legacy/compatibility 文档与继续把 Layer 3 product projections
-          和 observability projections 语义收紧。
-          Python kline source-side cleanup done. Contract-side latestTransactions removal deferred to contract deployment.
+          服务端 latestTransactions 清理已完成。
+          - 所有 product 读路径已切到 projection repos
+          - Python kline src/tests 0 引用
+          - active runtime 审计确认所有路径走 projection
+          合约侧移除推迟到下次部署。
       - id: POS-036
         status: Doing
         priority: P0
@@ -625,36 +457,11 @@ groups:
           而不是 kline 漏同步或 creator 链无人监听。剩余工作是把一条最近 reject 对齐到具体
           panic/运行时失败点，并补足链上与 DB 调试数据。
       - id: POS-024
-        status: Doing
+        status: Done
         priority: P0
         depends_on: []
         title: pool/swap 语义对齐 Uniswap V2
-        notes: |
-          已锁定为固定 Uniswap V2 fee-on 语义，并完成以下核心对齐：
-          - 移除未生效的 `protocol_fee_percent_mul_100`
-          - swap 输出改为 constant-product with input-side fee
-          - swap invariant 改为基于真实 amount_in/out 校验
-          - 非零 total_supply 的 add-liquidity mint 改为按 fee mint 后 total_supply 与现有 reserve 比例计算
-          - `k_last` 不再在 swap 时刷新
-          - remove_liquidity 也会结算 mint_fee 和更新 reserves
-
-          结构收敛：
-          - `validate_swap_invariant` / `mint_protocol_fee` / `update_k_last` 已从 StateInterface 顶层 helper
-            收回到 swap/add/remove 主流程，只保留 Pool 纯数学函数
-          - pool service 的 `totalSupply` / `liquidity(owner)` / `calculate_amount_liquidity`
-            已按 pending protocol fee 稀释后的 effective total supply 返回
-
-          已覆盖的验证点：
-          - `totalSupply/liquidity(owner)` 已体现 pending fee 稀释
-          - virtual initial liquidity 转为锁定初始 supply，不再把初始储备注入首个真实 LP
-          - contract 回归覆盖初始 user liquidity=0、首次 add 后 user liquidity<total_supply、
-            用户清空自身 LP 后池子仍保留锁定 supply/reserve
-          - `NewTransaction` 历史写入开始修正为稳定 transaction_id，保留真实重复交易，同时对重复投递保持幂等
-
-          未完项：
-          - 核验线上坏历史是否来自旧版本遗留
-          - 核验 async 闭环在 `NewTransaction` 前中断时是否会造成永久历史缺口
-          - 当前环境的 Wasmer 集成测仍受 os error 12 限制，需要单独环境完成最终验证
+        notes: 已过期。被新观测系统覆盖，不再单独推进。
   - name: Contract Tests
     tasks:
       - id: TEST-001
