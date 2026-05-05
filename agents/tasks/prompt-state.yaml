@@ -39,7 +39,9 @@ active_focus:
   - id: POS-033
     why: app registry 与 decoder registry
     summary: >
-      Registry and canonical Rust-backed decoders are active. Keep decode boundaries explicit;
+      Registry and canonical Rust-backed decoders are active. Rust decoder crate
+      migrated from abi/ to service/decoder/ with batch subprocess interface
+      (one subprocess per block, not per item). Keep decode boundaries explicit;
       do not reintroduce Python BCS decoding for complex app payloads.
     read_if_working_on:
       - decoder wiring

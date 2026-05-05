@@ -292,6 +292,10 @@ groups:
           - Rust canonical decoder 路径接线
           - `DecodeScheduler`
           - `proxy/ams/blob-gateway` message decoder 接线补齐，已不再把这些已声明 pair 落为 `unimplemented_decoder`
+          - **Rust decoder crate 从 `abi/` 迁移到 `service/decoder/`**（职责分离，不入合约 ABI crate）
+          - **子进程 batch 优化**：Rust 端接收 JSON 数组、返回每项独立 `status: ok/error`；
+            Python `RustDecoderRunner.decode_batch()` 一次子进程处理整 block；
+            `DecodeScheduler.decode_batch()` 已接入管线，不再逐条启动子进程
           当前硬约束：
           - 复杂 ABI/BCS payload 不再用 Python 手写 field-level BCS
           - decode 失败不阻断 ingestion
