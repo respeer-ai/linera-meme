@@ -62,9 +62,9 @@ mkdir -p $WALLET_DIR
 SOURCE_DIR="${OUTPUT_DIR}/source"
 mkdir -p $SOURCE_DIR
 
-# Keep Linera source and build cache outside output/local so fresh runtime
-# restarts don't force a full clone/rebuild.
-PERSISTENT_CACHE_DIR="${ROOT_DIR}/.cache/run_local"
+# Keep Linera source and build cache under output/local so generated runtime
+# artifacts stay in one tree while fresh restarts still reuse clone/build work.
+PERSISTENT_CACHE_DIR="${OUTPUT_DIR}/cache/run_local"
 PERSISTENT_LINERA_SOURCE_DIR="${PERSISTENT_CACHE_DIR}/linera-protocol"
 mkdir -p "$PERSISTENT_CACHE_DIR"
 
