@@ -48,3 +48,23 @@ class CatchUpDriverTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['chain_count'], 2)
         self.assertEqual(result['max_blocks_per_chain'], 10)
         self.assertEqual(result['total_ingested_count'], 3)
+
+    async def test_add_chain_ids_extends_future_runs(self):
+        runner = self.FakeCatchUpRunner()
+        driver = CatchUpDriver(
+            catch_up_runner=runner,
+            chain_ids=('chain-a',),
+            max_blocks_per_chain=7,
+        )
+
+        driver.add_chain_ids(('chain-b',))
+        result = await driver.run_once()
+
+        self.assertEqual(result['chain_ids'], ['chain-a', 'chain-b'])
+        self.assertEqual(
+            runner.calls,
+            [
+                ('chain-a', 7, 'catch_up'),
+                ('chain-b', 7, 'catch_up'),
+            ],
+        )

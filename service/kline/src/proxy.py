@@ -20,6 +20,7 @@ class Proxy:
         self.host = host
         self.query_base_url = self._resolve_query_base_url(host, query_base_url)
         self.mutation_base_url = self._resolve_mutation_base_url(host, mutation_base_url)
+        self.base_url = self.query_base_url
         self.application = application_id
         self.chain = chain_id
         self.db = db

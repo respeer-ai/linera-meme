@@ -11,6 +11,8 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from candle_schema import (  # noqa: E402
+    normalize_interval_for_api,
+    normalize_interval_for_storage,
     CandleBucketKey,
     CandleState,
     CandleUpdate,
@@ -26,6 +28,14 @@ class CandleSchemaContractTest(unittest.TestCase):
         self.assertEqual(get_interval_bucket_ms('5min'), 300_000)
         self.assertEqual(get_interval_bucket_ms('10min'), 600_000)
         self.assertEqual(get_interval_bucket_ms('1h'), 3_600_000)
+        self.assertEqual(get_interval_bucket_ms('1d'), 86_400_000)
+        self.assertEqual(get_interval_bucket_ms('1w'), 604_800_000)
+
+    def test_normalizes_external_and_storage_interval_aliases(self):
+        self.assertEqual(normalize_interval_for_storage('1d'), '1D')
+        self.assertEqual(normalize_interval_for_storage('1w'), '1W')
+        self.assertEqual(normalize_interval_for_api('1D'), '1d')
+        self.assertEqual(normalize_interval_for_api('1W'), '1w')
 
     def test_builds_bucket_key_using_pool_reverse_interval_and_bucket_start(self):
         self.assertEqual(

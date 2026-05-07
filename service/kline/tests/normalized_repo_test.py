@@ -51,8 +51,11 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
 
         repository.ensure_schema()
 
-        executed_sql = connection.cursor_instances[0].executed[0][0]
-        self.assertIn('CREATE TABLE IF NOT EXISTS normalized_events', executed_sql)
+        executed_statements = [sql for sql, _params in connection.cursor_instances[0].executed]
+        self.assertIn('CREATE TABLE IF NOT EXISTS normalized_events', executed_statements[0])
+        self.assertIn('reprocess_reason VARCHAR(255) NULL', executed_statements[0])
+        self.assertIn('ALTER TABLE normalized_events', executed_statements[1])
+        self.assertIn('MODIFY COLUMN reprocess_reason VARCHAR(255) NULL', executed_statements[1])
         self.assertEqual(connection.commit_count, 1)
         self.assertTrue(connection.cursor_instances[0].closed)
 

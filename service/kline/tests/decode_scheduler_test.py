@@ -125,3 +125,51 @@ class DecodeSchedulerTest(unittest.TestCase):
                     'raw_table': 'raw_operations',
                 }
             )
+
+    def test_decode_item_preserves_chain_context_fields(self):
+        registry = ApplicationRegistry(self.FakeRepository())
+        registry.register_known_application(
+            application_id='app-ams',
+            app_type='ams',
+        )
+        decoder_registry = DecoderRegistry()
+        decoder_registry.register(
+            app_type='ams',
+            payload_kind='operation',
+            decoder=AmsOperationDecoder(),
+        )
+        scheduler = DecodeScheduler(
+            DecoderDispatcher(
+                application_registry=registry,
+                decoder_registry=decoder_registry,
+            )
+        )
+
+        decoded = scheduler.decode_item(
+            {
+                'raw_fact_id': 'raw-ctx-1',
+                'raw_table': 'raw_posted_messages',
+                'application_id': 'app-ams',
+                'payload_kind': 'operation',
+                'raw_bytes': bytes([2, 4]) + b'DeFi',
+                'source_chain_id': 'source-chain',
+                'target_chain_id': 'target-chain',
+                'source_block_hash': 'source-block',
+                'target_block_hash': 'target-block',
+                'source_cert_hash': 'cert-1',
+                'transaction_index': 11,
+                'message_index': 7,
+                'authenticated_owner': 'owner-1',
+                'execution_status': 'observed',
+            },
+        )
+
+        self.assertEqual(decoded['source_chain_id'], 'source-chain')
+        self.assertEqual(decoded['target_chain_id'], 'target-chain')
+        self.assertEqual(decoded['source_block_hash'], 'source-block')
+        self.assertEqual(decoded['target_block_hash'], 'target-block')
+        self.assertEqual(decoded['source_cert_hash'], 'cert-1')
+        self.assertEqual(decoded['transaction_index'], 11)
+        self.assertEqual(decoded['message_index'], 7)
+        self.assertEqual(decoded['authenticated_owner'], 'owner-1')
+        self.assertEqual(decoded['execution_status'], 'observed')

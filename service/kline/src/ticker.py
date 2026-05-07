@@ -1,6 +1,6 @@
 import asyncio
 
-from candle_schema import INTERVAL_BUCKET_MS, build_candle_bucket_key
+from candle_schema import INTERVAL_BUCKET_MS, build_candle_bucket_key, normalize_interval_for_api
 
 
 class Ticker:
@@ -173,18 +173,19 @@ class Ticker:
                     token_reversed=token_reversed,
                     transaction_id=transaction['transaction_id'],
                 )
-                interval_points = payload.get(interval, [])
+                api_interval = normalize_interval_for_api(interval)
+                interval_points = payload.get(api_interval, [])
                 interval_points.append({
                     'pool_id': pool.pool_id,
                     'pool_application': pool_application,
                     'token_0': token_0,
                     'token_1': token_1,
-                    'interval': interval,
+                    'interval': api_interval,
                     'start_at': range_start,
                     'end_at': bucket_key.bucket_start_ms + bucket_ms - 1,
                     'points': points,
                 })
-                payload[interval] = interval_points
+                payload[api_interval] = interval_points
                 self.last_emitted_bucket_starts[stream_key] = max(
                     int(point['bucket_start_ms'])
                     for point in points
@@ -232,18 +233,19 @@ class Ticker:
                 if len(points) == 0:
                     continue
 
-                interval_points = payload.get(interval, [])
+                api_interval = normalize_interval_for_api(interval)
+                interval_points = payload.get(api_interval, [])
                 interval_points.append({
                     'pool_id': pool.pool_id,
                     'pool_application': pool_application,
                     'token_0': token_0,
                     'token_1': token_1,
-                    'interval': interval,
+                    'interval': api_interval,
                     'start_at': range_start,
                     'end_at': range_end + bucket_ms - 1,
                     'points': points,
                 })
-                payload[interval] = interval_points
+                payload[api_interval] = interval_points
                 self.last_emitted_bucket_starts[stream_key] = max(
                     int(point['bucket_start_ms'])
                     for point in points

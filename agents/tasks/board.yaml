@@ -292,7 +292,7 @@ groups:
           - active runtime 审计确认所有路径走 projection
           合约侧移除推迟到下次部署。
       - id: POS-036
-        status: Doing
+        status: Done
         priority: P0
         depends_on: []
         title: 创建 kline phase-1 新包骨架
@@ -308,7 +308,7 @@ groups:
           - `compatibility/legacy_response_shapes.py`
           并已通过 `py_compile` 做最小导入校验。
       - id: POS-037
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-035, POS-036, POS-042]
         title: 实现 transactions 与 candles 的 phase-1 read models
@@ -334,7 +334,7 @@ groups:
           - 远端 pool GraphQL 请求细节进一步收口到 `integration/pool_application_client.py`
           执行约束：禁止补偿实现。
       - id: POS-039
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-037]
         title: 切换 points 与 transactions handlers 到新 read models
@@ -370,7 +370,7 @@ groups:
           之前规划中的 `compatibility/legacy_response_shapes.py` 未成为活跃运行时依赖，
           现已不再保留兼容层运行时代码。
       - id: OBS-E2E-001
-        status: Todo
+        status: Doing
         priority: P1
         depends_on: [POS-032, POS-035, POS-044]
         title: 端到端 observability 集成测试
@@ -389,7 +389,15 @@ groups:
           - `/transactions` 和 `/points` 返回 Layer 3 数据
           - 日志包含预期的 lifecycle 消息
 
-          实现文件：`service/kline/tests/observability_e2e_test.sh`
+          当前已落地：
+          - `service/kline/start_kline_e2e.sh` 可在本地拉起 kline，注入 decoder / MySQL / GraphQL 参数并等待 `/debug/observability` ready
+          - 为本地 E2E 启动补了 MySQL 兼容与幂等修正：
+            - `settled_trade_repo.ensure_schema()` 改为 `information_schema` 探测后按需 `ALTER`
+            - `raw_posted_messages` 重复写入改为 `INSERT IGNORE`
+
+          待完成：
+          - 实际跑通完整 L1→L2→L3 流程
+          - 补齐 shell-level 集成验证脚本/断言并沉淀最终入口
       - id: POS-045
         status: Todo
         priority: P1

@@ -3,6 +3,21 @@ from registry.decoded_transaction_payload_normalizer import DecodedTransactionPa
 
 
 class DecodeScheduler:
+    CONTEXT_KEYS = (
+        'chain_id',
+        'source_chain_id',
+        'target_chain_id',
+        'block_hash',
+        'source_block_hash',
+        'target_block_hash',
+        'source_cert_hash',
+        'transaction_index',
+        'message_index',
+        'authenticated_owner',
+        'execution_status',
+        'reject_reason',
+    )
+
     def __init__(self, decoder_dispatcher, runner=None):
         self.decoder_dispatcher = decoder_dispatcher
         self._runner = runner
@@ -22,6 +37,7 @@ class DecodeScheduler:
             'payload_kind': item['payload_kind'],
             'reprocess_reason': reprocess_reason,
             'decode_result': result.to_dict(),
+            **self._context_fields(item),
         }
 
     def decode_batch(self, items: list[dict], *, reprocess_reason: str | None = None) -> list[dict[str, object]]:
@@ -82,9 +98,17 @@ class DecodeScheduler:
                 'payload_kind': r['payload_kind'],
                 'reprocess_reason': reprocess_reason,
                 'decode_result': item_result.to_dict(),
+                **self._context_fields(r),
             })
 
         return outputs
+
+    def _context_fields(self, item: dict) -> dict[str, object]:
+        return {
+            key: item[key]
+            for key in self.CONTEXT_KEYS
+            if key in item
+        }
 
     def _build_from_rust_result(self, item: dict, raw: dict) -> DecodeDispatchResult:
         app = item['_app']

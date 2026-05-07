@@ -6,6 +6,14 @@ class CatchUpDriver:
         self.chain_ids = tuple(chain_ids)
         self.max_blocks_per_chain = int(max_blocks_per_chain)
 
+    def add_chain_ids(self, chain_ids: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+        if not chain_ids:
+            return self.chain_ids
+        merged = set(self.chain_ids)
+        merged.update(str(chain_id) for chain_id in chain_ids if str(chain_id).strip())
+        self.chain_ids = tuple(sorted(merged))
+        return self.chain_ids
+
     async def run_once(self, *, max_blocks_per_chain: int | None = None) -> dict:
         results = []
         total_ingested = 0

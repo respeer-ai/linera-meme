@@ -28,11 +28,7 @@ class LineraGraphqlNotificationListener:
     async def start(self) -> None:
         if self._tasks:
             return
-        for chain_id in self.chain_ids:
-            self._tasks[chain_id] = asyncio.create_task(
-                self._listen_chain(chain_id),
-                name=f'linera-notification-{chain_id}',
-            )
+        self._start_missing_chain_tasks(self.chain_ids)
 
     async def stop(self) -> None:
         tasks = list(self._tasks.values())
@@ -41,6 +37,15 @@ class LineraGraphqlNotificationListener:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def add_chain_ids(self, chain_ids: list[str] | tuple[str, ...]) -> tuple[str, ...]:
+        if not chain_ids:
+            return self.chain_ids
+        merged = set(self.chain_ids)
+        merged.update(str(chain_id) for chain_id in chain_ids if str(chain_id).strip())
+        self.chain_ids = tuple(sorted(merged))
+        self._start_missing_chain_tasks(self.chain_ids)
+        return self.chain_ids
 
     def _load_websocket_connect(self):
         import websockets
@@ -140,3 +145,12 @@ class LineraGraphqlNotificationListener:
           notifications(chainId: $chainId)
         }
         '''
+
+    def _start_missing_chain_tasks(self, chain_ids: tuple[str, ...]) -> None:
+        for chain_id in chain_ids:
+            if chain_id in self._tasks:
+                continue
+            self._tasks[chain_id] = asyncio.create_task(
+                self._listen_chain(chain_id),
+                name=f'linera-notification-{chain_id}',
+            )

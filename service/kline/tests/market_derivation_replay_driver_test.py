@@ -107,6 +107,27 @@ class MarketDerivationReplayDriverTest(unittest.TestCase):
         self.assertEqual(result['derived_output_count'], 1)
         self.assertTrue(result['caught_up'])
 
+    def test_run_once_uses_explicit_after_sequence_without_loading_cursor(self):
+        repository = self.FakeNormalizedEventRepository()
+        repository.items_by_table['raw_posted_messages'] = [
+            {'normalized_event_id': 'event-302', 'raw_fact_id': '302'},
+        ]
+        cursor_repository = self.FakeProcessingCursorRepository({'last_sequence': '999'})
+        driver = MarketDerivationReplayDriver(
+            normalized_event_repository=repository,
+            processing_cursor_repository=cursor_repository,
+            market_derivation_worker=self.FakeMarketDerivationWorker(),
+        )
+
+        result = driver.run_once(
+            raw_table='raw_posted_messages',
+            after_sequence=301,
+        )
+
+        self.assertEqual(repository.calls[0], ('raw_posted_messages', 301, 100))
+        self.assertIsNone(result['cursor'])
+        self.assertEqual(cursor_repository.calls, [])
+
     def test_run_all_until_caught_up_drains_all_configured_tables(self):
         class SequencedRepository(self.FakeNormalizedEventRepository):
             def __init__(self):

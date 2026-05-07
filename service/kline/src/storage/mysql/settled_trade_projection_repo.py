@@ -17,6 +17,12 @@ class SettledTradeProjectionRepository:
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
         self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
 
+    def _pool_join_condition(self, alias: str) -> str:
+        return (
+            f"(p.pool_application = CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id) "
+            f"OR p.pool_application = CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id))"
+        )
+
     def get_transactions(
         self,
         *,
@@ -250,7 +256,7 @@ class SettledTradeProjectionRepository:
                     st.event_payload_json
                 FROM settled_trades st
                 JOIN {self.db.pools_table} p
-                  ON p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                  ON {self._pool_join_condition('st')}
                 {where_sql}
                 ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
                 ''',
@@ -387,7 +393,7 @@ class SettledTradeProjectionRepository:
                     st.event_payload_json
                 FROM settled_trades st
                 JOIN {self.db.pools_table} p
-                  ON p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                  ON {self._pool_join_condition('st')}
                 WHERE p.pool_application = %s
                   AND st.trade_time_ms < %s
                 ORDER BY st.trade_time_ms DESC, st.transaction_id DESC, st.settled_trade_id DESC

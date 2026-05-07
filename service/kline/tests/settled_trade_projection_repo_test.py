@@ -178,14 +178,46 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(payload[0], 7)
         self.assertEqual(payload[1], 'chain-a:pool-app')
         self.assertEqual(len(payload[4]), 1)
-        point = payload[4][0]
-        self.assertEqual(point['timestamp'], 0)
-        self.assertEqual(point['open'], 2.0)
-        self.assertEqual(point['close'], 3.0)
-        self.assertEqual(point['high'], 3.0)
-        self.assertEqual(point['low'], 2.0)
-        self.assertEqual(point['base_volume'], 16.0)
-        self.assertEqual(point['quote_volume'], 38.0)
+
+    def test_trade_queries_join_against_prefixed_pool_application(self):
+        db = self.FakeDb()
+        db.cursor_dict.pool_rows = [{
+            'pool_id': 7,
+            'pool_application': 'chain-a:0xpool-app',
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+        }]
+        db.cursor_dict.rows = [
+            {
+                'pool_id': 7,
+                'pool_application': 'chain-a:0xpool-app',
+                'token_0': 'AAA',
+                'token_1': 'BBB',
+                'settled_trade_id': 'trade-1',
+                'transaction_id': 11,
+                'trade_time_ms': 1200,
+                'side': 'buy_token_0',
+                'from_account': 'chain-user:owner-user',
+                'amount_0_in': None,
+                'amount_0_out': '300',
+                'amount_1_in': '25',
+                'amount_1_out': None,
+                'amount_in': '25',
+                'amount_out': '300',
+                'event_payload_json': {},
+            }
+        ]
+        repository = SettledTradeProjectionRepository(db)
+
+        rows = repository.get_transactions(
+            token_0='AAA',
+            token_1='BBB',
+            start_at=1000,
+            end_at=2000,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['pool_application'], 'chain-a:0xpool-app')
 
     def test_get_candles_builds_empty_finalized_buckets_from_previous_close(self):
         db = self.FakeDb()

@@ -35,6 +35,11 @@ class ObservabilityRuntime:
         await self.lifecycle.shutdown(self.container)
         self.container = None
 
+    async def refresh(self) -> dict[str, dict[str, object]]:
+        if self.container is None:
+            return await self.start()
+        return await self._run_refresh_stages(self.container)
+
     def is_started(self) -> bool:
         return self.container is not None
 
@@ -99,6 +104,7 @@ class ObservabilityRuntime:
         *,
         raw_table: str | None,
         batch_limit: int | None,
+        after_sequence: int | None,
         max_batches: int | None,
         reprocess_reason: str | None,
     ) -> dict[str, object]:
@@ -114,6 +120,7 @@ class ObservabilityRuntime:
                 'result': replay_driver.run_until_caught_up(
                     raw_table=raw_table,
                     batch_limit=effective_batch_limit,
+                    after_sequence=after_sequence,
                     max_batches=max_batches,
                     reprocess_reason=reprocess_reason,
                 ),
@@ -133,6 +140,7 @@ class ObservabilityRuntime:
         *,
         raw_table: str | None,
         batch_limit: int | None,
+        after_sequence: int | None,
         max_batches: int | None,
         reprocess_reason: str | None,
     ) -> dict[str, object]:
@@ -148,6 +156,7 @@ class ObservabilityRuntime:
                 'result': replay_driver.run_until_caught_up(
                     raw_table=raw_table,
                     batch_limit=effective_batch_limit,
+                    after_sequence=after_sequence,
                     max_batches=max_batches,
                     reprocess_reason=reprocess_reason,
                 ),
@@ -199,6 +208,11 @@ class ObservabilityRuntime:
         )
         return results
 
+    async def _run_refresh_stages(self, container: dict[str, object]) -> dict[str, dict[str, object]]:
+        results = {}
+        results['registry'] = await self._run_registry_stage(container)
+        return results
+
     async def _run_registry_stage(self, container: dict[str, object]) -> dict[str, object]:
         seed_result = self._run_sync_stage(self.lifecycle.seed_registry, container)
         if seed_result['status'] == 'degraded':
@@ -206,6 +220,9 @@ class ObservabilityRuntime:
         discovery_result = await self._run_async_stage(self.lifecycle.discover_registry, container)
         if discovery_result['status'] == 'degraded':
             return discovery_result
+        sync_result = await self._run_sync_or_async_stage(self.lifecycle.sync_discovered_chain_ids, container)
+        if sync_result['status'] == 'degraded':
+            return sync_result
         return {'status': 'ready', 'error': None}
 
     def _run_sync_stage(self, operation, container: dict[str, object]) -> dict[str, object]:
@@ -218,6 +235,15 @@ class ObservabilityRuntime:
     async def _run_async_stage(self, operation, container: dict[str, object]) -> dict[str, object]:
         try:
             await operation(container)
+        except Exception as error:
+            return {'status': 'degraded', 'error': str(error)}
+        return {'status': 'ready', 'error': None}
+
+    async def _run_sync_or_async_stage(self, operation, container: dict[str, object]) -> dict[str, object]:
+        try:
+            result = operation(container)
+            if hasattr(result, '__await__'):
+                await result
         except Exception as error:
             return {'status': 'degraded', 'error': str(error)}
         return {'status': 'ready', 'error': None}

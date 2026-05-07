@@ -42,6 +42,33 @@ class AppLifecycle:
         if application_discovery_service is not None and hasattr(application_discovery_service, 'discover_all'):
             await application_discovery_service.discover_all()
 
+    def sync_discovered_chain_ids(self, container: dict[str, object]) -> tuple[str, ...]:
+        application_registry = container.get('application_registry')
+        if application_registry is None or not hasattr(application_registry, 'list_known_applications'):
+            return ()
+
+        discovered_chain_ids = []
+        for app_type in ('pool', 'meme'):
+            applications = application_registry.list_known_applications(app_type=app_type, limit=1000)
+            for application in applications:
+                chain_id = application.get('chain_id')
+                if chain_id is not None and str(chain_id).strip():
+                    discovered_chain_ids.append(str(chain_id))
+
+        if not discovered_chain_ids:
+            return ()
+
+        normalized_chain_ids = tuple(sorted(set(discovered_chain_ids)))
+        for key in ('chain_event_processor', 'catch_up_driver'):
+            component = container.get(key)
+            if component is not None and hasattr(component, 'add_chain_ids'):
+                component.add_chain_ids(normalized_chain_ids)
+
+        notification_listener = container.get('notification_listener')
+        if notification_listener is not None and hasattr(notification_listener, 'add_chain_ids'):
+            return normalized_chain_ids
+        return normalized_chain_ids
+
     async def run_startup_catch_up(self, container: dict[str, object]) -> None:
         config = container.get('config')
         catch_up_driver = container.get('catch_up_driver')

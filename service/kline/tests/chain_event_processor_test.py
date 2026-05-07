@@ -34,6 +34,15 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
                 'mode': mode,
             }
 
+    class FakeRegistryRefresh:
+        def __init__(self, result=None):
+            self.calls = 0
+            self.result = result
+
+        async def __call__(self):
+            self.calls += 1
+            return self.result
+
     async def test_on_chain_notification_triggers_bounded_catch_up(self):
         runner = self.FakeCatchUpRunner()
         processor = ChainEventProcessor(
@@ -47,6 +56,7 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runner.calls, [('chain-a', 20, 'catch_up')])
         self.assertEqual(result['trigger'], 'notification')
         self.assertTrue(result['accepted'])
+        self.assertIsNone(result['registry_refresh'])
         self.assertEqual(result['result']['chain_id'], 'chain-a')
         self.assertEqual(result['result']['ingested_count'], 1)
         self.assertEqual(result['result']['batch_count'], 1)
@@ -64,6 +74,7 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runner.calls, [])
         self.assertFalse(result['accepted'])
         self.assertEqual(result['reason'], 'chain_not_configured')
+        self.assertIsNone(result['registry_refresh'])
 
     async def test_on_subscription_reconnect_triggers_bounded_catch_up(self):
         runner = self.FakeCatchUpRunner()
@@ -78,6 +89,7 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runner.calls, [('chain-a', 12, 'catch_up')])
         self.assertEqual(result['trigger'], 'reconnect_reconcile')
         self.assertTrue(result['accepted'])
+        self.assertIsNone(result['registry_refresh'])
         self.assertEqual(result['result']['batch_count'], 1)
 
     async def test_on_chain_notification_continues_until_caught_up(self):
@@ -143,3 +155,40 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runner.calls, [('chain-a', 5, 'catch_up'), ('chain-a', 5, 'catch_up')])
         self.assertEqual(first_result['result']['batch_count'], 1)
         self.assertEqual(second_result['result']['batch_count'], 1)
+
+    async def test_add_chain_ids_allows_new_chain_notifications(self):
+        runner = self.FakeCatchUpRunner()
+        processor = ChainEventProcessor(
+            catch_up_runner=runner,
+            max_blocks_per_chain=9,
+            allowed_chain_ids=('chain-a',),
+        )
+
+        processor.add_chain_ids(('chain-b',))
+        result = await processor.on_chain_notification('chain-b')
+
+        self.assertTrue(result['accepted'])
+        self.assertEqual(runner.calls, [('chain-b', 9, 'catch_up')])
+
+    async def test_notification_refreshes_registry_before_allowed_check(self):
+        runner = self.FakeCatchUpRunner()
+        refresh = self.FakeRegistryRefresh(result=('chain-b',))
+        processor = ChainEventProcessor(
+            catch_up_runner=runner,
+            max_blocks_per_chain=9,
+            allowed_chain_ids=('chain-a',),
+            registry_refresh=refresh,
+        )
+
+        async def refresh_and_enroll():
+            await refresh()
+            processor.add_chain_ids(('chain-b',))
+            return ('chain-b',)
+
+        processor.registry_refresh = refresh_and_enroll
+        result = await processor.on_chain_notification('chain-b')
+
+        self.assertEqual(refresh.calls, 1)
+        self.assertTrue(result['accepted'])
+        self.assertEqual(result['registry_refresh'], ('chain-b',))
+        self.assertEqual(runner.calls, [('chain-b', 9, 'catch_up')])

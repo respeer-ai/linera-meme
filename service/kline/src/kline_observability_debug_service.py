@@ -21,6 +21,7 @@ class KlineObservabilityDebugService:
         *,
         raw_table: str | None,
         batch_limit: int | None,
+        after_sequence: int | None,
         max_batches: int | None,
         reprocess_reason: str | None,
     ):
@@ -39,6 +40,7 @@ class KlineObservabilityDebugService:
         return await self._observability_facade.run_normalization_replay(
             raw_table=raw_table,
             batch_limit=batch_limit,
+            after_sequence=after_sequence,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )
@@ -48,6 +50,7 @@ class KlineObservabilityDebugService:
         *,
         raw_table: str | None,
         batch_limit: int | None,
+        after_sequence: int | None,
         max_batches: int | None,
         reprocess_reason: str | None,
     ):
@@ -62,6 +65,7 @@ class KlineObservabilityDebugService:
         return await self._observability_facade.run_market_derivation_replay(
             raw_table=raw_table,
             batch_limit=batch_limit,
+            after_sequence=after_sequence,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )

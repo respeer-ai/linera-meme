@@ -2,13 +2,19 @@ class TransactionWatermarksQueryRepository:
     def __init__(self, db):
         self.db = db
 
+    def _normalized_pool_application_expr(self, alias: str) -> str:
+        return f"CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id)"
+
+    def _prefixed_pool_application_expr(self, alias: str) -> str:
+        return f"CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id)"
+
     def get_latest_transaction_watermarks(self) -> dict:
         self.db.ensure_fresh_read_connection()
         self.db.cursor_dict.execute(
             '''
                 SELECT
                     p.pool_id,
-                    CONCAT(st.pool_chain_id, ':', st.pool_application_id) AS pool_application,
+                    p.pool_application AS pool_application,
                     st.trade_time_ms AS created_at,
                     st.transaction_id,
                     CASE
@@ -17,15 +23,20 @@ class TransactionWatermarksQueryRepository:
                     END AS token_reversed
                 FROM settled_trades st
                 JOIN pools p
-                  ON p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                  ON (
+                    p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                    OR p.pool_application = CONCAT(st.pool_chain_id, ':0x', st.pool_application_id)
+                  )
                 JOIN (
                     SELECT
-                        CONCAT(pool_chain_id, ':', pool_application_id) AS pool_application,
+                        pool_chain_id,
+                        pool_application_id,
                         MAX(trade_time_ms) AS max_created_at
                     FROM settled_trades
-                    GROUP BY CONCAT(pool_chain_id, ':', pool_application_id)
+                    GROUP BY pool_chain_id, pool_application_id
                 ) latest
-                  ON latest.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                  ON latest.pool_chain_id = st.pool_chain_id
+                 AND latest.pool_application_id = st.pool_application_id
                  AND latest.max_created_at = st.trade_time_ms
                 ORDER BY
                     p.pool_id ASC,

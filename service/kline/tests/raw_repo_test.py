@@ -153,7 +153,7 @@ class RawRepositoryTest(unittest.TestCase):
         write_cursor = connection.cursor_instances[-1]
         executed_sql = '\n'.join(sql for sql, _params in write_cursor.executed)
         self.assertIn('INSERT INTO raw_incoming_bundles', executed_sql)
-        self.assertIn('INSERT INTO raw_posted_messages', executed_sql)
+        self.assertIn('INSERT IGNORE INTO raw_posted_messages', executed_sql)
         self.assertIn('INSERT INTO raw_operations', executed_sql)
         self.assertIn('INSERT INTO raw_outgoing_messages', executed_sql)
         self.assertIn('INSERT INTO raw_events', executed_sql)
@@ -163,6 +163,42 @@ class RawRepositoryTest(unittest.TestCase):
         self.assertIn('"oracle_response_count":1', str(write_cursor.executed[-1][1]))
         self.assertEqual(result['ingest_status'], 'ingested')
         self.assertEqual(connection.started_transactions, 1)
+
+    def test_ingest_block_uses_insert_ignore_for_posted_messages(self):
+        connection = FakeConnection()
+        repository = RawRepository(connection)
+
+        repository.ingest_block({
+            'chain_id': 'chain-a',
+            'height': 7,
+            'block_hash': 'hash-7',
+            'timestamp_ms': 123456,
+            'incoming_bundles': [
+                {
+                    'origin_chain_id': 'chain-b',
+                    'source_cert_hash': 'cert-1',
+                    'posted_messages': [
+                        {
+                            'message_index': 0,
+                            'message_kind': 'Tracked',
+                            'message_type': 'User',
+                            'raw_message_bytes': b'hello',
+                        },
+                    ],
+                },
+            ],
+            'operations': [],
+            'outgoing_messages': [],
+            'events': [],
+            'oracle_responses': [],
+        })
+
+        posted_message_sql = next(
+            sql
+            for sql, _params in connection.cursor_instances[-1].executed
+            if 'raw_posted_messages' in sql
+        )
+        self.assertIn('INSERT IGNORE INTO raw_posted_messages', posted_message_sql)
 
     def test_ingest_block_uses_canonical_bytes_when_raw_block_bytes_missing(self):
         connection = FakeConnection()

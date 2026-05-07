@@ -1165,7 +1165,7 @@ class RawRepository:
                     continue
                 write_cursor.execute(
                     f'''
-                    INSERT INTO {self.raw_posted_messages_table}
+                    INSERT IGNORE INTO {self.raw_posted_messages_table}
                     (
                         bundle_id,
                         origin_chain_id,

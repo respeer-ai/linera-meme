@@ -7,6 +7,16 @@ class SettledTradeRepository:
         self.fingerprint = CanonicalFingerprint()
         self.settled_trades_table = 'settled_trades'
 
+    def _column_exists(self, cursor, column_name: str) -> bool:
+        cursor.execute(
+            f'''
+            SELECT COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+            ''',
+            (self.settled_trades_table, column_name),
+        )
+        return cursor.fetchone() is not None
+
     def ensure_schema(self) -> None:
         cursor = self.connection.cursor()
         try:
@@ -42,41 +52,51 @@ class SettledTradeRepository:
                 )
                 '''
             )
-            cursor.execute(
-                f'''
-                ALTER TABLE {self.settled_trades_table}
-                ADD COLUMN IF NOT EXISTS from_account VARCHAR(255) NULL
-                AFTER pool_chain_id
-                '''
-            )
-            cursor.execute(
-                f'''
-                ALTER TABLE {self.settled_trades_table}
-                ADD COLUMN IF NOT EXISTS amount_0_in VARCHAR(64) NULL
-                AFTER side
-                '''
-            )
-            cursor.execute(
-                f'''
-                ALTER TABLE {self.settled_trades_table}
-                ADD COLUMN IF NOT EXISTS amount_0_out VARCHAR(64) NULL
-                AFTER amount_0_in
-                '''
-            )
-            cursor.execute(
-                f'''
-                ALTER TABLE {self.settled_trades_table}
-                ADD COLUMN IF NOT EXISTS amount_1_in VARCHAR(64) NULL
-                AFTER amount_0_out
-                '''
-            )
-            cursor.execute(
-                f'''
-                ALTER TABLE {self.settled_trades_table}
-                ADD COLUMN IF NOT EXISTS amount_1_out VARCHAR(64) NULL
-                AFTER amount_1_in
-                '''
-            )
+            from_account_exists = self._column_exists(cursor, 'from_account')
+            if not from_account_exists:
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_trades_table}
+                    ADD COLUMN from_account VARCHAR(255) NULL
+                    AFTER pool_chain_id
+                    '''
+                )
+            amount_0_in_exists = self._column_exists(cursor, 'amount_0_in')
+            if not amount_0_in_exists:
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_trades_table}
+                    ADD COLUMN amount_0_in VARCHAR(64) NULL
+                    AFTER side
+                    '''
+                )
+            amount_0_out_exists = self._column_exists(cursor, 'amount_0_out')
+            if not amount_0_out_exists:
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_trades_table}
+                    ADD COLUMN amount_0_out VARCHAR(64) NULL
+                    AFTER amount_0_in
+                    '''
+                )
+            amount_1_in_exists = self._column_exists(cursor, 'amount_1_in')
+            if not amount_1_in_exists:
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_trades_table}
+                    ADD COLUMN amount_1_in VARCHAR(64) NULL
+                    AFTER amount_0_out
+                    '''
+                )
+            amount_1_out_exists = self._column_exists(cursor, 'amount_1_out')
+            if not amount_1_out_exists:
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_trades_table}
+                    ADD COLUMN amount_1_out VARCHAR(64) NULL
+                    AFTER amount_1_in
+                    '''
+                )
             self.connection.commit()
         finally:
             cursor.close()

@@ -47,7 +47,9 @@ class ApplicationRegistry:
         return seeded
 
     def resolve(self, application_id: str) -> dict | None:
-        return self.repository.get_application(application_id)
+        return self.repository.get_application(
+            self._normalize_application_id(application_id)
+        )
 
     def list_known_applications(
         self,
@@ -103,7 +105,7 @@ class ApplicationRegistry:
         self._validate_discovered_from(discovered_from)
         self._validate_status(status)
         return self._register(
-            application_id=str(application_id),
+            application_id=self._normalize_application_id(application_id),
             app_type=str(app_type),
             chain_id=chain_id,
             creator_chain_id=creator_chain_id,
@@ -122,6 +124,14 @@ class ApplicationRegistry:
     def _validate_application_id(self, application_id: str) -> None:
         if not str(application_id).strip():
             raise ValueError('application_id must be non-empty')
+
+    def _normalize_application_id(self, application_id: str) -> str:
+        value = str(application_id).strip()
+        if value.startswith('0x') or value.startswith('0X'):
+            trimmed = value[2:]
+            if trimmed:
+                return trimmed
+        return value
 
     def _validate_app_type(self, app_type: str) -> None:
         if not str(app_type).strip():

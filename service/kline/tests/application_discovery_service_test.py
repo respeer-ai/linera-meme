@@ -117,6 +117,32 @@ class ApplicationDiscoveryServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(discovered, [])
 
+    async def test_discover_all_normalizes_prefixed_pool_owner_ids(self):
+        registry = ApplicationRegistry(self.FakeRepository())
+        service = ApplicationDiscoveryService(
+            application_registry=registry,
+            swap_catalog_client=self.FakeSwapCatalogClient(
+                [
+                    {
+                        'poolId': 8,
+                        'token0': 'token-a',
+                        'token1': None,
+                        'poolApplication': {
+                            'chain_id': 'chain-pool',
+                            'owner': '0xabc123',
+                        },
+                    },
+                ]
+            ),
+            swap_application_id='app-swap',
+        )
+
+        discovered = await service.discover_all()
+
+        self.assertEqual(discovered[0]['application_id'], 'abc123')
+        self.assertIsNotNone(registry.resolve('abc123'))
+        self.assertIsNotNone(registry.resolve('0xabc123'))
+
     async def test_discover_all_registers_meme_applications_from_proxy_catalog(self):
         registry = ApplicationRegistry(self.FakeRepository())
         service = ApplicationDiscoveryService(

@@ -170,6 +170,8 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
         }, self.candle_reader.calls)
         self.assertEqual(websocket.sent[0]['notification'], 'kline')
         self.assertIn('1min', websocket.sent[0]['value'])
+        self.assertIn('1d', websocket.sent[0]['value'])
+        self.assertIn('1w', websocket.sent[0]['value'])
         self.assertIn('1ME', websocket.sent[0]['value'])
 
     async def test_notify_kline_filters_incremental_payload_for_subscribed_connection(self):

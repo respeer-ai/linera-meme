@@ -24,6 +24,10 @@ class AccountCodec:
         return f'{chain_id}:{owner}'
 
     def settled_owner_from_public_account(self, owner: str) -> str:
+        if '@' in owner:
+            return owner
+        if ':' not in owner:
+            return owner
         chain_id, owner_id = owner.split(':', 1)
         return f'{owner_id}@{chain_id}'
 

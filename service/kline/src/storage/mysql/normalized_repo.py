@@ -8,6 +8,7 @@ class NormalizedEventRepository:
     MARKET_DERIVATION_EVENT_FAMILIES = (
         'pool_new_transaction_recorded',
     )
+    REPROCESS_REASON_COLUMN_LENGTH = 255
 
     def __init__(self, connection):
         self.connection = connection
@@ -40,7 +41,7 @@ class NormalizedEventRepository:
                     payload_type VARCHAR(128) NULL,
                     decode_status VARCHAR(32) NULL,
                     event_payload_json LONGTEXT NOT NULL,
-                    reprocess_reason VARCHAR(64) NULL,
+                    reprocess_reason VARCHAR({self.REPROCESS_REASON_COLUMN_LENGTH}) NULL,
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
                     PRIMARY KEY (normalized_event_id),
@@ -49,6 +50,12 @@ class NormalizedEventRepository:
                     KEY idx_normalized_events_source_cert (source_cert_hash, transaction_index, message_index),
                     KEY idx_normalized_events_target_chain (target_chain_id, normalization_status)
                 )
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.normalized_events_table}
+                MODIFY COLUMN reprocess_reason VARCHAR({self.REPROCESS_REASON_COLUMN_LENGTH}) NULL
                 '''
             )
             self.connection.commit()

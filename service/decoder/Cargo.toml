@@ -10,3 +10,6 @@ serde_json.workspace = true
 anyhow.workspace = true
 bcs.workspace = true
 abi.workspace = true
+linera-base = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "e53042bf" }
+linera-core = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "e53042bf" }
+linera-chain = { git = "https://github.com/respeer-ai/linera-protocol.git", rev = "e53042bf" }

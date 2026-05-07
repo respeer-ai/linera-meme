@@ -6,6 +6,12 @@ class MarketStatsProjectionRepository:
     def __init__(self, db):
         self.db = db
 
+    def _pool_join_condition(self, alias: str) -> str:
+        return (
+            f"(p.pool_application = CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id) "
+            f"OR p.pool_application = CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id))"
+        )
+
     def get_ticker(self, *, interval: str) -> list[dict]:
         start_at, end_at = self._interval_bounds(interval)
         trades = self._load_settled_trade_rows(
@@ -229,7 +235,7 @@ class MarketStatsProjectionRepository:
                     st.amount_out
                 FROM settled_trades st
                 JOIN {self.db.pools_table} p
-                  ON p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                  ON {self._pool_join_condition('st')}
                 {where_sql}
                 ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
             ''',

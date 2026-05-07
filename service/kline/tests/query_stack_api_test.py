@@ -95,6 +95,42 @@ class QueryStackApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(('get_information', {'token_0': 'AAA', 'token_1': 'BBB'}), handler.calls)
         self.assertIn(('get_transactions', {'token_0': None, 'token_1': None, 'start_at': 10, 'end_at': 20}), handler.calls)
 
+    async def test_on_get_kline_information_accepts_frontend_daily_interval(self):
+        class FakeHandler:
+            def __init__(self):
+                self.calls = []
+
+            def get_information(self, **kwargs):
+                self.calls.append(dict(kwargs))
+                return {'count': 2, 'timestamp_begin': 200, 'timestamp_end': 100}
+
+        handler = FakeHandler()
+        original_builder = kline_module._build_kline_handler
+        kline_module._build_kline_handler = lambda: handler
+
+        try:
+            response = await kline_module.on_get_kline_information(
+                token0='AAA',
+                token1='BBB',
+                interval='1d',
+                pool_id=7,
+                pool_application='chain:pool-app',
+            )
+        finally:
+            kline_module._build_kline_handler = original_builder
+
+        self.assertEqual(response, {'count': 2, 'timestamp_begin': 200, 'timestamp_end': 100})
+        self.assertEqual(
+            handler.calls,
+            [{
+                'token_0': 'AAA',
+                'token_1': 'BBB',
+                'interval': '1d',
+                'pool_id': 7,
+                'pool_application': 'chain:pool-app',
+            }],
+        )
+
     async def test_on_get_positions_uses_phase1_handler_stack(self):
         class FakeHandler:
             def __init__(self):

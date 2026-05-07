@@ -8,4 +8,5 @@ class MysqlConnectionFactory:
             database=config.database_name,
             user=config.database_username,
             password=config.database_password,
+            autocommit=True,
         )

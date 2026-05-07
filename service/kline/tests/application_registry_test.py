@@ -104,6 +104,26 @@ class ApplicationRegistryTest(unittest.TestCase):
             },
         )
 
+    def test_register_known_application_normalizes_hex_prefix_for_storage_and_lookup(self):
+        repository = self.FakeRepository()
+        registry = ApplicationRegistry(repository)
+
+        registry.register_known_application(
+            application_id='0xa63e77f3ba1b6f7d557a166d1b9dd1d6cec86f19f9aee896bcb327b3cc7f5d42',
+            app_type='pool',
+            chain_id='chain-pool',
+            discovered_from='manual',
+        )
+
+        self.assertIn(
+            'a63e77f3ba1b6f7d557a166d1b9dd1d6cec86f19f9aee896bcb327b3cc7f5d42',
+            repository.entries,
+        )
+        self.assertEqual(
+            registry.resolve('0xa63e77f3ba1b6f7d557a166d1b9dd1d6cec86f19f9aee896bcb327b3cc7f5d42'),
+            registry.resolve('a63e77f3ba1b6f7d557a166d1b9dd1d6cec86f19f9aee896bcb327b3cc7f5d42'),
+        )
+
     def test_list_known_applications_can_filter_by_app_type(self):
         repository = self.FakeRepository()
         registry = ApplicationRegistry(repository)

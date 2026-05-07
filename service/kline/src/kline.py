@@ -484,6 +484,7 @@ async def on_post_debug_catch_up_run(
 async def on_post_debug_normalization_replay_run(
     raw_table: str | None = Query(default=None),
     batch_limit: int | None = Query(default=None),
+    after_sequence: int | None = Query(default=None),
     max_batches: int | None = Query(default=None),
     reprocess_reason: str | None = Query(default=None),
 ):
@@ -491,6 +492,7 @@ async def on_post_debug_normalization_replay_run(
         return await _debug_service().run_normalization_replay(
             raw_table=raw_table,
             batch_limit=batch_limit,
+            after_sequence=after_sequence,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )
@@ -511,6 +513,7 @@ async def on_post_debug_normalization_replay_run(
 async def on_post_debug_market_derivation_replay_run(
     raw_table: str | None = Query(default=None),
     batch_limit: int | None = Query(default=None),
+    after_sequence: int | None = Query(default=None),
     max_batches: int | None = Query(default=None),
     reprocess_reason: str | None = Query(default=None),
 ):
@@ -518,6 +521,7 @@ async def on_post_debug_market_derivation_replay_run(
         return await _debug_service().run_market_derivation_replay(
             raw_table=raw_table,
             batch_limit=batch_limit,
+            after_sequence=after_sequence,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )

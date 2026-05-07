@@ -27,11 +27,22 @@ active_focus:
   - id: OBS-E2E-001
     why: 端到端 observability 集成测试
     summary: >
-      Shell-level integration test validating L1→L2→L3 pipeline end-to-end.
-      References scripts/run_local.sh for environment setup.
+      Local E2E bring-up is now in progress, including a dedicated
+      `service/kline/start_kline_e2e.sh` startup path plus MySQL compatibility fixes
+      for schema bootstrap and duplicate posted-message ingest.
     read_if_working_on:
       - E2E verification
       - integration testing
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-038
+    why: positions 的 phase-1 read model 仍在收尾
+    summary: >
+      `/positions` has already cut over to the new query stack, but the task note still
+      tracks continuing position-metrics projection/replay boundary cleanup.
+    read_if_working_on:
+      - positions read model
+      - position-metrics projection cleanup
     canonical_refs:
       - agents/tasks/board.yaml
   - id: POS-030

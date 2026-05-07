@@ -150,6 +150,40 @@ class LineraGraphqlNotificationListenerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sleep_calls, [1.0])
         self.assertEqual(len(connector.calls), 2)
 
+    async def test_add_chain_ids_starts_new_subscription_without_restart(self):
+        processor = self.FakeChainEventProcessor()
+        chain_a_socket = self.FakeWebSocket([{'type': 'connection_ack'}])
+        chain_b_socket = self.FakeWebSocket(
+            [
+                {'type': 'connection_ack'},
+                {
+                    'id': 'chain-b',
+                    'type': 'next',
+                    'payload': {'data': {'notifications': {'chain_id': 'chain-b'}}},
+                },
+            ]
+        )
+        connector = self.FakeConnector([chain_a_socket, chain_b_socket])
+        listener = LineraGraphqlNotificationListener(
+            graphql_url='https://linera.example',
+            chain_ids=('chain-a',),
+            chain_event_processor=processor,
+            websocket_connect=connector,
+        )
+
+        await listener.start()
+        await listener.add_chain_ids(('chain-b',))
+        await self._wait_for(lambda: processor.notifications == ['chain-b'])
+        await listener.stop()
+
+        subscribed_chain_ids = [
+            message['payload']['variables']['chainId']
+            for socket in (chain_a_socket, chain_b_socket)
+            for message in socket.sent_messages
+            if message.get('type') == 'subscribe'
+        ]
+        self.assertEqual(sorted(subscribed_chain_ids), ['chain-a', 'chain-b'])
+
     async def _wait_for(self, predicate, timeout: float = 1.0):
         deadline = asyncio.get_running_loop().time() + timeout
         while asyncio.get_running_loop().time() < deadline:

@@ -896,6 +896,36 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result['recovered'])
         self.assertEqual(result['status']['state'], 'ready')
 
+    async def test_observability_facade_recover_refreshes_started_runtime(self):
+        class RefreshableRuntime:
+            def __init__(self):
+                self.started = True
+                self.refresh_calls = 0
+
+            def is_started(self):
+                return self.started
+
+            async def start(self):
+                self.started = True
+                return {}
+
+            async def refresh(self):
+                self.refresh_calls += 1
+                return {'registry': {'status': 'ready', 'error': None}}
+
+            async def shutdown(self):
+                self.started = False
+
+        runtime = RefreshableRuntime()
+        supervisor = ObservabilitySupervisor(runtime)
+        facade = ObservabilityFacade(supervisor)
+
+        result = await facade.recover()
+
+        self.assertTrue(result['recovered'])
+        self.assertEqual(runtime.refresh_calls, 1)
+        self.assertEqual(result['status']['state'], 'ready')
+
     async def test_observability_facade_can_run_normalization_replay(self):
         class ReplayRuntime:
             def __init__(self):

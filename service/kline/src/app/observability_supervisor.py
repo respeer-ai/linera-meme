@@ -41,7 +41,23 @@ class ObservabilitySupervisor:
             return True
 
     async def recover(self) -> bool:
-        return await self.start_if_configured()
+        if self.runtime is None:
+            self.status.mark_disabled('observability is not configured')
+            return False
+        async with self._lock:
+            if not self.runtime.is_started():
+                return await self.start_if_configured()
+            try:
+                stage_results = await self.runtime.refresh() or {}
+            except Exception as error:
+                self.status.mark_degraded(error)
+                return False
+            self._apply_stage_results(stage_results)
+            if any(result.get('status') == 'degraded' for result in stage_results.values()):
+                self.status.mark_degraded('observability refresh completed with degraded stages')
+                return False
+            self.status.mark_ready()
+            return True
 
     async def shutdown(self) -> None:
         if self._start_task is not None:
@@ -72,6 +88,7 @@ class ObservabilitySupervisor:
         *,
         raw_table: str | None,
         batch_limit: int | None,
+        after_sequence: int | None,
         max_batches: int | None,
         reprocess_reason: str | None,
     ) -> dict[str, object]:
@@ -81,6 +98,7 @@ class ObservabilitySupervisor:
             return await self.runtime.run_normalization_replay(
                 raw_table=raw_table,
                 batch_limit=batch_limit,
+                after_sequence=after_sequence,
                 max_batches=max_batches,
                 reprocess_reason=reprocess_reason,
             )
@@ -97,6 +115,7 @@ class ObservabilitySupervisor:
         *,
         raw_table: str | None,
         batch_limit: int | None,
+        after_sequence: int | None,
         max_batches: int | None,
         reprocess_reason: str | None,
     ) -> dict[str, object]:
@@ -106,6 +125,7 @@ class ObservabilitySupervisor:
             return await self.runtime.run_market_derivation_replay(
                 raw_table=raw_table,
                 batch_limit=batch_limit,
+                after_sequence=after_sequence,
                 max_batches=max_batches,
                 reprocess_reason=reprocess_reason,
             )

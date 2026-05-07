@@ -6,6 +6,8 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use abi::{
+    ams::{AmsAbi, InstantiationArgument as AmsInstantiationArgument},
+    blob_gateway::BlobGatewayAbi,
     meme::{
         InstantiationArgument as MemeInstantiationArgument, Liquidity, Meme, MemeParameters,
         Metadata,
@@ -39,6 +41,8 @@ pub struct TestSuite {
     pub meme_bytecode_id: ModuleId,
     pub proxy_application_id: Option<ApplicationId<ProxyAbi>>,
     pub swap_application_id: Option<ApplicationId<SwapAbi>>,
+    pub blob_gateway_application_id: Option<ApplicationId<BlobGatewayAbi>>,
+    pub ams_application_id: Option<ApplicationId<AmsAbi>>,
 
     pub initial_liquidity: Amount,
     pub initial_native: Amount,
@@ -75,6 +79,8 @@ impl TestSuite {
             meme_bytecode_id,
             proxy_application_id: None,
             swap_application_id: None,
+            blob_gateway_application_id: None,
+            ams_application_id: None,
 
             initial_liquidity: Amount::from_tokens(11000000),
             initial_native: Amount::from_tokens(10),
@@ -145,6 +151,34 @@ impl TestSuite {
                 )
                 .await,
         )
+    }
+
+    pub async fn create_blob_gateway_application(&mut self) {
+        let bytecode_id = self
+            .proxy_chain
+            .publish_bytecode_files_in("../blob-gateway")
+            .await;
+
+        self.blob_gateway_application_id = Some(
+            self.proxy_chain
+                .create_application::<BlobGatewayAbi, (), ()>(bytecode_id, (), (), vec![])
+                .await,
+        );
+    }
+
+    pub async fn create_ams_application(&mut self) {
+        let bytecode_id = self.proxy_chain.publish_bytecode_files_in("../ams").await;
+
+        self.ams_application_id = Some(
+            self.proxy_chain
+                .create_application::<AmsAbi, (), AmsInstantiationArgument>(
+                    bytecode_id,
+                    (),
+                    AmsInstantiationArgument {},
+                    vec![],
+                )
+                .await,
+        );
     }
 
     pub async fn propose_add_genesis_miner(&self, chain: &ActiveChain, owner: Account) {

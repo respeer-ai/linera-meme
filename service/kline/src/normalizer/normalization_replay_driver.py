@@ -19,18 +19,22 @@ class NormalizationReplayDriver:
         *,
         raw_table: str,
         batch_limit: int | None = None,
+        after_sequence: int | None = None,
         reprocess_reason: str | None = None,
     ) -> dict[str, object]:
         partition_key = raw_table
-        cursor = self.processing_cursor_repository.load_cursor(
-            cursor_name=self.normalization_worker.cursor_name,
-            partition_key=partition_key,
-        )
-        after_sequence = self._parse_sequence(cursor)
+        cursor = None
+        effective_after_sequence = after_sequence
+        if effective_after_sequence is None:
+            cursor = self.processing_cursor_repository.load_cursor(
+                cursor_name=self.normalization_worker.cursor_name,
+                partition_key=partition_key,
+            )
+            effective_after_sequence = self._parse_sequence(cursor)
         effective_limit = self.batch_limit if batch_limit is None else int(batch_limit)
         items = self.raw_repository.list_normalization_candidates(
             raw_table=raw_table,
-            after_sequence=after_sequence,
+            after_sequence=effective_after_sequence,
             limit=effective_limit,
         )
         if not items:
@@ -38,7 +42,7 @@ class NormalizationReplayDriver:
                 'raw_table': raw_table,
                 'partition_key': partition_key,
                 'cursor': cursor,
-                'after_sequence': after_sequence,
+                'after_sequence': effective_after_sequence,
                 'processed_count': 0,
                 'caught_up': True,
             }
@@ -51,7 +55,7 @@ class NormalizationReplayDriver:
             'raw_table': raw_table,
             'partition_key': partition_key,
             'cursor': cursor,
-            'after_sequence': after_sequence,
+            'after_sequence': effective_after_sequence,
             'processed_count': result['processed_count'],
             'normalized_event_count': result['normalized_event_count'],
             'last_sequence': result['last_sequence'],
@@ -64,6 +68,7 @@ class NormalizationReplayDriver:
         *,
         raw_table: str,
         batch_limit: int | None = None,
+        after_sequence: int | None = None,
         reprocess_reason: str | None = None,
         max_batches: int | None = None,
     ) -> dict[str, object]:
@@ -75,6 +80,7 @@ class NormalizationReplayDriver:
             result = self.run_once(
                 raw_table=raw_table,
                 batch_limit=batch_limit,
+                after_sequence=after_sequence,
                 reprocess_reason=reprocess_reason,
             )
             results.append(result)
@@ -82,6 +88,8 @@ class NormalizationReplayDriver:
             total_normalized_event_count += int(result.get('normalized_event_count', 0))
             if result.get('caught_up'):
                 break
+            last_sequence = result.get('last_sequence')
+            after_sequence = int(last_sequence) if last_sequence is not None else after_sequence
         return {
             'raw_table': raw_table,
             'batch_count': len(results),

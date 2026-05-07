@@ -1,5 +1,6 @@
 from fastapi import WebSocket
 from dataclasses import dataclass
+from candle_schema import normalize_interval_for_api
 
 
 @dataclass(frozen=True)
@@ -91,7 +92,7 @@ class WebSocketManager:
             })
 
     async def notify_kline(self, payload=None):
-        intervals = ['1min', '5min', '10min', '1h', '1D', '1W', '1ME']
+        intervals = ['1min', '5min', '10min', '15min', '1h', '4h', '1d', '1w', '1ME']
 
         pools = None if payload is not None else await self.swap.get_pools()
         for connection in self.connections:
@@ -141,7 +142,10 @@ class WebSocketManager:
 
             await connection.send_json({
                 'notification': 'kline',
-                'value': points
+                'value': {
+                    normalize_interval_for_api(interval): interval_points
+                    for interval, interval_points in points.items()
+                },
             })
 
     async def notify(self, topic: str, payload):

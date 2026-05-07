@@ -146,6 +146,27 @@ class NormalizationReplayDriverTest(unittest.TestCase):
         self.assertEqual(result['batch_count'], 2)
         self.assertTrue(result['caught_up'])
 
+    def test_run_once_uses_explicit_after_sequence_without_loading_cursor(self):
+        raw_repository = self.FakeRawRepository()
+        raw_repository.items_by_table['raw_posted_messages'] = [
+            {'raw_fact_id': '305', 'application_id': 'app-1', 'payload_kind': 'message'},
+        ]
+        cursor_repository = self.FakeProcessingCursorRepository({'last_sequence': '999'})
+        driver = NormalizationReplayDriver(
+            raw_repository=raw_repository,
+            processing_cursor_repository=cursor_repository,
+            normalization_worker=self.FakeNormalizationWorker(),
+        )
+
+        result = driver.run_once(
+            raw_table='raw_posted_messages',
+            after_sequence=301,
+        )
+
+        self.assertEqual(raw_repository.calls[0], ('raw_posted_messages', 301, 100))
+        self.assertIsNone(result['cursor'])
+        self.assertEqual(cursor_repository.calls, [])
+
     def test_run_all_until_caught_up_drains_all_configured_tables(self):
         class SequencedRawRepository(self.FakeRawRepository):
             def __init__(self):

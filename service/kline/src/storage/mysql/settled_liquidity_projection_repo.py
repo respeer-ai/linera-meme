@@ -8,6 +8,12 @@ class SettledLiquidityProjectionRepository:
         self.db = db
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
 
+    def _pool_join_condition(self, alias: str) -> str:
+        return (
+            f"(p.pool_application = CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id) "
+            f"OR p.pool_application = CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id))"
+        )
+
     def get_positions(
         self,
         *,
@@ -97,7 +103,7 @@ class SettledLiquidityProjectionRepository:
                     slc.event_time_ms
                 FROM settled_liquidity_changes slc
                 JOIN {self.db.pools_table} p
-                  ON p.pool_application = CONCAT(slc.pool_chain_id, ':', slc.pool_application_id)
+                  ON {self._pool_join_condition('slc')}
                 {'WHERE ' + ' AND '.join(where_clauses) if where_clauses else ''}
                 ORDER BY slc.event_time_ms ASC, slc.transaction_index ASC, slc.settled_liquidity_change_id ASC
                 ''',

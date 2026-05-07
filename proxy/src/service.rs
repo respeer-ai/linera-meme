@@ -5,7 +5,10 @@
 
 use std::sync::Arc;
 
-use abi::proxy::{Chain, Miner, ProxyAbi, ProxyOperation};
+use abi::{
+    meme::{InstantiationArgument as MemeInstantiationArgument, MemeParameters},
+    proxy::{Chain, Miner, ProxyAbi, ProxyOperation},
+};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{
@@ -203,6 +206,24 @@ impl MutationRoot {
     async fn register_miner(&self) -> [u8; 0] {
         self.runtime
             .schedule_operation(&ProxyOperation::RegisterMiner);
+        []
+    }
+
+    async fn create_meme(
+        &self,
+        meme_instantiation_argument: MemeInstantiationArgument,
+        meme_parameters: MemeParameters,
+    ) -> [u8; 0] {
+        // Mutation should always be from other chain.
+        assert!(
+            self.runtime.application_creator_chain_id() != self.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.runtime.schedule_operation(&ProxyOperation::CreateMeme {
+            meme_instantiation_argument,
+            meme_parameters,
+        });
         []
     }
 }
