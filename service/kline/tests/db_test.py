@@ -220,6 +220,13 @@ class FakeCursor:
           index_name = normalized.split('CREATE INDEX ')[1].split(' ON ')[0]
           table_name = normalized.split(' ON ')[1].split(' (')[0]
           columns = normalized.split(' (', 1)[1].rstrip(')').split(', ')
+          if getattr(self.connection, 'duplicate_create_index_once', None) == index_name:
+              self.connection.duplicate_create_index_once = None
+              error = type('FakeProgrammingError', (Exception,), {})(
+                  f"1061 (42000): Duplicate key name '{index_name}'"
+              )
+              error.errno = 1061
+              raise error
           self.index_catalog[:] = [row for row in self.index_catalog if row[2] != index_name]
           self.index_catalog.extend([
               (table_name, 1, index_name, seq + 1, column)
@@ -660,6 +667,7 @@ class FakeConnection:
         self.maker_event_rows = []
         self.debug_trace_rows = []
         self.query_failures = []
+        self.duplicate_create_index_once = None
         self.transaction_columns = [
             'pool_application', 'pool_id', 'transaction_id', 'transaction_type', 'from_account',
             'amount_0_in', 'amount_0_out', 'amount_1_in', 'amount_1_out',
@@ -924,6 +932,39 @@ class DbIndexInitializationTest(unittest.TestCase):
             f'DROP INDEX {Db.TRANSACTIONS_RANGE_INDEX} ON transactions' in query
             for query in executed_queries
         ))
+        self.assertTrue(any(
+            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
+            in query for query in executed_queries
+        ))
+
+    @patch('db.mysql.connector.connect')
+    def test_ignores_duplicate_key_error_when_creating_range_query_index(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_connection = self.connections[-1]
+        runtime_connection.duplicate_create_index_once = Db.TRANSACTIONS_RANGE_INDEX
+
+        db = object.__new__(Db)
+        db.connection = runtime_connection
+        db.cursor = runtime_connection.cursor()
+        db.transactions_table = 'transactions'
+
+        db.ensure_index(
+            db.transactions_table,
+            Db.TRANSACTIONS_RANGE_INDEX,
+            ('pool_application', 'pool_id', 'token_reversed', 'created_at'),
+        )
+
+        executed_queries = [query for cursor in runtime_connection.cursors for query, _ in cursor.executed]
         self.assertTrue(any(
             'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
             in query for query in executed_queries

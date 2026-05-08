@@ -6,14 +6,25 @@ services:
       - "25080:25080"
     command: [ "./kline-entrypoint.sh" ]
     extra_hosts:
-      - "api.lineraswap.fun:${LAN_IP}"
-      - "api.testnet-conway.lineraswap.fun:${LAN_IP}"
+      - "api.lineraswap.fun=${LAN_IP}"
+      - "api.linerameme.fun=${LAN_IP}"
+      - "api.${SUB_DOMAIN}lineraswap.fun=${LAN_IP}"
+      - "api.${SUB_DOMAIN}linerameme.fun=${LAN_IP}"
     environment:
       DATABASE_HOST: ${DATABASE_HOST}
       DATABASE_PORT: ${DATABASE_PORT}
       DATABASE_USER: ${DATABASE_USER}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       DATABASE_NAME: ${DATABASE_NAME}
+      SWAP_CHAIN_ID: ${SWAP_CHAIN_ID}
       SWAP_APPLICATION_ID: ${SWAP_APPLICATION_ID}
       SWAP_HOST: ${SWAP_HOST}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_CHAIN_ID: ${PROXY_CHAIN_ID}
+      PROXY_APPLICATION_ID: ${PROXY_APPLICATION_ID}
+      CHAIN_GRAPHQL_URL: ${CHAIN_GRAPHQL_URL}
+      CHAIN_GRAPHQL_WS_URL: ${CHAIN_GRAPHQL_WS_URL}
+      CATCH_UP_CHAIN_IDS: ${CATCH_UP_CHAIN_IDS}
+      CATCH_UP_MAX_BLOCKS_PER_CHAIN: ${CATCH_UP_MAX_BLOCKS_PER_CHAIN}
+      DISABLE_CATCH_UP_ON_STARTUP: ${DISABLE_CATCH_UP_ON_STARTUP}
     restart: always

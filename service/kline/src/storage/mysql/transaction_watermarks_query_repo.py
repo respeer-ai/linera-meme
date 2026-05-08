@@ -10,41 +10,48 @@ class TransactionWatermarksQueryRepository:
 
     def get_latest_transaction_watermarks(self) -> dict:
         self.db.ensure_fresh_read_connection()
-        self.db.cursor_dict.execute(
-            '''
-                SELECT
-                    p.pool_id,
-                    p.pool_application AS pool_application,
-                    st.trade_time_ms AS created_at,
-                    st.transaction_id,
-                    CASE
-                        WHEN st.side = 'buy_token_0' THEN 0
-                        ELSE 1
-                    END AS token_reversed
-                FROM settled_trades st
-                JOIN pools p
-                  ON (
-                    p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
-                    OR p.pool_application = CONCAT(st.pool_chain_id, ':0x', st.pool_application_id)
-                  )
-                JOIN (
+        try:
+            self.db.cursor_dict.execute(
+                '''
                     SELECT
-                        pool_chain_id,
-                        pool_application_id,
-                        MAX(trade_time_ms) AS max_created_at
-                    FROM settled_trades
-                    GROUP BY pool_chain_id, pool_application_id
-                ) latest
-                  ON latest.pool_chain_id = st.pool_chain_id
-                 AND latest.pool_application_id = st.pool_application_id
-                 AND latest.max_created_at = st.trade_time_ms
-                ORDER BY
-                    p.pool_id ASC,
-                    st.trade_time_ms DESC,
-                    st.transaction_id DESC,
-                    token_reversed DESC
-            '''
-        )
+                        p.pool_id,
+                        p.pool_application AS pool_application,
+                        st.trade_time_ms AS created_at,
+                        st.transaction_id,
+                        CASE
+                            WHEN st.side = 'buy_token_0' THEN 0
+                            ELSE 1
+                        END AS token_reversed
+                    FROM settled_trades st
+                    JOIN pools p
+                      ON (
+                        p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
+                        OR p.pool_application = CONCAT(st.pool_chain_id, ':0x', st.pool_application_id)
+                      )
+                    JOIN (
+                        SELECT
+                            pool_chain_id,
+                            pool_application_id,
+                            MAX(trade_time_ms) AS max_created_at
+                        FROM settled_trades
+                        GROUP BY pool_chain_id, pool_application_id
+                    ) latest
+                      ON latest.pool_chain_id = st.pool_chain_id
+                     AND latest.pool_application_id = st.pool_application_id
+                     AND latest.max_created_at = st.trade_time_ms
+                    ORDER BY
+                        p.pool_id ASC,
+                        st.trade_time_ms DESC,
+                        st.transaction_id DESC,
+                        token_reversed DESC
+                '''
+            )
+        except Exception as exc:
+            error_code = getattr(exc, 'errno', None)
+            error_text = str(exc)
+            if error_code == 1146 and 'settled_trades' in error_text:
+                return {}
+            raise
         watermarks = {}
         for row in self.db.cursor_dict.fetchall() or []:
             pool_id = int(row['pool_id'])

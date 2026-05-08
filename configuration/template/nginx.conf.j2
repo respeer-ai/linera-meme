@@ -50,6 +50,21 @@ server {
         proxy_set_header   X-Forwarded-Proto $scheme;
         proxy_hide_header 'Access-Control-Allow-Origin';
     }
+
+    location /api/{{ service.api_endpoint }}/query/ws {
+        proxy_pass http://{{ service.query_endpoint }}/ws;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        keepalive_timeout 90;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 {% endif %}
 
     location /api/{{ service.api_endpoint }} {

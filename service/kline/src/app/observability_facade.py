@@ -78,14 +78,14 @@ class ObservabilityFacade:
         if runtime is None or not self.supervisor.has_started_runtime():
             return payload
         try:
-            payload.update(
-                runtime.export_debug_observability(
-                    chain_ids=chain_ids,
-                    run_statuses=run_statuses,
-                    anomaly_statuses=anomaly_statuses,
-                    limit=limit,
-                )
+            exported_payload = runtime.export_debug_observability(
+                chain_ids=chain_ids,
+                run_statuses=run_statuses,
+                anomaly_statuses=anomaly_statuses,
+                limit=limit,
             )
+            exported_payload.pop('status', None)
+            payload.update(exported_payload)
             self.supervisor.status.mark_component_ready(
                 self.supervisor.status.COMPONENT_DEBUG_EXPORT
             )

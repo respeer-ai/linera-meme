@@ -14,20 +14,28 @@ from storage.mysql.transaction_watermarks_query_repo import TransactionWatermark
 
 
 class TransactionWatermarksQueryRepositoryTest(unittest.TestCase):
+    class FakeProgrammingError(Exception):
+        def __init__(self, errno, message):
+            super().__init__(message)
+            self.errno = errno
+
     class FakeCursor:
-        def __init__(self, rows):
+        def __init__(self, rows, error=None):
             self.rows = rows
+            self.error = error
             self.executed = []
 
         def execute(self, sql, params=()):
             self.executed.append((' '.join(sql.split()), params))
+            if self.error is not None:
+                raise self.error
 
         def fetchall(self):
             return list(self.rows)
 
     class FakeDb:
-        def __init__(self, rows):
-            self.cursor_dict = TransactionWatermarksQueryRepositoryTest.FakeCursor(rows)
+        def __init__(self, rows, error=None):
+            self.cursor_dict = TransactionWatermarksQueryRepositoryTest.FakeCursor(rows, error=error)
             self.ensure_count = 0
 
         def ensure_fresh_read_connection(self):
@@ -70,3 +78,18 @@ class TransactionWatermarksQueryRepositoryTest(unittest.TestCase):
                 (1002, 'chain-b', 'pool-app-2'): (7000, 20, 1),
             },
         )
+
+    def test_returns_empty_when_settled_trades_table_is_missing(self):
+        db = self.FakeDb(
+            [],
+            error=self.FakeProgrammingError(
+                1146,
+                "1146 (42S02): Table 'linera_swap_kline.settled_trades' doesn't exist",
+            ),
+        )
+        repository = TransactionWatermarksQueryRepository(db)
+
+        watermarks = repository.get_latest_transaction_watermarks()
+
+        self.assertEqual(db.ensure_count, 1)
+        self.assertEqual(watermarks, {})

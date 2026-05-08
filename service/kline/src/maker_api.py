@@ -12,37 +12,15 @@ from maker_api_runtime import MakerApiRuntime
 app = FastAPI()
 _db = None
 _config = {
-    'maker_replicas': 1,
-    'shared_app_data_dir': '/shared-app-data',
-    'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service',
-    'wallet_rpc_port': 8080,
-    'wallet_metrics_port': 8082,
+    'wallet_url': '',
+    'wallet_metrics_url': '',
+    'wallet_owner': '',
     'wallet_memory_limit_bytes': 0,
 }
 
 
 def now_ms() -> int:
     return int(time.time() * 1000)
-
-
-def build_wallet_host(index: int) -> str:
-    return _runtime().build_wallet_host(index)
-
-
-def sanitize_wallet_host(host: str) -> str:
-    return _runtime().sanitize_wallet_host(host)
-
-
-def build_wallet_rpc_url(index: int) -> str:
-    return _runtime().build_wallet_rpc_url(index)
-
-
-def build_wallet_metrics_url(index: int) -> str:
-    return _runtime().build_wallet_metrics_url(index)
-
-
-def load_wallet_descriptor(index: int):
-    return _runtime().load_wallet_descriptor(index)
 
 
 def parse_prometheus_metrics(body: str):
@@ -53,32 +31,32 @@ def summarize_wallet_metrics(metrics: dict):
     return _runtime().summarize_wallet_metrics(metrics)
 
 
-async def fetch_wallet_metrics(index: int):
-    return await _runtime().fetch_wallet_metrics(index)
+async def fetch_wallet_metrics():
+    return await _runtime().fetch_wallet_metrics()
 
 
-async def fetch_wallet_balances(index: int, descriptor: dict):
-    return await _runtime().fetch_wallet_balances(index, descriptor)
+async def fetch_wallet_balances(chain_id: str | None, owner: str | None):
+    return await _runtime().fetch_wallet_balances(chain_id, owner)
 
 
-async def post_wallet_query(index: int, payload: dict, timeout=(3, 10)):
-    return await _runtime().post_wallet_query(index, payload, timeout=timeout)
+async def post_wallet_query(payload: dict, timeout=(3, 10)):
+    return await _runtime().post_wallet_query(payload, timeout=timeout)
 
 
-async def fetch_wallet_block(index: int, chain_id: str, block_hash: str):
-    return await _runtime().fetch_wallet_block(index, chain_id, block_hash)
+async def fetch_wallet_block(chain_id: str, block_hash: str):
+    return await _runtime().fetch_wallet_block(chain_id, block_hash)
 
 
-async def fetch_wallet_pending_messages(index: int, chain_id: str):
-    return await _runtime().fetch_wallet_pending_messages(index, chain_id)
+async def fetch_wallet_pending_messages(chain_id: str):
+    return await _runtime().fetch_wallet_pending_messages(chain_id)
 
 
 def build_wallet_health(metrics_result, balances_result):
     return _runtime().build_wallet_health(metrics_result, balances_result)
 
 
-async def build_wallet_snapshot(index: int, include_metrics: bool, include_balances: bool):
-    return await _runtime().build_wallet_snapshot(index, include_metrics, include_balances)
+async def build_wallet_snapshot(include_metrics: bool, include_balances: bool):
+    return await _runtime().build_wallet_snapshot(include_metrics, include_balances)
 
 
 async def build_wallet_index(include_metrics: bool, include_balances: bool):
@@ -129,13 +107,13 @@ async def on_get_combined_maker_events_information():
         )
 
 
-@app.get('/debug/wallets')
-async def on_get_debug_wallets(
+@app.get('/debug/wallet')
+async def on_get_debug_wallet(
     include_metrics: bool = Query(default=True),
     include_balances: bool = Query(default=True),
 ):
     try:
-        return await _runtime().get_debug_wallets(include_metrics, include_balances)
+        return await _runtime().build_wallet_snapshot(include_metrics, include_balances)
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -143,15 +121,10 @@ async def on_get_debug_wallets(
         )
 
 
-@app.get('/debug/wallets/{index}/metrics')
-async def on_get_debug_wallet_metrics(index: int):
+@app.get('/debug/wallet/metrics')
+async def on_get_debug_wallet_metrics():
     try:
-        return await _runtime().get_debug_wallet_metrics(index)
-    except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": str(e)}
-        )
+        return await _runtime().get_debug_wallet_metrics()
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -159,15 +132,10 @@ async def on_get_debug_wallet_metrics(index: int):
         )
 
 
-@app.get('/debug/wallets/{index}/balances')
-async def on_get_debug_wallet_balances(index: int):
+@app.get('/debug/wallet/balances')
+async def on_get_debug_wallet_balances():
     try:
-        return await _runtime().get_debug_wallet_balances(index)
-    except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": str(e)}
-        )
+        return await _runtime().get_debug_wallet_balances()
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -175,15 +143,10 @@ async def on_get_debug_wallet_balances(index: int):
         )
 
 
-@app.get('/debug/wallets/{index}/block')
-async def on_get_debug_wallet_block(index: int, chain_id: str, block_hash: str):
+@app.get('/debug/wallet/block')
+async def on_get_debug_wallet_block(chain_id: str, block_hash: str):
     try:
-        return await _runtime().get_debug_wallet_block(index, chain_id, block_hash)
-    except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": str(e)}
-        )
+        return await _runtime().get_debug_wallet_block(chain_id, block_hash)
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -191,15 +154,10 @@ async def on_get_debug_wallet_block(index: int, chain_id: str, block_hash: str):
         )
 
 
-@app.get('/debug/wallets/{index}/pending-messages')
-async def on_get_debug_wallet_pending_messages(index: int, chain_id: str):
+@app.get('/debug/wallet/pending-messages')
+async def on_get_debug_wallet_pending_messages(chain_id: str):
     try:
-        return await _runtime().get_debug_wallet_pending_messages(index, chain_id)
-    except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": str(e)}
-        )
+        return await _runtime().get_debug_wallet_pending_messages(chain_id)
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -302,20 +260,16 @@ if __name__ == '__main__':
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Maker database user')
     parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Maker database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Maker database name')
-    parser.add_argument('--maker-replicas', type=int, default=1, help='Maker wallet replicas')
-    parser.add_argument('--shared-app-data-dir', type=str, default='/shared-app-data', help='Path of shared app data')
-    parser.add_argument('--wallet-host-template', type=str, default='maker-wallet-service-{index}.maker-wallet-service', help='Maker wallet host template')
-    parser.add_argument('--wallet-rpc-port', type=int, default=8080, help='Maker wallet rpc port')
-    parser.add_argument('--wallet-metrics-port', type=int, default=8082, help='Maker wallet metrics port')
+    parser.add_argument('--wallet-url', type=str, required=True, help='Maker wallet RPC URL')
+    parser.add_argument('--wallet-owner', type=str, default='', help='Maker wallet owner')
+    parser.add_argument('--wallet-metrics-url', type=str, required=True, help='Maker wallet metrics URL')
     parser.add_argument('--wallet-memory-limit-bytes', type=int, default=0, help='Maker wallet memory limit')
 
     args = parser.parse_args()
 
-    _config['maker_replicas'] = max(int(args.maker_replicas), 0)
-    _config['shared_app_data_dir'] = args.shared_app_data_dir
-    _config['wallet_host_template'] = args.wallet_host_template
-    _config['wallet_rpc_port'] = int(args.wallet_rpc_port)
-    _config['wallet_metrics_port'] = int(args.wallet_metrics_port)
+    _config['wallet_url'] = args.wallet_url
+    _config['wallet_owner'] = args.wallet_owner
+    _config['wallet_metrics_url'] = args.wallet_metrics_url
     _config['wallet_memory_limit_bytes'] = int(args.wallet_memory_limit_bytes)
 
     _db = Db(

@@ -5,6 +5,7 @@ ARG all_proxy
 WORKDIR /workspace
 
 COPY Cargo.toml ./
+COPY Cargo.lock ./
 COPY abi ./abi
 COPY ams ./ams
 COPY base ./base
@@ -36,7 +37,7 @@ ENV KLINE_RUST_DECODER_BIN=/usr/local/bin/kline-canonical-decoder
 
 COPY --from=rust-decoder-builder /workspace/target/release/canonical_decoder /usr/local/bin/kline-canonical-decoder
 
-COPY docker/kline kline
+COPY service/kline kline
 
 WORKDIR kline
 

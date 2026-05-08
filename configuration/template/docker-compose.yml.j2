@@ -11,5 +11,6 @@ services:
     environment:
       RUST_LOG: info
       LINERA_LISTENER_SKIP_PERMISSIONLESS_CHAIN: true
+      LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY: "true"
     restart: always
 {% endfor %}

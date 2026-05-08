@@ -775,9 +775,13 @@ class Db:
         if len(existing_columns) > 0:
             self.cursor.execute(f'DROP INDEX {index_name} ON {table_name}')
 
-        self.cursor.execute(
-            f'CREATE INDEX {index_name} ON {table_name} ({", ".join(expected_columns)})'
-        )
+        try:
+            self.cursor.execute(
+                f'CREATE INDEX {index_name} ON {table_name} ({", ".join(expected_columns)})'
+            )
+        except Exception as exc:
+            if getattr(exc, 'errno', None) != 1061:
+                raise
         self.connection.commit()
 
     def backfill_legacy_pool_application(self):

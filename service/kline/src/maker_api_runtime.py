@@ -1,5 +1,3 @@
-import os
-import re
 import time
 
 from storage.mysql.debug_traces_query_repo import DebugTracesQueryRepository
@@ -18,74 +16,52 @@ class MakerApiRuntime:
     def now_ms(self) -> int:
         return int(self._clock_ms())
 
-    def build_wallet_host(self, index: int) -> str:
-        template = str(self._config.get('wallet_host_template') or '').strip()
-        if template == '':
-            return self.sanitize_wallet_host(f'maker-wallet-service-{index}.maker-wallet-service')
+    def build_wallet_rpc_url(self) -> str:
+        return str(self._config['wallet_url']).rstrip('/')
 
-        for placeholder in ('{index}', '${index}', '{{index}}'):
-            if placeholder in template:
-                return self.sanitize_wallet_host(template.replace(placeholder, str(index)))
+    def build_wallet_metrics_url(self) -> str:
+        return str(self._config['wallet_metrics_url']).rstrip('/')
 
-        malformed_match = re.match(r'^(.*)\{index(?:\.([^}]+))?\}(.*)$', template)
-        if malformed_match is not None:
-            prefix, embedded_suffix, trailing_suffix = malformed_match.groups()
-            suffix = trailing_suffix
-            if embedded_suffix:
-                suffix = embedded_suffix if embedded_suffix.startswith(('.', ':', '/')) else f'.{embedded_suffix}'
-                suffix += trailing_suffix
-            return self.sanitize_wallet_host(f'{prefix}{index}{suffix}')
+    def wallet_owner(self) -> str | None:
+        owner = str(self._config.get('wallet_owner') or '').strip()
+        return owner if owner != '' else None
 
-        try:
-            return self.sanitize_wallet_host(template.format(index=index))
-        except Exception:
-            return self.sanitize_wallet_host(template)
-
-    def sanitize_wallet_host(self, host: str) -> str:
-        trimmed = str(host or '').strip().strip('{}')
-        if trimmed == '':
-            return ''
-
-        labels = []
-        for raw_label in trimmed.split('.'):
-            label = raw_label.strip().strip('{}')
-            if label == '':
-                continue
-            if len(labels) > 0 and labels[-1] == label:
-                continue
-            labels.append(label)
-
-        return '.'.join(labels)
-
-    def build_wallet_rpc_url(self, index: int) -> str:
-        return f'http://{self.build_wallet_host(index)}:{self._config["wallet_rpc_port"]}'
-
-    def build_wallet_metrics_url(self, index: int) -> str:
-        return f'http://{self.build_wallet_host(index)}:{self._config["wallet_metrics_port"]}/metrics'
-
-    def load_wallet_descriptor(self, index: int):
-        path = os.path.join(
-            self._config['shared_app_data_dir'],
-            f'MAKER_WALLET_CHAIN_OWNER.{index}',
-        )
-        descriptor = {
-            'index': index,
-            'state_path': path,
-            'state_file_exists': os.path.exists(path),
-            'chain_id': None,
-            'owner': None,
+    async def fetch_wallet_chain(self):
+        payload = {
+            'query': 'query { chains { default list } }'
         }
-        if descriptor['state_file_exists'] is not True:
-            return descriptor
-
-        with open(path, 'r', encoding='utf-8') as file_handle:
-            lines = [line.strip() for line in file_handle.readlines() if line.strip()]
-
-        if len(lines) >= 1:
-            descriptor['chain_id'] = lines[0]
-        if len(lines) >= 2:
-            descriptor['owner'] = lines[1]
-        return descriptor
+        url = self.build_wallet_rpc_url()
+        try:
+            response, payload_json = await self.post_wallet_query(payload, timeout=(2, 5))
+            if response.ok is not True:
+                return {
+                    'reachable': False,
+                    'status_code': response.status_code,
+                    'error': f'HTTP {response.status_code}',
+                    'wallet_url': url,
+                }
+            if 'errors' in payload_json:
+                return {
+                    'reachable': False,
+                    'status_code': response.status_code,
+                    'error': payload_json['errors'],
+                    'wallet_url': url,
+                }
+            chains = payload_json.get('data', {}).get('chains', {})
+            return {
+                'reachable': True,
+                'status_code': response.status_code,
+                'wallet_url': url,
+                'chain_id': chains.get('default'),
+                'chains': chains.get('list') or [],
+            }
+        except Exception as exc:
+            return {
+                'reachable': False,
+                'status_code': None,
+                'error': str(exc),
+                'wallet_url': url,
+            }
 
     def parse_prometheus_metrics(self, body: str):
         metrics = {}
@@ -148,8 +124,8 @@ class MakerApiRuntime:
             'selected_metrics': selected_metrics,
         }
 
-    async def fetch_wallet_metrics(self, index: int):
-        url = self.build_wallet_metrics_url(index)
+    async def fetch_wallet_metrics(self):
+        url = self.build_wallet_metrics_url()
         try:
             response = await self._request_client.get(url=url, timeout=(2, 5))
             if response.ok is not True:
@@ -175,22 +151,20 @@ class MakerApiRuntime:
                 'metrics_url': url,
             }
 
-    async def fetch_wallet_balances(self, index: int, descriptor: dict):
-        if descriptor.get('chain_id') is None or descriptor.get('owner') is None:
+    async def fetch_wallet_balances(self, chain_id: str | None, owner: str | None):
+        if chain_id is None or owner is None:
             return {
                 'reachable': False,
                 'error': 'wallet chain/owner metadata is unavailable',
             }
 
-        chain_id = descriptor['chain_id']
-        owner = descriptor['owner']
         payload = {
             'query': f'query {{\n balances(chainOwners:[{{chainId: "{chain_id}", owners: ["{owner}"]}}]) \n}}'
         }
-        url = self.build_wallet_rpc_url(index)
+        url = self.build_wallet_rpc_url()
 
         try:
-            response, payload_json = await self.post_wallet_query(index, payload, timeout=(3, 10))
+            response, payload_json = await self.post_wallet_query(payload, timeout=(3, 10))
             if response.ok is not True:
                 return {
                     'reachable': False,
@@ -229,12 +203,12 @@ class MakerApiRuntime:
                 'wallet_url': url,
             }
 
-    async def post_wallet_query(self, index: int, payload: dict, timeout=(3, 10)):
-        response = await self._request_client.post(url=self.build_wallet_rpc_url(index), json=payload, timeout=timeout)
+    async def post_wallet_query(self, payload: dict, timeout=(3, 10)):
+        response = await self._request_client.post(url=self.build_wallet_rpc_url(), json=payload, timeout=timeout)
         payload_json = response.json() if response.text else {}
         return response, payload_json
 
-    async def fetch_wallet_block(self, index: int, chain_id: str, block_hash: str):
+    async def fetch_wallet_block(self, chain_id: str, block_hash: str):
         payload = {
             'query': (
                 'query {'
@@ -262,10 +236,10 @@ class MakerApiRuntime:
                 '}'
             )
         }
-        url = self.build_wallet_rpc_url(index)
+        url = self.build_wallet_rpc_url()
 
         try:
-            response, payload_json = await self.post_wallet_query(index, payload, timeout=(3, 10))
+            response, payload_json = await self.post_wallet_query(payload, timeout=(3, 10))
             if response.ok is not True:
                 return {
                     'reachable': False,
@@ -294,7 +268,7 @@ class MakerApiRuntime:
                 'wallet_url': url,
             }
 
-    async def fetch_wallet_pending_messages(self, index: int, chain_id: str):
+    async def fetch_wallet_pending_messages(self, chain_id: str):
         payload = {
             'query': (
                 'query {'
@@ -311,10 +285,10 @@ class MakerApiRuntime:
                 '}'
             )
         }
-        url = self.build_wallet_rpc_url(index)
+        url = self.build_wallet_rpc_url()
 
         try:
-            response, payload_json = await self.post_wallet_query(index, payload, timeout=(3, 10))
+            response, payload_json = await self.post_wallet_query(payload, timeout=(3, 10))
             if response.ok is not True:
                 return {
                     'reachable': False,
@@ -360,33 +334,29 @@ class MakerApiRuntime:
 
         return 'ok'
 
-    async def build_wallet_snapshot(self, index: int, include_metrics: bool, include_balances: bool):
-        descriptor = self.load_wallet_descriptor(index)
-        metrics_result = await self.fetch_wallet_metrics(index) if include_metrics else None
-        balances_result = await self.fetch_wallet_balances(index, descriptor) if include_balances else None
+    async def build_wallet_snapshot(self, include_metrics: bool, include_balances: bool):
+        chain_result = await self.fetch_wallet_chain()
+        chain_id = chain_result.get('chain_id') if chain_result.get('reachable') is True else None
+        owner = self.wallet_owner()
+        metrics_result = await self.fetch_wallet_metrics() if include_metrics else None
+        balances_result = await self.fetch_wallet_balances(chain_id, owner) if include_balances else None
 
         return {
-            'index': index,
-            'rpc_url': self.build_wallet_rpc_url(index),
-            'metrics_url': self.build_wallet_metrics_url(index),
-            'chain_id': descriptor.get('chain_id'),
-            'owner': descriptor.get('owner'),
-            'state_path': descriptor.get('state_path'),
-            'state_file_exists': descriptor.get('state_file_exists'),
+            'rpc_url': self.build_wallet_rpc_url(),
+            'metrics_url': self.build_wallet_metrics_url(),
+            'chain_id': chain_id,
+            'owner': owner,
+            'chain': chain_result,
             'health': self.build_wallet_health(metrics_result, balances_result),
             'metrics': metrics_result,
             'balances': balances_result,
         }
 
     async def build_wallet_index(self, include_metrics: bool, include_balances: bool):
-        wallets = []
-        for index in range(int(self._config['maker_replicas'])):
-            wallets.append(await self.build_wallet_snapshot(
-                index=index,
-                include_metrics=include_metrics,
-                include_balances=include_balances,
-            ))
-        return wallets
+        return [await self.build_wallet_snapshot(
+            include_metrics=include_metrics,
+            include_balances=include_balances,
+        )]
 
     def group_latest_by(self, rows: list, key_builder):
         latest = {}
@@ -442,39 +412,37 @@ class MakerApiRuntime:
             ),
         }
 
-    async def get_debug_wallet_metrics(self, index: int):
-        self.validate_wallet_index(index)
-        descriptor = self.load_wallet_descriptor(index)
+    async def get_debug_wallet_metrics(self):
+        chain_result = await self.fetch_wallet_chain()
         return {
-            'index': index,
-            'chain_id': descriptor.get('chain_id'),
-            'owner': descriptor.get('owner'),
-            'metrics': await self.fetch_wallet_metrics(index),
+            'chain_id': chain_result.get('chain_id') if chain_result.get('reachable') is True else None,
+            'owner': self.wallet_owner(),
+            'chain': chain_result,
+            'metrics': await self.fetch_wallet_metrics(),
         }
 
-    async def get_debug_wallet_balances(self, index: int):
-        self.validate_wallet_index(index)
-        descriptor = self.load_wallet_descriptor(index)
+    async def get_debug_wallet_balances(self):
+        chain_result = await self.fetch_wallet_chain()
+        chain_id = chain_result.get('chain_id') if chain_result.get('reachable') is True else None
+        owner = self.wallet_owner()
         return {
-            'index': index,
-            'balances': await self.fetch_wallet_balances(index, descriptor),
+            'chain_id': chain_id,
+            'owner': owner,
+            'chain': chain_result,
+            'balances': await self.fetch_wallet_balances(chain_id, owner),
         }
 
-    async def get_debug_wallet_block(self, index: int, chain_id: str, block_hash: str):
-        self.validate_wallet_index(index)
+    async def get_debug_wallet_block(self, chain_id: str, block_hash: str):
         return {
-            'index': index,
             'chain_id': chain_id,
             'block_hash': block_hash,
-            'result': await self.fetch_wallet_block(index=index, chain_id=chain_id, block_hash=block_hash),
+            'result': await self.fetch_wallet_block(chain_id=chain_id, block_hash=block_hash),
         }
 
-    async def get_debug_wallet_pending_messages(self, index: int, chain_id: str):
-        self.validate_wallet_index(index)
+    async def get_debug_wallet_pending_messages(self, chain_id: str):
         return {
-            'index': index,
             'chain_id': chain_id,
-            'result': await self.fetch_wallet_pending_messages(index=index, chain_id=chain_id),
+            'result': await self.fetch_wallet_pending_messages(chain_id=chain_id),
         }
 
     def get_debug_traces(
@@ -656,13 +624,12 @@ class MakerApiRuntime:
 
     async def get_debug_health(self):
         self.require_db()
-        wallets = await self.build_wallet_index(include_metrics=False, include_balances=False)
+        wallet = await self.build_wallet_snapshot(include_metrics=False, include_balances=False)
         return {
             'status': 'ok',
             'generated_at': self.now_ms(),
-            'maker_replicas': int(self._config['maker_replicas']),
-            'wallet_state_files_found': len([row for row in wallets if row['state_file_exists'] is True]),
-            'wallets': wallets,
+            'wallet_chain_id_found': wallet.get('chain_id') is not None,
+            'wallet': wallet,
         }
 
     def close(self):
@@ -672,10 +639,6 @@ class MakerApiRuntime:
     def require_db(self):
         if self._db is None:
             raise RuntimeError('Db client is not initialized')
-
-    def validate_wallet_index(self, index: int):
-        if index < 0 or index >= int(self._config['maker_replicas']):
-            raise ValueError('wallet index out of range')
 
     @staticmethod
     def _default_now_ms():

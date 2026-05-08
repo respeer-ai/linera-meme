@@ -926,6 +926,49 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runtime.refresh_calls, 1)
         self.assertEqual(result['status']['state'], 'ready')
 
+    async def test_observability_facade_ignores_exported_stale_status(self):
+        class RuntimeWithStaleExportStatus:
+            def __init__(self):
+                self.started = True
+
+            def is_started(self):
+                return self.started
+
+            async def start(self):
+                self.started = True
+                return {}
+
+            async def shutdown(self):
+                self.started = False
+
+            def export_debug_observability(self, **_kwargs):
+                return {
+                    'status': {
+                        'configured': True,
+                        'state': 'degraded',
+                        'ready': False,
+                        'last_error': 'stale snapshot',
+                    },
+                    'cursors': [{'chain_id': 'chain-a'}],
+                    'recent_runs': [{'status': 'success'}],
+                }
+
+        supervisor = ObservabilitySupervisor(RuntimeWithStaleExportStatus())
+        await supervisor.start_if_configured()
+        facade = ObservabilityFacade(supervisor)
+
+        payload = facade.get_debug_observability(
+            chain_ids=(),
+            run_statuses=(),
+            anomaly_statuses=(),
+            limit=10,
+        )
+
+        self.assertEqual(payload['status']['state'], 'ready')
+        self.assertIsNone(payload['status']['last_error'])
+        self.assertEqual(payload['cursors'], [{'chain_id': 'chain-a'}])
+        self.assertEqual(payload['recent_runs'], [{'status': 'success'}])
+
     async def test_observability_facade_can_run_normalization_replay(self):
         class ReplayRuntime:
             def __init__(self):

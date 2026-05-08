@@ -80,4 +80,8 @@ class RustDecoderRunner:
         ]
 
     def _repo_root(self) -> Path:
-        return Path(__file__).resolve().parents[4]
+        current = Path(__file__).resolve()
+        for candidate in (current.parent, *current.parents):
+            if (candidate / 'Cargo.toml').exists() and (candidate / 'service').exists():
+                return candidate
+        return Path.cwd()

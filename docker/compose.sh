@@ -1,14 +1,23 @@
 #!/bin/bash
 
+set -euo pipefail
+
 ####
 ## E.g. ./compose.sh -f https://faucet.testnet-conway.linera.net -C 0
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
 FAUCET_URL=https://faucet.testnet-conway.linera.net
+CHAIN_FAUCET_URL=${CHAIN_FAUCET_URL:-https://faucet.testnet-conway.linera.net}
 CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 COMPILE=0
+GIT_BRANCH=respeer-maas-testnet_conway-7e52827f-2026-03-15
+COPY_TARGET=${COPY_TARGET:-0}
+MULTI_OWNER_INITIAL_BALANCE=${MULTI_OWNER_INITIAL_BALANCE:-4.5}
+LINERA_TIMEOUT_SECONDS=${LINERA_TIMEOUT_SECONDS:-180}
+SUDO_PASSWORD=${SUDO_PASSWORD:-}
+LINERA_RETRY_ATTEMPTS=${LINERA_RETRY_ATTEMPTS:-10}
 
 options="f:z:C:"
 
@@ -31,7 +40,15 @@ COMPOSE_TEMPLATE_FILE=${SCRIPT_DIR}/../configuration/template/docker-compose.yml
 OUTPUT_DIR="${SCRIPT_DIR}/../output/compose"
 mkdir -p $OUTPUT_DIR
 
-sudo chown $USER:$(id -gn) $OUTPUT_DIR -R
+function sudo_run() {
+    if [ -n "$SUDO_PASSWORD" ]; then
+        printf '%s\n' "$SUDO_PASSWORD" | sudo -S "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+sudo_run chown $USER:$(id -gn) $OUTPUT_DIR -R
 
 # Generate config
 CONFIG_DIR="${OUTPUT_DIR}/config"
@@ -55,7 +72,7 @@ WALLET_IMAGE_NAME=linera-respeer
 
 IMAGE_NAME=linera-respeer
 REPO_NAME=linera-protocol-respeer
-REPO_BRANCH=respeer-maas-testnet_conway-7e52827f-2026-03-15
+REPO_BRANCH=$GIT_BRANCH
 REPO_URL=https://github.com/respeer-ai/linera-protocol.git
 
 # IMAGE_NAME=linera
@@ -64,12 +81,31 @@ REPO_URL=https://github.com/respeer-ai/linera-protocol.git
 # REPO_URL=https://github.com/linera-io/linera-protocol.git
 # COPY_TARGET=1
 
-cd $SOURCE_DIR
-rm $REPO_NAME -rf
-git clone $REPO_URL $REPO_NAME
-cd $REPO_NAME
-git checkout $REPO_BRANCH
-git pull origin $REPO_BRANCH
+PERSISTENT_CACHE_DIR="${OUTPUT_DIR}/cache/compose"
+PERSISTENT_SOURCE_DIR="${PERSISTENT_CACHE_DIR}/${REPO_NAME}"
+EXTERNAL_LINERA_DOCKER_DIR="${PERSISTENT_SOURCE_DIR}/docker"
+mkdir -p "$PERSISTENT_CACHE_DIR"
+
+mkdir -p "$SOURCE_DIR"
+if [ ! -d "$PERSISTENT_SOURCE_DIR/.git" ]; then
+    rm -rf "$PERSISTENT_SOURCE_DIR"
+    git clone --branch "$REPO_BRANCH" --single-branch --depth 1 "$REPO_URL" "$PERSISTENT_SOURCE_DIR"
+fi
+
+cd "$PERSISTENT_SOURCE_DIR"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "x$CURRENT_BRANCH" != "x$REPO_BRANCH" ]; then
+    rm -rf "$PERSISTENT_SOURCE_DIR"
+    git clone --branch "$REPO_BRANCH" --single-branch --depth 1 "$REPO_URL" "$PERSISTENT_SOURCE_DIR"
+    cd "$PERSISTENT_SOURCE_DIR"
+fi
+git fetch origin "$REPO_BRANCH" --depth 1
+git checkout "$REPO_BRANCH"
+git reset --hard "origin/$REPO_BRANCH"
+
+rm -rf "$SOURCE_DIR/$REPO_NAME"
+ln -s "$PERSISTENT_SOURCE_DIR" "$SOURCE_DIR/$REPO_NAME"
+cd "$SOURCE_DIR/$REPO_NAME"
 
 if [ "x$COPY_TARGET" = "x1" ]; then
     cd ..
@@ -83,21 +119,32 @@ if [ "x$COPY_TARGET" = "x1" ]; then
     cd $SOURCE_DIR/$REPO_NAME
 fi
 
-docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
-docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1
-docker stop maker-wallet query-service kline maker funder
-docker rm maker-wallet query-service kline maker funder
-docker rmi kline funder
+docker stop `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1 || true
+docker rm `docker ps -a | grep "ams-\|blob-gateway-\| proxy-\|swap-" | awk '{print $1}'` > /dev/null 2>&1 || true
+docker stop maker-wallet query-service kline maker funder > /dev/null 2>&1 || true
+docker rm maker-wallet query-service kline maker funder > /dev/null 2>&1 || true
+docker rmi kline funder > /dev/null 2>&1 || true
 
 export PATH=$BIN_DIR:$PATH
 
 LATEST_COMMIT=`git rev-parse HEAD`
 LATEST_COMMIT=${LATEST_COMMIT:0:10}
 INSTALLED_COMMIT=`linera --version | grep tree | awk -F '/' '{print $7}' | awk '{print $1}'`
+LINERA_SOURCE_CHANGED=1
 
-if [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" -o $COMPILE -eq 1 ]; then
-    cargo build --release --features disable-native-rpc,enable-wallet-rpc,storage-service -j 2
-    mv $PWD/target/release/linera $BIN_DIR
+if [ -n "$INSTALLED_COMMIT" ] && git rev-parse --verify "${INSTALLED_COMMIT}^{commit}" > /dev/null 2>&1; then
+    if git diff --name-only "$INSTALLED_COMMIT" HEAD | grep -qv '^docker/'; then
+        LINERA_SOURCE_CHANGED=1
+    else
+        LINERA_SOURCE_CHANGED=0
+    fi
+fi
+
+if [ $COMPILE -eq 1 ] || [ "x${LATEST_COMMIT:0:8}" != "x${INSTALLED_COMMIT:0:8}" -a $LINERA_SOURCE_CHANGED -eq 1 ]; then
+    CARGO_PROFILE_RELEASE_LTO=off \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
+    cargo build --release --bin linera --features disable-native-rpc,enable-wallet-rpc,storage-service -j 1
+    cp "$PWD/target/release/linera" "$BIN_DIR/linera"
 fi
 
 # Build linera docker image. If we have, just use it
@@ -107,37 +154,142 @@ fi
 
 cd $SCRIPT_DIR/..
 
-# Compile applications
-RUSTFLAGS= cargo build --release --target wasm32-unknown-unknown -j 2
+# Compile chain applications only.
+RUSTFLAGS= cargo build --release --target wasm32-unknown-unknown -j 1 \
+    -p proxy \
+    -p meme \
+    -p swap \
+    -p pool \
+    -p blob-gateway \
+    -p ams
+
+COMPOSE_LOG_DIR="$OUTPUT_DIR/logs"
+mkdir -p "$COMPOSE_LOG_DIR"
+COMPOSE_DEBUG_LOG="$COMPOSE_LOG_DIR/compose_debug.log"
+
+function log_step() {
+    local message="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    echo "$message" >> "$COMPOSE_DEBUG_LOG"
+    echo "$message" >&2
+}
+
+function linera_env_args() {
+    :
+}
+
+function run_linera() {
+    local step_name=$1
+    shift
+
+    log_step "START $step_name"
+    if ! env $(linera_env_args) timeout --foreground "${LINERA_TIMEOUT_SECONDS}s" linera "$@" >> "$COMPOSE_DEBUG_LOG" 2>&1; then
+        log_step "FAIL $step_name"
+        tail -n 80 "$COMPOSE_DEBUG_LOG" >&2
+        return 1
+    fi
+    log_step "OK $step_name"
+}
+
+function run_linera_retry() {
+    local step_name=$1
+    local max_attempts=$2
+    shift 2
+
+    local attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        if run_linera "$step_name attempt=$attempt/$max_attempts" "$@"; then
+            return 0
+        fi
+        if [ $attempt -eq $max_attempts ]; then
+            log_step "ABORT $step_name exhausted retries"
+            return 1
+        fi
+        sleep 5
+        attempt=$((attempt + 1))
+    done
+}
+
+function run_linera_capture() {
+    local step_name=$1
+    shift
+
+    local stdout_file
+    stdout_file=$(mktemp)
+    log_step "START $step_name"
+    if ! env $(linera_env_args) timeout --foreground "${LINERA_TIMEOUT_SECONDS}s" linera "$@" > "$stdout_file" 2>> "$COMPOSE_DEBUG_LOG"; then
+        log_step "FAIL $step_name"
+        rm -f "$stdout_file"
+        tail -n 80 "$COMPOSE_DEBUG_LOG" >&2
+        return 1
+    fi
+    log_step "OK $step_name"
+    cat "$stdout_file"
+    rm -f "$stdout_file"
+}
+
+function run_linera_capture_retry() {
+    local step_name=$1
+    local max_attempts=$2
+    shift 2
+
+    local attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        if run_linera_capture "$step_name attempt=$attempt/$max_attempts" "$@"; then
+            return 0
+        fi
+        if [ $attempt -eq $max_attempts ]; then
+            log_step "ABORT $step_name exhausted retries"
+            return 1
+        fi
+        sleep 5
+        attempt=$((attempt + 1))
+    done
+}
 
 function create_wallet() {
     wallet_name=$1
     wallet_index=$2
     new_chain=$3
+    requested_chain_id=""
 
     rm -rf $WALLET_DIR/$wallet_name/$wallet_index
     mkdir -p $WALLET_DIR/$wallet_name/$wallet_index
 
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    run_linera_retry "wallet_init ${wallet_name}/${wallet_index}" 3 \
+           --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet init \
-           --faucet $FAUCET_URL > /dev/null 2>&1
+           --faucet $CHAIN_FAUCET_URL || return 1
 
     # Init wallet from faucet
     if [ "x$new_chain" = "x1" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+        request_output=$(run_linera_capture_retry "wallet_request_chain ${wallet_name}/${wallet_index}" 3 \
+               --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
                --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
                wallet request-chain \
-               --faucet $FAUCET_URL > /dev/null 2>&1
+               --faucet $CHAIN_FAUCET_URL) || return 1
+        requested_chain_id=$(printf '%s\n' "$request_output" | awk 'NR == 1 { print $1; exit }')
+        if [ -n "${requested_chain_id:-}" ]; then
+            run_linera "wallet_set_default ${wallet_name}/${wallet_index} ${requested_chain_id}" \
+                   --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+                   --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
+                   --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+                   wallet set-default \
+                   "$requested_chain_id" || return 1
+        fi
     fi
 
     # Create unassigned owner for later multi-owner chain creation
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    run_linera "wallet_keygen ${wallet_name}/${wallet_index}" \
+           --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-           keygen
+           keygen || return 1
+
+    jq -r '.keys[-1][0]' \
+       "$WALLET_DIR/$wallet_name/$wallet_index/keystore.json"
 }
 
 function create_wallets() {
@@ -174,7 +326,8 @@ function publish_bytecode_on_chain() {
     application_name=$1
     wasm_name=$(echo $2 | sed 's/-/_/g')
 
-    linera --wallet $WALLET_DIR/$application_name/creator/wallet.json \
+    run_linera_capture_retry "publish_module ${application_name}/${wasm_name}" "$LINERA_RETRY_ATTEMPTS" \
+           --wallet $WALLET_DIR/$application_name/creator/wallet.json \
            --keystore $WALLET_DIR/$application_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$application_name/creator/client.db \
            publish-module $SCRIPT_DIR/../target/wasm32-unknown-unknown/release/${wasm_name}_{contract,service}.wasm
@@ -200,7 +353,16 @@ function wallet_owner() {
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | awk '/^Default owner:/ { if ($3 != "No") print $3 }'
+           | awk '
+                /^Chain ID:/ { chain=$3; next }
+                /^Tags:/ { is_default = ($0 ~ /DEFAULT/ ? 1 : 0); next }
+                /^Default owner:/ {
+                    if (is_default && $3 != "No") {
+                        print $3
+                        exit
+                    }
+                }
+           '
 }
 
 function wallet_chain_id() {
@@ -210,7 +372,16 @@ function wallet_chain_id() {
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
-           | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
+           | awk '
+                /^Chain ID:/ { chain=$3; next }
+                /^Tags:/ { is_default = ($0 ~ /DEFAULT/ ? 1 : 0); next }
+                /^Default owner:/ {
+                    if (is_default && $3 != "No") {
+                        print chain
+                        exit
+                    }
+                }
+           '
 }
 
 function assign_chain_to_owner() {
@@ -219,7 +390,8 @@ function assign_chain_to_owner() {
     chain_id=$3
     owner=$4
 
-    linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    run_linera "assign_chain ${wallet_name}/${wallet_index} ${chain_id}" \
+           --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            assign --owner $owner --chain-id $chain_id
@@ -252,14 +424,15 @@ function open_multi_owner_chain() {
 
     owners_json=$(to_map "${owners[@]}")
 
-    chain_id=($(linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+    chain_id=($(run_linera_capture_retry "open_multi_owner_chain ${wallet_name}" "$LINERA_RETRY_ATTEMPTS" \
+           --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            open-multi-owner-chain \
            --from $chain_id \
            --owners "$owners_json" \
            --multi-leader-rounds 100 \
-           --initial-balance "20."))
+           --initial-balance "$MULTI_OWNER_INITIAL_BALANCE"))
 
     # Assign newly created chain to unassigned key.
     assign_chain_to_owner $wallet_name creator $chain_id ${owners[0]} # > /dev/null 2>&1
@@ -267,11 +440,12 @@ function open_multi_owner_chain() {
         assign_chain_to_owner $wallet_name $i $chain_id ${owners[$((i+1))]} # > /dev/null 2>&1
     done
 
-    linera --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
+    run_linera "wallet_set_default ${wallet_name}/creator ${chain_id}" \
+           --wallet $WALLET_DIR/$wallet_name/creator/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/creator/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/creator/client.db \
            wallet set-default \
-           $chain_id > /dev/null 2>&1
+           $chain_id
 
     echo $chain_id
 }
@@ -290,7 +464,8 @@ function process_inbox() {
     wallet_name=$1
     wallet_index=$2
 
-    $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    run_linera "process_inbox ${wallet_name}/${wallet_index}" \
+           --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            process-inbox
@@ -319,26 +494,30 @@ function create_application() {
     chain_id=$5
 
     if [ "x$argument" != "x" -a "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+        run_linera_capture_retry "create_application ${wallet_name}" "$LINERA_RETRY_ATTEMPTS" \
+               --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
                --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-argument "$argument" \
                --json-parameters "$parameters"
     elif [ "x$argument" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+        run_linera_capture_retry "create_application ${wallet_name}" "$LINERA_RETRY_ATTEMPTS" \
+               --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
                --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-argument "$argument"
     elif [ "x$parameters" != "x" ]; then
-        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+        run_linera_capture_retry "create_application ${wallet_name}" "$LINERA_RETRY_ATTEMPTS" \
+               --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
                --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id \
                --json-parameters "$parameters"
     else
-        linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+        run_linera_capture_retry "create_application ${wallet_name}" "$LINERA_RETRY_ATTEMPTS" \
+               --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
                --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
                create-application $module_id $chain_id
@@ -365,7 +544,8 @@ function change_multi_owner_chain_single_leader() {
     owners=("$@")
     owners_json=$(to_map "${owners[@]}")
 
-    linera --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
+    run_linera "change_ownership ${wallet_name} ${chain_id}" \
+        --wallet $WALLET_DIR/$wallet_name/0/wallet.json \
         --keystore $WALLET_DIR/$wallet_name/0/keystore.json \
         --storage rocksdb://$WALLET_DIR/$wallet_name/0/client.db \
         change-ownership \
@@ -415,7 +595,7 @@ function generate_nginx_conf() {
     }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
     jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $NGINX_TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
-    sudo cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
+    sudo_run cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
 
 SUB_DOMAIN=$(echo "api.${CLUSTER}." | sed 's/\.\./\./g')
@@ -427,7 +607,7 @@ generate_nginx_conf 22080 swap lineraswap.fun $CHAIN_OWNER_COUNT
 generate_nginx_conf 23080 proxy linerameme.fun $CHAIN_OWNER_COUNT
 generate_nginx_conf 25080 kline kline.lineraswap.fun 1
 
-sudo nginx -s reload
+sudo_run nginx -s reload
 
 echo -e "\n\nService domain"
 echo -e "   $LAN_IP ${SUB_DOMAIN}blobgateway.com"
@@ -480,6 +660,7 @@ function run_services() {
     port_base=$2
     need_comma=$3
     image=$4
+    comma=''
 
     [ "$need_comma" == "1" ] && comma=', '
 
@@ -509,13 +690,18 @@ jinja -d ${CONFIG_DIR}/docker-compose.json $COMPOSE_TEMPLATE_FILE > ${CONFIG_DIR
 
 cd $OUTPUT_DIR
 
-rm $WALLET_DIR/query/0 -rf
-mkdir $WALLET_DIR/query/0 -p
-linera --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb:$WALLET_DIR/query/0/client.db wallet init --faucet $FAUCET_URL
-linera --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb:$WALLET_DIR/query/0/client.db wallet request-chain --faucet $FAUCET_URL
+cp -v "$EXTERNAL_LINERA_DOCKER_DIR"/rpc-entrypoint.sh "$DOCKER_DIR"/
+cp -v "$EXTERNAL_LINERA_DOCKER_DIR"/wallet-entrypoint.sh "$DOCKER_DIR"/
+
+rm -rf $WALLET_DIR/query/0
+mkdir -p $WALLET_DIR/query/0
+run_linera_retry "wallet_init query/0" "$LINERA_RETRY_ATTEMPTS" \
+  --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet init --faucet $CHAIN_FAUCET_URL
+run_linera_retry "wallet_request_chain query/0" "$LINERA_RETRY_ATTEMPTS" \
+  --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet request-chain --faucet $CHAIN_FAUCET_URL
 
 cp -v $ROOT_DIR/docker/docker-compose-query.yml $DOCKER_DIR
-LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-query.yml up --wait
+SUB_DOMAIN=$CLUSTER. LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-query.yml up --wait
 
 function wait_query_service_ready() {
     payload='{"query":"query Chains { chains { list } }"}'
@@ -573,15 +759,17 @@ import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
 LINERA_IMAGE=$IMAGE_NAME docker compose -f config/docker-compose.yml up --wait
 
-rm $WALLET_DIR/maker/0 -rf
-mkdir $WALLET_DIR/maker/0 -p
-linera --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet init --faucet $FAUCET_URL
-linera --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb:$WALLET_DIR/maker/0/client.db wallet request-chain --faucet $FAUCET_URL
+rm -rf $WALLET_DIR/maker/0
+mkdir -p $WALLET_DIR/maker/0
+run_linera_retry "wallet_init maker/0" "$LINERA_RETRY_ATTEMPTS" \
+  --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb://$WALLET_DIR/maker/0/client.db wallet init --faucet $CHAIN_FAUCET_URL
+run_linera_retry "wallet_request_chain maker/0" "$LINERA_RETRY_ATTEMPTS" \
+  --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb://$WALLET_DIR/maker/0/client.db wallet request-chain --faucet $CHAIN_FAUCET_URL
 MAKER_OWNER=$(wallet_owner maker 0)
 MAKER_CHAIN_ID=$(wallet_chain_id maker 0)
 
 cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
+SUB_DOMAIN=$CLUSTER. LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
 
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
@@ -591,8 +779,8 @@ SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
 PROXY_HOST=${SUB_DOMAIN}linerameme.fun
 
 function run_mysql() {
-    docker stop docker-mysql-1
-    docker rm docker-mysql-1
+    docker stop docker-mysql-1 > /dev/null 2>&1 || true
+    docker rm docker-mysql-1 > /dev/null 2>&1 || true
 
     MYSQL_ROOT_PASSWORD=12345679 MYSQL_DATABASE=$DATABASE_NAME MYSQL_USER=$DATABASE_USER MYSQL_PASSWORD=$DATABASE_PASSWORD \
       docker compose -f $ROOT_DIR/docker/docker-compose-mysql.yml up --wait
@@ -600,39 +788,55 @@ function run_mysql() {
 
 # Build kline and maker
 function run_kline() {
-    docker stop kline maker
-    docker rm kline maker
+    docker stop kline maker > /dev/null 2>&1 || true
+    docker rm kline maker > /dev/null 2>&1 || true
 
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
-    docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile . -t kline || exit 1
+    docker build --build-arg all_proxy="${all_proxy:-${ALL_PROXY:-}}" -f $ROOT_DIR/docker/Dockerfile $ROOT_DIR -t kline || exit 1
 
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
       SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      PROXY_HOST=$PROXY_HOST PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID \
+      CHAIN_GRAPHQL_URL=http://query-service:30080 \
+      CATCH_UP_CHAIN_IDS=$SWAP_CHAIN_ID,$PROXY_CHAIN_ID \
+      CATCH_UP_MAX_BLOCKS_PER_CHAIN=100 \
+      SUB_DOMAIN=$CLUSTER. \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
-    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
-      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
+    LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
+      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
+      SUB_DOMAIN=$CLUSTER. \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
 
 function run_funder() {
-    docker stop funder
-    docker rm funder
+    docker stop funder > /dev/null 2>&1 || true
+    docker rm funder > /dev/null 2>&1 || true
 
     image_exists=`docker images | grep "^funder " | wc -l`
     if [ "x$image_exists" != "x1" ]; then
         cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
-        docker build --build-arg all_proxy=$all_proxy -f $ROOT_DIR/docker/Dockerfile.funder . -t funder || exit 1
+        docker build --build-arg all_proxy="${all_proxy:-${ALL_PROXY:-}}" -f $ROOT_DIR/docker/Dockerfile.funder $ROOT_DIR -t funder || exit 1
     fi
 
     LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+      WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
       MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$MAKER_CHAIN_ID \
+      SUB_DOMAIN=$CLUSTER. \
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }
 
 
 cd $OUTPUT_DIR
-cp -v $ROOT_DIR/service/kline $DOCKER_DIR -rf
+rm -rf "$DOCKER_DIR/kline"
+mkdir -p "$DOCKER_DIR/kline"
+rsync -a \
+  --exclude '__pycache__/' \
+  --exclude '*.pyc' \
+  --exclude '*.log' \
+  --exclude 'src/linera_swap_kline.egg-info/' \
+  --exclude 'tests/__pycache__/' \
+  "$ROOT_DIR/service/kline/" "$DOCKER_DIR/kline/"
 
 run_mysql
 run_kline

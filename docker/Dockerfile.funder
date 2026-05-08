@@ -30,7 +30,7 @@ RUN wget https://www.python.org/ftp/python/3.10.16/Python-3.10.16.tgz
 RUN tar xzf Python-3.10.16.tgz
 RUN cd Python-3.10.16 && ./configure --enable-optimizations && make altinstall
 
-COPY docker/kline kline
+COPY service/kline kline
 
 WORKDIR kline
 

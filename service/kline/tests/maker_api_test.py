@@ -1,6 +1,4 @@
-import os
 import sys
-import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -216,78 +214,56 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         maker_api_module.async_request.get = self.original_get
         maker_api_module.async_request.post = self.original_post
 
-    async def test_build_wallet_host_tolerates_malformed_template(self):
+    async def test_on_get_debug_wallet_returns_wallet_metrics_and_balances(self):
         maker_api_module._config.update({
-            'wallet_host_template': 'maker-wallet-service-{index.maker-wallet-service}',
+            'wallet_url': 'http://maker-wallet-service:8080',
+            'wallet_metrics_url': 'http://maker-wallet-service:8082/metrics',
+            'wallet_owner': 'owner-a',
+            'wallet_memory_limit_bytes': 1000,
         })
 
-        self.assertEqual(
-            maker_api_module.build_wallet_host(2),
-            'maker-wallet-service-2.maker-wallet-service',
-        )
-
-    async def test_build_wallet_host_strips_duplicate_suffix_and_trailing_brace(self):
-        maker_api_module._config.update({
-            'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service.maker-wallet-service}',
-        })
-
-        self.assertEqual(
-            maker_api_module.build_wallet_host(0),
-            'maker-wallet-service-0.maker-wallet-service',
-        )
-
-    async def test_on_get_debug_wallets_returns_wallet_metrics_and_balances(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            state_path = os.path.join(tmpdir, 'MAKER_WALLET_CHAIN_OWNER.0')
-            with open(state_path, 'w', encoding='utf-8') as f:
-                f.write('chain-a\nowner-a\n')
-
-            maker_api_module._config.update({
-                'maker_replicas': 1,
-                'shared_app_data_dir': tmpdir,
-                'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service',
-                'wallet_rpc_port': 8080,
-                'wallet_metrics_port': 8082,
-                'wallet_memory_limit_bytes': 1000,
-            })
-
-            async def fake_get(url, **_kwargs):
-                self.assertEqual(url, 'http://maker-wallet-service-0.maker-wallet-service:8082/metrics')
-                return FakeResponse(
-                    text='\n'.join([
-                        '# HELP process_resident_memory_bytes Resident memory size in bytes.',
-                        'process_resident_memory_bytes 900',
-                        'process_open_fds 12',
-                    ]),
-                )
-
-            async def fake_post(url, json, **_kwargs):
-                self.assertEqual(url, 'http://maker-wallet-service-0.maker-wallet-service:8080')
-                self.assertIn('balances', json['query'])
-                return FakeResponse(
-                    text='{"data":{"balances":{"chain-a":{"chainBalance":"0.75","ownerBalances":{"owner-a":"0.5"}}}}}'
-                )
-
-            maker_api_module.async_request.get = fake_get
-            maker_api_module.async_request.post = fake_post
-
-            response = await maker_api_module.on_get_debug_wallets(
-                include_metrics=True,
-                include_balances=True,
+        async def fake_get(url, **_kwargs):
+            self.assertEqual(url, 'http://maker-wallet-service:8082/metrics')
+            return FakeResponse(
+                text='\n'.join([
+                    '# HELP process_resident_memory_bytes Resident memory size in bytes.',
+                    'process_resident_memory_bytes 900',
+                    'process_open_fds 12',
+                ]),
             )
 
-        self.assertEqual(len(response['wallets']), 1)
-        wallet = response['wallets'][0]
-        self.assertEqual(wallet['chain_id'], 'chain-a')
-        self.assertEqual(wallet['owner'], 'owner-a')
-        self.assertEqual(wallet['health'], 'wallet_memory_high')
-        self.assertEqual(wallet['balances']['total_balance'], 1.25)
-        self.assertEqual(wallet['metrics']['summary']['resident_memory_bytes'], 900.0)
-        self.assertTrue(wallet['metrics']['summary']['memory_high'])
+        async def fake_post(url, json, **_kwargs):
+            self.assertEqual(url, 'http://maker-wallet-service:8080')
+            if 'chains { default list }' in json['query']:
+                return FakeResponse(
+                    text='{"data":{"chains":{"default":"chain-a","list":["chain-a"]}}}'
+                )
+            self.assertIn('balances', json['query'])
+            return FakeResponse(
+                text='{"data":{"balances":{"chain-a":{"chainBalance":"0.75","ownerBalances":{"owner-a":"0.5"}}}}}'
+            )
+
+        maker_api_module.async_request.get = fake_get
+        maker_api_module.async_request.post = fake_post
+
+        response = await maker_api_module.on_get_debug_wallet(
+            include_metrics=True,
+            include_balances=True,
+        )
+
+        self.assertEqual(response['chain_id'], 'chain-a')
+        self.assertEqual(response['owner'], 'owner-a')
+        self.assertEqual(response['health'], 'wallet_memory_high')
+        self.assertEqual(response['balances']['total_balance'], 1.25)
+        self.assertEqual(response['metrics']['summary']['resident_memory_bytes'], 900.0)
+        self.assertTrue(response['metrics']['summary']['memory_high'])
+        self.assertEqual(response['chain']['chains'], ['chain-a'])
 
     async def test_on_get_debug_pools_stall_marks_mutation_not_settled(self):
         maker_api_module._config.update({
-            'maker_replicas': 0,
+            'wallet_url': 'http://maker-wallet-service:8080',
+            'wallet_metrics_url': 'http://maker-wallet-service:8082/metrics',
+            'wallet_owner': 'wallet-owner',
             'wallet_memory_limit_bytes': 0,
         })
         maker_api_module._db = FakeDb(
@@ -402,7 +378,9 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         runtime = GuardedMakerApiRuntime(
             db=GuardedDb(),
             config={
-                'maker_replicas': 0,
+                'wallet_url': 'http://maker-wallet-service:8080',
+                'wallet_metrics_url': 'http://maker-wallet-service:8082/metrics',
+                'wallet_owner': 'wallet-owner',
                 'wallet_memory_limit_bytes': 0,
             },
             request_client=types.SimpleNamespace(),
@@ -526,15 +504,13 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['timestamp_begin'], 1800)
         self.assertEqual(response['timestamp_end'], 1200)
 
-    async def test_on_get_debug_wallet_block_queries_specific_wallet(self):
+    async def test_on_get_debug_wallet_block_queries_wallet(self):
         maker_api_module._config.update({
-            'maker_replicas': 3,
-            'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service',
-            'wallet_rpc_port': 8080,
+            'wallet_url': 'http://maker-wallet-service:8080',
         })
 
         async def fake_post(url, json, **_kwargs):
-            self.assertEqual(url, 'http://maker-wallet-service-1.maker-wallet-service:8080')
+            self.assertEqual(url, 'http://maker-wallet-service:8080')
             self.assertIn('block(chainId: "chain-a", hash: "hash-a")', json['query'])
             return FakeResponse(
                 text='{"data":{"block":{"hash":"hash-a","status":"confirmed","block":{"header":{"chainId":"chain-a","height":"7","timestamp":123,"previousBlockHash":"prev"},"body":{"messages":[]}}}}}'
@@ -543,25 +519,21 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         maker_api_module.async_request.post = fake_post
 
         response = await maker_api_module.on_get_debug_wallet_block(
-            index=1,
             chain_id='chain-a',
             block_hash='hash-a',
         )
 
-        self.assertEqual(response['index'], 1)
         self.assertEqual(response['result']['reachable'], True)
         self.assertEqual(response['result']['block']['hash'], 'hash-a')
         self.assertEqual(response['result']['block']['status'], 'confirmed')
 
-    async def test_on_get_debug_wallet_pending_messages_queries_specific_wallet(self):
+    async def test_on_get_debug_wallet_pending_messages_queries_wallet(self):
         maker_api_module._config.update({
-            'maker_replicas': 3,
-            'wallet_host_template': 'maker-wallet-service-{index}.maker-wallet-service',
-            'wallet_rpc_port': 8080,
+            'wallet_url': 'http://maker-wallet-service:8080',
         })
 
         async def fake_post(url, json, **_kwargs):
-            self.assertEqual(url, 'http://maker-wallet-service-2.maker-wallet-service:8080')
+            self.assertEqual(url, 'http://maker-wallet-service:8080')
             self.assertIn('pendingMessages(chainId: "chain-pool")', json['query'])
             return FakeResponse(
                 text='{"data":{"pendingMessages":[{"action":"Accept","origin":"chain-src","bundle":{"certificateHash":"hash-b","height":"9","timestamp":456,"transactionIndex":0}}]}}'
@@ -570,11 +542,9 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         maker_api_module.async_request.post = fake_post
 
         response = await maker_api_module.on_get_debug_wallet_pending_messages(
-            index=2,
             chain_id='chain-pool',
         )
 
-        self.assertEqual(response['index'], 2)
         self.assertEqual(response['result']['reachable'], True)
         self.assertEqual(len(response['result']['pending_messages']), 1)
         self.assertEqual(response['result']['pending_messages'][0]['bundle']['certificateHash'], 'hash-b')
