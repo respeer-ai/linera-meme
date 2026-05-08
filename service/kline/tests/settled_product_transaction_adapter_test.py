@@ -22,8 +22,8 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
                 'transaction_id': 11,
                 'side': 'buy_token_0',
                 'amount_0_in': '0',
-                'amount_0_out': '9',
-                'amount_1_in': '10',
+                'amount_0_out': '9000000000000000000',
+                'amount_1_in': '10000000000000000000',
                 'amount_1_out': '0',
                 'trade_time_ms': 1234,
                 'from_account': 'chain-a:owner-a',
@@ -52,10 +52,10 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
             {
                 'transaction_id': 12,
                 'side': 'sell_token_0',
-                'amount_0_in': '5',
+                'amount_0_in': '5000000000000000000',
                 'amount_0_out': None,
                 'amount_1_in': None,
-                'amount_1_out': '6',
+                'amount_1_out': '6000000000000000000',
                 'trade_time_ms': 5678,
                 'from_account': 'chain-b:owner-b',
             }
@@ -71,9 +71,9 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
             {
                 'transaction_id': 21,
                 'change_type': 'add_liquidity',
-                'amount_0_delta': '3',
-                'amount_1_delta': '4',
-                'liquidity_delta': '5',
+                'amount_0_delta': '3000000000000000000',
+                'amount_1_delta': '4000000000000000000',
+                'liquidity_delta': '5000000000000000000',
                 'event_time_ms': 2000,
                 'owner': 'owner-a@chain-a',
             }
@@ -82,9 +82,9 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
             {
                 'transaction_id': 22,
                 'change_type': 'remove_liquidity',
-                'amount_0_delta': '7',
-                'amount_1_delta': '8',
-                'liquidity_delta': '9',
+                'amount_0_delta': '7000000000000000000',
+                'amount_1_delta': '8000000000000000000',
+                'liquidity_delta': '9000000000000000000',
                 'event_time_ms': 3000,
                 'owner': 'owner-b@chain-b',
             }

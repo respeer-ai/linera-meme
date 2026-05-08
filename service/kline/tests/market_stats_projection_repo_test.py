@@ -48,8 +48,8 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                 'token_1': 'TLINERA',
                 'trade_time_ms': 1_000,
                 'side': 'buy_token_0',
-                'amount_in': '20',
-                'amount_out': '10',
+                'amount_in': '20000000000000000000',
+                'amount_out': '10000000000000000000',
             },
             {
                 'pool_id': 7,
@@ -58,8 +58,8 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                 'token_1': 'TLINERA',
                 'trade_time_ms': 2_000,
                 'side': 'sell_token_0',
-                'amount_in': '5',
-                'amount_out': '15',
+                'amount_in': '5000000000000000000',
+                'amount_out': '15000000000000000000',
             },
         ]
         repository = MarketStatsProjectionRepository(db)
@@ -84,8 +84,8 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                 'token_1': 'BBB',
                 'trade_time_ms': 1_000,
                 'side': 'buy_token_0',
-                'amount_in': '20',
-                'amount_out': '10',
+                'amount_in': '20000000000000000000',
+                'amount_out': '10000000000000000000',
             },
             {
                 'pool_id': 7,
@@ -94,8 +94,8 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                 'token_1': 'BBB',
                 'trade_time_ms': 2_000,
                 'side': 'sell_token_0',
-                'amount_in': '5',
-                'amount_out': '15',
+                'amount_in': '5000000000000000000',
+                'amount_out': '15000000000000000000',
             },
         ]
         repository = MarketStatsProjectionRepository(db)
@@ -122,8 +122,8 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                 'token_1': 'TLINERA',
                 'trade_time_ms': 150_000_000,
                 'side': 'buy_token_0',
-                'amount_in': '20',
-                'amount_out': '10',
+                'amount_in': '20000000000000000000',
+                'amount_out': '10000000000000000000',
             },
         ]
         repository = MarketStatsProjectionRepository(db)

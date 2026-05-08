@@ -21,7 +21,8 @@ class KlineObservabilityDebugService:
         *,
         raw_table: str | None,
         batch_limit: int | None,
-        after_sequence: int | None,
+        after_sequence: int | None = None,
+        ignore_cursor: bool = False,
         max_batches: int | None,
         reprocess_reason: str | None,
     ):
@@ -41,6 +42,7 @@ class KlineObservabilityDebugService:
             raw_table=raw_table,
             batch_limit=batch_limit,
             after_sequence=after_sequence,
+            ignore_cursor=ignore_cursor,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )
@@ -50,7 +52,8 @@ class KlineObservabilityDebugService:
         *,
         raw_table: str | None,
         batch_limit: int | None,
-        after_sequence: int | None,
+        after_sequence: int | None = None,
+        ignore_cursor: bool = False,
         max_batches: int | None,
         reprocess_reason: str | None,
     ):
@@ -66,6 +69,7 @@ class KlineObservabilityDebugService:
             raw_table=raw_table,
             batch_limit=batch_limit,
             after_sequence=after_sequence,
+            ignore_cursor=ignore_cursor,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )

@@ -1,3 +1,5 @@
+import async_request
+
 from app.config import KlineAppConfig
 from app.observability_facade import ObservabilityFacade
 from app.observability_runtime import ObservabilityRuntime
@@ -10,6 +12,7 @@ from query.handlers.transactions import TransactionsHandler
 from query.read_models.candles import CandlesReadModel
 from query.read_models.position_metrics_protocol_fee_split_semantics import PositionMetricsProtocolFeeSplitSemantics
 from query.read_models.positions import PositionsReadModel
+from query.read_models.virtual_positions import VirtualPositionsReadModel
 from query.read_models.transactions import TransactionsReadModel
 from query.serializers.kline import KlineSerializer
 from query.serializers.positions import PositionsSerializer
@@ -134,8 +137,22 @@ class KlineRuntime:
 
     def positions_handler(self) -> PositionsHandler:
         return PositionsHandler(
-            PositionsReadModel(self.settled_liquidity_projection_repository()),
+            PositionsReadModel(
+                self.settled_liquidity_projection_repository(),
+                virtual_positions_read_model=self.virtual_positions_read_model(),
+            ),
             PositionsSerializer(),
+        )
+
+    def virtual_positions_read_model(self) -> VirtualPositionsReadModel | None:
+        if self._swap is None:
+            return None
+        return VirtualPositionsReadModel(
+            projection_repository=self.settled_liquidity_projection_repository(),
+            live_payload_api=self.position_metrics_public_api().live_payload_api,
+            swap_base_url=self._swap.base_url,
+            post=async_request.post,
+            pool_catalog_loader=self._swap.get_pools,
         )
 
     def position_metrics_diagnostic_recorder(self) -> PositionMetricsDiagnosticRecorder:

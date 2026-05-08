@@ -993,12 +993,14 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         result = await facade.run_normalization_replay(
             raw_table='raw_operations',
             batch_limit=10,
+            ignore_cursor=True,
             max_batches=3,
             reprocess_reason='manual',
         )
 
         self.assertEqual(result['result']['raw_table'], 'raw_operations')
         self.assertEqual(result['result']['max_batches'], 3)
+        self.assertTrue(result['result']['ignore_cursor'])
 
     async def test_observability_facade_can_run_market_derivation_replay(self):
         class ReplayRuntime:
@@ -1024,12 +1026,14 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         result = await facade.run_market_derivation_replay(
             raw_table='raw_posted_messages',
             batch_limit=20,
+            ignore_cursor=True,
             max_batches=4,
             reprocess_reason='manual',
         )
 
         self.assertEqual(result['result']['raw_table'], 'raw_posted_messages')
         self.assertEqual(result['result']['max_batches'], 4)
+        self.assertTrue(result['result']['ignore_cursor'])
 
     async def test_observability_facade_surfaces_component_specific_operator_actions(self):
         class StageFailingRuntime:

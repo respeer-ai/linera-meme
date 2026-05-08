@@ -8,6 +8,8 @@ from transaction_family_codec import TransactionFamilyCodec
 
 
 class SettledTradeProjectionRepository:
+    DISPLAY_AMOUNT_SCALE = Decimal('1000000000000000000')
+
     def __init__(self, db, *, pool_identity_projection_repo=None, transaction_adapter=None, transaction_family_codec=None):
         self.db = db
         self.pool_identity_projection_repo = (
@@ -410,8 +412,8 @@ class SettledTradeProjectionRepository:
 
     def _trade_metrics(self, *, row: dict, token_reversed: bool) -> tuple[Decimal, Decimal, Decimal]:
         side = str(row['side'])
-        amount_in = Decimal(str(row['amount_in']))
-        amount_out = Decimal(str(row['amount_out']))
+        amount_in = self._display_amount(row['amount_in'])
+        amount_out = self._display_amount(row['amount_out'])
         if token_reversed:
             base_volume = amount_in if side == 'buy_token_0' else amount_out
             quote_volume = amount_out if side == 'buy_token_0' else amount_in
@@ -423,6 +425,9 @@ class SettledTradeProjectionRepository:
         else:
             price = quote_volume / base_volume
         return base_volume, quote_volume, price
+
+    def _display_amount(self, value: object) -> Decimal:
+        return Decimal(str(value)) / self.DISPLAY_AMOUNT_SCALE
 
     def _direction(self, transaction_type: str, *, token_reversed: bool) -> str:
         return self.transaction_family_codec.trade_direction(

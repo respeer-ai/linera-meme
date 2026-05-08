@@ -12,10 +12,11 @@ from storage.mysql.projection_query_unavailable_error import ProjectionQueryUnav
 
 
 class PositionsReadModel:
-    def __init__(self, repository):
+    def __init__(self, repository, *, virtual_positions_read_model=None):
         self.repository = repository
+        self.virtual_positions_read_model = virtual_positions_read_model
 
-    def get_positions(
+    async def get_positions(
         self,
         *,
         owner: str,
@@ -24,6 +25,12 @@ class PositionsReadModel:
         payload = self.repository.get_positions(owner=owner, status=status)
         if payload is None:
             raise ProjectionQueryUnavailableError('positions')
+        if self.virtual_positions_read_model is not None:
+            payload = await self.virtual_positions_read_model.enrich_positions(
+                owner=owner,
+                status=status,
+                positions=payload,
+            )
         return {
             'owner': owner,
             'positions': payload,

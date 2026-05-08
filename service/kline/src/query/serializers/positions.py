@@ -23,6 +23,8 @@ class PositionsSerializer:
         'opened_at',
         'updated_at',
         'closed_at',
+        'position_kind',
+        'is_virtual_position',
     })
 
     def serialize_positions(self, payload: dict) -> dict:
@@ -38,6 +40,6 @@ class PositionsSerializer:
 
     def _filter_fields(self, items: list) -> list:
         return [
-            {key: item[key] for key in self.ALLOWED_FIELDS if key in item}
+            {key: item.get(key) for key in self.ALLOWED_FIELDS}
             for item in items
         ]

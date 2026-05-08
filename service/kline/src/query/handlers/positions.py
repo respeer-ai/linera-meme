@@ -12,6 +12,6 @@ class PositionsHandler:
         self.read_model = read_model
         self.serializer = serializer
 
-    def get_positions(self, **kwargs):
-        payload = self.read_model.get_positions(**kwargs)
+    async def get_positions(self, **kwargs):
+        payload = await self.read_model.get_positions(**kwargs)
         return self.serializer.serialize_positions(payload)

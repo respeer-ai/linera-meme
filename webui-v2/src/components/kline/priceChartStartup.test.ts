@@ -287,7 +287,17 @@ describe('resolveNextFetchTimestamp', () => {
       shouldScheduleBackgroundHistoryBackfill({
         firstScreenReady: true,
         backgroundHistoryQueued: false,
-        minPointTimestamp: 3_000,
+        minPointTimestamp: 4_000,
+        poolCreatedAt: 1_000,
+        latestWindowStart: 3_000,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldScheduleBackgroundHistoryBackfill({
+        firstScreenReady: true,
+        backgroundHistoryQueued: false,
+        minPointTimestamp: 1_000,
         poolCreatedAt: 1_000,
         latestWindowStart: 3_000,
       }),

@@ -167,6 +167,27 @@ class NormalizationReplayDriverTest(unittest.TestCase):
         self.assertIsNone(result['cursor'])
         self.assertEqual(cursor_repository.calls, [])
 
+    def test_run_once_can_ignore_cursor_for_backfill_replay(self):
+        raw_repository = self.FakeRawRepository()
+        raw_repository.items_by_table['raw_posted_messages'] = [
+            {'raw_fact_id': '12', 'application_id': 'app-1', 'payload_kind': 'message'},
+        ]
+        cursor_repository = self.FakeProcessingCursorRepository({'last_sequence': '999'})
+        driver = NormalizationReplayDriver(
+            raw_repository=raw_repository,
+            processing_cursor_repository=cursor_repository,
+            normalization_worker=self.FakeNormalizationWorker(),
+        )
+
+        result = driver.run_once(
+            raw_table='raw_posted_messages',
+            ignore_cursor=True,
+        )
+
+        self.assertEqual(raw_repository.calls[0], ('raw_posted_messages', None, 100))
+        self.assertIsNone(result['cursor'])
+        self.assertEqual(cursor_repository.calls, [])
+
     def test_run_all_until_caught_up_drains_all_configured_tables(self):
         class SequencedRawRepository(self.FakeRawRepository):
             def __init__(self):

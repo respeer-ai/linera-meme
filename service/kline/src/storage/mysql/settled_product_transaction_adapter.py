@@ -1,8 +1,12 @@
+from decimal import Decimal
+
 from account_codec import AccountCodec
 from transaction_family_codec import TransactionFamilyCodec
 
 
 class SettledProductTransactionAdapter:
+    DISPLAY_AMOUNT_SCALE = Decimal('1000000000000000000')
+
     def __init__(self, *, account_codec=None, transaction_family_codec=None):
         self.account_codec = account_codec or AccountCodec()
         self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
@@ -11,10 +15,10 @@ class SettledProductTransactionAdapter:
         return {
             'transaction_id': self._int_or_none(row.get('transaction_id')),
             'transaction_type': self.trade_transaction_type(str(row.get('side') or '')),
-            'amount_0_in': self._string_or_none(row.get('amount_0_in')),
-            'amount_0_out': self._string_or_none(row.get('amount_0_out')),
-            'amount_1_in': self._string_or_none(row.get('amount_1_in')),
-            'amount_1_out': self._string_or_none(row.get('amount_1_out')),
+            'amount_0_in': self._display_string_or_none(row.get('amount_0_in')),
+            'amount_0_out': self._display_string_or_none(row.get('amount_0_out')),
+            'amount_1_in': self._display_string_or_none(row.get('amount_1_in')),
+            'amount_1_out': self._display_string_or_none(row.get('amount_1_out')),
             'liquidity': None,
             'created_at': self._int_or_none(row.get('trade_time_ms')),
             'from_account': self._string_or_none(row.get('from_account')),
@@ -28,11 +32,11 @@ class SettledProductTransactionAdapter:
         return {
             'transaction_id': self._int_or_none(row.get('transaction_id')),
             'transaction_type': self.transaction_family_codec.transaction_type_from_liquidity_change_type(change_type),
-            'amount_0_in': amount_0_delta if is_add else None,
-            'amount_0_out': None if is_add else amount_0_delta,
-            'amount_1_in': amount_1_delta if is_add else None,
-            'amount_1_out': None if is_add else amount_1_delta,
-            'liquidity': self._string_or_none(row.get('liquidity_delta')),
+            'amount_0_in': self._display_string_or_none(amount_0_delta) if is_add else None,
+            'amount_0_out': None if is_add else self._display_string_or_none(amount_0_delta),
+            'amount_1_in': self._display_string_or_none(amount_1_delta) if is_add else None,
+            'amount_1_out': None if is_add else self._display_string_or_none(amount_1_delta),
+            'liquidity': self._display_string_or_none(row.get('liquidity_delta')),
             'created_at': self._int_or_none(row.get('event_time_ms')),
             'from_account': self.public_owner_from_settled_owner(row.get('owner')),
         }
@@ -53,6 +57,16 @@ class SettledProductTransactionAdapter:
         if value is None:
             return None
         return str(value)
+
+    def _display_string_or_none(self, value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = format((Decimal(str(value)) / self.DISPLAY_AMOUNT_SCALE).normalize(), 'f')
+        if '.' in normalized:
+            normalized = normalized.rstrip('0').rstrip('.')
+        if normalized in {'', '-0'}:
+            return '0'
+        return normalized
 
     def _int_or_none(self, value: object) -> int | None:
         if value is None:

@@ -484,7 +484,10 @@ class KlinePositionMetricsDebugService:
                 pool_id=pool_id,
                 opened_at=None,
             )
-            liquidity_history = list(replay_facts.liquidity_history)
+            liquidity_history_source = replay_facts.liquidity_history
+            if callable(liquidity_history_source):
+                liquidity_history_source = liquidity_history_source()
+            liquidity_history = list(liquidity_history_source)
 
         position_basis_snapshot = None
         pool_state_snapshot = None

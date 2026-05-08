@@ -347,7 +347,9 @@ class ReadModelBridgeTest(
             start_at=100,
             end_at=200,
         )
-        positions = PositionsReadModel(repository).get_positions(owner='chain:owner-a', status='active')
+        positions = asyncio.run(
+            PositionsReadModel(repository).get_positions(owner='chain:owner-a', status='active')
+        )
 
         self.assertEqual(candles['pool_id'], 9)
         self.assertEqual(candles['points'], [{'close': '3'}])
@@ -623,7 +625,7 @@ class ReadModelBridgeTest(
                 ]
 
         read_model = PositionsReadModel(FakeRepository())
-        result = read_model.get_positions(owner='chain:owner-a', status='active')
+        result = asyncio.run(read_model.get_positions(owner='chain:owner-a', status='active'))
 
         self.assertEqual(result['owner'], 'chain:owner-a')
         self.assertEqual(len(result['positions']), 2)
@@ -637,7 +639,46 @@ class ReadModelBridgeTest(
 
         read_model = PositionsReadModel(FakeRepository())
         with self.assertRaises(ProjectionQueryUnavailableError):
-            read_model.get_positions(owner='chain:owner-a', status='active')
+            asyncio.run(read_model.get_positions(owner='chain:owner-a', status='active'))
+
+    def test_positions_read_model_enriches_virtual_positions_when_available(self):
+        class FakeRepository:
+            def get_positions(self, *, owner, status):
+                return []
+
+        class FakeVirtualPositionsReadModel:
+            async def enrich_positions(self, *, owner, status, positions):
+                self.calls = (owner, status, list(positions))
+                return [{
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 1,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': owner,
+                    'status': 'active',
+                    'current_liquidity': '5',
+                    'added_liquidity': '5',
+                    'removed_liquidity': '0',
+                    'add_tx_count': 1,
+                    'remove_tx_count': 0,
+                    'opened_at': 1000,
+                    'updated_at': 1000,
+                    'closed_at': None,
+                    'position_kind': 'virtual_initial_liquidity',
+                    'is_virtual_position': True,
+                }]
+
+        virtual_positions = FakeVirtualPositionsReadModel()
+        read_model = PositionsReadModel(
+            FakeRepository(),
+            virtual_positions_read_model=virtual_positions,
+        )
+
+        result = asyncio.run(read_model.get_positions(owner='chain:owner-a', status='active'))
+
+        self.assertEqual(result['owner'], 'chain:owner-a')
+        self.assertEqual(result['positions'][0]['position_kind'], 'virtual_initial_liquidity')
+        self.assertTrue(result['positions'][0]['is_virtual_position'])
 
     def test_position_metrics_handler_records_snapshot_shadow_and_hides_internal_payload(self):
         class FakeReadModel:

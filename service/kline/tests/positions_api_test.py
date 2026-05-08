@@ -2009,14 +2009,25 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 *,
                 raw_table,
                 batch_limit,
+                after_sequence,
+                ignore_cursor,
                 max_batches,
                 reprocess_reason,
             ):
-                self.calls.append((raw_table, batch_limit, max_batches, reprocess_reason))
+                self.calls.append((
+                    raw_table,
+                    batch_limit,
+                    after_sequence,
+                    ignore_cursor,
+                    max_batches,
+                    reprocess_reason,
+                ))
                 return {
                     'result': {
                         'raw_table': raw_table,
                         'batch_limit': batch_limit,
+                        'after_sequence': after_sequence,
+                        'ignore_cursor': ignore_cursor,
                         'max_batches': max_batches,
                         'reprocess_reason': reprocess_reason,
                     }
@@ -2029,6 +2040,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             response = await kline_module.on_post_debug_market_derivation_replay_run(
                 raw_table='raw_posted_messages',
                 batch_limit=10,
+                after_sequence=123,
+                ignore_cursor=True,
                 max_batches=2,
                 reprocess_reason='manual',
             )
@@ -2037,9 +2050,11 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             fake_facade.calls,
-            [('raw_posted_messages', 10, 2, 'manual')],
+            [('raw_posted_messages', 10, 123, True, 2, 'manual')],
         )
         self.assertEqual(response['result']['raw_table'], 'raw_posted_messages')
+        self.assertEqual(response['result']['after_sequence'], 123)
+        self.assertTrue(response['result']['ignore_cursor'])
 
     async def test_on_post_debug_market_derivation_replay_rejects_invalid_raw_table(self):
         response = await kline_module.on_post_debug_market_derivation_replay_run(
@@ -2064,11 +2079,26 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 *,
                 raw_table,
                 batch_limit,
+                after_sequence,
+                ignore_cursor,
                 max_batches,
                 reprocess_reason,
             ):
-                self.calls.append((raw_table, batch_limit, max_batches, reprocess_reason))
-                return {'result': {'raw_table': raw_table}}
+                self.calls.append((
+                    raw_table,
+                    batch_limit,
+                    after_sequence,
+                    ignore_cursor,
+                    max_batches,
+                    reprocess_reason,
+                ))
+                return {
+                    'result': {
+                        'raw_table': raw_table,
+                        'after_sequence': after_sequence,
+                        'ignore_cursor': ignore_cursor,
+                    }
+                }
 
         fake_facade = FakeObservabilityFacade()
         kline_module._observability_facade = fake_facade
@@ -2077,14 +2107,18 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             response = await kline_module.on_post_debug_normalization_replay_run(
                 raw_table='raw_posted_messages',
                 batch_limit=5,
+                after_sequence=111,
+                ignore_cursor=True,
                 max_batches=1,
                 reprocess_reason='manual',
             )
         finally:
             kline_module._observability_facade = original_facade
 
-        self.assertEqual(fake_facade.calls, [('raw_posted_messages', 5, 1, 'manual')])
+        self.assertEqual(fake_facade.calls, [('raw_posted_messages', 5, 111, True, 1, 'manual')])
         self.assertEqual(response['result']['raw_table'], 'raw_posted_messages')
+        self.assertEqual(response['result']['after_sequence'], 111)
+        self.assertTrue(response['result']['ignore_cursor'])
 
     async def test_on_post_debug_observability_recover_returns_disabled_when_unconfigured(self):
         original_facade = kline_module._observability_facade

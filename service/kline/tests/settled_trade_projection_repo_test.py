@@ -98,11 +98,11 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 'side': 'buy_token_0',
                 'from_account': 'chain-user:owner-user',
                 'amount_0_in': None,
-                'amount_0_out': '300',
-                'amount_1_in': '25',
+                'amount_0_out': '300000000000000000000',
+                'amount_1_in': '25000000000000000000',
                 'amount_1_out': None,
-                'amount_in': '25',
-                'amount_out': '300',
+                'amount_in': '25000000000000000000',
+                'amount_out': '300000000000000000000',
                 'event_payload_json': {},
             }
         ]
@@ -139,11 +139,11 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 'side': 'buy_token_0',
                 'from_account': 'c:o',
                 'amount_0_in': None,
-                'amount_0_out': '10',
-                'amount_1_in': '20',
+                'amount_0_out': '10000000000000000000',
+                'amount_1_in': '20000000000000000000',
                 'amount_1_out': None,
-                'amount_in': '20',
-                'amount_out': '10',
+                'amount_in': '20000000000000000000',
+                'amount_out': '10000000000000000000',
                 'event_payload_json': {},
             },
             {
@@ -156,12 +156,12 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 'trade_time_ms': 20_000,
                 'side': 'sell_token_0',
                 'from_account': 'c:o',
-                'amount_0_in': '6',
+                'amount_0_in': '6000000000000000000',
                 'amount_0_out': None,
                 'amount_1_in': None,
-                'amount_1_out': '18',
-                'amount_in': '6',
-                'amount_out': '18',
+                'amount_1_out': '18000000000000000000',
+                'amount_in': '6000000000000000000',
+                'amount_out': '18000000000000000000',
                 'event_payload_json': {},
             },
         ]
@@ -178,6 +178,12 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(payload[0], 7)
         self.assertEqual(payload[1], 'chain-a:pool-app')
         self.assertEqual(len(payload[4]), 1)
+        self.assertEqual(payload[4][0]['open'], 2.0)
+        self.assertEqual(payload[4][0]['high'], 3.0)
+        self.assertEqual(payload[4][0]['low'], 2.0)
+        self.assertEqual(payload[4][0]['close'], 3.0)
+        self.assertEqual(payload[4][0]['base_volume'], 16.0)
+        self.assertEqual(payload[4][0]['quote_volume'], 38.0)
 
     def test_trade_queries_join_against_prefixed_pool_application(self):
         db = self.FakeDb()

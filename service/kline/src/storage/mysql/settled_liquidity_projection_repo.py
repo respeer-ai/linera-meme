@@ -45,6 +45,39 @@ class SettledLiquidityProjectionRepository:
             return None
         return [self._build_history_row(row) for row in rows]
 
+    def get_owner_candidate_histories(
+        self,
+        *,
+        owner: str,
+    ) -> list[dict] | None:
+        rows = self._load_liquidity_rows(owner=owner)
+        if rows is None:
+            return None
+        grouped: dict[tuple[str, int], dict] = {}
+        for row in rows:
+            key = (str(row['pool_application']), int(row['pool_id']))
+            current = grouped.get(key)
+            if current is None:
+                current = {
+                    'pool_application': row['pool_application'],
+                    'pool_id': int(row['pool_id']),
+                    'token_0': row['token_0'],
+                    'token_1': row['token_1'],
+                    'owner': owner,
+                    'opened_at': None,
+                    'updated_at': None,
+                    'add_tx_count': 0,
+                }
+                grouped[key] = current
+            event_time_ms = int(row['event_time_ms']) if row['event_time_ms'] is not None else None
+            if row['change_type'] == 'add_liquidity':
+                current['add_tx_count'] += 1
+                if current['opened_at'] is None or (event_time_ms is not None and event_time_ms < current['opened_at']):
+                    current['opened_at'] = event_time_ms
+            if event_time_ms is not None and (current['updated_at'] is None or event_time_ms > current['updated_at']):
+                current['updated_at'] = event_time_ms
+        return list(grouped.values())
+
     def get_pool_liquidity_history(
         self,
         *,

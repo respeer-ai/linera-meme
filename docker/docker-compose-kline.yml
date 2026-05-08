@@ -6,10 +6,10 @@ services:
       - "25080:25080"
     command: [ "./kline-entrypoint.sh" ]
     extra_hosts:
-      - "api.lineraswap.fun=${LAN_IP}"
-      - "api.linerameme.fun=${LAN_IP}"
-      - "api.${SUB_DOMAIN}lineraswap.fun=${LAN_IP}"
-      - "api.${SUB_DOMAIN}linerameme.fun=${LAN_IP}"
+      api.lineraswap.fun: "${LAN_IP}"
+      api.linerameme.fun: "${LAN_IP}"
+      api.testnet-conway.lineraswap.fun: "${LAN_IP}"
+      api.testnet-conway.linerameme.fun: "${LAN_IP}"
     environment:
       DATABASE_HOST: ${DATABASE_HOST}
       DATABASE_PORT: ${DATABASE_PORT}

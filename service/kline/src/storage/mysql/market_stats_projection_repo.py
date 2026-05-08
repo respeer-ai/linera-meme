@@ -3,6 +3,8 @@ from decimal import Decimal
 
 
 class MarketStatsProjectionRepository:
+    DISPLAY_AMOUNT_SCALE = Decimal('1000000000000000000')
+
     def __init__(self, db):
         self.db = db
 
@@ -295,11 +297,14 @@ class MarketStatsProjectionRepository:
     def _base_volume(self, trade: dict) -> Decimal:
         side = str(trade['side'])
         if side == 'buy_token_0':
-            return Decimal(str(trade['amount_out']))
-        return Decimal(str(trade['amount_in']))
+            return self._display_amount(trade['amount_out'])
+        return self._display_amount(trade['amount_in'])
 
     def _quote_volume(self, trade: dict) -> Decimal:
         side = str(trade['side'])
         if side == 'buy_token_0':
-            return Decimal(str(trade['amount_in']))
-        return Decimal(str(trade['amount_out']))
+            return self._display_amount(trade['amount_in'])
+        return self._display_amount(trade['amount_out'])
+
+    def _display_amount(self, value: object) -> Decimal:
+        return Decimal(str(value)) / self.DISPLAY_AMOUNT_SCALE

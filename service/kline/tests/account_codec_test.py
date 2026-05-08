@@ -47,6 +47,15 @@ class AccountCodecTest(unittest.TestCase):
         )
         self.assertIsNone(codec.payload_from_public_account('invalid-owner'))
 
+    def test_payload_from_public_account_normalizes_hex_owner_without_prefix(self):
+        codec = AccountCodec()
+        owner = 'd4a2fd162d513d0073b5342f7e3fa50c096fe8bed72fa1f5b06dd1b01f951985'
+
+        self.assertEqual(
+            codec.payload_from_public_account(f'chain-a:{owner}'),
+            {'chain_id': 'chain-a', 'owner': f'0x{owner}'},
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

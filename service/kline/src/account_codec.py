@@ -7,7 +7,7 @@ class AccountCodec:
             raise ValueError('invalid_public_account')
         return {
             'chain_id': chain_id,
-            'owner': owner,
+            'owner': self._normalize_payload_owner(owner),
         }
 
     def public_account_from_payload(self, account: object) -> str | None:
@@ -46,3 +46,10 @@ class AccountCodec:
             return self.payload_account_from_public_account(account)
         except ValueError:
             return None
+
+    def _normalize_payload_owner(self, owner: str) -> str:
+        if owner.startswith('0x'):
+            return owner
+        if len(owner) == 64 and all(char in '0123456789abcdefABCDEF' for char in owner):
+            return f'0x{owner}'
+        return owner

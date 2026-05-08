@@ -20,12 +20,13 @@ class MarketDerivationReplayDriver:
         raw_table: str,
         batch_limit: int | None = None,
         after_sequence: int | None = None,
+        ignore_cursor: bool = False,
         reprocess_reason: str | None = None,
     ) -> dict[str, object]:
         partition_key = raw_table
         cursor = None
         effective_after_sequence = after_sequence
-        if effective_after_sequence is None:
+        if effective_after_sequence is None and not ignore_cursor:
             cursor = self.processing_cursor_repository.load_cursor(
                 cursor_name=self.market_derivation_worker.cursor_name,
                 partition_key=partition_key,
@@ -69,6 +70,7 @@ class MarketDerivationReplayDriver:
         raw_table: str,
         batch_limit: int | None = None,
         after_sequence: int | None = None,
+        ignore_cursor: bool = False,
         reprocess_reason: str | None = None,
         max_batches: int | None = None,
     ) -> dict[str, object]:
@@ -81,6 +83,7 @@ class MarketDerivationReplayDriver:
                 raw_table=raw_table,
                 batch_limit=batch_limit,
                 after_sequence=after_sequence,
+                ignore_cursor=ignore_cursor,
                 reprocess_reason=reprocess_reason,
             )
             results.append(result)
@@ -90,6 +93,7 @@ class MarketDerivationReplayDriver:
                 break
             last_sequence = result.get('last_sequence')
             after_sequence = int(last_sequence) if last_sequence is not None else after_sequence
+            ignore_cursor = False
         return {
             'raw_table': raw_table,
             'batch_count': len(results),

@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, WebSocket, Query
 from fastapi.responses import JSONResponse
 import uvicorn
 import argparse
+import inspect
 import time
 
 
@@ -298,7 +299,10 @@ async def on_get_positions(
     status: str = Query(default='active'),
 ):
     try:
-        return _build_positions_handler().get_positions(owner=owner, status=status)
+        response = _build_positions_handler().get_positions(owner=owner, status=status)
+        if inspect.isawaitable(response):
+            return await response
+        return response
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -485,6 +489,7 @@ async def on_post_debug_normalization_replay_run(
     raw_table: str | None = Query(default=None),
     batch_limit: int | None = Query(default=None),
     after_sequence: int | None = Query(default=None),
+    ignore_cursor: bool = Query(default=False),
     max_batches: int | None = Query(default=None),
     reprocess_reason: str | None = Query(default=None),
 ):
@@ -493,6 +498,7 @@ async def on_post_debug_normalization_replay_run(
             raw_table=raw_table,
             batch_limit=batch_limit,
             after_sequence=after_sequence,
+            ignore_cursor=ignore_cursor,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )
@@ -514,6 +520,7 @@ async def on_post_debug_market_derivation_replay_run(
     raw_table: str | None = Query(default=None),
     batch_limit: int | None = Query(default=None),
     after_sequence: int | None = Query(default=None),
+    ignore_cursor: bool = Query(default=False),
     max_batches: int | None = Query(default=None),
     reprocess_reason: str | None = Query(default=None),
 ):
@@ -522,6 +529,7 @@ async def on_post_debug_market_derivation_replay_run(
             raw_table=raw_table,
             batch_limit=batch_limit,
             after_sequence=after_sequence,
+            ignore_cursor=ignore_cursor,
             max_batches=max_batches,
             reprocess_reason=reprocess_reason,
         )
