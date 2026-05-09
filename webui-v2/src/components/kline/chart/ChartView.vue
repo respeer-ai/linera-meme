@@ -254,7 +254,9 @@ const indicatorRenderSignature = computed(() => JSON.stringify({
   boll: props.indicatorConfig.boll,
 }))
 
-const trimTrailingZeros = (value: string) => value.replace(/\.?0+$/, '')
+const trimTrailingZeros = (value: string) => (
+  value.includes('.') ? value.replace(/\.?0+$/, '') : value
+)
 
 const formatCompactNumber = (value: number, fractionDigits = 2) => {
   const abs = Math.abs(value)
