@@ -14,6 +14,10 @@ class AsyncResponse:
     def text(self):
         return self._text
 
+    @property
+    def reason(self):
+        return f"HTTP {self.status_code}"
+
     def json(self):
         import json
         return json.loads(self._text, parse_float=Decimal)

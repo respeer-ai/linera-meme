@@ -544,6 +544,50 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(container['notification_listener'].start_called, 1)
         self.assertEqual(container['notification_listener'].stop_called, 1)
 
+    async def test_lifecycle_syncs_discovered_chain_ids_to_notification_listener(self):
+        class FakeApplicationRegistry:
+            def list_known_applications(self, *, app_type: str, limit: int):
+                if app_type == 'pool':
+                    return [{'chain_id': 'chain-pool'}]
+                if app_type == 'meme':
+                    return [{'chain_id': 'chain-meme'}]
+                return []
+
+        class FakeNotificationListener:
+            def __init__(self):
+                self.added_chain_ids = []
+
+            async def add_chain_ids(self, chain_ids):
+                self.added_chain_ids.append(tuple(chain_ids))
+                return tuple(chain_ids)
+
+        class FakeCollector:
+            def __init__(self):
+                self.added_chain_ids = []
+
+            def add_chain_ids(self, chain_ids):
+                self.added_chain_ids.append(tuple(chain_ids))
+                return tuple(chain_ids)
+
+        lifecycle = AppLifecycle()
+        processor = FakeCollector()
+        driver = FakeCollector()
+        listener = FakeNotificationListener()
+        container = {
+            'application_registry': FakeApplicationRegistry(),
+            'chain_event_processor': processor,
+            'catch_up_driver': driver,
+            'notification_listener': listener,
+        }
+
+        result = await lifecycle.sync_discovered_chain_ids(container)
+
+        expected = ('chain-meme', 'chain-pool')
+        self.assertEqual(result, expected)
+        self.assertEqual(processor.added_chain_ids, [expected])
+        self.assertEqual(driver.added_chain_ids, [expected])
+        self.assertEqual(listener.added_chain_ids, [expected])
+
     async def test_observability_runtime_returns_stage_results_and_keeps_container_when_listener_fails(self):
         class StageFailingLifecycle(AppLifecycle):
             async def start_listener(self, container: dict[str, object]) -> None:

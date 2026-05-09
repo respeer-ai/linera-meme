@@ -626,6 +626,46 @@ class RawRepositoryTest(unittest.TestCase):
         self.assertNotIn('INSERT INTO raw_incoming_bundles', executed_sql)
         self.assertNotIn('INSERT INTO raw_posted_messages', executed_sql)
 
+    def test_ingest_block_inherits_posted_message_external_identity_from_bundle(self):
+        connection = FakeConnection()
+        repository = RawRepository(connection)
+
+        repository.ingest_block({
+            'chain_id': 'chain-a',
+            'height': 7,
+            'block_hash': 'hash-7',
+            'timestamp_ms': 123456,
+            'incoming_bundles': [
+                {
+                    'origin_chain_id': 'chain-b',
+                    'source_cert_hash': 'cert-1',
+                    'transaction_index': 2,
+                    'posted_messages': [
+                        {
+                            'message_index': 3,
+                            'origin_chain_id': None,
+                            'source_cert_hash': None,
+                            'transaction_index': 2,
+                            'message_kind': 'Tracked',
+                            'message_type': 'User',
+                            'raw_message_bytes': b'hello',
+                        },
+                    ],
+                },
+            ],
+        })
+
+        write_cursor = connection.cursor_instances[-1]
+        posted_message_params = next(
+            params
+            for sql, params in write_cursor.executed
+            if 'INSERT IGNORE INTO raw_posted_messages' in sql
+        )
+        self.assertEqual(posted_message_params[1], 'chain-b')
+        self.assertEqual(posted_message_params[2], 'cert-1')
+        self.assertEqual(posted_message_params[3], 2)
+        self.assertEqual(posted_message_params[4], 3)
+
     def test_ingest_block_conflict_rolls_back_and_records_anomaly(self):
         connection = FakeConnection()
         repository = RawRepository(connection)

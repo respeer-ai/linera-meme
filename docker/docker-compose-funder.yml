@@ -4,11 +4,13 @@ services:
     container_name: funder
     command: [ "./funder-entrypoint.sh" ]
     extra_hosts:
-      - "api.lineraswap.fun=${LAN_IP}"
-      - "api.linerameme.fun=${LAN_IP}"
-      - "api.${SUB_DOMAIN}lineraswap.fun=${LAN_IP}"
-      - "api.${SUB_DOMAIN}linerameme.fun=${LAN_IP}"
+      api.lineraswap.fun: "${LAN_IP}"
+      api.linerameme.fun: "${LAN_IP}"
+      api.testnet-conway.lineraswap.fun: "${LAN_IP}"
+      api.testnet-conway.linerameme.fun: "${LAN_IP}"
     environment:
+      NO_PROXY: ${NO_PROXY}
+      no_proxy: ${no_proxy}
       SWAP_CHAIN_ID: ${SWAP_CHAIN_ID}
       SWAP_APPLICATION_ID: ${SWAP_APPLICATION_ID}
       SWAP_HOST: ${SWAP_HOST}

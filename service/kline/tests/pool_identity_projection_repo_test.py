@@ -106,6 +106,44 @@ class PoolIdentityProjectionRepositoryTest(unittest.TestCase):
 
         self.assertEqual(resolved, (3, 'chain-a:native-pool', 'TLINERA', 'MEME', False))
 
+    def test_resolve_for_read_normalizes_zero_token_id_to_native(self):
+        db = self.FakeDb()
+        db.cursor_dict.responses = [[{
+            'pool_id': 3,
+            'pool_application': 'chain-a:native-pool',
+            'token_0': 'MEME',
+            'token_1': 'TLINERA',
+        }]]
+        repository = PoolIdentityProjectionRepository(db)
+
+        resolved = repository.resolve_for_read(
+            'MEME',
+            '0000000000000000000000000000000000000000000000000000000000000000',
+            pool_id=3,
+        )
+
+        self.assertEqual(resolved, (3, 'chain-a:native-pool', 'MEME', 'TLINERA', False))
+
+    def test_resolve_for_tokens_normalizes_zero_token_id_to_native(self):
+        db = self.FakeDb()
+        db.cursor_dict.responses = [
+            [],
+            [{
+                'pool_id': 3,
+                'pool_application': 'chain-a:native-pool',
+                'token_0': 'TLINERA',
+                'token_1': 'MEME',
+            }],
+        ]
+        repository = PoolIdentityProjectionRepository(db)
+
+        resolved = repository.resolve_for_read(
+            'MEME',
+            '0000000000000000000000000000000000000000000000000000000000000000',
+        )
+
+        self.assertEqual(resolved, (3, 'chain-a:native-pool', 'MEME', 'TLINERA', True))
+
     def test_resolve_for_tokens_rejects_unknown_pair(self):
         db = self.FakeDb()
         db.cursor_dict.responses = [[], []]

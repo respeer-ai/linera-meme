@@ -66,7 +66,9 @@ class AppLifecycle:
 
         notification_listener = container.get('notification_listener')
         if notification_listener is not None and hasattr(notification_listener, 'add_chain_ids'):
-            return normalized_chain_ids
+            result = notification_listener.add_chain_ids(normalized_chain_ids)
+            if hasattr(result, '__await__'):
+                return result
         return normalized_chain_ids
 
     async def run_startup_catch_up(self, container: dict[str, object]) -> None:

@@ -6,6 +6,11 @@ services:
     ports:
       - "{{ service.port }}:8080"
     command: [ "./wallet-entrypoint.sh" ]
+    extra_hosts:
+      api.lineraswap.fun: "{{ lan_ip }}"
+      api.linerameme.fun: "{{ lan_ip }}"
+      api.testnet-conway.lineraswap.fun: "{{ lan_ip }}"
+      api.testnet-conway.linerameme.fun: "{{ lan_ip }}"
     volumes:
       - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
     environment:

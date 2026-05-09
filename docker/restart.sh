@@ -41,9 +41,20 @@ mkdir -p $BIN_DIR
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
 
+DOMAIN_FILE="${ROOT_DIR}/webui-v2/src/constant/domain.ts"
+SUDO_PASSWORD=${SUDO_PASSWORD:-}
+
+function sudo_run() {
+    if [ -n "$SUDO_PASSWORD" ]; then
+        printf '%s\n' "$SUDO_PASSWORD" | sudo -S "$@"
+    else
+        sudo "$@"
+    fi
+}
+
 function get_domain_value() {
     application=$1
-    sed ':a;N;s/=\n/=/;ta;P;D'  ../webui-v2/src/constant/domain.ts | grep $application | awk '{ print $NF }'
+    sed ':a;N;s/=\n/=/;ta;P;D' "$DOMAIN_FILE" | grep "$application" | awk '{ print $NF }' | tr -d "'\""
 }
 
 BLOB_GATEWAY_CHAIN_ID=$(get_domain_value BLOB_GATEWAY_CHAIN_ID)
@@ -68,7 +79,7 @@ export PATH=$BIN_DIR:$PATH
 function wallet_owner() {
     wallet_name=$1
     wallet_index=$2
-    sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    sudo_run $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
@@ -78,7 +89,7 @@ function wallet_owner() {
 function wallet_chain_id() {
     wallet_name=$1
     wallet_index=$2
-    sudo $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+    sudo_run $BIN_DIR/linera --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet show \
@@ -125,6 +136,14 @@ if [ "x$COMPILE" = "x1" ]; then
 fi
 
 function restart_kline() {
+    local local_no_proxy no_proxy_value
+    local_no_proxy=localhost,127.0.0.1,::1,query-service,rpc,maker-wallet,maker,funder,kline,docker-mysql-1,api.lineraswap.fun,api.linerameme.fun,api.testnet-conway.lineraswap.fun,api.testnet-conway.linerameme.fun
+    no_proxy_value=${no_proxy:-${NO_PROXY:-}}
+    if [ -n "$no_proxy_value" ]; then
+        no_proxy_value="$no_proxy_value,$local_no_proxy"
+    else
+        no_proxy_value="$local_no_proxy"
+    fi
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml down
     MAKER_OWNER=$(wallet_owner maker 0)
     MAKER_CHAIN_ID=$(wallet_chain_id maker 0)
@@ -134,8 +153,10 @@ function restart_kline() {
     SWAP_OWNER=$(wallet_owner swap 0)
 
     cp -v $ROOT_DIR/docker/docker-compose-query.yml $DOCKER_DIR
-    LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml down
-    LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml up --wait
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
+    LAN_IP=$LAN_IP LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml down
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
+    LAN_IP=$LAN_IP LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-query.yml up --wait
 
     function wait_query_service_ready() {
         payload='{"query":"query Chains { chains { list } }"}'
@@ -163,11 +184,17 @@ function restart_kline() {
         chain_id=$2
         label=$3
 
+        verify_payload='{"query":"query Chains { chains { list } }"}'
+        verify=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$verify_payload" 2>&1 || true)
+        if echo "$verify" | grep -q "$chain_id"; then
+            echo "$label chain $chain_id already available in query-service"
+            return 0
+        fi
+
         payload=$(jq -cn \
             --arg owner "$owner" \
             --arg chainId "$chain_id" \
             '{query:"mutation ImportChain($owner: AccountOwner!, $chainId: ChainId!) { importChain(owner: $owner, chainId: $chainId) }", variables:{owner:$owner, chainId:$chainId}}')
-        verify_payload='{"query":"query Chains { chains { list } }"}'
 
         for _ in $(seq 1 20); do
             resp=$(curl --noproxy '*' -sS http://localhost:24080 -H 'Content-Type: application/json' --data "$payload" 2>&1 || true)
@@ -191,29 +218,57 @@ function restart_kline() {
     import_query_chain "$SWAP_OWNER" "$SWAP_CHAIN_ID" swap
 
     start_chains
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
 
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
-      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+      CHAIN_GRAPHQL_URL=http://query-service:30080 \
+      CHAIN_GRAPHQL_WS_URL=ws://query-service:30080/ws \
+      CATCH_UP_CHAIN_IDS=$SWAP_CHAIN_ID,$PROXY_CHAIN_ID \
+      CATCH_UP_MAX_BLOCKS_PER_CHAIN=100 \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml down
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
     LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
-      SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+      PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+      CHAIN_GRAPHQL_URL=http://query-service:30080 \
+      CHAIN_GRAPHQL_WS_URL=ws://query-service:30080/ws \
+      CATCH_UP_CHAIN_IDS=$SWAP_CHAIN_ID,$PROXY_CHAIN_ID \
+      CATCH_UP_MAX_BLOCKS_PER_CHAIN=100 \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
 
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
-      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
+    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
+      SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
+      SWAP_HOST=$SWAP_HOST PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml down
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
-      SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST \
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
+    LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
+      SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
+      SWAP_HOST=$SWAP_HOST PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
 }
 
 function restart_funder() {
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
-    PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    local local_no_proxy no_proxy_value
+    local_no_proxy=localhost,127.0.0.1,::1,query-service,rpc,maker-wallet,maker,funder,kline,docker-mysql-1,api.lineraswap.fun,api.linerameme.fun,api.testnet-conway.lineraswap.fun,api.testnet-conway.linerameme.fun
+    no_proxy_value=${no_proxy:-${NO_PROXY:-}}
+    if [ -n "$no_proxy_value" ]; then
+        no_proxy_value="$no_proxy_value,$local_no_proxy"
+    else
+        no_proxy_value="$local_no_proxy"
+    fi
+    LAN_IP=$LAN_IP WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID MAKER_WALLET_HOST=$LAN_IP:40082 \
+    SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+    PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
     docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml down
-    LAN_IP=$LAN_IP SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
-    PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
+    NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
+    LAN_IP=$LAN_IP WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID MAKER_WALLET_HOST=$LAN_IP:40082 \
+    SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
+    PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
     MAKER_WALLET_CHAIN_ID=$MAKER_CHAIN_ID \
     docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }

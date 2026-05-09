@@ -31,6 +31,7 @@ sys.modules.setdefault('pandas', pandas_stub)
 sys.modules.setdefault('numpy', numpy_stub)
 
 from ticker import Ticker  # noqa: E402
+from websocket_candle_reader import WebsocketCandleReader  # noqa: E402
 
 
 class FakePoolCatalogWriter:
@@ -99,6 +100,41 @@ def make_pool_identity(pool_id=7):
 
 
 class TickerIncrementalPayloadTest(unittest.TestCase):
+    def test_websocket_candle_reader_exposes_get_points_for_ticker(self):
+        read_model = Mock()
+        read_model.get_points.return_value = {
+            'pool_id': 7,
+            'pool_application': 'chain:app',
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'interval': '5m',
+            'start_at': 1,
+            'end_at': 2,
+            'points': [],
+        }
+        reader = WebsocketCandleReader(read_model)
+
+        payload = reader.get_points(
+            token_0='AAA',
+            token_1='BBB',
+            start_at=1,
+            end_at=2,
+            interval='5min',
+            pool_id=7,
+            pool_application='chain:app',
+        )
+
+        read_model.get_points.assert_called_once_with(
+            token_0='AAA',
+            token_1='BBB',
+            start_at=1,
+            end_at=2,
+            interval='5min',
+            pool_id=7,
+            pool_application='chain:app',
+        )
+        self.assertEqual(payload['interval'], '5min')
+
     def test_builds_incremental_payload_with_only_changed_candles(self):
         db = FakeDb()
         candle_reader = FakeCandleReader(db)
@@ -253,6 +289,102 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
             }],
         )['1min'][0]['points'][0]
         self.assertEqual(websocket_payload, db.points[(7, False, '1min', 1_800_000_000_000)])
+
+    def test_builds_incremental_payload_for_live_bucket_using_bucket_end_range(self):
+        db = FakeDb()
+        candle_reader = FakeCandleReader(db)
+        db.points[(7, False, '1min', 1_800_000_000_000)] = {
+            'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': False,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 2.0,
+            'close': 3.0,
+            'base_volume': 14.0,
+            'quote_volume': 35.0,
+        }
+        ticker = Ticker(
+            manager=None,
+            swap=None,
+            pool_catalog_writer=FakePoolCatalogWriter(),
+            candle_reader=candle_reader,
+            transaction_history_repository=db,
+            transaction_watermarks_repository=db,
+            now_ms=lambda: 1_800_000_030_000,
+        )
+        pool = make_pool()
+
+        payload = ticker.build_incremental_kline_payload(
+            pool,
+            [{
+                'transaction_id': 10,
+                'transaction_type': 'BuyToken0',
+                'token_reversed': False,
+                'created_at': 1_800_000_001_000,
+            }],
+        )
+
+        self.assertEqual(
+            payload['1min'][0]['points'][0],
+            db.points[(7, False, '1min', 1_800_000_000_000)],
+        )
+        self.assertEqual(candle_reader.calls[0]['end_at'], 1_800_000_059_999)
+
+    def test_repeated_live_trades_in_same_bucket_do_not_advance_range_into_next_bucket(self):
+        db = FakeDb()
+        candle_reader = FakeCandleReader(db)
+        db.points[(7, False, '1min', 1_800_000_000_000)] = {
+            'timestamp': 1_800_000_000_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': False,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 2.0,
+            'close': 3.0,
+            'base_volume': 14.0,
+            'quote_volume': 35.0,
+        }
+        ticker = Ticker(
+            manager=None,
+            swap=None,
+            pool_catalog_writer=FakePoolCatalogWriter(),
+            candle_reader=candle_reader,
+            transaction_history_repository=db,
+            transaction_watermarks_repository=db,
+            now_ms=lambda: 1_800_000_030_000,
+        )
+        pool = make_pool()
+
+        first_payload = ticker.build_incremental_kline_payload(
+            pool,
+            [{
+                'transaction_id': 10,
+                'transaction_type': 'BuyToken0',
+                'token_reversed': False,
+                'created_at': 1_800_000_001_000,
+            }],
+        )
+        second_payload = ticker.build_incremental_kline_payload(
+            pool,
+            [{
+                'transaction_id': 11,
+                'transaction_type': 'BuyToken0',
+                'token_reversed': False,
+                'created_at': 1_800_000_030_000,
+            }],
+        )
+
+        self.assertEqual(first_payload['1min'][0]['points'][0]['base_volume'], 14.0)
+        self.assertEqual(second_payload['1min'][0]['points'][0]['base_volume'], 14.0)
+        self.assertEqual(candle_reader.calls[1]['start_at'], 1_800_000_000_000)
+        self.assertEqual(candle_reader.calls[1]['end_at'], 1_800_000_059_999)
 
     def test_builds_incremental_payload_with_gap_backfill_points_between_emitted_and_new_bucket(self):
         db = FakeDb()

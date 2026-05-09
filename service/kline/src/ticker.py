@@ -131,13 +131,13 @@ class Ticker:
                 range_start = (
                     bucket_key.bucket_start_ms
                     if last_emitted_bucket_start is None or bucket_key.bucket_start_ms <= last_emitted_bucket_start
-                    else last_emitted_bucket_start + bucket_ms
+                    else last_emitted_bucket_start
                 )
                 points = self.load_candle_points(
                     token_0=token_0,
                     token_1=token_1,
                     start_at=range_start,
-                    end_at=bucket_key.bucket_start_ms,
+                    end_at=bucket_key.bucket_start_ms + bucket_ms - 1,
                     interval=interval,
                     pool_id=pool.pool_id,
                     pool_application=pool_application,

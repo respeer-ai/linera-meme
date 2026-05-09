@@ -32,6 +32,10 @@ class CandleSchemaContractTest(unittest.TestCase):
         self.assertEqual(get_interval_bucket_ms('1w'), 604_800_000)
 
     def test_normalizes_external_and_storage_interval_aliases(self):
+        self.assertEqual(normalize_interval_for_storage('1m'), '1min')
+        self.assertEqual(normalize_interval_for_storage('5m'), '5min')
+        self.assertEqual(normalize_interval_for_storage('10m'), '10min')
+        self.assertEqual(normalize_interval_for_storage('15m'), '15min')
         self.assertEqual(normalize_interval_for_storage('1d'), '1D')
         self.assertEqual(normalize_interval_for_storage('1w'), '1W')
         self.assertEqual(normalize_interval_for_api('1D'), '1d')

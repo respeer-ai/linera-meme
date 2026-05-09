@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 
 
 from swap import Swap
@@ -17,8 +18,6 @@ async def main():
     parser.add_argument('--swap-chain-id', type=str, required=True, help='Swap chain id')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
     parser.add_argument('--wallet-host', type=str, default='localhost:30081', help='Host of wallet service')
-    parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
-    parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
     parser.add_argument('--proxy-host', type=str, default='api.linerameme.fun', help='Host of meme service')
     parser.add_argument('--proxy-chain-id', type=str, required=True, help='Proxy chain id')
     parser.add_argument('--proxy-application-id', type=str, required=True, help='Proxy application id')
@@ -30,9 +29,11 @@ async def main():
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
 
     args = parser.parse_args()
+    wallet_owner = str(os.environ.get('WALLET_OWNER') or '').strip()
+    wallet_chain = str(os.environ.get('WALLET_CHAIN') or '').strip()
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, False)
-    _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url, db=_db)
+    _wallet = Wallet(args.wallet_host, wallet_owner, wallet_chain, args.faucet_url, db=_db)
     _meme = Meme(
         args.proxy_host,
         _wallet,

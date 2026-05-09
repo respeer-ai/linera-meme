@@ -18,6 +18,30 @@ class WebsocketCandleReader:
     def __init__(self, candles_read_model):
         self.candles_read_model = candles_read_model
 
+    def get_points(
+        self,
+        *,
+        token_0: str,
+        token_1: str,
+        start_at: int,
+        end_at: int,
+        interval: str,
+        pool_id: int | None = None,
+        pool_application: str | None = None,
+    ) -> dict:
+        storage_interval = normalize_interval_for_storage(interval)
+        payload = self.candles_read_model.get_points(
+            token_0=token_0,
+            token_1=token_1,
+            start_at=start_at,
+            end_at=end_at,
+            interval=storage_interval,
+            pool_id=pool_id,
+            pool_application=pool_application,
+        )
+        payload['interval'] = normalize_interval_for_api(storage_interval)
+        return payload
+
     def get_last_points(
         self,
         *,

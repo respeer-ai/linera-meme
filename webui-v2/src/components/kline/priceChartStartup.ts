@@ -171,7 +171,6 @@ export const shouldScheduleBackgroundHistoryBackfill = ({
   backgroundHistoryQueued,
   minPointTimestamp,
   poolCreatedAt,
-  latestWindowStart: _latestWindowStart,
 }: BackgroundHistoryScheduleInput): boolean =>
   firstScreenReady &&
   !backgroundHistoryQueued &&

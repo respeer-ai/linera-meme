@@ -1,4 +1,5 @@
 import argparse
+import os
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 import time
@@ -261,14 +262,13 @@ if __name__ == '__main__':
     parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Maker database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Maker database name')
     parser.add_argument('--wallet-url', type=str, required=True, help='Maker wallet RPC URL')
-    parser.add_argument('--wallet-owner', type=str, default='', help='Maker wallet owner')
     parser.add_argument('--wallet-metrics-url', type=str, required=True, help='Maker wallet metrics URL')
     parser.add_argument('--wallet-memory-limit-bytes', type=int, default=0, help='Maker wallet memory limit')
 
     args = parser.parse_args()
 
     _config['wallet_url'] = args.wallet_url
-    _config['wallet_owner'] = args.wallet_owner
+    _config['wallet_owner'] = str(os.environ.get('WALLET_OWNER') or '').strip()
     _config['wallet_metrics_url'] = args.wallet_metrics_url
     _config['wallet_memory_limit_bytes'] = int(args.wallet_memory_limit_bytes)
 

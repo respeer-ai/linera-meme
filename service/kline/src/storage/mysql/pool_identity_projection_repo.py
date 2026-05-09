@@ -1,4 +1,7 @@
 class PoolIdentityProjectionRepository:
+    NATIVE_TOKEN_SENTINEL = 'TLINERA'
+    ZERO_TOKEN_ID = '0000000000000000000000000000000000000000000000000000000000000000'
+
     def __init__(self, db):
         self.db = db
 
@@ -10,8 +13,8 @@ class PoolIdentityProjectionRepository:
         pool_id: int | None = None,
         pool_application: str | None = None,
     ) -> tuple[int, str, str, str, bool]:
-        normalized_token_0 = token_0 if token_0 is not None else 'TLINERA'
-        normalized_token_1 = token_1 if token_1 is not None else 'TLINERA'
+        normalized_token_0 = self._normalize_token_id(token_0)
+        normalized_token_1 = self._normalize_token_id(token_1)
         if pool_id is None:
             return self.resolve_for_tokens(normalized_token_0, normalized_token_1)
 
@@ -22,8 +25,8 @@ class PoolIdentityProjectionRepository:
         if pool_application is not None and resolved_pool_application != pool_application:
             raise Exception('Invalid pool application')
 
-        pool_token_0 = row['token_0'] if row['token_0'] is not None else 'TLINERA'
-        pool_token_1 = row['token_1'] if row['token_1'] is not None else 'TLINERA'
+        pool_token_0 = self._normalize_token_id(row['token_0'])
+        pool_token_1 = self._normalize_token_id(row['token_1'])
         if pool_token_0 == normalized_token_0 and pool_token_1 == normalized_token_1:
             token_reversed = False
         elif pool_token_0 == normalized_token_1 and pool_token_1 == normalized_token_0:
@@ -96,3 +99,8 @@ class PoolIdentityProjectionRepository:
             raise Exception('projection read boundary is unavailable')
         if not hasattr(self.db, 'pools_table'):
             raise Exception('projection read boundary is unavailable')
+
+    def _normalize_token_id(self, token_id: str | None) -> str:
+        if token_id in (None, self.ZERO_TOKEN_ID):
+            return self.NATIVE_TOKEN_SENTINEL
+        return str(token_id)

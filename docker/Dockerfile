@@ -23,16 +23,12 @@ FROM python:3.10
 
 ARG swap_application_id
 ARG wallet_host
-ARG wallet_owner
-ARG wallet_chain
 ARG swap_host
 ARG all_proxy
 
 ENV SWAP_APPLICATION_ID=${swap_application_id}
 ENV SWAP_HOST=${swap_host}
 ENV WALLET_HOST=${wallet_host}
-ENV WALLET_OWNER=${wallet_owner}
-ENV WALLET_CHAIN=${wallet_chain}
 ENV KLINE_RUST_DECODER_BIN=/usr/local/bin/kline-canonical-decoder
 
 COPY --from=rust-decoder-builder /workspace/target/release/canonical_decoder /usr/local/bin/kline-canonical-decoder

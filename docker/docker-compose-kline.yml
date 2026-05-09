@@ -11,6 +11,8 @@ services:
       api.testnet-conway.lineraswap.fun: "${LAN_IP}"
       api.testnet-conway.linerameme.fun: "${LAN_IP}"
     environment:
+      NO_PROXY: ${NO_PROXY}
+      no_proxy: ${no_proxy}
       DATABASE_HOST: ${DATABASE_HOST}
       DATABASE_PORT: ${DATABASE_PORT}
       DATABASE_USER: ${DATABASE_USER}

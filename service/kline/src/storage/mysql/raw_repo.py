@@ -1083,10 +1083,30 @@ class RawRepository:
                 bundle_id = int(existing_bundle_id['bundle_id'])
             for message_index, message in enumerate(bundle.get('posted_messages', [])):
                 key_message_index = int(message.get('message_index', message_index))
+                effective_origin_chain_id = self._message_bundle_value(
+                    message=message,
+                    message_key='origin_chain_id',
+                    bundle=bundle,
+                    bundle_key='origin_chain_id',
+                )
+                effective_source_cert_hash = self._message_bundle_value(
+                    message=message,
+                    message_key='source_cert_hash',
+                    bundle=bundle,
+                    bundle_key='source_cert_hash',
+                    default='',
+                )
+                effective_transaction_index = int(self._message_bundle_value(
+                    message=message,
+                    message_key='transaction_index',
+                    bundle=bundle,
+                    bundle_key='transaction_index',
+                    default=0,
+                ))
                 message_fingerprint = self._fingerprint({
-                    'origin_chain_id': str(message.get('origin_chain_id', bundle['origin_chain_id'])),
-                    'source_cert_hash': str(message.get('source_cert_hash', bundle.get('source_cert_hash', ''))),
-                    'transaction_index': int(message.get('transaction_index', bundle.get('transaction_index', 0))),
+                    'origin_chain_id': str(effective_origin_chain_id),
+                    'source_cert_hash': str(effective_source_cert_hash),
+                    'transaction_index': effective_transaction_index,
                     'authenticated_owner': message.get('authenticated_owner'),
                     'grant_amount': message.get('grant_amount'),
                     'refund_grant_to': message.get('refund_grant_to'),
@@ -1143,9 +1163,9 @@ class RawRepository:
                             details_payload={
                                 'existing': existing_message,
                                 'observed': {
-                                    'origin_chain_id': str(message.get('origin_chain_id', bundle['origin_chain_id'])),
-                                    'source_cert_hash': str(message.get('source_cert_hash', bundle.get('source_cert_hash', ''))),
-                                    'transaction_index': int(message.get('transaction_index', bundle.get('transaction_index', 0))),
+                                    'origin_chain_id': str(effective_origin_chain_id),
+                                    'source_cert_hash': str(effective_source_cert_hash),
+                                    'transaction_index': effective_transaction_index,
                                     'authenticated_owner': message.get('authenticated_owner'),
                                     'grant_amount': message.get('grant_amount'),
                                     'refund_grant_to': message.get('refund_grant_to'),
@@ -1191,9 +1211,9 @@ class RawRepository:
                     ''',
                     (
                         bundle_id,
-                        str(message.get('origin_chain_id', bundle['origin_chain_id'])),
-                        str(message.get('source_cert_hash', bundle.get('source_cert_hash', ''))),
-                        int(message.get('transaction_index', bundle.get('transaction_index', 0))),
+                        str(effective_origin_chain_id),
+                        str(effective_source_cert_hash),
+                        effective_transaction_index,
                         key_message_index,
                         message.get('authenticated_owner'),
                         message.get('grant_amount'),
@@ -1210,6 +1230,15 @@ class RawRepository:
                         message.get('raw_message_bytes', b''),
                     ),
                 )
+
+    def _message_bundle_value(self, *, message: dict, message_key: str, bundle: dict, bundle_key: str, default=None):
+        value = message.get(message_key)
+        if value is not None:
+            return value
+        bundle_value = bundle.get(bundle_key)
+        if bundle_value is not None:
+            return bundle_value
+        return default
 
     def _ingest_summary_json(self, block: dict) -> str:
         return self.fingerprint.build_json(
