@@ -7,6 +7,7 @@ class MakerExecutionPolicy:
         *,
         max_pending_notional_ratio: float,
         max_trade_ratio: float,
+        max_correction_notional_ratio: float,
         max_price_impact_ratio: float,
         correction_strength: float,
         mispricing_threshold: float,
@@ -16,6 +17,7 @@ class MakerExecutionPolicy:
     ):
         self.max_pending_notional_ratio = float(max_pending_notional_ratio)
         self.max_trade_ratio = float(max_trade_ratio)
+        self.max_correction_notional_ratio = float(max_correction_notional_ratio)
         self.max_price_impact_ratio = float(max_price_impact_ratio)
         self.correction_strength = float(correction_strength)
         self.mispricing_threshold = float(mispricing_threshold)
@@ -85,9 +87,11 @@ class MakerExecutionPolicy:
                 constant_product=constant_product,
                 target_price=target_price,
             )
+            correction_quote_cap = reserve_1 * self.max_correction_notional_ratio
             amount_1 = min(
                 amount_1,
                 reserve_1 * self.max_trade_ratio,
+                correction_quote_cap,
                 token_1_balance * 0.15,
             )
             if amount_1 < 1e-6:
@@ -99,9 +103,11 @@ class MakerExecutionPolicy:
             constant_product=constant_product,
             target_price=target_price,
         )
+        correction_quote_cap = reserve_1 * self.max_correction_notional_ratio
         amount_0 = min(
             amount_0 * self.sell_delay_compensation,
             (reserve_1 * self.max_trade_ratio) / current_price,
+            correction_quote_cap / current_price,
             token_0_balance * 0.15,
         )
         if amount_0 < 1e-6:

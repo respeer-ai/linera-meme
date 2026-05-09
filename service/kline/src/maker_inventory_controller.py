@@ -1,3 +1,6 @@
+import math
+
+
 class InventoryController:
     def __init__(
         self,
@@ -6,11 +9,13 @@ class InventoryController:
         long_term_bias_penalty: float,
         anchor_bias_penalty: float,
         long_term_bias_decay: float,
+        max_reverse_window_fraction: float,
     ):
         self.pending_bias_penalty = float(pending_bias_penalty)
         self.long_term_bias_penalty = float(long_term_bias_penalty)
         self.anchor_bias_penalty = float(anchor_bias_penalty)
         self.long_term_bias_decay = float(long_term_bias_decay)
+        self.max_reverse_window_fraction = float(max_reverse_window_fraction)
 
         self.pending_buy_quote_notional = {}
         self.pending_sell_quote_notional = {}
@@ -44,6 +49,24 @@ class InventoryController:
 
     def queue_sell_quote(self, pool_id: int, quote_notional: float):
         self.pending_sell_quote_notional[pool_id] = self.pending_sell_notional(pool_id) + float(quote_notional)
+
+    def normalize_quote_for_window(self, pool_id: int, quote_notional: float) -> float:
+        quote_notional = float(quote_notional)
+        current_net = self.pending_imbalance(pool_id)
+        if abs(quote_notional) < 1e-9:
+            return 0.0
+        if abs(current_net) < 1e-9 or current_net * quote_notional >= 0:
+            return quote_notional
+        if self.max_reverse_window_fraction <= 0.0:
+            return 0.0
+
+        limited_abs = min(
+            abs(quote_notional),
+            abs(current_net) * self.max_reverse_window_fraction,
+        )
+        if limited_abs < 1e-6:
+            return 0.0
+        return math.copysign(limited_abs, quote_notional)
 
     def flush_plan(self, pool_ids: set[int]) -> list[dict]:
         plan = []

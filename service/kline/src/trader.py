@@ -37,11 +37,13 @@ class Trader:
         self.anchor_bias_penalty = float(os.getenv("ANCHOR_BIAS_PENALTY", "0.7"))
         self.long_term_bias_decay = float(os.getenv("LONG_TERM_BIAS_DECAY", "0.92"))
         self.max_trade_ratio = float(os.getenv("MAX_TRADE_RATIO", "0.015"))
+        self.max_correction_notional_ratio = float(os.getenv("MAX_CORRECTION_NOTIONAL_RATIO", "0.0015"))
         self.max_price_impact_ratio = float(os.getenv("MAX_PRICE_IMPACT_RATIO", "0.04"))
         self.correction_strength = float(os.getenv("CORRECTION_STRENGTH", "0.55"))
         self.mispricing_threshold = float(os.getenv("MISPRICING_THRESHOLD", "0.0015"))
-        self.activity_notional_ratio = float(os.getenv("ACTIVITY_NOTIONAL_RATIO", "0.0008"))
+        self.activity_notional_ratio = float(os.getenv("ACTIVITY_NOTIONAL_RATIO", "0.00035"))
         self.max_inventory_bias_ratio = float(os.getenv("MAX_INVENTORY_BIAS_RATIO", "0.01"))
+        self.max_reverse_window_fraction = float(os.getenv("MAX_REVERSE_WINDOW_FRACTION", "0.0"))
         self.reference_price_engine = ReferencePriceEngine(
             fair_price_adjustment=self.fair_price_adjustment,
             anchor_price_adjustment=self.anchor_price_adjustment,
@@ -55,6 +57,7 @@ class Trader:
         self.execution_policy = MakerExecutionPolicy(
             max_pending_notional_ratio=self.max_pending_notional_ratio,
             max_trade_ratio=self.max_trade_ratio,
+            max_correction_notional_ratio=self.max_correction_notional_ratio,
             max_price_impact_ratio=self.max_price_impact_ratio,
             correction_strength=self.correction_strength,
             mispricing_threshold=self.mispricing_threshold,
@@ -67,6 +70,7 @@ class Trader:
             long_term_bias_penalty=self.long_term_bias_penalty,
             anchor_bias_penalty=self.anchor_bias_penalty,
             long_term_bias_decay=self.long_term_bias_decay,
+            max_reverse_window_fraction=self.max_reverse_window_fraction,
         )
         self.window_started_at = time.monotonic()
 
@@ -169,8 +173,24 @@ class Trader:
         if amount_1 is not None:
             delta_buy = amount_1
             delta_sell = 0.0
+        else:
+            delta_buy = 0.0
+            delta_sell = amount_0 * price
+        raw_quote_notional = delta_buy - delta_sell
+        quote_notional = self.inventory_controller.normalize_quote_for_window(
+            pool.pool_id,
+            raw_quote_notional,
+        )
+        if abs(quote_notional) < 1e-6:
+            return
+        scale = min(1.0, abs(quote_notional) / max(abs(raw_quote_notional), 1e-12))
+        if amount_1 is not None:
+            amount_1 *= scale
+            delta_buy = amount_1
+            delta_sell = 0.0
             self.inventory_controller.queue_buy_quote(pool.pool_id, delta_buy)
         else:
+            amount_0 *= scale
             delta_buy = 0.0
             delta_sell = amount_0 * price
             self.inventory_controller.queue_sell_quote(pool.pool_id, delta_sell)
@@ -189,8 +209,11 @@ class Trader:
             pool=pool,
             amount_0=amount_0,
             amount_1=amount_1,
-            quote_notional=delta_buy - delta_sell,
+            quote_notional=quote_notional,
             details={
+                'raw_quote_notional': raw_quote_notional,
+                'applied_quote_notional': quote_notional,
+                'applied_scale': scale,
                 'delta_buy_quote': delta_buy,
                 'delta_sell_quote': delta_sell,
                 'pending_buy_quote': self._pending_buy_notional(pool),

@@ -18,6 +18,7 @@ class MakerExecutionPolicyTest(unittest.TestCase):
         return MakerExecutionPolicy(
             max_pending_notional_ratio=0.03,
             max_trade_ratio=0.015,
+            max_correction_notional_ratio=0.003,
             max_price_impact_ratio=0.04,
             correction_strength=0.55,
             mispricing_threshold=0.0015,
@@ -59,6 +60,23 @@ class MakerExecutionPolicyTest(unittest.TestCase):
         self.assertIsNotNone(amount_0)
         self.assertGreater(amount_0, 0.0)
         self.assertIsNone(amount_1)
+
+    def test_correction_flow_respects_quote_cap(self):
+        policy = self.make_policy()
+
+        amount_0, amount_1 = policy.decide_trade(
+            reserve_0=100.0,
+            reserve_1=200.0,
+            token_0_balance=1000.0,
+            token_1_balance=1000.0,
+            pending_notional=0.0,
+            effective_mispricing=0.20,
+            directional_signal=0.20,
+        )
+
+        self.assertIsNone(amount_0)
+        self.assertIsNotNone(amount_1)
+        self.assertAlmostEqual(amount_1, 0.6)
 
     def test_small_mispricing_uses_controlled_activity_flow(self):
         policy = self.make_policy()

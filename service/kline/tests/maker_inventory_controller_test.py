@@ -21,6 +21,7 @@ class InventoryControllerTest(unittest.TestCase):
             long_term_bias_penalty=1.3,
             anchor_bias_penalty=0.7,
             long_term_bias_decay=0.92,
+            max_reverse_window_fraction=0.12,
         )
 
     def test_queue_updates_pending_imbalance(self):
@@ -65,6 +66,28 @@ class InventoryControllerTest(unittest.TestCase):
         self.assertEqual(controller.pop_next_slice(7), 2.0)
         self.assertEqual(controller.pop_next_slice(7), 3.0)
         self.assertIsNone(controller.pop_next_slice(7))
+
+    def test_normalize_quote_for_window_limits_large_reversal(self):
+        controller = self.make_controller()
+        controller.queue_buy_quote(7, 10.0)
+
+        normalized = controller.normalize_quote_for_window(7, -8.0)
+
+        self.assertAlmostEqual(normalized, -1.2)
+
+    def test_normalize_quote_for_window_blocks_reversal_when_lock_enabled(self):
+        controller = InventoryController(
+            pending_bias_penalty=0.9,
+            long_term_bias_penalty=1.3,
+            anchor_bias_penalty=0.7,
+            long_term_bias_decay=0.92,
+            max_reverse_window_fraction=0.0,
+        )
+        controller.queue_buy_quote(7, 10.0)
+
+        normalized = controller.normalize_quote_for_window(7, -8.0)
+
+        self.assertEqual(normalized, 0.0)
 
 
 if __name__ == '__main__':

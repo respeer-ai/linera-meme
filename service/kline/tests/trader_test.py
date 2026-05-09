@@ -56,6 +56,26 @@ class TraderPersistenceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.events[0]['pool_id'], 7)
         self.assertEqual(db.events[0]['amount_1'], 5.0)
         self.assertEqual(db.events[0]['quote_notional'], 5.0)
+        self.assertAlmostEqual(trader.inventory_controller.pending_buy_notional(pool.pool_id), 5.0)
+        self.assertAlmostEqual(trader.inventory_controller.pending_sell_notional(pool.pool_id), 0.0)
+
+    def test_queue_trade_drops_same_window_reversal_when_direction_lock_enabled(self):
+        db = FakeDb()
+        trader = Trader(
+            swap=None,
+            wallet=None,
+            meme=None,
+            proxy=None,
+            db=db,
+        )
+        pool = self.make_pool()
+        trader.inventory_controller.queue_buy_quote(pool.pool_id, 10.0)
+
+        trader.queue_trade(pool, 4.0, None)
+
+        self.assertEqual(len(db.events), 0)
+        self.assertAlmostEqual(trader.inventory_controller.pending_buy_notional(pool.pool_id), 10.0)
+        self.assertAlmostEqual(trader.inventory_controller.pending_sell_notional(pool.pool_id), 0.0)
 
     async def test_execute_pending_in_pool_persists_executed_event(self):
         db = FakeDb()
