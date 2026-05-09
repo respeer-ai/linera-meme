@@ -27,12 +27,14 @@ active_focus:
   - id: OBS-E2E-001
     why: 端到端 observability 集成测试
     summary: >
-      Local E2E bring-up is now in progress, including a dedicated
-      `service/kline/start_kline_e2e.sh` startup path plus MySQL compatibility fixes
-      for schema bootstrap and duplicate posted-message ingest.
+      This is now the umbrella verification track: local observability E2E,
+      maker-behavior validation against Layer 3 outputs, and remaining frontend
+      financial-semantic reconciliation.
     read_if_working_on:
       - E2E verification
       - integration testing
+      - frontend semantics audit
+      - maker impact on kline quality
     canonical_refs:
       - agents/tasks/board.yaml
   - id: POS-038
@@ -53,6 +55,30 @@ active_focus:
     read_if_working_on:
       - maker diagnostics
       - production stall analysis
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-047
+    why: maker 做市商算法重构主任务
+    summary: >
+      Current maker behavior is intentionally noisy because it is still a random
+      trade generator with pending-net flush semantics. Active work should route
+      through the canonical AMM-market-maker refactor task and its child tasks.
+    read_if_working_on:
+      - maker algorithm redesign
+      - AMM market maker refactor
+      - 1min kline quality caused by maker behavior
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-052
+    why: 前端资金与收益类指标仍需精确核对
+    summary: >
+      Frontend primary paths are mostly working, but positions, TVL, APR, and
+      related financial semantics still need source-of-truth reconciliation.
+    read_if_working_on:
+      - positions semantics
+      - TVL reconciliation
+      - APR calculation audit
+      - frontend finance metrics
     canonical_refs:
       - agents/tasks/board.yaml
 on_demand_done:

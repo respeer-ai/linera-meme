@@ -371,11 +371,18 @@ groups:
           现已不再保留兼容层运行时代码。
       - id: OBS-E2E-001
         status: Doing
-        priority: P1
+        priority: P0
         depends_on: [POS-032, POS-035, POS-044]
         title: 端到端 observability 集成测试
         notes: |
-          参考 `scripts/run_local.sh` 搭建本地完整测试环境，验证 L1→L2→L3 全管线。
+          当前这一批工作的主线任务。参考 `scripts/run_local.sh` 搭建本地完整测试环境，验证
+          L1→L2→L3 全管线，并完成与前端读路径相关的最终语义核对。
+
+          范围收口：
+          - observability E2E 闭环
+          - maker 交易流对 observability / 1min K 线的影响验证
+          - 前端主读路径的金融语义核对（不是只看接口通不通）
+
           环境准备：
           - 启动 MySQL (docker-compose)
           - 编译 `canonical_decoder` (cargo build --release -p decoder --bin canonical_decoder)
@@ -388,16 +395,22 @@ groups:
           - `POST /debug/market-derivation/replay/run` 执行 market derivation
           - `/transactions` 和 `/points` 返回 Layer 3 数据
           - 日志包含预期的 lifecycle 消息
+          - maker 发起真实交易后，链上、Layer 3 与前端展示保持一致
+          - 前端主接口除已确认 OK 的路径外，剩余金融指标语义完成核对
 
           当前已落地：
           - `service/kline/start_kline_e2e.sh` 可在本地拉起 kline，注入 decoder / MySQL / GraphQL 参数并等待 `/debug/observability` ready
           - 为本地 E2E 启动补了 MySQL 兼容与幂等修正：
             - `settled_trade_repo.ensure_schema()` 改为 `information_schema` 探测后按需 `ALTER`
             - `raw_posted_messages` 重复写入改为 `INSERT IGNORE`
+          - 前端主链路中，token 列表、交易、K 线基础拉取与实时更新问题已基本跑通；
+            maker 当前仍使用旧随机交易器算法，已确认这是 1min K 线噪声的重要来源
 
           待完成：
           - 实际跑通完整 L1→L2→L3 流程
           - 补齐 shell-level 集成验证脚本/断言并沉淀最终入口
+          - 把 maker 优化纳入这批 E2E 验证闭环，确认新算法下 observability 与前端表现
+          - 完成 positions / TVL / APR 等金融语义精确核对
       - id: POS-045
         status: Todo
         priority: P1
@@ -484,6 +497,114 @@ groups:
           结论：断点已收敛到“资金/消息已到 creator 链，但 swap 执行阶段发生硬失败”，
           而不是 kline 漏同步或 creator 链无人监听。剩余工作是把一条最近 reject 对齐到具体
           panic/运行时失败点，并补足链上与 DB 调试数据。
+      - id: POS-047
+        status: Doing
+        priority: P0
+        depends_on: [POS-030]
+        title: 围绕现有 AMM pool 重构 maker 为成熟做市商
+        notes: |
+          当前 `service/kline/src/trader.py` 的 maker 更接近“带轻微均值回归/趋势偏置的随机交易器”，
+          默认行为是每 `2~4s` 一轮 plan、每 `15s` 聚合后 flush、方向靠概率抽样、单量带重尾随机。
+          这会天然制造噪声较大的 1min K 线：分钟内离散脉冲成交、较长 wick、相邻分钟 open/close 不够连续。
+
+          该任务统一收口 maker 侧重构目标，约束如下：
+          - 只重构 maker 侧，不重写 pool / swap AMM 合约
+          - 围绕现有 AMM pool 实现成熟做市商算法，而不是再造一套 AMM
+          - 优先改 `service/kline/src/trader.py`，允许新增小模块
+          - 尽量保持 `service/kline/src/swap.py` 与 `service/kline/src/wallet.py` 的外部接口语义不变
+
+          目标能力：
+          - `reference price`
+          - `inventory control`
+          - 基于 AMM 曲线的 target-price execution
+          - 分钟级 execution scheduling
+          - 单笔/单分钟风险与冲击约束
+      - id: POS-048
+        status: Todo
+        priority: P0
+        depends_on: [POS-047]
+        title: 提取 maker market state 与 reference/inventory 边界
+        notes: |
+          从 `Trader` 中拆出每 pool 独立状态与核心状态机边界，至少包括：
+          - `PoolMarketState`
+          - `ReferencePriceEngine`
+          - `InventoryController`
+
+          约束：
+          - 不再把 `pending_*`、`long_term_quote_bias`、价格状态散落在 `Trader` 顶层字段
+          - 先完成结构与语义收口，再推进执行策略替换
+      - id: POS-049
+        status: Todo
+        priority: P0
+        depends_on: [POS-048]
+        title: 实现基于 reference price 偏离的 AMM execution policy
+        notes: |
+          用成熟做市商语义替换当前随机 `trade_amounts()`：
+          - 输入：pool reserves、pool price、reference price、inventory skew、risk limits
+          - 输出：side、target price correction、target quote notional、max impact
+
+          必须实现：
+          - 偏离越大，纠偏越强
+          - 库存越偏，同向交易越弱
+          - 下单量按“希望把价格往 reference 拉回多少”反推
+
+          禁止继续使用“随机抽方向 + 随机抽重尾单量”作为主策略。
+      - id: POS-050
+        status: Todo
+        priority: P0
+        depends_on: [POS-049]
+        title: 用 minute scheduler 替换高频随机 plan 与 15s flush
+        notes: |
+          把当前：
+          - 每 `2~4s` 独立 plan
+          - 每 `15s` pending 净额 flush
+
+          改成：
+          - 按分钟生成 `minute plan`
+          - 本分钟定义目标总量、净方向、目标笔数、最大允许波动
+          - 再拆成多个 execution slices
+
+          目标：
+          - 减少 1min K 线的离散脉冲感
+          - 让 volume、close 连续性、wick 长度更可控
+      - id: POS-051
+        status: Todo
+        priority: P1
+        depends_on: [POS-049, POS-050]
+        title: 为 maker 做市策略补单测与 K 线形态回归基线
+        notes: |
+          至少覆盖：
+          - AMM target-price sizing
+          - inventory skew 对方向和单量的抑制
+          - minute plan / slice 执行节奏
+          - 单笔 impact limit 与单分钟风险上限
+
+          并补一组长时间运行基线，用于比较旧算法与新算法的 1min K 线形态差异，
+          避免只凭肉眼判断“更平滑”。
+      - id: POS-052
+        status: Doing
+        priority: P0
+        depends_on: [POS-035, POS-038, OBS-E2E-001]
+        title: 核对前端 positions TVL APR 等金融语义
+        notes: |
+          前端主链路大体已通，但金融语义核对尚未完成。当前重点不是“接口能返回”，而是确保
+          前端展示与链上/Layer 3 真值一致。
+
+          当前范围：
+          - `positions`
+          - `TVL`
+          - `APR`
+          - 其他与资金、仓位、收益率直接相关的前端指标
+
+          核对约束：
+          - 以链上原始交易与 Layer 3 projection 为真值，不以前端 cache 或单条 DB 聚合结果为真值
+          - 明确 virtual liquidity、真实 reserve、用户 position、fee / yield 语义边界
+          - 核对单位、精度、时间窗和分母定义，不接受“看起来差不多”
+
+          输出要求：
+          - 每项指标给出当前实现语义
+          - 明确是否与目标语义一致
+          - 若不一致，记录应修复在前端、query read model 还是 Layer 3 物化层
       - id: POS-024
         status: Done
         priority: P0
