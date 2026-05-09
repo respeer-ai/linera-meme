@@ -78,10 +78,8 @@ export class Swap {
   }
 
   static tokenPrice = (token: string) => {
-    const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
-    if (!pool) return '0'
-
-    return (Number(token === pool.token0 ? pool.token0Price : pool.token1Price) || 0).toFixed(8)
+    const nativePriceMap = protocol.buildNativePriceMap(swap.pools)
+    return (nativePriceMap.get(token) || 0).toFixed(8)
   }
 
   static poolTvl = (pool: Pool) => {

@@ -24,7 +24,7 @@
 
       <template #body='props'>
         <q-tr :props='props' class='cursor-pointer'>
-          <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at * 1000) }}</td>
+          <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at) }}</td>
           <td :props='props' class='text-left row items-center'>
             <div class='text-neutral q-mr-xs'>Swap</div>
             {{ tokenTicker(buyToken(props.row)) }}
@@ -37,7 +37,7 @@
               <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
-          <td :props='props' class='text-center'>0 TLINERA</td>
+          <td :props='props' class='text-center'>{{ transactionValue(props.row) }}</td>
           <td :props='props' class='text-center'>
             {{ Number(buyAmount(props.row)).toFixed(5) }}
             <q-avatar class='q-ml-xs' size='20px'>
@@ -78,7 +78,7 @@ import { ams, meme, swap, transaction, kline } from 'src/stores/export'
 import { klineWorker } from 'src/worker'
 import { Token } from '../trade/Token'
 import { constants } from 'src/constant'
-import { shortid, timestamp } from 'src/utils'
+import { protocol, shortid, timestamp } from 'src/utils'
 
 interface Props {
   token0?: string
@@ -89,6 +89,7 @@ const token0 = toRef(props, 'token0')
 const token1 = toRef(props, 'token1')
 
 const pools = computed(() => swap.Swap.pools())
+const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 
 const tokenTicker = (token: string) => {
   const application = ams.Ams.application(token) as Token
@@ -117,11 +118,20 @@ const sellToken = (_transaction: transaction.TransactionExt) => {
 }
 
 const buyAmount = (_transaction: transaction.TransactionExt) => {
-  return _transaction.direction === 'Buy' ? _transaction.amount_1_in : _transaction.amount_0_in
+  return _transaction.direction === 'Buy' ? _transaction.amount_0_out : _transaction.amount_1_out
 }
 
 const sellAmount = (_transaction: transaction.TransactionExt) => {
-  return _transaction.direction === 'Sell' ? _transaction.amount_1_out : _transaction.amount_0_out
+  return _transaction.direction === 'Buy' ? _transaction.amount_1_in : _transaction.amount_0_in
+}
+
+const transactionValue = (_transaction: transaction.TransactionExt) => {
+  const value = protocol.calculateTransactionValueInNative(
+    _transaction,
+    transactionPool(_transaction),
+    nativePriceMap.value,
+  )
+  return value === undefined ? '--' : `${value.toFixed(4)} TLINERA`
 }
 
 const columns = computed(() => [

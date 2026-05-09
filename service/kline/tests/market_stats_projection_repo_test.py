@@ -72,7 +72,54 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(aaa_row['low'], 2.0)
         self.assertEqual(aaa_row['price_now'], 3.0)
         self.assertEqual(aaa_row['price_start'], 2.0)
+        self.assertEqual(aaa_row['volume'], 35.0)
         self.assertEqual(len(rows), 1)
+
+    def test_get_ticker_uses_market_turnover_for_non_native_pair(self):
+        db = self.FakeDb()
+        repository = MarketStatsProjectionRepository(db)
+
+        rows_by_call = [
+            [
+                {
+                    'pool_id': 9,
+                    'pool_application': 'chain:pool-b',
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'trade_time_ms': 3_000,
+                    'side': 'buy_token_0',
+                    'amount_in': '20000000000000000000',
+                    'amount_out': '10000000000000000000',
+                },
+            ],
+            [
+                {
+                    'pool_id': 10,
+                    'pool_application': 'chain:pool-c',
+                    'token_0': 'BBB',
+                    'token_1': 'TLINERA',
+                    'trade_time_ms': 2_000,
+                    'side': 'buy_token_0',
+                    'amount_in': '30000000000000000000',
+                    'amount_out': '10000000000000000000',
+                },
+            ],
+        ]
+
+        def execute(sql, params=()):
+            db.cursor_dict.executed.append((sql, params))
+            db.cursor_dict.rows = rows_by_call.pop(0)
+
+        db.cursor_dict.execute = execute
+
+        rows = repository.get_ticker(interval='all')
+
+        aaa_row = next(row for row in rows if row['token'] == 'AAA')
+        bbb_row = next(row for row in rows if row['token'] == 'BBB')
+        self.assertEqual(aaa_row['volume'], 60.0)
+        self.assertEqual(bbb_row['volume'], 60.0)
+        self.assertEqual(aaa_row['tx_count'], 1)
+        self.assertEqual(bbb_row['tx_count'], 1)
 
     def test_get_pool_stats_aggregates_pool_rows_from_settled_trades(self):
         db = self.FakeDb()

@@ -24,9 +24,14 @@ class MarketStatsProjectionRepository:
 
         stats_by_token = {}
         for trade in trades:
-            for token, price, volume in self._expanded_token_rows(trade):
-                price_native = latest_native_prices.get(token)
-                if price_native is None:
+            turnover = self._market_turnover_native(
+                trade,
+                latest_native_prices=latest_native_prices,
+            )
+            if turnover is None:
+                continue
+            for token, price in self._expanded_token_price_rows(trade):
+                if token == 'TLINERA':
                     continue
                 entry = stats_by_token.get(token)
                 if entry is None:
@@ -44,7 +49,7 @@ class MarketStatsProjectionRepository:
                     stats_by_token[token] = entry
                 entry['high'] = max(entry['high'], price)
                 entry['low'] = min(entry['low'], price)
-                entry['volume'] += volume * price_native
+                entry['volume'] += turnover
                 entry['tx_count'] += 1
                 created_at = int(trade['trade_time_ms'])
                 if created_at >= entry['_last_created_at']:
@@ -274,13 +279,34 @@ class MarketStatsProjectionRepository:
             for token, payload in latest_by_token.items()
         }
 
-    def _expanded_token_rows(self, trade: dict) -> list[tuple[str, Decimal, Decimal]]:
+    def _expanded_token_price_rows(self, trade: dict) -> list[tuple[str, Decimal]]:
         token_0_price = self._trade_price(trade)
         token_1_price = self._inverse_trade_price(trade)
         return [
-            (trade['token_0'], token_0_price, self._base_volume(trade)),
-            (trade['token_1'], token_1_price, self._quote_volume(trade)),
+            (trade['token_0'], token_0_price),
+            (trade['token_1'], token_1_price),
         ]
+
+    def _market_turnover_native(
+        self,
+        trade: dict,
+        *,
+        latest_native_prices: dict[str, Decimal],
+    ) -> Decimal | None:
+        if trade['token_1'] == 'TLINERA':
+            return self._quote_volume(trade)
+        if trade['token_0'] == 'TLINERA':
+            return self._base_volume(trade)
+
+        token_1_native_price = latest_native_prices.get(str(trade['token_1']))
+        if token_1_native_price is not None:
+            return self._quote_volume(trade) * token_1_native_price
+
+        token_0_native_price = latest_native_prices.get(str(trade['token_0']))
+        if token_0_native_price is not None:
+            return self._base_volume(trade) * token_0_native_price
+
+        return None
 
     def _trade_price(self, trade: dict) -> Decimal:
         side = str(trade['side'])

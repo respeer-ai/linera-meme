@@ -1,6 +1,6 @@
 export const timestamp2HumanReadable = (timestamp: number) => {
   const now = Date.now() / 1000
-  const timestampSec = timestamp / 1000000
+  const timestampSec = timestamp / 1000
   if (now - timestampSec < 60) {
     return `Before ${Math.floor(now - timestampSec)} seconds`
   }
