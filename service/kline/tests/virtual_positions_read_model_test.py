@@ -59,11 +59,12 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
 
         result = asyncio.run(read_model.enrich_positions(
             owner='chain-a:owner-a',
-            status='active',
+            status='all',
             positions=[],
         ))
 
         self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['status'], 'virtual')
         self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
         self.assertTrue(result[0]['is_virtual_position'])
         self.assertEqual(result[0]['current_liquidity'], '5')
@@ -115,11 +116,12 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
 
         result = asyncio.run(read_model.enrich_positions(
             owner='chain-b:owner-b',
-            status='active',
+            status='all',
             positions=[],
         ))
 
         self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['status'], 'virtual')
         self.assertEqual(result[0]['pool_application'], 'chain-b:0xpool-app')
         self.assertEqual(result[0]['token_1'], 'TLINERA')
         self.assertEqual(result[0]['pool_id'], 0)
@@ -170,11 +172,12 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
 
         result = asyncio.run(read_model.enrich_positions(
             owner='chain-fee:0xfee-owner',
-            status='active',
+            status='all',
             positions=[],
         ))
 
         self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['status'], 'virtual')
         self.assertEqual(
             result[0]['position_kind'],
             VirtualPositionsReadModel.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND,
@@ -231,17 +234,18 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
 
         result = asyncio.run(read_model.enrich_positions(
             owner='chain-initial:owner-a',
-            status='active',
+            status='all',
             positions=[],
         ))
 
         self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['status'], 'virtual')
         self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
         self.assertTrue(result[0]['is_virtual_position'])
         self.assertEqual(result[0]['current_liquidity'], '0')
         self.assertEqual(result[0]['virtual_initial_amount0'], '10499900')
         self.assertEqual(result[0]['virtual_initial_amount1'], '8720')
-        self.assertTrue(result[0]['owner_is_fee_to'])
+        self.assertEqual(result[0]['protocol_fee_receiver_account'], 'chain-initial:owner-a')
         self.assertEqual(result[0]['protocol_fee_reference_amount0'], '10499900')
         self.assertEqual(result[0]['protocol_fee_reference_amount1'], '8720')
 
@@ -295,16 +299,84 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
 
         result = asyncio.run(read_model.enrich_positions(
             owner='chain-closed:owner-a',
-            status='active',
+            status='all',
             positions=[],
         ))
 
         self.assertEqual(snapshot_repo.statuses, ['active', 'closed'])
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['status'], 'active')
+        self.assertEqual(result[0]['status'], 'virtual')
         self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
         self.assertEqual(result[0]['virtual_initial_amount0'], '100')
         self.assertEqual(result[0]['virtual_initial_amount1'], '1')
+
+    def test_enrich_positions_uses_closed_basis_when_active_snapshot_only_has_pool_state(self):
+        class FakeProjectionRepository:
+            def get_owner_candidate_histories(self, *, owner):
+                return [{
+                    'pool_application': 'chain-active-pool-only:0xpool-app',
+                    'pool_id': 15,
+                    'token_0': 'MEME',
+                    'token_1': 'TLINERA',
+                    'owner': owner,
+                    'opened_at': None,
+                    'updated_at': 5000,
+                    'add_tx_count': 0,
+                }]
+
+        class FakeSnapshotInputsProjectionRepository:
+            class FakePoolStateProjectionRepository:
+                def list_pool_state_snapshots(self):
+                    return []
+
+            def __init__(self):
+                self.pool_state_projection_repo = self.FakePoolStateProjectionRepository()
+                self.statuses = []
+
+            def get_snapshot_inputs(self, *, owner, pool_application_id, status):
+                self.statuses.append(status)
+                pool_state_snapshot = {
+                    'state_payload_json': {
+                        'virtual_initial_liquidity': True,
+                        'fee_to_account_latest_known': None,
+                    },
+                }
+                if status == 'active':
+                    return {
+                        'position_basis_snapshot': None,
+                        'pool_state_snapshot': pool_state_snapshot,
+                    }
+                return {
+                    'position_basis_snapshot': {
+                        'current_liquidity': '0',
+                        'basis_amount_0': '10499900',
+                        'basis_amount_1': '8720',
+                        'semantic_facts': {
+                            'fee_to_continuity_owner': 'chain-active-pool-only:owner-a',
+                        },
+                    },
+                    'pool_state_snapshot': pool_state_snapshot,
+                }
+
+        snapshot_repo = FakeSnapshotInputsProjectionRepository()
+        read_model = VirtualPositionsReadModel(
+            projection_repository=FakeProjectionRepository(),
+            snapshot_inputs_projection_repository=snapshot_repo,
+        )
+
+        result = asyncio.run(read_model.enrich_positions(
+            owner='chain-active-pool-only:owner-a',
+            status='all',
+            positions=[],
+        ))
+
+        self.assertEqual(snapshot_repo.statuses, ['active', 'closed'])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['status'], 'virtual')
+        self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
+        self.assertEqual(result[0]['protocol_fee_receiver_account'], 'chain-active-pool-only:owner-a')
+        self.assertEqual(result[0]['protocol_fee_reference_amount0'], '10499900')
+        self.assertEqual(result[0]['protocol_fee_reference_amount1'], '8720')
 
     def test_enrich_positions_works_when_pool_state_snapshots_are_empty(self):
         class FakeProjectionRepository:
@@ -334,6 +406,70 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
         ))
 
         self.assertEqual(result, [])
+
+    def test_enrich_positions_does_not_include_virtual_positions_in_active_or_closed_filters(self):
+        class FakeProjectionRepository:
+            def get_owner_candidate_histories(self, *, owner):
+                return [{
+                    'pool_application': 'chain-filter:0xpool-app',
+                    'pool_id': 16,
+                    'token_0': 'MEME',
+                    'token_1': 'TLINERA',
+                    'owner': owner,
+                    'opened_at': None,
+                    'updated_at': 6000,
+                    'add_tx_count': 0,
+                }]
+
+        class FakeSnapshotInputsProjectionRepository:
+            class FakePoolStateProjectionRepository:
+                def list_pool_state_snapshots(self):
+                    return []
+
+            def __init__(self):
+                self.pool_state_projection_repo = self.FakePoolStateProjectionRepository()
+
+            def get_snapshot_inputs(self, *, owner, pool_application_id, status):
+                return {
+                    'position_basis_snapshot': {
+                        'current_liquidity': '0',
+                        'basis_amount_0': '100',
+                        'basis_amount_1': '1',
+                        'semantic_facts': {},
+                    },
+                    'pool_state_snapshot': {
+                        'state_payload_json': {
+                            'virtual_initial_liquidity': True,
+                            'fee_to_account_latest_known': owner,
+                        },
+                    },
+                }
+
+        read_model = VirtualPositionsReadModel(
+            projection_repository=FakeProjectionRepository(),
+            snapshot_inputs_projection_repository=FakeSnapshotInputsProjectionRepository(),
+        )
+
+        active_result = asyncio.run(read_model.enrich_positions(
+            owner='chain-filter:owner-a',
+            status='active',
+            positions=[],
+        ))
+        closed_result = asyncio.run(read_model.enrich_positions(
+            owner='chain-filter:owner-a',
+            status='closed',
+            positions=[],
+        ))
+        virtual_result = asyncio.run(read_model.enrich_positions(
+            owner='chain-filter:owner-a',
+            status='virtual',
+            positions=[],
+        ))
+
+        self.assertEqual(active_result, [])
+        self.assertEqual(closed_result, [])
+        self.assertEqual(len(virtual_result), 1)
+        self.assertEqual(virtual_result[0]['status'], 'virtual')
 
 
 if __name__ == '__main__':

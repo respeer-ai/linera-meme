@@ -44,7 +44,7 @@ class VirtualPositionsReadModel:
                 pool_application_id=candidate['pool_application'],
                 status='active',
             )
-            if snapshot_inputs is None:
+            if snapshot_inputs is None or self._snapshot_inputs(snapshot_inputs).position_basis_snapshot().raw() is None:
                 snapshot_inputs = self.snapshot_inputs_projection_repository.get_snapshot_inputs(
                     owner=owner,
                     pool_application_id=candidate['pool_application'],
@@ -59,7 +59,11 @@ class VirtualPositionsReadModel:
 
             position_basis = snapshot.position_basis_snapshot()
             liquidity_value = position_basis.current_liquidity()
-            owner_is_fee_to = owner == pool_state.fee_to_account_latest_known()
+            protocol_fee_receiver_account = (
+                pool_state.fee_to_account_latest_known()
+                or position_basis.fee_to_continuity_owner()
+            )
+            owner_is_fee_to = owner == protocol_fee_receiver_account
             basis_amount_0 = self._string_or_zero(position_basis.raw().get('basis_amount_0') if position_basis.raw() else None)
             basis_amount_1 = self._string_or_zero(position_basis.raw().get('basis_amount_1') if position_basis.raw() else None)
             has_initial_amounts = basis_amount_0 != '0' or basis_amount_1 != '0'
@@ -84,7 +88,7 @@ class VirtualPositionsReadModel:
                 continue
 
             synthesized = dict(candidate)
-            synthesized['status'] = 'active'
+            synthesized['status'] = 'virtual'
             synthesized['current_liquidity'] = str(liquidity_value)
             synthesized['added_liquidity'] = str(liquidity_value)
             synthesized['removed_liquidity'] = '0'
@@ -95,14 +99,14 @@ class VirtualPositionsReadModel:
             synthesized['is_virtual_position'] = True
             synthesized['virtual_initial_amount0'] = basis_amount_0
             synthesized['virtual_initial_amount1'] = basis_amount_1
-            synthesized['owner_is_fee_to'] = owner_is_fee_to
-            synthesized['protocol_fee_reference_amount0'] = basis_amount_0 if owner_is_fee_to else '0'
-            synthesized['protocol_fee_reference_amount1'] = basis_amount_1 if owner_is_fee_to else '0'
+            synthesized['protocol_fee_receiver_account'] = protocol_fee_receiver_account
+            synthesized['protocol_fee_reference_amount0'] = basis_amount_0
+            synthesized['protocol_fee_reference_amount1'] = basis_amount_1
             existing.append(synthesized)
             existing_keys.add(key)
 
         normalized_status = (status or 'active').lower()
-        if normalized_status in {'active', 'closed'}:
+        if normalized_status in {'active', 'closed', 'virtual'}:
             existing = [position for position in existing if position.get('status') == normalized_status]
         existing.sort(
             key=lambda row: (

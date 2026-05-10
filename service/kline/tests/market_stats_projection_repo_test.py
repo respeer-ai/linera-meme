@@ -118,9 +118,47 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
 
         rows = repo._load_settled_trade_rows(start_at=1_000, end_at=2_000)
 
+        self.assertEqual(rows[0]['pool_application'], 'chain-a:0xpool-app')
         self.assertEqual(rows[0]['pool_id'], 7)
         self.assertEqual(rows[0]['token_0'], 'AAA')
         self.assertNotIn('JOIN', db.executed[0][0])
+
+    def test_get_pool_stats_exposes_pool_application_for_protocol_identity_matching(self):
+        class FakeDb:
+            def now_ms(self):
+                return 2_000_000
+
+            def ensure_fresh_read_connection(self):
+                return None
+
+            class Cursor:
+                def execute(self, _sql, _params=()):
+                    return None
+
+                def fetchall(self):
+                    return [
+                        {
+                            'pool_application': 'chain-a:0xpool-app',
+                            'trade_time_ms': 1_500_000,
+                            'side': 'buy_token_0',
+                            'amount_in': '3000000000000000000',
+                            'amount_out': '1000000000000000000',
+                        }
+                    ]
+
+            cursor_dict = Cursor()
+
+        repo = MarketStatsProjectionRepository(
+            FakeDb(),
+            metadata_resolver=self.FakeMetadataResolver({
+                'chain-a:0xpool-app': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'TLINERA'},
+            }),
+        )
+
+        stats = repo.get_pool_stats(interval='1d')
+
+        self.assertEqual(stats[0]['pool_application'], 'chain-a:0xpool-app')
+        self.assertEqual(stats[0]['pool_id'], 7)
 
     def test_load_settled_trade_rows_supports_prefixed_projection_pool_application(self):
         class FakeDb:

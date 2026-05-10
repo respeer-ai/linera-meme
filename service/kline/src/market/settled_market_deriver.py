@@ -142,6 +142,10 @@ class SettledMarketDeriver:
         liquidity_delta = execution_fact.liquidity()
         if None in (amount_0_delta, amount_1_delta, liquidity_delta):
             return None
+        liquidity_semantics = self._liquidity_semantics(
+            change_type=change_type,
+            liquidity_delta=liquidity_delta,
+        )
         return {
             'settled_output_type': SettledMarketResult.OUTPUT_SETTLED_LIQUIDITY_CHANGE,
             'settled_liquidity_change_id': f"{execution_fact.normalized_event_id}:liquidity",
@@ -155,11 +159,23 @@ class SettledMarketDeriver:
             'transaction_id': execution_fact.transaction_id(),
             'change_type': change_type,
             'liquidity_delta': str(liquidity_delta),
+            'is_position_liquidity': liquidity_semantics == 'position_liquidity',
+            'liquidity_semantics': liquidity_semantics,
             'amount_0_delta': str(amount_0_delta),
             'amount_1_delta': str(amount_1_delta),
             'source_event_key': execution_fact.normalized_event_id,
             'event_payload_json': execution_fact.event_payload(),
         }
+
+    def _liquidity_semantics(
+        self,
+        *,
+        change_type: str,
+        liquidity_delta: object,
+    ) -> str:
+        if change_type == 'add_liquidity' and str(liquidity_delta) in {'0', '0.0', '0.000000000000000000'}:
+            return 'virtual_initial_liquidity'
+        return 'position_liquidity'
 
     def _result(
         self,

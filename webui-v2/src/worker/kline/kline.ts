@@ -16,6 +16,7 @@ import {
   type SortPointsPayload,
   type SortTransactionsPayload,
 } from './runner'
+import { registerKlineListener, unregisterKlineListener } from './listenerRegistry'
 
 type KlineResponseType =
   | FetchedPointsPayload
@@ -69,12 +70,11 @@ export class KlineWorker {
   }
 
   public static on = (type: KlineEventType, listener: ListenerFunc) => {
-    KlineWorker.getKlineWorker()._listeners.set(type, listener)
+    registerKlineListener(KlineWorker.getKlineWorker()._listeners, type, listener)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public static off = (type: KlineEventType, listener: ListenerFunc) => {
-    KlineWorker.getKlineWorker()._listeners.delete(type)
+    unregisterKlineListener(KlineWorker.getKlineWorker()._listeners, type, listener)
   }
 
   public static terminate = () => {

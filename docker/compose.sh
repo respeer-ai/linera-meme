@@ -6,7 +6,21 @@ set -euo pipefail
 ## E.g. ./compose.sh -f https://faucet.testnet-conway.linera.net -C 0
 ####
 
-LAN_IP=$( hostname -I | awk '{print $1}' )
+function resolve_lan_ip() {
+    local route_ip
+    route_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}')
+    if [ -n "$route_ip" ] && [[ ! "$route_ip" =~ ^127\. ]] && [[ ! "$route_ip" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+        echo "$route_ip"
+        return
+    fi
+    hostname -I | tr ' ' '\n' | awk '/^[0-9]+\./ && !/^127\./ && !/^172\.(1[6-9]|2[0-9]|3[0-1])\./ {print; exit}'
+}
+
+LAN_IP=$(resolve_lan_ip)
+if [ -z "$LAN_IP" ]; then
+    echo "Failed to resolve LAN_IP" >&2
+    exit 1
+fi
 FAUCET_URL=https://faucet.testnet-conway.linera.net
 CHAIN_FAUCET_URL=${CHAIN_FAUCET_URL:-https://faucet.testnet-conway.linera.net}
 CHAIN_OWNER_COUNT=1

@@ -536,6 +536,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         original_overrides = PositionMetricsEntrypointOverrideState()
         original_db = kline_module._db
         fake_db = FakeDb()
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a'
 
         class FakeRepository:
             def get_positions(self, **kwargs):
@@ -546,7 +547,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                         'pool_id': 7,
                         'token_0': 'QQQ',
                         'token_1': 'TLINERA',
-                        'owner': 'chain:owner-a',
+                        'owner': owner,
                         'status': 'active',
                         'current_liquidity': '0.346087',
                     },
@@ -587,20 +588,20 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         )
 
         try:
-            response = await kline_module.on_get_position_metrics(owner='chain:owner-a', status='active')
+            response = await kline_module.on_get_position_metrics(owner=owner, status='active')
         finally:
             kline_module._db = original_db
             original_overrides.restore()
 
         self.assertEqual(response, {
-            'owner': 'chain:owner-a',
+            'owner': owner,
             'metrics': [
                 {
                     'pool_application': 'chain:pool-app',
                     'pool_id': 7,
                     'token_0': 'QQQ',
                     'token_1': 'TLINERA',
-                    'owner': 'chain:owner-a',
+                    'owner': owner,
                     'status': 'active',
                     'current_liquidity': '0.346087',
                     'position_liquidity_live': '0.346087',
@@ -612,7 +613,6 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'metrics_status': 'partial_live_redeemable_only',
                     'exact_fee_supported': False,
                     'exact_principal_supported': False,
-                    'owner_is_fee_to': False,
                     'computation_blockers': [
                         'missing_historical_total_supply',
                         'missing_fee_growth_trace',
@@ -629,9 +629,9 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 },
             ],
         })
-        self.assertEqual(fake_db.calls, [{'owner': 'chain:owner-a', 'status': 'active'}])
+        self.assertEqual(fake_db.calls, [{'owner': owner, 'status': 'active'}])
         self.assertEqual(fake_db.diagnostics[0]['event_type'], 'inexact_position_metrics')
-        self.assertEqual(fake_db.diagnostics[0]['owner'], 'chain:owner-a')
+        self.assertEqual(fake_db.diagnostics[0]['owner'], owner)
 
     async def test_build_position_metrics_fetcher_uses_projection_inputs_contract(self):
         class FakeSwap:

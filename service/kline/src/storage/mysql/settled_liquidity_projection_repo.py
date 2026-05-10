@@ -29,7 +29,7 @@ class SettledLiquidityProjectionRepository:
         normalized_status = (status or 'active').lower()
         if normalized_status not in {'active', 'closed', 'all'}:
             raise ValueError('Invalid positions status')
-        rows = self._load_liquidity_rows(owner=owner)
+        rows = self._load_liquidity_rows(owner=owner, position_liquidity_only=True)
         if rows is None:
             return None
         aggregated = self._aggregate_positions(rows=rows, owner=owner, normalized_status=normalized_status)
@@ -46,6 +46,7 @@ class SettledLiquidityProjectionRepository:
             owner=owner,
             pool_application=pool_application,
             pool_id=pool_id,
+            position_liquidity_only=True,
         )
         if rows is None:
             return None
@@ -105,6 +106,7 @@ class SettledLiquidityProjectionRepository:
         owner: str | None,
         pool_application: str | None = None,
         pool_id: int | None = None,
+        position_liquidity_only: bool = False,
     ) -> list[dict] | None:
         if not hasattr(self.db, 'ensure_fresh_read_connection'):
             return None
@@ -117,6 +119,8 @@ class SettledLiquidityProjectionRepository:
         if owner is not None:
             where_clauses.append('slc.owner = %s')
             params.append(self.transaction_adapter.settled_owner_from_public_owner(owner))
+        if position_liquidity_only:
+            where_clauses.append(self._position_liquidity_condition('slc'))
         if pool_application is not None:
             where_clauses.append(self._pool_application_condition('slc'))
             params.append(pool_application)
@@ -141,6 +145,8 @@ class SettledLiquidityProjectionRepository:
                     slc.transaction_id,
                     slc.change_type,
                     slc.liquidity_delta,
+                    slc.is_position_liquidity,
+                    slc.liquidity_semantics,
                     slc.amount_0_delta,
                     slc.amount_1_delta,
                     slc.event_time_ms
@@ -256,6 +262,13 @@ class SettledLiquidityProjectionRepository:
 
     def _pool_application_condition(self, alias: str) -> str:
         return f"{self._pool_application_expression(alias)} = %s"
+
+    def _position_liquidity_condition(self, alias: str) -> str:
+        return (
+            f"COALESCE({alias}.is_position_liquidity, "
+            f"NOT ({alias}.change_type = 'add_liquidity' "
+            f"AND {alias}.liquidity_delta IN ('0', '0.0', '0.000000000000000000'))) = TRUE"
+        )
 
     def _serialize_decimal(self, value: Decimal) -> str:
         normalized = format(value.normalize(), 'f')

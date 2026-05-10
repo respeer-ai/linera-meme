@@ -79,6 +79,7 @@ import { klineWorker } from 'src/worker'
 import { Token } from '../trade/Token'
 import { constants } from 'src/constant'
 import { protocol, shortid, timestamp } from 'src/utils'
+import { findPoolByIdentity } from 'src/stores/swap/poolIdentity'
 
 interface Props {
   token0?: string
@@ -104,7 +105,7 @@ const tokenLogo = (token: string) => {
 }
 
 const transactionPool = (_transaction: transaction.TransactionExt) => {
-  return pools.value.find((el) => el.poolId === _transaction.pool_id)
+  return findPoolByIdentity(pools.value, _transaction.pool_id, _transaction.pool_application)
 }
 
 const buyToken = (_transaction: transaction.TransactionExt) => {

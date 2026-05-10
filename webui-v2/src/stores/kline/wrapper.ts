@@ -45,8 +45,12 @@ export class Kline {
     return kline.tokenStat(tokenId, interval)
   }
 
-  static poolStat = (poolId: number, interval: TickerInterval) => {
-    return kline.poolStat(poolId, interval)
+  static poolStat = (
+    poolId: number | string,
+    interval: TickerInterval,
+    poolApplication?: string,
+  ) => {
+    return kline.poolStat(poolId, interval, poolApplication)
   }
 
   static getProtocolStat = async () => {

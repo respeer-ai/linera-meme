@@ -22,7 +22,8 @@ class PositionsReadModel:
         owner: str,
         status: str,
     ) -> dict:
-        payload = self.repository.get_positions(owner=owner, status=status)
+        repository_status = 'all' if (status or '').lower() == 'virtual' else status
+        payload = self.repository.get_positions(owner=owner, status=repository_status)
         if payload is None:
             raise ProjectionQueryUnavailableError('positions')
         if self.virtual_positions_read_model is not None:

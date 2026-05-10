@@ -9,16 +9,10 @@ import { formalizeFloat, graphqlResult } from 'src/utils'
 import { constants } from 'src/constant'
 import { type Transaction } from '../transaction'
 import { Subscription } from 'src/subscription'
-import { _Account, type Account } from '../account'
+import { poolIdentityKey } from './poolIdentity'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
-
-const poolApplicationKey = (pool: Pool) => {
-  return _Account.poolApplicationDescription(pool.poolApplication as Account) || ''
-}
-
-const poolIdentityKey = (pool: Pool) => `${pool.poolId}:${poolApplicationKey(pool)}`
 
 export const useSwapStore = defineStore('swap', {
   state: () => ({

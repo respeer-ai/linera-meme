@@ -22,6 +22,9 @@ class FakeCursor:
     def execute(self, sql: str, params=None):
         self.executed.append((sql, params))
 
+    def fetchone(self):
+        return None
+
     def close(self):
         self.closed = True
 
@@ -47,8 +50,11 @@ class SettledLiquidityChangeRepositoryTest(unittest.TestCase):
 
         repository.ensure_schema()
 
-        executed_sql = connection.cursor_instances[0].executed[0][0]
+        executed_sql = '\n'.join(sql for sql, _params in connection.cursor_instances[0].executed)
         self.assertIn('CREATE TABLE IF NOT EXISTS settled_liquidity_changes', executed_sql)
+        self.assertIn('is_position_liquidity BOOLEAN', executed_sql)
+        self.assertIn('liquidity_semantics VARCHAR(64)', executed_sql)
+        self.assertIn('virtual_initial_liquidity', executed_sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_upsert_settled_liquidity_changes_persists_canonical_payload_json(self):
@@ -69,6 +75,8 @@ class SettledLiquidityChangeRepositoryTest(unittest.TestCase):
                     'transaction_id': 10,
                     'change_type': 'add_liquidity',
                     'liquidity_delta': '888',
+                    'is_position_liquidity': True,
+                    'liquidity_semantics': 'position_liquidity',
                     'amount_0_delta': '1000',
                     'amount_1_delta': '55',
                     'source_event_key': 'event-2',
@@ -81,7 +89,9 @@ class SettledLiquidityChangeRepositoryTest(unittest.TestCase):
         executed_sql, params = connection.cursor_instances[0].executed[0]
         self.assertIn('INSERT INTO settled_liquidity_changes', executed_sql)
         self.assertEqual(
-            params[14],
+            params[16],
             '{"transaction":{"transaction_type":"add_liquidity"}}',
         )
+        self.assertEqual(params[11], True)
+        self.assertEqual(params[12], 'position_liquidity')
         self.assertEqual(connection.commit_count, 1)

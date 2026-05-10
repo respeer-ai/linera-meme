@@ -7,6 +7,16 @@ class SettledLiquidityChangeRepository:
         self.fingerprint = CanonicalFingerprint()
         self.settled_liquidity_changes_table = 'settled_liquidity_changes'
 
+    def _column_exists(self, cursor, column_name: str) -> bool:
+        cursor.execute(
+            f'''
+            SELECT COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+            ''',
+            (self.settled_liquidity_changes_table, column_name),
+        )
+        return cursor.fetchone() is not None
+
     def ensure_schema(self) -> None:
         cursor = self.connection.cursor()
         try:
@@ -24,6 +34,8 @@ class SettledLiquidityChangeRepository:
                     transaction_id BIGINT NULL,
                     change_type VARCHAR(32) NOT NULL,
                     liquidity_delta VARCHAR(64) NOT NULL,
+                    is_position_liquidity BOOLEAN NOT NULL DEFAULT TRUE,
+                    liquidity_semantics VARCHAR(64) NOT NULL DEFAULT 'position_liquidity',
                     amount_0_delta VARCHAR(64) NOT NULL,
                     amount_1_delta VARCHAR(64) NOT NULL,
                     source_event_key VARCHAR(255) NOT NULL,
@@ -35,6 +47,38 @@ class SettledLiquidityChangeRepository:
                     KEY idx_settled_liquidity_owner (owner, pool_application_id, event_time_ms),
                     KEY idx_settled_liquidity_source_event (source_event_key)
                 )
+                '''
+            )
+            if not self._column_exists(cursor, 'is_position_liquidity'):
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_liquidity_changes_table}
+                    ADD COLUMN is_position_liquidity BOOLEAN NOT NULL DEFAULT TRUE
+                    AFTER liquidity_delta
+                    '''
+                )
+            if not self._column_exists(cursor, 'liquidity_semantics'):
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_liquidity_changes_table}
+                    ADD COLUMN liquidity_semantics VARCHAR(64) NOT NULL DEFAULT 'position_liquidity'
+                    AFTER is_position_liquidity
+                    '''
+                )
+            cursor.execute(
+                f'''
+                UPDATE {self.settled_liquidity_changes_table}
+                SET
+                    is_position_liquidity = CASE
+                        WHEN change_type = 'add_liquidity' AND liquidity_delta IN ('0', '0.0', '0.000000000000000000')
+                        THEN FALSE
+                        ELSE TRUE
+                    END,
+                    liquidity_semantics = CASE
+                        WHEN change_type = 'add_liquidity' AND liquidity_delta IN ('0', '0.0', '0.000000000000000000')
+                        THEN 'virtual_initial_liquidity'
+                        ELSE 'position_liquidity'
+                    END
                 '''
             )
             self.connection.commit()
@@ -61,11 +105,13 @@ class SettledLiquidityChangeRepository:
                         transaction_id,
                         change_type,
                         liquidity_delta,
+                        is_position_liquidity,
+                        liquidity_semantics,
                         amount_0_delta,
                         amount_1_delta,
                         source_event_key,
                         event_payload_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         pool_application_id = VALUES(pool_application_id),
                         pool_chain_id = VALUES(pool_chain_id),
@@ -76,6 +122,8 @@ class SettledLiquidityChangeRepository:
                         transaction_id = VALUES(transaction_id),
                         change_type = VALUES(change_type),
                         liquidity_delta = VALUES(liquidity_delta),
+                        is_position_liquidity = VALUES(is_position_liquidity),
+                        liquidity_semantics = VALUES(liquidity_semantics),
                         amount_0_delta = VALUES(amount_0_delta),
                         amount_1_delta = VALUES(amount_1_delta),
                         source_event_key = VALUES(source_event_key),
@@ -93,6 +141,8 @@ class SettledLiquidityChangeRepository:
                         change.get('transaction_id'),
                         change['change_type'],
                         change['liquidity_delta'],
+                        bool(change.get('is_position_liquidity', True)),
+                        change.get('liquidity_semantics') or 'position_liquidity',
                         change['amount_0_delta'],
                         change['amount_1_delta'],
                         change['source_event_key'],

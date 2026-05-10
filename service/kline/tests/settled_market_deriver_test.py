@@ -32,7 +32,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
                         'transaction': {
                             'transaction_id': 19,
                             'transaction_type': 'BuyToken0',
-                            'from': {'chain_id': 'user-chain', 'owner': 'user-owner'},
+                            'from': {'chain_id': 'user-chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                             'amount_0_in': None,
                             'amount_0_out': '300',
                             'amount_1_in': '25',
@@ -49,7 +49,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
         self.assertEqual(trade['settled_output_type'], 'settled_trade')
         self.assertEqual(trade['pool_application_id'], 'pool-app')
         self.assertEqual(trade['pool_chain_id'], 'pool-chain')
-        self.assertEqual(trade['from_account'], 'user-chain:user-owner')
+        self.assertEqual(trade['from_account'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
         self.assertEqual(trade['amount_0_out'], '300')
         self.assertEqual(trade['amount_1_in'], '25')
         self.assertEqual(trade['trade_time_ms'], 1234567)
@@ -75,7 +75,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
                         'transaction': {
                             'transaction_id': 20,
                             'transaction_type': 'AddLiquidity',
-                            'from': {'chain_id': 'user-chain', 'owner': 'user-owner'},
+                            'from': {'chain_id': 'user-chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                             'amount_0_in': '1000',
                             'amount_1_in': '55',
                             'liquidity': '888',
@@ -90,11 +90,50 @@ class SettledMarketDeriverTest(unittest.TestCase):
         change = derived['settled_outputs'][0]
         self.assertEqual(change['settled_output_type'], 'settled_liquidity_change')
         self.assertEqual(change['change_type'], 'add_liquidity')
-        self.assertEqual(change['owner'], 'user-owner@user-chain')
+        self.assertEqual(change['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
         self.assertEqual(change['liquidity_delta'], '888')
+        self.assertTrue(change['is_position_liquidity'])
+        self.assertEqual(change['liquidity_semantics'], 'position_liquidity')
         self.assertEqual(change['amount_0_delta'], '1000')
         self.assertEqual(change['amount_1_delta'], '55')
         self.assertEqual(change['event_time_ms'], 555)
+
+    def test_derives_zero_liquidity_add_as_virtual_initial_liquidity_not_position_liquidity(self):
+        deriver = SettledMarketDeriver()
+
+        derived = deriver.derive_item(
+            {
+                'normalized_event_id': 'event-2-virtual',
+                'raw_fact_id': '12',
+                'application_id': 'pool-app',
+                'event_family': 'pool_new_transaction_recorded',
+                'normalization_status': 'observed',
+                'target_chain_id': 'pool-chain',
+                'target_block_hash': 'block-2',
+                'transaction_index': 8,
+                'event_payload_json': {
+                    'decoded_payload_json': {
+                        'transaction': {
+                            'transaction_id': 20,
+                            'transaction_type': 'AddLiquidity',
+                            'from': {'chain_id': 'user-chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
+                            'amount_0_in': '1000',
+                            'amount_1_in': '55',
+                            'liquidity': '0',
+                            'created_at_micros': 555000,
+                        }
+                    }
+                },
+            }
+        )
+
+        self.assertEqual(derived['derivation_status'], 'settled')
+        change = derived['settled_outputs'][0]
+        self.assertEqual(change['settled_output_type'], 'settled_liquidity_change')
+        self.assertEqual(change['change_type'], 'add_liquidity')
+        self.assertEqual(change['liquidity_delta'], '0')
+        self.assertFalse(change['is_position_liquidity'])
+        self.assertEqual(change['liquidity_semantics'], 'virtual_initial_liquidity')
 
     def test_derives_remove_liquidity_change_from_new_transaction_message(self):
         deriver = SettledMarketDeriver()
@@ -114,7 +153,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
                         'transaction': {
                             'transaction_id': 21,
                             'transaction_type': 'RemoveLiquidity',
-                            'from': {'chain_id': 'user-chain', 'owner': 'user-owner'},
+                            'from': {'chain_id': 'user-chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                             'amount_0_out': '77',
                             'amount_1_out': '8',
                             'liquidity': '9',

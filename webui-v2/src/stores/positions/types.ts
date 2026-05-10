@@ -1,4 +1,4 @@
-export type PositionStatus = 'active' | 'closed'
+export type PositionStatus = 'active' | 'closed' | 'virtual'
 export type PositionStatusFilter = PositionStatus | 'all'
 
 export interface Position {
@@ -20,7 +20,7 @@ export interface Position {
   is_virtual_position?: boolean | null
   virtual_initial_amount0?: string | null
   virtual_initial_amount1?: string | null
-  owner_is_fee_to?: boolean | null
+  protocol_fee_receiver_account?: string | null
   protocol_fee_reference_amount0?: string | null
   protocol_fee_reference_amount1?: string | null
 }

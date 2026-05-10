@@ -147,6 +147,103 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(rows, [])
         self.assertEqual(db.calls, ['ensure_fresh_read_connection'])
 
+    def test_get_positions_excludes_virtual_initial_liquidity_from_real_positions(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'change_type': 'add_liquidity',
+                'liquidity_delta': '0',
+                'is_position_liquidity': False,
+                'liquidity_semantics': 'virtual_initial_liquidity',
+                'amount_0_delta': '1000000000000000000',
+                'amount_1_delta': '2000000000000000000',
+                'event_time_ms': 1000,
+            },
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+            }),
+        )
+
+        repository.get_positions(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+            status='all',
+        )
+
+        executed_sql, _params = db.cursor_dict.executed[0]
+        self.assertIn('is_position_liquidity', executed_sql)
+
+    def test_pool_liquidity_history_keeps_virtual_initial_liquidity_for_pool_snapshots(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'transaction_id': 10,
+                'change_type': 'add_liquidity',
+                'liquidity_delta': '0',
+                'is_position_liquidity': False,
+                'liquidity_semantics': 'virtual_initial_liquidity',
+                'amount_0_delta': '1000000000000000000',
+                'amount_1_delta': '2000000000000000000',
+                'event_time_ms': 1000,
+            },
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+            }),
+        )
+
+        rows = repository.get_pool_liquidity_history(
+            pool_application='0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+            pool_id=None,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['transaction_type'], 'AddLiquidity')
+        self.assertEqual(rows[0]['liquidity'], '0')
+        executed_sql, _params = db.cursor_dict.executed[0]
+        self.assertNotIn('is_position_liquidity', executed_sql.split('WHERE')[-1])
+
+    def test_owner_candidate_histories_keep_virtual_initial_liquidity_for_virtual_positions(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'transaction_id': 10,
+                'change_type': 'add_liquidity',
+                'liquidity_delta': '0',
+                'is_position_liquidity': False,
+                'liquidity_semantics': 'virtual_initial_liquidity',
+                'amount_0_delta': '1000000000000000000',
+                'amount_1_delta': '2000000000000000000',
+                'event_time_ms': 1000,
+            },
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+            }),
+        )
+
+        rows = repository.get_owner_candidate_histories(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['pool_id'], 7)
+        self.assertEqual(rows[0]['add_tx_count'], 1)
+        executed_sql, _params = db.cursor_dict.executed[0]
+        self.assertNotIn('is_position_liquidity', executed_sql.split('WHERE')[-1])
+
     def test_pool_transaction_history_projection_combines_trade_and_liquidity_history(self):
         class FakeTradeProjectionRepository:
             def get_pool_trade_history(self, **_kwargs):

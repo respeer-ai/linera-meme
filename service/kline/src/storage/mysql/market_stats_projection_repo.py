@@ -96,6 +96,7 @@ class MarketStatsProjectionRepository:
             if entry is None:
                 entry = {
                     'pool_id': int(trade['pool_id']),
+                    'pool_application': trade['pool_application'],
                     'token_0': trade['token_0'],
                     'token_1': trade['token_1'],
                     'high': price,
@@ -124,6 +125,7 @@ class MarketStatsProjectionRepository:
         for entry in stats_by_pool.values():
             rows.append({
                 'pool_id': entry['pool_id'],
+                'pool_application': entry['pool_application'],
                 'token_0': entry['token_0'],
                 'token_1': entry['token_1'],
                 'high': float(entry['high']),

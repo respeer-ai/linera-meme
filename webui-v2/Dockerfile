@@ -1,4 +1,4 @@
-FROM nginx:1.20
+FROM nginx:1.20.2
 
 USER root
 

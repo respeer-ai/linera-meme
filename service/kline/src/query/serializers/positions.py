@@ -27,7 +27,7 @@ class PositionsSerializer:
         'is_virtual_position',
         'virtual_initial_amount0',
         'virtual_initial_amount1',
-        'owner_is_fee_to',
+        'protocol_fee_receiver_account',
         'protocol_fee_reference_amount0',
         'protocol_fee_reference_amount1',
     })

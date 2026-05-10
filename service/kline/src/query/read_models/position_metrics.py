@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from query.read_models.position_metrics_fetched_result import PositionMetricsFetchedResult
+from query.read_models.position_metrics_pool_state_snapshot import PositionMetricsPoolStateSnapshot
 from query.read_models.position_metrics_read_result import PositionMetricsReadResult
 from query.read_models.virtual_positions import VirtualPositionsReadModel
 
@@ -92,6 +95,10 @@ class PositionMetricsReadModel:
         }
 
     def _build_protocol_fee_receiver_virtual_metrics(self, position: dict) -> dict:
+        projected_metrics = self._build_projected_protocol_fee_receiver_virtual_metrics(position)
+        if projected_metrics is not None:
+            return projected_metrics
+
         return {
             'pool_application': position['pool_application'],
             'pool_id': position['pool_id'],
@@ -109,7 +116,6 @@ class PositionMetricsReadModel:
             'metrics_status': 'partial_live_redeemable_only',
             'exact_fee_supported': False,
             'exact_principal_supported': False,
-            'owner_is_fee_to': True,
             'computation_blockers': [],
             'principal_amount0': '0',
             'principal_amount1': '0',
@@ -126,11 +132,113 @@ class PositionMetricsReadModel:
         }
 
     def _is_protocol_fee_receiver_virtual_position(self, position: dict) -> bool:
+        position_kind = str(position.get('position_kind') or '')
+        if position_kind == VirtualPositionsReadModel.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND:
+            return bool(position.get('is_virtual_position'))
         return (
             bool(position.get('is_virtual_position'))
-            and str(position.get('position_kind') or '')
-            == VirtualPositionsReadModel.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND
+            and self._is_protocol_fee_receiver(position)
+            and position_kind == VirtualPositionsReadModel.SYNTHETIC_VIRTUAL_INITIAL_POSITION_KIND
         )
+
+    def _is_protocol_fee_receiver(self, position: dict) -> bool:
+        receiver = position.get('protocol_fee_receiver_account')
+        return receiver not in (None, '') and str(receiver) == str(position.get('owner'))
+
+    def _build_projected_protocol_fee_receiver_virtual_metrics(self, position: dict) -> dict | None:
+        pool_snapshot = self._pool_state_snapshot(position)
+        if pool_snapshot is None:
+            return None
+
+        live_total_supply = self._to_decimal(pool_snapshot.live_total_supply())
+        fee_free_total_supply = self._to_decimal(pool_snapshot.fee_free_total_supply())
+        if (
+            live_total_supply is None
+            or fee_free_total_supply is None
+            or live_total_supply <= Decimal('0')
+            or live_total_supply <= fee_free_total_supply
+        ):
+            return None
+
+        live_reserve_0 = self._to_decimal(pool_snapshot.live_reserve_0())
+        live_reserve_1 = self._to_decimal(pool_snapshot.live_reserve_1())
+        if live_reserve_0 is None or live_reserve_1 is None:
+            return None
+
+        protocol_fee_liquidity = live_total_supply - fee_free_total_supply
+        protocol_fee_ratio = protocol_fee_liquidity / live_total_supply
+        protocol_fee_amount0 = live_reserve_0 * protocol_fee_ratio
+        protocol_fee_amount1 = live_reserve_1 * protocol_fee_ratio
+        return {
+            'pool_application': position['pool_application'],
+            'pool_id': position['pool_id'],
+            'token_0': position['token_0'],
+            'token_1': position['token_1'],
+            'owner': position['owner'],
+            'status': position['status'],
+            'current_liquidity': position['current_liquidity'],
+            'position_liquidity_live': self._serialize_decimal(protocol_fee_liquidity),
+            'total_supply_live': self._serialize_decimal(live_total_supply),
+            'exact_share_ratio': self._serialize_decimal(protocol_fee_ratio),
+            'redeemable_amount0': self._serialize_decimal(protocol_fee_amount0),
+            'redeemable_amount1': self._serialize_decimal(protocol_fee_amount1),
+            'virtual_initial_liquidity': True,
+            'metrics_status': 'projection_protocol_fee_receiver_virtual',
+            'exact_fee_supported': True,
+            'exact_principal_supported': False,
+            'computation_blockers': [],
+            'principal_amount0': '0',
+            'principal_amount1': '0',
+            'fee_amount0': '0',
+            'fee_amount1': '0',
+            'protocol_fee_amount0': self._serialize_decimal(protocol_fee_amount0),
+            'protocol_fee_amount1': self._serialize_decimal(protocol_fee_amount1),
+            'value_warning_codes': ['virtual_initial_protocol_fee_receiver_position'],
+            'value_warning_message': (
+                'Virtual initial liquidity is pool-level, not owner-held LP. '
+                'Protocol yield is projected from parsed pool state.'
+            ),
+        }
+
+    def _pool_state_snapshot(self, position: dict) -> PositionMetricsPoolStateSnapshot | None:
+        if self.virtual_positions_read_model is None:
+            return None
+        snapshot_inputs_repository = getattr(
+            self.virtual_positions_read_model,
+            'snapshot_inputs_projection_repository',
+            None,
+        )
+        if snapshot_inputs_repository is None:
+            return None
+        snapshot_inputs = snapshot_inputs_repository.get_snapshot_inputs(
+            owner=position.get('owner'),
+            pool_application_id=position.get('pool_application'),
+            status='closed',
+        )
+        if snapshot_inputs is None:
+            snapshot_inputs = snapshot_inputs_repository.get_snapshot_inputs(
+                owner=position.get('owner'),
+                pool_application_id=position.get('pool_application'),
+                status='active',
+            )
+        if snapshot_inputs is None:
+            return None
+        pool_state_snapshot = snapshot_inputs.pool_state_snapshot()
+        if isinstance(pool_state_snapshot, PositionMetricsPoolStateSnapshot):
+            return pool_state_snapshot
+        return PositionMetricsPoolStateSnapshot(pool_state_snapshot)
+
+    def _to_decimal(self, value: object) -> Decimal | None:
+        if value in (None, ''):
+            return None
+        return Decimal(str(value))
+
+    def _serialize_decimal(self, value: Decimal | None) -> str | None:
+        if value is None:
+            return None
+        if value == 0:
+            return '0'
+        return format(value.quantize(Decimal('0.000000000000000001')).normalize(), 'f')
 
     def _build_metric_diagnostic(
         self,

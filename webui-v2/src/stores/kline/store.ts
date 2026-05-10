@@ -19,6 +19,11 @@ import { klineWorker } from 'src/worker'
 import { type TickerInterval, type Interval } from './const'
 import axios from 'axios'
 import { buildKlineSubscriptionMessage, mergeLatestPointMaps } from './liveUpdate'
+import {
+  buildPoolStatsByApplicationMap,
+  buildPoolStatsMap,
+  findPoolStatByIdentity,
+} from './poolStats'
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
@@ -37,6 +42,7 @@ export const useKlineStore = defineStore('kline', {
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
+    poolStatsByApplication: new Map<TickerInterval, Map<string, PoolStat>>(),
     protocolStat: {} as ProtocolStat,
   }),
   actions: {
@@ -167,10 +173,9 @@ export const useKlineStore = defineStore('kline', {
       )
       try {
         const res = await axios.get(url)
-        this.poolStats.set(
-          interval,
-          new Map<number, PoolStat>((res.data as PoolStats).stats.map((s) => [s.pool_id, s])),
-        )
+        const stats = (res.data as PoolStats).stats
+        this.poolStats.set(interval, buildPoolStatsMap(stats))
+        this.poolStatsByApplication.set(interval, buildPoolStatsByApplicationMap(stats))
         return res.data as PoolStats
       } catch (e) {
         console.log('Failed get tickers', e)
@@ -263,10 +268,18 @@ export const useKlineStore = defineStore('kline', {
         return this.tickers.get(interval)?.get(token)
       }
     },
-    poolStat(): (poolId: number, interval: TickerInterval) => PoolStat | undefined {
-      return (poolId: number, interval: TickerInterval) => {
-        console.log(poolId, interval, this.poolStats)
-        return this.poolStats.get(interval)?.get(poolId)
+    poolStat(): (
+      poolId: number | string,
+      interval: TickerInterval,
+      poolApplication?: string,
+    ) => PoolStat | undefined {
+      return (poolId: number | string, interval: TickerInterval, poolApplication?: string) => {
+        return findPoolStatByIdentity(
+          this.poolStats.get(interval),
+          this.poolStatsByApplication.get(interval),
+          poolId,
+          poolApplication,
+        )
       }
     },
   },

@@ -60,7 +60,8 @@ export interface Tickers {
 }
 
 export interface PoolStat {
-  pool_id: number
+  pool_id: number | string
+  pool_application?: string
   token_0: string
   token_1: string
   high: string
@@ -108,18 +109,14 @@ export interface PositionMetricsEntry {
   token_0: string
   token_1: string
   owner: string
-  status: 'active' | 'closed'
+  status: 'active' | 'closed' | 'virtual'
   current_liquidity: string
   position_liquidity_live: string | null
   total_supply_live: string | null
-  exact_share_ratio: string | null
+  share_ratio: string | null
   redeemable_amount0: string | null
   redeemable_amount1: string | null
   virtual_initial_liquidity: boolean
-  metrics_status: PositionMetricsStatus
-  exact_fee_supported: boolean
-  exact_principal_supported: boolean
-  owner_is_fee_to: boolean
   computation_blockers: PositionMetricsBlocker[]
   principal_amount0: string | null
   principal_amount1: string | null

@@ -4,7 +4,21 @@
 ## E.g. ./compose_maker_and_funder.sh
 ####
 
-LAN_IP=$( hostname -I | awk '{print $1}' )
+function resolve_lan_ip() {
+    local route_ip
+    route_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}')
+    if [ -n "$route_ip" ] && [[ ! "$route_ip" =~ ^127\. ]] && [[ ! "$route_ip" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+        echo "$route_ip"
+        return
+    fi
+    hostname -I | tr ' ' '\n' | awk '/^[0-9]+\./ && !/^127\./ && !/^172\.(1[6-9]|2[0-9]|3[0-1])\./ {print; exit}'
+}
+
+LAN_IP=$(resolve_lan_ip)
+if [ -z "$LAN_IP" ]; then
+    echo "Failed to resolve LAN_IP" >&2
+    exit 1
+fi
 CLUSTER=testnet-conway
 
 options="z:"
@@ -100,8 +114,13 @@ function run_kline() {
     docker stop kline maker
     docker rm kline maker
 
+    cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
     cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
     docker build --build-arg all_proxy="${all_proxy:-${ALL_PROXY:-}}" -f $ROOT_DIR/docker/Dockerfile $ROOT_DIR -t kline || exit 1
+
+    NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" \
+      LAN_IP=$LAN_IP LINERA_IMAGE=linera-respeer \
+      docker compose -f docker/docker-compose-wallet.yml up --wait
 
     NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" \
       LAN_IP=$LAN_IP DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \

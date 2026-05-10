@@ -15,5 +15,18 @@ class PositionMetricsReadResult:
     def public_payload(self) -> dict:
         return {
             'owner': self.owner,
-            'metrics': list(self.metrics),
+            'metrics': [
+                self._public_metric(metric)
+                for metric in self.metrics
+            ],
         }
+
+    def _public_metric(self, metric: dict) -> dict:
+        public_metric = dict(metric)
+        public_metric.pop('owner_is_fee_to', None)
+        public_metric.pop('metrics_status', None)
+        public_metric.pop('exact_fee_supported', None)
+        public_metric.pop('exact_principal_supported', None)
+        if 'exact_share_ratio' in public_metric:
+            public_metric['share_ratio'] = public_metric.pop('exact_share_ratio')
+        return public_metric
