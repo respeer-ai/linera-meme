@@ -694,6 +694,14 @@ cd $OUTPUT_DIR
 cp -v "$EXTERNAL_LINERA_DOCKER_DIR"/rpc-entrypoint.sh "$DOCKER_DIR"/
 cp -v "$EXTERNAL_LINERA_DOCKER_DIR"/wallet-entrypoint.sh "$DOCKER_DIR"/
 
+LOCAL_NO_PROXY=localhost,127.0.0.1,::1,query-service,rpc,maker-wallet,maker,funder,kline,docker-mysql-1,api.lineraswap.fun,api.linerameme.fun,api.testnet-conway.lineraswap.fun,api.testnet-conway.linerameme.fun
+NO_PROXY_VALUE=${no_proxy:-${NO_PROXY:-}}
+if [ -n "$NO_PROXY_VALUE" ]; then
+    NO_PROXY_VALUE="$NO_PROXY_VALUE,$LOCAL_NO_PROXY"
+else
+    NO_PROXY_VALUE="$LOCAL_NO_PROXY"
+fi
+
 rm -rf $WALLET_DIR/query/0
 mkdir -p $WALLET_DIR/query/0
 run_linera_retry "wallet_init query/0" "$LINERA_RETRY_ATTEMPTS" \
@@ -702,7 +710,7 @@ run_linera_retry "wallet_request_chain query/0" "$LINERA_RETRY_ATTEMPTS" \
   --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet request-chain --faucet $CHAIN_FAUCET_URL
 
 cp -v $ROOT_DIR/docker/docker-compose-query.yml $DOCKER_DIR
-SUB_DOMAIN=$CLUSTER. LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-query.yml up --wait
+SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-query.yml up --wait
 
 function wait_query_service_ready() {
     payload='{"query":"query Chains { chains { list } }"}'
@@ -758,7 +766,7 @@ import_query_chain "$AMS_QUERY_OWNER" "$AMS_CHAIN_ID" ams
 import_query_chain "$PROXY_QUERY_OWNER" "$PROXY_CHAIN_ID" proxy
 import_query_chain "$SWAP_QUERY_OWNER" "$SWAP_CHAIN_ID" swap
 
-LINERA_IMAGE=$IMAGE_NAME docker compose -f config/docker-compose.yml up --wait
+SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" LINERA_IMAGE=$IMAGE_NAME docker compose -f config/docker-compose.yml up --wait
 
 rm -rf $WALLET_DIR/maker/0
 mkdir -p $WALLET_DIR/maker/0
@@ -770,7 +778,7 @@ MAKER_OWNER=$(wallet_owner maker 0)
 MAKER_CHAIN_ID=$(wallet_chain_id maker 0)
 
 cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-SUB_DOMAIN=$CLUSTER. LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
+SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
 
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap
@@ -778,19 +786,12 @@ DATABASE_PASSWORD=12345679
 DATABASE_PORT=3306
 SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
 PROXY_HOST=${SUB_DOMAIN}linerameme.fun
-LOCAL_NO_PROXY=localhost,127.0.0.1,::1,query-service,rpc,maker-wallet,maker,funder,kline,docker-mysql-1,api.lineraswap.fun,api.linerameme.fun,api.testnet-conway.lineraswap.fun,api.testnet-conway.linerameme.fun
-NO_PROXY_VALUE=${no_proxy:-${NO_PROXY:-}}
-if [ -n "$NO_PROXY_VALUE" ]; then
-    NO_PROXY_VALUE="$NO_PROXY_VALUE,$LOCAL_NO_PROXY"
-else
-    NO_PROXY_VALUE="$LOCAL_NO_PROXY"
-fi
-
 function run_mysql() {
     docker stop docker-mysql-1 > /dev/null 2>&1 || true
     docker rm docker-mysql-1 > /dev/null 2>&1 || true
 
     MYSQL_ROOT_PASSWORD=12345679 MYSQL_DATABASE=$DATABASE_NAME MYSQL_USER=$DATABASE_USER MYSQL_PASSWORD=$DATABASE_PASSWORD \
+      LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" \
       docker compose -f $ROOT_DIR/docker/docker-compose-mysql.yml up --wait
 }
 
@@ -822,7 +823,7 @@ function run_funder() {
     docker stop funder > /dev/null 2>&1 || true
     docker rm funder > /dev/null 2>&1 || true
 
-    image_exists=`docker images | grep "^funder " | wc -l`
+    image_exists=`docker images funder --format '{{.Repository}}' | wc -l`
     if [ "x$image_exists" != "x1" ]; then
         cp -v $ROOT_DIR/docker/*-entrypoint.sh $DOCKER_DIR
         docker build --build-arg all_proxy="${all_proxy:-${ALL_PROXY:-}}" -f $ROOT_DIR/docker/Dockerfile.funder $ROOT_DIR -t funder || exit 1
