@@ -14,6 +14,40 @@ from storage.mysql.position_metrics_snapshot_materialization_inputs_repo import 
 
 
 class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCase):
+    class FakePoolHistoryRepository:
+        def __init__(self):
+            self.requests = []
+
+        def get_pool_transaction_history(self, *, pool_application, pool_id):
+            self.requests.append({
+                'pool_application': pool_application,
+                'pool_id': pool_id,
+            })
+            return [{'transaction_id': 1}]
+
+    def test_list_pool_transaction_history_builds_canonical_pool_application_from_chain_and_app_id(self):
+        pool_history_repository = self.FakePoolHistoryRepository()
+        repository = PositionMetricsSnapshotMaterializationInputsRepository(
+            connection=None,
+            settled_trade_projection_repo=object(),
+            settled_liquidity_projection_repo=object(),
+            settled_pool_history_projection_repo=pool_history_repository,
+        )
+
+        rows = repository.list_pool_transaction_history(
+            pool_application_id='095554fa3074f0b9371097a490882d6aeb562612141a7731dfd24cadf30b7484',
+            pool_chain_id='b87827a42fa7bb6d129940a5dc02bb51e3bff57f2457306d9095872c3b7ed9f6',
+        )
+
+        self.assertEqual(rows, [{'transaction_id': 1}])
+        self.assertEqual(
+            pool_history_repository.requests,
+            [{
+                'pool_application': 'b87827a42fa7bb6d129940a5dc02bb51e3bff57f2457306d9095872c3b7ed9f6:0x095554fa3074f0b9371097a490882d6aeb562612141a7731dfd24cadf30b7484',
+                'pool_id': None,
+            }],
+        )
+
     def test_build_fee_to_history_row_accepts_public_account_string(self):
         repository = PositionMetricsSnapshotMaterializationInputsRepository(connection=None)
 

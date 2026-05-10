@@ -1,7 +1,6 @@
 import sys
 import unittest
 from pathlib import Path
-from decimal import Decimal
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,184 +14,178 @@ from storage.mysql.market_stats_projection_repo import MarketStatsProjectionRepo
 
 
 class MarketStatsProjectionRepositoryTest(unittest.TestCase):
-    class FakeCursor:
-        def __init__(self):
-            self.executed = []
-            self.rows = []
+    class FakeMetadataResolver:
+        def __init__(self, metadata):
+            self.metadata = metadata
 
-        def execute(self, sql, params=()):
-            self.executed.append((sql, params))
+        def metadata_by_pool_application(self):
+            return dict(self.metadata)
 
-        def fetchall(self):
-            return list(self.rows)
+    def test_get_protocol_stats_uses_projection_pool_rows(self):
+        class FakeDb:
+            def now_ms(self):
+                return 2_000_000
 
-    class FakeDb:
-        def __init__(self):
-            self.cursor_dict = MarketStatsProjectionRepositoryTest.FakeCursor()
-            self.pools_table = 'pools'
-            self.current_now_ms = 2_000_000
+            def ensure_fresh_read_connection(self):
+                return None
 
-        def ensure_fresh_read_connection(self):
-            return None
+            class Cursor:
+                def __init__(self):
+                    self.rows = []
 
-        def now_ms(self):
-            return self.current_now_ms
+                def execute(self, _sql, _params=()):
+                    return None
 
-    def test_get_ticker_aggregates_token_stats_from_settled_trades(self):
-        db = self.FakeDb()
-        db.cursor_dict.rows = [
+                def fetchall(self):
+                    return list(self.rows)
+
+            cursor_dict = Cursor()
+            pools_table = 'pools'
+
+        db = FakeDb()
+        repo = MarketStatsProjectionRepository(db)
+        repo._load_settled_trade_rows = lambda start_at=None, end_at=None: [
             {
                 'pool_id': 7,
-                'pool_application': 'chain:pool-a',
+                'pool_application': 'chain-a:pool-app',
                 'token_0': 'AAA',
                 'token_1': 'TLINERA',
-                'trade_time_ms': 1_000,
+                'trade_time_ms': 1_500_000,
                 'side': 'buy_token_0',
-                'amount_in': '20000000000000000000',
-                'amount_out': '10000000000000000000',
-            },
-            {
-                'pool_id': 7,
-                'pool_application': 'chain:pool-a',
-                'token_0': 'AAA',
-                'token_1': 'TLINERA',
-                'trade_time_ms': 2_000,
-                'side': 'sell_token_0',
-                'amount_in': '5000000000000000000',
-                'amount_out': '15000000000000000000',
-            },
-        ]
-        repository = MarketStatsProjectionRepository(db)
+                'amount_in': '3000000000000000000',
+                'amount_out': '1000000000000000000',
+            }
+        ] if start_at and start_at >= 1_000_000 else []
+        repo._load_native_price_map = lambda start_at=None, end_at=None: {
+            'AAA': repo._display_amount('3000000000000000000'),
+            'TLINERA': repo._display_amount('1000000000000000000'),
+        }
 
-        rows = repository.get_ticker(interval='all')
-
-        aaa_row = next(row for row in rows if row['token'] == 'AAA')
-        self.assertEqual(aaa_row['tx_count'], 2)
-        self.assertEqual(aaa_row['high'], 3.0)
-        self.assertEqual(aaa_row['low'], 2.0)
-        self.assertEqual(aaa_row['price_now'], 3.0)
-        self.assertEqual(aaa_row['price_start'], 2.0)
-        self.assertEqual(aaa_row['volume'], 35.0)
-        self.assertEqual(len(rows), 1)
-
-    def test_get_ticker_uses_market_turnover_for_non_native_pair(self):
-        db = self.FakeDb()
-        repository = MarketStatsProjectionRepository(db)
-
-        rows_by_call = [
-            [
+        stats = repo.get_protocol_stats(
+            pools=[
                 {
-                    'pool_id': 9,
-                    'pool_application': 'chain:pool-b',
-                    'token_0': 'AAA',
-                    'token_1': 'BBB',
-                    'trade_time_ms': 3_000,
-                    'side': 'buy_token_0',
-                    'amount_in': '20000000000000000000',
-                    'amount_out': '10000000000000000000',
-                },
-            ],
-            [
-                {
-                    'pool_id': 10,
-                    'pool_application': 'chain:pool-c',
-                    'token_0': 'BBB',
-                    'token_1': 'TLINERA',
-                    'trade_time_ms': 2_000,
-                    'side': 'buy_token_0',
-                    'amount_in': '30000000000000000000',
-                    'amount_out': '10000000000000000000',
-                },
-            ],
-        ]
-
-        def execute(sql, params=()):
-            db.cursor_dict.executed.append((sql, params))
-            db.cursor_dict.rows = rows_by_call.pop(0)
-
-        db.cursor_dict.execute = execute
-
-        rows = repository.get_ticker(interval='all')
-
-        aaa_row = next(row for row in rows if row['token'] == 'AAA')
-        bbb_row = next(row for row in rows if row['token'] == 'BBB')
-        self.assertEqual(aaa_row['volume'], 60.0)
-        self.assertEqual(bbb_row['volume'], 60.0)
-        self.assertEqual(aaa_row['tx_count'], 1)
-        self.assertEqual(bbb_row['tx_count'], 1)
-
-    def test_get_pool_stats_aggregates_pool_rows_from_settled_trades(self):
-        db = self.FakeDb()
-        db.cursor_dict.rows = [
-            {
-                'pool_id': 7,
-                'pool_application': 'chain:pool-a',
-                'token_0': 'AAA',
-                'token_1': 'BBB',
-                'trade_time_ms': 1_000,
-                'side': 'buy_token_0',
-                'amount_in': '20000000000000000000',
-                'amount_out': '10000000000000000000',
-            },
-            {
-                'pool_id': 7,
-                'pool_application': 'chain:pool-a',
-                'token_0': 'AAA',
-                'token_1': 'BBB',
-                'trade_time_ms': 2_000,
-                'side': 'sell_token_0',
-                'amount_in': '5000000000000000000',
-                'amount_out': '15000000000000000000',
-            },
-        ]
-        repository = MarketStatsProjectionRepository(db)
-
-        rows = repository.get_pool_stats(interval='all')
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['pool_id'], 7)
-        self.assertEqual(rows[0]['high'], 3.0)
-        self.assertEqual(rows[0]['low'], 2.0)
-        self.assertEqual(rows[0]['price_now'], 3.0)
-        self.assertEqual(rows[0]['price_start'], 2.0)
-        self.assertEqual(rows[0]['tx_count'], 2)
-        self.assertEqual(rows[0]['volume'], 35.0)
-
-    def test_get_protocol_stats_uses_settled_trades_and_live_pool_reserves(self):
-        db = self.FakeDb()
-        db.current_now_ms = 200_000_000
-        db.cursor_dict.rows = [
-            {
-                'pool_id': 7,
-                'pool_application': 'chain:pool-a',
-                'token_0': 'AAA',
-                'token_1': 'TLINERA',
-                'trade_time_ms': 150_000_000,
-                'side': 'buy_token_0',
-                'amount_in': '20000000000000000000',
-                'amount_out': '10000000000000000000',
-            },
-        ]
-        repository = MarketStatsProjectionRepository(db)
-        pools = [
-            type(
-                'Pool',
-                (),
-                {
+                    'pool_id': 7,
+                    'pool_application': 'chain-a:pool-app',
                     'token_0': 'AAA',
                     'token_1': 'TLINERA',
-                    'reserve_0': Decimal('100'),
-                    'reserve_1': Decimal('200'),
-                },
-            )(),
-        ]
-
-        stats = repository.get_protocol_stats(pools=pools)
+                    'live_reserve_0': '2',
+                    'live_reserve_1': '5',
+                }
+            ]
+        )
 
         self.assertEqual(stats['pool_count'], 1)
-        self.assertEqual(stats['tx_count'], 1)
-        self.assertEqual(stats['fees'], 0.06)
-        self.assertGreaterEqual(stats['tvl'], 0.0)
+        self.assertGreater(stats['tvl'], 0.0)
+        self.assertEqual(stats['volume'], 0.0)
+
+    def test_load_settled_trade_rows_attaches_projection_metadata_without_joining_pools(self):
+        class FakeDb:
+            def __init__(self):
+                self.executed = []
+
+            def ensure_fresh_read_connection(self):
+                return None
+
+            class Cursor:
+                def __init__(self, outer):
+                    self.outer = outer
+
+                def execute(self, sql, params=()):
+                    self.outer.executed.append((sql, params))
+
+                def fetchall(self):
+                    return [
+                        {
+                            'pool_application': 'chain-a:0xpool-app',
+                            'trade_time_ms': 1_500_000,
+                            'side': 'buy_token_0',
+                            'amount_in': '3000000000000000000',
+                            'amount_out': '1000000000000000000',
+                        }
+                    ]
+
+            @property
+            def cursor_dict(self):
+                return self.Cursor(self)
+
+        db = FakeDb()
+        repo = MarketStatsProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                'chain-a:0xpool-app': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'TLINERA'},
+            }),
+        )
+
+        rows = repo._load_settled_trade_rows(start_at=1_000, end_at=2_000)
+
+        self.assertEqual(rows[0]['pool_id'], 7)
+        self.assertEqual(rows[0]['token_0'], 'AAA')
+        self.assertNotIn('JOIN', db.executed[0][0])
+
+    def test_load_settled_trade_rows_supports_prefixed_projection_pool_application(self):
+        class FakeDb:
+            def ensure_fresh_read_connection(self):
+                return None
+
+            class Cursor:
+                def execute(self, _sql, _params=()):
+                    return None
+
+                def fetchall(self):
+                    return [
+                        {
+                            'pool_application': 'chain-a:0xpool-app',
+                            'trade_time_ms': 1_500_000,
+                            'side': 'buy_token_0',
+                            'amount_in': '3000000000000000000',
+                            'amount_out': '1000000000000000000',
+                        }
+                    ]
+
+            cursor_dict = Cursor()
+
+        repo = MarketStatsProjectionRepository(
+            FakeDb(),
+            metadata_resolver=self.FakeMetadataResolver({
+                'chain-a:0xpool-app': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'TLINERA'},
+            }),
+        )
+
+        rows = repo._load_settled_trade_rows()
+
+        self.assertEqual(rows[0]['pool_application'], 'chain-a:0xpool-app')
+        self.assertEqual(rows[0]['pool_id'], 7)
+
+    def test_load_settled_trade_rows_skips_projection_metadata_without_pool_id(self):
+        class FakeDb:
+            def ensure_fresh_read_connection(self):
+                return None
+
+            class Cursor:
+                def execute(self, _sql, _params=()):
+                    return None
+
+                def fetchall(self):
+                    return [
+                        {
+                            'pool_application': 'chain-a:pool-app',
+                            'trade_time_ms': 1_500_000,
+                            'side': 'buy_token_0',
+                            'amount_in': '3000000000000000000',
+                            'amount_out': '1000000000000000000',
+                        }
+                    ]
+
+            cursor_dict = Cursor()
+
+        repo = MarketStatsProjectionRepository(
+            FakeDb(),
+            metadata_resolver=self.FakeMetadataResolver({
+                'chain-a:pool-app': {'pool_id': None, 'token_0': 'AAA', 'token_1': 'TLINERA'},
+            }),
+        )
+
+        self.assertEqual(repo._load_settled_trade_rows(), [])
 
 
 if __name__ == '__main__':

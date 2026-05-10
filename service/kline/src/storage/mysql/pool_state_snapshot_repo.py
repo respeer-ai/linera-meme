@@ -14,7 +14,7 @@ class PoolStateSnapshotRepository:
                 f'''
                 CREATE TABLE IF NOT EXISTS {self.pool_state_table} (
                     pool_state_id VARCHAR(255) NOT NULL,
-                    pool_application_id VARCHAR(128) NOT NULL,
+                    pool_application_id VARCHAR(256) NOT NULL,
                     pool_chain_id VARCHAR(64) NULL,
                     last_trade_time_ms BIGINT NULL,
                     last_liquidity_event_time_ms BIGINT NULL,
@@ -40,9 +40,46 @@ class PoolStateSnapshotRepository:
                 )
                 '''
             )
+            self._migrate_pool_application_id_width(cursor)
+            self._migrate_legacy_pool_application_accounts(cursor)
             self.connection.commit()
         finally:
             cursor.close()
+
+    def _migrate_pool_application_id_width(self, cursor) -> None:
+        cursor.execute(
+            f'''
+            ALTER TABLE {self.pool_state_table}
+            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+            '''
+        )
+
+    def _migrate_legacy_pool_application_accounts(self, cursor) -> None:
+        cursor.execute(
+            f'''
+            UPDATE {self.pool_state_table}
+            SET
+                pool_state_id = CONCAT(SUBSTRING_INDEX(pool_application_id, ':', -1), '@', pool_chain_id),
+                pool_application_id = CONCAT(SUBSTRING_INDEX(pool_application_id, ':', -1), '@', pool_chain_id)
+            WHERE pool_chain_id IS NOT NULL
+              AND pool_chain_id != ''
+              AND pool_application_id LIKE '%:%'
+              AND SUBSTRING_INDEX(pool_application_id, ':', 1) = pool_chain_id
+              AND SUBSTRING_INDEX(pool_application_id, ':', -1) REGEXP '^0x[0-9A-Fa-f]{{40}}$|^0x[0-9A-Fa-f]{{64}}$'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM (
+                      SELECT pool_application_id AS existing_pool_application_id
+                      FROM {self.pool_state_table}
+                  ) existing_pool_state
+                  WHERE existing_pool_state.existing_pool_application_id = CONCAT(
+                      SUBSTRING_INDEX({self.pool_state_table}.pool_application_id, ':', -1),
+                      '@',
+                      {self.pool_state_table}.pool_chain_id
+                  )
+              )
+            '''
+        )
 
     def upsert_pool_states(self, states: list[dict[str, object]]) -> int:
         if not states:

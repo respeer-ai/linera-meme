@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+import asyncio
 from pathlib import Path
 
 
@@ -48,6 +49,8 @@ from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistor
 
 class KlineRuntimeTest(unittest.TestCase):
     class FakeDb:
+        connection = object()
+
         def ensure_fresh_read_connection(self):
             return None
 
@@ -130,6 +133,77 @@ class KlineRuntimeTest(unittest.TestCase):
         handler = runtime.positions_handler()
 
         self.assertIsInstance(handler.read_model.repository, SettledLiquidityProjectionRepository)
+
+    def test_market_stats_runtime_methods_do_not_call_legacy_db_stats_methods(self):
+        class GuardedDb(self.FakeDb):
+            def get_ticker(self, **_kwargs):
+                raise AssertionError('legacy Db.get_ticker must not be used by runtime stats')
+
+            def get_pool_stats(self, **_kwargs):
+                raise AssertionError('legacy Db.get_pool_stats must not be used by runtime stats')
+
+            def get_protocol_stats(self, **_kwargs):
+                raise AssertionError('legacy Db.get_protocol_stats must not be used by runtime stats')
+
+        class FakeMarketStatsProjectionRepository:
+            def __init__(self):
+                self.calls = []
+
+            def get_ticker(self, **kwargs):
+                self.calls.append(('get_ticker', dict(kwargs)))
+                return [{'token': 'AAA'}]
+
+            def get_pool_stats(self, **kwargs):
+                self.calls.append(('get_pool_stats', dict(kwargs)))
+                return [{'pool_id': 7}]
+
+        runtime = KlineRuntime(
+            db=GuardedDb(),
+            ticker_db=GuardedDb(),
+            observability_config=None,
+            swap=object(),
+            websocket_manager=object(),
+        )
+        repository = FakeMarketStatsProjectionRepository()
+        runtime.market_stats_projection_repository = lambda: repository
+
+        self.assertEqual(runtime.get_ticker_stats(interval='1d'), [{'token': 'AAA'}])
+        self.assertEqual(runtime.get_pool_stats(interval='1d'), [{'pool_id': 7}])
+        self.assertEqual(
+            repository.calls,
+            [
+                ('get_ticker', {'interval': '1d'}),
+                ('get_pool_stats', {'interval': '1d'}),
+            ],
+        )
+
+    def test_protocol_stats_runtime_method_does_not_call_legacy_db_protocol_stats(self):
+        class GuardedDb(self.FakeDb):
+            def get_protocol_stats(self, **_kwargs):
+                raise AssertionError('legacy Db.get_protocol_stats must not be used by runtime protocol stats')
+
+        class FakePoolCatalogRepository:
+            def list_current_pools(self):
+                return [{'pool_id': 7, 'pool_application': 'chain:pool-app'}]
+
+        class FakeMarketStatsProjectionRepository:
+            def get_protocol_stats(self, *, pools):
+                self.pools = pools
+                return {'pool_count': len(pools)}
+
+        runtime = KlineRuntime(
+            db=GuardedDb(),
+            ticker_db=GuardedDb(),
+            observability_config=None,
+            swap=object(),
+            websocket_manager=object(),
+        )
+        market_repo = FakeMarketStatsProjectionRepository()
+        runtime.projection_pool_catalog_repository = lambda: FakePoolCatalogRepository()
+        runtime.market_stats_projection_repository = lambda: market_repo
+
+        self.assertEqual(asyncio.run(runtime.get_protocol_stats()), {'pool_count': 1})
+        self.assertEqual(market_repo.pools, [{'pool_id': 7, 'pool_application': 'chain:pool-app'}])
 
 
 if __name__ == '__main__':

@@ -55,6 +55,9 @@ class PoolStateSnapshotRepositoryTest(unittest.TestCase):
 
         executed_sql = connection.cursor_instances[0].executed[0][0]
         self.assertIn('CREATE TABLE IF NOT EXISTS pool_state_v2', executed_sql)
+        migration_sql = connection.cursor_instances[0].executed[2][0]
+        self.assertIn("pool_application_id LIKE '%:%'", migration_sql)
+        self.assertIn("CONCAT(SUBSTRING_INDEX(pool_application_id, ':', -1), '@', pool_chain_id)", migration_sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_upsert_pool_states_persists_canonical_payload_json(self):

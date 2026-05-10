@@ -1,4 +1,5 @@
 from time_codec import TimeCodec
+from account_codec import AccountCodec
 
 
 class PoolNewTransactionExecutionFact:
@@ -24,6 +25,7 @@ class PoolNewTransactionExecutionFact:
         self.transaction_index = transaction_index
         self.event_family = event_family
         self.time_codec = TimeCodec()
+        self.account_codec = AccountCodec()
 
     def transaction_type(self) -> str | None:
         value = self.transaction.get('transaction_type')
@@ -72,10 +74,12 @@ class PoolNewTransactionExecutionFact:
             return explicit
         owner_account = self.owner_account()
         owner_chain_id = owner_account.get('chain_id')
+        if owner_chain_id is None:
+            owner_chain_id = owner_account.get('chainId')
         owner = owner_account.get('owner')
         if owner_chain_id is None or owner is None:
             return None
-        return f'{owner_chain_id}:{owner}'
+        return self.account_codec.format_account(chain_id=owner_chain_id, owner=owner)
 
     def position_owner(self) -> str:
         explicit = self.transaction.get('owner')
@@ -83,7 +87,10 @@ class PoolNewTransactionExecutionFact:
             return explicit
         owner_chain_id = self.owner_chain_id() or 'unknown_chain'
         owner = self.owner() or 'unknown_owner'
-        return f'{owner}@{owner_chain_id}'
+        try:
+            return self.account_codec.format_account(chain_id=owner_chain_id, owner=owner)
+        except ValueError:
+            return f'{owner}@{owner_chain_id}'
 
     def amount_0_in(self):
         return self.transaction.get('amount_0_in')
@@ -127,16 +134,20 @@ class PoolNewTransactionExecutionFact:
         return owner_id or None
 
     def _chain_id_from_account_string(self, account: str | None) -> str | None:
-        if not isinstance(account, str) or ':' not in account:
+        if not isinstance(account, str):
             return None
-        chain_id, _ = account.split(':', 1)
-        return chain_id or None
+        try:
+            return self.account_codec.chain_id_from_account(account)
+        except ValueError:
+            return None
 
     def _owner_from_account_string(self, account: str | None) -> str | None:
-        if not isinstance(account, str) or ':' not in account:
+        if not isinstance(account, str):
             return None
-        _, owner = account.split(':', 1)
-        return owner or None
+        try:
+            return self.account_codec.parse_account(account)['owner']
+        except ValueError:
+            return None
 
     def _explicit_from_account(self) -> str | None:
         value = self.transaction.get('from_account')

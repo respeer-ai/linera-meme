@@ -1,17 +1,24 @@
 import time
 from decimal import Decimal
 
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_metadata_projection_resolver import PoolMetadataProjectionResolver
+from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
+
 
 class MarketStatsProjectionRepository:
     DISPLAY_AMOUNT_SCALE = Decimal('1000000000000000000')
 
-    def __init__(self, db):
+    def __init__(self, db, *, metadata_resolver=None):
         self.db = db
-
-    def _pool_join_condition(self, alias: str) -> str:
-        return (
-            f"(p.pool_application = CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id) "
-            f"OR p.pool_application = CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id))"
+        self.metadata_resolver = (
+            metadata_resolver
+            or PoolMetadataProjectionResolver(
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    getattr(db, 'connection', db)
+                ),
+                pool_state_projection_repository=PoolStateProjectionRepository(db),
+            )
         )
 
     def get_ticker(self, *, interval: str) -> list[dict]:
@@ -129,7 +136,7 @@ class MarketStatsProjectionRepository:
         rows.sort(key=lambda row: row['volume'], reverse=True)
         return rows
 
-    def get_protocol_stats(self, *, pools: list[object]) -> dict:
+    def get_protocol_stats(self, *, pools: list[dict]) -> dict:
         current_start_at, end_at = self._interval_bounds('1d')
         previous_start_at = current_start_at - (end_at - current_start_at)
 
@@ -158,12 +165,14 @@ class MarketStatsProjectionRepository:
         tvl_now = Decimal('0')
         tvl_prev = Decimal('0')
         for pool in pools:
-            reserve_0 = Decimal(str(pool.reserve_0))
-            reserve_1 = Decimal(str(pool.reserve_1))
-            price_0_now = latest_native_prices.get(pool.token_0, Decimal('0'))
-            price_1_now = latest_native_prices.get(pool.token_1, Decimal('0'))
-            price_0_prev = previous_native_prices.get(pool.token_0, Decimal('0'))
-            price_1_prev = previous_native_prices.get(pool.token_1, Decimal('0'))
+            reserve_0 = Decimal(str(pool.get('live_reserve_0') or '0'))
+            reserve_1 = Decimal(str(pool.get('live_reserve_1') or '0'))
+            token_0 = str(pool.get('token_0'))
+            token_1 = str(pool.get('token_1'))
+            price_0_now = latest_native_prices.get(token_0, Decimal('0'))
+            price_1_now = latest_native_prices.get(token_1, Decimal('0'))
+            price_0_prev = previous_native_prices.get(token_0, Decimal('0'))
+            price_1_prev = previous_native_prices.get(token_1, Decimal('0'))
 
             if price_0_now > 0:
                 tvl_now += reserve_0 * price_0_now
@@ -232,23 +241,36 @@ class MarketStatsProjectionRepository:
         self.db.cursor_dict.execute(
             f'''
                 SELECT
-                    p.pool_id,
-                    p.pool_application,
-                    p.token_0,
-                    p.token_1,
+                    CONCAT('0x', st.pool_application_id, '@', st.pool_chain_id) AS pool_application,
                     st.trade_time_ms,
                     st.side,
                     st.amount_in,
                     st.amount_out
                 FROM settled_trades st
-                JOIN {self.db.pools_table} p
-                  ON {self._pool_join_condition('st')}
                 {where_sql}
                 ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
             ''',
             tuple(params),
         )
-        return list(self.db.cursor_dict.fetchall() or [])
+        return self._attach_pool_metadata(list(self.db.cursor_dict.fetchall() or []))
+
+    def _attach_pool_metadata(self, rows: list[dict]) -> list[dict]:
+        metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()
+        enriched = []
+        for row in rows:
+            pool_application = str(row['pool_application'])
+            metadata = metadata_by_pool_application.get(pool_application)
+            if metadata is None:
+                continue
+            if metadata.get('pool_id') is None:
+                continue
+            enriched_row = dict(row)
+            enriched_row['pool_application'] = pool_application
+            enriched_row['pool_id'] = int(metadata['pool_id'])
+            enriched_row['token_0'] = metadata.get('token_0')
+            enriched_row['token_1'] = metadata.get('token_1')
+            enriched.append(enriched_row)
+        return enriched
 
     def _load_native_price_map(
         self,

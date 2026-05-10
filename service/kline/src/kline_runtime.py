@@ -1,5 +1,3 @@
-import async_request
-
 from app.config import KlineAppConfig
 from app.observability_facade import ObservabilityFacade
 from app.observability_runtime import ObservabilityRuntime
@@ -24,6 +22,9 @@ from storage.mysql.position_metrics_diagnostic_recorder import PositionMetricsDi
 from storage.mysql.position_metrics_positions_projection_repo import PositionMetricsPositionsProjectionRepository
 from storage.mysql.position_metrics_replay_facts_projection_repo import PositionMetricsReplayFactsProjectionRepository
 from storage.mysql.position_metrics_snapshot_inputs_projection_repo import PositionMetricsSnapshotInputsProjectionRepository
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
+from storage.mysql.projection_pool_catalog_repo import ProjectionPoolCatalogRepository
 from storage.mysql.settled_liquidity_projection_repo import SettledLiquidityProjectionRepository
 from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistoryProjectionRepository
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository
@@ -93,6 +94,15 @@ class KlineRuntime:
         self.require_db()
         return MarketStatsProjectionRepository(self._db)
 
+    def projection_pool_catalog_repository(self):
+        self.require_db()
+        return ProjectionPoolCatalogRepository(
+            pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                getattr(self._db, 'connection', self._db)
+            ),
+            pool_state_projection_repository=PoolStateProjectionRepository(self._db),
+        )
+
     def get_ticker_stats(self, *, interval: str) -> list[dict]:
         return self.market_stats_projection_repository().get_ticker(interval=interval)
 
@@ -123,12 +133,6 @@ class KlineRuntime:
         self.require_db()
         return TransactionWatermarksQueryRepository(self._db)
 
-    def pool_catalog_writer(self):
-        if self._ticker_db is None:
-            raise RuntimeError('Ticker Db client is not initialized')
-        from storage.mysql.pool_catalog_writer import PoolCatalogWriter
-        return PoolCatalogWriter(self._ticker_db)
-
     def transactions_handler(self) -> TransactionsHandler:
         return TransactionsHandler(
             TransactionsReadModel(self.settled_trade_projection_repository()),
@@ -145,14 +149,9 @@ class KlineRuntime:
         )
 
     def virtual_positions_read_model(self) -> VirtualPositionsReadModel | None:
-        if self._swap is None:
-            return None
         return VirtualPositionsReadModel(
             projection_repository=self.settled_liquidity_projection_repository(),
-            live_payload_api=self.position_metrics_public_api().live_payload_api,
-            swap_base_url=self._swap.base_url,
-            post=async_request.post,
-            pool_catalog_loader=self._swap.get_pools,
+            snapshot_inputs_projection_repository=self.position_metrics_snapshot_inputs_projection_repository(),
         )
 
     def position_metrics_diagnostic_recorder(self) -> PositionMetricsDiagnosticRecorder:
@@ -187,37 +186,29 @@ class KlineRuntime:
         return self.build_ticker_for_db(self._ticker_db)
 
     def build_websocket_manager(self):
-        if self._swap is None:
-            raise RuntimeError('Swap client is not initialized')
-        return WebSocketManager(self._swap, self.websocket_candle_reader())
+        return WebSocketManager(
+            self._swap,
+            self.websocket_candle_reader(),
+            self.projection_pool_catalog_repository(),
+        )
 
     def build_ticker_for_db(self, ticker_db):
         if ticker_db is None:
             raise RuntimeError('Ticker Db client is not initialized')
         if self._websocket_manager is None:
             raise RuntimeError('WebSocket manager is not initialized')
-        if self._swap is None:
-            raise RuntimeError('Swap client is not initialized')
         from ticker import Ticker
         return Ticker(
             self._websocket_manager,
             self._swap,
-            self.pool_catalog_writer_for_db(ticker_db),
+            self.projection_pool_catalog_repository(),
             candle_reader=self.websocket_candle_reader(),
             transaction_history_repository=self.ticker_transaction_history_repository(),
             transaction_watermarks_repository=self.ticker_transaction_watermarks_repository(),
         )
 
-    def pool_catalog_writer_for_db(self, ticker_db):
-        if ticker_db is None:
-            raise RuntimeError('Ticker Db client is not initialized')
-        from storage.mysql.pool_catalog_writer import PoolCatalogWriter
-        return PoolCatalogWriter(ticker_db)
-
     async def get_protocol_stats(self) -> dict:
-        if self._swap is None:
-            raise RuntimeError('Swap client is not initialized')
-        pools = await self._swap.get_pools()
+        pools = self.projection_pool_catalog_repository().list_current_pools()
         return self.market_stats_projection_repository().get_protocol_stats(pools=pools)
 
     def require_db(self):

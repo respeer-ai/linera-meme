@@ -25,6 +25,11 @@ class PositionsSerializer:
         'closed_at',
         'position_kind',
         'is_virtual_position',
+        'virtual_initial_amount0',
+        'virtual_initial_amount1',
+        'owner_is_fee_to',
+        'protocol_fee_reference_amount0',
+        'protocol_fee_reference_amount1',
     })
 
     def serialize_positions(self, payload: dict) -> dict:

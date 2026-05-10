@@ -1,7 +1,15 @@
+from account_codec import AccountCodec
+
+
 class PoolApplicationClient:
     POSITION_METRICS_QUERY = '''
                 query PositionMetrics($owner: Account!) {
-                  pool
+                  pool {
+                    fee_to {
+                      chain_id
+                      owner
+                    }
+                  }
                   totalSupply
                   virtualInitialLiquidity
                   liquidity(owner: $owner) {
@@ -41,8 +49,9 @@ class PoolApplicationClient:
         swap_base_url: str,
         pool_application: str,
     ) -> str:
-        chain_id, application_id = pool_application.split(':', 1)
-        short_application_id = application_id[2:] if application_id.startswith('0x') else application_id
+        account_codec = AccountCodec()
+        chain_id = account_codec.chain_id_from_account(pool_application)
+        short_application_id = account_codec.application_id_from_account(pool_application)
         return f'{swap_base_url}/chains/{chain_id}/applications/{short_application_id}'
 
     @classmethod

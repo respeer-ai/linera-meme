@@ -417,6 +417,78 @@ class ReadModelBridgeTest(
         )
         self.assertEqual(payload.shadow_diagnostics, [])
 
+    def test_position_metrics_read_model_returns_synthetic_protocol_fee_receiver_metrics(self):
+        repository = QueryStackTestSupport.FakeRepository()
+
+        async def fake_fetcher(_position):
+            raise AssertionError('synthetic protocol fee receiver position should not use live fetcher')
+
+        repository.get_positions = lambda **_kwargs: [{
+            'pool_application': 'chain:pool-app',
+            'pool_id': 5,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'owner': 'chain:owner-a',
+            'status': 'active',
+            'current_liquidity': '0',
+            'position_kind': 'virtual_initial_protocol_fee_receiver',
+            'is_virtual_position': True,
+            'protocol_fee_reference_amount0': '25',
+            'protocol_fee_reference_amount1': '0',
+        }]
+        payload = asyncio.run(
+            PositionMetricsReadModel(repository, fake_fetcher).get_position_metrics(
+                owner='chain:owner-a',
+                status='active',
+            )
+        )
+
+        self.assertIsInstance(payload, PositionMetricsReadResult)
+        self.assertEqual(
+            payload.public_payload(),
+            {
+                'owner': 'chain:owner-a',
+                'metrics': [{
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 5,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': 'chain:owner-a',
+                    'status': 'active',
+                    'current_liquidity': '0',
+                    'position_liquidity_live': '0',
+                    'total_supply_live': None,
+                    'exact_share_ratio': None,
+                    'redeemable_amount0': '25',
+                    'redeemable_amount1': '0',
+                    'virtual_initial_liquidity': True,
+                    'metrics_status': 'partial_live_redeemable_only',
+                    'exact_fee_supported': False,
+                    'exact_principal_supported': False,
+                    'owner_is_fee_to': True,
+                    'computation_blockers': [],
+                    'principal_amount0': '0',
+                    'principal_amount1': '0',
+                    'fee_amount0': '0',
+                    'fee_amount1': '0',
+                    'protocol_fee_amount0': '25',
+                    'protocol_fee_amount1': '0',
+                    'value_warning_codes': ['virtual_initial_protocol_fee_receiver_position'],
+                    'value_warning_message': (
+                        'Virtual initial liquidity is pool-level, not owner-held LP. '
+                        'This synthetic position marks the protocol fee receiver and uses the '
+                        'virtual bootstrap amounts as reference values.'
+                    ),
+                }],
+            },
+        )
+        self.assertEqual(payload.shadow_diagnostics, [])
+        self.assertEqual(payload.metric_diagnostics[0]['fetch_stage'], 'synthetic_virtual_position')
+        self.assertEqual(
+            payload.metric_diagnostics[0]['fetch_reason_code'],
+            'virtual_initial_protocol_fee_receiver',
+        )
+
     def test_position_metrics_handler_records_only_inexact_rows(self):
         class FakeReadModel:
             async def get_position_metrics(self, **_kwargs):
@@ -679,6 +751,72 @@ class ReadModelBridgeTest(
         self.assertEqual(result['owner'], 'chain:owner-a')
         self.assertEqual(result['positions'][0]['position_kind'], 'virtual_initial_liquidity')
         self.assertTrue(result['positions'][0]['is_virtual_position'])
+
+    def test_position_metrics_read_model_enriches_virtual_positions_when_available(self):
+        class FakeRepository:
+            def get_positions(self, *, owner, status):
+                return []
+
+        class FakeVirtualPositionsReadModel:
+            async def enrich_positions(self, *, owner, status, positions):
+                self.calls = (owner, status, list(positions))
+                return [{
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 1,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': owner,
+                    'status': 'active',
+                    'current_liquidity': '5',
+                    'added_liquidity': '5',
+                    'removed_liquidity': '0',
+                    'add_tx_count': 1,
+                    'remove_tx_count': 0,
+                    'opened_at': None,
+                    'updated_at': 0,
+                    'closed_at': None,
+                    'position_kind': 'virtual_initial_liquidity',
+                    'is_virtual_position': True,
+                }]
+
+        async def fake_fetcher(position):
+            self.assertEqual(position['pool_application'], 'chain:pool-app')
+            self.assertEqual(position['pool_id'], 1)
+            return {
+                'position_liquidity_live': '5',
+                'total_supply_live': '10',
+                'exact_share_ratio': '0.5',
+                'redeemable_amount0': '50',
+                'redeemable_amount1': '60',
+                'virtual_initial_liquidity': True,
+                'metrics_status': 'partial_live_redeemable_only',
+                'exact_fee_supported': False,
+                'exact_principal_supported': False,
+                'owner_is_fee_to': True,
+                'computation_blockers': [],
+                'principal_amount0': None,
+                'principal_amount1': None,
+                'fee_amount0': '0',
+                'fee_amount1': '0',
+                'protocol_fee_amount0': '0',
+                'protocol_fee_amount1': '0',
+                'value_warning_codes': [],
+                'value_warning_message': None,
+            }
+
+        virtual_positions = FakeVirtualPositionsReadModel()
+        read_model = PositionMetricsReadModel(
+            FakeRepository(),
+            fake_fetcher,
+            virtual_positions_read_model=virtual_positions,
+        )
+
+        result = asyncio.run(read_model.get_position_metrics(owner='chain:owner-a', status='active'))
+
+        self.assertEqual(result.owner, 'chain:owner-a')
+        self.assertEqual(len(result.metrics), 1)
+        self.assertTrue(result.metrics[0]['virtual_initial_liquidity'])
+        self.assertTrue(result.metrics[0]['owner_is_fee_to'])
 
     def test_position_metrics_handler_records_snapshot_shadow_and_hides_internal_payload(self):
         class FakeReadModel:

@@ -261,8 +261,6 @@ interface Reason {
   payload: ReasonPayload
 }
 
-const MAX_TRANSACTIONS = -1
-
 watch(latestTransactions, () => {
   if (!latestTransactions.value.length) return
 
@@ -276,7 +274,7 @@ watch(latestTransactions, () => {
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,
-    keepCount: MAX_TRANSACTIONS,
+    keepCount: pagination.value.rowsPerPage,
     reverse: true,
     reason: {
       reason: SortReason.LATEST,
@@ -298,7 +296,7 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,
-    keepCount: MAX_TRANSACTIONS,
+    keepCount: pagination.value.rowsPerPage,
     reverse: true,
     reason: {
       reason: SortReason.FETCH,
@@ -340,7 +338,7 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,
-    keepCount: MAX_TRANSACTIONS,
+    keepCount: pagination.value.rowsPerPage,
     reverse: true,
     reason
   })

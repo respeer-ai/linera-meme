@@ -57,14 +57,30 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         def __init__(self, connection):
             self.connection = connection
             self.ensure_schema_called = False
+            self.applications = []
 
         def ensure_schema(self):
             self.ensure_schema_called = True
 
-        def upsert_application(self, _entry):
+        def upsert_application(self, entry):
+            self.applications.append(dict(entry))
             return None
 
+        def list_applications(self, *, app_type=None, limit=200):
+            rows = list(self.applications)
+            if app_type is not None:
+                rows = [row for row in rows if row.get('app_type') == app_type]
+            return rows[:limit]
+
     class FakeNormalizedEventRepository:
+        def __init__(self, connection):
+            self.connection = connection
+            self.ensure_schema_called = False
+
+        def ensure_schema(self):
+            self.ensure_schema_called = True
+
+    class FakePoolCatalogProjectionRepository:
         def __init__(self, connection):
             self.connection = connection
             self.ensure_schema_called = False
@@ -155,6 +171,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
             raw_repository = self.repository_type(connection)
             application_registry_repository = AppBootstrapTest.FakeApplicationRegistryRepository(connection)
             normalized_event_repository = AppBootstrapTest.FakeNormalizedEventRepository(connection)
+            pool_catalog_projection_repository = AppBootstrapTest.FakePoolCatalogProjectionRepository(connection)
             settled_trade_repository = AppBootstrapTest.FakeSettledTradeRepository(connection)
             settled_liquidity_change_repository = AppBootstrapTest.FakeSettledLiquidityChangeRepository(connection)
             position_state_snapshot_repository = AppBootstrapTest.FakePositionStateSnapshotRepository(connection)
@@ -246,6 +263,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 'raw_repository': raw_repository,
                 'application_registry_repository': application_registry_repository,
                 'normalized_event_repository': normalized_event_repository,
+                'pool_catalog_projection_repository': pool_catalog_projection_repository,
                 'settled_trade_repository': settled_trade_repository,
                 'settled_liquidity_change_repository': settled_liquidity_change_repository,
                 'position_state_snapshot_repository': position_state_snapshot_repository,
@@ -314,6 +332,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(container['raw_repository'].ensure_schema_called)
         self.assertTrue(container['application_registry_repository'].ensure_schema_called)
         self.assertTrue(container['normalized_event_repository'].ensure_schema_called)
+        self.assertTrue(container['pool_catalog_projection_repository'].ensure_schema_called)
         self.assertTrue(container['settled_trade_repository'].ensure_schema_called)
         self.assertTrue(container['settled_liquidity_change_repository'].ensure_schema_called)
         self.assertTrue(container['position_state_snapshot_repository'].ensure_schema_called)
@@ -354,6 +373,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('decode_scheduler', container)
         self.assertIn('decode_result_normalizer', container)
         self.assertIn('normalized_event_repository', container)
+        self.assertIn('pool_catalog_projection_repository', container)
         self.assertIn('normalized_event_materializer', container)
         self.assertIn('processing_cursor_repository', container)
         self.assertIn('normalization_worker', container)

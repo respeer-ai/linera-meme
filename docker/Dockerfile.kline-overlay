@@ -1,0 +1,10 @@
+FROM kline:latest
+
+COPY service/kline /kline
+COPY --chmod=755 \
+  docker/kline-entrypoint.sh \
+  docker/maker-entrypoint.sh \
+  /kline/
+
+WORKDIR /kline
+RUN pip3 install -e .

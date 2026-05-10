@@ -35,6 +35,14 @@ class FakeSwap:
         return self.pools
 
 
+class FakePoolCatalogRepository:
+    def __init__(self, pools):
+        self.pools = pools
+
+    def list_current_pool_views(self):
+        return list(self.pools)
+
+
 class FakeCandleReader:
     def __init__(self):
         self.calls = []
@@ -68,17 +76,21 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
                 token_0='AAA',
                 token_1='BBB',
                 pool_id=1001,
-                pool_application=types.SimpleNamespace(chain_id='chain-a', owner='owner-a'),
+                pool_application=types.SimpleNamespace(chain_id='chain-a', owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
             ),
             types.SimpleNamespace(
                 token_0='CCC',
                 token_1='DDD',
                 pool_id=1002,
-                pool_application=types.SimpleNamespace(chain_id='chain-b', owner='owner-b'),
+                pool_application=types.SimpleNamespace(chain_id='chain-b', owner='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
             ),
         ]
         self.candle_reader = FakeCandleReader()
-        self.manager = WebSocketManager(FakeSwap(pools), self.candle_reader)
+        self.manager = WebSocketManager(
+            FakeSwap(pools),
+            self.candle_reader,
+            FakePoolCatalogRepository(pools),
+        )
 
     def test_handle_message_tracks_pair_aware_interval_aware_subscription(self):
         websocket = FakeWebSocket()
@@ -140,6 +152,26 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             },
         }])
 
+    async def test_notify_kline_requires_projection_pool_catalog_for_broadcast(self):
+        pools = [
+            types.SimpleNamespace(
+                token_0='AAA',
+                token_1='BBB',
+                pool_id=1001,
+                pool_application=types.SimpleNamespace(chain_id='chain-a', owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+            ),
+        ]
+        manager = WebSocketManager(FakeSwap(pools), self.candle_reader, None)
+        websocket = FakeWebSocket()
+        manager.connections = [websocket]
+        manager.kline_subscriptions[websocket] = set()
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            'Projection pool catalog repository is required',
+        ):
+            await manager.notify_kline()
+
     async def test_notify_kline_preserves_legacy_broadcast_for_unsubscribed_connection(self):
         websocket = FakeWebSocket()
         self.manager.connections = [websocket]
@@ -152,21 +184,21 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             'token_1': 'BBB',
             'interval': '1min',
             'pool_id': 1001,
-            'pool_application': 'chain-a:owner-a',
+            'pool_application': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
         }, self.candle_reader.calls)
         self.assertIn({
             'token_0': 'BBB',
             'token_1': 'AAA',
             'interval': '1min',
             'pool_id': 1001,
-            'pool_application': 'chain-a:owner-a',
+            'pool_application': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
         }, self.candle_reader.calls)
         self.assertIn({
             'token_0': 'CCC',
             'token_1': 'DDD',
             'interval': '1ME',
             'pool_id': 1002,
-            'pool_application': 'chain-b:owner-b',
+            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-b',
         }, self.candle_reader.calls)
         self.assertEqual(websocket.sent[0]['notification'], 'kline')
         self.assertIn('1min', websocket.sent[0]['value'])

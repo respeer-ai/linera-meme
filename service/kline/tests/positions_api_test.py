@@ -771,6 +771,14 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             def get_positions(self, **_kwargs):
                 raise ValueError('Invalid positions status')
 
+        class FakeSnapshotInputsRepository(FakeRepository):
+            class FakePoolStateProjectionRepository:
+                def list_pool_state_snapshots(self):
+                    return []
+
+            def __init__(self):
+                self.pool_state_projection_repo = self.FakePoolStateProjectionRepository()
+
         class FakePoolHistoryRepository:
             def get_pool_transaction_history(self, **_kwargs):
                 return []
@@ -785,17 +793,46 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
                 }
 
+        class FakeRuntime:
+            def position_metrics_public_api(self):
+                class DummyPublicApi:
+                    pass
+
+                return DummyPublicApi()
+
+            def virtual_positions_read_model(self):
+                class DummyVirtualPositionsReadModel:
+                    async def enrich_positions(self, *, owner, status, positions):
+                        return positions
+
+                return DummyVirtualPositionsReadModel()
+
+            def position_metrics_diagnostic_recorder(self):
+                class DummyDiagnosticRecorder:
+                    def record(self, **_kwargs):
+                        raise AssertionError('diagnostic recorder should not be used for invalid status')
+
+                return DummyDiagnosticRecorder()
+
         original_overrides = PositionMetricsEntrypointOverrideState()
+        original_runtime = kline_module._runtime
+        kline_module._runtime = lambda: FakeRuntime()
+
+        async def fake_fetcher(_position):
+            raise AssertionError('fetcher should not be called for invalid status')
+
         set_position_metrics_entrypoint_overrides(
             positions_repository_builder=lambda: FakeRepository(),
-            snapshot_inputs_repository_builder=lambda: FakeRepository(),
+            snapshot_inputs_repository_builder=lambda: FakeSnapshotInputsRepository(),
             replay_facts_repository_builder=lambda: FakeRepository(),
             pool_history_repository_builder=lambda: FakePoolHistoryRepository(),
+            fetcher_override=fake_fetcher,
         )
 
         try:
             response = await kline_module.on_get_position_metrics(owner='chain:owner-a', status='bad')
         finally:
+            kline_module._runtime = original_runtime
             original_overrides.restore()
 
         self.assertEqual(response.status_code, 400)

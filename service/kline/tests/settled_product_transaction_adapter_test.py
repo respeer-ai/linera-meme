@@ -75,7 +75,7 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
                 'amount_1_delta': '4000000000000000000',
                 'liquidity_delta': '5000000000000000000',
                 'event_time_ms': 2000,
-                'owner': 'owner-a@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
             }
         )
         remove_row = adapter.build_liquidity_history_row(
@@ -86,7 +86,7 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
                 'amount_1_delta': '8000000000000000000',
                 'liquidity_delta': '9000000000000000000',
                 'event_time_ms': 3000,
-                'owner': 'owner-b@chain-b',
+                'owner': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-b',
             }
         )
 
@@ -101,7 +101,7 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
                 'amount_1_out': None,
                 'liquidity': '5',
                 'created_at': 2000,
-                'from_account': 'chain-a:owner-a',
+                'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
             },
         )
         self.assertEqual(
@@ -115,7 +115,7 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
                 'amount_1_out': '8',
                 'liquidity': '9',
                 'created_at': 3000,
-                'from_account': 'chain-b:owner-b',
+                'from_account': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-b',
             },
         )
 
@@ -123,17 +123,20 @@ class SettledProductTransactionAdapterTest(unittest.TestCase):
         adapter = SettledProductTransactionAdapter()
 
         self.assertEqual(
-            adapter.settled_owner_from_public_owner('chain-a:owner-a'),
-            'owner-a@chain-a',
+            adapter.settled_owner_from_public_owner('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a'),
+            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
         )
         self.assertEqual(
-            adapter.public_owner_from_settled_owner('owner-a@chain-a'),
-            'chain-a:owner-a',
+            adapter.public_owner_from_settled_owner('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a'),
+            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
         )
         self.assertIsNone(adapter.public_owner_from_settled_owner('invalid-owner'))
         self.assertEqual(
-            adapter.account_payload_to_string({'chain_id': 'chain-a', 'owner': 'owner-a'}),
-            'chain-a:owner-a',
+            adapter.account_payload_to_string({
+                'chain_id': 'chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            }),
+            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
         )
         self.assertIsNone(adapter.account_payload_to_string({'chain_id': 'chain-a'}))
         self.assertIsNone(adapter.account_payload_to_string(None))

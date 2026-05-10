@@ -58,6 +58,11 @@ class MakerExecutionPolicy:
                 directional_signal=directional_signal,
                 pending_bias_ratio=pending_bias_ratio,
             )
+            activity_direction = self._executable_activity_direction(
+                activity_direction=activity_direction,
+                token_0_balance=token_0_balance,
+                token_1_balance=token_1_balance,
+            )
             if activity_direction == 0:
                 return (None, None)
             activity_quote = reserve_1 * self.activity_notional_ratio
@@ -121,6 +126,23 @@ class MakerExecutionPolicy:
         if directional_signal > 0:
             return 1
         if directional_signal < 0:
+            return -1
+        return 0
+
+    def _executable_activity_direction(
+        self,
+        *,
+        activity_direction: int,
+        token_0_balance: float,
+        token_1_balance: float,
+    ) -> int:
+        if activity_direction > 0 and token_1_balance >= 1e-6:
+            return 1
+        if activity_direction < 0 and token_0_balance >= 1e-6:
+            return -1
+        if token_1_balance >= 1e-6:
+            return 1
+        if token_0_balance >= 1e-6:
             return -1
         return 0
 

@@ -328,10 +328,26 @@ groups:
         notes: |
           已落 `query.read_models.positions`、对应 handler 与 serializer，并把 `/positions` 切到新查询栈。
           当前 `ProjectionRepository.get_positions()` 与 `PositionMetricsProjectionRepository.get_positions()` 都已只走 `settled_liquidity_projection_repo`，不再回退 `Db.get_positions`。
-          `position-metrics` 的 phase-2 迁移也继续前推：
-          - 引入专用 `storage/mysql/position_metrics_projection_repo.py`
-          - 新增 `query.read_models.live_position_metrics_fetcher`
-          - 远端 pool GraphQL 请求细节进一步收口到 `integration/pool_application_client.py`
+          当前硬约束进一步收紧：仓位存在性、虚拟初始仓位、protocol fee receiver 等业务语义必须只来自 parse-block 后的 projection，
+          不允许再用 live pool/swap/wallet query 决定业务真值。Canonical 见 `agents/context/observability-architecture.md`。
+          `position-metrics` 当前 active runtime 已确认只走 projection-backed snapshot/replay inputs。
+          本任务剩余重点不再是补 live payload，而是把仓位相关依赖继续收紧到 projection-only：
+          - 清理产品路径残留 fallback / dead live wiring
+          - virtual positions / protocol fee receiver 语义继续只由 parse-block 后的 snapshot + projection 合成
+          - pool catalog 的生产侧改为 parse-block 驱动，避免 consumer 再依赖历史 live 写入
+          当前 `db.py` legacy read methods 审计结论：
+          - active product endpoints 已由 `KlineRuntime` 接到 projection repos，旧 `Db.get_kline*` / `get_ticker`
+            / `get_pool_stats` / `get_protocol_stats` 保留为 legacy compatibility，不再作为产品读路径
+          - runtime guard tests 已覆盖 stats/protocol stats 不回退 legacy `Db.get_*`
+          - 剩余结构性问题是 `ProjectionPoolCatalogRepository` / metadata resolver 仍临时通过 legacy
+            `pools` 表取得 numeric `pool_id` bridge；生产侧需要改成 parse-block-driven pool catalog
+            或重新定义 public API identity，不能从 `pool_created` 事件伪造 pool_id
+          已推进：
+          - 新增 `pool_catalog_v2` projection，由 observed `swap_pool_created_recorded` /
+            `swap_user_pool_created_recorded` normalized events 物化
+          - `ProjectionPoolCatalogRepository` / metadata resolver / product read repos 已改读 projection catalog，
+            不再读 legacy `pools` 表
+          - `pool_catalog_v2.pool_id` 明确为 read-model stable id，不宣称是 swap GraphQL `poolId`
           执行约束：禁止补偿实现。
       - id: POS-039
         status: Done
@@ -382,6 +398,8 @@ groups:
           - observability E2E 闭环
           - maker 交易流对 observability / 1min K 线的影响验证
           - 前端主读路径的金融语义核对（不是只看接口通不通）
+          - 完整数据平台约束核对：生产数据只来自 chain parse，消费数据只来自 projections；
+            不允许产品业务真值来自 live chain query。Canonical 见 `agents/context/observability-architecture.md`。
 
           环境准备：
           - 启动 MySQL (docker-compose)

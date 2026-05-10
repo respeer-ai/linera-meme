@@ -60,13 +60,48 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
         def ticker_task(self):
             return self._ticker_task
 
-    async def test_startup_fails_open_when_observability_background_start_raises_synchronously(self):
+    async def test_startup_waits_for_observability_before_starting_ticker(self):
+        ticker_db = self.FakeTickerDb()
+        ticker = self.FakeTicker()
+        events = []
+
+        class Supervisor:
+            async def start_if_configured(self):
+                events.append('observability_started')
+                return True
+
+            async def shutdown(self):
+                return None
+
+        def build_ticker(created_db):
+            self.assertIs(created_db, ticker_db)
+            events.append('ticker_built')
+            return ticker
+
+        lifecycle = KlineServiceLifecycle(
+            db_config={'host': 'db', 'port': '3306', 'db_name': 'kline', 'username': 'user', 'password': 'pass'},
+            build_ticker=build_ticker,
+            observability_supervisor=Supervisor(),
+            services=self.FakeServices(),
+        )
+
+        original_db_type = sys.modules['kline_service_lifecycle'].Db
+        sys.modules['kline_service_lifecycle'].Db = lambda *_args, **_kwargs: ticker_db
+        try:
+            await lifecycle.startup()
+            await lifecycle.shutdown()
+        finally:
+            sys.modules['kline_service_lifecycle'].Db = original_db_type
+
+        self.assertEqual(events, ['observability_started', 'ticker_built'])
+
+    async def test_startup_fails_open_when_observability_start_raises_synchronously(self):
         ticker_db = self.FakeTickerDb()
         ticker = self.FakeTicker()
 
         class FailingSupervisor:
-            def start_in_background(self):
-                raise RuntimeError('background start failed')
+            async def start_if_configured(self):
+                raise RuntimeError('startup failed')
 
             async def shutdown(self):
                 return None

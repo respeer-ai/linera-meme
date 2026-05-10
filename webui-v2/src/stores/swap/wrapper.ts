@@ -2,7 +2,6 @@ import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { NotifyType } from '../notify'
 import { useSwapStore } from './store'
 import { type Account } from '../account'
-import { constants } from 'src/constant'
 import { protocol } from 'src/utils'
 
 const swap = useSwapStore()

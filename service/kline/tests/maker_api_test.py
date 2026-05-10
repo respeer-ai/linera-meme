@@ -89,8 +89,9 @@ class FakeResponse:
 
 
 class FakeDb:
-    def __init__(self, pool_catalog=None, watermarks=None, maker_events=None, traces=None):
+    def __init__(self, pool_catalog=None, pool_state_snapshots=None, watermarks=None, maker_events=None, traces=None):
         self.pool_catalog = pool_catalog or []
+        self.pool_state_snapshots = pool_state_snapshots
         self.watermarks = watermarks or {}
         self.maker_events = maker_events or []
         self.traces = traces or []
@@ -100,6 +101,10 @@ class FakeDb:
         self.maker_events_table = 'maker_events'
         self.debug_traces_table = 'debug_traces'
         self.cursor_dict = self.FakeCursor(self)
+        self.connection = self
+
+    def cursor(self, dictionary=False):
+        return self.FakeCursor(self)
 
     class FakeCursor:
         def __init__(self, outer):
@@ -122,9 +127,30 @@ class FakeDb:
                 return None
             return dict(self._last_rows[0])
 
+        def close(self):
+            return None
+
         def _resolve_rows(self):
+            if 'FROM pool_catalog_v2' in self.last_sql:
+                return list(self.outer.pool_catalog)
             if 'FROM pools' in self.last_sql:
                 return list(self.outer.pool_catalog)
+            if 'FROM pool_state_v2' in self.last_sql:
+                if self.outer.pool_state_snapshots is not None:
+                    return list(self.outer.pool_state_snapshots)
+                return [
+                    {
+                        'pool_application_id': row['pool_application'],
+                        'live_reserve_0': '0',
+                        'live_reserve_1': '0',
+                        'live_total_supply': '0',
+                        'live_k_last': '0',
+                        'last_trade_time_ms': None,
+                        'last_liquidity_event_time_ms': None,
+                        'state_payload_json': {},
+                    }
+                    for row in self.outer.pool_catalog
+                ]
             if 'FROM maker_events' in self.last_sql and 'COUNT(*) AS count' not in self.last_sql:
                 rows = list(self.outer.maker_events)
                 if 'WHERE token_0 = %s' in self.last_sql:
@@ -187,7 +213,7 @@ class FakeDb:
                 return [
                     {
                         'pool_id': pool_id,
-                        'pool_application': f'{chain_id}:{owner}',
+                        'pool_application': f'{owner}@{chain_id}',
                         'created_at': payload[0],
                         'transaction_id': payload[1],
                         'token_reversed': payload[2],
@@ -269,12 +295,12 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         maker_api_module._db = FakeDb(
             pool_catalog=[{
                 'pool_id': 1001,
-                'pool_application': 'chain-x:pool-owner',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-x',
                 'token_0': 'TOKEN0',
                 'token_1': 'TOKEN1',
             }],
             watermarks={
-                (1001, 'chain-x', 'pool-owner'): (1_000, 7, 0),
+                (1001, 'chain-x', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'): (1_000, 7, 0),
             },
             maker_events=[{
                 'event_id': 1,
@@ -287,7 +313,7 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
                 'source': 'maker',
                 'component': 'swap',
                 'operation': 'swap',
-                'pool_application': 'chain-x:pool-owner',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-x',
                 'pool_id': 1001,
                 'owner': 'wallet-owner',
                 'created_at': 4_500,
@@ -325,11 +351,11 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
             def close(self):
                 return None
 
-        class FakePoolCatalogQueryRepository:
-            def get_pool_catalog(self):
+        class FakeProjectionPoolCatalogRepository:
+            def list_current_pools(self):
                 return [{
                     'pool_id': 1001,
-                    'pool_application': 'chain-x:pool-owner',
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-x',
                     'token_0': 'TOKEN0',
                     'token_1': 'TOKEN1',
                 }]
@@ -337,7 +363,7 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
         class FakeTransactionWatermarksQueryRepository:
             def get_latest_transaction_watermarks(self):
                 return {
-                    (1001, 'chain-x', 'pool-owner'): (1_000, 7, 0),
+                    (1001, 'chain-x', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'): (1_000, 7, 0),
                 }
 
         class FakeMakerEventsQueryRepository:
@@ -356,15 +382,18 @@ class MakerApiTest(unittest.IsolatedAsyncioTestCase):
                     'source': 'maker',
                     'component': 'swap',
                     'operation': 'swap',
-                    'pool_application': 'chain-x:pool-owner',
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-x',
                     'pool_id': 1001,
                     'owner': 'wallet-owner',
                     'created_at': 4_500,
                 }]
 
         class GuardedMakerApiRuntime(maker_api_module.MakerApiRuntime):
-            def pool_catalog_query_repository(self):
-                return FakePoolCatalogQueryRepository()
+            def pool_catalog_projection_repository_for_read(self):
+                raise AssertionError('debug pools stall should use projection pool catalog override')
+
+            def projection_pool_catalog_repository(self):
+                return FakeProjectionPoolCatalogRepository()
 
             def transaction_watermarks_query_repository(self):
                 return FakeTransactionWatermarksQueryRepository()

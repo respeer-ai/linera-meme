@@ -34,12 +34,9 @@ from ticker import Ticker  # noqa: E402
 from websocket_candle_reader import WebsocketCandleReader  # noqa: E402
 
 
-class FakePoolCatalogWriter:
-    def __init__(self):
-        self.persisted_pools = []
-
-    def upsert_pools(self, pools):
-        self.persisted_pools.append(pools)
+POOL_OWNER = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+POOL_CHAIN = 'chain'
+POOL_APPLICATION = f'{POOL_OWNER}@{POOL_CHAIN}'
 
 
 class FakeDb:
@@ -91,12 +88,12 @@ def make_pool(pool_id=7, token_0='AAA', token_1='BBB'):
         pool_id=pool_id,
         token_0=token_0,
         token_1=token_1,
-        pool_application=types.SimpleNamespace(chain_id='chain', owner='app'),
+        pool_application=types.SimpleNamespace(chain_id=POOL_CHAIN, owner=POOL_OWNER),
     )
 
 
 def make_pool_identity(pool_id=7):
-    return (pool_id, 'chain', 'app')
+    return (pool_id, POOL_CHAIN, POOL_OWNER)
 
 
 class TickerIncrementalPayloadTest(unittest.TestCase):
@@ -104,7 +101,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         read_model = Mock()
         read_model.get_points.return_value = {
             'pool_id': 7,
-            'pool_application': 'chain:app',
+            'pool_application': POOL_APPLICATION,
             'token_0': 'AAA',
             'token_1': 'BBB',
             'interval': '5m',
@@ -121,7 +118,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
             end_at=2,
             interval='5min',
             pool_id=7,
-            pool_application='chain:app',
+            pool_application=POOL_APPLICATION,
         )
 
         read_model.get_points.assert_called_once_with(
@@ -131,7 +128,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
             end_at=2,
             interval='5min',
             pool_id=7,
-            pool_application='chain:app',
+            pool_application=POOL_APPLICATION,
         )
         self.assertEqual(payload['interval'], '5min')
 
@@ -169,7 +166,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -204,7 +201,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         self.assertEqual(payload['5min'], [
             {
                 'pool_id': 7,
-                'pool_application': 'chain:app',
+                'pool_application': POOL_APPLICATION,
                 'token_0': 'AAA',
                 'token_1': 'BBB',
                 'interval': '5min',
@@ -214,7 +211,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
             },
             {
                 'pool_id': 7,
-                'pool_application': 'chain:app',
+                'pool_application': POOL_APPLICATION,
                 'token_0': 'BBB',
                 'token_1': 'AAA',
                 'interval': '5min',
@@ -230,7 +227,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=FakeCandleReader(FakeDb()),
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -271,7 +268,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -310,7 +307,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -354,7 +351,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -383,8 +380,9 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
 
         self.assertEqual(first_payload['1min'][0]['points'][0]['base_volume'], 14.0)
         self.assertEqual(second_payload['1min'][0]['points'][0]['base_volume'], 14.0)
-        self.assertEqual(candle_reader.calls[1]['start_at'], 1_800_000_000_000)
-        self.assertEqual(candle_reader.calls[1]['end_at'], 1_800_000_059_999)
+        one_min_calls = [call for call in candle_reader.calls if call['interval'] == '1min']
+        self.assertEqual(one_min_calls[1]['start_at'], 1_800_000_000_000)
+        self.assertEqual(one_min_calls[1]['end_at'], 1_800_000_059_999)
 
     def test_builds_incremental_payload_with_gap_backfill_points_between_emitted_and_new_bucket(self):
         db = FakeDb()
@@ -434,7 +432,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -453,10 +451,10 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
             }],
         )
 
-        self.assertEqual(payload['10min'][0]['start_at'], 1_800_000_600_000)
+        self.assertEqual(payload['10min'][0]['start_at'], 1_800_000_000_000)
         self.assertEqual(
             [point['bucket_start_ms'] for point in payload['10min'][0]['points']],
-            [1_800_000_600_000, 1_800_001_200_000],
+            [1_800_000_000_000, 1_800_000_600_000, 1_800_001_200_000],
         )
 
     def test_builds_rollover_payload_only_for_finalized_zero_volume_bucket_after_time_advance(self):
@@ -479,7 +477,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -514,7 +512,7 @@ class TickerIncrementalPayloadTest(unittest.TestCase):
         ticker = Ticker(
             manager=None,
             swap=None,
-            pool_catalog_writer=FakePoolCatalogWriter(),
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -532,7 +530,7 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
     async def test_run_iteration_without_db_watermark_reads_full_projection_history(self):
         db = FakeDb()
         candle_reader = FakeCandleReader(db)
-        db.pool_histories[(7, 'chain:app')] = [
+        db.pool_histories[(7, POOL_APPLICATION)] = [
             {
                 'transaction_id': 321,
                 'transaction_type': 'BuyToken0',
@@ -542,11 +540,10 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         ]
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
-        pool_catalog_writer = FakePoolCatalogWriter()
         ticker = Ticker(
             manager=manager,
             swap=swap,
-            pool_catalog_writer=pool_catalog_writer,
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -559,13 +556,41 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         await ticker.run_iteration(last_timestamps)
 
         self.assertEqual(last_timestamps, {make_pool_identity(): (1_800_000_001_000, 321, 0)})
-        self.assertEqual(len(pool_catalog_writer.persisted_pools), 1)
         self.assertEqual(manager.notify.await_count, 2)
+
+    async def test_run_iteration_accepts_liquidity_history_without_token_reversed(self):
+        db = FakeDb()
+        candle_reader = FakeCandleReader(db)
+        db.pool_histories[(7, POOL_APPLICATION)] = [
+            {
+                'transaction_id': 1000,
+                'transaction_type': 'AddLiquidity',
+                'created_at': 1_800_000_001_000,
+            },
+        ]
+        manager = types.SimpleNamespace(notify=AsyncMock())
+        ticker = Ticker(
+            manager=manager,
+            swap=types.SimpleNamespace(),
+            pool_catalog_repository=None,
+            candle_reader=candle_reader,
+            transaction_history_repository=db,
+            transaction_watermarks_repository=db,
+            now_ms=lambda: 1_800_000_120_000,
+        )
+        pool = make_pool()
+        ticker.get_pools = AsyncMock(return_value=[pool])
+
+        last_timestamps = {}
+        await ticker.run_iteration(last_timestamps)
+
+        self.assertEqual(last_timestamps, {make_pool_identity(): (1_800_000_001_000, 1000, 0)})
+        self.assertEqual(manager.notify.await_args_list[0].args[1], {})
 
     async def test_run_iteration_notifies_manager_from_projection_history(self):
         db = FakeDb()
         candle_reader = FakeCandleReader(db)
-        db.pool_histories[(7, 'chain:app')] = [{
+        db.pool_histories[(7, POOL_APPLICATION)] = [{
             'transaction_id': 10,
             'transaction_type': 'BuyToken0',
             'token_reversed': False,
@@ -587,11 +612,10 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         }
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
-        pool_catalog_writer = FakePoolCatalogWriter()
         ticker = Ticker(
             manager=manager,
             swap=swap,
-            pool_catalog_writer=pool_catalog_writer,
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -603,7 +627,6 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         last_timestamps = {}
         await ticker.run_iteration(last_timestamps)
 
-        self.assertEqual(len(pool_catalog_writer.persisted_pools), 1)
         self.assertEqual(last_timestamps, {make_pool_identity(): (1_800_000_001_000, 10, 0)})
         self.assertEqual(manager.notify.await_count, 2)
         self.assertEqual(manager.notify.await_args_list[0].args[0], 'kline')
@@ -628,11 +651,10 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         }
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
-        pool_catalog_writer = FakePoolCatalogWriter()
         ticker = Ticker(
             manager=manager,
             swap=swap,
-            pool_catalog_writer=pool_catalog_writer,
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,
@@ -640,7 +662,7 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         )
         pool = make_pool()
         ticker.get_pools = AsyncMock(return_value=[pool])
-        db.pool_histories[(7, 'chain:app')] = [{
+        db.pool_histories[(7, POOL_APPLICATION)] = [{
                 'transaction_id': 10,
                 'transaction_type': 'BuyToken0',
                 'token_reversed': False,
@@ -650,7 +672,7 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         last_timestamps = {}
         await ticker.run_iteration(last_timestamps)
 
-        db.pool_histories[(7, 'chain:app')] = [{
+        db.pool_histories[(7, POOL_APPLICATION)] = [{
                 'transaction_id': 10,
                 'transaction_type': 'BuyToken0',
                 'token_reversed': False,
@@ -673,14 +695,13 @@ class TickerRunIterationTest(unittest.IsolatedAsyncioTestCase):
         db = FakeDb()
         candle_reader = FakeCandleReader(db)
         db.watermarks = {make_pool_identity(): (1_800_000_001_000, 321, 0)}
-        db.pool_histories[(7, 'chain:app')] = []
+        db.pool_histories[(7, POOL_APPLICATION)] = []
         manager = types.SimpleNamespace(notify=AsyncMock())
         swap = types.SimpleNamespace()
-        pool_catalog_writer = FakePoolCatalogWriter()
         ticker = Ticker(
             manager=manager,
             swap=swap,
-            pool_catalog_writer=pool_catalog_writer,
+            pool_catalog_repository=None,
             candle_reader=candle_reader,
             transaction_history_repository=db,
             transaction_watermarks_repository=db,

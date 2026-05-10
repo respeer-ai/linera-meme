@@ -14,9 +14,9 @@ export class _Account {
   }
 
   static accountDescription = (account: Account) => {
-    let description = account.owner || _Account.CHAIN
-    if (account.owner) description += '@' + account.chain_id
-    return description
+    const chainId = _Account.chainId(account)
+    const owner = _Account.accountOwner(account) || _Account.CHAIN
+    return `${owner}@${chainId}`
   }
 
   static accountOwner = (account: Account) => {
@@ -33,12 +33,22 @@ export class _Account {
     return owner.startsWith('0x') ? owner : `0x${owner}`
   }
 
+  static chainId = (account: Account) => {
+    return account.chain_id || account.chainId
+  }
+
+  static poolApplicationDescription = (application: Account | undefined) => {
+    if (!application?.owner) return
+    return _Account.accountDescription(application)
+  }
+
   static fromString = (str: string) => {
-    const chain = str.split(':')[0]
-    const owner = str.split(':')[1]
+    const [owner, chain] = str.includes('@')
+      ? str.split('@', 2)
+      : [_Account.CHAIN, str]
     return {
       chain_id: chain,
-      owner,
+      owner: owner === _Account.CHAIN ? undefined : owner,
     } as Account
   }
 }

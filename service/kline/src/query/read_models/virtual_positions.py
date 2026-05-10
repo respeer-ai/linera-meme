@@ -1,18 +1,20 @@
+from query.read_models.position_metrics_pool_state_snapshot import PositionMetricsPoolStateSnapshot
+from query.read_models.position_metrics_position_basis_snapshot import PositionMetricsPositionBasisSnapshot
+from query.read_models.position_metrics_snapshot_inputs import PositionMetricsSnapshotInputs
+
+
 class VirtualPositionsReadModel:
+    SYNTHETIC_VIRTUAL_INITIAL_POSITION_KIND = 'virtual_initial_liquidity'
+    SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND = 'virtual_initial_protocol_fee_receiver'
+
     def __init__(
         self,
         *,
         projection_repository,
-        live_payload_api,
-        swap_base_url,
-        post,
-        pool_catalog_loader=None,
+        snapshot_inputs_projection_repository,
     ):
         self.projection_repository = projection_repository
-        self.live_payload_api = live_payload_api
-        self.swap_base_url = swap_base_url
-        self.post = post
-        self.pool_catalog_loader = pool_catalog_loader
+        self.snapshot_inputs_projection_repository = snapshot_inputs_projection_repository
 
     async def enrich_positions(
         self,
@@ -23,34 +25,62 @@ class VirtualPositionsReadModel:
     ) -> list[dict]:
         existing = list(positions)
         existing_keys = {
-            (str(position.get('pool_application')), int(position.get('pool_id')))
+            (
+                str(position.get('pool_application')),
+                int(position.get('pool_id')),
+                str(position.get('position_kind') or 'recorded'),
+            )
             for position in existing
             if position.get('pool_application') is not None and position.get('pool_id') is not None
         }
 
-        candidate_histories = await self._load_candidate_histories(owner=owner)
+        candidate_histories = self._load_candidate_histories(owner=owner)
         if candidate_histories is None:
             return existing
 
         for candidate in candidate_histories:
-            key = (str(candidate['pool_application']), int(candidate['pool_id']))
-            if key in existing_keys:
+            snapshot_inputs = self.snapshot_inputs_projection_repository.get_snapshot_inputs(
+                owner=owner,
+                pool_application_id=candidate['pool_application'],
+                status='active',
+            )
+            if snapshot_inputs is None:
+                snapshot_inputs = self.snapshot_inputs_projection_repository.get_snapshot_inputs(
+                    owner=owner,
+                    pool_application_id=candidate['pool_application'],
+                    status='closed',
+                )
+            if snapshot_inputs is None:
+                continue
+            snapshot = self._snapshot_inputs(snapshot_inputs)
+            pool_state = snapshot.pool_state_snapshot()
+            if not pool_state.virtual_initial_liquidity():
                 continue
 
-            payload = await self.live_payload_api.fetch_payload(
-                {
-                    'owner': owner,
-                    'pool_application': candidate['pool_application'],
-                },
-                self.swap_base_url,
-                post=self.post,
-            )
-            payload_data = (payload or {}).get('data') or {}
-            liquidity = payload_data.get('liquidity') or {}
-            liquidity_value = liquidity.get('liquidity')
-            if liquidity_value in (None, '', '0', '0.0'):
+            position_basis = snapshot.position_basis_snapshot()
+            liquidity_value = position_basis.current_liquidity()
+            owner_is_fee_to = owner == pool_state.fee_to_account_latest_known()
+            basis_amount_0 = self._string_or_zero(position_basis.raw().get('basis_amount_0') if position_basis.raw() else None)
+            basis_amount_1 = self._string_or_zero(position_basis.raw().get('basis_amount_1') if position_basis.raw() else None)
+            has_initial_amounts = basis_amount_0 != '0' or basis_amount_1 != '0'
+
+            synthetic_kind = None
+            if liquidity_value not in (None, '', '0', '0.', '0.0') or has_initial_amounts:
+                synthetic_kind = self.SYNTHETIC_VIRTUAL_INITIAL_POSITION_KIND
+                if liquidity_value in (None, ''):
+                    liquidity_value = '0'
+            elif owner_is_fee_to:
+                synthetic_kind = self.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND
+                liquidity_value = '0'
+            if synthetic_kind is None:
                 continue
-            if not bool(payload_data.get('virtualInitialLiquidity')):
+
+            key = (
+                str(candidate['pool_application']),
+                int(candidate['pool_id']),
+                synthetic_kind,
+            )
+            if key in existing_keys:
                 continue
 
             synthesized = dict(candidate)
@@ -61,8 +91,13 @@ class VirtualPositionsReadModel:
             synthesized['add_tx_count'] = max(int(candidate.get('add_tx_count') or 0), 1)
             synthesized['remove_tx_count'] = 0
             synthesized['closed_at'] = None
-            synthesized['position_kind'] = 'virtual_initial_liquidity'
+            synthesized['position_kind'] = synthetic_kind
             synthesized['is_virtual_position'] = True
+            synthesized['virtual_initial_amount0'] = basis_amount_0
+            synthesized['virtual_initial_amount1'] = basis_amount_1
+            synthesized['owner_is_fee_to'] = owner_is_fee_to
+            synthesized['protocol_fee_reference_amount0'] = basis_amount_0 if owner_is_fee_to else '0'
+            synthesized['protocol_fee_reference_amount1'] = basis_amount_1 if owner_is_fee_to else '0'
             existing.append(synthesized)
             existing_keys.add(key)
 
@@ -77,43 +112,65 @@ class VirtualPositionsReadModel:
         )
         return existing
 
-    async def _load_candidate_histories(self, *, owner: str) -> list[dict] | None:
+    def _load_candidate_histories(self, *, owner: str) -> list[dict] | None:
         candidate_histories = self.projection_repository.get_owner_candidate_histories(owner=owner)
         if candidate_histories:
             return candidate_histories
-        if self.pool_catalog_loader is None:
+        snapshot_rows = self._list_pool_state_snapshots()
+        if snapshot_rows is None:
             return candidate_histories
-        pools = await self.pool_catalog_loader()
-        return [self._candidate_from_catalog_pool(pool, owner=owner) for pool in pools]
+        return [
+            candidate
+            for candidate in (
+                self._candidate_from_pool_state_snapshot(snapshot_row, owner=owner)
+                for snapshot_row in snapshot_rows
+            )
+            if candidate is not None
+        ]
 
-    def _candidate_from_catalog_pool(self, pool: object, *, owner: str) -> dict:
-        if isinstance(pool, dict):
-            pool_application = self._pool_application_from_catalog_dict(pool.get('poolApplication'))
-            pool_id = int(pool.get('poolId'))
-            token_0 = pool.get('token0')
-            token_1 = pool.get('token1') or 'TLINERA'
-        else:
-            pool_application = f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
-            pool_id = int(pool.pool_id)
-            token_0 = pool.token_0
-            token_1 = pool.token_1 or 'TLINERA'
+    def _candidate_from_pool_state_snapshot(self, snapshot_row: dict, *, owner: str) -> dict | None:
+        pool_application = snapshot_row.get('pool_application_id')
+        metadata = (snapshot_row.get('state_payload_json') or {}).get('pool_created_metadata') or {}
+        token_0 = metadata.get('token_0')
+        token_1 = metadata.get('token_1')
+        if pool_application in (None, '') or token_0 in (None, '') or token_1 in (None, ''):
+            return None
         return {
-            'pool_application': pool_application,
-            'pool_id': pool_id,
-            'token_0': token_0,
-            'token_1': token_1,
+            'pool_application': str(pool_application),
+            'pool_id': 0,
+            'token_0': str(token_0),
+            'token_1': str(token_1) or 'TLINERA',
             'owner': owner,
             'opened_at': None,
-            'updated_at': 0,
+            'updated_at': int(snapshot_row.get('last_liquidity_event_time_ms') or snapshot_row.get('last_trade_time_ms') or 0),
             'add_tx_count': 0,
         }
 
-    def _pool_application_from_catalog_dict(self, payload: object) -> str:
-        if isinstance(payload, str):
-            return payload
-        if isinstance(payload, dict):
-            chain_id = payload.get('chain_id')
-            owner = payload.get('owner')
-            if chain_id and owner:
-                return f'{chain_id}:{owner}'
-        raise RuntimeError('invalid_pool_application_catalog_payload')
+    def _list_pool_state_snapshots(self) -> list[dict] | None:
+        projection_repo = getattr(self.snapshot_inputs_projection_repository, 'pool_state_projection_repo', None)
+        if projection_repo is None:
+            return None
+        list_snapshots = getattr(projection_repo, 'list_pool_state_snapshots', None)
+        if list_snapshots is None:
+            return None
+        return list_snapshots()
+
+    def _snapshot_inputs(self, snapshot) -> PositionMetricsSnapshotInputs:
+        if isinstance(snapshot, PositionMetricsSnapshotInputs):
+            return snapshot
+        return PositionMetricsSnapshotInputs(snapshot)
+
+    def _pool_state(self, snapshot) -> PositionMetricsPoolStateSnapshot:
+        if isinstance(snapshot, PositionMetricsPoolStateSnapshot):
+            return snapshot
+        return PositionMetricsPoolStateSnapshot(snapshot)
+
+    def _position_basis(self, snapshot) -> PositionMetricsPositionBasisSnapshot:
+        if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):
+            return snapshot
+        return PositionMetricsPositionBasisSnapshot(snapshot)
+
+    def _string_or_zero(self, value: object) -> str:
+        if value in (None, ''):
+            return '0'
+        return str(value)

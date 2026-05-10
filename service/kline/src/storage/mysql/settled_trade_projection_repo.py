@@ -1,8 +1,11 @@
 import json
 from decimal import Decimal
 
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_metadata_projection_resolver import PoolMetadataProjectionResolver
 from candle_schema import CandleUpdate, apply_candle_update, build_candle_bucket_key, get_interval_bucket_ms
 from storage.mysql.pool_identity_projection_repo import PoolIdentityProjectionRepository
+from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
 from storage.mysql.settled_product_transaction_adapter import SettledProductTransactionAdapter
 from transaction_family_codec import TransactionFamilyCodec
 
@@ -10,20 +13,34 @@ from transaction_family_codec import TransactionFamilyCodec
 class SettledTradeProjectionRepository:
     DISPLAY_AMOUNT_SCALE = Decimal('1000000000000000000')
 
-    def __init__(self, db, *, pool_identity_projection_repo=None, transaction_adapter=None, transaction_family_codec=None):
+    def __init__(
+        self,
+        db,
+        *,
+        pool_identity_projection_repo=None,
+        transaction_adapter=None,
+        transaction_family_codec=None,
+        metadata_resolver=None,
+    ):
         self.db = db
         self.pool_identity_projection_repo = (
             pool_identity_projection_repo
             or PoolIdentityProjectionRepository(db)
         )
+        self.metadata_resolver = (
+            metadata_resolver
+            or PoolMetadataProjectionResolver(
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    getattr(db, 'connection', db)
+                ),
+                pool_state_projection_repository=PoolStateProjectionRepository(db),
+            )
+        )
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
         self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
 
     def _pool_join_condition(self, alias: str) -> str:
-        return (
-            f"(p.pool_application = CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id) "
-            f"OR p.pool_application = CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id))"
-        )
+        return f"p.pool_application = {self._pool_application_expression(alias)}"
 
     def get_transactions(
         self,
@@ -198,17 +215,16 @@ class SettledTradeProjectionRepository:
             return None
         if not hasattr(self.db, 'cursor_dict'):
             return None
-        if not hasattr(self.db, 'pools_table'):
-            return None
-        self.db.ensure_fresh_read_connection()
-        cursor = self.db.cursor_dict
         where_clauses = []
         params: list[object] = []
+        metadata = None
+        if pool_application is not None:
+            metadata = self.metadata_resolver.metadata_for_pool_application(pool_application)
+            if metadata is None:
+                return []
         if token_0 is not None and token_1 is not None:
             if pool_id is not None and pool_application is not None:
-                where_clauses.append('p.pool_id = %s')
-                params.append(int(pool_id))
-                where_clauses.append('p.pool_application = %s')
+                where_clauses.append(self._pool_application_condition('st'))
                 params.append(pool_application)
             else:
                 try:
@@ -217,16 +233,11 @@ class SettledTradeProjectionRepository:
                     )
                 except Exception:
                     return []
-                where_clauses.append('p.pool_id = %s')
-                params.append(int(resolved_pool_id))
-                where_clauses.append('p.pool_application = %s')
+                where_clauses.append(self._pool_application_condition('st'))
                 params.append(pool_application or resolved_pool_application)
         elif pool_application is not None:
-            where_clauses.append('p.pool_application = %s')
+            where_clauses.append(self._pool_application_condition('st'))
             params.append(pool_application)
-        if pool_id is not None:
-            where_clauses.append('p.pool_id = %s')
-            params.append(int(pool_id))
         if start_at is not None:
             where_clauses.append('st.trade_time_ms >= %s')
             params.append(int(start_at))
@@ -236,14 +247,13 @@ class SettledTradeProjectionRepository:
         where_sql = ''
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+        self.db.ensure_fresh_read_connection()
+        cursor = self.db.cursor_dict
         try:
             cursor.execute(
                 f'''
                 SELECT
-                    p.pool_id,
-                    p.pool_application,
-                    p.token_0,
-                    p.token_1,
+                    {self._pool_application_expression('st')} AS pool_application,
                     st.settled_trade_id,
                     st.transaction_id,
                     st.trade_time_ms,
@@ -257,14 +267,17 @@ class SettledTradeProjectionRepository:
                     st.amount_out,
                     st.event_payload_json
                 FROM settled_trades st
-                JOIN {self.db.pools_table} p
-                  ON {self._pool_join_condition('st')}
                 {where_sql}
                 ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
                 ''',
                 tuple(params),
             )
-            return list(cursor.fetchall() or [])
+            return self._attach_pool_metadata(
+                list(cursor.fetchall() or []),
+                pool_application=pool_application,
+                pool_id=pool_id,
+                metadata=metadata,
+            )
         except Exception:
             return None
 
@@ -373,14 +386,16 @@ class SettledTradeProjectionRepository:
     ) -> dict | None:
         self.db.ensure_fresh_read_connection()
         cursor = self.db.cursor_dict
+        metadata = self.metadata_resolver.metadata_for_pool_application(pool_application)
+        if metadata is None:
+            return None
+        if metadata.get('pool_id') is None:
+            return None
         try:
             cursor.execute(
                 f'''
                 SELECT
-                    p.pool_id,
-                    p.pool_application,
-                    p.token_0,
-                    p.token_1,
+                    {self._pool_application_expression('st')} AS pool_application,
                     st.settled_trade_id,
                     st.transaction_id,
                     st.trade_time_ms,
@@ -394,21 +409,57 @@ class SettledTradeProjectionRepository:
                     st.amount_out,
                     st.event_payload_json
                 FROM settled_trades st
-                JOIN {self.db.pools_table} p
-                  ON {self._pool_join_condition('st')}
-                WHERE p.pool_application = %s
+                WHERE {self._pool_application_condition('st')}
                   AND st.trade_time_ms < %s
                 ORDER BY st.trade_time_ms DESC, st.transaction_id DESC, st.settled_trade_id DESC
                 LIMIT 1
                 ''',
                 (pool_application, int(before_ms)),
             )
-            rows = cursor.fetchall() or []
+            rows = self._attach_pool_metadata(
+                list(cursor.fetchall() or []),
+                pool_application=pool_application,
+                pool_id=int(metadata['pool_id']),
+                metadata=metadata,
+            )
             if not rows:
                 return None
             return rows[0]
         except Exception:
             return None
+
+    def _attach_pool_metadata(
+        self,
+        rows: list[dict],
+        *,
+        pool_application: str | None,
+        pool_id: int | None,
+        metadata: dict | None,
+    ) -> list[dict]:
+        enriched = []
+        for row in rows:
+            resolved_pool_application = str(pool_application or row['pool_application'])
+            row_metadata = metadata
+            if row_metadata is None:
+                row_metadata = (
+                    self.metadata_resolver.metadata_for_pool_application(resolved_pool_application)
+                    or {}
+                )
+            if row_metadata.get('pool_id') is None and pool_id is None:
+                continue
+            enriched_row = dict(row)
+            enriched_row['pool_application'] = resolved_pool_application
+            enriched_row['pool_id'] = int(pool_id if pool_id is not None else row_metadata['pool_id'])
+            enriched_row['token_0'] = row_metadata.get('token_0')
+            enriched_row['token_1'] = row_metadata.get('token_1')
+            enriched.append(enriched_row)
+        return enriched
+
+    def _pool_application_expression(self, alias: str) -> str:
+        return f"CONCAT('0x', {alias}.pool_application_id, '@', {alias}.pool_chain_id)"
+
+    def _pool_application_condition(self, alias: str) -> str:
+        return f"{self._pool_application_expression(alias)} = %s"
 
     def _trade_metrics(self, *, row: dict, token_reversed: bool) -> tuple[Decimal, Decimal, Decimal]:
         side = str(row['side'])

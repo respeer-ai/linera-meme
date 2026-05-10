@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from account_codec import AccountCodec
 from market.position_metrics_protocol_fee_ownership_tracker import PositionMetricsProtocolFeeOwnershipTracker
 from market.position_metrics_snapshot_principal_simulator import PositionMetricsSnapshotPrincipalSimulator
 from market.settled_output_batch_factory import SettledOutputBatchFactory
@@ -51,6 +52,7 @@ class PositionMetricsSnapshotBuilder:
         self.protocol_fee_ownership_tracker = PositionMetricsProtocolFeeOwnershipTracker(
             serialize_attos=self._serialize_attos,
         )
+        self.account_codec = AccountCodec()
 
     def build_materialization_plan(
         self,
@@ -70,6 +72,10 @@ class PositionMetricsSnapshotBuilder:
                 pool_states.append(pool_state)
 
         for owner, pool_application_id, pool_chain_id in affected_positions:
+            snapshot_pool_application_id = self._canonical_pool_application(
+                pool_application_id=pool_application_id,
+                pool_chain_id=pool_chain_id,
+            )
             position_state = self._build_position_state(
                 owner=owner,
                 pool_application_id=pool_application_id,
@@ -78,7 +84,7 @@ class PositionMetricsSnapshotBuilder:
             position_replacements.append(
                 {
                     'owner': owner,
-                    'pool_application_id': pool_application_id,
+                    'pool_application_id': snapshot_pool_application_id,
                     'states': [] if position_state is None else [position_state],
                 }
             )
@@ -104,21 +110,32 @@ class PositionMetricsSnapshotBuilder:
         pool_application_id: str,
         pool_chain_id: str | None,
     ) -> dict[str, object] | None:
-        history = self._load_pool_transaction_history(pool_application_id=pool_application_id)
+        history = self._load_pool_transaction_history(
+            pool_application_id=pool_application_id,
+            pool_chain_id=pool_chain_id,
+        )
         if not history:
             return None
         virtual_initial_liquidity = self._infer_virtual_initial_liquidity(history)
-        effective_history, states, blockers = self._reconstructor().reconstruct(
+        exact_effective_history, exact_states, blockers = self._reconstructor().reconstruct(
             history,
             virtual_initial_liquidity=virtual_initial_liquidity,
         )
-        if blockers or not states:
+        effective_history, states = self._reconstruct_recorded_pool_state_history(
+            history=history,
+            virtual_initial_liquidity=virtual_initial_liquidity,
+        )
+        if not states:
             return None
+        snapshot_pool_application_id = self._canonical_pool_application(
+            pool_application_id=pool_application_id,
+            pool_chain_id=pool_chain_id,
+        )
         latest_state = states[-1]
         live_total_supply_attos = self._effective_total_supply_attos(latest_state)
         fee_free_state, fee_free_basis = self._fee_free_state_from_latest_liquidity_event(
-            states=states,
-            effective_history=effective_history or [],
+            states=exact_states or states,
+            effective_history=exact_effective_history or effective_history or [],
         )
         last_trade_time_ms = max(
             (
@@ -147,10 +164,13 @@ class PositionMetricsSnapshotBuilder:
             for row in history
             if row.get('transaction_type') in {'BuyToken0', 'SellToken0'}
         )
+        pool_created_metadata = self.snapshot_materialization_inputs_repository.get_pool_created_metadata(
+            pool_application_id=pool_application_id,
+        )
         return {
-            'pool_state_id': pool_application_id,
-            'pool_application_id': pool_application_id,
-            'pool_chain_id': pool_chain_id or self._parse_pool_chain_id(pool_application_id),
+            'pool_state_id': snapshot_pool_application_id,
+            'pool_application_id': snapshot_pool_application_id,
+            'pool_chain_id': pool_chain_id or self._parse_pool_chain_id(snapshot_pool_application_id),
             'last_trade_time_ms': last_trade_time_ms,
             'last_liquidity_event_time_ms': last_liquidity_event_time_ms,
             'last_transaction_id': last_transaction_id,
@@ -174,8 +194,13 @@ class PositionMetricsSnapshotBuilder:
             ),
             'state_payload_json': {
                 'virtual_initial_liquidity': virtual_initial_liquidity,
+                'fee_to_account_latest_known': self._pool_fee_to_account_latest_known(
+                    pool_application_id=pool_application_id,
+                ),
+                'pool_created_metadata': pool_created_metadata,
                 'history_size': len(history),
                 'effective_history_size': len(effective_history),
+                'exact_replay_blockers': blockers,
                 'last_state': latest_state,
                 'fee_free_basis': fee_free_basis,
                 'fee_free_state': fee_free_state,
@@ -191,12 +216,16 @@ class PositionMetricsSnapshotBuilder:
     ) -> dict[str, object] | None:
         history = self.snapshot_materialization_inputs_repository.list_position_liquidity_history(
             owner=owner,
-            pool_application_id=pool_application_id,
+            pool_application_id=self._canonical_pool_application(
+                pool_application_id=pool_application_id,
+                pool_chain_id=pool_chain_id,
+            ),
         )
         if not history:
             return None
         pool_transaction_history = self._load_pool_transaction_history(
             pool_application_id=pool_application_id,
+            pool_chain_id=pool_chain_id,
         )
         pool_trade_history = [
             row
@@ -307,11 +336,15 @@ class PositionMetricsSnapshotBuilder:
             basis_time_ms=latest_transaction.get('created_at'),
             basis_transaction_id=latest_transaction.get('transaction_id'),
         )
+        snapshot_pool_application_id = self._canonical_pool_application(
+            pool_application_id=pool_application_id,
+            pool_chain_id=pool_chain_id,
+        )
         return {
-            'position_state_id': f'{owner}:{pool_application_id}:{status}',
+            'position_state_id': f'{owner}:{snapshot_pool_application_id}:{status}',
             'owner': owner,
-            'pool_application_id': pool_application_id,
-            'pool_chain_id': pool_chain_id or self._parse_pool_chain_id(pool_application_id),
+            'pool_application_id': snapshot_pool_application_id,
+            'pool_chain_id': pool_chain_id or self._parse_pool_chain_id(snapshot_pool_application_id),
             'status': status,
             'basis_type': basis_type,
             'current_liquidity': self._serialize_attos(max(running_liquidity, 0)),
@@ -361,10 +394,12 @@ class PositionMetricsSnapshotBuilder:
         self,
         *,
         pool_application_id: str,
+        pool_chain_id: str | None = None,
     ) -> list[dict[str, object]]:
         history = list(
             self.snapshot_materialization_inputs_repository.list_pool_transaction_history(
                 pool_application_id=pool_application_id,
+                pool_chain_id=pool_chain_id,
             )
         )
         history.sort(
@@ -399,6 +434,80 @@ class PositionMetricsSnapshotBuilder:
             reserve1_after,
             k_last_after,
         )
+
+    def _reconstruct_recorded_pool_state_history(
+        self,
+        *,
+        history: list[dict[str, object]],
+        virtual_initial_liquidity: bool,
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+        reserve0 = 0
+        reserve1 = 0
+        total_supply = 0
+        k_last = 0
+        effective_history = []
+        states = []
+        for row in history:
+            transaction_type = row.get('transaction_type')
+            amount0_in = self.value_support.to_attos(row.get('amount_0_in')) or 0
+            amount0_out = self.value_support.to_attos(row.get('amount_0_out')) or 0
+            amount1_in = self.value_support.to_attos(row.get('amount_1_in')) or 0
+            amount1_out = self.value_support.to_attos(row.get('amount_1_out')) or 0
+            liquidity = self.value_support.to_attos(row.get('liquidity')) or 0
+            protocol_fee_minted = 0
+            if transaction_type == 'AddLiquidity':
+                if reserve0 == 0 and reserve1 == 0 and virtual_initial_liquidity and liquidity == 0:
+                    total_supply = self.swap_math_support.sqrt_attos_product(amount0_in, amount1_in) or 0
+                else:
+                    protocol_fee_minted = self.swap_math_support.mint_fee_attos(
+                        total_supply,
+                        reserve0,
+                        reserve1,
+                        k_last,
+                    )
+                    total_supply += protocol_fee_minted + liquidity
+                reserve0 += amount0_in
+                reserve1 += amount1_in
+                k_last = self.swap_math_support.sqrt_attos_product(reserve0, reserve1) or 0
+            elif transaction_type == 'RemoveLiquidity':
+                protocol_fee_minted = self.swap_math_support.mint_fee_attos(
+                    total_supply,
+                    reserve0,
+                    reserve1,
+                    k_last,
+                )
+                total_supply += protocol_fee_minted
+                total_supply = max(total_supply - liquidity, 0)
+                reserve0 = max(reserve0 - amount0_out, 0)
+                reserve1 = max(reserve1 - amount1_out, 0)
+                k_last = self.swap_math_support.sqrt_attos_product(reserve0, reserve1) or 0
+            elif transaction_type in {'BuyToken0', 'SellToken0'}:
+                reserve0, reserve1 = self.swap_math_support.apply_recorded_swap_attos(
+                    transaction_type,
+                    reserve0,
+                    reserve1,
+                    amount0_in=amount0_in,
+                    amount0_out=amount0_out,
+                    amount1_in=amount1_in,
+                    amount1_out=amount1_out,
+                )
+                reserve0 = max(reserve0, 0)
+                reserve1 = max(reserve1, 0)
+            else:
+                continue
+            effective_history.append(row)
+            states.append({
+                'transaction_id': row.get('transaction_id'),
+                'created_at': row.get('created_at'),
+                'transaction_type': transaction_type,
+                'from_account': row.get('from_account'),
+                'reserve0_after': reserve0,
+                'reserve1_after': reserve1,
+                'total_supply_after': total_supply,
+                'k_last_after': k_last,
+                'protocol_fee_minted_after': protocol_fee_minted,
+            })
+        return effective_history, states
 
     def _fee_free_swap_expected_out_attos(
         self,
@@ -452,9 +561,25 @@ class PositionMetricsSnapshotBuilder:
         return self.value_support.serialize_decimal(decimal_value) or '0'
 
     def _parse_pool_chain_id(self, pool_application_id: str) -> str | None:
-        if ':' not in pool_application_id:
+        try:
+            return self.account_codec.chain_id_from_account(pool_application_id)
+        except ValueError:
             return None
-        return pool_application_id.split(':', 1)[0]
+
+    def _canonical_pool_application(
+        self,
+        *,
+        pool_application_id: str,
+        pool_chain_id: str | None,
+    ) -> str:
+        if '@' in pool_application_id:
+            return pool_application_id
+        if pool_chain_id in (None, ''):
+            return pool_application_id
+        return self.account_codec.format_account(
+            chain_id=pool_chain_id,
+            owner=f'0x{pool_application_id}',
+        )
 
     def _pool_source_event_key(
         self,
@@ -631,6 +756,31 @@ class PositionMetricsSnapshotBuilder:
             'history_size': len(history),
         }
 
+    def _pool_fee_to_account_latest_known(
+        self,
+        *,
+        pool_application_id: str,
+    ) -> str | None:
+        if not hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
+            return None
+        history = self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
+            pool_application_id=pool_application_id,
+        )
+        if not history:
+            return None
+        latest = max(
+            history,
+            key=lambda row: (
+                int(row.get('created_at') or 0),
+                int(row.get('transaction_id') or 0),
+                str(row.get('fee_to_account') or ''),
+            ),
+        )
+        value = latest.get('fee_to_account')
+        if value in (None, ''):
+            return None
+        return str(value)
+
     def _fee_free_state_from_latest_liquidity_event(
         self,
         *,
@@ -672,7 +822,4 @@ class PositionMetricsSnapshotBuilder:
         }, basis_state
 
     def _public_owner(self, owner: str) -> str:
-        if '@' not in owner:
-            return owner
-        owner_id, chain_id = owner.split('@', 1)
-        return f'{chain_id}:{owner_id}'
+        return owner

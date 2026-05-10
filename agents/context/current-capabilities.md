@@ -13,8 +13,7 @@ Snapshot of implemented capability and currently confirmed operational facts.
 - Positions tab and route exist in `webui-v2`
 - The page supports `all`, `active`, and `closed`
 - `service/kline` exposes a positions API backed by recorded liquidity transactions
-- `service/kline` exposes `/position-metrics` with live `redeemable_amount0/1`, live liquidity share ratio, and blocker-based exactness flags
-- `pool` service queries for `totalSupply` and `liquidity(owner)` account for pending protocol-fee dilution via effective total supply, so live redeemables match the post-`mint_fee` remove-liquidity path
+- `service/kline` exposes `/position-metrics` through projection-backed snapshot/replay inputs; product runtime no longer depends on live pool GraphQL for business truth
 - Current positions accuracy depends on `transactions` having correct `AddLiquidity` and `RemoveLiquidity` records with stable `from_account`
 - Kline service persists transactions, pool metadata, and candle data concerns
 - Candle storage design exists and uses millisecond timestamps and `(pool_id, token_reversed, interval, bucket_start_ms)` as the candle key
@@ -25,6 +24,9 @@ Snapshot of implemented capability and currently confirmed operational facts.
 - local query service and maker wallet must not share wallets
 - Missing positions were not caused by the 5000-entry transaction window alone
 - `pool_application` identifies a pool, not the acting user
+- Current projection consumers use `pool_application` as the stable pool identity
+- Historical `pools(pool_id, pool_application, token_0, token_1)` still exists as a legacy identity bridge for some read paths
+- Current parse-block `swap_pool_created_recorded` / `swap_user_pool_created_recorded` payloads expose `pool_application` and token pair, but not `pool_id`
 - `from_account` is intended to represent the actor identity
 - Liquidity funds can appear to move without a corresponding `AddLiquidity` transaction landing in pool history if the async flow breaks before `NewTransaction`
 - For `POS-022`, exact `principal/fee` is supported when a position has no swap history after opening, regardless of `virtualInitialLiquidity`
@@ -36,3 +38,4 @@ Snapshot of implemented capability and currently confirmed operational facts.
 - Missing positions or wrong positions should first be traced to transaction persistence and actor identity, not to frontend rendering
 - Kline issues may come from upstream settlement or persistence problems even when the chart symptom is client-visible
 - Do not reintroduce 24h-volume or TVL-based fee approximations in the frontend for positions
+- Do not reintroduce live pool-catalog writes from ticker or websocket paths; the remaining pool catalog gap is a producer-side projection design issue, not a reason to restore live writeback

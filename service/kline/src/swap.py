@@ -1,4 +1,5 @@
 import async_request
+from account_codec import AccountCodec
 from request_trace import persist_http_trace
 
 
@@ -78,6 +79,7 @@ class Pool:
         self.token_1_price = _dict['token1Price']
         self.reserve_0 = _dict['reserve0']
         self.reserve_1 = _dict['reserve1']
+        self.account_codec = AccountCodec()
 
     def wallet_application_url(self):
         return f'{self.wallet._wallet_url()}/chains/{self.wallet._chain()}/applications/{self.pool_application.short_owner}'
@@ -105,7 +107,10 @@ class Pool:
                 request_payload=payload,
                 response=resp,
                 owner=getattr(self.wallet, 'owner', None),
-                pool_application=f'{self.pool_application.chain_id}:{self.pool_application.owner}',
+                pool_application=self.account_codec.format_account(
+                    chain_id=self.pool_application.chain_id,
+                    owner=self.pool_application.owner,
+                ),
                 pool_id=self.pool_id,
                 details={
                     'token_0': self.token_0,
@@ -129,7 +134,10 @@ class Pool:
                 request_payload=payload,
                 error=str(e),
                 owner=getattr(self.wallet, 'owner', None),
-                pool_application=f'{self.pool_application.chain_id}:{self.pool_application.owner}',
+                pool_application=self.account_codec.format_account(
+                    chain_id=self.pool_application.chain_id,
+                    owner=self.pool_application.owner,
+                ),
                 pool_id=self.pool_id,
                 details={
                     'token_0': self.token_0,
@@ -190,6 +198,7 @@ class Swap:
             )
             if 'errors' in payload_json:
                 print(f'Failed swap: {resp.text}')
+                return []
         except Exception as e:
             url = self.application_url()
             print(f'{url}, {payload} -> ERROR: {e}')
@@ -209,4 +218,8 @@ class Swap:
                 },
             )
             return []
-        return [Pool(v, self.wallet) for v in payload_json['data']['pools'] if v['reserve0'] is not None and v['reserve1'] is not None ]
+        data = payload_json.get('data') if isinstance(payload_json, dict) else None
+        pools = data.get('pools') if isinstance(data, dict) else None
+        if not isinstance(pools, list):
+            return []
+        return [Pool(v, self.wallet) for v in pools if v['reserve0'] is not None and v['reserve1'] is not None]

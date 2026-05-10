@@ -17,12 +17,16 @@ class FakeCursor:
     def __init__(self):
         self.executed = []
         self.fetchone_result = {'pool_state_id': 'pool-state-1'}
+        self.fetchall_result = []
 
     def execute(self, sql: str, params=None):
         self.executed.append((sql, params))
 
     def fetchone(self):
         return self.fetchone_result
+
+    def fetchall(self):
+        return list(self.fetchall_result)
 
 
 class FakeDb:
@@ -46,6 +50,22 @@ class PoolStateProjectionRepositoryTest(unittest.TestCase):
         executed_sql, params = db.cursor_dict.executed[0]
         self.assertIn('FROM pool_state_v2', executed_sql)
         self.assertEqual(params, ('pool-app',))
+
+    def test_list_pool_state_snapshots_reads_pool_state_table(self):
+        db = FakeDb()
+        db.cursor_dict.fetchall_result = [
+            {'pool_state_id': 'pool-state-1'},
+            {'pool_state_id': 'pool-state-2'},
+        ]
+        repository = PoolStateProjectionRepository(db)
+
+        rows = repository.list_pool_state_snapshots()
+
+        self.assertEqual(rows, [{'pool_state_id': 'pool-state-1'}, {'pool_state_id': 'pool-state-2'}])
+        self.assertEqual(db.ensure_fresh_read_connection_called, 1)
+        executed_sql, params = db.cursor_dict.executed[0]
+        self.assertIn('FROM pool_state_v2', executed_sql)
+        self.assertIsNone(params)
 
 
 if __name__ == '__main__':

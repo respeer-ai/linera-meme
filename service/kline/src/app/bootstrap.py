@@ -20,6 +20,7 @@ from normalizer.decode_result_normalizer import DecodeResultNormalizer
 from normalizer.normalized_event_materializer import NormalizedEventMaterializer
 from normalizer.normalization_replay_driver import NormalizationReplayDriver
 from normalizer.normalization_worker import NormalizationWorker
+from normalizer.pool_catalog_projection_materializer import PoolCatalogProjectionMaterializer
 from registry.ams_operation_decoder import AmsOperationDecoder
 from registry.application_discovery_service import ApplicationDiscoveryService
 from registry.application_registry import ApplicationRegistry
@@ -42,6 +43,7 @@ from registry.swap_operation_decoder import SwapOperationDecoder
 from storage.mysql.application_registry_repo import ApplicationRegistryRepository
 from storage.mysql.connection import MysqlConnectionFactory
 from storage.mysql.normalized_repo import NormalizedEventRepository
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
 from storage.mysql.pool_state_snapshot_repo import PoolStateSnapshotRepository
 from storage.mysql.position_metrics_snapshot_materialization_inputs_repo import PositionMetricsSnapshotMaterializationInputsRepository
 from storage.mysql.position_state_snapshot_repo import PositionStateSnapshotRepository
@@ -89,6 +91,7 @@ class AppBootstrap:
         raw_repository = RawRepository(connection)
         application_registry_repository = ApplicationRegistryRepository(connection)
         normalized_event_repository = NormalizedEventRepository(connection)
+        pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
         position_state_snapshot_repository = PositionStateSnapshotRepository(connection)
@@ -198,9 +201,13 @@ class AppBootstrap:
             runner=RustDecoderRunner(),
         )
         decode_result_normalizer = DecodeResultNormalizer()
+        pool_catalog_projection_materializer = PoolCatalogProjectionMaterializer(
+            pool_catalog_projection_repository=pool_catalog_projection_repository,
+        )
         normalized_event_materializer = NormalizedEventMaterializer(
             decode_result_normalizer=decode_result_normalizer,
             normalized_event_repository=normalized_event_repository,
+            pool_catalog_projection_materializer=pool_catalog_projection_materializer,
         )
         normalization_worker = NormalizationWorker(
             decode_scheduler=decode_scheduler,
@@ -240,6 +247,7 @@ class AppBootstrap:
             'raw_repository': raw_repository,
             'application_registry_repository': application_registry_repository,
             'normalized_event_repository': normalized_event_repository,
+            'pool_catalog_projection_repository': pool_catalog_projection_repository,
             'settled_trade_repository': settled_trade_repository,
             'settled_liquidity_change_repository': settled_liquidity_change_repository,
             'position_state_snapshot_repository': position_state_snapshot_repository,
@@ -253,6 +261,7 @@ class AppBootstrap:
             'decoder_dispatcher': decoder_dispatcher,
             'decode_scheduler': decode_scheduler,
             'decode_result_normalizer': decode_result_normalizer,
+            'pool_catalog_projection_materializer': pool_catalog_projection_materializer,
             'normalized_event_materializer': normalized_event_materializer,
             'normalization_worker': normalization_worker,
             'normalization_replay_driver': normalization_replay_driver,

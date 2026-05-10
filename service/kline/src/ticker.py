@@ -1,5 +1,6 @@
 import asyncio
 
+from account_codec import AccountCodec
 from candle_schema import INTERVAL_BUCKET_MS, build_candle_bucket_key, normalize_interval_for_api
 
 
@@ -8,7 +9,7 @@ class Ticker:
         self,
         manager,
         swap,
-        pool_catalog_writer,
+        pool_catalog_repository,
         candle_reader,
         transaction_history_repository,
         transaction_watermarks_repository,
@@ -17,13 +18,14 @@ class Ticker:
         self.interval = 10
         self.manager = manager
         self.swap = swap
-        self.pool_catalog_writer = pool_catalog_writer
+        self.pool_catalog_repository = pool_catalog_repository
         self.candle_reader = candle_reader
         self.transaction_history_repository = transaction_history_repository
         self.transaction_watermarks_repository = transaction_watermarks_repository
         self._running = True
         self._now_ms = now_ms if now_ms is not None else lambda: int(__import__('time').time() * 1000)
         self.last_emitted_bucket_starts = {}
+        self.account_codec = AccountCodec()
 
     def load_candle_points(
         self,
@@ -47,10 +49,7 @@ class Ticker:
         )['points']
 
     async def get_pools(self):
-        return await self.swap.get_pools()
-
-    async def persist_pools(self, pools):
-        await asyncio.to_thread(self.pool_catalog_writer.upsert_pools, pools)
+        return await asyncio.to_thread(self.pool_catalog_repository.list_current_pool_views)
 
     async def build_incremental_kline_payload_async(self, pool, transactions):
         return await asyncio.to_thread(self.build_incremental_kline_payload, pool, transactions)
@@ -68,7 +67,7 @@ class Ticker:
         return (
             int(transaction['created_at']),
             int(transaction['transaction_id']),
-            1 if bool(transaction['token_reversed']) else 0,
+            1 if bool(transaction.get('token_reversed', False)) else 0,
         )
 
     def pool_identity(self, pool):
@@ -79,7 +78,10 @@ class Ticker:
         )
 
     def pool_application(self, pool):
-        return f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
+        return self.account_codec.format_account(
+            chain_id=pool.pool_application.chain_id,
+            owner=pool.pool_application.owner,
+        )
 
     def resolve_transaction_start_id(self, pool, last_timestamps):
         pool_identity = self.pool_identity(pool)
@@ -116,7 +118,7 @@ class Ticker:
 
             for interval, bucket_ms in INTERVAL_BUCKET_MS.items():
                 bucket_key = build_candle_bucket_key(
-                    pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                    pool_application=pool_application,
                     pool_id=pool.pool_id,
                     token_reversed=token_reversed,
                     interval=interval,
@@ -209,7 +211,7 @@ class Ticker:
                     continue
 
                 current_bucket_start = build_candle_bucket_key(
-                    pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                    pool_application=pool_application,
                     pool_id=pool.pool_id,
                     token_reversed=token_reversed,
                     interval=interval,
@@ -255,7 +257,6 @@ class Ticker:
 
     async def run_iteration(self, last_timestamps):
         pools = await self.get_pools()
-        await self.persist_pools(pools)
 
         _transactions = []
         kline_payload = {}

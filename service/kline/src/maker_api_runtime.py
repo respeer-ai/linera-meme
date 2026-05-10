@@ -1,8 +1,11 @@
 import time
 
+from account_codec import AccountCodec
 from storage.mysql.debug_traces_query_repo import DebugTracesQueryRepository
 from storage.mysql.maker_events_query_repo import MakerEventsQueryRepository
-from storage.mysql.pool_catalog_query_repo import PoolCatalogQueryRepository
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
+from storage.mysql.projection_pool_catalog_repo import ProjectionPoolCatalogRepository
 from storage.mysql.transaction_watermarks_query_repo import TransactionWatermarksQueryRepository
 
 
@@ -12,6 +15,7 @@ class MakerApiRuntime:
         self._config = config
         self._request_client = request_client
         self._clock_ms = clock_ms or self._default_now_ms
+        self._account_codec = AccountCodec()
 
     def now_ms(self) -> int:
         return int(self._clock_ms())
@@ -376,8 +380,14 @@ class MakerApiRuntime:
     def maker_events_query_repository(self):
         return MakerEventsQueryRepository(self._db)
 
-    def pool_catalog_query_repository(self):
-        return PoolCatalogQueryRepository(self._db)
+    def pool_catalog_projection_repository_for_read(self):
+        return PoolCatalogProjectionRepository(getattr(self._db, 'connection', self._db))
+
+    def projection_pool_catalog_repository(self):
+        return ProjectionPoolCatalogRepository(
+            pool_catalog_projection_repository=self.pool_catalog_projection_repository_for_read(),
+            pool_state_projection_repository=PoolStateProjectionRepository(self._db),
+        )
 
     def transaction_watermarks_query_repository(self):
         return TransactionWatermarksQueryRepository(self._db)
@@ -493,7 +503,7 @@ class MakerApiRuntime:
 
         current_ms = self.now_ms()
         start_at = current_ms - lookback_minutes * 60 * 1000
-        pool_catalog = self.pool_catalog_query_repository().get_pool_catalog()
+        pool_catalog = self.projection_pool_catalog_repository().list_current_pools()
         if pool_id is not None:
             pool_catalog = [row for row in pool_catalog if int(row['pool_id']) == int(pool_id)]
 
@@ -540,11 +550,16 @@ class MakerApiRuntime:
         stalled_pools = []
         for pool in pool_catalog:
             pool_application = pool['pool_application']
-            pool_key_parts = pool_application.split(':', 1)
-            if len(pool_key_parts) != 2:
+            try:
+                parsed_pool_application = self._account_codec.parse_account(pool_application)
+            except ValueError:
                 continue
 
-            latest_tx = latest_watermarks.get((pool['pool_id'], pool_key_parts[0], pool_key_parts[1]))
+            latest_tx = latest_watermarks.get((
+                pool['pool_id'],
+                parsed_pool_application['chain_id'],
+                parsed_pool_application['owner'],
+            ))
             latest_event = latest_events_by_pool.get(pool['pool_id'])
             latest_trace = latest_traces_by_pool.get((pool_application, pool['pool_id']))
             latest_trace_owner = latest_trace.get('owner') if latest_trace is not None else None

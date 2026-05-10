@@ -1100,8 +1100,8 @@ fn encode_account(value: Account) -> Value {
 fn encode_account_owner(value: AccountOwner) -> Option<String> {
     match value {
         AccountOwner::Reserved(_) => None,
-        AccountOwner::Address32(hash) => Some(encode_bytes(hash.as_bytes().as_ref())),
-        AccountOwner::Address20(bytes) => Some(encode_bytes(bytes.as_ref())),
+        AccountOwner::Address32(hash) => Some(format!("0x{}", encode_bytes(hash.as_bytes().as_ref()))),
+        AccountOwner::Address20(bytes) => Some(format!("0x{}", encode_bytes(bytes.as_ref()))),
     }
 }
 

@@ -1,21 +1,33 @@
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_metadata_projection_resolver import PoolMetadataProjectionResolver
+from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
+from account_codec import AccountCodec
+
+
 class TransactionWatermarksQueryRepository:
-    def __init__(self, db):
+    def __init__(self, db, *, metadata_resolver=None):
         self.db = db
+        self.metadata_resolver = (
+            metadata_resolver
+            or PoolMetadataProjectionResolver(
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    getattr(db, 'connection', db)
+                ),
+                pool_state_projection_repository=PoolStateProjectionRepository(db),
+            )
+        )
+        self.account_codec = AccountCodec()
 
-    def _normalized_pool_application_expr(self, alias: str) -> str:
-        return f"CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id)"
-
-    def _prefixed_pool_application_expr(self, alias: str) -> str:
-        return f"CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id)"
+    def _pool_application_expr(self, alias: str) -> str:
+        return f"CONCAT('0x', {alias}.pool_application_id, '@', {alias}.pool_chain_id)"
 
     def get_latest_transaction_watermarks(self) -> dict:
         self.db.ensure_fresh_read_connection()
         try:
             self.db.cursor_dict.execute(
-                '''
+                f'''
                     SELECT
-                        p.pool_id,
-                        p.pool_application AS pool_application,
+                        {self._pool_application_expr('st')} AS pool_application,
                         st.trade_time_ms AS created_at,
                         st.transaction_id,
                         CASE
@@ -23,11 +35,6 @@ class TransactionWatermarksQueryRepository:
                             ELSE 1
                         END AS token_reversed
                     FROM settled_trades st
-                    JOIN pools p
-                      ON (
-                        p.pool_application = CONCAT(st.pool_chain_id, ':', st.pool_application_id)
-                        OR p.pool_application = CONCAT(st.pool_chain_id, ':0x', st.pool_application_id)
-                      )
                     JOIN (
                         SELECT
                             pool_chain_id,
@@ -40,7 +47,7 @@ class TransactionWatermarksQueryRepository:
                      AND latest.pool_application_id = st.pool_application_id
                      AND latest.max_created_at = st.trade_time_ms
                     ORDER BY
-                        p.pool_id ASC,
+                        pool_application ASC,
                         st.trade_time_ms DESC,
                         st.transaction_id DESC,
                         token_reversed DESC
@@ -52,11 +59,20 @@ class TransactionWatermarksQueryRepository:
             if error_code == 1146 and 'settled_trades' in error_text:
                 return {}
             raise
+        rows = list(self.db.cursor_dict.fetchall() or [])
+        metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()
         watermarks = {}
-        for row in self.db.cursor_dict.fetchall() or []:
-            pool_id = int(row['pool_id'])
+        for row in rows:
             pool_application = str(row['pool_application'])
-            chain_id, owner = pool_application.split(':', 1)
+            metadata = metadata_by_pool_application.get(pool_application)
+            if metadata is None:
+                continue
+            if metadata.get('pool_id') is None:
+                continue
+            pool_id = int(metadata['pool_id'])
+            parsed_pool_application = self.account_codec.parse_account(pool_application)
+            chain_id = parsed_pool_application['chain_id']
+            owner = parsed_pool_application['owner']
             key = (pool_id, chain_id, owner)
             if key in watermarks:
                 continue

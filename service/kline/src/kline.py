@@ -95,15 +95,17 @@ def _build_positions_handler():
 
 def _build_position_metrics_handler():
     dependencies = _position_metrics_dependencies()
+    runtime = _runtime()
 
     return PositionMetricsHandler(
         PositionMetricsReadModel(
             dependencies.positions_repository(),
             dependencies.fetcher(
-                position_metrics_public_api=_runtime().position_metrics_public_api(),
+                position_metrics_public_api=runtime.position_metrics_public_api(),
             ),
+            virtual_positions_read_model=runtime.virtual_positions_read_model(),
         ),
-        _runtime().position_metrics_diagnostic_recorder(),
+        runtime.position_metrics_diagnostic_recorder(),
     )
 
 def _position_metrics_entrypoint_overrides_resolved():

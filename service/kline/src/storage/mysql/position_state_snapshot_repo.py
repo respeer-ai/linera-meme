@@ -13,9 +13,9 @@ class PositionStateSnapshotRepository:
             cursor.execute(
                 f'''
                 CREATE TABLE IF NOT EXISTS {self.position_state_table} (
-                    position_state_id VARCHAR(255) NOT NULL,
+                    position_state_id VARCHAR(512) NOT NULL,
                     owner VARCHAR(255) NOT NULL,
-                    pool_application_id VARCHAR(128) NOT NULL,
+                    pool_application_id VARCHAR(256) NOT NULL,
                     pool_chain_id VARCHAR(64) NULL,
                     status VARCHAR(32) NOT NULL,
                     basis_type VARCHAR(32) NOT NULL,
@@ -36,9 +36,19 @@ class PositionStateSnapshotRepository:
                 )
                 '''
             )
+            self._migrate_pool_application_id_width(cursor)
             self.connection.commit()
         finally:
             cursor.close()
+
+    def _migrate_pool_application_id_width(self, cursor) -> None:
+        cursor.execute(
+            f'''
+            ALTER TABLE {self.position_state_table}
+            MODIFY COLUMN position_state_id VARCHAR(512) NOT NULL,
+            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+            '''
+        )
 
     def upsert_position_states(self, states: list[dict[str, object]]) -> int:
         if not states:

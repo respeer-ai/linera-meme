@@ -45,6 +45,13 @@ class KlineServiceLifecycle:
         if self.ticker_task is not None:
             return
 
+        if self._observability_supervisor is not None:
+            try:
+                await self._observability_supervisor.start_if_configured()
+            except Exception as exc:
+                print(f'Observability startup failed open: {exc}')
+                traceback.print_exc()
+
         ticker_db = Db(
             self._db_config['host'],
             self._db_config['port'],
@@ -58,12 +65,6 @@ class KlineServiceLifecycle:
         self._services._ticker = ticker
         self._services._ticker_db = ticker_db
         self._services._ticker_task = ticker_task
-        if self._observability_supervisor is not None:
-            try:
-                self._observability_supervisor.start_in_background()
-            except Exception as exc:
-                print(f'Observability background startup failed open: {exc}')
-                traceback.print_exc()
 
     async def shutdown(self):
         ticker = self.ticker

@@ -51,7 +51,13 @@ class SettledProductTransactionAdapter:
         return self.account_codec.public_account_from_settled_owner(owner)
 
     def account_payload_to_string(self, account: object) -> str | None:
-        return self.account_codec.public_account_from_payload(account)
+        account_string = self.account_codec.public_account_from_payload(account)
+        if account_string is None:
+            return None
+        payload = self.account_codec.payload_from_public_account(account_string)
+        if payload is None or payload.get('owner') == self.account_codec.CHAIN_OWNER:
+            return None
+        return account_string
 
     def _string_or_none(self, value: object) -> str | None:
         if value is None:

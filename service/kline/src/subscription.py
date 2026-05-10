@@ -1,5 +1,6 @@
 from fastapi import WebSocket
 from dataclasses import dataclass
+from account_codec import AccountCodec
 from candle_schema import normalize_interval_for_api
 
 
@@ -13,11 +14,13 @@ class KlineSubscription:
 
 
 class WebSocketManager:
-    def __init__(self, swap, candle_reader):
+    def __init__(self, swap, candle_reader, pool_catalog_repository=None):
         self.connections: list[WebSocket] = []
         self.kline_subscriptions: dict[WebSocket, set[KlineSubscription]] = {}
         self.swap = swap
         self.candle_reader = candle_reader
+        self.pool_catalog_repository = pool_catalog_repository
+        self.account_codec = AccountCodec()
 
     async def connect(self, websocket: WebSocket):
         print(f'New connection {len(self.connections)} from {websocket.scope["client"]}')
@@ -94,7 +97,11 @@ class WebSocketManager:
     async def notify_kline(self, payload=None):
         intervals = ['1min', '5min', '10min', '15min', '1h', '4h', '1d', '1w', '1ME']
 
-        pools = None if payload is not None else await self.swap.get_pools()
+        pools = None
+        if payload is None:
+            if self.pool_catalog_repository is None:
+                raise RuntimeError('Projection pool catalog repository is required for websocket kline broadcast')
+            pools = self.pool_catalog_repository.list_current_pool_views()
         for connection in self.connections:
             subscriptions = self.kline_subscriptions.get(connection) or set()
             points = {}
@@ -110,12 +117,16 @@ class WebSocketManager:
                 for interval in intervals:
                     interval_points = []
                     for pool in pools:
+                        pool_application = self.account_codec.format_account(
+                            chain_id=pool.pool_application.chain_id,
+                            owner=pool.pool_application.owner,
+                        )
                         point_payload = self.candle_reader.get_last_points(
                             token_0=pool.token_0,
                             token_1=pool.token_1,
                             interval=interval,
                             pool_id=pool.pool_id,
-                            pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                            pool_application=pool_application,
                         )
                         interval_points.append(point_payload)
                         point_payload = self.candle_reader.get_last_points(
@@ -123,7 +134,7 @@ class WebSocketManager:
                             token_1=pool.token_0,
                             interval=interval,
                             pool_id=pool.pool_id,
-                            pool_application=f'{pool.pool_application.chain_id}:{pool.pool_application.owner}',
+                            pool_application=pool_application,
                         )
                         interval_points.append(point_payload)
                     points[interval] = interval_points

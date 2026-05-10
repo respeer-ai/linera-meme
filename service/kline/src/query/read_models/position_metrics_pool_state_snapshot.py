@@ -65,6 +65,22 @@ class PositionMetricsPoolStateSnapshot:
             return False
         return bool((self.payload.get('state_payload_json') or {}).get('virtual_initial_liquidity'))
 
+    def fee_to_account_latest_known(self) -> str | None:
+        if self.payload is None:
+            return None
+        value = (self.payload.get('state_payload_json') or {}).get('fee_to_account_latest_known')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def pool_created_metadata(self) -> dict | None:
+        if self.payload is None:
+            return None
+        metadata = (self.payload.get('state_payload_json') or {}).get('pool_created_metadata')
+        if not isinstance(metadata, dict):
+            return None
+        return dict(metadata)
+
     def summary_dict(self) -> dict | None:
         if self.payload is None:
             return None

@@ -9,14 +9,13 @@ import { formalizeFloat, graphqlResult } from 'src/utils'
 import { constants } from 'src/constant'
 import { type Transaction } from '../transaction'
 import { Subscription } from 'src/subscription'
+import { _Account, type Account } from '../account'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
 
 const poolApplicationKey = (pool: Pool) => {
-  const chainId = pool.poolApplication?.chainId ?? pool.poolApplication?.chain_id
-  const owner = pool.poolApplication?.owner
-  return `${chainId || ''}:${owner || ''}`
+  return _Account.poolApplicationDescription(pool.poolApplication as Account) || ''
 }
 
 const poolIdentityKey = (pool: Pool) => `${pool.poolId}:${poolApplicationKey(pool)}`

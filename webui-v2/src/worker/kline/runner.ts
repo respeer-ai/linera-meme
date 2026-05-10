@@ -243,16 +243,25 @@ export class KlineRunner {
 
       const points = res.data as Points
       points.end_at = endAt
+      const resolvedPoolId = points.pool_id ?? poolId
+      const resolvedPoolApplication = points.pool_application ?? poolApplication
 
-      KlineRunner.bulkStorePoints(token0, token1, poolId, poolApplication, interval, points)
+      KlineRunner.bulkStorePoints(
+        token0,
+        token1,
+        resolvedPoolId,
+        resolvedPoolApplication,
+        interval,
+        points,
+      )
 
       self.postMessage({
         type: KlineEventType.FETCHED_POINTS,
         payload: {
           token0,
           token1,
-          poolId,
-          poolApplication,
+          poolId: resolvedPoolId,
+          poolApplication: resolvedPoolApplication,
           points,
           interval,
           reverse,

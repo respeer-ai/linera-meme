@@ -1,17 +1,23 @@
 from decimal import Decimal
 
+from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_metadata_projection_resolver import PoolMetadataProjectionResolver
+from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
 from storage.mysql.settled_product_transaction_adapter import SettledProductTransactionAdapter
 
 
 class SettledLiquidityProjectionRepository:
-    def __init__(self, db, *, transaction_adapter=None):
+    def __init__(self, db, *, transaction_adapter=None, metadata_resolver=None):
         self.db = db
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
-
-    def _pool_join_condition(self, alias: str) -> str:
-        return (
-            f"(p.pool_application = CONCAT({alias}.pool_chain_id, ':', {alias}.pool_application_id) "
-            f"OR p.pool_application = CONCAT({alias}.pool_chain_id, ':0x', {alias}.pool_application_id))"
+        self.metadata_resolver = (
+            metadata_resolver
+            or PoolMetadataProjectionResolver(
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    getattr(db, 'connection', db)
+                ),
+                pool_state_projection_repository=PoolStateProjectionRepository(db),
+            )
         )
 
     def get_positions(
@@ -104,8 +110,6 @@ class SettledLiquidityProjectionRepository:
             return None
         if not hasattr(self.db, 'cursor_dict'):
             return None
-        if not hasattr(self.db, 'pools_table'):
-            return None
         self.db.ensure_fresh_read_connection()
         cursor = self.db.cursor_dict
         where_clauses = []
@@ -114,19 +118,25 @@ class SettledLiquidityProjectionRepository:
             where_clauses.append('slc.owner = %s')
             params.append(self.transaction_adapter.settled_owner_from_public_owner(owner))
         if pool_application is not None:
-            where_clauses.append('p.pool_application = %s')
+            where_clauses.append(self._pool_application_condition('slc'))
             params.append(pool_application)
         if pool_id is not None:
-            where_clauses.append('p.pool_id = %s')
-            params.append(int(pool_id))
+            metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()
+            pool_applications = [
+                pool_application_key
+                for pool_application_key, metadata in metadata_by_pool_application.items()
+                if int(metadata.get('pool_id') or 0) == int(pool_id)
+            ]
+            if not pool_applications:
+                return []
+            placeholders = ', '.join(['%s'] * len(pool_applications))
+            where_clauses.append(f"{self._pool_application_expression('slc')} IN ({placeholders})")
+            params.extend(pool_applications)
         try:
             cursor.execute(
                 f'''
                 SELECT
-                    p.pool_id,
-                    p.pool_application,
-                    p.token_0,
-                    p.token_1,
+                    {self._pool_application_expression('slc')} AS pool_application,
                     slc.owner,
                     slc.transaction_id,
                     slc.change_type,
@@ -135,14 +145,13 @@ class SettledLiquidityProjectionRepository:
                     slc.amount_1_delta,
                     slc.event_time_ms
                 FROM settled_liquidity_changes slc
-                JOIN {self.db.pools_table} p
-                  ON {self._pool_join_condition('slc')}
                 {'WHERE ' + ' AND '.join(where_clauses) if where_clauses else ''}
                 ORDER BY slc.event_time_ms ASC, slc.transaction_index ASC, slc.settled_liquidity_change_id ASC
                 ''',
                 tuple(params),
             )
-            return list(cursor.fetchall() or [])
+            rows = list(cursor.fetchall() or [])
+            return self._attach_pool_metadata(rows)
         except Exception:
             return None
 
@@ -226,6 +235,27 @@ class SettledLiquidityProjectionRepository:
         serialized_row['amount_1_delta'] = self._serialize_decimal(Decimal(str(row['amount_1_delta'])))
         serialized_row['liquidity_delta'] = self._serialize_decimal(Decimal(str(row['liquidity_delta'])))
         return self.transaction_adapter.build_liquidity_history_row(serialized_row)
+
+    def _attach_pool_metadata(self, rows: list[dict]) -> list[dict]:
+        metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()
+        enriched = []
+        for row in rows:
+            pool_application = str(row['pool_application'])
+            metadata = metadata_by_pool_application.get(pool_application) or {}
+            if metadata.get('pool_id') is None:
+                continue
+            enriched_row = dict(row)
+            enriched_row['pool_id'] = int(metadata['pool_id'])
+            enriched_row['token_0'] = metadata.get('token_0')
+            enriched_row['token_1'] = metadata.get('token_1')
+            enriched.append(enriched_row)
+        return enriched
+
+    def _pool_application_expression(self, alias: str) -> str:
+        return f"CONCAT('0x', {alias}.pool_application_id, '@', {alias}.pool_chain_id)"
+
+    def _pool_application_condition(self, alias: str) -> str:
+        return f"{self._pool_application_expression(alias)} = %s"
 
     def _serialize_decimal(self, value: Decimal) -> str:
         normalized = format(value.normalize(), 'f')

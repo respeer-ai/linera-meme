@@ -16,6 +16,13 @@ export interface Position {
   opened_at: number | null
   updated_at: number | null
   closed_at: number | null
+  position_kind?: string | null
+  is_virtual_position?: boolean | null
+  virtual_initial_amount0?: string | null
+  virtual_initial_amount1?: string | null
+  owner_is_fee_to?: boolean | null
+  protocol_fee_reference_amount0?: string | null
+  protocol_fee_reference_amount1?: string | null
 }
 
 export interface PositionsResponse {

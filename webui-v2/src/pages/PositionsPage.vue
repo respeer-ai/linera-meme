@@ -102,7 +102,7 @@
                     {{ position.status === 'active' ? 'Active' : 'Closed' }}
                   </span>
                   <span
-                    v-if='positionMetrics(position)?.owner_is_fee_to'
+                    v-if='isProtocolFeeReceiver(position)'
                     class='position-badge position-badge-fee-to'
                   >
                     Protocol Fee Receiver
@@ -112,7 +112,7 @@
 
               <div
                 class='position-summary-row'
-                :style='{ "--position-summary-columns": positionMetrics(position)?.owner_is_fee_to ? "5" : "4" }'
+                :style='{ "--position-summary-columns": isProtocolFeeReceiver(position) ? "5" : "4" }'
               >
                 <div class='position-metric'>
                   <span class='metric-label'>Pool share</span>
@@ -142,7 +142,7 @@
                     <span>{{ positionFeesLabel(position).token1 }}</span>
                   </span>
                 </div>
-                <div v-if='positionMetrics(position)?.owner_is_fee_to' class='position-metric'>
+                <div v-if='isProtocolFeeReceiver(position)' class='position-metric'>
                   <span class='metric-label'>
                     Protocol Fees
                     <span v-if='hasMetricsWarning(position)' class='metric-warning'>!
@@ -203,7 +203,7 @@ import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
 import { useUserStore } from 'src/stores/user'
 import { usePositionsStore, type Position, type PositionStatusFilter } from 'src/stores/positions'
 import { type PositionMetricsEntry } from 'src/stores/kline'
-import { ams, kline, swap, type meme } from 'src/stores/export'
+import { account, ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 
@@ -254,9 +254,9 @@ const emptyStateText = computed(() => {
 })
 
 const buildOwnerParam = async () => {
-  const account = await userStore.account()
-  if (!account.owner || !account.chain_id) return ''
-  return `${account.chain_id}:${account.owner}`
+  const currentAccount = await userStore.account()
+  if (!currentAccount.owner || !account._Account.chainId(currentAccount)) return ''
+  return account._Account.accountDescription(currentAccount)
 }
 
 const refreshPositions = async () => {
@@ -281,7 +281,8 @@ const refreshPositions = async () => {
   void refreshPositionMetricsSnapshots(nextOwner, selectedStatus.value)
 }
 
-const positionKey = (position: Position) => `${position.pool_application}:${position.pool_id}:${position.status}`
+const positionKey = (position: Position) =>
+  `${position.pool_application}:${position.pool_id}:${position.status}:${position.position_kind || 'recorded'}`
 const tokenApplication = (token: string) => {
   if (!token || token === constants.LINERA_NATIVE_ID) return undefined
   return ams.Ams.application(token)
@@ -297,13 +298,23 @@ const tokenLogo = (token: string) => {
   const application = tokenApplication(token)
   return application ? ams.Ams.applicationLogo(application) : constants.LINERA_LOGO
 }
-const positionMetrics = (position: Position) => positionMetricsSnapshots.value[positionKey(position)]
+const positionMetrics = (position: Position) =>
+  positionMetricsSnapshots.value[positionKey(position)] ||
+  positionMetricsSnapshots.value[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
+const isProtocolFeeReceiver = (position: Position) =>
+  Boolean(position.owner_is_fee_to || positionMetrics(position)?.owner_is_fee_to)
 const positionLiquidity = (position: Position) =>
   ({
     liquidity:
       positionMetrics(position)?.position_liquidity_live || position.current_liquidity || '0',
-    amount0: positionMetrics(position)?.redeemable_amount0 || '0',
-    amount1: positionMetrics(position)?.redeemable_amount1 || '0',
+    amount0:
+      positionMetrics(position)?.redeemable_amount0 ||
+      position.virtual_initial_amount0 ||
+      '0',
+    amount1:
+      positionMetrics(position)?.redeemable_amount1 ||
+      position.virtual_initial_amount1 ||
+      '0',
   })
 const poolForPosition = (position: Position) => swap.Swap.getPool(position.token_0, position.token_1)
 const positionShareRatio = (position: Position) => {
@@ -337,7 +348,7 @@ const positionFeesLabel = (position: Position) => {
 }
 const positionProtocolFeesLabel = (position: Position) => {
   const metrics = positionMetrics(position)
-  if (!metrics?.owner_is_fee_to) {
+  if (!isProtocolFeeReceiver(position)) {
     return {
       token0: '--',
       token1: '--',
@@ -345,8 +356,8 @@ const positionProtocolFeesLabel = (position: Position) => {
   }
 
   return {
-    token0: `${formatLiquidity(metrics.protocol_fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
-    token1: `${formatLiquidity(metrics.protocol_fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
+    token0: `${formatLiquidity(metrics?.protocol_fee_amount0 || position.protocol_fee_reference_amount0 || '0')} ${tokenTicker(position.token_0)}`,
+    token1: `${formatLiquidity(metrics?.protocol_fee_amount1 || position.protocol_fee_reference_amount1 || '0')} ${tokenTicker(position.token_1)}`,
   }
 }
 const hasMetricsWarning = (position: Position) => {
@@ -420,7 +431,7 @@ const refreshPositionMetricsSnapshots = async (
   const metrics = response?.metrics || []
   positionMetricsSnapshots.value = Object.fromEntries(
     metrics.map((entry) => [
-      `${entry.pool_application}:${entry.pool_id}:${entry.status}`,
+      `${entry.pool_application}:${entry.pool_id}:${entry.status}:recorded`,
       entry,
     ]),
   )

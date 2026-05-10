@@ -112,6 +112,23 @@ class MakerExecutionPolicyTest(unittest.TestCase):
         self.assertGreater(amount_0, 0.0)
         self.assertIsNone(amount_1)
 
+    def test_activity_flow_uses_available_quote_when_base_inventory_is_empty(self):
+        policy = self.make_policy()
+
+        amount_0, amount_1 = policy.decide_trade(
+            reserve_0=10499900.0,
+            reserve_1=8720.0,
+            token_0_balance=0.0,
+            token_1_balance=100.0,
+            pending_notional=0.0,
+            effective_mispricing=0.0,
+            directional_signal=-0.0001,
+        )
+
+        self.assertIsNone(amount_0)
+        self.assertIsNotNone(amount_1)
+        self.assertGreater(amount_1, 0.0)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -4,6 +4,7 @@ import time
 import warnings
 import json
 from decimal import Decimal
+from account_codec import AccountCodec
 from legacy_candle_materialization_tool import LegacyCandleMaterializationTool
 from candle_schema import (
     INTERVAL_BUCKET_MS,
@@ -131,7 +132,10 @@ def build_kline_log_line(event: str, **fields) -> str:
 
 
 def build_pool_application_value(pool: Pool) -> str:
-    return f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
+    return AccountCodec().format_account(
+        chain_id=pool.pool_application.chain_id,
+        owner=pool.pool_application.owner,
+    )
 
 
 def build_legacy_pool_application_value(pool_id: int) -> str:
@@ -673,7 +677,9 @@ class Db:
         pool_stub.token_0 = token_0
         pool_stub.token_1 = token_1
         pool_stub.pool_application = type('PoolApplicationStub', (), {})()
-        pool_stub.pool_application.chain_id, pool_stub.pool_application.owner = pool_application.split(':', 1)
+        parsed_pool_application = AccountCodec().parse_account(pool_application)
+        pool_stub.pool_application.chain_id = parsed_pool_application['chain_id']
+        pool_stub.pool_application.owner = parsed_pool_application['owner']
         return pool_stub, pool_application
 
     def resolve_pool_application(self, pool_id: int, pool_application: str | None = None) -> str:
@@ -938,6 +944,10 @@ class Db:
         quote_volume = transaction.quote_volume(token_reversed)
         price = transaction.price(token_reversed)
         created_at_ms = transaction.created_at // 1000
+        from_account = AccountCodec().format_account(
+            chain_id=transaction.from_.chain_id,
+            owner=transaction.from_.owner,
+        )
         self.cursor.execute(
             f'''
                 INSERT IGNORE INTO {self.transactions_table}
@@ -947,7 +957,7 @@ class Db:
              pool.pool_id,
              transaction.transaction_id,
              transaction.transaction_type,
-             f'{transaction.from_.chain_id}:{transaction.from_.owner}',
+             from_account,
              transaction.amount_0_in,
              transaction.amount_0_out,
              transaction.amount_1_in,
@@ -979,7 +989,7 @@ class Db:
             'pool_id': pool.pool_id,
             'transaction_id': transaction.transaction_id,
             'transaction_type': transaction.transaction_type,
-            'from_account': f'{transaction.from_.chain_id}:{transaction.from_.owner}',
+            'from_account': from_account,
             'amount_0_in': transaction.amount_0_in,
             'amount_0_out': transaction.amount_0_out,
             'amount_1_in': transaction.amount_1_in,

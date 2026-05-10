@@ -24,21 +24,7 @@ class ObservabilitySupervisor:
             self.status.mark_disabled('observability is not configured')
             return False
         async with self._lock:
-            if self.runtime.is_started():
-                self.status.mark_ready()
-                return True
-            self.status.mark_starting()
-            try:
-                stage_results = await self.runtime.start() or {}
-            except Exception as error:
-                self.status.mark_degraded(error)
-                return False
-            self._apply_stage_results(stage_results)
-            if any(result.get('status') == 'degraded' for result in stage_results.values()):
-                self.status.mark_degraded('observability startup completed with degraded stages')
-                return False
-            self.status.mark_ready()
-            return True
+            return await self._start_runtime_locked()
 
     async def recover(self) -> bool:
         if self.runtime is None:
@@ -46,7 +32,7 @@ class ObservabilitySupervisor:
             return False
         async with self._lock:
             if not self.runtime.is_started():
-                return await self.start_if_configured()
+                return await self._start_runtime_locked()
             try:
                 stage_results = await self.runtime.refresh() or {}
             except Exception as error:
@@ -58,6 +44,23 @@ class ObservabilitySupervisor:
                 return False
             self.status.mark_ready()
             return True
+
+    async def _start_runtime_locked(self) -> bool:
+        if self.runtime.is_started():
+            self.status.mark_ready()
+            return True
+        self.status.mark_starting()
+        try:
+            stage_results = await self.runtime.start() or {}
+        except Exception as error:
+            self.status.mark_degraded(error)
+            return False
+        self._apply_stage_results(stage_results)
+        if any(result.get('status') == 'degraded' for result in stage_results.values()):
+            self.status.mark_degraded('observability startup completed with degraded stages')
+            return False
+        self.status.mark_ready()
+        return True
 
     async def shutdown(self) -> None:
         if self._start_task is not None:

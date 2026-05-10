@@ -9,6 +9,12 @@ class AppLifecycle:
         normalized_event_repository = container.get('normalized_event_repository')
         if normalized_event_repository is not None and hasattr(normalized_event_repository, 'ensure_schema'):
             normalized_event_repository.ensure_schema()
+        pool_catalog_projection_repository = container.get('pool_catalog_projection_repository')
+        if (
+            pool_catalog_projection_repository is not None
+            and hasattr(pool_catalog_projection_repository, 'ensure_schema')
+        ):
+            pool_catalog_projection_repository.ensure_schema()
         settled_trade_repository = container.get('settled_trade_repository')
         if settled_trade_repository is not None and hasattr(settled_trade_repository, 'ensure_schema'):
             settled_trade_repository.ensure_schema()
