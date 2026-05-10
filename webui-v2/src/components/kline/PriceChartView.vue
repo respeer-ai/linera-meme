@@ -218,6 +218,20 @@ watch(latestPoints, () => {
   klinePoints.value = mergedPoints
 })
 
+const hydrateFromLatestPoints = () => {
+  if (!latestPoints.value.length) return false
+
+  const mergedPoints = mergeSortedPointsIntoChartState({
+    currentPoints: klinePoints.value,
+    sortedPoints: latestPoints.value,
+  })
+
+  if (!chartStateChanged(klinePoints.value, mergedPoints)) return false
+
+  klinePoints.value = mergedPoints
+  return true
+}
+
 const getKline = (timestamp: number, reverse: boolean) => {
   if (!buyToken.value || !sellToken.value) return
   if (buyToken.value === sellToken.value) return
@@ -342,6 +356,7 @@ const getStoreKline = () => {
       startupPlan.fetchLatest.endAt,
       startupPlan.fetchLatest.reverse
     )
+    hydrateFromLatestPoints()
   }
 }
 
@@ -373,6 +388,18 @@ watch(selectedInterval, () => {
   console.log('[PriceChartView] selectedInterval changed to:', selectedInterval.value)
   loading.value = false
   getStoreKline()
+})
+
+watch([activePoolId, activePoolApplication], ([poolId, poolApplication], [oldPoolId, oldPoolApplication]) => {
+  if (!poolId || !poolApplication) return
+  if (poolId === oldPoolId && poolApplication === oldPoolApplication) return
+
+  if (!klinePoints.value.length) {
+    hydrateFromLatestPoints()
+  }
+  if (!klinePoints.value.length && !loading.value) {
+    getStoreKline()
+  }
 })
 
 const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
@@ -712,6 +739,7 @@ onMounted(() => {
     klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
 
     getStoreKline()
+    hydrateFromLatestPoints()
   }
 
   void bootChart()
