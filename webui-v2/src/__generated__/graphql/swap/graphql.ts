@@ -24,14 +24,12 @@ export type Scalars = {
   ChainId: { input: any; output: any; }
   /** A timestamp, in microseconds since the Unix epoch */
   Timestamp: { input: any; output: any; }
-  Transaction: { input: any; output: any; }
 };
 
 export type Pool = {
   __typename?: 'Pool';
   createdAt: Scalars['Timestamp']['output'];
   creator: Scalars['Account']['output'];
-  latestTransaction?: Maybe<Scalars['Transaction']['output']>;
   poolApplication: Scalars['Account']['output'];
   poolId: Scalars['Int']['output'];
   reserve0?: Maybe<Scalars['Amount']['output']>;
