@@ -152,6 +152,7 @@ class KlineRuntime:
         return VirtualPositionsReadModel(
             projection_repository=self.settled_liquidity_projection_repository(),
             snapshot_inputs_projection_repository=self.position_metrics_snapshot_inputs_projection_repository(),
+            pool_catalog_repository=self.projection_pool_catalog_repository(),
         )
 
     def position_metrics_diagnostic_recorder(self) -> PositionMetricsDiagnosticRecorder:

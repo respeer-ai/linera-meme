@@ -129,6 +129,80 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
         self.assertTrue(result[0]['is_virtual_position'])
         self.assertEqual(result[0]['current_liquidity'], '7')
 
+    def test_enrich_positions_falls_back_to_catalog_and_pool_fee_free_basis_for_virtual_initial_liquidity(self):
+        class FakeProjectionRepository:
+            def get_owner_candidate_histories(self, *, owner):
+                return []
+
+        class FakePoolCatalogRepository:
+            def list_current_pools(self):
+                return [{
+                    'pool_application': '0xpool@app-chain',
+                    'pool_id': 17,
+                    'token_0': 'MEME',
+                    'token_1': 'TLINERA',
+                }]
+
+        class FakeSnapshotInputsProjectionRepository:
+            class FakePoolStateProjectionRepository:
+                def list_pool_state_snapshots(self):
+                    return [{
+                        'pool_application_id': '0xpool@app-chain',
+                        'last_trade_time_ms': 3000,
+                        'last_liquidity_event_time_ms': 2000,
+                        'state_payload_json': {
+                            'virtual_initial_liquidity': True,
+                            'pool_created_metadata': None,
+                            'fee_free_basis': {
+                                'from_account': '0xowner@owner-chain',
+                                'reserve0_after': '10499900000000000000000000',
+                                'reserve1_after': '8720000000000000000000',
+                            },
+                        },
+                    }]
+
+            def __init__(self):
+                self.pool_state_projection_repo = self.FakePoolStateProjectionRepository()
+
+            def get_snapshot_inputs(self, *, owner, pool_application_id, status):
+                return {
+                    'position_basis_snapshot': None,
+                    'pool_state_snapshot': {
+                        'state_payload_json': {
+                            'virtual_initial_liquidity': True,
+                            'pool_created_metadata': None,
+                            'fee_free_basis': {
+                                'from_account': '0xowner@owner-chain',
+                                'reserve0_after': '10499900000000000000000000',
+                                'reserve1_after': '8720000000000000000000',
+                            },
+                        },
+                    },
+                }
+
+        read_model = VirtualPositionsReadModel(
+            projection_repository=FakeProjectionRepository(),
+            snapshot_inputs_projection_repository=FakeSnapshotInputsProjectionRepository(),
+            pool_catalog_repository=FakePoolCatalogRepository(),
+        )
+
+        result = asyncio.run(read_model.enrich_positions(
+            owner='0xowner@owner-chain',
+            status='virtual',
+            positions=[],
+        ))
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['pool_application'], '0xpool@app-chain')
+        self.assertEqual(result[0]['pool_id'], 17)
+        self.assertEqual(result[0]['token_0'], 'MEME')
+        self.assertEqual(result[0]['token_1'], 'TLINERA')
+        self.assertEqual(result[0]['status'], 'virtual')
+        self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
+        self.assertEqual(result[0]['current_liquidity'], '0')
+        self.assertEqual(result[0]['virtual_initial_amount0'], '10499900')
+        self.assertEqual(result[0]['virtual_initial_amount1'], '8720')
+
     def test_enrich_positions_adds_protocol_fee_receiver_virtual_position_when_owner_has_no_lp(self):
         class FakeProjectionRepository:
             def get_owner_candidate_histories(self, *, owner):
