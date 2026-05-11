@@ -233,6 +233,7 @@ function restart_kline() {
 
     start_chains
     NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
+    LAN_IP=$LAN_IP \
     LINERA_IMAGE=linera-respeer docker compose -f docker/docker-compose-wallet.yml up --wait
 
     NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
