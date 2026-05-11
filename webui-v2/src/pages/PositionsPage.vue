@@ -18,18 +18,18 @@
               </span>
             </div>
           </div>
-          <div v-if='hasProtocolFeeReceiverPosition' class='reward-fee-split'>
+          <div v-if='walletConnected' class='reward-fee-split'>
             <div class='reward-fee-group'>
               <span class='reward-fee-label'>Trading yield</span>
               <span class='reward-fee-values'>
-                <span v-for='item in tradingFeeSummary' :key='`trading-${item.ticker}`'>{{ item.label }}</span>
+                <span v-for='item in tradingFeeSummary' :key='`trading-${item.key}`'>{{ item.label }}</span>
               </span>
             </div>
-            <span class='reward-fee-divider'>|</span>
-            <div class='reward-fee-group'>
+            <span v-if='hasProtocolFeeReceiverPosition' class='reward-fee-divider'>|</span>
+            <div v-if='hasProtocolFeeReceiverPosition' class='reward-fee-group'>
               <span class='reward-fee-label'>Protocol yield</span>
               <span class='reward-fee-values reward-fee-values-protocol'>
-                <span v-for='item in protocolFeeSummary' :key='`protocol-${item.ticker}`'>{{ item.label }}</span>
+                <span v-for='item in protocolFeeSummary' :key='`protocol-${item.key}`'>{{ item.label }}</span>
               </span>
             </div>
           </div>
@@ -362,28 +362,28 @@ const isProtocolFeeReceiver = (position: Position) =>
 const hasProtocolFeeReceiverPosition = computed(() => (
   rewardPositions.value.some((position) => isProtocolFeeReceiver(position))
 ))
-const summarizeTokenAmounts = (
+const nativeValuation = (
   positions: Position[],
   selectAmounts: (position: Position) => Array<{ token: string, amount: string | null | undefined }>,
 ) => {
-  const totals = new Map<string, number>()
+  let memeValueNative = 0
+  let nativeAmount = 0
   positions.forEach((position) => {
     selectAmounts(position).forEach(({ token, amount }) => {
-      const ticker = tokenTicker(token)
       const numeric = Number.parseFloat(amount || '0')
       if (!Number.isFinite(numeric)) return
-      totals.set(ticker, (totals.get(ticker) || 0) + numeric)
+      if (token === constants.LINERA_NATIVE_ID) {
+        nativeAmount += numeric
+        return
+      }
+      memeValueNative += numeric * (nativePriceMap.value.get(token) || 0)
     })
   })
 
-  if (!totals.size) {
-    return [{ ticker: 'none', label: '0' }]
-  }
-
-  return Array.from(totals.entries()).map(([ticker, amount]) => ({
-    ticker,
-    label: `${formatLiquidity(amount)} ${ticker}`,
-  }))
+  return [
+    { key: 'meme-value', label: `Meme value ≈ ${formatLiquidity(memeValueNative)} ${constants.LINERA_TICKER}` },
+    { key: 'native', label: `Native ${formatLiquidity(nativeAmount)} ${constants.LINERA_TICKER}` },
+  ]
 }
 const isVirtualPosition = (position: Position) => position.status === 'virtual' || Boolean(position.is_virtual_position)
 const virtualInitialTokenAmounts = (position: Position): Array<{ token: string, amount: string | null | undefined }> => [
@@ -478,7 +478,7 @@ const yieldSummaryPositions = computed(() => (
     ? rewardPositions.value.filter((position) => isProtocolFeeReceiver(position))
     : rewardPositions.value.filter((position) => !position.is_virtual_position)
 ))
-const tradingFeeSummary = computed(() => summarizeTokenAmounts(
+const tradingFeeSummary = computed(() => nativeValuation(
   yieldSummaryPositions.value,
   (position) => {
     const metrics = summaryPositionMetrics(position)
@@ -488,7 +488,7 @@ const tradingFeeSummary = computed(() => summarizeTokenAmounts(
     ]
   },
 ))
-const protocolFeeSummary = computed(() => summarizeTokenAmounts(
+const protocolFeeSummary = computed(() => nativeValuation(
   rewardPositions.value.filter((position) => isProtocolFeeReceiver(position)),
   (position) => {
     const metrics = summaryPositionMetrics(position)
