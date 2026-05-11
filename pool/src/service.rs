@@ -5,10 +5,7 @@
 
 use std::sync::Arc;
 
-use abi::swap::{
-    pool::{Pool, PoolAbi, PoolOperation, PoolParameters},
-    transaction::Transaction,
-};
+use abi::swap::pool::{Pool, PoolAbi, PoolOperation, PoolParameters};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, Timestamp, WithServiceAbi},
@@ -67,9 +64,6 @@ impl PoolService {
             .virtual_initial_liquidity
     }
 
-    fn state(&self) -> Arc<PoolState> {
-        self.state.clone()
-    }
 }
 
 fn effective_total_supply(pool: &Pool, total_supply: Amount) -> Amount {
@@ -136,21 +130,6 @@ impl QueryRoot {
 
     async fn virtual_initial_liquidity(&self) -> bool {
         self.service.virtual_initial_liquidity()
-    }
-
-    async fn latest_transactions(&self, start_id: Option<u32>) -> Vec<Transaction> {
-        let mut transactions: Vec<_> = self
-            .service
-            .state()
-            .latest_transactions
-            .elements()
-            .await
-            .expect("Failed get transactions")
-            .into_iter()
-            .filter(|transaction| transaction.transaction_id >= start_id)
-            .collect();
-        transactions.sort_by(|a, b| a.created_at.cmp(&b.created_at));
-        transactions
     }
 
     async fn calculate_amount_liquidity(

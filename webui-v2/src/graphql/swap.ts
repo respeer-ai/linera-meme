@@ -8,7 +8,6 @@ export const POOLS = gql`
       token0
       token1
       poolApplication
-      latestTransaction
       token0Price
       token1Price
       reserve0

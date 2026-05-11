@@ -83,6 +83,9 @@ flowchart LR
 - Do not keep `latestTransactions` as a fallback, auxiliary source, live merge input, audit bridge, parity input, or diagnostics shortcut
 - In the current stage, use block-observed `PoolMessage::NewTransaction` as the Layer 3 execution fact carrier
 - Do not read pool `latestTransactions` state, snapshot windows, or any equivalent transaction-history list as product truth
+- Pool contracts should not store a `latestTransactions` history queue for product reads
+- Swap root pool catalog updates should apply valid `UpdatePool` messages directly; ordering follows chain message execution
+- Security caveat: `SwapOperation::UpdatePool` must not remain externally spoofable; protect it with source/auth validation or remove it from the public callable surface
 - Keep the carrier boundary explicit so future upstream event-like capabilities can replace `NewTransaction` without changing Layer 3 product semantics
 - All product and observability facts must come from block ingestion and block-parsed downstream projections
 - Do not let public query handlers read pool-application GraphQL for product history, recent windows, or diagnostics once projection-backed read models exist

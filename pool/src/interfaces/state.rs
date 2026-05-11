@@ -110,8 +110,4 @@ pub trait StateInterface {
         timestamp: Timestamp,
     ) -> Transaction;
 
-    async fn create_transaction(
-        &mut self,
-        transaction: Transaction,
-    ) -> Result<Option<Transaction>, Self::Error>;
 }

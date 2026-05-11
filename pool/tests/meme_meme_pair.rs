@@ -21,7 +21,6 @@ use abi::{
             InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
             SwapOperation, SwapParameters,
         },
-        transaction::{Transaction, TransactionType},
     },
 };
 use async_graphql::{Request, Variables};
@@ -347,17 +346,6 @@ impl TestSuite {
         self.meme_chain_0.handle_received_messages().await;
         self.meme_chain_1.handle_received_messages().await;
         pool_chain.handle_received_messages().await;
-    }
-
-    async fn latest_transactions(
-        &self,
-        pool_chain: &ActiveChain,
-        pool_application_id: ApplicationId<PoolAbi>,
-    ) -> Vec<Transaction> {
-        let QueryOutcome { response, .. } = pool_chain
-            .graphql_query(pool_application_id, "query { latestTransactions }")
-            .await;
-        serde_json::from_value(response["latestTransactions"].clone()).unwrap()
     }
 
     async fn create_pool(
@@ -935,25 +923,27 @@ async fn meme_meme_pair_test() {
         pool.reserve_0
     );
 
-    let query = Request::new(
-        r#"
-        query Liquidity($owner: Account!) {
-            liquidity(owner: $owner) {
-                liquidity
-                amount0
-                amount1
+    let liquidity_query = || {
+        Request::new(
+            r#"
+            query Liquidity($owner: Account!) {
+                liquidity(owner: $owner) {
+                    liquidity
+                    amount0
+                    amount1
+                }
             }
-        }
-        "#,
-    )
-    .variables(Variables::from_json(json!({
-        "owner": {
-            "chain_id": user_account.chain_id.to_string(),
-            "owner": user_account.owner.to_string(),
-        }
-    })));
+            "#,
+        )
+        .variables(Variables::from_json(json!({
+            "owner": {
+                "chain_id": user_account.chain_id.to_string(),
+                "owner": user_account.owner.to_string(),
+            }
+        })))
+    };
     let QueryOutcome { response, .. } = pool_chain_user
-        .graphql_query(suite.pool_application_id_user.unwrap(), query)
+        .graphql_query(suite.pool_application_id_user.unwrap(), liquidity_query())
         .await;
     let liquidity: LiquidityAmount = serde_json::from_value(response["liquidity"].clone()).unwrap();
 
@@ -966,16 +956,10 @@ async fn meme_meme_pair_test() {
         )
         .await;
 
-    let latest_transactions = suite
-        .latest_transactions(pool_chain_user, suite.pool_application_id_user.unwrap())
+    let QueryOutcome { response, .. } = pool_chain_user
+        .graphql_query(suite.pool_application_id_user.unwrap(), liquidity_query())
         .await;
-    let remove_liquidity = latest_transactions
-        .last()
-        .expect("remove liquidity should create a transaction record");
-    assert_eq!(
-        remove_liquidity.transaction_type,
-        TransactionType::RemoveLiquidity
-    );
-    assert_eq!(remove_liquidity.from, suite.chain_owner_account(user_chain));
-    assert_eq!(remove_liquidity.liquidity, Some(liquidity.liquidity));
+    let updated_liquidity: LiquidityAmount =
+        serde_json::from_value(response["liquidity"].clone()).unwrap();
+    assert_eq!(updated_liquidity.liquidity, Amount::ZERO);
 }

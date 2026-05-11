@@ -279,7 +279,8 @@ groups:
           - ticker watermarks → `TransactionWatermarksQueryRepository` (L3)
           - maker stall diagnostics → query repos (L3)
           - 0 latestTransactions references in kline src + tests
-          合约侧 `latestTransactions` 移除推迟到下次合约部署。
+          合约侧 `latestTransactions` 队列正在移除。
+          风险记录：`SwapOperation::UpdatePool` 当前是 operation surface；若可被外部直接调用，需要 source/auth 校验或收窄 callable surface，不能靠 cursor 防伪。
       - id: POS-044
         status: Done
         priority: P0
@@ -290,7 +291,7 @@ groups:
           - 所有 product 读路径已切到 projection repos
           - Python kline src/tests 0 引用
           - active runtime 审计确认所有路径走 projection
-          合约侧移除推迟到下次部署。
+          合约侧 `latestTransactions` 队列正在移除。
       - id: POS-036
         status: Done
         priority: P0

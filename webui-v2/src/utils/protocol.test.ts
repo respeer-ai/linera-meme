@@ -31,7 +31,6 @@ const nativePairPool = (
     token0,
     token1,
     poolApplication: 'pool-app',
-    latestTransaction: null,
     token0Price,
     token1Price,
     reserve0,

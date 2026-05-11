@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::FundRequest;
-use abi::swap::{pool::Pool, transaction::Transaction};
+use abi::swap::pool::Pool;
 use linera_sdk::{
     linera_base_types::{Account, Amount, ApplicationId},
-    views::{linera_views, MapView, QueueView, RegisterView, RootView, ViewStorageContext},
+    views::{linera_views, MapView, RegisterView, RootView, ViewStorageContext},
 };
 
 /// The application state.
@@ -21,7 +21,6 @@ pub struct PoolState {
     pub total_supply: RegisterView<Amount>,
     pub shares: MapView<Account, Amount>,
 
-    pub latest_transactions: QueueView<Transaction>,
     pub transaction_id: RegisterView<u32>,
 }
 

@@ -115,7 +115,7 @@ async fn operation_create_pool_rejects_same_token_pair() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_update_pool_duplicate_transaction_does_not_override_metadata() {
+async fn message_update_pool_applies_each_valid_update() {
     let mut swap = create_and_instantiate_swap();
     let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
     let owner = authenticated_account(&swap);
@@ -150,15 +150,14 @@ async fn message_update_pool_duplicate_transaction_does_not_override_metadata() 
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(pool.latest_transaction, Some(transaction));
-    assert_eq!(pool.token_0_price, Some(Amount::from_str("1.5").unwrap()));
-    assert_eq!(pool.token_1_price, Some(Amount::from_str("0.66").unwrap()));
-    assert_eq!(pool.reserve_0, Some(Amount::from_tokens(100)));
-    assert_eq!(pool.reserve_1, Some(Amount::from_tokens(200)));
+    assert_eq!(pool.token_0_price, Some(Amount::from_str("9.9").unwrap()));
+    assert_eq!(pool.token_1_price, Some(Amount::from_str("0.11").unwrap()));
+    assert_eq!(pool.reserve_0, Some(Amount::from_tokens(900)));
+    assert_eq!(pool.reserve_1, Some(Amount::from_tokens(901)));
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_update_pool_older_transaction_does_not_roll_back_state() {
+async fn message_update_pool_applies_received_order() {
     let mut swap = create_and_instantiate_swap();
     let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
     let owner = authenticated_account(&swap);
@@ -195,11 +194,10 @@ async fn message_update_pool_older_transaction_does_not_roll_back_state() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(pool.latest_transaction, Some(newer));
-    assert_eq!(pool.token_0_price, Some(Amount::from_str("2.0").unwrap()));
-    assert_eq!(pool.token_1_price, Some(Amount::from_str("0.5").unwrap()));
-    assert_eq!(pool.reserve_0, Some(Amount::from_tokens(120)));
-    assert_eq!(pool.reserve_1, Some(Amount::from_tokens(240)));
+    assert_eq!(pool.token_0_price, Some(Amount::from_str("1.0").unwrap()));
+    assert_eq!(pool.token_1_price, Some(Amount::from_str("1.0").unwrap()));
+    assert_eq!(pool.reserve_0, Some(Amount::from_tokens(80)));
+    assert_eq!(pool.reserve_1, Some(Amount::from_tokens(160)));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -240,7 +238,6 @@ async fn message_update_pool_newer_transaction_advances_state() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(pool.latest_transaction, Some(newer));
     assert_eq!(pool.token_0_price, Some(Amount::from_str("2.0").unwrap()));
     assert_eq!(pool.token_1_price, Some(Amount::from_str("0.5").unwrap()));
     assert_eq!(pool.reserve_0, Some(Amount::from_tokens(120)));

@@ -1,10 +1,6 @@
 import { type BaseRequest } from '../request'
 import { type Account } from '../account'
 
-export interface LatestTransactionsRequest extends BaseRequest {
-  startId?: number
-}
-
 export interface LiquidityAmount {
   liquidity: string
   amount0: string

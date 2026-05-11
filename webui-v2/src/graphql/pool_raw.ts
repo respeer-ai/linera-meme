@@ -20,12 +20,6 @@ export const SWAP = gql`
   }
 `
 
-export const LATEST_TRANSACTIONS = gql`
-  query latestTransactions($startId: Int) {
-    latestTransactions(startId: $startId)
-  }
-`
-
 export const CALCULATE_AMOUNT_LIQUIDITY = gql`
   query calculateAmountLiquidity($amount0Desired: Amount, $amount1Desired: Amount) {
     calculateAmountLiquidity(amount0Desired: $amount0Desired, amount1Desired: $amount1Desired) {

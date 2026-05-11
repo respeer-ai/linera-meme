@@ -21,7 +21,6 @@ use abi::{
             InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
             SwapParameters,
         },
-        transaction::{Transaction, TransactionType},
     },
 };
 use async_graphql::{Request, Variables};
@@ -295,18 +294,6 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
-    async fn latest_transactions(&self) -> Vec<Transaction> {
-        let QueryOutcome { response, .. } = self
-            .pool_chain
-            .clone()
-            .unwrap()
-            .graphql_query(
-                self.pool_application_id.unwrap(),
-                "query { latestTransactions }",
-            )
-            .await;
-        serde_json::from_value(response["latestTransactions"].clone()).unwrap()
-    }
 }
 
 /// Test setting a pool and testing its coherency across microchains.
@@ -570,17 +557,6 @@ async fn meme_native_virtual_initial_liquidity_test() {
         Amount::from_attos(5563816980769425308286041),
     );
 
-    let latest_transactions = suite.latest_transactions().await;
-    let add_liquidity = latest_transactions
-        .last()
-        .expect("add liquidity should create a transaction record");
-    assert_eq!(
-        add_liquidity.transaction_type,
-        TransactionType::AddLiquidity
-    );
-    assert_eq!(add_liquidity.from, suite.chain_owner_account(user_chain));
-    assert!(add_liquidity.liquidity.is_some());
-
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), "query { pool }")
         .await;
@@ -629,16 +605,6 @@ async fn meme_native_virtual_initial_liquidity_test() {
 
     let removed_liquidity = liquidity.liquidity;
     suite.remove_liquidity(&user_chain, removed_liquidity).await;
-    let latest_transactions = suite.latest_transactions().await;
-    let remove_liquidity = latest_transactions
-        .last()
-        .expect("remove liquidity should create a transaction record");
-    assert_eq!(
-        remove_liquidity.transaction_type,
-        TransactionType::RemoveLiquidity
-    );
-    assert_eq!(remove_liquidity.from, suite.chain_owner_account(user_chain));
-    assert_eq!(remove_liquidity.liquidity, Some(removed_liquidity));
 
     let QueryOutcome { response, .. } = pool_chain
         .graphql_query(suite.pool_application_id.unwrap(), liquidity_query())

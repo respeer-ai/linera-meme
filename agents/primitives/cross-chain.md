@@ -37,8 +37,12 @@ Canonical execution semantics for operation, message, replica, and application-c
 - In `pool`, `PoolMessage::FundSuccess` persists `FundStatus::Success` and may queue follow-up `RequestFund` or `AddLiquidity`
 - Queued follow-up messages are not yet executed state changes
 - Liquidity is minted only when `PoolMessage::AddLiquidity` executes
-- Transaction history is recorded only when `PoolMessage::NewTransaction` executes `create_transaction`
-- Building a transaction struct or queueing the message is not equivalent to persistence
+- `PoolMessage::NewTransaction` is the settled pool fact carrier and catalog-update trigger
+- Building a transaction struct or queueing the message is not equivalent to a settled fact
+- Pool contracts must not keep a product-facing transaction-history queue; observability derives product history from parsed blocks
+- `SwapOperation::UpdatePool` is currently a public operation surface for catalog updates
+- Risk: if external callers can invoke `UpdatePool` directly, they may spoof pool catalog reserve/price updates
+- Do not rely on transaction cursors to secure `UpdatePool`; the correct mitigation is source/authentication validation or narrowing the callable surface
 - Linera `tracked` messages only guarantee a receipt when that specific destination-chain message is rejected
 - A rejected tracked message is returned as a protocol-generated bouncing message to the sender chain
 - Contracts can detect the bounced receipt with `message_is_bouncing()`
