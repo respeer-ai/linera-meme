@@ -30,6 +30,9 @@ Canonical architecture for the chain observability system that removes `latestTr
   - producer data comes only from parsed chain blocks
   - normalized business facts come only from Layer 2 events
   - consumer-facing business data comes only from Layer 3 projections
+- Realtime product updates are data-platform updates
+  - websocket push must be driven by Layer 3 projection commits or explicit projection-derived finality events
+  - timer loops may produce time-boundary events such as candle finality, but must not be the primary new-trade discovery path
 
 ## Semantics
 
@@ -65,6 +68,8 @@ flowchart LR
     G --> H[Transactions API]
     G --> I[Kline API]
     G --> J[Positions API]
+    G --> L[Market-data event queue]
+    L --> M[Realtime websocket publisher]
     C --> K[Diagnostics API]
     F --> K
     G --> K
@@ -98,6 +103,15 @@ flowchart LR
   - it may read persisted pool transaction history and candles
   - it must not perform chain-history repair, recent-window backfill, or pool-application transaction queries
   - it must not use live pool queries as the source of product-facing pool or market truth
+- Realtime push architecture:
+  - use multi-producer, single-consumer event flow
+  - producers include Layer 3 market derivation commits, future replay/catch-up rebuild notifications, and candle-finality schedulers
+  - the consumer drains/coalesces events and performs websocket fan-out
+  - websocket notifications may trigger frontend invalidation and HTTP read-model refresh; they must not become a second business-truth channel
+  - `transactions` is a global market feed; `kline` is subscription-filtered by pool/pair/interval; `positions` is an owner/pool invalidation topic
+  - do not attach new product realtime topics to the legacy `Ticker.run` 10s polling loop
+  - once event-driven push covers transactions, kline updates, and candle finality, delete the legacy `Ticker` class, run loop, and lifecycle wiring
+  - do not keep a compatibility or diagnostic `Ticker` path; add diagnostics/observability metrics or debug endpoints for diagnosis instead
 - Do not preserve schema-compatibility query fallbacks in product read paths once the target pool-application schema is part of the supported rollout contract
 - Do not parse application payload bytes in Layer 1
 - Do not use `round` as a cursor, dedup key, or event primary key

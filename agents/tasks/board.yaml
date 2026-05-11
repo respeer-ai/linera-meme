@@ -624,6 +624,108 @@ groups:
           - 每项指标给出当前实现语义
           - 明确是否与目标语义一致
           - 若不一致，记录应修复在前端、query read model 还是 Layer 3 物化层
+      - id: POS-053
+        status: Doing
+        priority: P0
+        depends_on: [POS-035, POS-037, POS-038, OBS-E2E-001]
+        title: 重构实时推送为 projection event queue
+        notes: |
+          目标：把实时推送从 `Ticker.run` 的 10s 轮询迁到数据平台事件流。
+
+          当前设计结论：
+          - websocket 推送属于数据平台消费层，必须由 Layer 3 projection commit 或 projection-derived
+            finality event 驱动
+          - 采用多生产者、单消费者、面向多客户端 fan-out：
+            - producer: market derivation commit、replay/catch-up rebuild notification、candle finality scheduler
+            - queue: in-memory async market-data event queue
+            - consumer: event publisher drain/coalesce 后通过 WebSocketManager 推送
+          - `transactions` 是全市场 feed，默认推给所有连接
+          - `kline` 按 pool / pair / interval subscription 过滤
+          - `positions` 新增 topic 与 notification，value 为批量 invalidation，不推单条 position 真值
+          - 前端收到 `positions` 后重新拉 `/positions`、`/position-metrics`、必要 stats；
+            HTTP/projection read model 仍是业务真值
+          - candle finality 由后端统一提供，但 finality scheduler 只产生事件，不直接推 websocket
+          - 禁止继续给 `Ticker` 增加新产品 realtime topic
+
+          当前拆分：
+          - POS-054: 建立 market-data event 类型、queue、publisher 基础设施
+          - POS-055: 把 Layer 3 market derivation commit 接入 event producer
+          - POS-056: 实现 `positions` websocket topic 与前端自动刷新
+          - POS-057: 抽出 candle finality scheduler，保留后端统一 `is_final`
+          - POS-058: 删除 legacy `Ticker` 主运行路径与实现
+      - id: POS-054
+        status: Todo
+        priority: P0
+        depends_on: [POS-053]
+        title: 建立 market-data event queue 与 publisher
+        notes: |
+          新增实时推送基础设施：
+          - 定义 MarketDataEvent 类型，覆盖 settled_trade、settled_liquidity_change、candle_finalized、
+            projection_rebuilt/range_invalidated
+          - 建立 async queue，支持多 producer 入队、单 consumer drain
+          - publisher 负责 coalesce、dedupe、按 topic 组装 websocket notification
+          - WebSocketManager 只做 subscription registry 与 fan-out，不计算业务数据
+          - 添加单测覆盖 drain/coalesce、空事件、重复 pool/owner 合并、断开连接清理
+      - id: POS-055
+        status: Todo
+        priority: P0
+        depends_on: [POS-054, POS-035]
+        title: 将 Layer 3 commit 接入实时事件生产
+        notes: |
+          在 market derivation 成功写入 projection 后发布事件，保证前端收到 websocket notification
+          后再拉 HTTP read model 能读到新数据。
+
+          要求：
+          - settled_trade 产生 transactions/kline/market-stats invalidation
+          - settled_liquidity_change 产生 positions/pool-state invalidation
+          - replay/catch-up 可以发布 range_invalidated 或 projection_rebuilt
+          - 不从 raw block 或 Layer 2 半成品直接推产品事件
+      - id: POS-056
+        status: Todo
+        priority: P0
+        depends_on: [POS-054, POS-055, POS-052]
+        title: 实现 positions websocket topic 与前端自动刷新
+        notes: |
+          后端：
+          - 支持 `{"action":"subscribe","topic":"positions","owner":"..."}`，owner 可选但推荐传
+          - 推送 `{"notification":"positions","value":{"events":[...]}}`
+          - value 是批量 invalidation，包含 owner/pool_application/pool_id/event_types/updated_at 等足够过滤字段
+
+          前端：
+          - positions 页订阅 `positions`
+          - 收到命中当前 owner 或相关 pool 的 invalidation 后 throttle 刷新 `/positions`、
+            `/position-metrics`、poolstats/protocol stats
+          - 不用 blockHash 驱动 positions
+          - 不把 websocket payload 当 position 真值
+      - id: POS-057
+        status: Todo
+        priority: P0
+        depends_on: [POS-054]
+        title: 抽出 candle finality scheduler
+        notes: |
+          后端继续统一提供 `is_final`，避免不同前端本地时间漂移导致 candle 状态不一致。
+
+          实现要求：
+          - scheduler 只在 bucket 边界产生 candle_finalized 事件
+          - finality event 进入同一个 market-data queue，由 publisher 推送
+          - HTTP `/points` 仍以服务端时间/projection 语义返回统一 `is_final`
+          - 不依赖 `Ticker.run` 10s loop 做 finality rollover
+      - id: POS-058
+        status: Todo
+        priority: P1
+        depends_on: [POS-054, POS-055, POS-057]
+        title: 删除 legacy Ticker
+        notes: |
+          当前 `Ticker` 同时承担 10s 轮询、pool catalog 读取、projection transaction history 读取、
+          kline payload 构造、transactions feed 推送和 candle rollover。
+
+          目标：
+          - 新交易发现、transactions 推送、kline 增量推送迁出 `Ticker`
+          - candle finality 迁到 `CandleFinalityScheduler`
+          - 删除 `Ticker.run` 后台 loop、`Ticker` 类和启动生命周期 wiring
+          - 不保留兼容或诊断用 ticker 路径
+          - 如果需要诊断，新增 diagnostics/observability 指标或 debug endpoint，不复用 ticker
+          - 不再在 `Ticker` 中新增 positions 或其他产品实时 topic
       - id: POS-024
         status: Done
         priority: P0

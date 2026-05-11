@@ -81,6 +81,22 @@ active_focus:
       - frontend finance metrics
     canonical_refs:
       - agents/tasks/board.yaml
+  - id: POS-053
+    why: 实时推送需要从 ticker polling 迁到 projection event queue
+    summary: >
+      Realtime product updates should be produced by Layer 3 projection commits
+      and projection-derived finality events, then drained through a single
+      market-data event publisher. Delete the legacy Ticker once covered; do not
+      keep compatibility or diagnostic ticker paths.
+    read_if_working_on:
+      - websocket push
+      - realtime market-data updates
+      - positions auto-refresh
+      - kline finality push
+      - ticker deletion
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/context/observability-architecture.md
 on_demand_done:
   - id: POS-041
     why: explains why parity or rollback guardrails were intentionally removed
