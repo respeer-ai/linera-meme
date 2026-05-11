@@ -159,6 +159,10 @@ class Db:
             'port': self.port,
             'autocommit': True,
             'raise_on_warnings': False, # TODO: Test with alchemy
+            'connection_timeout': 5,
+            'read_timeout': 30,
+            'write_timeout': 30,
+            'use_pure': True,
         }
 
         # TODO: use alchemy in feature
@@ -358,6 +362,10 @@ class Db:
             self.connection.ping(reconnect=True, attempts=1, delay=0)
         except Exception:
             self._reconnect_read_connection()
+
+    def fresh_cursor(self, *, dictionary: bool = False):
+        self.ensure_fresh_read_connection()
+        return self.connection.cursor(dictionary=dictionary)
 
     def log_kline_event(self, event: str, **fields):
         print(build_kline_log_line(event, **fields))

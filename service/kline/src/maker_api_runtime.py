@@ -381,7 +381,7 @@ class MakerApiRuntime:
         return MakerEventsQueryRepository(self._db)
 
     def pool_catalog_projection_repository_for_read(self):
-        return PoolCatalogProjectionRepository(getattr(self._db, 'connection', self._db))
+        return PoolCatalogProjectionRepository(self._db)
 
     def projection_pool_catalog_repository(self):
         return ProjectionPoolCatalogRepository(

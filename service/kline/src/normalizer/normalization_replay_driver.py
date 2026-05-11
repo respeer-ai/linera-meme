@@ -129,6 +129,7 @@ class NormalizationReplayDriver:
             'table_count': len(self.raw_tables),
             'processed_count': processed_count,
             'normalized_event_count': normalized_event_count,
+            'caught_up': all(result.get('caught_up', False) for result in results),
             'results': results,
         }
 

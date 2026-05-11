@@ -13,59 +13,59 @@ class MakerEventsQueryRepository:
         start_at: int,
         end_at: int,
     ) -> list[dict]:
-        self.db.ensure_fresh_read_connection()
+        cursor = self.db.fresh_cursor(dictionary=True)
         if token_0 is None or token_1 is None:
-            self.db.cursor_dict.execute(
-                f'''
-                    SELECT
-                        event_id,
-                        source,
-                        event_type,
-                        pool_id,
-                        token_0,
-                        token_1,
-                        amount_0,
-                        amount_1,
-                        quote_notional,
-                        pool_price,
-                        details,
-                        created_at
-                    FROM {self.db.maker_events_table}
-                    WHERE created_at >= %s
-                    AND created_at <= %s
-                    ORDER BY created_at ASC, event_id ASC
-                ''',
-                (int(start_at), int(end_at)),
-            )
+            query = f'''
+                SELECT
+                    event_id,
+                    source,
+                    event_type,
+                    pool_id,
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    quote_notional,
+                    pool_price,
+                    details,
+                    created_at
+                FROM {self.db.maker_events_table}
+                WHERE created_at >= %s
+                AND created_at <= %s
+                ORDER BY created_at ASC, event_id ASC
+            '''
+            params = (int(start_at), int(end_at))
         else:
-            self.db.cursor_dict.execute(
-                f'''
-                    SELECT
-                        event_id,
-                        source,
-                        event_type,
-                        pool_id,
-                        token_0,
-                        token_1,
-                        amount_0,
-                        amount_1,
-                        quote_notional,
-                        pool_price,
-                        details,
-                        created_at
-                    FROM {self.db.maker_events_table}
-                    WHERE token_0 = %s
-                    AND token_1 = %s
-                    AND created_at >= %s
-                    AND created_at <= %s
-                    ORDER BY created_at ASC, event_id ASC
-                ''',
-                (token_0, token_1, int(start_at), int(end_at)),
-            )
-        rows = []
-        for row in self.db.cursor_dict.fetchall():
-            rows.append(self._serialize_event_row(row))
-        return rows
+            query = f'''
+                SELECT
+                    event_id,
+                    source,
+                    event_type,
+                    pool_id,
+                    token_0,
+                    token_1,
+                    amount_0,
+                    amount_1,
+                    quote_notional,
+                    pool_price,
+                    details,
+                    created_at
+                FROM {self.db.maker_events_table}
+                WHERE token_0 = %s
+                AND token_1 = %s
+                AND created_at >= %s
+                AND created_at <= %s
+                ORDER BY created_at ASC, event_id ASC
+            '''
+            params = (token_0, token_1, int(start_at), int(end_at))
+        try:
+            cursor.execute(query, params)
+            rows = []
+            for row in cursor.fetchall():
+                rows.append(self._serialize_event_row(row))
+            return rows
+        finally:
+            cursor.close()
 
     def get_maker_events_information(
         self,
@@ -73,42 +73,43 @@ class MakerEventsQueryRepository:
         token_0: str | None,
         token_1: str | None,
     ) -> dict:
-        self.db.ensure_fresh_read_connection()
+        cursor = self.db.fresh_cursor(dictionary=True)
         if token_0 is None or token_1 is None:
-            self.db.cursor_dict.execute(
-                f'''
-                    SELECT
-                        COUNT(*) AS count,
-                        MAX(created_at) AS timestamp_begin,
-                        MIN(created_at) AS timestamp_end
-                    FROM {self.db.maker_events_table}
-                '''
-            )
+            query = f'''
+                SELECT
+                    COUNT(*) AS count,
+                    MAX(created_at) AS timestamp_begin,
+                    MIN(created_at) AS timestamp_end
+                FROM {self.db.maker_events_table}
+            '''
+            params = ()
         else:
-            self.db.cursor_dict.execute(
-                f'''
-                    SELECT
-                        COUNT(*) AS count,
-                        MAX(created_at) AS timestamp_begin,
-                        MIN(created_at) AS timestamp_end
-                    FROM {self.db.maker_events_table}
-                    WHERE token_0 = %s
-                    AND token_1 = %s
-                ''',
-                (token_0, token_1),
-            )
-        row = self.db.cursor_dict.fetchone()
-        if row is None:
+            query = f'''
+                SELECT
+                    COUNT(*) AS count,
+                    MAX(created_at) AS timestamp_begin,
+                    MIN(created_at) AS timestamp_end
+                FROM {self.db.maker_events_table}
+                WHERE token_0 = %s
+                AND token_1 = %s
+            '''
+            params = (token_0, token_1)
+        try:
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            if row is None:
+                return {
+                    'count': 0,
+                    'timestamp_begin': None,
+                    'timestamp_end': None,
+                }
             return {
-                'count': 0,
-                'timestamp_begin': None,
-                'timestamp_end': None,
+                'count': int(row['count'] or 0),
+                'timestamp_begin': None if row['timestamp_begin'] is None else int(row['timestamp_begin']),
+                'timestamp_end': None if row['timestamp_end'] is None else int(row['timestamp_end']),
             }
-        return {
-            'count': int(row['count'] or 0),
-            'timestamp_begin': None if row['timestamp_begin'] is None else int(row['timestamp_begin']),
-            'timestamp_end': None if row['timestamp_end'] is None else int(row['timestamp_end']),
-        }
+        finally:
+            cursor.close()
 
     def _serialize_event_row(self, row: dict) -> dict:
         details = row.get('details')

@@ -9,4 +9,8 @@ class MysqlConnectionFactory:
             user=config.database_username,
             password=config.database_password,
             autocommit=True,
+            connection_timeout=getattr(config, 'database_connection_timeout_seconds', 5),
+            read_timeout=getattr(config, 'database_read_timeout_seconds', 30),
+            write_timeout=getattr(config, 'database_write_timeout_seconds', 30),
+            use_pure=True,
         )

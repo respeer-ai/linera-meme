@@ -109,6 +109,12 @@ class AppLifecycle:
         if connection is not None and hasattr(connection, 'close'):
             connection.close()
 
+    def shutdown_catch_up_runner(self, container: dict[str, object]) -> None:
+        catch_up_runner = container.get('catch_up_runner')
+        if catch_up_runner is not None and hasattr(catch_up_runner, 'shutdown'):
+            catch_up_runner.shutdown()
+
     async def shutdown(self, container: dict[str, object]) -> None:
         await self.stop_listener(container)
+        self.shutdown_catch_up_runner(container)
         self.close_connection(container)

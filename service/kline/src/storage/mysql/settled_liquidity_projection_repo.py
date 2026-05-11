@@ -13,9 +13,7 @@ class SettledLiquidityProjectionRepository:
         self.metadata_resolver = (
             metadata_resolver
             or PoolMetadataProjectionResolver(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
-                    getattr(db, 'connection', db)
-                ),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
             )
         )
@@ -112,8 +110,7 @@ class SettledLiquidityProjectionRepository:
             return None
         if not hasattr(self.db, 'cursor_dict'):
             return None
-        self.db.ensure_fresh_read_connection()
-        cursor = self.db.cursor_dict
+        cursor = self.db.fresh_cursor(dictionary=True)
         where_clauses = []
         params: list[object] = []
         if owner is not None:
@@ -160,6 +157,8 @@ class SettledLiquidityProjectionRepository:
             return self._attach_pool_metadata(rows)
         except Exception:
             return None
+        finally:
+            cursor.close()
 
     def _aggregate_positions(
         self,

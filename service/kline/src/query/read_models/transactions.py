@@ -12,12 +12,14 @@ class TransactionsReadModel:
         token_1: str | None,
         start_at: int,
         end_at: int,
+        limit: int | None = None,
     ) -> list[dict]:
         payload = self.repository.get_transactions(
             token_0=token_0,
             token_1=token_1,
             start_at=start_at,
             end_at=end_at,
+            limit=limit,
         )
         if payload is None:
             raise ProjectionQueryUnavailableError('transactions')

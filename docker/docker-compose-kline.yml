@@ -11,6 +11,7 @@ services:
       api.testnet-conway.lineraswap.fun: "${LAN_IP}"
       api.testnet-conway.linerameme.fun: "${LAN_IP}"
     environment:
+      PYTHONFAULTHANDLER: "1"
       NO_PROXY: ${NO_PROXY}
       no_proxy: ${no_proxy}
       DATABASE_HOST: ${DATABASE_HOST}

@@ -5,6 +5,8 @@ from pathlib import Path
 
 
 class RustDecoderRunner:
+    DEFAULT_TIMEOUT_SECONDS = 10
+
     def decode(
         self,
         *,
@@ -26,6 +28,7 @@ class RustDecoderRunner:
             text=True,
             cwd=self._repo_root(),
             check=False,
+            timeout=self._timeout_seconds(),
         )
         if process.returncode != 0:
             error = process.stderr.strip() or process.stdout.strip() or 'rust decoder failed'
@@ -58,6 +61,7 @@ class RustDecoderRunner:
             text=True,
             cwd=self._repo_root(),
             check=False,
+            timeout=self._timeout_seconds(),
         )
         if process.returncode != 0:
             error = process.stderr.strip() or process.stdout.strip() or 'rust decoder batch failed'
@@ -78,6 +82,9 @@ class RustDecoderRunner:
             'canonical_decoder',
             '--',
         ]
+
+    def _timeout_seconds(self) -> float:
+        return float(os.getenv('KLINE_RUST_DECODER_TIMEOUT_SECONDS', self.DEFAULT_TIMEOUT_SECONDS))
 
     def _repo_root(self) -> Path:
         current = Path(__file__).resolve()

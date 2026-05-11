@@ -10,9 +10,7 @@ class TransactionWatermarksQueryRepository:
         self.metadata_resolver = (
             metadata_resolver
             or PoolMetadataProjectionResolver(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
-                    getattr(db, 'connection', db)
-                ),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
             )
         )
@@ -22,9 +20,9 @@ class TransactionWatermarksQueryRepository:
         return f"{alias}.pool_application_id"
 
     def get_latest_transaction_watermarks(self) -> dict:
-        self.db.ensure_fresh_read_connection()
+        cursor = self.db.fresh_cursor(dictionary=True)
         try:
-            self.db.cursor_dict.execute(
+            cursor.execute(
                 f'''
                     SELECT
                         {self._pool_application_expr('st')} AS pool_application,
@@ -54,12 +52,16 @@ class TransactionWatermarksQueryRepository:
                 '''
             )
         except Exception as exc:
+            cursor.close()
             error_code = getattr(exc, 'errno', None)
             error_text = str(exc)
             if error_code == 1146 and 'settled_trades' in error_text:
                 return {}
             raise
-        rows = list(self.db.cursor_dict.fetchall() or [])
+        try:
+            rows = list(cursor.fetchall() or [])
+        finally:
+            cursor.close()
         metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()
         watermarks = {}
         for row in rows:

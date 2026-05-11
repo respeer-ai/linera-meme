@@ -1,4 +1,7 @@
-class ProcessingCursorRepository:
+from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionMixin
+
+
+class ProcessingCursorRepository(MysqlRepositoryConnectionMixin):
     def __init__(self, connection):
         self.connection = connection
         self.processing_cursors_table = 'processing_cursors'
@@ -9,7 +12,7 @@ class ProcessingCursorRepository:
         cursor_name: str,
         partition_key: str,
     ) -> dict | None:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             cursor.execute(
                 f'''
@@ -43,7 +46,7 @@ class ProcessingCursorRepository:
         cursor_scope: str | None = None,
         limit: int = 200,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             where_sql = ''
             params: list[object] = []
@@ -85,7 +88,7 @@ class ProcessingCursorRepository:
         last_sequence: str | None,
         last_block_hash: str | None,
     ) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -134,7 +137,7 @@ class ProcessingCursorRepository:
         last_sequence: str | None,
         last_block_hash: str | None,
     ) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -187,7 +190,7 @@ class ProcessingCursorRepository:
         last_block_hash: str | None,
         error_text: str,
     ) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -229,4 +232,3 @@ class ProcessingCursorRepository:
             self.connection.commit()
         finally:
             cursor.close()
-

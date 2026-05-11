@@ -48,6 +48,8 @@ export interface FetchPointsPayload extends BasePayload {
 export interface FetchTransactionsPayload extends BasePayload {
   startAt: number
   endAt: number
+  limit?: number
+  requestId?: number
 }
 export interface FetchedPointsPayload extends BasePayload {
   points: Points
@@ -59,6 +61,7 @@ export interface FetchedTransactionsPayload extends BasePayload {
   startAt: number
   endAt: number
   transactions: TransactionExt[]
+  requestId?: number
 }
 export interface LoadPointsPayload extends BasePayload {
   offset?: number
@@ -74,6 +77,7 @@ export interface LoadTransactionsPayload extends BasePayload {
   timestampBegin?: number
   timestampEnd?: number
   limit: number
+  requestId?: number
 }
 export interface LoadedPointsPayload extends BasePayload {
   offset: number
@@ -89,6 +93,7 @@ export interface LoadedTransactionsPayload extends BasePayload {
   timestampBegin?: number
   timestampEnd?: number
   transactions: TransactionExt[]
+  requestId?: number
 }
 export type NewPointsPayload = Map<Interval, Points[]>
 export type NewTransactionsPayload = Transactions[]
@@ -301,16 +306,21 @@ export class KlineRunner {
   }
 
   static handleFetchTransactions = async (payload: FetchTransactionsPayload) => {
-    const { token0, token1, startAt, endAt } = payload
+    const { token0, token1, startAt, endAt, limit, requestId } = payload
 
-    const url = constants.formalizeSchema(
-      token0 && token1
-        ? `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}`
-        : `${constants.KLINE_HTTP_URL}/transactions/start_at/${startAt}/end_at/${endAt}`,
+    const url = new URL(
+      constants.formalizeSchema(
+        token0 && token1
+          ? `${constants.KLINE_HTTP_URL}/transactions/token0/${token0}/token1/${token1}/start_at/${startAt}/end_at/${endAt}`
+          : `${constants.KLINE_HTTP_URL}/transactions/start_at/${startAt}/end_at/${endAt}`,
+      ),
     )
+    if (limit !== undefined) {
+      url.searchParams.set('limit', String(limit))
+    }
 
     try {
-      const res = await axios.get(url)
+      const res = await axios.get(url.toString())
       const transactions = res.data as TransactionExt[]
 
       KlineRunner.bulkStoreTransactions(token0, token1, transactions)
@@ -323,6 +333,7 @@ export class KlineRunner {
           startAt,
           endAt,
           transactions,
+          requestId,
         },
       })
     } catch (e) {
@@ -395,7 +406,7 @@ export class KlineRunner {
   }
 
   static handleLoadTransactions = async (payload: LoadTransactionsPayload) => {
-    const { token0, token1, timestampBegin, timestampEnd, tokenReversed, limit } = payload
+    const { token0, token1, timestampBegin, timestampEnd, tokenReversed, limit, requestId } = payload
 
     try {
       const transactions = await dbBridge.Transaction.transactions(
@@ -415,6 +426,7 @@ export class KlineRunner {
           timestampBegin,
           timestampEnd,
           transactions,
+          requestId,
         },
       })
     } catch (e) {
@@ -506,10 +518,6 @@ export class KlineRunner {
       tokenReversed,
     } = payload
 
-    let _tokenReversed = tokenReversed
-
-    if (!token0 || !token1) _tokenReversed = false
-
     newTransactions.forEach((transaction) => {
       const index = originTransactions.findIndex(
         (el) =>
@@ -521,9 +529,12 @@ export class KlineRunner {
         : originTransactions.push(transaction)
     })
 
-    const transactions = originTransactions.filter((el) =>
-      _tokenReversed ? el.token_reversed == 1 : el.token_reversed == 0,
-    )
+    const transactions =
+      token0 && token1
+        ? originTransactions.filter((el) =>
+            tokenReversed ? el.token_reversed == 1 : el.token_reversed == 0,
+          )
+        : originTransactions.filter((el) => !el.token_reversed)
     const _transactions = transactions.sort((p1, p2) =>
       reverse ? p2.created_at - p1.created_at : p1.created_at - p2.created_at,
     )

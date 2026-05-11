@@ -26,8 +26,7 @@ class PositionStateProjectionRepository:
         pool_application_id: str,
         status: str = 'active',
     ) -> dict | None:
-        self.db.ensure_fresh_read_connection()
-        cursor = self.db.cursor_dict
+        cursor = self.db.fresh_cursor(dictionary=True)
         try:
             cursor.execute(
                 f'''
@@ -45,6 +44,8 @@ class PositionStateProjectionRepository:
             )
         except Exception:
             return None
+        finally:
+            cursor.close()
 
     def _decode_row(self, row: dict | None) -> dict | None:
         if row is None:

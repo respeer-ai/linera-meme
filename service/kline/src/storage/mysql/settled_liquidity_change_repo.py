@@ -1,7 +1,10 @@
 from storage.mysql.canonical_fingerprint import CanonicalFingerprint
 
 
-class SettledLiquidityChangeRepository:
+from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionMixin
+
+
+class SettledLiquidityChangeRepository(MysqlRepositoryConnectionMixin):
     def __init__(self, connection):
         self.connection = connection
         self.fingerprint = CanonicalFingerprint()
@@ -18,7 +21,7 @@ class SettledLiquidityChangeRepository:
         return cursor.fetchone() is not None
 
     def ensure_schema(self) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -106,7 +109,7 @@ class SettledLiquidityChangeRepository:
     def upsert_settled_liquidity_changes(self, changes: list[dict[str, object]]) -> int:
         if not changes:
             return 0
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             for change in changes:
                 cursor.execute(

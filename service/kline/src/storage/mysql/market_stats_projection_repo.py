@@ -14,9 +14,7 @@ class MarketStatsProjectionRepository:
         self.metadata_resolver = (
             metadata_resolver
             or PoolMetadataProjectionResolver(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
-                    getattr(db, 'connection', db)
-                ),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
             )
         )
@@ -227,7 +225,7 @@ class MarketStatsProjectionRepository:
         start_at: int | None = None,
         end_at: int | None = None,
     ) -> list[dict]:
-        self.db.ensure_fresh_read_connection()
+        cursor = self.db.fresh_cursor(dictionary=True)
         where_clauses = []
         params = []
         if start_at is not None:
@@ -240,21 +238,24 @@ class MarketStatsProjectionRepository:
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)
 
-        self.db.cursor_dict.execute(
-            f'''
-                SELECT
-                    st.pool_application_id AS pool_application,
-                    st.trade_time_ms,
-                    st.side,
-                    st.amount_in,
-                    st.amount_out
-                FROM settled_trades st
-                {where_sql}
-                ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
-            ''',
-            tuple(params),
-        )
-        return self._attach_pool_metadata(list(self.db.cursor_dict.fetchall() or []))
+        try:
+            cursor.execute(
+                f'''
+                    SELECT
+                        st.pool_application_id AS pool_application,
+                        st.trade_time_ms,
+                        st.side,
+                        st.amount_in,
+                        st.amount_out
+                    FROM settled_trades st
+                    {where_sql}
+                    ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
+                ''',
+                tuple(params),
+            )
+            return self._attach_pool_metadata(list(cursor.fetchall() or []))
+        finally:
+            cursor.close()
 
     def _attach_pool_metadata(self, rows: list[dict]) -> list[dict]:
         metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()

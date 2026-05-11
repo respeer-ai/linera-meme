@@ -14,7 +14,7 @@ class DiagnosticEventsQueryRepository:
         pool_id: int | None = None,
         limit: int = 200,
     ) -> list[dict]:
-        self.db.ensure_fresh_read_connection()
+        cursor = self.db.fresh_cursor(dictionary=True)
         where_clauses = []
         params = []
         if source is not None:
@@ -33,38 +33,41 @@ class DiagnosticEventsQueryRepository:
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)
 
-        self.db.cursor_dict.execute(
-            f'''
-                SELECT
-                    diagnostic_id,
-                    source,
-                    event_type,
-                    severity,
-                    owner,
-                    pool_application,
-                    pool_id,
-                    status,
-                    details,
-                    created_at
-                FROM {self.db.diagnostics_table}
-                {where_sql}
-                ORDER BY diagnostic_id DESC
-                LIMIT %s
-            ''',
-            (*params, int(limit)),
-        )
-        rows = []
-        for row in self.db.cursor_dict.fetchall():
-            rows.append({
-                'diagnostic_id': int(row['diagnostic_id']),
-                'source': row['source'],
-                'event_type': row['event_type'],
-                'severity': row['severity'],
-                'owner': row['owner'],
-                'pool_application': row['pool_application'],
-                'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
-                'status': row['status'],
-                'details': None if row['details'] is None else json.loads(row['details']),
-                'created_at': int(row['created_at']),
-            })
-        return rows
+        try:
+            cursor.execute(
+                f'''
+                    SELECT
+                        diagnostic_id,
+                        source,
+                        event_type,
+                        severity,
+                        owner,
+                        pool_application,
+                        pool_id,
+                        status,
+                        details,
+                        created_at
+                    FROM {self.db.diagnostics_table}
+                    {where_sql}
+                    ORDER BY diagnostic_id DESC
+                    LIMIT %s
+                ''',
+                (*params, int(limit)),
+            )
+            rows = []
+            for row in cursor.fetchall():
+                rows.append({
+                    'diagnostic_id': int(row['diagnostic_id']),
+                    'source': row['source'],
+                    'event_type': row['event_type'],
+                    'severity': row['severity'],
+                    'owner': row['owner'],
+                    'pool_application': row['pool_application'],
+                    'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
+                    'status': row['status'],
+                    'details': None if row['details'] is None else json.loads(row['details']),
+                    'created_at': int(row['created_at']),
+                })
+            return rows
+        finally:
+            cursor.close()

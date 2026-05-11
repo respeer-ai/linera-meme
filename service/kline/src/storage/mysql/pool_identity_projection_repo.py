@@ -12,9 +12,7 @@ class PoolIdentityProjectionRepository:
         self.projection_pool_catalog_repository = (
             projection_pool_catalog_repository
             or ProjectionPoolCatalogRepository(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
-                    getattr(db, 'connection', db)
-                ),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
             )
         )

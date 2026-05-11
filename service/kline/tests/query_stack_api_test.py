@@ -82,7 +82,7 @@ class QueryStackApiTest(unittest.IsolatedAsyncioTestCase):
         kline_module._build_transactions_handler = lambda: handler
 
         try:
-            rows = await kline_module.on_get_transactions(token0='AAA', token1='BBB', start_at=100, end_at=200)
+            rows = await kline_module.on_get_transactions(token0='AAA', token1='BBB', start_at=100, end_at=200, limit=20)
             info = await kline_module.on_get_transactions_information(token0='AAA', token1='BBB')
             combined = await kline_module.on_get_combined_transactions(start_at=10, end_at=20)
         finally:
@@ -93,7 +93,8 @@ class QueryStackApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(combined, [{'transaction_id': 11}, {'transaction_id': 12}])
         self.assertEqual(handler.calls[0][0], 'get_transactions')
         self.assertIn(('get_information', {'token_0': 'AAA', 'token_1': 'BBB'}), handler.calls)
-        self.assertIn(('get_transactions', {'token_0': None, 'token_1': None, 'start_at': 10, 'end_at': 20}), handler.calls)
+        self.assertIn(('get_transactions', {'token_0': None, 'token_1': None, 'start_at': 10, 'end_at': 20, 'limit': None}), handler.calls)
+        self.assertIn(('get_transactions', {'token_0': 'AAA', 'token_1': 'BBB', 'start_at': 100, 'end_at': 200, 'limit': 20}), handler.calls)
 
     async def test_on_get_kline_information_accepts_frontend_daily_interval(self):
         class FakeHandler:

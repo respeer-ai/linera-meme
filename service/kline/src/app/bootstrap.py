@@ -113,88 +113,7 @@ class AppBootstrap:
         block_parser = LayerOneBlockParser()
         application_registry = ApplicationRegistry(application_registry_repository)
         decoder_registry = DecoderRegistry()
-        decoder_registry.register_known_pairs(
-            (
-                ('pool', 'operation'),
-                ('pool', 'message'),
-                ('pool', 'event'),
-                ('swap', 'operation'),
-                ('swap', 'message'),
-                ('meme', 'operation'),
-                ('meme', 'message'),
-                ('proxy', 'operation'),
-                ('proxy', 'message'),
-                ('ams', 'operation'),
-                ('ams', 'message'),
-                ('blob-gateway', 'operation'),
-                ('blob-gateway', 'message'),
-            )
-        )
-        decoder_registry.register(
-            app_type='pool',
-            payload_kind='operation',
-            decoder=PoolOperationDecoder(),
-        )
-        decoder_registry.register(
-            app_type='pool',
-            payload_kind='message',
-            decoder=PoolMessageDecoder(),
-        )
-        decoder_registry.register(
-            app_type='pool',
-            payload_kind='event',
-            decoder=PoolEventDecoder(),
-        )
-        decoder_registry.register(
-            app_type='swap',
-            payload_kind='operation',
-            decoder=SwapOperationDecoder(),
-        )
-        decoder_registry.register(
-            app_type='swap',
-            payload_kind='message',
-            decoder=SwapMessageDecoder(),
-        )
-        decoder_registry.register(
-            app_type='meme',
-            payload_kind='operation',
-            decoder=MemeOperationDecoder(),
-        )
-        decoder_registry.register(
-            app_type='meme',
-            payload_kind='message',
-            decoder=MemeMessageDecoder(),
-        )
-        decoder_registry.register(
-            app_type='blob-gateway',
-            payload_kind='operation',
-            decoder=BlobGatewayOperationDecoder(),
-        )
-        decoder_registry.register(
-            app_type='blob-gateway',
-            payload_kind='message',
-            decoder=BlobGatewayMessageDecoder(),
-        )
-        decoder_registry.register(
-            app_type='proxy',
-            payload_kind='operation',
-            decoder=ProxyOperationDecoder(),
-        )
-        decoder_registry.register(
-            app_type='proxy',
-            payload_kind='message',
-            decoder=ProxyMessageDecoder(),
-        )
-        decoder_registry.register(
-            app_type='ams',
-            payload_kind='operation',
-            decoder=AmsOperationDecoder(),
-        )
-        decoder_registry.register(
-            app_type='ams',
-            payload_kind='message',
-            decoder=AmsMessageDecoder(),
-        )
+        self._register_decoders(decoder_registry)
         decoder_dispatcher = DecoderDispatcher(
             application_registry=application_registry,
             decoder_registry=decoder_registry,
@@ -203,48 +122,20 @@ class AppBootstrap:
             decoder_dispatcher,
             runner=RustDecoderRunner(),
         )
-        decode_result_normalizer = DecodeResultNormalizer()
-        pool_catalog_projection_materializer = PoolCatalogProjectionMaterializer(
-            pool_catalog_projection_repository=pool_catalog_projection_repository,
-        )
-        normalized_event_materializer = NormalizedEventMaterializer(
-            decode_result_normalizer=decode_result_normalizer,
-            normalized_event_repository=normalized_event_repository,
-            pool_catalog_projection_materializer=pool_catalog_projection_materializer,
-        )
-        normalization_worker = NormalizationWorker(
-            decode_scheduler=decode_scheduler,
-            normalized_event_materializer=normalized_event_materializer,
-            processing_cursor_repository=processing_cursor_repository,
-        )
-        normalization_replay_driver = NormalizationReplayDriver(
+        settled_market_deriver = SettledMarketDeriver()
+        post_ingest_pipeline_bundle = self._build_post_ingest_pipeline_bundle(
+            config=config,
             raw_repository=raw_repository,
             processing_cursor_repository=processing_cursor_repository,
-            normalization_worker=normalization_worker,
-            batch_limit=config.normalization_replay_batch_limit,
-        )
-        settled_market_deriver = SettledMarketDeriver()
-        settled_market_materializer = SettledMarketMaterializer(
-            settled_market_deriver=settled_market_deriver,
+            pool_catalog_projection_repository=pool_catalog_projection_repository,
+            normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
-        )
-        market_derivation_worker = MarketDerivationWorker(
-            settled_market_materializer=settled_market_materializer,
-            processing_cursor_repository=processing_cursor_repository,
+            settled_market_deriver=settled_market_deriver,
             market_data_event_sink=self.market_data_event_sink,
         )
-        market_derivation_replay_driver = MarketDerivationReplayDriver(
-            normalized_event_repository=normalized_event_repository,
-            processing_cursor_repository=processing_cursor_repository,
-            market_derivation_worker=market_derivation_worker,
-            batch_limit=config.market_derivation_replay_batch_limit,
-        )
-        post_ingest_pipeline = PostIngestPipeline(
-            normalization_replay_driver=normalization_replay_driver,
-            market_derivation_replay_driver=market_derivation_replay_driver,
-        )
+        post_ingest_pipeline = post_ingest_pipeline_bundle['post_ingest_pipeline']
         container = {
             'config': config,
             'connection': connection,
@@ -264,15 +155,15 @@ class AppBootstrap:
             'decoder_registry': decoder_registry,
             'decoder_dispatcher': decoder_dispatcher,
             'decode_scheduler': decode_scheduler,
-            'decode_result_normalizer': decode_result_normalizer,
-            'pool_catalog_projection_materializer': pool_catalog_projection_materializer,
-            'normalized_event_materializer': normalized_event_materializer,
-            'normalization_worker': normalization_worker,
-            'normalization_replay_driver': normalization_replay_driver,
+            'decode_result_normalizer': post_ingest_pipeline_bundle['decode_result_normalizer'],
+            'pool_catalog_projection_materializer': post_ingest_pipeline_bundle['pool_catalog_projection_materializer'],
+            'normalized_event_materializer': post_ingest_pipeline_bundle['normalized_event_materializer'],
+            'normalization_worker': post_ingest_pipeline_bundle['normalization_worker'],
+            'normalization_replay_driver': post_ingest_pipeline_bundle['normalization_replay_driver'],
             'settled_market_deriver': settled_market_deriver,
-            'settled_market_materializer': settled_market_materializer,
-            'market_derivation_worker': market_derivation_worker,
-            'market_derivation_replay_driver': market_derivation_replay_driver,
+            'settled_market_materializer': post_ingest_pipeline_bundle['settled_market_materializer'],
+            'market_derivation_worker': post_ingest_pipeline_bundle['market_derivation_worker'],
+            'market_derivation_replay_driver': post_ingest_pipeline_bundle['market_derivation_replay_driver'],
             'post_ingest_pipeline': post_ingest_pipeline,
             'chain_cursor_store': chain_cursor_store,
         }
@@ -317,6 +208,8 @@ class AppBootstrap:
                 chain_cursor_store=chain_cursor_store,
                 ingestion_coordinator=ingestion_coordinator,
                 post_ingest_pipeline=post_ingest_pipeline,
+                post_ingest_pipeline_factory=lambda: self._build_owned_post_ingest_pipeline(config),
+                post_ingest_timeout_seconds=max(1.0, config.catch_up_task_timeout_seconds - 1.0),
             )
             container['catch_up_runner'] = catch_up_runner
             container['chain_event_processor'] = ChainEventProcessor(
@@ -324,6 +217,8 @@ class AppBootstrap:
                 max_blocks_per_chain=config.catch_up_max_blocks_per_chain,
                 allowed_chain_ids=config.catch_up_chain_ids,
                 registry_refresh=lambda: _refresh_discovered_chain_ids(container),
+                task_timeout_seconds=config.catch_up_task_timeout_seconds,
+                retry_delay_seconds=config.catch_up_retry_delay_seconds,
             )
             if config.catch_up_chain_ids:
                 container['catch_up_driver'] = CatchUpDriver(
@@ -339,3 +234,159 @@ class AppBootstrap:
                     reconnect_delay_seconds=config.notification_reconnect_delay_seconds,
                 )
         return container
+
+    def _build_owned_post_ingest_pipeline(self, config: KlineAppConfig):
+        connection = MysqlConnectionFactory().connect_from_app_config(config)
+        raw_repository = RawRepository(connection)
+        normalized_event_repository = NormalizedEventRepository(connection)
+        pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
+        settled_trade_repository = SettledTradeRepository(connection)
+        settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
+        position_state_snapshot_repository = PositionStateSnapshotRepository(connection)
+        pool_state_snapshot_repository = PoolStateSnapshotRepository(connection)
+        position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(connection)
+        position_metrics_snapshot_builder = PositionMetricsSnapshotBuilder(
+            snapshot_materialization_inputs_repository=position_metrics_snapshot_materialization_inputs_repository,
+        )
+        position_metrics_snapshot_materializer = PositionMetricsSnapshotMaterializer(
+            snapshot_builder=position_metrics_snapshot_builder,
+            position_state_snapshot_repository=position_state_snapshot_repository,
+            pool_state_snapshot_repository=pool_state_snapshot_repository,
+        )
+        bundle = self._build_post_ingest_pipeline_bundle(
+            config=config,
+            raw_repository=raw_repository,
+            processing_cursor_repository=ProcessingCursorRepository(connection),
+            pool_catalog_projection_repository=pool_catalog_projection_repository,
+            normalized_event_repository=normalized_event_repository,
+            settled_trade_repository=settled_trade_repository,
+            settled_liquidity_change_repository=settled_liquidity_change_repository,
+            position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
+            settled_market_deriver=SettledMarketDeriver(),
+            market_data_event_sink=self.market_data_event_sink,
+        )
+        return _OwnedConnectionPostIngestPipeline(
+            connection=connection,
+            post_ingest_pipeline=bundle['post_ingest_pipeline'],
+        )
+
+    def _build_post_ingest_pipeline_bundle(
+        self,
+        *,
+        config: KlineAppConfig,
+        raw_repository,
+        processing_cursor_repository,
+        pool_catalog_projection_repository,
+        normalized_event_repository,
+        settled_trade_repository,
+        settled_liquidity_change_repository,
+        position_metrics_snapshot_materializer,
+        settled_market_deriver,
+        market_data_event_sink,
+    ) -> dict[str, object]:
+        decode_scheduler = DecodeScheduler(
+            DecoderDispatcher(
+                application_registry=ApplicationRegistry(ApplicationRegistryRepository(processing_cursor_repository.connection)),
+                decoder_registry=DecoderRegistry(),
+            ),
+            runner=RustDecoderRunner(),
+        )
+        self._register_decoders(decode_scheduler.decoder_dispatcher.decoder_registry)
+        decode_result_normalizer = DecodeResultNormalizer()
+        pool_catalog_projection_materializer = PoolCatalogProjectionMaterializer(
+            pool_catalog_projection_repository=pool_catalog_projection_repository,
+        )
+        normalized_event_materializer = NormalizedEventMaterializer(
+            decode_result_normalizer=decode_result_normalizer,
+            normalized_event_repository=normalized_event_repository,
+            pool_catalog_projection_materializer=pool_catalog_projection_materializer,
+        )
+        normalization_worker = NormalizationWorker(
+            decode_scheduler=decode_scheduler,
+            normalized_event_materializer=normalized_event_materializer,
+            processing_cursor_repository=processing_cursor_repository,
+        )
+        normalization_replay_driver = NormalizationReplayDriver(
+            raw_repository=raw_repository,
+            processing_cursor_repository=processing_cursor_repository,
+            normalization_worker=normalization_worker,
+            batch_limit=config.normalization_replay_batch_limit,
+        )
+        settled_market_materializer = SettledMarketMaterializer(
+            settled_market_deriver=settled_market_deriver,
+            settled_trade_repository=settled_trade_repository,
+            settled_liquidity_change_repository=settled_liquidity_change_repository,
+            position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
+        )
+        market_derivation_worker = MarketDerivationWorker(
+            settled_market_materializer=settled_market_materializer,
+            processing_cursor_repository=processing_cursor_repository,
+            market_data_event_sink=market_data_event_sink,
+        )
+        market_derivation_replay_driver = MarketDerivationReplayDriver(
+            normalized_event_repository=normalized_event_repository,
+            processing_cursor_repository=processing_cursor_repository,
+            market_derivation_worker=market_derivation_worker,
+            batch_limit=config.market_derivation_replay_batch_limit,
+        )
+        return {
+            'decode_result_normalizer': decode_result_normalizer,
+            'pool_catalog_projection_materializer': pool_catalog_projection_materializer,
+            'normalized_event_materializer': normalized_event_materializer,
+            'normalization_worker': normalization_worker,
+            'normalization_replay_driver': normalization_replay_driver,
+            'settled_market_materializer': settled_market_materializer,
+            'market_derivation_worker': market_derivation_worker,
+            'market_derivation_replay_driver': market_derivation_replay_driver,
+            'post_ingest_pipeline': PostIngestPipeline(
+                normalization_replay_driver=normalization_replay_driver,
+                market_derivation_replay_driver=market_derivation_replay_driver,
+            ),
+        }
+
+    def _register_decoders(self, decoder_registry) -> None:
+        decoder_registry.register_known_pairs(
+            (
+                ('pool', 'operation'),
+                ('pool', 'message'),
+                ('pool', 'event'),
+                ('swap', 'operation'),
+                ('swap', 'message'),
+                ('meme', 'operation'),
+                ('meme', 'message'),
+                ('proxy', 'operation'),
+                ('proxy', 'message'),
+                ('ams', 'operation'),
+                ('ams', 'message'),
+                ('blob-gateway', 'operation'),
+                ('blob-gateway', 'message'),
+            )
+        )
+        decoder_registry.register(app_type='pool', payload_kind='operation', decoder=PoolOperationDecoder())
+        decoder_registry.register(app_type='pool', payload_kind='message', decoder=PoolMessageDecoder())
+        decoder_registry.register(app_type='pool', payload_kind='event', decoder=PoolEventDecoder())
+        decoder_registry.register(app_type='swap', payload_kind='operation', decoder=SwapOperationDecoder())
+        decoder_registry.register(app_type='swap', payload_kind='message', decoder=SwapMessageDecoder())
+        decoder_registry.register(app_type='meme', payload_kind='operation', decoder=MemeOperationDecoder())
+        decoder_registry.register(app_type='meme', payload_kind='message', decoder=MemeMessageDecoder())
+        decoder_registry.register(app_type='blob-gateway', payload_kind='operation', decoder=BlobGatewayOperationDecoder())
+        decoder_registry.register(app_type='blob-gateway', payload_kind='message', decoder=BlobGatewayMessageDecoder())
+        decoder_registry.register(app_type='proxy', payload_kind='operation', decoder=ProxyOperationDecoder())
+        decoder_registry.register(app_type='proxy', payload_kind='message', decoder=ProxyMessageDecoder())
+        decoder_registry.register(app_type='ams', payload_kind='operation', decoder=AmsOperationDecoder())
+        decoder_registry.register(app_type='ams', payload_kind='message', decoder=AmsMessageDecoder())
+
+
+class _OwnedConnectionPostIngestPipeline:
+    def __init__(self, *, connection, post_ingest_pipeline):
+        self.connection = connection
+        self.post_ingest_pipeline = post_ingest_pipeline
+
+    def run_until_caught_up(self, *, reprocess_reason: str | None = None):
+        return self.post_ingest_pipeline.run_until_caught_up(reprocess_reason=reprocess_reason)
+
+    def run_bounded(self, *, reprocess_reason: str | None = None):
+        return self.post_ingest_pipeline.run_bounded(reprocess_reason=reprocess_reason)
+
+    def close(self):
+        self.connection.close()

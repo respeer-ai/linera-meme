@@ -1,7 +1,8 @@
 from storage.mysql.canonical_fingerprint import CanonicalFingerprint
+from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionMixin
 
 
-class RawRepository:
+class RawRepository(MysqlRepositoryConnectionMixin):
     """Owns Layer 1 observability schema creation and raw-table access boundaries."""
 
     def __init__(self, connection):
@@ -298,7 +299,7 @@ class RawRepository:
         ]
 
     def ensure_schema(self):
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             for _table_name, ddl in self.ordered_schema_definitions():
                 cursor.execute(ddl)
@@ -307,7 +308,7 @@ class RawRepository:
             cursor.close()
 
     def load_chain_cursor(self, chain_id: str) -> dict | None:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             cursor.execute(
                 f'''
@@ -332,7 +333,8 @@ class RawRepository:
             cursor.close()
 
     def list_chain_cursors(self, chain_ids: tuple[str, ...] = (), limit: int = 200) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        self.ensure_connection()
+        cursor = self.cursor(dictionary=True)
         try:
             params: list[object] = []
             where_sql = ''
@@ -371,7 +373,8 @@ class RawRepository:
         statuses: tuple[str, ...] = (),
         limit: int = 200,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        self.ensure_connection()
+        cursor = self.cursor(dictionary=True)
         try:
             where_clauses = []
             params: list[object] = []
@@ -417,7 +420,8 @@ class RawRepository:
         statuses: tuple[str, ...] = (),
         limit: int = 200,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        self.ensure_connection()
+        cursor = self.cursor(dictionary=True)
         try:
             where_clauses = []
             params: list[object] = []
@@ -487,7 +491,7 @@ class RawRepository:
         raise ValueError(f'unsupported normalization raw_table: {raw_table}')
 
     def mark_attempt(self, chain_id: str, height: int) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -523,7 +527,7 @@ class RawRepository:
         after_sequence: int | None,
         limit: int,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             params: list[object] = []
             where_clauses = ['application_id IS NOT NULL']
@@ -575,7 +579,7 @@ class RawRepository:
         after_sequence: int | None,
         limit: int,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             params: list[object] = []
             where_clauses = ['m.application_id IS NOT NULL']
@@ -640,7 +644,7 @@ class RawRepository:
         after_sequence: int | None,
         limit: int,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             params: list[object] = []
             where_clauses = ['application_id IS NOT NULL']
@@ -694,7 +698,7 @@ class RawRepository:
             cursor.close()
 
     def mark_failure(self, chain_id: str, height: int, error_text: str) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -741,7 +745,7 @@ class RawRepository:
         details_json: str | None = None,
         status: str = 'open',
     ) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -789,7 +793,7 @@ class RawRepository:
             cursor.close()
 
     def record_failed_ingest_run(self, chain_id: str, height: int, mode: str, error_text: str) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -840,8 +844,8 @@ class RawRepository:
                 }
 
         anomaly_to_record = None
-        read_cursor = self.connection.cursor(dictionary=True)
-        write_cursor = self.connection.cursor()
+        read_cursor = self.cursor(dictionary=True)
+        write_cursor = self.cursor()
         try:
             self._begin_transaction()
             read_cursor.execute(

@@ -156,7 +156,7 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
             metadata_resolver=self.FakeMetadataResolver(metadata),
         )
 
-    def test_get_transactions_builds_forward_and_reverse_rows_for_unfiltered_queries(self):
+    def test_get_transactions_builds_only_original_rows_for_unfiltered_queries(self):
         db = self.FakeDb()
         db.cursor_dict.rows = [
             {
@@ -192,15 +192,35 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
             end_at=2000,
         )
 
-        self.assertEqual(len(rows), 2)
+        self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['transaction_type'], 'BuyToken0')
         self.assertEqual(rows[0]['from_account'], 'chain-user:owner-user')
         self.assertEqual(rows[0]['direction'], 'Buy')
+        self.assertEqual(rows[0]['token_reversed'], False)
         self.assertEqual(rows[0]['volume'], 300.0)
         self.assertAlmostEqual(rows[0]['price'], 25 / 300)
-        self.assertEqual(rows[1]['direction'], 'Sell')
-        self.assertEqual(rows[1]['volume'], 25.0)
-        self.assertAlmostEqual(rows[1]['price'], 300 / 25)
+
+    def test_get_transactions_information_counts_unfiltered_original_rows_only(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [{
+            'trade_count': 3,
+            'timestamp_begin': 2000,
+            'timestamp_end': 1000,
+        }]
+        repository = self.repository(db, [{
+            'pool_id': 7,
+            'pool_application': 'chain-a:pool-app',
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+        }])
+
+        info = repository.get_transactions_information(token_0=None, token_1=None)
+
+        self.assertEqual(info, {
+            'count': 3,
+            'timestamp_begin': 2000,
+            'timestamp_end': 1000,
+        })
 
     def test_get_candles_aggregates_points_from_settled_trades(self):
         db = self.FakeDb()

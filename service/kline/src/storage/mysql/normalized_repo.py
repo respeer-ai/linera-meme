@@ -1,10 +1,11 @@
 import json
 
 from storage.mysql.canonical_fingerprint import CanonicalFingerprint
+from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionMixin
 from normalizer.normalized_event_result import NormalizedEventResult
 
 
-class NormalizedEventRepository:
+class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
     MARKET_DERIVATION_EVENT_FAMILIES = (
         'pool_new_transaction_recorded',
     )
@@ -16,7 +17,7 @@ class NormalizedEventRepository:
         self.normalized_events_table = 'normalized_events'
 
     def ensure_schema(self) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -65,7 +66,7 @@ class NormalizedEventRepository:
     def upsert_normalized_events(self, events: list[dict[str, object]]) -> int:
         if not events:
             return 0
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             for event in events:
                 cursor.execute(
@@ -145,7 +146,7 @@ class NormalizedEventRepository:
         after_sequence: int | None,
         limit: int,
     ) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self.cursor(dictionary=True)
         try:
             where_clauses = [
                 'raw_table = %s',

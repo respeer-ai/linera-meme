@@ -53,6 +53,7 @@ export const useKlineStore = defineStore('kline', {
       | undefined,
     positionsListeners: [] as Array<(payload: PositionsInvalidationPayload) => void>,
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
+    latestCombinedTransactions: [] as TransactionExt[],
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
     poolStatsByApplication: new Map<TickerInterval, Map<string, PoolStat>>(),
@@ -157,6 +158,7 @@ export const useKlineStore = defineStore('kline', {
     },
     onTransactions(transactions: Transactions[]) {
       klineWorker.KlineWorker.send(klineWorker.KlineEventType.NEW_TRANSACTIONS, transactions)
+      this.latestCombinedTransactions = transactions.flatMap((_transactions) => _transactions.transactions)
       transactions.forEach((_transactions) => {
         const trans =
           this.latestTransactions.get(_transactions.token_0) || new Map<string, TransactionExt[]>()
@@ -297,6 +299,11 @@ export const useKlineStore = defineStore('kline', {
       tokenReversed: number,
     ) => TransactionExt[] {
       return (token0: string, token1: string, tokenReversed: number) => {
+        if (!token0 || !token1) {
+          return this.latestCombinedTransactions
+            .sort((a, b) => a.created_at - b.created_at)
+            .filter((el) => !el.token_reversed)
+        }
         return (
           this.latestTransactions
             .get(token0)

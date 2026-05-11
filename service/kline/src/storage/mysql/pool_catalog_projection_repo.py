@@ -8,13 +8,23 @@ class PoolCatalogProjectionRepository:
         'swap_user_pool_created_recorded',
     }
 
-    def __init__(self, connection):
-        self.connection = connection
+    def __init__(self, db_or_connection):
+        self.db = db_or_connection if hasattr(db_or_connection, 'ensure_fresh_read_connection') else None
+        self.connection = getattr(db_or_connection, 'connection', db_or_connection)
         self.pool_catalog_table = 'pool_catalog_v2'
         self.account_codec = AccountCodec()
 
+    def _connection(self):
+        if self.db is not None:
+            self.db.ensure_fresh_read_connection()
+            self.connection = self.db.connection
+        return self.connection
+
+    def _cursor(self, **kwargs):
+        return self._connection().cursor(**kwargs)
+
     def ensure_schema(self) -> None:
-        cursor = self.connection.cursor()
+        cursor = self._cursor()
         try:
             cursor.execute(
                 f'''
@@ -36,7 +46,7 @@ class PoolCatalogProjectionRepository:
                 '''
             )
             self._migrate_pool_application_account_format(cursor)
-            self.connection.commit()
+            self._connection().commit()
         finally:
             cursor.close()
 
@@ -62,7 +72,7 @@ class PoolCatalogProjectionRepository:
         ]
         if not rows:
             return 0
-        cursor = self.connection.cursor()
+        cursor = self._cursor()
         try:
             for row in rows:
                 cursor.execute(
@@ -94,13 +104,13 @@ class PoolCatalogProjectionRepository:
                         row['source_event_key'],
                     ),
                 )
-            self.connection.commit()
+            self._connection().commit()
             return len(rows)
         finally:
             cursor.close()
 
     def list_pool_catalog(self) -> list[dict]:
-        cursor = self.connection.cursor(dictionary=True)
+        cursor = self._cursor(dictionary=True)
         try:
             cursor.execute(
                 f'''

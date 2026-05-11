@@ -4,7 +4,6 @@
       <section class='main-column'>
         <div class='reward-card'>
           <div class='reward-hero'>
-            <div class='reward-kicker'>Liquidity position value</div>
             <div class='reward-copy'>
               <div class='reward-value-row'>
                 <div class='reward-value'>

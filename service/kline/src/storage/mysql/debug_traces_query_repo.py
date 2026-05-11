@@ -25,7 +25,7 @@ class DebugTracesQueryRepository:
         limit: int = 200,
         include_payloads: bool = True,
     ) -> list[dict]:
-        self.db.ensure_fresh_read_connection()
+        cursor = self.db.fresh_cursor(dictionary=True)
         where_clauses = []
         params = []
         if source is not None:
@@ -56,51 +56,54 @@ class DebugTracesQueryRepository:
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)
 
-        self.db.cursor_dict.execute(
-            f'''
-                SELECT
-                    trace_id,
-                    source,
-                    component,
-                    operation,
-                    target,
-                    owner,
-                    pool_application,
-                    pool_id,
-                    request_url,
-                    request_payload,
-                    response_status,
-                    response_body,
-                    error,
-                    details,
-                    created_at
-                FROM {self.db.debug_traces_table}
-                {where_sql}
-                ORDER BY trace_id DESC
-                LIMIT %s
-            ''',
-            (*params, int(limit)),
-        )
-        rows = []
-        for row in self.db.cursor_dict.fetchall():
-            request_payload = self.value_deserializer(row.get('request_payload'))
-            response_body = self.value_deserializer(row.get('response_body'))
-            details = self.value_deserializer(row.get('details'))
-            rows.append({
-                'trace_id': int(row['trace_id']),
-                'source': row.get('source'),
-                'component': row.get('component'),
-                'operation': row.get('operation'),
-                'target': row.get('target'),
-                'owner': row.get('owner'),
-                'pool_application': row.get('pool_application'),
-                'pool_id': None if row.get('pool_id') is None else int(row['pool_id']),
-                'request_url': row.get('request_url'),
-                'request_payload': request_payload if include_payloads else None,
-                'response_status': None if row.get('response_status') is None else int(row['response_status']),
-                'response_body': response_body if include_payloads else None,
-                'error': row.get('error'),
-                'details': details if include_payloads else None,
-                'created_at': int(row.get('created_at') or 0),
-            })
-        return rows
+        try:
+            cursor.execute(
+                f'''
+                    SELECT
+                        trace_id,
+                        source,
+                        component,
+                        operation,
+                        target,
+                        owner,
+                        pool_application,
+                        pool_id,
+                        request_url,
+                        request_payload,
+                        response_status,
+                        response_body,
+                        error,
+                        details,
+                        created_at
+                    FROM {self.db.debug_traces_table}
+                    {where_sql}
+                    ORDER BY trace_id DESC
+                    LIMIT %s
+                ''',
+                (*params, int(limit)),
+            )
+            rows = []
+            for row in cursor.fetchall():
+                request_payload = self.value_deserializer(row.get('request_payload'))
+                response_body = self.value_deserializer(row.get('response_body'))
+                details = self.value_deserializer(row.get('details'))
+                rows.append({
+                    'trace_id': int(row['trace_id']),
+                    'source': row.get('source'),
+                    'component': row.get('component'),
+                    'operation': row.get('operation'),
+                    'target': row.get('target'),
+                    'owner': row.get('owner'),
+                    'pool_application': row.get('pool_application'),
+                    'pool_id': None if row.get('pool_id') is None else int(row['pool_id']),
+                    'request_url': row.get('request_url'),
+                    'request_payload': request_payload if include_payloads else None,
+                    'response_status': None if row.get('response_status') is None else int(row['response_status']),
+                    'response_body': response_body if include_payloads else None,
+                    'error': row.get('error'),
+                    'details': details if include_payloads else None,
+                    'created_at': int(row.get('created_at') or 0),
+                })
+            return rows
+        finally:
+            cursor.close()

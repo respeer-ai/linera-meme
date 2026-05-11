@@ -1,7 +1,8 @@
 from storage.mysql.canonical_fingerprint import CanonicalFingerprint
+from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionMixin
 
 
-class SettledTradeRepository:
+class SettledTradeRepository(MysqlRepositoryConnectionMixin):
     def __init__(self, connection):
         self.connection = connection
         self.fingerprint = CanonicalFingerprint()
@@ -18,7 +19,7 @@ class SettledTradeRepository:
         return cursor.fetchone() is not None
 
     def ensure_schema(self) -> None:
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             cursor.execute(
                 f'''
@@ -122,7 +123,7 @@ class SettledTradeRepository:
     def upsert_settled_trades(self, trades: list[dict[str, object]]) -> int:
         if not trades:
             return 0
-        cursor = self.connection.cursor()
+        cursor = self.cursor()
         try:
             for trade in trades:
                 cursor.execute(

@@ -653,7 +653,12 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   if (poolId !== activePoolId.value || poolApplication !== activePoolApplication.value) return
   if (requestId !== currentRequestId.value) return
 
-  if (points.filter((el) => klinePoints.value.findIndex((_el) => _el.time * 1000 === el.timestamp) < 0).length === 0) {
+  const mergedPoints = mergeSortedPointsIntoChartState({
+    currentPoints: klinePoints.value,
+    sortedPoints: points,
+  })
+
+  if (!chartStateChanged(klinePoints.value, mergedPoints)) {
     if (!shouldContinueStartupFetchAfterEmptyResult({
       firstScreenReady: firstScreenReady.value,
       reverse,
@@ -671,10 +676,7 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   }
 
   // 更新数据点
-  klinePoints.value = mergeSortedPointsIntoChartState({
-    currentPoints: klinePoints.value,
-    sortedPoints: points,
-  })
+  klinePoints.value = mergedPoints
 
   startupInstrumentation.markPointsMerged({
     requestId,

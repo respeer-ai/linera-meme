@@ -256,22 +256,24 @@ async def on_get_kline_information(
 
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}')
-async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int):
+async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int, limit: int | None = None):
     return _build_transactions_handler().get_transactions(
         token_0=token0,
         token_1=token1,
         start_at=start_at,
         end_at=end_at,
+        limit=limit,
     )
 
 
 @app.get('/transactions/start_at/{start_at}/end_at/{end_at}')
-async def on_get_combined_transactions(start_at: int, end_at: int):
+async def on_get_combined_transactions(start_at: int, end_at: int, limit: int | None = None):
     return _build_transactions_handler().get_transactions(
         token_0=None,
         token_1=None,
         start_at=start_at,
         end_at=end_at,
+        limit=limit,
     )
 
 
@@ -675,6 +677,8 @@ if __name__ == '__main__':
     parser.add_argument('--chain-graphql-ws-url', type=str, default='', help='Optional Linera node service GraphQL WebSocket URL for notifications')
     parser.add_argument('--catch-up-chain-ids', type=str, default='', help='Comma-separated chain ids for event-driven/admin catch-up')
     parser.add_argument('--catch-up-max-blocks-per-chain', type=int, default=50, help='Bounded catch-up block limit per chain run')
+    parser.add_argument('--catch-up-task-timeout-seconds', type=float, default=30.0, help='Timeout for one bounded catch-up task')
+    parser.add_argument('--catch-up-retry-delay-seconds', type=float, default=0.05, help='Delay before scheduling the next catch-up task for an unfinished chain')
     parser.add_argument('--disable-catch-up-on-startup', action='store_true', help='Disable startup reconciliation catch-up for configured chains')
     parser.add_argument('--notification-reconnect-delay-seconds', type=float, default=1.0, help='Reconnect backoff in seconds for Linera notification subscriptions')
 
@@ -703,6 +707,8 @@ if __name__ == '__main__':
             'chain_graphql_ws_url': args.chain_graphql_ws_url or None,
             'catch_up_chain_ids': parsed_catch_up_chain_ids,
             'catch_up_max_blocks_per_chain': args.catch_up_max_blocks_per_chain,
+            'catch_up_task_timeout_seconds': args.catch_up_task_timeout_seconds,
+            'catch_up_retry_delay_seconds': args.catch_up_retry_delay_seconds,
             'catch_up_on_startup': not args.disable_catch_up_on_startup,
             'notification_reconnect_delay_seconds': args.notification_reconnect_delay_seconds,
             'swap_host': args.swap_host,
@@ -727,7 +733,15 @@ if __name__ == '__main__':
     _observability_supervisor = _observability_facade.supervisor
     _reset_entrypoint_graph()
 
-    uvicorn.run(app, host=args.host, port=args.port, ws_ping_interval=30, ws_ping_timeout=10)
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        loop='asyncio',
+        http='h11',
+        ws_ping_interval=30,
+        ws_ping_timeout=10,
+    )
 
     if _db is not None:
         _db.close()

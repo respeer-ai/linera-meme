@@ -141,6 +141,20 @@ class MarketDataPayloadBuilderTest(unittest.TestCase):
             'base_volume': 14.0,
             'quote_volume': 35.0,
         }
+        db.points[(7, True, '1min', 1_800_000_000_000)] = {
+            'timestamp': 1_800_000_000_000,
+            'token_0': 'BBB',
+            'token_1': 'AAA',
+            'bucket_start_ms': 1_800_000_000_000,
+            'bucket_end_ms': 1_800_000_059_999,
+            'is_final': False,
+            'open': 0.5,
+            'high': 0.5,
+            'low': 0.25,
+            'close': 0.25,
+            'base_volume': 35.0,
+            'quote_volume': 14.0,
+        }
         builder = MarketDataPayloadBuilder(
             pool_catalog_repository=FakePoolCatalogRepository([pool]),
             candle_reader=candle_reader,
@@ -161,6 +175,14 @@ class MarketDataPayloadBuilderTest(unittest.TestCase):
         self.assertEqual(
             payload['kline']['1min'][0]['points'][0],
             db.points[(7, False, '1min', 1_800_000_000_000)],
+        )
+        self.assertEqual(
+            payload['kline']['1min'][1]['token_0'],
+            'BBB',
+        )
+        self.assertEqual(
+            payload['kline']['1min'][1]['token_1'],
+            'AAA',
         )
         self.assertEqual(payload['positions'], {
             'events': [{

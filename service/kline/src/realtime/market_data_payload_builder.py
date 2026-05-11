@@ -89,59 +89,59 @@ class MarketDataPayloadBuilder:
             if transaction['transaction_type'] not in ['BuyToken0', 'SellToken0']:
                 continue
 
-            token_reversed = bool(transaction['token_reversed'])
-            token_0 = pool.token_1 if token_reversed else pool.token_0
-            token_1 = pool.token_0 if token_reversed else (pool.token_1 if pool.token_1 is not None else 'TLINERA')
+            for token_reversed in [False, True]:
+                token_0 = pool.token_1 if token_reversed else pool.token_0
+                token_1 = pool.token_0 if token_reversed else (pool.token_1 if pool.token_1 is not None else 'TLINERA')
 
-            for interval, bucket_ms in INTERVAL_BUCKET_MS.items():
-                bucket_key = build_candle_bucket_key(
-                    pool_application=pool_application,
-                    pool_id=pool.pool_id,
-                    token_reversed=token_reversed,
-                    interval=interval,
-                    created_at_ms=int(transaction['created_at']),
-                )
-                dedupe_key = (token_0, token_1, interval, bucket_key.bucket_start_ms)
-                if dedupe_key in seen:
-                    continue
+                for interval, bucket_ms in INTERVAL_BUCKET_MS.items():
+                    bucket_key = build_candle_bucket_key(
+                        pool_application=pool_application,
+                        pool_id=pool.pool_id,
+                        token_reversed=token_reversed,
+                        interval=interval,
+                        created_at_ms=int(transaction['created_at']),
+                    )
+                    dedupe_key = (token_0, token_1, interval, bucket_key.bucket_start_ms)
+                    if dedupe_key in seen:
+                        continue
 
-                stream_key = (pool.pool_id, pool_application, token_0, token_1, interval)
-                last_emitted_bucket_start = self.last_emitted_bucket_starts.get(stream_key)
-                range_start = (
-                    bucket_key.bucket_start_ms
-                    if last_emitted_bucket_start is None or bucket_key.bucket_start_ms <= last_emitted_bucket_start
-                    else last_emitted_bucket_start
-                )
-                points = self.load_candle_points(
-                    token_0=token_0,
-                    token_1=token_1,
-                    start_at=range_start,
-                    end_at=bucket_key.bucket_start_ms + bucket_ms - 1,
-                    interval=interval,
-                    pool_id=pool.pool_id,
-                    pool_application=pool_application,
-                )
-                if not points:
-                    continue
+                    stream_key = (pool.pool_id, pool_application, token_0, token_1, interval)
+                    last_emitted_bucket_start = self.last_emitted_bucket_starts.get(stream_key)
+                    range_start = (
+                        bucket_key.bucket_start_ms
+                        if last_emitted_bucket_start is None or bucket_key.bucket_start_ms <= last_emitted_bucket_start
+                        else last_emitted_bucket_start
+                    )
+                    points = self.load_candle_points(
+                        token_0=token_0,
+                        token_1=token_1,
+                        start_at=range_start,
+                        end_at=bucket_key.bucket_start_ms + bucket_ms - 1,
+                        interval=interval,
+                        pool_id=pool.pool_id,
+                        pool_application=pool_application,
+                    )
+                    if not points:
+                        continue
 
-                seen.add(dedupe_key)
-                api_interval = normalize_interval_for_api(interval)
-                interval_points = payload.get(api_interval, [])
-                interval_points.append({
-                    'pool_id': pool.pool_id,
-                    'pool_application': pool_application,
-                    'token_0': token_0,
-                    'token_1': token_1,
-                    'interval': api_interval,
-                    'start_at': range_start,
-                    'end_at': bucket_key.bucket_start_ms + bucket_ms - 1,
-                    'points': points,
-                })
-                payload[api_interval] = interval_points
-                self.last_emitted_bucket_starts[stream_key] = max(
-                    int(point['bucket_start_ms'])
-                    for point in points
-                )
+                    seen.add(dedupe_key)
+                    api_interval = normalize_interval_for_api(interval)
+                    interval_points = payload.get(api_interval, [])
+                    interval_points.append({
+                        'pool_id': pool.pool_id,
+                        'pool_application': pool_application,
+                        'token_0': token_0,
+                        'token_1': token_1,
+                        'interval': api_interval,
+                        'start_at': range_start,
+                        'end_at': bucket_key.bucket_start_ms + bucket_ms - 1,
+                        'points': points,
+                    })
+                    payload[api_interval] = interval_points
+                    self.last_emitted_bucket_starts[stream_key] = max(
+                        int(point['bucket_start_ms'])
+                        for point in points
+                    )
 
         return payload
 

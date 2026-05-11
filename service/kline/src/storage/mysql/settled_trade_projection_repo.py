@@ -30,9 +30,7 @@ class SettledTradeProjectionRepository:
         self.metadata_resolver = (
             metadata_resolver
             or PoolMetadataProjectionResolver(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
-                    getattr(db, 'connection', db)
-                ),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
             )
         )
@@ -49,19 +47,23 @@ class SettledTradeProjectionRepository:
         token_1: str | None,
         start_at: int,
         end_at: int,
+        limit: int | None = None,
     ) -> list[dict] | None:
         rows = self._load_trade_rows(
             token_0=token_0,
             token_1=token_1,
             start_at=start_at,
             end_at=end_at,
+            limit=limit,
         )
         if rows is None:
             return None
         transactions = []
         for row in rows:
-            transactions.extend(self._build_transaction_rows(row, duplicate_reverse=token_0 is None or token_1 is None))
-        transactions.sort(key=lambda item: (int(item['created_at']), int(item['transaction_id'])))
+            transactions.extend(self._build_transaction_rows(row, duplicate_reverse=False))
+        transactions.sort(key=lambda item: (int(item['created_at']), int(item['transaction_id'])), reverse=True)
+        if limit is not None and int(limit) > 0:
+            transactions = transactions[:int(limit)]
         return transactions
 
     def get_transactions_information(
@@ -70,26 +72,19 @@ class SettledTradeProjectionRepository:
         token_0: str | None,
         token_1: str | None,
     ) -> dict | None:
-        rows = self._load_trade_rows(
+        summary = self._load_trade_summary(
             token_0=token_0,
             token_1=token_1,
-            start_at=None,
-            end_at=None,
         )
-        if rows is None:
+        if summary is None:
             return None
-        count = 0
-        timestamp_begin = None
-        timestamp_end = None
-        for row in rows:
-            count += 2 if token_0 is None or token_1 is None else 1
-            created_at = int(row['trade_time_ms'])
-            timestamp_begin = created_at if timestamp_begin is None else max(timestamp_begin, created_at)
-            timestamp_end = created_at if timestamp_end is None else min(timestamp_end, created_at)
+        trade_count = int(summary.get('trade_count') or 0)
+        timestamp_begin = summary.get('timestamp_begin')
+        timestamp_end = summary.get('timestamp_end')
         return {
-            'count': count,
-            'timestamp_begin': timestamp_begin,
-            'timestamp_end': timestamp_end,
+            'count': trade_count,
+            'timestamp_begin': int(timestamp_begin) if timestamp_begin is not None else None,
+            'timestamp_end': int(timestamp_end) if timestamp_end is not None else None,
         }
 
     def get_pool_trade_history(
@@ -210,6 +205,7 @@ class SettledTradeProjectionRepository:
         end_at: int | None,
         pool_application: str | None = None,
         pool_id: int | None = None,
+        limit: int | None = None,
     ) -> list[dict] | None:
         if not hasattr(self.db, 'ensure_fresh_read_connection'):
             return None
@@ -247,8 +243,13 @@ class SettledTradeProjectionRepository:
         where_sql = ''
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)
-        self.db.ensure_fresh_read_connection()
-        cursor = self.db.cursor_dict
+        limit_sql = ''
+        query_limit = None
+        if limit is not None and int(limit) > 0:
+            query_limit = int(limit)
+            limit_sql = 'LIMIT %s'
+            params.append(query_limit)
+        cursor = self._fresh_cursor()
         try:
             cursor.execute(
                 f'''
@@ -268,7 +269,8 @@ class SettledTradeProjectionRepository:
                     st.event_payload_json
                 FROM settled_trades st
                 {where_sql}
-                ORDER BY st.trade_time_ms ASC, st.transaction_id ASC, st.settled_trade_id ASC
+                ORDER BY st.trade_time_ms DESC, st.transaction_id DESC, st.settled_trade_id DESC
+                {limit_sql}
                 ''',
                 tuple(params),
             )
@@ -280,6 +282,63 @@ class SettledTradeProjectionRepository:
             )
         except Exception:
             return None
+        finally:
+            close = getattr(cursor, 'close', None)
+            if close is not None:
+                close()
+
+    def _fresh_cursor(self):
+        if hasattr(self.db, 'fresh_cursor'):
+            return self.db.fresh_cursor(dictionary=True)
+        if hasattr(self.db, 'ensure_fresh_read_connection'):
+            self.db.ensure_fresh_read_connection()
+        return self.db.cursor_dict
+
+    def _load_trade_summary(
+        self,
+        *,
+        token_0: str | None,
+        token_1: str | None,
+    ) -> dict | None:
+        if not hasattr(self.db, 'ensure_fresh_read_connection'):
+            return None
+        if not hasattr(self.db, 'cursor_dict'):
+            return None
+        where_clauses = []
+        params: list[object] = []
+        if token_0 is not None and token_1 is not None:
+            try:
+                _resolved_pool_id, resolved_pool_application, _resolved_token_0, _resolved_token_1, _token_reversed = (
+                    self.pool_identity_projection_repo.resolve_for_tokens(token_0, token_1)
+                )
+            except Exception:
+                return {'trade_count': 0, 'timestamp_begin': None, 'timestamp_end': None}
+            where_clauses.append(self._pool_application_condition('st'))
+            params.append(resolved_pool_application)
+        where_sql = ''
+        if where_clauses:
+            where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+        cursor = self._fresh_cursor()
+        try:
+            cursor.execute(
+                f'''
+                SELECT
+                    COUNT(*) AS trade_count,
+                    MAX(st.trade_time_ms) AS timestamp_begin,
+                    MIN(st.trade_time_ms) AS timestamp_end
+                FROM settled_trades st
+                {where_sql}
+                ''',
+                tuple(params),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row is not None else {'trade_count': 0, 'timestamp_begin': None, 'timestamp_end': None}
+        except Exception:
+            return None
+        finally:
+            close = getattr(cursor, 'close', None)
+            if close is not None:
+                close()
 
     def _build_transaction_rows(self, row: dict, *, duplicate_reverse: bool) -> list[dict]:
         forward = self._build_transaction_row(row, token_reversed=False)
@@ -384,13 +443,12 @@ class SettledTradeProjectionRepository:
         pool_application: str,
         before_ms: int,
     ) -> dict | None:
-        self.db.ensure_fresh_read_connection()
-        cursor = self.db.cursor_dict
         metadata = self.metadata_resolver.metadata_for_pool_application(pool_application)
         if metadata is None:
             return None
         if metadata.get('pool_id') is None:
             return None
+        cursor = self._fresh_cursor()
         try:
             cursor.execute(
                 f'''
@@ -427,6 +485,10 @@ class SettledTradeProjectionRepository:
             return rows[0]
         except Exception:
             return None
+        finally:
+            close = getattr(cursor, 'close', None)
+            if close is not None:
+                close()
 
     def _attach_pool_metadata(
         self,
