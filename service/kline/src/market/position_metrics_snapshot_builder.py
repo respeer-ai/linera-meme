@@ -572,13 +572,10 @@ class PositionMetricsSnapshotBuilder:
         pool_application_id: str,
         pool_chain_id: str | None,
     ) -> str:
-        if '@' in pool_application_id:
-            return pool_application_id
-        if pool_chain_id in (None, ''):
-            return pool_application_id
+        parsed = self.account_codec.parse_account(pool_application_id)
         return self.account_codec.format_account(
-            chain_id=pool_chain_id,
-            owner=f'0x{pool_application_id}',
+            chain_id=parsed['chain_id'],
+            owner=parsed['owner'],
         )
 
     def _pool_source_event_key(

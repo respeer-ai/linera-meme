@@ -493,7 +493,7 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         executed_sql, params = db.cursor_dict.executed[0]
         self.assertNotIn('JOIN pools', executed_sql)
-        self.assertIn("CONCAT('0x', st.pool_application_id, '@', st.pool_chain_id) = %s", executed_sql)
+        self.assertIn('st.pool_application_id = %s', executed_sql)
         self.assertEqual(params, ('chain-a:pool-app',))
 
     def test_pool_trade_history_uses_cursor_created_after_metadata_resolution(self):

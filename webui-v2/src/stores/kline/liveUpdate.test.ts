@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { mergeLatestPointMaps, buildKlineSubscriptionMessage } from './liveUpdate'
+import {
+  buildKlineSubscriptionMessage,
+  buildPositionsSubscriptionMessage,
+  mergeLatestPointMaps,
+} from './liveUpdate'
 import { Interval } from './const'
 import type { Points } from './types'
 
@@ -126,6 +130,16 @@ describe('buildKlineSubscriptionMessage', () => {
       pool_id: 7,
       pool_application: 'chain:owner',
       intervals: [Interval.FIVE_MINUTE],
+    })
+  })
+
+  test('serializes an owner-scoped positions subscription request', () => {
+    expect(buildPositionsSubscriptionMessage('owner-a', 7, 'pool-app')).toEqual({
+      action: 'subscribe',
+      topic: 'positions',
+      owner: 'owner-a',
+      pool_id: 7,
+      pool_application: 'pool-app',
     })
   })
 

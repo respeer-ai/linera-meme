@@ -86,6 +86,9 @@ async def _refresh_discovered_chain_ids(container: dict[str, object]) -> tuple[s
 
 
 class AppBootstrap:
+    def __init__(self, *, market_data_event_sink=None):
+        self.market_data_event_sink = market_data_event_sink
+
     def build_container(self, config: KlineAppConfig) -> dict[str, object]:
         connection = MysqlConnectionFactory().connect_from_app_config(config)
         raw_repository = RawRepository(connection)
@@ -230,6 +233,7 @@ class AppBootstrap:
         market_derivation_worker = MarketDerivationWorker(
             settled_market_materializer=settled_market_materializer,
             processing_cursor_repository=processing_cursor_repository,
+            market_data_event_sink=self.market_data_event_sink,
         )
         market_derivation_replay_driver = MarketDerivationReplayDriver(
             normalized_event_repository=normalized_event_repository,

@@ -132,3 +132,15 @@ export interface PositionMetricsResponse {
   owner: string
   metrics: PositionMetricsEntry[]
 }
+
+export interface PositionsInvalidationEvent {
+  pool_application?: string
+  pool_id?: number
+  owners?: string[]
+  event_types?: string[]
+  updated_at?: number
+}
+
+export interface PositionsInvalidationPayload {
+  events: PositionsInvalidationEvent[]
+}

@@ -2,8 +2,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_requires_strict_subset(self):
         result = self._resolve(
             position={
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -41,8 +41,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_latest_remove_liquidity_basis_without_later_transactions(self):
         result = self._resolve(
             position={
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -84,8 +84,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_rejects_late_add_basis_when_position_opened_earlier(self):
         result = self._resolve(
             position={
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -123,8 +123,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_swaps_after_latest_liquidity_basis(self):
         result = self._resolve(
             position={
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -212,8 +212,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_swaps_after_opening_add_basis(self):
         result = self._resolve(
             position={
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -258,8 +258,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_fee_to_opening_mint_without_post_basis_transactions(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -267,7 +267,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
             },
             payload={
                 'data': {
-                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xowner-a'}},
+                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
                     'totalSupply': '110.002500227305015907',
                     'virtualInitialLiquidity': False,
                     'liquidity': {
@@ -318,8 +318,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_rejects_fee_to_mint_case_when_prior_liquidity_is_non_zero(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -327,7 +327,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
             },
             payload={
                 'data': {
-                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xowner-a'}},
+                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
                     'totalSupply': '110.002500227305015907',
                     'virtualInitialLiquidity': False,
                     'liquidity': {
@@ -365,8 +365,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_fee_to_opening_mint_with_post_basis_swaps(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -374,7 +374,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
             },
             payload={
                 'data': {
-                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xowner-a'}},
+                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
                     'totalSupply': '120',
                     'virtualInitialLiquidity': False,
                     'liquidity': {
@@ -425,8 +425,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_opening_add_after_prior_swaps_with_post_basis_swaps(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_002_000,
                 'status': 'active',
@@ -482,8 +482,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_zero_liquidity_bootstrap_before_opening_add_basis(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -491,7 +491,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
             },
             payload={
                 'data': {
-                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xowner-a'}},
+                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
                     'totalSupply': '110.002500227305015907',
                     'virtualInitialLiquidity': True,
                     'liquidity': {
@@ -536,8 +536,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_reopen_from_zero_before_current_round_basis(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -545,7 +545,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
             },
             payload={
                 'data': {
-                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xowner-a'}},
+                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
                     'totalSupply': '110.002500227305015907',
                     'virtualInitialLiquidity': True,
                     'liquidity': {
@@ -588,8 +588,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_rejects_add_basis_when_prior_current_round_liquidity_is_non_zero(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -636,8 +636,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_zero_liquidity_bootstrap_with_post_basis_swaps(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -645,7 +645,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
             },
             payload={
                 'data': {
-                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xowner-a'}},
+                    'pool': {'fee_to': {'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
                     'totalSupply': '120',
                     'virtualInitialLiquidity': True,
                     'liquidity': {
@@ -693,8 +693,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_fast_path_supports_zero_liquidity_bootstrap_opening_add_after_prior_swaps(self):
         result = self._resolve(
             position={
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -747,8 +747,8 @@ class QueryStackSnapshotFastPathBaselineMixin:
     def test_snapshot_shadow_evaluator_marks_structurally_aligned_non_exact_metrics_as_financially_pending(self):
         shadow = self._evaluate(
             position={
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
                 'current_liquidity': '7',

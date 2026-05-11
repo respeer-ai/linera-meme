@@ -370,7 +370,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
             ],
         )
         executed_sql, params = db.cursor_dict.executed[0]
-        self.assertIn("CONCAT('0x', slc.pool_application_id, '@', slc.pool_chain_id)", executed_sql)
+        self.assertIn('slc.pool_application_id', executed_sql)
         self.assertEqual(params, (
             '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
             '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
@@ -405,7 +405,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         executed_sql, params = db.cursor_dict.executed[0]
         self.assertNotIn('JOIN pools', executed_sql)
         self.assertIn('IN (%s)', executed_sql)
-        self.assertIn("CONCAT('0x', slc.pool_application_id, '@', slc.pool_chain_id)", executed_sql)
+        self.assertIn('slc.pool_application_id', executed_sql)
         self.assertEqual(params, (
             '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
             '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',

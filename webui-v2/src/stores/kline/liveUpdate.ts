@@ -74,3 +74,15 @@ export const buildKlineSubscriptionMessage = (
   pool_application,
   intervals: [interval],
 })
+
+export const buildPositionsSubscriptionMessage = (
+  owner?: string,
+  pool_id?: number,
+  pool_application?: string,
+) => ({
+  action: 'subscribe',
+  topic: 'positions',
+  owner,
+  pool_id,
+  pool_application,
+})

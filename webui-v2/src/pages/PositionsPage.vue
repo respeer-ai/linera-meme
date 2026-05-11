@@ -3,34 +3,44 @@
     <main class='page-width positions-page'>
       <section class='main-column'>
         <div class='reward-card'>
-          <div class='reward-copy'>
-            <div class='reward-value'>
-              <span>{{ formattedLiquidityShare }} LMM</span>
-              <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
-            </div>
-            <div class='reward-label'>
-              LMM liquidity share
-              <span class='reward-info'>i
-                <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
-                  <p>LMM tracks your liquidity share, not a tradable token.</p>
-                  <p>Holding LMM lets you redeem liquidity and earn swap fees.</p>
-                </q-tooltip>
-              </span>
+          <div class='reward-hero'>
+            <div class='reward-kicker'>Liquidity position value</div>
+            <div class='reward-copy'>
+              <div class='reward-value-row'>
+                <div class='reward-value'>
+                  <span>{{ formattedLiquidityShare }}</span>
+                  <span class='reward-unit'>LMM</span>
+                  <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
+                </div>
+                <div class='reward-native-value'>
+                  <span>{{ positionValueNativeSummary.label }}</span>
+                  <q-img class='reward-native-logo' :src='constants.LINERA_LOGO' width='18px' height='18px' fit='contain' />
+                </div>
+              </div>
+              <div class='reward-label'>
+                LMM liquidity share
+                <span class='reward-info'>i
+                  <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                    <p>LMM tracks your liquidity share, not a tradable token.</p>
+                    <p>Holding LMM lets you redeem liquidity and earn swap fees.</p>
+                  </q-tooltip>
+                </span>
+              </div>
             </div>
           </div>
-          <div v-if='walletConnected' class='reward-fee-split'>
-            <div class='reward-fee-group'>
-              <span class='reward-fee-label'>Trading yield</span>
-              <span class='reward-fee-values'>
-                <span v-for='item in tradingFeeSummary' :key='`trading-${item.key}`'>{{ item.label }}</span>
-              </span>
+
+          <div v-if='hasProtocolFeeReceiverPosition' class='reward-yield-strip'>
+            <div class='reward-yield-item reward-yield-item-primary'>
+              <span class='reward-yield-label'>Total yield</span>
+              <span class='reward-yield-value'>{{ totalYieldSummary.label }}</span>
             </div>
-            <span v-if='hasProtocolFeeReceiverPosition' class='reward-fee-divider'>|</span>
-            <div v-if='hasProtocolFeeReceiverPosition' class='reward-fee-group'>
-              <span class='reward-fee-label'>Protocol yield</span>
-              <span class='reward-fee-values reward-fee-values-protocol'>
-                <span v-for='item in protocolFeeSummary' :key='`protocol-${item.key}`'>{{ item.label }}</span>
-              </span>
+            <div class='reward-yield-item'>
+              <span class='reward-yield-label'>Trading</span>
+              <span class='reward-yield-value'>{{ tradingYieldSummary.label }}</span>
+            </div>
+            <div class='reward-yield-item reward-yield-item-protocol'>
+              <span class='reward-yield-label'>Protocol</span>
+              <span class='reward-yield-value'>{{ protocolYieldSummary.label }}</span>
             </div>
           </div>
         </div>
@@ -220,7 +230,7 @@
 
 <script setup lang='ts'>
 import axios from 'axios'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMeta } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { usePageSeo } from 'src/utils/seo'
@@ -228,7 +238,7 @@ import { constants } from 'src/constant'
 import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
 import { useUserStore } from 'src/stores/user'
 import { usePositionsStore, type Position, type PositionStatusFilter, type PositionsResponse } from 'src/stores/positions'
-import { type PositionMetricsEntry } from 'src/stores/kline'
+import { type PositionMetricsEntry, type PositionsInvalidationPayload } from 'src/stores/kline'
 import { account, ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
@@ -243,6 +253,7 @@ const owner = ref('')
 const summaryPositions = ref<Position[]>([])
 const summaryPositionsRequestSerial = ref(0)
 const summaryPositionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
+const positionsRefreshTimer = ref<number | undefined>(undefined)
 
 const statusOptions: Array<{ value: PositionStatusFilter; label: string }> = [
   { value: 'all', label: 'All positions' },
@@ -329,6 +340,24 @@ const refreshPositions = async () => {
   void refreshPositionMetricsSnapshots(nextOwner, selectedStatus.value)
 }
 
+const schedulePositionsRefresh = () => {
+  if (positionsRefreshTimer.value !== undefined) {
+    window.clearTimeout(positionsRefreshTimer.value)
+  }
+  positionsRefreshTimer.value = window.setTimeout(() => {
+    positionsRefreshTimer.value = undefined
+    void refreshPositions()
+  }, 250)
+}
+
+const positionsInvalidationMatchesOwner = (payload: PositionsInvalidationPayload) => {
+  if (!owner.value) return false
+  return (payload.events || []).some((event) => {
+    const owners = event.owners || []
+    return owners.length === 0 || owners.includes(owner.value)
+  })
+}
+
 const positionKey = (position: Position) =>
   `${position.pool_application}:${position.pool_id}:${position.status}:${position.position_kind || 'recorded'}`
 const positionStatusLabel = (status: Position['status']) => {
@@ -362,7 +391,7 @@ const isProtocolFeeReceiver = (position: Position) =>
 const hasProtocolFeeReceiverPosition = computed(() => (
   rewardPositions.value.some((position) => isProtocolFeeReceiver(position))
 ))
-const nativeValuation = (
+const nativeValuationTotal = (
   positions: Position[],
   selectAmounts: (position: Position) => Array<{ token: string, amount: string | null | undefined }>,
 ) => {
@@ -380,10 +409,11 @@ const nativeValuation = (
     })
   })
 
-  return [
-    { key: 'meme-value', label: `Meme value ≈ ${formatLiquidity(memeValueNative)} ${constants.LINERA_TICKER}` },
-    { key: 'native', label: `Native ${formatLiquidity(nativeAmount)} ${constants.LINERA_TICKER}` },
-  ]
+  return nativeAmount + memeValueNative
+}
+const nativeYieldLabel = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return `0 ${constants.LINERA_TICKER}`
+  return `≈ ${formatLiquidity(value)} ${constants.LINERA_TICKER}`
 }
 const isVirtualPosition = (position: Position) => position.status === 'virtual' || Boolean(position.is_virtual_position)
 const virtualInitialTokenAmounts = (position: Position): Array<{ token: string, amount: string | null | undefined }> => [
@@ -478,7 +508,7 @@ const yieldSummaryPositions = computed(() => (
     ? rewardPositions.value.filter((position) => isProtocolFeeReceiver(position))
     : rewardPositions.value.filter((position) => !position.is_virtual_position)
 ))
-const tradingFeeSummary = computed(() => nativeValuation(
+const tradingYieldNative = computed(() => nativeValuationTotal(
   yieldSummaryPositions.value,
   (position) => {
     const metrics = summaryPositionMetrics(position)
@@ -488,7 +518,7 @@ const tradingFeeSummary = computed(() => nativeValuation(
     ]
   },
 ))
-const protocolFeeSummary = computed(() => nativeValuation(
+const protocolYieldNative = computed(() => nativeValuationTotal(
   rewardPositions.value.filter((position) => isProtocolFeeReceiver(position)),
   (position) => {
     const metrics = summaryPositionMetrics(position)
@@ -504,6 +534,28 @@ const protocolFeeSummary = computed(() => nativeValuation(
     ]
   },
 ))
+const positionValueNative = computed(() => nativeValuationTotal(
+  rewardPositions.value.filter((position) => position.status !== 'closed'),
+  (position) => {
+    const metrics = summaryPositionMetrics(position)
+    return [
+      { token: position.token_0, amount: metrics?.redeemable_amount0 || '0' },
+      { token: position.token_1, amount: metrics?.redeemable_amount1 || '0' },
+    ]
+  },
+))
+const positionValueNativeSummary = computed(() => ({
+  label: nativeYieldLabel(positionValueNative.value),
+}))
+const totalYieldSummary = computed(() => ({
+  label: nativeYieldLabel(tradingYieldNative.value + protocolYieldNative.value),
+}))
+const tradingYieldSummary = computed(() => ({
+  label: nativeYieldLabel(tradingYieldNative.value),
+}))
+const protocolYieldSummary = computed(() => ({
+  label: nativeYieldLabel(protocolYieldNative.value),
+}))
 const refreshSummaryPositions = async (nextOwner: string) => {
   const requestSerial = ++summaryPositionsRequestSerial.value
 
@@ -623,6 +675,28 @@ watch(
   { immediate: true },
 )
 
+watch(
+  owner,
+  (nextOwner) => {
+    if (!nextOwner) return
+    kline.Kline.initialize()
+    kline.Kline.subscribePositions(nextOwner)
+  },
+  { immediate: true },
+)
+
+const unsubscribePositionsListener = kline.Kline.onPositions((payload) => {
+  if (!positionsInvalidationMatchesOwner(payload)) return
+  schedulePositionsRefresh()
+})
+
+onBeforeUnmount(() => {
+  unsubscribePositionsListener?.()
+  if (positionsRefreshTimer.value !== undefined) {
+    window.clearTimeout(positionsRefreshTimer.value)
+  }
+})
+
 useMeta(() => ({
   script: {
     positionsStructuredData: {
@@ -671,81 +745,152 @@ usePageSeo(() => ({
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025)
 
 .reward-card
-  display: flex
-  justify-content: space-between
-  align-items: flex-start
-  gap: 24px
-  padding: 20px
-  border-radius: 24px
-  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 0.7px, transparent 0.7px)
-  background-size: 12px 12px
-  background-position: -5px -5px
+  position: relative
+  overflow: hidden
+  display: block
+  padding: 24px
+  border-radius: 28px
+  background: radial-gradient(circle at 12% 0%, rgba(247, 196, 92, 0.16), transparent 34%), radial-gradient(circle at 96% 18%, rgba(112, 221, 166, 0.10), transparent 34%), linear-gradient(135deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014))
+
+  &::after
+    content: ''
+    position: absolute
+    inset: 1px
+    border-radius: 27px
+    pointer-events: none
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 0.7px, transparent 0.7px)
+    background-size: 12px 12px
+    background-position: -5px -5px
+    opacity: 0.8
+
+.reward-hero,
+.reward-yield-strip
+  position: relative
+  z-index: 1
+
+.reward-kicker
+  margin-bottom: 12px
+  color: #9aa0ab
+  font-size: 12px
+  font-weight: 800
+  letter-spacing: 0.12em
+  text-transform: uppercase
 
 .reward-copy
   min-width: 0
 
+.reward-value-row
+  display: flex
+  align-items: baseline
+  justify-content: space-between
+  gap: 18px
+  min-width: 0
+
 .reward-value
+  display: flex
+  align-items: baseline
+  gap: 10px
+  flex-wrap: nowrap
+  min-width: 0
+  font-size: clamp(44px, 8vw, 68px)
+  line-height: 1
+  letter-spacing: -0.06em
+  font-weight: 650
+  color: var(--q-light)
+
+.reward-value span
+  white-space: nowrap
+
+.reward-unit
   display: inline-flex
   align-items: center
-  gap: 8px
-  flex-wrap: nowrap
-  font-size: 50px
+  height: 0.38em
+  font-size: 0.34em
   line-height: 1
-  letter-spacing: -0.05em
-  font-weight: 500
-  color: var(--q-light)
+  letter-spacing: 0.02em
+  color: #f3cf7a
+  font-weight: 800
 
 .reward-inline-logo
   display: inline-block
-  width: 0.92em !important
-  height: 0.92em !important
+  width: 0.38em !important
+  height: 0.38em !important
+  flex: 0 0 auto
+  transform: translateY(0.08em)
+
+.reward-native-value
+  display: inline-flex
+  align-items: center
+  justify-content: flex-end
+  gap: 7px
+  flex: 0 0 auto
+  color: #d7dde7
+  font-size: clamp(15px, 2.2vw, 20px)
+  font-weight: 800
+  line-height: 1
+  letter-spacing: -0.02em
+  text-align: right
+  white-space: nowrap
+
+.reward-native-logo
+  width: 1em !important
+  height: 1em !important
   flex: 0 0 auto
 
 .reward-label
-  margin-top: 8px
+  margin-top: 10px
   font-size: 14px
   font-weight: 600
   color: #9aa0ab
 
-.reward-fee-split
+.reward-yield-strip
   display: flex
-  align-items: center
-  justify-content: flex-end
-  gap: 14px
-  min-width: min(390px, 46%)
-  flex: 0 0 auto
-  color: #9aa0ab
+  align-items: stretch
+  justify-content: space-between
+  gap: 10px
+  width: 100%
+  margin-top: 24px
+  border: 1px solid rgba(255, 255, 255, 0.07)
+  border-radius: 20px
+  background: rgba(10, 12, 18, 0.34)
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035)
 
-.reward-fee-group
+.reward-yield-item
   display: grid
-  gap: 5px
+  gap: 6px
   min-width: 0
-  text-align: right
+  flex: 1 1 0
+  padding: 12px 14px
+  border-radius: 0
+  background: rgba(255, 255, 255, 0.035)
+  flex: 1 1 0
+  text-align: left
 
-.reward-fee-divider
-  color: rgba(255, 255, 255, 0.18)
-  font-size: 30px
-  font-weight: 200
-  line-height: 1
+  &:first-child
+    border-radius: 19px 0 0 19px
 
-.reward-fee-label
+  &:last-child
+    border-radius: 0 19px 19px 0
+
+.reward-yield-item-primary
+  background: rgba(255, 255, 255, 0.055)
+
+.reward-yield-item-protocol .reward-yield-value
+  color: #f3cf7a
+
+.reward-yield-label
   font-size: 12px
   font-weight: 700
-  letter-spacing: 0.02em
+  letter-spacing: 0.04em
   color: #9aa0ab
+  text-transform: uppercase
 
-.reward-fee-values
-  display: flex
-  flex-direction: column
-  gap: 2px
+.reward-yield-value
   color: var(--q-light)
-  font-size: 14px
-  font-weight: 700
-  line-height: 1.25
-  word-break: break-word
-
-.reward-fee-values-protocol
-  color: #f3cf7a
+  font-size: 17px
+  font-weight: 800
+  line-height: 1.1
+  white-space: nowrap
 
 .reward-info
   display: inline-flex
@@ -1154,15 +1299,30 @@ usePageSeo(() => ({
     padding-left: 16px
     padding-right: 16px
 
-  .reward-card
-    display: block
-
-  .reward-fee-split
+  .reward-yield-strip
+    flex-wrap: wrap
     justify-content: flex-start
-    min-width: 0
-    margin-top: 18px
 
-  .reward-fee-group
+  .reward-yield-item
+    flex: 1 1 100%
+    border-radius: 0
+    text-align: left
+
+    &:first-child
+      border-radius: 19px 19px 0 0
+
+    &:last-child
+      border-radius: 0 0 19px 19px
+
+  .reward-yield-value
+    white-space: normal
+
+  .reward-value-row
+    display: grid
+    gap: 12px
+
+  .reward-native-value
+    margin-bottom: 0
     text-align: left
 
   .positions-header,

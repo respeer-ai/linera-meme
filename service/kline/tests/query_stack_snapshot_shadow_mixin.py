@@ -2,8 +2,8 @@ class QueryStackSnapshotShadowMixin:
     def test_snapshot_shadow_evaluator_marks_unresolved_nonzero_prior_add_basis_fee_to_case(self):
         result = self._evaluate(
             position={
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
                 'current_liquidity': '10',
@@ -33,12 +33,12 @@ class QueryStackSnapshotShadowMixin:
                 'state_payload_json': {
                     'prior_liquidity_before_basis': '2',
                     'fee_to_continuity': {
-                        'owner': 'chain-fee:0xfee-owner',
+                        'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                         'continuity_case': 'changed_after_basis',
                         'change_count_after_basis': 1,
                         'known_before_basis': True,
-                        'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                        'fee_to_account_latest_known': 'chain-fee:0xother-owner',
+                        'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                        'fee_to_account_latest_known': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@chain-fee',
                     },
                     'trade_count_between_basis_and_fee_free_basis': 1,
                     'exact_current_principal': {
@@ -83,8 +83,8 @@ class QueryStackSnapshotShadowMixin:
     def test_snapshot_shadow_evaluator_marks_safe_continuous_nonzero_prior_add_basis_fee_to_case(self):
         result = self._evaluate(
             position={
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
                 'current_liquidity': '10',
@@ -115,12 +115,12 @@ class QueryStackSnapshotShadowMixin:
                     'prior_liquidity_before_basis': '2',
                     'trade_count_between_basis_and_fee_free_basis': 1,
                     'fee_to_continuity': {
-                        'owner': 'chain-fee:0xfee-owner',
+                        'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                         'continuity_case': 'continuous_no_changes_after_basis',
                         'change_count_after_basis': 0,
                         'known_before_basis': True,
-                        'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                        'fee_to_account_latest_known': 'chain-fee:0xfee-owner',
+                        'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                        'fee_to_account_latest_known': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                     },
                     'exact_current_principal': {
                         'principal_amount_0_current': '5',
@@ -153,8 +153,8 @@ class QueryStackSnapshotShadowMixin:
     def test_snapshot_shadow_evaluator_marks_basis_only_nonzero_prior_add_basis_fee_to_case_as_candidate(self):
         result = self._evaluate(
             position={
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
                 'current_liquidity': '10',
@@ -185,12 +185,12 @@ class QueryStackSnapshotShadowMixin:
                     'prior_liquidity_before_basis': '2',
                     'trade_count_between_basis_and_fee_free_basis': 1,
                     'fee_to_continuity': {
-                        'owner': 'chain-fee:0xfee-owner',
+                        'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                         'continuity_case': 'changed_after_basis',
                         'change_count_after_basis': 2,
                         'known_before_basis': True,
-                        'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                        'fee_to_account_latest_known': 'chain-fee:0xother-owner',
+                        'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                        'fee_to_account_latest_known': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@chain-fee',
                     },
                     'exact_current_principal': {
                         'principal_amount_0_current': '5',

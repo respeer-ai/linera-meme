@@ -4,11 +4,13 @@ class MarketDerivationWorker:
         *,
         settled_market_materializer,
         processing_cursor_repository,
+        market_data_event_sink=None,
         cursor_name: str = 'layer3_market_deriver',
         cursor_scope: str = 'derive',
     ):
         self.settled_market_materializer = settled_market_materializer
         self.processing_cursor_repository = processing_cursor_repository
+        self.market_data_event_sink = market_data_event_sink
         self.cursor_name = cursor_name
         self.cursor_scope = cursor_scope
 
@@ -47,6 +49,8 @@ class MarketDerivationWorker:
             last_sequence=last_sequence,
             last_block_hash=last_block_hash,
         )
+        if self.market_data_event_sink is not None:
+            self.market_data_event_sink.publish_derivation_batch(derivation_batch)
         return {
             'cursor_name': self.cursor_name,
             'cursor_scope': self.cursor_scope,

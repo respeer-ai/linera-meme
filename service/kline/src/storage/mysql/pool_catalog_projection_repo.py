@@ -162,9 +162,16 @@ class PoolCatalogProjectionRepository:
 
     def _account_to_pool_application(self, account: object) -> str | None:
         if isinstance(account, str):
-            if ':' not in account:
+            try:
+                parsed = self.account_codec.parse_account(account)
+            except ValueError:
                 return None
-            return account
+            if parsed['owner'] == self.account_codec.CHAIN_OWNER:
+                return None
+            return self.account_codec.format_account(
+                chain_id=parsed['chain_id'],
+                owner=parsed['owner'],
+            )
         if not isinstance(account, dict):
             return None
         chain_id = account.get('chain_id')

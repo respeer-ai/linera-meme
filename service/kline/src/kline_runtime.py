@@ -15,6 +15,12 @@ from query.read_models.transactions import TransactionsReadModel
 from query.serializers.kline import KlineSerializer
 from query.serializers.positions import PositionsSerializer
 from query.serializers.transactions import TransactionsSerializer
+from account_codec import AccountCodec
+from realtime.candle_finality_scheduler import CandleFinalityScheduler
+from realtime.market_data_event_publisher import MarketDataEventPublisher
+from realtime.market_data_event_queue import MarketDataEventQueue
+from realtime.market_data_event_sink import MarketDataEventSink
+from realtime.market_data_payload_builder import MarketDataPayloadBuilder
 from storage.mysql.debug_traces_query_repo import DebugTracesQueryRepository
 from storage.mysql.diagnostic_events_query_repo import DiagnosticEventsQueryRepository
 from storage.mysql.market_stats_projection_repo import MarketStatsProjectionRepository
@@ -28,7 +34,6 @@ from storage.mysql.projection_pool_catalog_repo import ProjectionPoolCatalogRepo
 from storage.mysql.settled_liquidity_projection_repo import SettledLiquidityProjectionRepository
 from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistoryProjectionRepository
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository
-from storage.mysql.transaction_watermarks_query_repo import TransactionWatermarksQueryRepository
 from subscription import WebSocketManager
 from websocket_candle_reader import WebsocketCandleReader
 
@@ -38,16 +43,18 @@ class KlineRuntime:
         self,
         *,
         db,
-        ticker_db,
+        realtime_db,
         observability_config: dict | None,
         swap,
         websocket_manager,
+        market_data_event_queue=None,
     ):
         self._db = db
-        self._ticker_db = ticker_db
+        self._realtime_db = realtime_db
         self._observability_config = observability_config
         self._swap = swap
         self._websocket_manager = websocket_manager
+        self._market_data_event_queue = market_data_event_queue
         self._position_metrics_protocol_fee_split_semantics = PositionMetricsProtocolFeeSplitSemantics()
         self._position_metrics_public_api = PositionMetricsBootstrap().public_api()
 
@@ -126,12 +133,8 @@ class KlineRuntime:
     def websocket_candle_reader(self) -> WebsocketCandleReader:
         return WebsocketCandleReader(CandlesReadModel(self.settled_trade_projection_repository()))
 
-    def ticker_transaction_history_repository(self):
+    def realtime_transaction_history_repository(self):
         return self.settled_pool_history_projection_repository()
-
-    def ticker_transaction_watermarks_repository(self):
-        self.require_db()
-        return TransactionWatermarksQueryRepository(self._db)
 
     def transactions_handler(self) -> TransactionsHandler:
         return TransactionsHandler(
@@ -173,18 +176,14 @@ class KlineRuntime:
         }
         if not required_keys.issubset(set(self._observability_config.keys())):
             return ObservabilitySupervisor(None)
-        runtime = ObservabilityRuntime(KlineAppConfig(**self._observability_config))
+        runtime = ObservabilityRuntime(
+            KlineAppConfig(**self._observability_config),
+            market_data_event_sink=self.build_market_data_event_sink(),
+        )
         return ObservabilitySupervisor(runtime)
 
     def build_observability_facade(self):
         return ObservabilityFacade(self.build_observability_supervisor())
-
-    def build_ticker(self):
-        if self._websocket_manager is None:
-            raise RuntimeError('WebSocket manager is not initialized')
-        if self._swap is None:
-            raise RuntimeError('Swap client is not initialized')
-        return self.build_ticker_for_db(self._ticker_db)
 
     def build_websocket_manager(self):
         return WebSocketManager(
@@ -193,19 +192,53 @@ class KlineRuntime:
             self.projection_pool_catalog_repository(),
         )
 
-    def build_ticker_for_db(self, ticker_db):
-        if ticker_db is None:
-            raise RuntimeError('Ticker Db client is not initialized')
+    def build_market_data_event_queue(self):
+        if self._market_data_event_queue is None:
+            self._market_data_event_queue = MarketDataEventQueue()
+        return self._market_data_event_queue
+
+    def build_market_data_event_sink(self):
+        return MarketDataEventSink(self.build_market_data_event_queue())
+
+    def build_market_data_event_publisher_for_db(self, realtime_db):
+        if realtime_db is None:
+            raise RuntimeError('Realtime Db client is not initialized')
         if self._websocket_manager is None:
             raise RuntimeError('WebSocket manager is not initialized')
-        from ticker import Ticker
-        return Ticker(
-            self._websocket_manager,
-            self._swap,
-            self.projection_pool_catalog_repository(),
-            candle_reader=self.websocket_candle_reader(),
-            transaction_history_repository=self.ticker_transaction_history_repository(),
-            transaction_watermarks_repository=self.ticker_transaction_watermarks_repository(),
+        realtime_runtime = KlineRuntime(
+            db=realtime_db,
+            realtime_db=realtime_db,
+            observability_config=self._observability_config,
+            swap=self._swap,
+            websocket_manager=self._websocket_manager,
+            market_data_event_queue=self.build_market_data_event_queue(),
+        )
+        payload_builder = MarketDataPayloadBuilder(
+            pool_catalog_repository=realtime_runtime.projection_pool_catalog_repository(),
+            candle_reader=realtime_runtime.websocket_candle_reader(),
+            transaction_history_repository=realtime_runtime.realtime_transaction_history_repository(),
+        )
+        return MarketDataEventPublisher(
+            queue=self.build_market_data_event_queue(),
+            websocket_manager=self._websocket_manager,
+            payload_builder=payload_builder,
+        )
+
+    def build_candle_finality_scheduler_for_db(self, realtime_db):
+        if realtime_db is None:
+            raise RuntimeError('Realtime Db client is not initialized')
+        realtime_runtime = KlineRuntime(
+            db=realtime_db,
+            realtime_db=realtime_db,
+            observability_config=self._observability_config,
+            swap=self._swap,
+            websocket_manager=self._websocket_manager,
+            market_data_event_queue=self.build_market_data_event_queue(),
+        )
+        return CandleFinalityScheduler(
+            queue=self.build_market_data_event_queue(),
+            pool_catalog_repository=realtime_runtime.projection_pool_catalog_repository(),
+            account_codec=AccountCodec(),
         )
 
     async def get_protocol_stats(self) -> dict:

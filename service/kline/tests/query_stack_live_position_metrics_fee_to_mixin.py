@@ -88,7 +88,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -107,8 +107,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -145,12 +145,12 @@ class QueryStackLivePositionMetricsFeeToMixin:
                         'current_round_trade_count_before_basis': 0,
                         'trade_count_between_basis_and_fee_free_basis': 1,
                         'fee_to_continuity': {
-                            'owner': 'chain-fee:0xfee-owner',
+                            'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                             'continuity_case': 'continuous_no_changes_after_basis',
                             'change_count_after_basis': 0,
                             'known_before_basis': True,
-                            'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                            'fee_to_account_latest_known': 'chain-fee:0xfee-owner',
+                            'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                            'fee_to_account_latest_known': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                         },
                         'exact_current_principal': {
                             'principal_amount_0_current': '5',
@@ -177,7 +177,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -196,8 +196,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -234,12 +234,12 @@ class QueryStackLivePositionMetricsFeeToMixin:
                         'current_round_trade_count_before_basis': 0,
                         'trade_count_between_basis_and_fee_free_basis': 1,
                         'fee_to_continuity': {
-                            'owner': 'chain-fee:0xfee-owner',
+                            'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                             'continuity_case': 'changed_after_basis',
                             'change_count_after_basis': 2,
                             'known_before_basis': True,
-                            'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                            'fee_to_account_latest_known': 'chain-fee:0xother-owner',
+                            'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                            'fee_to_account_latest_known': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@chain-fee',
                         },
                         'exact_current_principal': {
                             'principal_amount_0_current': '5',
@@ -271,7 +271,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -290,8 +290,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -329,12 +329,12 @@ class QueryStackLivePositionMetricsFeeToMixin:
                             'current_round_trade_count_before_basis': 1,
                             'trade_count_between_basis_and_fee_free_basis': 1,
                             'fee_to_continuity': {
-                                'owner': 'chain-fee:0xfee-owner',
+                                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                                 'continuity_case': 'changed_after_basis',
                                 'change_count_after_basis': 1,
                                 'known_before_basis': True,
-                                'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                                'fee_to_account_latest_known': 'chain-fee:0xother-owner',
+                                'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                                'fee_to_account_latest_known': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@chain-fee',
                             },
                             'exact_current_principal': {
                                 'principal_amount_0_current': '5',
@@ -375,7 +375,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xother-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -394,8 +394,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -432,12 +432,12 @@ class QueryStackLivePositionMetricsFeeToMixin:
                         'current_round_trade_count_before_basis': 1,
                         'trade_count_between_basis_and_fee_free_basis': 1,
                         'fee_to_continuity': {
-                            'owner': 'chain-fee:0xfee-owner',
+                            'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                             'continuity_case': 'changed_after_basis',
                             'change_count_after_basis': 2,
                             'known_before_basis': True,
-                            'fee_to_account_at_basis': 'chain-fee:0xfee-owner',
-                            'fee_to_account_latest_known': 'chain-fee:0xother-owner',
+                            'fee_to_account_at_basis': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                            'fee_to_account_latest_known': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@chain-fee',
                         },
                         'exact_current_principal': {
                             'principal_amount_0_current': '5',
@@ -476,7 +476,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xother-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -495,8 +495,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -556,7 +556,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='10',
@@ -575,8 +575,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -656,8 +656,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -706,7 +706,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-a', 'owner': '0xowner-a'},
+                fee_to={'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                 total_supply='120',
                 virtual_initial_liquidity=True,
                 liquidity='12',
@@ -725,8 +725,8 @@ class QueryStackLivePositionMetricsFeeToMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',

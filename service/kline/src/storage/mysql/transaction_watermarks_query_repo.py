@@ -19,7 +19,7 @@ class TransactionWatermarksQueryRepository:
         self.account_codec = AccountCodec()
 
     def _pool_application_expr(self, alias: str) -> str:
-        return f"CONCAT('0x', {alias}.pool_application_id, '@', {alias}.pool_chain_id)"
+        return f"{alias}.pool_application_id"
 
     def get_latest_transaction_watermarks(self) -> dict:
         self.db.ensure_fresh_read_connection()

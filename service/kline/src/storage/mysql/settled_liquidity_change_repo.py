@@ -25,7 +25,7 @@ class SettledLiquidityChangeRepository:
                 CREATE TABLE IF NOT EXISTS {self.settled_liquidity_changes_table} (
                     settled_liquidity_change_id VARCHAR(255) NOT NULL,
                     normalized_event_id VARCHAR(255) NOT NULL,
-                    pool_application_id VARCHAR(128) NOT NULL,
+                    pool_application_id VARCHAR(256) NOT NULL,
                     pool_chain_id VARCHAR(64) NULL,
                     owner VARCHAR(255) NOT NULL,
                     block_hash VARCHAR(64) NULL,
@@ -47,6 +47,24 @@ class SettledLiquidityChangeRepository:
                     KEY idx_settled_liquidity_owner (owner, pool_application_id, event_time_ms),
                     KEY idx_settled_liquidity_source_event (source_event_key)
                 )
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_liquidity_changes_table}
+                MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+                '''
+            )
+            cursor.execute(
+                f'''
+                UPDATE {self.settled_liquidity_changes_table}
+                SET pool_application_id = CONCAT('0x', pool_application_id, '@', pool_chain_id)
+                WHERE pool_chain_id IS NOT NULL
+                  AND pool_chain_id != ''
+                  AND pool_application_id NOT LIKE '%@%'
+                  AND pool_application_id NOT LIKE '0x%'
+                  AND CHAR_LENGTH(pool_application_id) IN (40, 64)
+                  AND pool_application_id REGEXP '^[0-9A-Fa-f]+$'
                 '''
             )
             if not self._column_exists(cursor, 'is_position_liquidity'):

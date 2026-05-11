@@ -55,7 +55,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
                             'transaction_id': 11,
                             'created_at': 1499,
                             'transaction_type': 'AddLiquidity',
-                            'from_account': 'chain:owner-a',
+                            'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                         },
                         {'transaction_id': 12, 'created_at': 1500, 'transaction_type': 'BuyToken0'},
                         {'transaction_id': 13, 'created_at': 1600, 'transaction_type': 'SellToken0'},
@@ -111,8 +111,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 ),
                 enrich_payload=fake_enrich_position_metrics_from_payload,
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1500,
             })
@@ -139,7 +139,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
                     'transaction_id': 11,
                     'created_at': 1499,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain:owner-a',
+                    'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 },
                 {'transaction_id': 12, 'created_at': 1500, 'transaction_type': 'BuyToken0'},
                 {'transaction_id': 13, 'created_at': 1600, 'transaction_type': 'SellToken0'},
@@ -189,11 +189,11 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(captured['pool_state_snapshot'].live_total_supply(), '10')
         self.assertEqual(
             repository.snapshot_kwargs,
-            {'owner': 'chain:owner-a', 'pool_application_id': 'chain:pool-app', 'status': 'active'},
+            {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'status': 'active'},
         )
         self.assertEqual(
             repository.replay_kwargs,
-            {'owner': 'chain:owner-a', 'pool_application': 'chain:pool-app', 'pool_id': 5, 'opened_at': 1500},
+            {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'pool_id': 5, 'opened_at': 1500},
         )
 
     def test_live_position_metrics_fetcher_returns_shadow_evaluation_when_enabled(self):
@@ -248,8 +248,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 ),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1500,
                 'status': 'active',
@@ -307,8 +307,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1234,
                 'status': 'active',
@@ -353,7 +353,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-a', 'owner': '0xowner-a'},
+                fee_to={'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                 total_supply='110.002500227305015907',
                 virtual_initial_liquidity=True,
                 liquidity='10.002500227305015907',
@@ -372,8 +372,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -434,8 +434,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1_800_000_000_000,
                 'status': 'active',
@@ -502,8 +502,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -563,8 +563,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',
@@ -608,7 +608,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-a', 'owner': '0xowner-a'},
+                fee_to={'chain_id': 'chain-a', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                 total_supply='24',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -627,8 +627,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -702,8 +702,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -776,8 +776,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -831,7 +831,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='9',
                 virtual_initial_liquidity=False,
                 liquidity='10',
@@ -850,8 +850,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -908,7 +908,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -927,8 +927,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 1000,
                 'status': 'active',
@@ -988,7 +988,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
 
         client = _build_payload_builder(
             _position_metrics_payload(
-                fee_to={'chain_id': 'chain-fee', 'owner': '0xfee-owner'},
+                fee_to={'chain_id': 'chain-fee', 'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'},
                 total_supply='12',
                 virtual_initial_liquidity=False,
                 liquidity='12',
@@ -1007,8 +1007,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
-                'owner': 'chain-fee:0xfee-owner',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'opened_at': 900,
                 'status': 'active',

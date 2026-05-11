@@ -25,7 +25,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
             })
             return [{'transaction_id': 1}]
 
-    def test_list_pool_transaction_history_builds_canonical_pool_application_from_chain_and_app_id(self):
+    def test_list_pool_transaction_history_requires_canonical_pool_application(self):
         pool_history_repository = self.FakePoolHistoryRepository()
         repository = PositionMetricsSnapshotMaterializationInputsRepository(
             connection=None,
@@ -35,7 +35,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
         )
 
         rows = repository.list_pool_transaction_history(
-            pool_application_id='095554fa3074f0b9371097a490882d6aeb562612141a7731dfd24cadf30b7484',
+            pool_application_id='0x095554fa3074f0b9371097a490882d6aeb562612141a7731dfd24cadf30b7484@b87827a42fa7bb6d129940a5dc02bb51e3bff57f2457306d9095872c3b7ed9f6',
             pool_chain_id='b87827a42fa7bb6d129940a5dc02bb51e3bff57f2457306d9095872c3b7ed9f6',
         )
 
@@ -43,7 +43,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
         self.assertEqual(
             pool_history_repository.requests,
             [{
-                'pool_application': 'b87827a42fa7bb6d129940a5dc02bb51e3bff57f2457306d9095872c3b7ed9f6:0x095554fa3074f0b9371097a490882d6aeb562612141a7731dfd24cadf30b7484',
+                'pool_application': '0x095554fa3074f0b9371097a490882d6aeb562612141a7731dfd24cadf30b7484@b87827a42fa7bb6d129940a5dc02bb51e3bff57f2457306d9095872c3b7ed9f6',
                 'pool_id': None,
             }],
         )
@@ -57,7 +57,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
                     'decoded_payload_json': {
                         'transaction_id': 11,
                         'created_at': 1234,
-                        'fee_to': 'chain-fee:owner-fee',
+                        'fee_to': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                     }
                 },
                 'source_chain_id': 'chain-src',
@@ -68,7 +68,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
             }
         )
 
-        self.assertEqual(row['fee_to_account'], 'chain-fee:owner-fee')
+        self.assertEqual(row['fee_to_account'], '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee')
         self.assertEqual(row['created_at'], 1234)
         self.assertEqual(row['transaction_id'], 11)
 
@@ -81,7 +81,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
                     'decoded_payload_json': {
                         'transaction_id': 12,
                         'created_at_micros': 5678000,
-                        'new_fee_to': 'owner-fee@chain-fee',
+                        'new_fee_to': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
                     }
                 },
                 'source_chain_id': 'chain-src',
@@ -92,7 +92,7 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
             }
         )
 
-        self.assertEqual(row['fee_to_account'], 'chain-fee:owner-fee')
+        self.assertEqual(row['fee_to_account'], '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee')
         self.assertEqual(row['created_at'], 5678)
         self.assertEqual(row['transaction_id'], 12)
 

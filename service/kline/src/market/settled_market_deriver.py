@@ -1,6 +1,7 @@
 from market.settled_market_result import SettledMarketResult
 from market.pool_new_transaction_execution_fact_extractor import PoolNewTransactionExecutionFactExtractor
 from transaction_family_codec import TransactionFamilyCodec
+from account_codec import AccountCodec
 
 
 class SettledMarketDeriver:
@@ -17,6 +18,7 @@ class SettledMarketDeriver:
             or PoolNewTransactionExecutionFactExtractor()
         )
         self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
+        self.account_codec = AccountCodec()
 
     def derive_item(self, event: dict[str, object]) -> dict[str, object]:
         self._validate_event(event)
@@ -105,7 +107,7 @@ class SettledMarketDeriver:
             'settled_output_type': SettledMarketResult.OUTPUT_SETTLED_TRADE,
             'settled_trade_id': f"{execution_fact.normalized_event_id}:trade",
             'normalized_event_id': execution_fact.normalized_event_id,
-            'pool_application_id': execution_fact.application_id,
+            'pool_application_id': self._pool_application(execution_fact),
             'pool_chain_id': execution_fact.pool_chain_id,
             'from_account': execution_fact.from_account(),
             'block_hash': execution_fact.block_hash,
@@ -150,7 +152,7 @@ class SettledMarketDeriver:
             'settled_output_type': SettledMarketResult.OUTPUT_SETTLED_LIQUIDITY_CHANGE,
             'settled_liquidity_change_id': f"{execution_fact.normalized_event_id}:liquidity",
             'normalized_event_id': execution_fact.normalized_event_id,
-            'pool_application_id': execution_fact.application_id,
+            'pool_application_id': self._pool_application(execution_fact),
             'pool_chain_id': execution_fact.pool_chain_id,
             'owner': execution_fact.position_owner(),
             'block_hash': execution_fact.block_hash,
@@ -176,6 +178,21 @@ class SettledMarketDeriver:
         if change_type == 'add_liquidity' and str(liquidity_delta) in {'0', '0.0', '0.000000000000000000'}:
             return 'virtual_initial_liquidity'
         return 'position_liquidity'
+
+    def _pool_application(self, execution_fact) -> str:
+        application_id = str(execution_fact.application_id)
+        if '@' in application_id:
+            return self.account_codec.format_account(
+                chain_id=self.account_codec.chain_id_from_account(application_id),
+                owner=self.account_codec.parse_account(application_id)['owner'],
+            )
+        if execution_fact.pool_chain_id in (None, ''):
+            raise ValueError('missing_pool_chain_id')
+        owner = application_id if application_id.startswith('0x') else f'0x{application_id}'
+        return self.account_codec.format_account(
+            chain_id=execution_fact.pool_chain_id,
+            owner=owner,
+        )
 
     def _result(
         self,

@@ -47,7 +47,10 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
                 'normalization_status': 'observed',
                 'event_payload_json': {
                     'decoded_payload_json': {
-                        'pool_application': {'chain_id': 'chain-a', 'owner': 'pool-app'},
+                        'pool_application': {
+                            'chain_id': 'chain-a',
+                            'owner': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                        },
                         'token_0': 'AAA',
                         'token_1': None,
                     },
@@ -60,8 +63,8 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(
             connection.cursor_obj.executed[0][1],
             (
-                'chain-a:0xpool-app',
-                'pool-app',
+                '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
+                'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                 'chain-a',
                 'AAA',
                 'TLINERA',

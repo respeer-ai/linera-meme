@@ -9,9 +9,10 @@ class ObservabilityRuntime:
         *,
         bootstrap: AppBootstrap | None = None,
         lifecycle: AppLifecycle | None = None,
+        market_data_event_sink=None,
     ):
         self.config = config
-        self.bootstrap = bootstrap or AppBootstrap()
+        self.bootstrap = bootstrap or AppBootstrap(market_data_event_sink=market_data_event_sink)
         self.lifecycle = lifecycle or AppLifecycle()
         self.container = None
 

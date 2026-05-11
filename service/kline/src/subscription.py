@@ -13,10 +13,18 @@ class KlineSubscription:
     pool_application: str | None = None
 
 
+@dataclass(frozen=True)
+class PositionsSubscription:
+    owner: str | None = None
+    pool_id: int | None = None
+    pool_application: str | None = None
+
+
 class WebSocketManager:
     def __init__(self, swap, candle_reader, pool_catalog_repository=None):
         self.connections: list[WebSocket] = []
         self.kline_subscriptions: dict[WebSocket, set[KlineSubscription]] = {}
+        self.positions_subscriptions: dict[WebSocket, set[PositionsSubscription]] = {}
         self.swap = swap
         self.candle_reader = candle_reader
         self.pool_catalog_repository = pool_catalog_repository
@@ -26,12 +34,14 @@ class WebSocketManager:
         print(f'New connection {len(self.connections)} from {websocket.scope["client"]}')
         self.connections.append(websocket)
         self.kline_subscriptions[websocket] = set()
+        self.positions_subscriptions[websocket] = set()
         await self.handle(websocket)
 
     def close(self, websocket: WebSocket):
         if websocket in self.connections:
             self.connections.remove(websocket)
         self.kline_subscriptions.pop(websocket, None)
+        self.positions_subscriptions.pop(websocket, None)
 
     def handle_message(self, websocket: WebSocket, data):
         if not isinstance(data, dict):
@@ -56,6 +66,14 @@ class WebSocketManager:
                     pool_application=pool_application,
                 )
                 for interval in intervals
+            }
+        if data.get('action') == 'subscribe' and data.get('topic') == 'positions':
+            self.positions_subscriptions[websocket] = {
+                PositionsSubscription(
+                    owner=data.get('owner'),
+                    pool_id=data.get('pool_id'),
+                    pool_application=data.get('pool_application'),
+                )
             }
 
     def filter_incremental_kline_payload(self, payload, subscriptions: set[KlineSubscription]):
@@ -92,6 +110,39 @@ class WebSocketManager:
             await connection.send_json({
                 'notification': 'transactions',
                 'value': payload
+            })
+
+    def filter_positions_payload(self, payload, subscriptions: set[PositionsSubscription]):
+        if len(subscriptions) == 0:
+            return payload
+        filtered_events = []
+        for event in payload.get('events') or []:
+            owners = set(event.get('owners') or [])
+            for subscription in subscriptions:
+                owner_matches = (
+                    subscription.owner is None
+                    or len(owners) == 0
+                    or subscription.owner in owners
+                )
+                pool_id_matches = subscription.pool_id is None or subscription.pool_id == event.get('pool_id')
+                pool_application_matches = (
+                    subscription.pool_application is None
+                    or subscription.pool_application == event.get('pool_application')
+                )
+                if owner_matches and pool_id_matches and pool_application_matches:
+                    filtered_events.append(event)
+                    break
+        return {'events': filtered_events}
+
+    async def notify_positions(self, payload):
+        for connection in self.connections:
+            subscriptions = self.positions_subscriptions.get(connection) or set()
+            filtered = self.filter_positions_payload(payload, subscriptions)
+            if not filtered.get('events'):
+                continue
+            await connection.send_json({
+                'notification': 'positions',
+                'value': filtered,
             })
 
     async def notify_kline(self, payload=None):
@@ -164,3 +215,5 @@ class WebSocketManager:
             await self.notify_kline(payload)
         elif topic == 'transactions':
             await self.notify_transactions(payload)
+        elif topic == 'positions':
+            await self.notify_positions(payload)

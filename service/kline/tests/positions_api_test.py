@@ -30,10 +30,6 @@ subscription_stub = types.ModuleType('subscription')
 subscription_stub.WebSocketManager = object
 sys.modules['subscription'] = subscription_stub
 
-ticker_stub = types.ModuleType('ticker')
-ticker_stub.Ticker = object
-sys.modules['ticker'] = ticker_stub
-
 async_request_stub = types.ModuleType('async_request')
 
 async def dummy_post(*_args, **_kwargs):
@@ -606,13 +602,10 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'current_liquidity': '0.346087',
                     'position_liquidity_live': '0.346087',
                     'total_supply_live': '1.000000',
-                    'exact_share_ratio': '0.346087',
+                    'share_ratio': '0.346087',
                     'redeemable_amount0': '123.45',
                     'redeemable_amount1': '6.78',
                     'virtual_initial_liquidity': True,
-                    'metrics_status': 'partial_live_redeemable_only',
-                    'exact_fee_supported': False,
-                    'exact_principal_supported': False,
                     'computation_blockers': [
                         'missing_historical_total_supply',
                         'missing_fee_growth_trace',

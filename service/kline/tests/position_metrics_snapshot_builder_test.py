@@ -47,9 +47,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_rebuilds_pool_and_closed_position_snapshots(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -142,7 +142,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 [
                     {
                         'settled_output_type': 'settled_trade',
-                        'pool_application_id': 'chain-a:pool-app',
+                        'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
                         'pool_chain_id': 'chain-a',
                     }
                 ]
@@ -155,9 +155,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_persists_recorded_state_when_exact_swap_replay_is_blocked(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -215,7 +215,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_tracks_fee_free_state_from_latest_liquidity_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -226,7 +226,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_out': None,
                 'liquidity': '10',
                 'created_at': 1000,
-                'from_account': 'chain-user:owner-user',
+                'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
             },
             {
                 'transaction_id': 11,
@@ -237,7 +237,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_out': '5',
                 'liquidity': '5',
                 'created_at': 2000,
-                'from_account': 'chain-user:owner-user',
+                'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
             },
         ]
         source_repository.pool_transaction_history[pool_application_id].extend([
@@ -287,7 +287,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_persists_pool_created_metadata_into_pool_state_payload(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -298,7 +298,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_out': None,
                 'liquidity': '0',
                 'created_at': 1000,
-                'from_account': 'chain-user:owner-user',
+                'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
             },
         ]
         source_repository.pool_created_metadata[pool_application_id] = {
@@ -335,9 +335,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_records_prior_liquidity_before_latest_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -396,9 +396,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_persists_protocol_fee_liquidity_provenance(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -485,9 +485,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_marks_zero_liquidity_bootstrap_before_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -541,9 +541,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_marks_reopen_from_zero_before_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -608,9 +608,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_counts_current_round_trades_before_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -708,9 +708,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_counts_trades_between_basis_and_fee_free_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -781,9 +781,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_persists_exact_current_principal_payload(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -841,9 +841,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_persists_fee_to_continuity_payload(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -890,9 +890,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_marks_fee_to_continuity_changed_after_basis(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
-        owner = 'chain-user:owner-user'
-        settled_owner = 'owner-user@chain-user'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        settled_owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -944,7 +944,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
     def test_build_materialization_plan_records_pool_fee_to_account_latest_known(self):
         source_repository = self.FakeSnapshotSourceRepository()
-        pool_application_id = 'chain-a:pool-app'
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
         source_repository.pool_transaction_history[pool_application_id] = [
             {
                 'transaction_id': 10,
@@ -955,7 +955,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_out': None,
                 'liquidity': '0',
                 'created_at': 1000,
-                'from_account': 'chain-user:owner-user',
+                'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
             }
         ]
         source_repository.pool_fee_to_history[pool_application_id] = [

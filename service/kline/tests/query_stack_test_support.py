@@ -44,7 +44,7 @@ class QueryStackTestSupport:
             self.calls.append(('get_kline', dict(kwargs)))
             return (
                 7,
-                'chain:pool-app',
+                '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 kwargs['token_0'],
                 kwargs['token_1'],
                 [{'timestamp': kwargs['start_at'], 'close': '1.23'}],
@@ -136,10 +136,6 @@ class QueryStackTestSupport:
         subscription_stub = types.ModuleType('subscription')
         subscription_stub.WebSocketManager = object
         sys.modules['subscription'] = subscription_stub
-
-        ticker_stub = types.ModuleType('ticker')
-        ticker_stub.Ticker = object
-        sys.modules['ticker'] = ticker_stub
 
         async_request_stub = types.ModuleType('async_request')
         async_request_stub.post = cls.dummy_post

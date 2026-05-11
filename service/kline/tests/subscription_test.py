@@ -15,7 +15,7 @@ fastapi_stub = types.ModuleType('fastapi')
 fastapi_stub.WebSocket = object
 sys.modules.setdefault('fastapi', fastapi_stub)
 
-from subscription import KlineSubscription, WebSocketManager  # noqa: E402
+from subscription import KlineSubscription, PositionsSubscription, WebSocketManager  # noqa: E402
 
 
 class FakeWebSocket:
@@ -110,6 +110,23 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
                 KlineSubscription(token_0='AAA', token_1='BBB', interval='1min'),
                 KlineSubscription(token_0='AAA', token_1='BBB', interval='5min'),
             },
+        )
+
+    def test_handle_message_tracks_positions_subscription(self):
+        websocket = FakeWebSocket()
+        self.manager.positions_subscriptions[websocket] = set()
+
+        self.manager.handle_message(websocket, {
+            'action': 'subscribe',
+            'topic': 'positions',
+            'owner': 'owner-a',
+            'pool_id': 7,
+            'pool_application': 'pool-app',
+        })
+
+        self.assertEqual(
+            self.manager.positions_subscriptions[websocket],
+            {PositionsSubscription(owner='owner-a', pool_id=7, pool_application='pool-app')},
         )
 
     async def test_notify_kline_only_sends_requested_pair_and_interval_for_subscribed_connection(self):
@@ -323,6 +340,72 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': payload,
+        }])
+
+    async def test_notify_positions_filters_by_owner_pool_and_application(self):
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.positions_subscriptions[websocket] = {
+            PositionsSubscription(owner='owner-a', pool_id=7, pool_application='pool-app'),
+        }
+
+        await self.manager.notify_positions({
+            'events': [
+                {
+                    'owners': ['owner-a'],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_liquidity_change'],
+                },
+                {
+                    'owners': ['owner-b'],
+                    'pool_id': 8,
+                    'pool_application': 'other-pool',
+                    'event_types': ['settled_liquidity_change'],
+                },
+            ],
+        })
+
+        self.assertEqual(websocket.sent, [{
+            'notification': 'positions',
+            'value': {
+                'events': [{
+                    'owners': ['owner-a'],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_liquidity_change'],
+                }],
+            },
+        }])
+
+    async def test_notify_positions_treats_empty_owners_as_pool_wide_invalidation(self):
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.positions_subscriptions[websocket] = {
+            PositionsSubscription(owner='owner-a', pool_id=7, pool_application='pool-app'),
+        }
+
+        await self.manager.notify_positions({
+            'events': [
+                {
+                    'owners': [],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_trade'],
+                },
+            ],
+        })
+
+        self.assertEqual(websocket.sent, [{
+            'notification': 'positions',
+            'value': {
+                'events': [{
+                    'owners': [],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_trade'],
+                }],
+            },
         }])
 
 

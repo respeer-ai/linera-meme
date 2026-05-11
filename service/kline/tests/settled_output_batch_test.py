@@ -37,19 +37,19 @@ class SettledOutputBatchTest(unittest.TestCase):
             outputs=[
                 {
                     'settled_output_type': 'settled_trade',
-                    'pool_application_id': 'chain-a:pool-app',
+                    'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
                     'pool_chain_id': 'chain-a',
                 },
                 {
                     'settled_output_type': 'settled_liquidity_change',
-                    'pool_application_id': 'chain-a:pool-app',
+                    'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
                     'pool_chain_id': 'chain-a',
-                    'owner': 'owner-user@chain-user',
+                    'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
                 },
                 {
                     'settled_output_type': 'settled_liquidity_change',
-                    'pool_application_id': 'chain-b:pool-app',
-                    'owner': 'chain-user:owner-direct',
+                    'pool_application_id': '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc@chain-b',
+                    'owner': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-user',
                 },
             ]
         )
@@ -57,14 +57,22 @@ class SettledOutputBatchTest(unittest.TestCase):
         self.assertEqual(
             batch.affected_pools(),
             [
-                ('chain-a:pool-app', 'chain-a'),
-                ('chain-b:pool-app', None),
+                ('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a', 'chain-a'),
+                ('0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc@chain-b', None),
             ],
         )
         self.assertEqual(
             batch.affected_positions(),
             [
-                ('chain-user:owner-direct', 'chain-b:pool-app', None),
-                ('chain-user:owner-user', 'chain-a:pool-app', 'chain-a'),
+                (
+                    '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
+                    '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
+                    'chain-a',
+                ),
+                (
+                    '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-user',
+                    '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc@chain-b',
+                    None,
+                ),
             ],
         )

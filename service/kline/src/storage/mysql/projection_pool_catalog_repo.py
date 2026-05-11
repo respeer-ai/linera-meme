@@ -42,21 +42,12 @@ class ProjectionPoolCatalogRepository:
             pool_application_id = row.get('pool_application_id')
             if pool_application_id is None:
                 continue
-            pool_chain_id = row.get('pool_chain_id')
             pool_application_id_value = str(pool_application_id)
-            if '@' in pool_application_id_value:
+            try:
+                self.account_codec.parse_account(pool_application_id_value)
                 state_by_pool_application[pool_application_id_value] = row
-            elif (
-                pool_chain_id not in (None, '')
-                and ':' not in pool_application_id_value
-                and self._is_hex_application_id(pool_application_id_value)
-            ):
-                state_by_pool_application[
-                    self.account_codec.format_account(
-                        chain_id=pool_chain_id,
-                        owner=f'0x{pool_application_id_value}',
-                    )
-                ] = row
+            except ValueError:
+                continue
         pools = []
         for row in catalog:
             pool_application = str(row['pool_application'])
@@ -89,9 +80,3 @@ class ProjectionPoolCatalogRepository:
         token_0 = metadata.get('token_0') or catalog_row.get('token_0')
         token_1 = metadata.get('token_1') or catalog_row.get('token_1')
         return str(token_0), str(token_1)
-
-    def _is_hex_application_id(self, value: str) -> bool:
-        return len(value) in (40, 64) and all(
-            char in '0123456789abcdefABCDEF'
-            for char in value
-        )

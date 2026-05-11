@@ -65,16 +65,16 @@ class KlineRuntimeTest(unittest.TestCase):
         def now_ms(self):
             return 0
 
-    def test_ticker_transaction_history_repository_uses_projection_history_repo(self):
+    def test_realtime_transaction_history_repository_uses_projection_history_repo(self):
         runtime = KlineRuntime(
             db=self.FakeDb(),
-            ticker_db=self.FakeDb(),
+            realtime_db=self.FakeDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),
         )
 
-        repository = runtime.ticker_transaction_history_repository()
+        repository = runtime.realtime_transaction_history_repository()
 
         self.assertIsInstance(repository, SettledPoolHistoryProjectionRepository)
         self.assertIsNotNone(repository.settled_trade_projection_repo)
@@ -83,7 +83,7 @@ class KlineRuntimeTest(unittest.TestCase):
     def test_settled_pool_history_projection_repository_uses_layer3_dependencies(self):
         runtime = KlineRuntime(
             db=self.FakeDb(),
-            ticker_db=self.FakeDb(),
+            realtime_db=self.FakeDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),
@@ -98,7 +98,7 @@ class KlineRuntimeTest(unittest.TestCase):
     def test_kline_handler_uses_settled_trade_projection_repository(self):
         runtime = KlineRuntime(
             db=self.FakeDb(),
-            ticker_db=self.FakeDb(),
+            realtime_db=self.FakeDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),
@@ -111,7 +111,7 @@ class KlineRuntimeTest(unittest.TestCase):
     def test_transactions_handler_uses_settled_trade_projection_repository(self):
         runtime = KlineRuntime(
             db=self.FakeDb(),
-            ticker_db=self.FakeDb(),
+            realtime_db=self.FakeDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),
@@ -124,7 +124,7 @@ class KlineRuntimeTest(unittest.TestCase):
     def test_positions_handler_uses_settled_liquidity_projection_repository(self):
         runtime = KlineRuntime(
             db=self.FakeDb(),
-            ticker_db=self.FakeDb(),
+            realtime_db=self.FakeDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),
@@ -159,7 +159,7 @@ class KlineRuntimeTest(unittest.TestCase):
 
         runtime = KlineRuntime(
             db=GuardedDb(),
-            ticker_db=GuardedDb(),
+            realtime_db=GuardedDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),
@@ -193,7 +193,7 @@ class KlineRuntimeTest(unittest.TestCase):
 
         runtime = KlineRuntime(
             db=GuardedDb(),
-            ticker_db=GuardedDb(),
+            realtime_db=GuardedDb(),
             observability_config=None,
             swap=object(),
             websocket_manager=object(),

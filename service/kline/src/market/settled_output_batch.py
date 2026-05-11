@@ -51,7 +51,11 @@ class SettledOutputBatch:
         return sorted(positions)
 
     def _public_owner(self, owner: str) -> str:
-        return self.account_codec.public_account_from_settled_owner(owner) or owner
+        parsed = self.account_codec.parse_account(owner)
+        return self.account_codec.format_account(
+            chain_id=parsed['chain_id'],
+            owner=parsed['owner'],
+        )
 
     def _string_or_none(self, value: object) -> str | None:
         if value is None:

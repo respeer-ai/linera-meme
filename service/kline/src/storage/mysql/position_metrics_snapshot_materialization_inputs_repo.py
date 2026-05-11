@@ -60,14 +60,9 @@ class PositionMetricsSnapshotMaterializationInputsRepository:
         pool_application_id: str,
         pool_chain_id: str | None = None,
     ) -> list[dict[str, object]]:
-        pool_application = pool_application_id
-        if pool_chain_id not in (None, '') and '@' not in pool_application_id:
-            pool_application = self.account_codec.format_account(
-                chain_id=pool_chain_id,
-                owner=f'0x{pool_application_id}',
-            )
+        self.account_codec.parse_account(pool_application_id)
         history = self.settled_pool_history_projection_repo.get_pool_transaction_history(
-            pool_application=pool_application,
+            pool_application=pool_application_id,
             pool_id=None,
         )
         return [] if history is None else list(history)

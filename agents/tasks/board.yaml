@@ -625,7 +625,7 @@ groups:
           - 明确是否与目标语义一致
           - 若不一致，记录应修复在前端、query read model 还是 Layer 3 物化层
       - id: POS-053
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-035, POS-037, POS-038, OBS-E2E-001]
         title: 重构实时推送为 projection event queue
@@ -648,13 +648,19 @@ groups:
           - 禁止继续给 `Ticker` 增加新产品 realtime topic
 
           当前拆分：
-          - POS-054: 建立 market-data event 类型、queue、publisher 基础设施
-          - POS-055: 把 Layer 3 market derivation commit 接入 event producer
-          - POS-056: 实现 `positions` websocket topic 与前端自动刷新
-          - POS-057: 抽出 candle finality scheduler，保留后端统一 `is_final`
-          - POS-058: 删除 legacy `Ticker` 主运行路径与实现
+          - POS-054: 已建立 market-data event 类型、queue、publisher 基础设施
+          - POS-055: 已把 Layer 3 market derivation commit 接入 event producer
+          - POS-056: 已实现 `positions` websocket topic 与前端自动刷新
+          - POS-057: 已抽出 candle finality scheduler，保留后端统一 `is_final`
+          - POS-058: 已删除 legacy `Ticker` 主运行路径与实现
+
+          验证：
+          - `python3 -m compileall -q service/kline/src`
+          - `python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/market_data_event_sink_test.py service/kline/tests/market_data_event_publisher_test.py service/kline/tests/subscription_test.py service/kline/tests/kline_service_lifecycle_test.py service/kline/tests/market_derivation_worker_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/positions_api_test.py`
+          - `bun test src/stores/kline/liveUpdate.test.ts`
+          - `bun run build`
       - id: POS-054
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [POS-053]
         title: 建立 market-data event queue 与 publisher
@@ -667,7 +673,7 @@ groups:
           - WebSocketManager 只做 subscription registry 与 fan-out，不计算业务数据
           - 添加单测覆盖 drain/coalesce、空事件、重复 pool/owner 合并、断开连接清理
       - id: POS-055
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [POS-054, POS-035]
         title: 将 Layer 3 commit 接入实时事件生产
@@ -681,7 +687,7 @@ groups:
           - replay/catch-up 可以发布 range_invalidated 或 projection_rebuilt
           - 不从 raw block 或 Layer 2 半成品直接推产品事件
       - id: POS-056
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [POS-054, POS-055, POS-052]
         title: 实现 positions websocket topic 与前端自动刷新
@@ -698,7 +704,7 @@ groups:
           - 不用 blockHash 驱动 positions
           - 不把 websocket payload 当 position 真值
       - id: POS-057
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [POS-054]
         title: 抽出 candle finality scheduler
@@ -711,7 +717,7 @@ groups:
           - HTTP `/points` 仍以服务端时间/projection 语义返回统一 `is_final`
           - 不依赖 `Ticker.run` 10s loop 做 finality rollover
       - id: POS-058
-        status: Todo
+        status: Done
         priority: P1
         depends_on: [POS-054, POS-055, POS-057]
         title: 删除 legacy Ticker

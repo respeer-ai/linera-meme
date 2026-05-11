@@ -11,6 +11,7 @@ import {
   type PoolStat,
   type ProtocolStat,
   type PositionMetricsResponse,
+  type PositionsInvalidationPayload,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
@@ -18,7 +19,11 @@ import { type TransactionExt } from '../transaction'
 import { klineWorker } from 'src/worker'
 import { type TickerInterval, type Interval } from './const'
 import axios from 'axios'
-import { buildKlineSubscriptionMessage, mergeLatestPointMaps } from './liveUpdate'
+import {
+  buildKlineSubscriptionMessage,
+  buildPositionsSubscriptionMessage,
+  mergeLatestPointMaps,
+} from './liveUpdate'
 import {
   buildPoolStatsByApplicationMap,
   buildPoolStatsMap,
@@ -39,6 +44,14 @@ export const useKlineStore = defineStore('kline', {
           interval: Interval
         }
       | undefined,
+    activePositionsSubscription: undefined as
+      | {
+          owner: string
+          poolId?: number
+          poolApplication?: string
+        }
+      | undefined,
+    positionsListeners: [] as Array<(payload: PositionsInvalidationPayload) => void>,
     latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
@@ -47,6 +60,7 @@ export const useKlineStore = defineStore('kline', {
   }),
   actions: {
     initializeKline() {
+      if (this.websocket) return
       this.websocket = new _WebSocket(constants.KLINE_WS_URL)
       this.websocket.withOnOpen(() => this.onOpen())
       this.websocket.withOnMessage((notification) => this.onMessage(notification))
@@ -54,17 +68,26 @@ export const useKlineStore = defineStore('kline', {
     },
     onOpen() {
       const subscription = this.activeSubscription
-      if (!subscription) return
-
-      this.websocket.sendJson(
-        buildKlineSubscriptionMessage(
-          subscription.token0,
-          subscription.token1,
-          subscription.interval,
-          subscription.poolId,
-          subscription.poolApplication,
-        ),
-      )
+      if (subscription) {
+        this.websocket.sendJson(
+          buildKlineSubscriptionMessage(
+            subscription.token0,
+            subscription.token1,
+            subscription.interval,
+            subscription.poolId,
+            subscription.poolApplication,
+          ),
+        )
+      }
+      if (this.activePositionsSubscription) {
+        this.websocket.sendJson(
+          buildPositionsSubscriptionMessage(
+            this.activePositionsSubscription.owner,
+            this.activePositionsSubscription.poolId,
+            this.activePositionsSubscription.poolApplication,
+          ),
+        )
+      }
     },
     onMessage(notification: Notification) {
       if (notification.notification === 'kline') {
@@ -76,6 +99,8 @@ export const useKlineStore = defineStore('kline', {
         )
       } else if (notification.notification === 'transactions') {
         this.onTransactions(notification.value as Transactions[])
+      } else if (notification.notification === 'positions') {
+        this.onPositions(notification.value as PositionsInvalidationPayload)
       }
     },
     subscribeKline(
@@ -91,6 +116,24 @@ export const useKlineStore = defineStore('kline', {
       this.websocket?.sendJson(
         buildKlineSubscriptionMessage(token0, token1, interval, poolId, poolApplication),
       )
+    },
+    subscribePositions(owner: string, poolId?: number, poolApplication?: string) {
+      if (!owner) return
+      this.activePositionsSubscription = {
+        owner,
+        ...(poolId !== undefined ? { poolId } : {}),
+        ...(poolApplication !== undefined ? { poolApplication } : {}),
+      }
+      this.websocket?.sendJson(buildPositionsSubscriptionMessage(owner, poolId, poolApplication))
+    },
+    addPositionsListener(listener: (payload: PositionsInvalidationPayload) => void) {
+      this.positionsListeners.push(listener)
+      return () => {
+        this.positionsListeners = this.positionsListeners.filter((candidate) => candidate !== listener)
+      }
+    },
+    onPositions(payload: PositionsInvalidationPayload) {
+      this.positionsListeners.forEach((listener) => listener(payload))
     },
     onKline(points: Map<Interval, Points[]>) {
       points.forEach((_points, interval) => {

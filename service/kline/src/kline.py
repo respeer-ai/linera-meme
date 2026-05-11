@@ -14,6 +14,7 @@ from kline_entrypoint_services import KlineEntrypointServices
 from kline_position_metrics_dependencies import KlinePositionMetricsDependencies
 from query.handlers.position_metrics import PositionMetricsHandler
 from query.read_models.position_metrics import PositionMetricsReadModel
+from realtime.market_data_event_queue import MarketDataEventQueue
 
 app = FastAPI()
 _swap = None
@@ -26,6 +27,7 @@ _observability_facade = None
 _entrypoint_services = None
 _entrypoint_graph_signature = None
 _position_metrics_entrypoint_overrides = None
+_market_data_event_queue = MarketDataEventQueue()
 
 
 def _reset_entrypoint_graph():
@@ -45,6 +47,7 @@ def _entrypoint_signature():
         manager,
         _db_config,
         _observability_supervisor,
+        _market_data_event_queue,
         *services_signature,
     )
 
@@ -60,6 +63,7 @@ def _services() -> KlineEntrypointServices:
             websocket_manager=manager,
             db_config=_db_config,
             observability_supervisor=_observability_supervisor,
+            market_data_event_queue=_market_data_event_queue,
         )
         _entrypoint_graph_signature = signature
     return _entrypoint_services
@@ -708,9 +712,6 @@ if __name__ == '__main__':
             'proxy_chain_id': args.proxy_chain_id or None,
             'proxy_application_id': args.proxy_application_id or None,
         }
-    _observability_facade = _runtime().build_observability_facade()
-    _observability_supervisor = _observability_facade.supervisor
-
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
     _swap = Swap(
         args.swap_host,
@@ -721,6 +722,10 @@ if __name__ == '__main__':
         query_base_url=f'http://{args.swap_host}/api/swap/query',
     )
     manager = _runtime().build_websocket_manager()
+    _reset_entrypoint_graph()
+    _observability_facade = _runtime().build_observability_facade()
+    _observability_supervisor = _observability_facade.supervisor
+    _reset_entrypoint_graph()
 
     uvicorn.run(app, host=args.host, port=args.port, ws_ping_interval=30, ws_ping_timeout=10)
 

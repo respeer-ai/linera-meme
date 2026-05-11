@@ -1,4 +1,10 @@
-import { type Interval, useKlineStore, type Point, type TickerInterval } from './store'
+import {
+  type Interval,
+  useKlineStore,
+  type Point,
+  type PositionsInvalidationPayload,
+  type TickerInterval,
+} from './store'
 
 const kline = useKlineStore()
 
@@ -12,6 +18,12 @@ export class Kline {
     poolId: number,
     poolApplication: string,
   ) => kline.subscribeKline(token0, token1, interval, poolId, poolApplication)
+
+  static subscribePositions = (owner: string, poolId?: number, poolApplication?: string) =>
+    kline.subscribePositions(owner, poolId, poolApplication)
+
+  static onPositions = (listener: (payload: PositionsInvalidationPayload) => void) =>
+    kline.addPositionsListener(listener)
 
   static latestPoints = (
     key: Interval,

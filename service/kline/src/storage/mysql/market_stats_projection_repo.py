@@ -243,7 +243,7 @@ class MarketStatsProjectionRepository:
         self.db.cursor_dict.execute(
             f'''
                 SELECT
-                    CONCAT('0x', st.pool_application_id, '@', st.pool_chain_id) AS pool_application,
+                    st.pool_application_id AS pool_application,
                     st.trade_time_ms,
                     st.side,
                     st.amount_in,

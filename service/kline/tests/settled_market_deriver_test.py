@@ -21,7 +21,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
             {
                 'normalized_event_id': 'event-1',
                 'raw_fact_id': '11',
-                'application_id': 'pool-app',
+                'application_id': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                 'event_family': 'pool_new_transaction_recorded',
                 'normalization_status': 'observed',
                 'target_chain_id': 'pool-chain',
@@ -47,7 +47,10 @@ class SettledMarketDeriverTest(unittest.TestCase):
         self.assertEqual(derived['derivation_status'], 'settled')
         trade = derived['settled_outputs'][0]
         self.assertEqual(trade['settled_output_type'], 'settled_trade')
-        self.assertEqual(trade['pool_application_id'], 'pool-app')
+        self.assertEqual(
+            trade['pool_application_id'],
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@pool-chain',
+        )
         self.assertEqual(trade['pool_chain_id'], 'pool-chain')
         self.assertEqual(trade['from_account'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
         self.assertEqual(trade['amount_0_out'], '300')
@@ -64,7 +67,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
             {
                 'normalized_event_id': 'event-2',
                 'raw_fact_id': '12',
-                'application_id': 'pool-app',
+                'application_id': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                 'event_family': 'pool_new_transaction_recorded',
                 'normalization_status': 'observed',
                 'target_chain_id': 'pool-chain',
@@ -105,7 +108,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
             {
                 'normalized_event_id': 'event-2-virtual',
                 'raw_fact_id': '12',
-                'application_id': 'pool-app',
+                'application_id': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                 'event_family': 'pool_new_transaction_recorded',
                 'normalization_status': 'observed',
                 'target_chain_id': 'pool-chain',
@@ -142,7 +145,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
             {
                 'normalized_event_id': 'event-3',
                 'raw_fact_id': '13',
-                'application_id': 'pool-app',
+                'application_id': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
                 'event_family': 'pool_new_transaction_recorded',
                 'normalization_status': 'observed',
                 'target_chain_id': 'pool-chain',

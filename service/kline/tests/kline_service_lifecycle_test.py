@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import types
 import unittest
@@ -20,22 +21,20 @@ from kline_service_lifecycle import KlineServiceLifecycle  # noqa: E402
 
 
 class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
-    class FakeTicker:
+    class FakeBackgroundService:
         def __init__(self):
+            self.started = asyncio.Event()
             self.stopped = False
-            self.run_calls = 0
-
-        def running(self):
-            return not self.stopped
 
         async def run(self):
-            self.run_calls += 1
-            self.stopped = True
+            self.started.set()
+            while not self.stopped:
+                await asyncio.sleep(0.001)
 
         def stop(self):
             self.stopped = True
 
-    class FakeTickerDb:
+    class FakeRealtimeDb:
         def __init__(self):
             self.closed = False
 
@@ -44,25 +43,36 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
 
     class FakeServices:
         def __init__(self):
-            self._ticker = None
-            self._ticker_db = None
-            self._ticker_task = None
+            self._realtime_db = None
+            self._market_data_event_publisher = None
+            self._market_data_event_publisher_task = None
+            self._candle_finality_scheduler = None
+            self._candle_finality_scheduler_task = None
 
         @property
-        def ticker(self):
-            return self._ticker
+        def realtime_db(self):
+            return self._realtime_db
 
         @property
-        def ticker_db(self):
-            return self._ticker_db
+        def market_data_event_publisher(self):
+            return self._market_data_event_publisher
 
         @property
-        def ticker_task(self):
-            return self._ticker_task
+        def market_data_event_publisher_task(self):
+            return self._market_data_event_publisher_task
 
-    async def test_startup_waits_for_observability_before_starting_ticker(self):
-        ticker_db = self.FakeTickerDb()
-        ticker = self.FakeTicker()
+        @property
+        def candle_finality_scheduler(self):
+            return self._candle_finality_scheduler
+
+        @property
+        def candle_finality_scheduler_task(self):
+            return self._candle_finality_scheduler_task
+
+    async def test_startup_waits_for_observability_before_starting_realtime_services(self):
+        realtime_db = self.FakeRealtimeDb()
+        publisher = self.FakeBackgroundService()
+        scheduler = self.FakeBackgroundService()
         events = []
 
         class Supervisor:
@@ -71,33 +81,50 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
                 return True
 
             async def shutdown(self):
-                return None
+                events.append('observability_shutdown')
 
-        def build_ticker(created_db):
-            self.assertIs(created_db, ticker_db)
-            events.append('ticker_built')
-            return ticker
+        def build_publisher(created_db):
+            self.assertIs(created_db, realtime_db)
+            events.append('publisher_built')
+            return publisher
+
+        def build_scheduler(created_db):
+            self.assertIs(created_db, realtime_db)
+            events.append('scheduler_built')
+            return scheduler
 
         lifecycle = KlineServiceLifecycle(
             db_config={'host': 'db', 'port': '3306', 'db_name': 'kline', 'username': 'user', 'password': 'pass'},
-            build_ticker=build_ticker,
+            build_market_data_event_publisher=build_publisher,
+            build_candle_finality_scheduler=build_scheduler,
             observability_supervisor=Supervisor(),
             services=self.FakeServices(),
         )
 
         original_db_type = sys.modules['kline_service_lifecycle'].Db
-        sys.modules['kline_service_lifecycle'].Db = lambda *_args, **_kwargs: ticker_db
+        sys.modules['kline_service_lifecycle'].Db = lambda *_args, **_kwargs: realtime_db
         try:
             await lifecycle.startup()
+            await asyncio.wait_for(publisher.started.wait(), timeout=1)
+            await asyncio.wait_for(scheduler.started.wait(), timeout=1)
             await lifecycle.shutdown()
         finally:
             sys.modules['kline_service_lifecycle'].Db = original_db_type
 
-        self.assertEqual(events, ['observability_started', 'ticker_built'])
+        self.assertEqual(events, [
+            'observability_started',
+            'publisher_built',
+            'scheduler_built',
+            'observability_shutdown',
+        ])
+        self.assertTrue(publisher.stopped)
+        self.assertTrue(scheduler.stopped)
+        self.assertTrue(realtime_db.closed)
 
-    async def test_startup_fails_open_when_observability_start_raises_synchronously(self):
-        ticker_db = self.FakeTickerDb()
-        ticker = self.FakeTicker()
+    async def test_startup_fails_open_when_observability_start_raises(self):
+        realtime_db = self.FakeRealtimeDb()
+        publisher = self.FakeBackgroundService()
+        scheduler = self.FakeBackgroundService()
 
         class FailingSupervisor:
             async def start_if_configured(self):
@@ -108,21 +135,29 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
 
         lifecycle = KlineServiceLifecycle(
             db_config={'host': 'db', 'port': '3306', 'db_name': 'kline', 'username': 'user', 'password': 'pass'},
-            build_ticker=lambda created_db: ticker if created_db is ticker_db else ticker,
+            build_market_data_event_publisher=lambda created_db: publisher if created_db is realtime_db else publisher,
+            build_candle_finality_scheduler=lambda created_db: scheduler if created_db is realtime_db else scheduler,
             observability_supervisor=FailingSupervisor(),
             services=self.FakeServices(),
         )
 
         original_db_type = sys.modules['kline_service_lifecycle'].Db
-        sys.modules['kline_service_lifecycle'].Db = lambda *_args, **_kwargs: ticker_db
+        sys.modules['kline_service_lifecycle'].Db = lambda *_args, **_kwargs: realtime_db
         try:
             await lifecycle.startup()
+            await asyncio.wait_for(publisher.started.wait(), timeout=1)
+            await asyncio.wait_for(scheduler.started.wait(), timeout=1)
             await lifecycle.shutdown()
         finally:
             sys.modules['kline_service_lifecycle'].Db = original_db_type
 
-        self.assertIs(lifecycle.ticker, ticker)
-        self.assertIsNone(lifecycle.ticker_db)
-        self.assertIsNone(lifecycle.ticker_task)
-        self.assertTrue(ticker.stopped)
-        self.assertTrue(ticker_db.closed)
+        self.assertIsNone(lifecycle.realtime_db)
+        self.assertIsNone(lifecycle.market_data_event_publisher_task)
+        self.assertIsNone(lifecycle.candle_finality_scheduler_task)
+        self.assertTrue(publisher.stopped)
+        self.assertTrue(scheduler.stopped)
+        self.assertTrue(realtime_db.closed)
+
+
+if __name__ == '__main__':
+    unittest.main()

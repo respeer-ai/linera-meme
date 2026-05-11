@@ -456,7 +456,7 @@ class SettledTradeProjectionRepository:
         return enriched
 
     def _pool_application_expression(self, alias: str) -> str:
-        return f"CONCAT('0x', {alias}.pool_application_id, '@', {alias}.pool_chain_id)"
+        return f"{alias}.pool_application_id"
 
     def _pool_application_condition(self, alias: str) -> str:
         return f"{self._pool_application_expression(alias)} = %s"

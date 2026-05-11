@@ -42,7 +42,7 @@ class ReadModelBridgeTest(
         class FakeSettledTradeProjectionRepository:
             def get_candles(self, **kwargs):
                 self.kwargs = dict(kwargs)
-                return (7, 'chain:pool-app', 'AAA', 'BBB', [{'timestamp': 100, 'close': '1.23'}])
+                return (7, '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'AAA', 'BBB', [{'timestamp': 100, 'close': '1.23'}])
 
         trade_repo = FakeSettledTradeProjectionRepository()
         payload = CandlesReadModel(trade_repo).get_points(
@@ -52,11 +52,11 @@ class ReadModelBridgeTest(
             end_at=200,
             interval='1min',
             pool_id=7,
-            pool_application='chain:pool-app',
+            pool_application='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
         )
 
         self.assertEqual(payload['pool_id'], 7)
-        self.assertEqual(trade_repo.kwargs['pool_application'], 'chain:pool-app')
+        self.assertEqual(trade_repo.kwargs['pool_application'], '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain')
 
     def test_position_metrics_snapshot_and_replay_repositories_prefer_direct_projection_contracts(self):
         class FakeSettledTradeProjectionRepository:
@@ -123,8 +123,8 @@ class ReadModelBridgeTest(
         )
 
         snapshot_inputs = snapshot_repository.get_snapshot_inputs(
-            owner='chain:owner-a',
-            pool_application_id='chain:pool-app',
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+            pool_application_id='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
         )
         self.assertEqual(
             snapshot_inputs.position_basis_snapshot().raw(),
@@ -135,8 +135,8 @@ class ReadModelBridgeTest(
             {'pool_state_id': 'pool-state-1'},
         )
         replay_facts = replay_repository.get_replay_facts(
-            owner='chain:owner-a',
-            pool_application='chain:pool-app',
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+            pool_application='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
             pool_id=5,
             opened_at=1500,
         )
@@ -189,17 +189,17 @@ class ReadModelBridgeTest(
         )
         self.assertEqual(
             position_state_repo.calls,
-            [('get_position_basis_snapshot', {'owner': 'chain:owner-a', 'pool_application_id': 'chain:pool-app', 'status': 'active'})],
+            [('get_position_basis_snapshot', {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'status': 'active'})],
         )
-        self.assertEqual(pool_state_repo.calls, [('get_pool_state_snapshot', {'pool_application_id': 'chain:pool-app'})])
+        self.assertEqual(pool_state_repo.calls, [('get_pool_state_snapshot', {'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain'})])
         self.assertTrue(
-            all(call[1]['pool_application'] == 'chain:pool-app' for call in trade_repo.calls),
+            all(call[1]['pool_application'] == '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain' for call in trade_repo.calls),
         )
         self.assertTrue(
             all(call[1]['pool_id'] == 5 for call in trade_repo.calls),
         )
         self.assertTrue(
-            all(call[1]['pool_application'] == 'chain:pool-app' for call in liquidity_repo.calls if 'pool_application' in call[1]),
+            all(call[1]['pool_application'] == '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain' for call in liquidity_repo.calls if 'pool_application' in call[1]),
         )
 
     def test_position_metrics_positions_projection_repository_uses_settled_liquidity_projection_repository(self):
@@ -218,12 +218,12 @@ class ReadModelBridgeTest(
         )
 
         self.assertEqual(
-            repository.get_positions(owner='chain:owner-a', status='active'),
+            repository.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'),
             [{'pool_id': 5}],
         )
         self.assertEqual(
             liquidity_repo.calls,
-            [('get_positions', {'owner': 'chain:owner-a', 'status': 'active'})],
+            [('get_positions', {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'status': 'active'})],
         )
 
     def test_replay_summary_uses_canonical_created_at_row_time(self):
@@ -250,8 +250,8 @@ class ReadModelBridgeTest(
         )
 
         replay_facts = replay_repository.get_replay_facts(
-            owner='chain:owner-a',
-            pool_application='chain:pool-app',
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+            pool_application='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
             pool_id=5,
             opened_at=1000,
         )
@@ -302,7 +302,7 @@ class ReadModelBridgeTest(
 
         self.assertEqual(
             settled_pool_history_repo.get_pool_transaction_history(
-                pool_application='chain:pool-app',
+                pool_application='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 pool_id=5,
             ),
             [
@@ -312,8 +312,8 @@ class ReadModelBridgeTest(
         )
         self.assertEqual(
             position_metrics_replay_repository.get_replay_facts(
-                owner='chain:owner-a',
-                pool_application='chain:pool-app',
+                owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                pool_application='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 pool_id=5,
                 opened_at=1500,
             ).pool_transaction_history(),
@@ -348,20 +348,20 @@ class ReadModelBridgeTest(
             end_at=200,
         )
         positions = asyncio.run(
-            PositionsReadModel(repository).get_positions(owner='chain:owner-a', status='active')
+            PositionsReadModel(repository).get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active')
         )
 
         self.assertEqual(candles['pool_id'], 9)
         self.assertEqual(candles['points'], [{'close': '3'}])
         self.assertEqual(transactions, [{'transaction_id': 1}])
-        self.assertEqual(positions, {'owner': 'chain:owner-a', 'positions': [{'pool_id': 5}]})
+        self.assertEqual(positions, {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'positions': [{'pool_id': 5}]})
 
     def test_position_metrics_read_model_preserves_phase1_contract(self):
         repository = QueryStackTestSupport.FakeRepository()
 
         async def fake_fetcher(position):
             self.assertEqual(position['pool_id'], 5)
-            self.assertEqual(position['owner'], 'chain:owner-a')
+            self.assertEqual(position['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
             return {
                 'metrics_status': 'partial_live_redeemable_only',
                 'exact_fee_supported': False,
@@ -374,17 +374,17 @@ class ReadModelBridgeTest(
             }
 
         repository.get_positions = lambda **_kwargs: [{
-            'pool_application': 'chain:pool-app',
+            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
             'pool_id': 5,
             'token_0': 'AAA',
             'token_1': 'BBB',
-            'owner': 'chain:owner-a',
+            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
             'status': 'active',
             'current_liquidity': '1.23',
         }]
         payload = asyncio.run(
             PositionMetricsReadModel(repository, fake_fetcher).get_position_metrics(
-                owner='chain:owner-a',
+                owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 status='active',
             )
         )
@@ -393,18 +393,15 @@ class ReadModelBridgeTest(
         self.assertEqual(
             payload.public_payload(),
             {
-                'owner': 'chain:owner-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 'metrics': [{
-                    'pool_application': 'chain:pool-app',
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                     'pool_id': 5,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
-                    'owner': 'chain:owner-a',
+                    'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                     'status': 'active',
                     'current_liquidity': '1.23',
-                    'metrics_status': 'partial_live_redeemable_only',
-                    'exact_fee_supported': False,
-                    'exact_principal_supported': False,
                     'computation_blockers': ['missing_history'],
                     'fee_amount0': '0',
                     'fee_amount1': '0',
@@ -424,11 +421,11 @@ class ReadModelBridgeTest(
             raise AssertionError('synthetic protocol fee receiver position should not use live fetcher')
 
         repository.get_positions = lambda **_kwargs: [{
-            'pool_application': 'chain:pool-app',
+            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
             'pool_id': 5,
             'token_0': 'AAA',
             'token_1': 'BBB',
-            'owner': 'chain:owner-a',
+            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
             'status': 'active',
             'current_liquidity': '0',
             'position_kind': 'virtual_initial_protocol_fee_receiver',
@@ -438,7 +435,7 @@ class ReadModelBridgeTest(
         }]
         payload = asyncio.run(
             PositionMetricsReadModel(repository, fake_fetcher).get_position_metrics(
-                owner='chain:owner-a',
+                owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 status='active',
             )
         )
@@ -447,24 +444,20 @@ class ReadModelBridgeTest(
         self.assertEqual(
             payload.public_payload(),
             {
-                'owner': 'chain:owner-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 'metrics': [{
-                    'pool_application': 'chain:pool-app',
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                     'pool_id': 5,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
-                    'owner': 'chain:owner-a',
+                    'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                     'status': 'active',
                     'current_liquidity': '0',
                     'position_liquidity_live': '0',
                     'total_supply_live': None,
-                    'exact_share_ratio': None,
                     'redeemable_amount0': '25',
                     'redeemable_amount1': '0',
                     'virtual_initial_liquidity': True,
-                    'metrics_status': 'partial_live_redeemable_only',
-                    'exact_fee_supported': False,
-                    'exact_principal_supported': False,
                     'computation_blockers': [],
                     'principal_amount0': '0',
                     'principal_amount1': '0',
@@ -478,6 +471,7 @@ class ReadModelBridgeTest(
                         'This synthetic position marks the protocol fee receiver and uses the '
                         'virtual bootstrap amounts as reference values.'
                     ),
+                    'share_ratio': None,
                 }],
             },
         )
@@ -515,16 +509,16 @@ class ReadModelBridgeTest(
                 return kwargs['positions']
 
         repository.get_positions = lambda **_kwargs: [{
-            'pool_application': 'chain:pool-app',
+            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
             'pool_id': 5,
             'token_0': 'AAA',
             'token_1': 'TLINERA',
-            'owner': 'chain:owner-a',
+            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
             'status': 'virtual',
             'current_liquidity': '0',
             'position_kind': 'virtual_initial_liquidity',
             'is_virtual_position': True,
-            'protocol_fee_receiver_account': 'chain:owner-a',
+            'protocol_fee_receiver_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
             'protocol_fee_reference_amount0': '10499900',
             'protocol_fee_reference_amount1': '8720',
         }]
@@ -534,7 +528,7 @@ class ReadModelBridgeTest(
                 fake_fetcher,
                 virtual_positions_read_model=FakeVirtualPositionsReadModel(),
             ).get_position_metrics(
-                owner='chain:owner-a',
+                owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 status='virtual',
             )
         )
@@ -563,11 +557,11 @@ class ReadModelBridgeTest(
         class FakeReadModel:
             async def get_position_metrics(self, **_kwargs):
                 return PositionMetricsReadResult(
-                    owner='chain:owner-a',
+                    owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                     metrics=[
                         {
-                            'owner': 'chain:owner-a',
-                            'pool_application': 'chain:pool-app',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 5,
                             'status': 'active',
                             'metrics_status': 'partial',
@@ -577,8 +571,8 @@ class ReadModelBridgeTest(
                             'value_warning_codes': [],
                         },
                         {
-                            'owner': 'chain:owner-a',
-                            'pool_application': 'chain:pool-app',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 6,
                             'status': 'active',
                             'metrics_status': 'exact',
@@ -590,9 +584,9 @@ class ReadModelBridgeTest(
                     ],
                     metric_diagnostics=[
                         {
-                            'pool_application': 'chain:pool-app',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 5,
-                            'owner': 'chain:owner-a',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'partial',
                             'exact_fee_supported': False,
@@ -603,9 +597,9 @@ class ReadModelBridgeTest(
                             'fetch_reason_code': 'snapshot_fast_path_miss_payload_only',
                         },
                         {
-                            'pool_application': 'chain:pool-app',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 6,
-                            'owner': 'chain:owner-a',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'exact',
                             'exact_fee_supported': True,
@@ -631,12 +625,12 @@ class ReadModelBridgeTest(
         recorder = FakeDiagnosticRecorder()
         payload = asyncio.run(
             PositionMetricsHandler(FakeReadModel(), recorder).get_position_metrics(
-                owner='chain:owner-a',
+                owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 status='active',
             )
         )
 
-        self.assertEqual(payload['owner'], 'chain:owner-a')
+        self.assertEqual(payload['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertEqual(len(recorder.rows), 1)
         self.assertEqual(recorder.rows[0]['pool_id'], 5)
         self.assertEqual(recorder.rows[0]['metrics_status'], 'partial')
@@ -652,8 +646,8 @@ class ReadModelBridgeTest(
         db = FakeDb()
         PositionMetricsDiagnosticRecorder(db).record_inexact_metric(
             {
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
                 'fetch_stage': 'payload_only',
@@ -693,8 +687,8 @@ class ReadModelBridgeTest(
         db = FakeDb()
         PositionMetricsDiagnosticRecorder(db).record_snapshot_shadow(
             {
-                'owner': 'chain:owner-a',
-                'pool_application': 'chain:pool-app',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
                 'fetch_stage': 'replay_fallback',
@@ -767,9 +761,9 @@ class ReadModelBridgeTest(
                 ]
 
         read_model = PositionsReadModel(FakeRepository())
-        result = asyncio.run(read_model.get_positions(owner='chain:owner-a', status='active'))
+        result = asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
 
-        self.assertEqual(result['owner'], 'chain:owner-a')
+        self.assertEqual(result['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertEqual(len(result['positions']), 2)
         self.assertEqual(result['positions'][0]['pool_id'], 1)
         self.assertEqual(result['positions'][1]['pool_id'], 2)
@@ -781,7 +775,7 @@ class ReadModelBridgeTest(
 
         read_model = PositionsReadModel(FakeRepository())
         with self.assertRaises(ProjectionQueryUnavailableError):
-            asyncio.run(read_model.get_positions(owner='chain:owner-a', status='active'))
+            asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
 
     def test_positions_read_model_enriches_virtual_positions_when_available(self):
         class FakeRepository:
@@ -792,7 +786,7 @@ class ReadModelBridgeTest(
             async def enrich_positions(self, *, owner, status, positions):
                 self.calls = (owner, status, list(positions))
                 return [{
-                    'pool_application': 'chain:pool-app',
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                     'pool_id': 1,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
@@ -816,9 +810,9 @@ class ReadModelBridgeTest(
             virtual_positions_read_model=virtual_positions,
         )
 
-        result = asyncio.run(read_model.get_positions(owner='chain:owner-a', status='active'))
+        result = asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
 
-        self.assertEqual(result['owner'], 'chain:owner-a')
+        self.assertEqual(result['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertEqual(result['positions'][0]['position_kind'], 'virtual_initial_liquidity')
         self.assertTrue(result['positions'][0]['is_virtual_position'])
 
@@ -840,10 +834,10 @@ class ReadModelBridgeTest(
             virtual_positions_read_model=virtual_positions,
         )
 
-        result = asyncio.run(read_model.get_positions(owner='chain:owner-a', status='virtual'))
+        result = asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='virtual'))
 
-        self.assertEqual(repository.calls, ('chain:owner-a', 'all'))
-        self.assertEqual(virtual_positions.calls, ('chain:owner-a', 'virtual', []))
+        self.assertEqual(repository.calls, ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'all'))
+        self.assertEqual(virtual_positions.calls, ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'virtual', []))
         self.assertEqual(result['positions'], [{'pool_id': 1, 'status': 'virtual'}])
 
     def test_position_metrics_read_model_enriches_virtual_positions_when_available(self):
@@ -855,7 +849,7 @@ class ReadModelBridgeTest(
             async def enrich_positions(self, *, owner, status, positions):
                 self.calls = (owner, status, list(positions))
                 return [{
-                    'pool_application': 'chain:pool-app',
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                     'pool_id': 1,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
@@ -874,7 +868,7 @@ class ReadModelBridgeTest(
                 }]
 
         async def fake_fetcher(position):
-            self.assertEqual(position['pool_application'], 'chain:pool-app')
+            self.assertEqual(position['pool_application'], '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain')
             self.assertEqual(position['pool_id'], 1)
             return {
                 'position_liquidity_live': '5',
@@ -904,9 +898,9 @@ class ReadModelBridgeTest(
             virtual_positions_read_model=virtual_positions,
         )
 
-        result = asyncio.run(read_model.get_position_metrics(owner='chain:owner-a', status='active'))
+        result = asyncio.run(read_model.get_position_metrics(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
 
-        self.assertEqual(result.owner, 'chain:owner-a')
+        self.assertEqual(result.owner, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertEqual(len(result.metrics), 1)
         self.assertTrue(result.metrics[0]['virtual_initial_liquidity'])
         self.assertNotIn('owner_is_fee_to', result.metrics[0])
@@ -919,12 +913,12 @@ class ReadModelBridgeTest(
         class FakeReadModel:
             async def get_position_metrics(self, **_kwargs):
                 return PositionMetricsReadResult(
-                    owner='chain:owner-a',
+                    owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                     metrics=[
                         {
-                            'pool_application': 'chain:pool-app',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 5,
-                            'owner': 'chain:owner-a',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'exact',
                             'exact_fee_supported': True,
@@ -935,9 +929,9 @@ class ReadModelBridgeTest(
                     ],
                     metric_diagnostics=[
                         {
-                            'pool_application': 'chain:pool-app',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 5,
-                            'owner': 'chain:owner-a',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'exact',
                             'exact_fee_supported': True,
@@ -950,8 +944,8 @@ class ReadModelBridgeTest(
                     ],
                     shadow_diagnostics=[
                         {
-                            'owner': 'chain:owner-a',
-                            'pool_application': 'chain:pool-app',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                             'pool_id': 5,
                             'status': 'active',
                             'fetch_stage': 'snapshot_fast_path',
@@ -982,12 +976,12 @@ class ReadModelBridgeTest(
         recorder = FakeDiagnosticRecorder()
         payload = asyncio.run(
             PositionMetricsHandler(FakeReadModel(), recorder).get_position_metrics(
-                owner='chain:owner-a',
+                owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 status='active',
             )
         )
 
-        self.assertEqual(payload['owner'], 'chain:owner-a')
+        self.assertEqual(payload['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertNotIn('metrics_status', payload['metrics'][0])
         self.assertNotIn('exact_fee_supported', payload['metrics'][0])
         self.assertNotIn('exact_principal_supported', payload['metrics'][0])

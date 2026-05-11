@@ -25,7 +25,7 @@ class SettledTradeRepository:
                 CREATE TABLE IF NOT EXISTS {self.settled_trades_table} (
                     settled_trade_id VARCHAR(255) NOT NULL,
                     normalized_event_id VARCHAR(255) NOT NULL,
-                    pool_application_id VARCHAR(128) NOT NULL,
+                    pool_application_id VARCHAR(256) NOT NULL,
                     pool_chain_id VARCHAR(64) NULL,
                     from_account VARCHAR(255) NULL,
                     block_hash VARCHAR(64) NULL,
@@ -50,6 +50,24 @@ class SettledTradeRepository:
                     KEY idx_settled_trades_pool_time (pool_application_id, trade_time_ms, transaction_index),
                     KEY idx_settled_trades_source_event (source_event_key)
                 )
+                '''
+            )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.settled_trades_table}
+                MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+                '''
+            )
+            cursor.execute(
+                f'''
+                UPDATE {self.settled_trades_table}
+                SET pool_application_id = CONCAT('0x', pool_application_id, '@', pool_chain_id)
+                WHERE pool_chain_id IS NOT NULL
+                  AND pool_chain_id != ''
+                  AND pool_application_id NOT LIKE '%@%'
+                  AND pool_application_id NOT LIKE '0x%'
+                  AND CHAR_LENGTH(pool_application_id) IN (40, 64)
+                  AND pool_application_id REGEXP '^[0-9A-Fa-f]+$'
                 '''
             )
             from_account_exists = self._column_exists(cursor, 'from_account')
