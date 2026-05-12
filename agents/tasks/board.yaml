@@ -434,6 +434,9 @@ groups:
             - `/debug/observability` 返回 `ready=true`，schema/registry/startup_catch_up/listener/workers 均 ready
             - maker 曾因未传 `SUDO_PASSWORD` 导致 `WALLET_CHAIN` 为空；用 `SUDO_PASSWORD=12345679` 重跑后 maker wallet chain 恢复为 `507e...a733`，swap mutation 成功
             - `/transactions` 最新交易、`/points` 1m K 线、`/protocol/stats`、`/poolstats/interval/1d` 均能从 projection 返回数据
+          - 已新增系统回归 `service/kline/tests/observability_reconciliation_test.py`：
+            固定 projection facts，独立对账 transactions、1m candles、pool/protocol stats、virtual positions 与
+            protocol fee metrics，防止前端/接口人工观测替代金融语义验证
 
           待完成：
           - 实际跑通完整 L1→L2→L3 流程
@@ -643,6 +646,8 @@ groups:
           - maker owner positions/metrics 为空是合理结果；maker 当前只 swap，不是 LP/creator
           - `/protocol/stats` 与 `/poolstats/interval/1d` 当前能返回 TVL / volume / fees / tx_count，
             但 APR 前端展示与分母语义仍需浏览器侧最终核对
+          - 自动回归已覆盖 projection facts 到 transactions / candles / stats / virtual positions /
+            protocol fee metrics 的确定性对账，并锁住 TLINERA native reserve 必须按 1:1 计入 TVL
       - id: POS-053
         status: Done
         priority: P0

@@ -104,8 +104,14 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                         }
                     ]
 
+                def close(self):
+                    return None
+
             @property
             def cursor_dict(self):
+                return self.Cursor(self)
+
+            def fresh_cursor(self, dictionary=False):
                 return self.Cursor(self)
 
         db = FakeDb()
@@ -146,7 +152,13 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                         }
                     ]
 
+                def close(self):
+                    return None
+
             cursor_dict = Cursor()
+
+            def fresh_cursor(self, dictionary=False):
+                return self.Cursor()
 
         repo = MarketStatsProjectionRepository(
             FakeDb(),
@@ -180,7 +192,13 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                         }
                     ]
 
+                def close(self):
+                    return None
+
             cursor_dict = Cursor()
+
+            def fresh_cursor(self, dictionary=False):
+                return self.Cursor()
 
         repo = MarketStatsProjectionRepository(
             FakeDb(),
@@ -214,7 +232,13 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                         }
                     ]
 
+                def close(self):
+                    return None
+
             cursor_dict = Cursor()
+
+            def fresh_cursor(self, dictionary=False):
+                return self.Cursor()
 
         repo = MarketStatsProjectionRepository(
             FakeDb(),

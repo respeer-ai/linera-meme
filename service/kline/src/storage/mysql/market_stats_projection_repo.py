@@ -281,11 +281,13 @@ class MarketStatsProjectionRepository:
         start_at: int | None = None,
         end_at: int | None = None,
     ) -> dict[str, Decimal]:
+        latest_by_token = {
+            'TLINERA': (0, Decimal('1')),
+        }
         native_trades = self._load_settled_trade_rows(
             start_at=start_at,
             end_at=end_at,
         )
-        latest_by_token = {}
         for trade in native_trades:
             created_at = int(trade['trade_time_ms'])
             if trade['token_1'] == 'TLINERA':
