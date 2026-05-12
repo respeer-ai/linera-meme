@@ -53,6 +53,14 @@ class FakePayloadBuilder:
         self.closed = True
 
 
+class FakeDiagnosticRecorder:
+    def __init__(self):
+        self.records = []
+
+    def record(self, **kwargs):
+        self.records.append(dict(kwargs))
+
+
 class UnavailablePayloadBuilder:
     def build(self, events):
         raise ProjectionQueryUnavailableError('candles')
@@ -79,6 +87,38 @@ class MarketDataEventPublisherTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(manager.notify.await_args_list[0].args, ('kline', {'1min': [{'points': []}]}))
         self.assertEqual(manager.notify.await_args_list[1].args, ('transactions', [{'transactions': []}]))
         self.assertEqual(manager.notify.await_args_list[2].args, ('positions', {'events': [{'owner': 'owner'}]}))
+
+    async def test_publish_records_realtime_diagnostic_stages(self):
+        manager = AsyncMock()
+        recorder = FakeDiagnosticRecorder()
+        builder = FakePayloadBuilder({
+            'kline': {'1min': [{'points': [{'time': 1000}]}]},
+            'transactions': [{'transaction_id': 10}],
+            'positions': {'events': [{'owner': 'owner'}]},
+        })
+        publisher = MarketDataEventPublisher(
+            queue=FakeQueue(),
+            websocket_manager=manager,
+            payload_builder=builder,
+            diagnostic_recorder=recorder,
+        )
+        event = MarketDataEvent(
+            event_type=MarketDataEvent.TYPE_SETTLED_TRADE,
+            pool_application='pool-app',
+            pool_id=7,
+            transaction_id=10,
+            updated_at_ms=int(time.time() * 1000) - 5,
+        )
+
+        await publisher.publish([event])
+
+        stages = [record['stage'] for record in recorder.records]
+        self.assertEqual(stages, ['publish_received', 'payload_built', 'websocket_notified'])
+        self.assertEqual(recorder.records[0]['event_type'], MarketDataEvent.TYPE_SETTLED_TRADE)
+        self.assertEqual(recorder.records[1]['kline_payload_count'], 1)
+        self.assertEqual(recorder.records[1]['transaction_payload_count'], 1)
+        self.assertEqual(recorder.records[1]['positions_payload_count'], 1)
+        self.assertIsNotNone(recorder.records[0]['queue_lag_ms'])
 
     async def test_run_skips_projection_unavailable_without_stopping(self):
         event = MarketDataEvent(event_type=MarketDataEvent.TYPE_SETTLED_TRADE)

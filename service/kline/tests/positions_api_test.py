@@ -175,6 +175,35 @@ class FakeDb:
                     }
                     for row in rows[:limit]
                 ]
+            if 'FROM realtime_diagnostics' in self.last_sql:
+                rows = list(self.outer.realtime_diagnostics)
+                param_index = 0
+                if 'stage = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('stage') == self.last_params[param_index]]
+                    param_index += 1
+                if 'event_type = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('event_type') == self.last_params[param_index]]
+                    param_index += 1
+                if 'pool_application = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_application') == self.last_params[param_index]]
+                    param_index += 1
+                if 'pool_id = %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('pool_id') == int(self.last_params[param_index])]
+                    param_index += 1
+                if 'created_at >= %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('created_at') >= int(self.last_params[param_index])]
+                    param_index += 1
+                if 'created_at <= %s' in self.last_sql:
+                    rows = [row for row in rows if row.get('created_at') <= int(self.last_params[param_index])]
+                    param_index += 1
+                limit = int(self.last_params[-1]) if self.last_params else len(rows)
+                return [
+                    {
+                        **row,
+                        'details': None if row.get('details') is None else __import__('json').dumps(row.get('details')),
+                    }
+                    for row in rows[:limit]
+                ]
             return []
 
         def close(self):
@@ -187,8 +216,12 @@ class FakeDb:
         self.transaction_ids = []
         self.diagnostics = []
         self.debug_traces = []
+        self.realtime_diagnostics = []
         self.diagnostics_table = 'diagnostics'
         self.debug_traces_table = 'debug_traces'
+        self.realtime_diagnostics_table = 'realtime_diagnostics'
+        self.debug_retention_ttl_ms = 86_400_000
+        self.debug_retention_max_rows = 10_000
         self.cursor_dict = self.FakeCursor(self)
         self.gap_summary = {
             'has_internal_gaps': False,
@@ -289,6 +322,40 @@ class FakeDb:
             rows = [row for row in rows if row.get('operation') == operation]
         if owner is not None:
             rows = [row for row in rows if row.get('owner') == owner]
+        if pool_application is not None:
+            rows = [row for row in rows if row.get('pool_application') == pool_application]
+        if pool_id is not None:
+            rows = [row for row in rows if row.get('pool_id') == pool_id]
+        if start_at is not None:
+            rows = [row for row in rows if row.get('created_at') is not None and row.get('created_at') >= start_at]
+        if end_at is not None:
+            rows = [row for row in rows if row.get('created_at') is not None and row.get('created_at') <= end_at]
+        return rows[:limit]
+
+    def record_realtime_diagnostic(self, **kwargs):
+        row = {
+            'realtime_diagnostic_id': len(self.realtime_diagnostics) + 1,
+            'created_at': 1_000,
+            **kwargs,
+        }
+        self.realtime_diagnostics.append(row)
+
+    def get_realtime_diagnostics(
+        self,
+        *,
+        stage=None,
+        event_type=None,
+        pool_application=None,
+        pool_id=None,
+        start_at=None,
+        end_at=None,
+        limit=200,
+    ):
+        rows = list(self.realtime_diagnostics)
+        if stage is not None:
+            rows = [row for row in rows if row.get('stage') == stage]
+        if event_type is not None:
+            rows = [row for row in rows if row.get('event_type') == event_type]
         if pool_application is not None:
             rows = [row for row in rows if row.get('pool_application') == pool_application]
         if pool_id is not None:
@@ -1588,6 +1655,75 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"limit must be positive"}')
+
+    async def test_on_get_realtime_diagnostics_exports_bounded_retention_metadata(self):
+        original_db = kline_module._db
+        fake_db = FakeDb()
+        fake_db.realtime_diagnostics = [
+            {
+                'realtime_diagnostic_id': 1,
+                'stage': 'publish_received',
+                'event_type': 'settled_trade',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'transaction_id': 10,
+                'event_time_ms': 100,
+                'queue_lag_ms': 12,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': 1,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': 123,
+                'details': {'source_thread': 'worker'},
+                'created_at': 200,
+            },
+        ]
+        kline_module._db = fake_db
+
+        try:
+            response = await kline_module.on_get_realtime_diagnostics(
+                stage='publish_received',
+                event_type='settled_trade',
+                pool_application='chain:pool-app',
+                pool_id=7,
+                limit=50,
+            )
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response, {
+            'retention': {
+                'ttl_ms': 86_400_000,
+                'max_rows_per_table': 10_000,
+            },
+            'realtime': fake_db.realtime_diagnostics,
+        })
+
+    async def test_on_get_realtime_diagnostics_rejects_non_positive_limit(self):
+        original_db = kline_module._db
+        kline_module._db = FakeDb()
+
+        try:
+            response = await kline_module.on_get_realtime_diagnostics(limit=0)
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"limit must be positive"}')
+
+    async def test_on_get_realtime_diagnostics_rejects_unbounded_limit(self):
+        original_db = kline_module._db
+        kline_module._db = FakeDb()
+
+        try:
+            response = await kline_module.on_get_realtime_diagnostics(limit=1001)
+        finally:
+            kline_module._db = original_db
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.body, b'{"error":"limit must be <= 1000"}')
 
     async def test_on_post_debug_catch_up_run_executes_configured_driver(self):
         class FakeObservabilityFacade:

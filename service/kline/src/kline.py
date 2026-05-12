@@ -440,6 +440,50 @@ async def on_get_debug_traces(
         )
 
 
+@app.get('/debug/realtime')
+async def on_get_realtime_diagnostics(
+    stage: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+    pool_id: int | None = Query(default=None),
+    start_at: int | None = Query(default=None),
+    end_at: int | None = Query(default=None),
+    limit: int = Query(default=200),
+):
+    if limit <= 0:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "limit must be positive"},
+        )
+    if limit > 1000:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "limit must be <= 1000"},
+        )
+    try:
+        return {
+            'retention': {
+                'ttl_ms': getattr(_db, 'debug_retention_ttl_ms', None),
+                'max_rows_per_table': getattr(_db, 'debug_retention_max_rows', None),
+            },
+            'realtime': _runtime().get_realtime_diagnostics(
+                stage=stage,
+                event_type=event_type,
+                pool_application=pool_application,
+                pool_id=pool_id,
+                start_at=start_at,
+                end_at=end_at,
+                limit=limit,
+            ),
+        }
+    except Exception as e:
+        print(f'Failed get realtime diagnostics: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 @app.get('/debug/pool')
 async def on_get_debug_pool_bundle(
     pool_application: str = Query(...),

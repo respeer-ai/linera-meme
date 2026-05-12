@@ -21,6 +21,7 @@ from realtime.market_data_event_publisher import MarketDataEventPublisher
 from realtime.market_data_event_queue import MarketDataEventQueue
 from realtime.market_data_event_sink import MarketDataEventSink
 from realtime.market_data_payload_builder import MarketDataPayloadBuilder
+from realtime.realtime_diagnostic_recorder import RealtimeDiagnosticRecorder
 from storage.mysql.debug_traces_query_repo import DebugTracesQueryRepository
 from storage.mysql.diagnostic_events_query_repo import DiagnosticEventsQueryRepository
 from storage.mysql.market_stats_projection_repo import MarketStatsProjectionRepository
@@ -123,6 +124,31 @@ class KlineRuntime:
         self.require_db()
         return DebugTracesQueryRepository(self._db)
 
+    def realtime_diagnostic_recorder(self):
+        return RealtimeDiagnosticRecorder(self._db)
+
+    def get_realtime_diagnostics(
+        self,
+        *,
+        stage: str | None,
+        event_type: str | None,
+        pool_application: str | None,
+        pool_id: int | None,
+        start_at: int | None,
+        end_at: int | None,
+        limit: int,
+    ):
+        self.require_db()
+        return self._db.get_realtime_diagnostics(
+            stage=stage,
+            event_type=event_type,
+            pool_application=pool_application,
+            pool_id=pool_id,
+            start_at=start_at,
+            end_at=end_at,
+            limit=limit,
+        )
+
     def kline_handler(self) -> KlineHandler:
         return KlineHandler(
             CandlesReadModel(self.settled_trade_projection_repository()),
@@ -193,7 +219,9 @@ class KlineRuntime:
 
     def build_market_data_event_queue(self):
         if self._market_data_event_queue is None:
-            self._market_data_event_queue = MarketDataEventQueue()
+            self._market_data_event_queue = MarketDataEventQueue(
+                diagnostic_recorder=self.realtime_diagnostic_recorder(),
+            )
         return self._market_data_event_queue
 
     def build_market_data_event_sink(self):
@@ -210,6 +238,7 @@ class KlineRuntime:
             websocket_manager=self._websocket_manager,
             payload_builder=payload_builder,
             payload_builder_factory=self._build_market_data_payload_builder_factory(realtime_db),
+            diagnostic_recorder=self.realtime_diagnostic_recorder(),
         )
 
     def _build_market_data_payload_builder_for_db(self, db):

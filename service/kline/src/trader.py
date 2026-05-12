@@ -121,6 +121,22 @@ class Trader:
             created_at=int(time.time() * 1000),
         )
 
+    def persist_pool_failure(self, pool, stage, error):
+        self.persist_maker_event(
+            event_type='failed',
+            pool=pool,
+            details={
+                'stage': stage,
+                'error': str(error),
+                'error_type': type(error).__name__,
+            },
+        )
+
+    def _require_value(self, value, name):
+        if value is None or value == '':
+            raise RuntimeError(f'missing_required_value:{name}')
+        return value
+
     def trade_amounts(self, pool, token_0_balance, token_1_balance):
         MIN_PRICE = 1e-12
 
@@ -223,14 +239,19 @@ class Trader:
         )
 
     async def plan_trade_in_pool(self, pool):
-        wallet_chain = self.wallet._chain()
+        wallet_chain = self._require_value(self.wallet._chain(), 'wallet_chain')
         account = self.wallet.account()
 
-        token_0_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_0)
-        token_1_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_1) if pool.token_1 is not None else None
+        token_0_chain = self._require_value(await self.meme.creator_chain_id(wallet_chain, pool.token_0), 'token_0_creator_chain_id')
+        token_1_chain = self._require_value(await self.meme.creator_chain_id(wallet_chain, pool.token_1), 'token_1_creator_chain_id') if pool.token_1 is not None else None
 
-        token_0_balance = float(await self.meme.balance(account, token_0_chain, pool.token_0))
-        token_1_balance = float(await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1))
+        token_0_balance = float(self._require_value(await self.meme.balance(account, token_0_chain, pool.token_0), 'token_0_balance'))
+        token_1_balance = float(
+            self._require_value(
+                await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1),
+                'token_1_balance',
+            )
+        )
 
         if await self.wallet.balance() < 0.001:
             print('Maker wallet balance is not enough for gas, please fund it')
@@ -263,14 +284,19 @@ class Trader:
         if abs(quote_notional) < 1e-6:
             return 0.0
 
-        wallet_chain = self.wallet._chain()
+        wallet_chain = self._require_value(self.wallet._chain(), 'wallet_chain')
         account = self.wallet.account()
 
-        token_0_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_0)
-        token_1_chain = await self.meme.creator_chain_id(wallet_chain, pool.token_1) if pool.token_1 is not None else None
+        token_0_chain = self._require_value(await self.meme.creator_chain_id(wallet_chain, pool.token_0), 'token_0_creator_chain_id')
+        token_1_chain = self._require_value(await self.meme.creator_chain_id(wallet_chain, pool.token_1), 'token_1_creator_chain_id') if pool.token_1 is not None else None
 
-        token_0_balance = float(await self.meme.balance(account, token_0_chain, pool.token_0))
-        token_1_balance = float(await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1))
+        token_0_balance = float(self._require_value(await self.meme.balance(account, token_0_chain, pool.token_0), 'token_0_balance'))
+        token_1_balance = float(
+            self._require_value(
+                await self.wallet.balance() if pool.token_1 is None else await self.meme.balance(account, token_1_chain, pool.token_1),
+                'token_1_balance',
+            )
+        )
 
         if await self.wallet.balance() < 0.001:
             print('Maker wallet balance is not enough for gas, please fund it')
@@ -330,6 +356,7 @@ class Trader:
             try:
                 await self.plan_trade_in_pool(pool)
             except Exception as e:
+                self.persist_pool_failure(pool, 'plan_trade', e)
                 print(f'Failed trade token {pool.token_0} at {time.time()}: ERROR {e}')
                 traceback.print_exc()
 
@@ -338,6 +365,7 @@ class Trader:
             try:
                 return await self.execute_pending_in_pool(pool, quote_notional)
             except Exception as e:
+                self.persist_pool_failure(pool, 'execute_pending', e)
                 print(f'Failed flush token {pool.token_0} at {time.time()}: ERROR {e}')
                 traceback.print_exc()
                 return 0.0

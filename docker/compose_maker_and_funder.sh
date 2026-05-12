@@ -84,6 +84,15 @@ function wallet_chain_id() {
            | awk '/^Chain ID:/ {chain=$3} /^Default owner:/ {if ($3 != "No") print chain}'
 }
 
+function require_non_empty() {
+    local name=$1
+    local value=$2
+    if [ -z "$value" ]; then
+        echo "Missing required value: $name" >&2
+        exit 1
+    fi
+}
+
 cd $OUTPUT_DIR
 
 docker stop kline maker funder
@@ -135,6 +144,8 @@ function run_kline() {
     local maker_chain_id
     maker_owner=$(wallet_owner maker 0)
     maker_chain_id=$(wallet_chain_id maker 0)
+    require_non_empty WALLET_OWNER "$maker_owner"
+    require_non_empty WALLET_CHAIN "$maker_chain_id"
     NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" \
       LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$maker_owner WALLET_CHAIN=$maker_chain_id \
       SWAP_HOST=$SWAP_HOST PROXY_HOST=$PROXY_HOST DATABASE_HOST=$LAN_IP DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
@@ -152,11 +163,18 @@ function run_funder() {
         docker build --build-arg all_proxy="${all_proxy:-${ALL_PROXY:-}}" -f $ROOT_DIR/docker/Dockerfile.funder $ROOT_DIR -t funder || exit 1
     fi
 
+    local maker_owner
+    local maker_chain_id
+    maker_owner=$(wallet_owner maker 0)
+    maker_chain_id=$(wallet_chain_id maker 0)
+    require_non_empty WALLET_OWNER "$maker_owner"
+    require_non_empty WALLET_CHAIN "$maker_chain_id"
+
     NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" \
       LAN_IP=$LAN_IP SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID SWAP_HOST=$SWAP_HOST \
       PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
-      WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$(wallet_owner maker 0) WALLET_CHAIN=$(wallet_chain_id maker 0) \
-      MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$(wallet_chain_id maker 0) \
+      WALLET_HOST=$LAN_IP:40082 WALLET_OWNER=$maker_owner WALLET_CHAIN=$maker_chain_id \
+      MAKER_WALLET_HOST=$LAN_IP:40082 MAKER_WALLET_CHAIN_ID=$maker_chain_id \
       SUB_DOMAIN=$CLUSTER. \
       docker compose -f $ROOT_DIR/docker/docker-compose-funder.yml up --wait
 }

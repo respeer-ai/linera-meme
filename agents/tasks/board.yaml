@@ -683,6 +683,8 @@ groups:
           - `python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/market_data_event_sink_test.py service/kline/tests/market_data_event_publisher_test.py service/kline/tests/subscription_test.py service/kline/tests/kline_service_lifecycle_test.py service/kline/tests/market_derivation_worker_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/positions_api_test.py`
           - `bun test src/stores/kline/liveUpdate.test.ts`
           - `bun run build`
+          2026-05-12 补充：market-data queue 已支持跨线程 producer 安全唤醒 asyncio consumer，
+          并新增有 TTL/max-row 配额的 `/debug/realtime` 诊断 API，用于定位 enqueue→publish→payload→notify 延迟。
       - id: POS-054
         status: Done
         priority: P0
@@ -696,6 +698,7 @@ groups:
           - publisher 负责 coalesce、dedupe、按 topic 组装 websocket notification
           - WebSocketManager 只做 subscription registry 与 fan-out，不计算业务数据
           - 添加单测覆盖 drain/coalesce、空事件、重复 pool/owner 合并、断开连接清理
+          - 调试/诊断写入必须有资源配额；当前 realtime diagnostics 表按 TTL 和 max rows 清理
       - id: POS-055
         status: Done
         priority: P0

@@ -42,6 +42,9 @@ Authority: High
 - Any runtime dependency needed after service startup, such as owner, chain id, or imported-chain metadata, must be resolved before the service starts and carried forward by the init flow without re-reading locked wallets
 - When investigating transactions, positions, pool state, or other runtime data during development, default to querying through the relevant API or local service interface first; do not assume `kubectl` access exists on the development machine
 - Use `kubectl` for runtime inspection only when the user explicitly asks for cluster-level checks or when the task is clearly a k8s environment issue rather than an application/API issue
+- Diagnostic, debug, and monitoring persistence is non-business infrastructure and must be bounded by explicit retention quotas such as TTL and max-row limits
+- Non-business observability paths must degrade or shed their own data before they can exhaust disk, memory, CPU, DB connections, or otherwise harm product read/write paths
+- New debug tables, diagnostic queues, and trace stores require tests or configuration evidence that resource bounds are enforced
 - Update [`../tasks/board.yaml`](../tasks/board.yaml) when work meaningfully changes status
 - Update [`../tasks/prompt-state.yaml`](../tasks/prompt-state.yaml) when prompt relevance changes because of task status or scope change
 - Validate prompt routing state with `python3 scripts/validate_prompt_state.py` whenever either of those files changes

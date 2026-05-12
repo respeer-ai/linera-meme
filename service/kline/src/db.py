@@ -177,7 +177,12 @@ class Db:
         self.maker_events_table = 'maker_events'
         self.diagnostics_table = 'diagnostics'
         self.debug_traces_table = 'debug_traces'
+        self.realtime_diagnostics_table = 'realtime_diagnostics'
         self.debug_storage_degraded_tables = set()
+        self.debug_retention_ttl_ms = 24 * 60 * 60 * 1000
+        self.debug_retention_max_rows = 10_000
+        self._debug_retention_cleanup_interval_ms = 60_000
+        self._debug_retention_last_cleanup_ms_by_table = {}
         self.legacy_candle_materialization_tool = LegacyCandleMaterializationTool(self)
 
         if clean_kline is True:
@@ -322,6 +327,31 @@ class Db:
             ''')
             self.connection.commit()
 
+        if self.realtime_diagnostics_table not in tables:
+            self.cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.realtime_diagnostics_table} (
+                    realtime_diagnostic_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    stage VARCHAR(64) NOT NULL,
+                    event_type VARCHAR(64) NULL,
+                    pool_application VARCHAR(256) NULL,
+                    pool_id INT UNSIGNED NULL,
+                    transaction_id INT UNSIGNED NULL,
+                    event_time_ms BIGINT UNSIGNED NULL,
+                    queue_lag_ms BIGINT NULL,
+                    build_duration_ms BIGINT NULL,
+                    notify_duration_ms BIGINT NULL,
+                    event_count INT UNSIGNED NULL,
+                    kline_payload_count INT UNSIGNED NULL,
+                    transaction_payload_count INT UNSIGNED NULL,
+                    positions_payload_count INT UNSIGNED NULL,
+                    thread_id BIGINT UNSIGNED NULL,
+                    details TEXT NULL,
+                    created_at BIGINT UNSIGNED NOT NULL,
+                    PRIMARY KEY (realtime_diagnostic_id)
+                )
+            ''')
+            self.connection.commit()
+
         self.ensure_kline_identity_columns()
         self.ensure_transactions_indexes()
         self.ensure_debug_indexes()
@@ -395,6 +425,7 @@ class Db:
 
     def _run_debug_write(self, *, table_name: str, operation: str, callback):
         try:
+            self._cleanup_debug_table_if_due(table_name=table_name, reserve_rows=1)
             callback()
             self.connection.commit()
             return True
@@ -407,6 +438,53 @@ class Db:
                 )
                 return False
             raise
+
+    def _cleanup_debug_table_if_due(self, *, table_name: str, reserve_rows: int = 0):
+        now_ms = self.now_ms()
+        last_cleanup_ms = self._debug_retention_last_cleanup_ms_by_table.get(table_name, 0)
+        if now_ms - last_cleanup_ms < self._debug_retention_cleanup_interval_ms:
+            return
+        self._debug_retention_last_cleanup_ms_by_table[table_name] = now_ms
+        self._cleanup_debug_table(table_name=table_name, now_ms=now_ms, reserve_rows=reserve_rows)
+
+    def _cleanup_debug_table(self, *, table_name: str, now_ms: int | None = None, reserve_rows: int = 0):
+        id_columns = {
+            self.diagnostics_table: 'diagnostic_id',
+            self.debug_traces_table: 'trace_id',
+            self.realtime_diagnostics_table: 'realtime_diagnostic_id',
+        }
+        id_column = id_columns.get(table_name)
+        if id_column is None:
+            return
+        effective_now_ms = self.now_ms() if now_ms is None else int(now_ms)
+        cutoff_ms = effective_now_ms - self.debug_retention_ttl_ms
+        self.cursor.execute(
+            f'DELETE FROM {table_name} WHERE created_at < %s',
+            (cutoff_ms,),
+        )
+        self.cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+        row_count = int((self.cursor.fetchone() or [0])[0] or 0)
+        max_rows_after_cleanup = max(0, self.debug_retention_max_rows - int(reserve_rows))
+        overflow = row_count - max_rows_after_cleanup
+        if overflow > 0:
+            self.cursor.execute(
+                f'''
+                    DELETE FROM {table_name}
+                    ORDER BY {id_column} ASC
+                    LIMIT %s
+                ''',
+                (overflow,),
+            )
+        self.connection.commit()
+
+    def cleanup_debug_tables(self):
+        now_ms = self.now_ms()
+        for table_name in (
+            self.diagnostics_table,
+            self.debug_traces_table,
+            self.realtime_diagnostics_table,
+        ):
+            self._cleanup_debug_table(table_name=table_name, now_ms=now_ms)
 
     def record_diagnostic_event(
         self,
@@ -566,6 +644,157 @@ class Db:
                 ),
             ),
         )
+
+    def record_realtime_diagnostic(
+        self,
+        *,
+        stage: str,
+        event_type: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        transaction_id: int | None = None,
+        event_time_ms: int | None = None,
+        queue_lag_ms: int | None = None,
+        build_duration_ms: int | None = None,
+        notify_duration_ms: int | None = None,
+        event_count: int | None = None,
+        kline_payload_count: int | None = None,
+        transaction_payload_count: int | None = None,
+        positions_payload_count: int | None = None,
+        thread_id: int | None = None,
+        details: dict | None = None,
+    ):
+        self._run_debug_write(
+            table_name=self.realtime_diagnostics_table,
+            operation='insert',
+            callback=lambda: self.cursor.execute(
+                f'''
+                    INSERT INTO {self.realtime_diagnostics_table}
+                    (
+                        stage,
+                        event_type,
+                        pool_application,
+                        pool_id,
+                        transaction_id,
+                        event_time_ms,
+                        queue_lag_ms,
+                        build_duration_ms,
+                        notify_duration_ms,
+                        event_count,
+                        kline_payload_count,
+                        transaction_payload_count,
+                        positions_payload_count,
+                        thread_id,
+                        details,
+                        created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''',
+                (
+                    stage,
+                    event_type,
+                    pool_application,
+                    None if pool_id is None else int(pool_id),
+                    None if transaction_id is None else int(transaction_id),
+                    None if event_time_ms is None else int(event_time_ms),
+                    None if queue_lag_ms is None else int(queue_lag_ms),
+                    None if build_duration_ms is None else int(build_duration_ms),
+                    None if notify_duration_ms is None else int(notify_duration_ms),
+                    None if event_count is None else int(event_count),
+                    None if kline_payload_count is None else int(kline_payload_count),
+                    None if transaction_payload_count is None else int(transaction_payload_count),
+                    None if positions_payload_count is None else int(positions_payload_count),
+                    None if thread_id is None else int(thread_id),
+                    None if details is None else json.dumps(details, ensure_ascii=True, sort_keys=True),
+                    self.now_ms(),
+                ),
+            ),
+        )
+
+    def get_realtime_diagnostics(
+        self,
+        *,
+        stage: str | None = None,
+        event_type: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        start_at: int | None = None,
+        end_at: int | None = None,
+        limit: int = 200,
+    ):
+        self.ensure_fresh_read_connection()
+        where_clauses = []
+        params = []
+        if stage is not None:
+            where_clauses.append('stage = %s')
+            params.append(stage)
+        if event_type is not None:
+            where_clauses.append('event_type = %s')
+            params.append(event_type)
+        if pool_application is not None:
+            where_clauses.append('pool_application = %s')
+            params.append(pool_application)
+        if pool_id is not None:
+            where_clauses.append('pool_id = %s')
+            params.append(int(pool_id))
+        if start_at is not None:
+            where_clauses.append('created_at >= %s')
+            params.append(int(start_at))
+        if end_at is not None:
+            where_clauses.append('created_at <= %s')
+            params.append(int(end_at))
+        where_sql = ''
+        if where_clauses:
+            where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    realtime_diagnostic_id,
+                    stage,
+                    event_type,
+                    pool_application,
+                    pool_id,
+                    transaction_id,
+                    event_time_ms,
+                    queue_lag_ms,
+                    build_duration_ms,
+                    notify_duration_ms,
+                    event_count,
+                    kline_payload_count,
+                    transaction_payload_count,
+                    positions_payload_count,
+                    thread_id,
+                    details,
+                    created_at
+                FROM {self.realtime_diagnostics_table}
+                {where_sql}
+                ORDER BY realtime_diagnostic_id DESC
+                LIMIT %s
+            ''',
+            (*params, int(limit)),
+        )
+        rows = []
+        for row in self.cursor_dict.fetchall():
+            rows.append({
+                'realtime_diagnostic_id': int(row['realtime_diagnostic_id']),
+                'stage': row['stage'],
+                'event_type': row['event_type'],
+                'pool_application': row['pool_application'],
+                'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
+                'transaction_id': None if row['transaction_id'] is None else int(row['transaction_id']),
+                'event_time_ms': None if row['event_time_ms'] is None else int(row['event_time_ms']),
+                'queue_lag_ms': None if row['queue_lag_ms'] is None else int(row['queue_lag_ms']),
+                'build_duration_ms': None if row['build_duration_ms'] is None else int(row['build_duration_ms']),
+                'notify_duration_ms': None if row['notify_duration_ms'] is None else int(row['notify_duration_ms']),
+                'event_count': None if row['event_count'] is None else int(row['event_count']),
+                'kline_payload_count': None if row['kline_payload_count'] is None else int(row['kline_payload_count']),
+                'transaction_payload_count': None if row['transaction_payload_count'] is None else int(row['transaction_payload_count']),
+                'positions_payload_count': None if row['positions_payload_count'] is None else int(row['positions_payload_count']),
+                'thread_id': None if row['thread_id'] is None else int(row['thread_id']),
+                'details': None if row['details'] is None else json.loads(row['details']),
+                'created_at': int(row['created_at']),
+            })
+        return rows
 
     def get_debug_traces(
         self,
@@ -884,6 +1113,16 @@ class Db:
                 self.diagnostics_table,
                 'idx_diagnostics_owner_created_diag',
                 ('owner', 'created_at', 'diagnostic_id'),
+            ),
+            (
+                self.realtime_diagnostics_table,
+                'idx_realtime_diag_stage_created_id',
+                ('stage', 'created_at', 'realtime_diagnostic_id'),
+            ),
+            (
+                self.realtime_diagnostics_table,
+                'idx_realtime_diag_pool_created_id',
+                ('pool_id', 'created_at', 'realtime_diagnostic_id'),
             ),
         ]
         for table_name, index_name, columns in index_specs:

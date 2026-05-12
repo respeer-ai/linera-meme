@@ -134,6 +134,28 @@ class TraderPersistenceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.events[0]['event_type'], 'failed')
         self.assertEqual(db.events[0]['details'], '{"reason": "swap_request_failed_or_rejected", "requested_quote_notional": 6.0}')
 
+    async def test_plan_trade_records_failed_event_when_wallet_chain_is_missing(self):
+        db = FakeDb()
+        trader = Trader(
+            swap=None,
+            wallet=types.SimpleNamespace(
+                _chain=lambda: '',
+                account=lambda: 'account',
+            ),
+            meme=types.SimpleNamespace(),
+            proxy=None,
+            db=db,
+        )
+        pool = self.make_pool()
+
+        await trader._trade_in_pool(pool)
+
+        self.assertEqual(len(db.events), 1)
+        self.assertEqual(db.events[0]['event_type'], 'failed')
+        self.assertEqual(db.events[0]['pool_id'], 7)
+        self.assertIn('"stage": "plan_trade"', db.events[0]['details'])
+        self.assertIn('missing_required_value:wallet_chain', db.events[0]['details'])
+
 
 class TraderExecutionPolicyTest(unittest.TestCase):
     def make_pool(self):

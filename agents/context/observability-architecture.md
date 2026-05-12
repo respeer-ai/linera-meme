@@ -33,6 +33,10 @@ Canonical architecture for the chain observability system that removes `latestTr
 - Realtime product updates are data-platform updates
   - websocket push must be driven by Layer 3 projection commits or explicit projection-derived finality events
   - timer loops may produce time-boundary events such as candle finality, but must not be the primary new-trade discovery path
+- Diagnostic, debug, and monitoring data is operational metadata, not product truth
+  - persisted diagnostic tables must have TTL and max-row quotas
+  - debug queues or traces must shed diagnostic data before competing with product paths for disk, memory, CPU, or DB capacity
+  - diagnostic APIs are for root-cause analysis and must not become business read-model dependencies
 
 ## Semantics
 

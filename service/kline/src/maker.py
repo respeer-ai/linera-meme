@@ -11,6 +11,13 @@ from trader import Trader
 from db import Db
 
 
+def require_env(name: str) -> str:
+    value = str(os.environ.get(name) or '').strip()
+    if value == '':
+        raise RuntimeError(f'missing_required_env:{name}')
+    return value
+
+
 async def main():
     parser = argparse.ArgumentParser(description='Linera Market Maker')
 
@@ -29,8 +36,8 @@ async def main():
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
 
     args = parser.parse_args()
-    wallet_owner = str(os.environ.get('WALLET_OWNER') or '').strip()
-    wallet_chain = str(os.environ.get('WALLET_CHAIN') or '').strip()
+    wallet_owner = require_env('WALLET_OWNER')
+    wallet_chain = require_env('WALLET_CHAIN')
 
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, False)
     _wallet = Wallet(args.wallet_host, wallet_owner, wallet_chain, args.faucet_url, db=_db)

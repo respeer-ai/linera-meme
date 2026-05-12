@@ -1,6 +1,7 @@
 import asyncio
 import threading
 import traceback
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from storage.mysql.projection_query_unavailable_error import ProjectionQueryUnavailableError
@@ -16,6 +17,7 @@ class MarketDataEventPublisher:
         drain_delay_seconds: float = 0.05,
         payload_builder_factory=None,
         build_timeout_seconds: float = 10.0,
+        diagnostic_recorder=None,
     ):
         self.queue = queue
         self.websocket_manager = websocket_manager
@@ -23,6 +25,7 @@ class MarketDataEventPublisher:
         self.drain_delay_seconds = drain_delay_seconds
         self.payload_builder_factory = payload_builder_factory
         self.build_timeout_seconds = build_timeout_seconds
+        self.diagnostic_recorder = diagnostic_recorder
         self._running = False
         self._thread_payload_builder = None
         self._retired_payload_builder_ids = set()
@@ -49,13 +52,37 @@ class MarketDataEventPublisher:
     async def publish(self, events: list) -> None:
         if not events:
             return
+        publish_started_ms = self._now_ms()
+        self._record_stage(
+            'publish_received',
+            events=events,
+            queue_lag_ms=self._max_queue_lag_ms(events, now_ms=publish_started_ms),
+        )
         payload = await self._build_payload_async(events)
+        build_finished_ms = self._now_ms()
+        self._record_stage(
+            'payload_built',
+            events=events,
+            payload=payload,
+            queue_lag_ms=self._max_queue_lag_ms(events, now_ms=build_finished_ms),
+            build_duration_ms=build_finished_ms - publish_started_ms,
+        )
+        notify_started_ms = self._now_ms()
         if payload.get('kline'):
             await self.websocket_manager.notify('kline', payload['kline'])
         if payload.get('transactions'):
             await self.websocket_manager.notify('transactions', payload['transactions'])
         if payload.get('positions', {}).get('events'):
             await self.websocket_manager.notify('positions', payload['positions'])
+        notify_finished_ms = self._now_ms()
+        self._record_stage(
+            'websocket_notified',
+            events=events,
+            payload=payload,
+            queue_lag_ms=self._max_queue_lag_ms(events, now_ms=notify_finished_ms),
+            build_duration_ms=build_finished_ms - publish_started_ms,
+            notify_duration_ms=notify_finished_ms - notify_started_ms,
+        )
 
     def stop(self) -> None:
         self._running = False
@@ -149,6 +176,58 @@ class MarketDataEventPublisher:
             max_workers=1,
             thread_name_prefix='market-data-publisher',
         )
+
+    def _record_stage(
+        self,
+        stage: str,
+        *,
+        events: list,
+        payload: dict | None = None,
+        queue_lag_ms: int | None = None,
+        build_duration_ms: int | None = None,
+        notify_duration_ms: int | None = None,
+    ) -> None:
+        if self.diagnostic_recorder is None:
+            return
+        representative = events[0] if events else None
+        self.diagnostic_recorder.record(
+            stage=stage,
+            event_type=getattr(representative, 'event_type', None),
+            pool_application=getattr(representative, 'pool_application', None),
+            pool_id=getattr(representative, 'pool_id', None),
+            transaction_id=getattr(representative, 'transaction_id', None),
+            event_time_ms=getattr(representative, 'event_time_ms', None),
+            queue_lag_ms=queue_lag_ms,
+            build_duration_ms=build_duration_ms,
+            notify_duration_ms=notify_duration_ms,
+            event_count=len(events),
+            kline_payload_count=self._payload_item_count(payload.get('kline') if payload else None),
+            transaction_payload_count=self._payload_item_count(payload.get('transactions') if payload else None),
+            positions_payload_count=self._payload_item_count((payload.get('positions') or {}).get('events') if payload else None),
+            thread_id=threading.get_ident(),
+        )
+
+    def _payload_item_count(self, value) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return sum(len(items or []) for items in value.values())
+        if isinstance(value, list):
+            return len(value)
+        return None
+
+    def _max_queue_lag_ms(self, events: list, *, now_ms: int) -> int | None:
+        values = [
+            now_ms - int(event.updated_at_ms)
+            for event in events
+            if getattr(event, 'updated_at_ms', None) is not None
+        ]
+        if not values:
+            return None
+        return max(0, max(values))
+
+    def _now_ms(self) -> int:
+        return int(time.time() * 1000)
 
     def _retire_thread_payload_builder(self) -> None:
         with self._payload_builder_lock:

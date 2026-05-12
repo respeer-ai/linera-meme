@@ -113,6 +113,12 @@ class FakeCursor:
           self._last_result = []
           return
 
+        if normalized.startswith('CREATE TABLE IF NOT EXISTS realtime_diagnostics'):
+          if 'realtime_diagnostics' not in self.table_catalog:
+              self.table_catalog.append('realtime_diagnostics')
+          self._last_result = []
+          return
+
         if normalized.startswith('ALTER TABLE transactions ADD COLUMN pool_application'):
           if 'pool_application' not in self.connection.transaction_columns:
               self.connection.transaction_columns.insert(0, 'pool_application')
@@ -640,6 +646,75 @@ class FakeCursor:
           self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
           return
 
+        if normalized.startswith('INSERT INTO realtime_diagnostics ( stage, event_type, pool_application, pool_id, transaction_id, event_time_ms, queue_lag_ms, build_duration_ms, notify_duration_ms, event_count, kline_payload_count, transaction_payload_count, positions_payload_count, thread_id, details, created_at ) VALUES'):
+          next_id = max(
+              (row['realtime_diagnostic_id'] for row in self.connection.realtime_diagnostic_rows),
+              default=0,
+          ) + 1
+          self.connection.realtime_diagnostic_rows.append({
+              'realtime_diagnostic_id': next_id,
+              'stage': params[0],
+              'event_type': params[1],
+              'pool_application': params[2],
+              'pool_id': params[3],
+              'transaction_id': params[4],
+              'event_time_ms': params[5],
+              'queue_lag_ms': params[6],
+              'build_duration_ms': params[7],
+              'notify_duration_ms': params[8],
+              'event_count': params[9],
+              'kline_payload_count': params[10],
+              'transaction_payload_count': params[11],
+              'positions_payload_count': params[12],
+              'thread_id': params[13],
+              'details': params[14],
+              'created_at': params[15],
+          })
+          self.rowcount = 1
+          self._last_result = []
+          return
+
+        if normalized.startswith('SELECT realtime_diagnostic_id, stage, event_type, pool_application, pool_id, transaction_id, event_time_ms, queue_lag_ms, build_duration_ms, notify_duration_ms, event_count, kline_payload_count, transaction_payload_count, positions_payload_count, thread_id, details, created_at FROM realtime_diagnostics'):
+          rows = [row.copy() for row in self.connection.realtime_diagnostic_rows]
+          if 'WHERE ' in normalized:
+              clauses = normalized.split('WHERE ')[1].split(' ORDER BY ')[0].split(' AND ')
+              values = list(params[:-1])
+              for clause in clauses:
+                  value = values.pop(0)
+                  if clause.endswith(' = %s'):
+                      column = clause[:-5]
+                      rows = [row for row in rows if row.get(column) == value]
+                  elif clause.endswith(' >= %s'):
+                      column = clause[:-6]
+                      rows = [row for row in rows if row.get(column) is not None and row.get(column) >= value]
+                  elif clause.endswith(' <= %s'):
+                      column = clause[:-6]
+                      rows = [row for row in rows if row.get(column) is not None and row.get(column) <= value]
+          rows.sort(key=lambda row: row['realtime_diagnostic_id'], reverse=True)
+          rows = rows[:params[-1]]
+          self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
+          return
+
+        if normalized.startswith('DELETE FROM realtime_diagnostics WHERE created_at < %s'):
+          cutoff_ms = params[0]
+          self.connection.realtime_diagnostic_rows = [
+              row for row in self.connection.realtime_diagnostic_rows
+              if row['created_at'] >= cutoff_ms
+          ]
+          self._last_result = []
+          return
+
+        if normalized == 'SELECT COUNT(*) FROM realtime_diagnostics':
+          self._last_result = [(len(self.connection.realtime_diagnostic_rows),)]
+          return
+
+        if normalized.startswith('DELETE FROM realtime_diagnostics') and 'ORDER BY realtime_diagnostic_id ASC LIMIT %s' in normalized:
+          overflow = params[0]
+          self.connection.realtime_diagnostic_rows.sort(key=lambda row: row['realtime_diagnostic_id'])
+          self.connection.realtime_diagnostic_rows = self.connection.realtime_diagnostic_rows[overflow:]
+          self._last_result = []
+          return
+
         self._last_result = []
 
     def fetchall(self):
@@ -666,6 +741,7 @@ class FakeConnection:
         self.candle_rows = {}
         self.maker_event_rows = []
         self.debug_trace_rows = []
+        self.realtime_diagnostic_rows = []
         self.query_failures = []
         self.duplicate_create_index_once = None
         self.transaction_columns = [
@@ -1315,6 +1391,99 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         all_traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
         self.assertEqual(len(all_traces), 2)
         self.assertIsNone(all_traces[0]['error'])
+
+    @patch('db.mysql.connector.connect')
+    def test_records_reads_and_bounds_realtime_diagnostics(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        db = Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+        db.debug_retention_ttl_ms = 1_000
+        db.debug_retention_max_rows = 2
+        connection = self.connections[-1]
+        connection.realtime_diagnostic_rows = [
+            {
+                'realtime_diagnostic_id': 1,
+                'stage': 'old',
+                'event_type': 'settled_trade',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'transaction_id': 1,
+                'event_time_ms': None,
+                'queue_lag_ms': None,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': None,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': None,
+                'details': None,
+                'created_at': db.now_ms() - 2_000,
+            },
+            {
+                'realtime_diagnostic_id': 2,
+                'stage': 'older_overflow',
+                'event_type': 'settled_trade',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'transaction_id': 2,
+                'event_time_ms': None,
+                'queue_lag_ms': None,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': None,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': None,
+                'details': None,
+                'created_at': db.now_ms(),
+            },
+            {
+                'realtime_diagnostic_id': 3,
+                'stage': 'newer_overflow',
+                'event_type': 'settled_trade',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'transaction_id': 3,
+                'event_time_ms': None,
+                'queue_lag_ms': None,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': None,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': None,
+                'details': None,
+                'created_at': db.now_ms(),
+            },
+        ]
+
+        db.record_realtime_diagnostic(
+            stage='publish_received',
+            event_type='settled_trade',
+            pool_application='chain:pool-app',
+            pool_id=7,
+            transaction_id=4,
+            queue_lag_ms=12,
+            event_count=1,
+            details={'source_thread': 'worker'},
+        )
+
+        rows = db.get_realtime_diagnostics(pool_application='chain:pool-app', pool_id=7, limit=10)
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([row['stage'] for row in rows], ['publish_received', 'newer_overflow'])
+        self.assertEqual(rows[0]['details'], {'source_thread': 'worker'})
+        self.assertEqual(rows[0]['queue_lag_ms'], 12)
 
     @patch('db.mysql.connector.connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):
