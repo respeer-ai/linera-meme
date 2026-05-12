@@ -453,8 +453,8 @@ class ReadModelBridgeTest(
                     'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                     'status': 'active',
                     'current_liquidity': '0',
-                    'position_liquidity_live': '0',
-                    'total_supply_live': None,
+                    'position_liquidity': '0',
+                    'total_supply': None,
                     'redeemable_amount0': '25',
                     'redeemable_amount1': '0',
                     'virtual_initial_liquidity': True,
@@ -538,7 +538,7 @@ class ReadModelBridgeTest(
         self.assertNotIn('exact_fee_supported', metric)
         self.assertNotIn('exact_principal_supported', metric)
         self.assertNotIn('exact_share_ratio', metric)
-        self.assertEqual(metric['position_liquidity_live'], '71.395983064749295982')
+        self.assertEqual(metric['position_liquidity'], '71.395983064749295982')
         self.assertGreater(float(metric['share_ratio']), 0)
         self.assertEqual(metric['protocol_fee_amount0'], '2428.725521907675120687')
         self.assertEqual(metric['protocol_fee_amount1'], '2.103751549862080742')
@@ -898,7 +898,7 @@ class ReadModelBridgeTest(
             virtual_positions_read_model=virtual_positions,
         )
 
-        result = asyncio.run(read_model.get_position_metrics(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
+        result = asyncio.run(read_model.get_position_metrics(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='virtual'))
 
         self.assertEqual(result.owner, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertEqual(len(result.metrics), 1)

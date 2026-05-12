@@ -64,7 +64,7 @@ class MarketDataPayloadBuilder:
                     ),
                 })
             if finalized:
-                self._merge_payload(kline_payload, self.build_rollover_kline_payload(pool))
+                self._merge_payload(kline_payload, self.build_rollover_kline_payload(pool, finalized))
             for event in liquidity_changes:
                 positions_events.append({
                     'pool_application': self.pool_application(pool),
@@ -145,7 +145,7 @@ class MarketDataPayloadBuilder:
 
         return payload
 
-    def build_rollover_kline_payload(self, pool) -> dict:
+    def build_rollover_kline_payload(self, pool, events: list[MarketDataEvent]) -> dict:
         payload = {}
         now_ms = self.now_ms()
         pool_application = self.pool_application(pool)
@@ -155,23 +155,44 @@ class MarketDataPayloadBuilder:
             token_1 = pool.token_0 if token_reversed else (pool.token_1 if pool.token_1 is not None else 'TLINERA')
 
             for interval, bucket_ms in INTERVAL_BUCKET_MS.items():
+                interval_events = [
+                    event
+                    for event in events
+                    if event.interval in (None, interval)
+                ]
+                if not interval_events:
+                    continue
                 stream_key = (pool.pool_id, pool_application, token_0, token_1, interval)
                 last_emitted_bucket_start = self.last_emitted_bucket_starts.get(stream_key)
-                if last_emitted_bucket_start is None:
+
+                event_bucket_starts = [
+                    int(event.event_time_ms)
+                    for event in interval_events
+                    if event.event_time_ms is not None
+                ]
+                if event_bucket_starts:
+                    last_finalized_bucket_start = max(event_bucket_starts)
+                else:
+                    current_bucket_start = build_candle_bucket_key(
+                        pool_application=pool_application,
+                        pool_id=pool.pool_id,
+                        token_reversed=token_reversed,
+                        interval=interval,
+                        created_at_ms=now_ms,
+                    ).bucket_start_ms
+                    last_finalized_bucket_start = current_bucket_start - bucket_ms
+
+                if (
+                    last_emitted_bucket_start is not None
+                    and last_finalized_bucket_start <= last_emitted_bucket_start
+                ):
                     continue
 
-                current_bucket_start = build_candle_bucket_key(
-                    pool_application=pool_application,
-                    pool_id=pool.pool_id,
-                    token_reversed=token_reversed,
-                    interval=interval,
-                    created_at_ms=now_ms,
-                ).bucket_start_ms
-                last_finalized_bucket_start = current_bucket_start - bucket_ms
-                if last_finalized_bucket_start <= last_emitted_bucket_start:
-                    continue
-
-                range_start = last_emitted_bucket_start + bucket_ms
+                range_start = (
+                    last_finalized_bucket_start
+                    if last_emitted_bucket_start is None
+                    else last_emitted_bucket_start + bucket_ms
+                )
                 range_end = last_finalized_bucket_start
                 points = self.load_candle_points(
                     token_0=token_0,
@@ -244,15 +265,12 @@ class MarketDataPayloadBuilder:
         }
         if not transaction_ids:
             return []
-        history = self.transaction_history_repository.get_pool_transaction_history(
+        transactions = self.transaction_history_repository.get_pool_transactions_by_ids(
             pool_application=self.pool_application(pool),
             pool_id=pool.pool_id,
+            transaction_ids=transaction_ids,
         )
-        return [
-            transaction
-            for transaction in history
-            if int(transaction.get('transaction_id') or 0) in transaction_ids
-        ]
+        return transactions or []
 
     def _merge_payload(self, target: dict, source: dict) -> None:
         for interval, interval_points in source.items():

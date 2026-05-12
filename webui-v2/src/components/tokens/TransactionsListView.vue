@@ -186,15 +186,13 @@ const selectedToken0 = computed(() => token0.value as string)
 const selectedToken1 = computed(() => token1.value as string)
 const selectedPool = computed(() => swap.Swap.getPool(token0.value as string, token1.value as string))
 const tokenReversed = computed(() => (selectedToken0.value === selectedPool.value?.token1) && selectedToken0.value !== undefined && selectedToken1.value !== undefined)
-const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000))
-const loadInterval = ref(600 * 1000)
+const poolCreatedAt = computed(() => selectedPool.value?.createdAt ?? 0)
 const globalTransactionsEndAt = 9999999999999
 const pageCursors = ref(new Map<number, { timestampBegin?: number; timestampEnd?: number }>())
 const activeRequestId = ref(0)
 const mounted = ref(false)
 
 const transactions = ref([] as transaction.TransactionExt[])
-const hasSelectedPair = computed(() => Boolean(selectedToken0.value && selectedToken1.value))
 const latestTransactions = computed(() =>
   kline.Kline.latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value),
 )
@@ -320,8 +318,8 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
     reason: {
       reason: SortReason.FETCH,
       payload: {
-        startAt: startAt - loadInterval.value,
-        endAt: startAt - 1
+        startAt,
+        endAt
       }
     }
   })
@@ -339,9 +337,8 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
     return
   }
 
-  const anchor = payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())
-  const startAt = hasSelectedPair.value ? anchor - loadInterval.value : (payload.timestampBegin ?? 0)
-  const endAt = hasSelectedPair.value ? anchor - 1 : (payload.timestampEnd ?? globalTransactionsEndAt)
+  const startAt = payload.timestampBegin ?? 0
+  const endAt = payload.timestampEnd ?? globalTransactionsEndAt
 
   const reason = {
     reason: SortReason.LOAD,
@@ -373,23 +370,11 @@ const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) =>
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   if (payload.transactions.length === 0) {
-    if (!hasSelectedPair.value) {
-      if (_reason.reason === SortReason.LOAD) {
-        return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
-      }
+    if (_reason.reason === SortReason.LOAD) {
+      return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
+    }
+    if (_reason.reason === SortReason.FETCH) {
       transactions.value = []
-      loading.value = false
-      return
-    }
-
-    const startAt = _reason.payload.startAt
-    const endAt = _reason.payload.endAt
-
-    if (endAt < poolCreatedAt.value) {
-      loading.value = false
-      return
-    }
-    if (startAt > new Date().getTime()) {
       loading.value = false
       return
     }
@@ -413,10 +398,10 @@ const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: n
   const nextPage = requestProp.pagination.page
   const cursor = pageCursors.value.get(nextPage)
   const anchor = cursor?.timestampEnd ?? (transactions.value[transactions.value.length - 1]?.created_at || new Date().getTime())
-  const startAt = anchor - 1
-  const endAt = Math.max(poolCreatedAt.value || 0, anchor - loadInterval.value)
+  const startAt = Math.max(poolCreatedAt.value || 0, 0)
+  const endAt = anchor
 
-  if (loadTransactions(endAt, startAt, pagination.value.rowsPerPage)) {
+  if (loadTransactions(startAt, endAt, pagination.value.rowsPerPage)) {
     pagination.value.page = nextPage
   }
 }

@@ -7,6 +7,7 @@ class MarketDataEvent:
     pool_application: str | None = None
     pool_id: int | None = None
     token_reversed: bool | None = None
+    interval: str | None = None
     transaction_id: int | None = None
     event_time_ms: int | None = None
     owner: str | None = None
@@ -17,4 +18,3 @@ class MarketDataEvent:
     TYPE_CANDLE_FINALIZED = 'candle_finalized'
     TYPE_PROJECTION_REBUILT = 'projection_rebuilt'
     TYPE_RANGE_INVALIDATED = 'range_invalidated'
-

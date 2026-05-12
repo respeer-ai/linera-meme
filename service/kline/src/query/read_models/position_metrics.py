@@ -19,7 +19,7 @@ class PositionMetricsReadModel:
         status: str,
     ) -> dict:
         positions = self.positions_repository.get_positions(owner=owner, status=status)
-        if self.virtual_positions_read_model is not None:
+        if self.virtual_positions_read_model is not None and status in ('all', 'virtual'):
             positions = await self.virtual_positions_read_model.enrich_positions(
                 owner=owner,
                 status=status,

@@ -26,6 +26,7 @@ class FakeHistoryRepository:
     def __init__(self):
         self.points = {}
         self.pool_histories = {}
+        self.transaction_id_calls = []
 
     def get_kline(self, token_0, token_1, start_at, end_at, interval, pool_id=None, pool_application=None):
         points = [
@@ -40,6 +41,14 @@ class FakeHistoryRepository:
         return (token_0, token_1, start_at, end_at, points)
 
     def get_pool_transaction_history(self, *, pool_application, pool_id):
+        raise AssertionError('realtime payloads must not scan full pool transaction history')
+
+    def get_pool_transactions_by_ids(self, *, pool_application, pool_id, transaction_ids):
+        self.transaction_id_calls.append({
+            'pool_application': pool_application,
+            'pool_id': pool_id,
+            'transaction_ids': set(transaction_ids),
+        })
         return list(self.pool_histories.get((pool_id, pool_application), []))
 
 
@@ -172,6 +181,11 @@ class MarketDataPayloadBuilderTest(unittest.TestCase):
         ])
 
         self.assertEqual(payload['transactions'][0]['transactions'][0]['transaction_id'], 10)
+        self.assertEqual(db.transaction_id_calls, [{
+            'pool_application': POOL_APPLICATION,
+            'pool_id': 7,
+            'transaction_ids': {10},
+        }])
         self.assertEqual(
             payload['kline']['1min'][0]['points'][0],
             db.points[(7, False, '1min', 1_800_000_000_000)],
@@ -256,6 +270,44 @@ class MarketDataPayloadBuilderTest(unittest.TestCase):
 
         self.assertEqual(payload['kline']['1min'][0]['start_at'], 1_800_000_060_000)
         self.assertEqual(payload['kline']['1min'][0]['points'][0]['base_volume'], 0.0)
+
+    def test_builds_restart_safe_rollover_payload_without_last_emitted_memory(self):
+        db = FakeHistoryRepository()
+        candle_reader = FakeCandleReader(db)
+        pool = make_pool()
+        db.points[(7, False, '1min', 1_800_000_060_000)] = {
+            'timestamp': 1_800_000_060_000,
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'bucket_start_ms': 1_800_000_060_000,
+            'bucket_end_ms': 1_800_000_119_999,
+            'is_final': True,
+            'open': 3.0,
+            'high': 3.0,
+            'low': 3.0,
+            'close': 3.0,
+            'base_volume': 0.0,
+            'quote_volume': 0.0,
+        }
+        builder = MarketDataPayloadBuilder(
+            pool_catalog_repository=FakePoolCatalogRepository([pool]),
+            candle_reader=candle_reader,
+            transaction_history_repository=db,
+            now_ms=lambda: 1_800_000_130_000,
+        )
+
+        payload = builder.build([
+            MarketDataEvent(
+                event_type=MarketDataEvent.TYPE_CANDLE_FINALIZED,
+                pool_application=POOL_APPLICATION,
+                interval='1min',
+                event_time_ms=1_800_000_060_000,
+            )
+        ])
+
+        self.assertEqual(payload['kline']['1min'][0]['start_at'], 1_800_000_060_000)
+        self.assertEqual(payload['kline']['1min'][0]['end_at'], 1_800_000_119_999)
+        self.assertEqual(payload['kline']['1min'][0]['points'][0]['is_final'], True)
 
 
 if __name__ == '__main__':

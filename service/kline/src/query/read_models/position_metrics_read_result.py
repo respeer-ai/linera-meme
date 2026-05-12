@@ -27,6 +27,10 @@ class PositionMetricsReadResult:
         public_metric.pop('metrics_status', None)
         public_metric.pop('exact_fee_supported', None)
         public_metric.pop('exact_principal_supported', None)
+        if 'position_liquidity_live' in public_metric:
+            public_metric['position_liquidity'] = public_metric.pop('position_liquidity_live')
+        if 'total_supply_live' in public_metric:
+            public_metric['total_supply'] = public_metric.pop('total_supply_live')
         if 'exact_share_ratio' in public_metric:
             public_metric['share_ratio'] = public_metric.pop('exact_share_ratio')
         return public_metric

@@ -272,7 +272,7 @@ const formattedLiquidityShare = computed(() => {
   const total = rewardPositions.value.reduce((sum, position) => {
     if (position.status === 'closed') return sum
     const metrics = summaryPositionMetrics(position)
-    return sum + Number.parseFloat(metrics?.position_liquidity_live || position.current_liquidity || '0')
+    return sum + Number.parseFloat(metrics?.position_liquidity || position.current_liquidity || '0')
   }, 0)
   return formatFixedLiquidity(Number.isFinite(total) ? total : 0, 2)
 })
@@ -454,7 +454,7 @@ const positionLiquidity = (position: Position) => {
 
   return {
     liquidity:
-      positionMetrics(position)?.position_liquidity_live || position.current_liquidity || '0',
+      positionMetrics(position)?.position_liquidity || position.current_liquidity || '0',
     amount0:
       positionMetrics(position)?.redeemable_amount0 ||
       position.virtual_initial_amount0 ||

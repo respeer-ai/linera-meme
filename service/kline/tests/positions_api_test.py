@@ -177,6 +177,9 @@ class FakeDb:
                 ]
             return []
 
+        def close(self):
+            return None
+
     def __init__(self, positions=None, error=None):
         self.positions = positions or []
         self.error = error
@@ -197,6 +200,9 @@ class FakeDb:
 
     def ensure_fresh_read_connection(self):
         return None
+
+    def fresh_cursor(self, dictionary=False):
+        return self.FakeCursor(self)
 
     def get_positions(self, owner: str, status: str):
         self.calls.append({'owner': owner, 'status': status})
@@ -600,8 +606,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'owner': owner,
                     'status': 'active',
                     'current_liquidity': '0.346087',
-                    'position_liquidity_live': '0.346087',
-                    'total_supply_live': '1.000000',
+                    'position_liquidity': '0.346087',
+                    'total_supply': '1.000000',
                     'share_ratio': '0.346087',
                     'redeemable_amount0': '123.45',
                     'redeemable_amount1': '6.78',

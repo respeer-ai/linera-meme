@@ -29,7 +29,10 @@ active_focus:
     summary: >
       This is now the umbrella verification track: local observability E2E,
       maker-behavior validation against Layer 3 outputs, and remaining frontend
-      financial-semantic reconciliation.
+      financial-semantic reconciliation. The recent architecture review follow-ups
+      for projection-cursor transactions pagination, event-id realtime payload
+      reads, restart-safe candle finality, and position-metrics public field
+      cleanup are done.
     read_if_working_on:
       - E2E verification
       - integration testing

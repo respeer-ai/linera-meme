@@ -732,6 +732,69 @@ groups:
           - 不保留兼容或诊断用 ticker 路径
           - 如果需要诊断，新增 diagnostics/observability 指标或 debug endpoint，不复用 ticker
           - 不再在 `Ticker` 中新增 positions 或其他产品实时 topic
+      - id: POS-059
+        status: Done
+        priority: P0
+        depends_on: [OBS-E2E-001, POS-035, POS-037]
+        title: 将 transactions 分页改为 projection cursor
+        notes: |
+          Review 发现：前端全市场 transactions 当前仍用固定 10 分钟窗口拼下一页，
+          这不符合 projection read model 的 cursor 语义。
+
+          已完成：
+          - 后端 projection query 已支持 `end_at=<oldest.created_at - 1>&limit=N`
+          - 前端分页不再用 `loadInterval` 决定历史窗口
+          - token-pair 与全市场路径都以 projection query 结果为真值
+          - 全市场 feed 保持只返回 `token_reversed=false` 原始交易
+          - 修复 pair 页 pool created timestamp 毫秒/秒混用问题
+          - 验证：`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+      - id: POS-060
+        status: Done
+        priority: P1
+        depends_on: [POS-053, POS-055]
+        title: 实时交易 payload 改为按事件 transaction ids 精确读取
+        notes: |
+          Review 发现：`MarketDataPayloadBuilder._load_transactions_for_events` 当前读取整个 pool history，
+          再按 transaction_id 过滤。它仍消费 projection，但不是严格事件驱动，交易量增长后成本会随池历史线性增加。
+
+          已完成：
+          - 新增 projection query repo 方法按 `(pool_application, pool_id, transaction_ids)` 精确读取 settled trades
+          - websocket transactions/kline 增量 payload 只读取当前事件涉及的交易
+          - 保持全市场推送只使用原始交易，反向视角只用于 pair-specific K 线/transactions
+          - 单测覆盖不会加载整池历史
+          - 验证：`python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/settled_trade_projection_repo_test.py`
+      - id: POS-061
+        status: Done
+        priority: P1
+        depends_on: [POS-053, POS-057]
+        title: candle finality 推送状态改为 projection/subscription 驱动
+        notes: |
+          Review 发现：当前 rollover 推送依赖 `MarketDataPayloadBuilder.last_emitted_bucket_starts`
+          的内存状态。服务重启后，如果某 pool 没有新 trade，finality scheduler 产生事件也可能无法推送该 stream 的 final candle。
+
+          已完成：
+          - finality event 携带 interval 与 finalized bucket
+          - builder 在无 `last_emitted` 内存状态时按 finality event bucket 从 projection 读取并推送
+          - 保持后端统一 `is_final` 语义，前端不本地决定 finality
+          - 添加重启/新订阅后无新 trade 仍能得到一致 final candle 的测试
+          - 验证：`python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py`
+      - id: POS-062
+        status: Done
+        priority: P2
+        depends_on: [POS-038, POS-052]
+        title: 收敛 position-metrics live 命名与公开字段
+        notes: |
+          Review 发现：`position_metrics` 主路径已通过 projection payload adapter 构造数据，
+          但内部和公开字段仍大量使用 `live_*` 命名，例如 `position_liquidity_live`、
+          `total_supply_live`。这容易让后续实现误以为可以回到 live chain query。
+
+          已完成：
+          - 公开 `/position-metrics` 响应把 `position_liquidity_live`/`total_supply_live`
+            收敛为 `position_liquidity`/`total_supply`
+          - 内部 legacy `live_*` 命名仅保留在 payload/replay 计算边界，不作为公开产品字段
+          - 公开响应继续隐藏 `owner_is_fee_to`、`metrics_status`、`exact_fee_supported`
+          - `status=active` 不再触发 virtual position enrichment，virtual 仅属于 `all/virtual`
+          - 验证：`python3 -m unittest service/kline/tests/query_stack_read_model_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`，`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
       - id: POS-024
         status: Done
         priority: P0

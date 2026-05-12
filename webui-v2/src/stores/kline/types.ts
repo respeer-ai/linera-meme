@@ -111,8 +111,8 @@ export interface PositionMetricsEntry {
   owner: string
   status: 'active' | 'closed' | 'virtual'
   current_liquidity: string
-  position_liquidity_live: string | null
-  total_supply_live: string | null
+  position_liquidity: string | null
+  total_supply: string | null
   share_ratio: string | null
   redeemable_amount0: string | null
   redeemable_amount1: string | null

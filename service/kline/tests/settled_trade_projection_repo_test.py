@@ -516,6 +516,44 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertIn('st.pool_application_id = %s', executed_sql)
         self.assertEqual(params, ('chain-a:pool-app',))
 
+    def test_pool_transactions_by_ids_queries_only_requested_transaction_ids(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': 'chain-a:pool-app',
+                'settled_trade_id': 'trade-1',
+                'transaction_id': 11,
+                'trade_time_ms': 1200,
+                'side': 'buy_token_0',
+                'from_account': 'chain-user:owner-user',
+                'amount_0_in': None,
+                'amount_0_out': '300000000000000000000',
+                'amount_1_in': '25000000000000000000',
+                'amount_1_out': None,
+                'amount_in': '25000000000000000000',
+                'amount_out': '300000000000000000000',
+                'event_payload_json': {},
+            }
+        ]
+        repository = SettledTradeProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                'chain-a:pool-app': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+            }),
+        )
+
+        rows = repository.get_pool_transactions_by_ids(
+            pool_application='chain-a:pool-app',
+            pool_id=7,
+            transaction_ids={11, 11, 12},
+        )
+
+        self.assertEqual([row['transaction_id'] for row in rows], [11])
+        executed_sql, params = db.cursor_dict.executed[0]
+        self.assertIn('st.pool_application_id = %s', executed_sql)
+        self.assertIn('st.transaction_id IN (%s, %s)', executed_sql)
+        self.assertEqual(params, ('chain-a:pool-app', 11, 12))
+
     def test_pool_trade_history_uses_cursor_created_after_metadata_resolution(self):
         db = self.ReplacingCursorDb()
         db.rows = [

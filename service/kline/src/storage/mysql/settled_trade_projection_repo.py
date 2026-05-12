@@ -108,6 +108,34 @@ class SettledTradeProjectionRepository:
             history.append(self._build_transaction_row(row, token_reversed=False))
         return history
 
+    def get_pool_transactions_by_ids(
+        self,
+        *,
+        pool_application: str,
+        pool_id: int | None,
+        transaction_ids: list[int] | set[int] | tuple[int, ...],
+    ) -> list[dict] | None:
+        ids = sorted({int(transaction_id) for transaction_id in transaction_ids})
+        if not ids:
+            return []
+        rows = self._load_trade_rows(
+            token_0=None,
+            token_1=None,
+            start_at=None,
+            end_at=None,
+            pool_application=pool_application,
+            pool_id=pool_id,
+            transaction_ids=ids,
+        )
+        if rows is None:
+            return None
+        transactions = [
+            self._build_transaction_row(row, token_reversed=False)
+            for row in rows
+        ]
+        transactions.sort(key=lambda item: (int(item['created_at']), int(item['transaction_id'])), reverse=True)
+        return transactions
+
     def get_candles(
         self,
         *,
@@ -206,6 +234,7 @@ class SettledTradeProjectionRepository:
         pool_application: str | None = None,
         pool_id: int | None = None,
         limit: int | None = None,
+        transaction_ids: list[int] | None = None,
     ) -> list[dict] | None:
         if not hasattr(self.db, 'ensure_fresh_read_connection'):
             return None
@@ -240,6 +269,10 @@ class SettledTradeProjectionRepository:
         if end_at is not None:
             where_clauses.append('st.trade_time_ms <= %s')
             params.append(int(end_at))
+        if transaction_ids is not None:
+            placeholders = ', '.join(['%s'] * len(transaction_ids))
+            where_clauses.append(f'st.transaction_id IN ({placeholders})')
+            params.extend([int(transaction_id) for transaction_id in transaction_ids])
         where_sql = ''
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)

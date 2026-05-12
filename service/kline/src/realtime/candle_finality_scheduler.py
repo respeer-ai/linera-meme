@@ -94,6 +94,7 @@ class CandleFinalityScheduler:
                         event_type=MarketDataEvent.TYPE_CANDLE_FINALIZED,
                         pool_application=pool_application,
                         pool_id=pool.pool_id,
+                        interval=interval,
                         event_time_ms=finalized_bucket_start,
                         updated_at_ms=now_ms,
                     ))
