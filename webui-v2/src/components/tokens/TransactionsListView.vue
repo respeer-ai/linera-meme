@@ -300,7 +300,7 @@ watch(latestTransactions, () => {
 })
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  const { token0, token1, startAt, requestId } = payload
+  const { token0, token1, startAt, endAt, requestId } = payload
 
   if (!mounted.value || requestId !== activeRequestId.value) return
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return

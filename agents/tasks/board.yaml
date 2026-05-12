@@ -429,6 +429,11 @@ groups:
             - `raw_posted_messages` 重复写入改为 `INSERT IGNORE`
           - 前端主链路中，token 列表、交易、K 线基础拉取与实时更新问题已基本跑通；
             maker 当前仍使用旧随机交易器算法，已确认这是 1min K 线噪声的重要来源
+          - 2026-05-12 runtime 复核：
+            - `compose_maker_and_funder.sh` 与 `compose_webui.sh` 已重跑，`kline` / `maker` / `funder` / `linera-meme-webui` healthy
+            - `/debug/observability` 返回 `ready=true`，schema/registry/startup_catch_up/listener/workers 均 ready
+            - maker 曾因未传 `SUDO_PASSWORD` 导致 `WALLET_CHAIN` 为空；用 `SUDO_PASSWORD=12345679` 重跑后 maker wallet chain 恢复为 `507e...a733`，swap mutation 成功
+            - `/transactions` 最新交易、`/points` 1m K 线、`/protocol/stats`、`/poolstats/interval/1d` 均能从 projection 返回数据
 
           待完成：
           - 实际跑通完整 L1→L2→L3 流程
@@ -629,6 +634,15 @@ groups:
           - 每项指标给出当前实现语义
           - 明确是否与目标语义一致
           - 若不一致，记录应修复在前端、query read model 还是 Layer 3 物化层
+
+          2026-05-12 runtime 复核：
+          - creator/protocol fee receiver `0xc21...8c13@b0f87...e9f2` 的 `/positions?status=all`
+            返回 `status=virtual`、`position_kind=virtual_initial_liquidity`
+          - 同一 owner 的 `/position-metrics?status=all` 返回 projection-derived protocol fee，
+            公开字段为 `position_liquidity` / `total_supply`，无 `owner_is_fee_to` / `exact_fee` 泄漏
+          - maker owner positions/metrics 为空是合理结果；maker 当前只 swap，不是 LP/creator
+          - `/protocol/stats` 与 `/poolstats/interval/1d` 当前能返回 TVL / volume / fees / tx_count，
+            但 APR 前端展示与分母语义仍需浏览器侧最终核对
       - id: POS-053
         status: Done
         priority: P0
