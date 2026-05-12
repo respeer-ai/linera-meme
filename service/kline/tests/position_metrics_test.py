@@ -21,8 +21,57 @@ sys.modules['async_request'] = async_request_stub
 
 from position_metrics_bootstrap import PositionMetricsBootstrap  # noqa: E402
 from integration.pool_application_client import PoolApplicationClient  # noqa: E402
+from position_metrics_live_payload_api import PositionMetricsLivePayloadApi  # noqa: E402
+from position_metrics_live_payload_fetcher import PositionMetricsLivePayloadFetcher  # noqa: E402
 
-public_api = PositionMetricsBootstrap().public_api()
+bootstrap = PositionMetricsBootstrap()
+public_api = bootstrap.public_api()
+
+
+class LegacyPositionMetricsTestClient:
+    def __init__(self, *, application_url: str, post):
+        self.application_url = application_url
+        self.post = post
+
+    @classmethod
+    def build_application_url(cls, *, swap_base_url: str, pool_application: str) -> str:
+        return PoolApplicationClient.build_application_url(
+            swap_base_url=swap_base_url,
+            pool_application=pool_application,
+        )
+
+    @classmethod
+    def build_position_metrics_query(cls, owner: dict) -> dict:
+        return PoolApplicationClient.build_position_metrics_query(owner)
+
+    async def get_position_metrics_payload(self, *, owner: dict) -> dict:
+        response = await self.post(
+            url=self.application_url,
+            json=self.build_position_metrics_query(owner),
+            timeout=(3, 10),
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if 'errors' in payload:
+            raise RuntimeError(str(payload['errors']))
+        return payload
+
+
+async def fetch_legacy_live_position_metrics(position, swap_base_url, **kwargs):
+    post = kwargs.pop('post', None) or bootstrap.default_post
+    live_payload_api = PositionMetricsLivePayloadApi(
+        account_codec=bootstrap.account_codec,
+        pool_application_client_type=LegacyPositionMetricsTestClient,
+        payload_fetcher=PositionMetricsLivePayloadFetcher(
+            parse_account=bootstrap.parse_account,
+        ),
+    )
+    payload = await live_payload_api.fetch_payload(position, swap_base_url, post=post)
+    return bootstrap.entrypoint().enrich_position_metrics_from_payload(
+        position,
+        payload,
+        **kwargs,
+    )
 
 
 class FakeResponse:
@@ -117,10 +166,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
     def test_build_position_metrics_query_uses_account_object(self):
         query = PoolApplicationClient.build_position_metrics_query({
             'chain_id': 'chain-a',
-            'owner': '0xowner-a',
+            'owner': '0xaaaaaaaa',
         })
         self.assertEqual(query['variables']['owner']['chain_id'], 'chain-a')
-        self.assertEqual(query['variables']['owner']['owner'], '0xowner-a')
+        self.assertEqual(query['variables']['owner']['owner'], '0xaaaaaaaa')
         self.assertIn('totalSupply', query['query'])
         self.assertIn('virtualInitialLiquidity', query['query'])
         self.assertIn('liquidity(owner: $owner)', query['query'])
@@ -144,10 +193,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap/query',
             liquidity_history=[
@@ -173,7 +222,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 11,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '0.346087',
                     'amount_1_in': '0.346087',
                     'amount_0_out': '0',
@@ -210,12 +259,12 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             captured['url'],
-            'http://swap-host/api/swap/query/chains/chain-b/applications/pool-app',
+            'http://swap-host/api/swap/query/chains/chain-b/applications/bbbbbbbb',
         )
         self.assertEqual(captured['timeout'], (3, 10))
         self.assertEqual(captured['json']['variables']['owner'], {
             'chain_id': 'chain-a',
-            'owner': '0xowner-a',
+            'owner': '0xaaaaaaaa',
         })
         self.assertEqual(metrics['redeemable_amount0'], '123.45')
         self.assertEqual(metrics['redeemable_amount1'], '6.78')
@@ -244,10 +293,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -286,10 +335,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -329,17 +378,17 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
                 {
                     'transaction_id': 11,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'liquidity': '2.0',
                     'created_at': 1_800_000_000_000,
                 },
@@ -348,7 +397,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 11,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '40',
                     'amount_1_in': '80',
                     'amount_0_out': '0',
@@ -383,10 +432,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             })
 
         with self.assertRaises(RuntimeError):
-            await public_api.fetch_live_position_metrics(
+            await fetch_legacy_live_position_metrics(
                 {
-                    'owner': 'chain-a:0xowner-a',
-                    'pool_application': 'chain-b:0xpool-app',
+                    'owner': '0xaaaaaaaa@chain-a',
+                    'pool_application': '0xbbbbbbbb@chain-b',
                 },
                 'http://swap-host/api/swap',
                 liquidity_history=[
@@ -416,10 +465,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -434,7 +483,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 1,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '100',
                     'amount_1_in': '100',
                     'amount_0_out': '0',
@@ -484,10 +533,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -513,7 +562,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 2,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '50',
                     'amount_1_in': '50',
                     'amount_0_out': '0',
@@ -556,7 +605,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     'pool': {
                         'fee_to': {
                             'chain_id': 'chain-a',
-                            'owner': '0xowner-a',
+                            'owner': '0xaaaaaaaa',
                         },
                     },
                     'totalSupply': '110.002500227305015907',
@@ -569,10 +618,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -609,7 +658,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 3,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '9.093389106119850868',
                     'amount_1_in': '11',
                     'amount_0_out': '0',
@@ -641,7 +690,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     'pool': {
                         'fee_to': {
                             'chain_id': 'chain-a',
-                            'owner': '0xowner-a',
+                            'owner': '0xaaaaaaaa',
                         },
                     },
                     'totalSupply': '110.002500227305015907',
@@ -654,10 +703,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -694,7 +743,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 3,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '9.093389106119850868',
                     'amount_1_in': '11',
                     'amount_0_out': '0',
@@ -726,7 +775,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     'pool': {
                         'fee_to': {
                             'chain_id': 'chain-a',
-                            'owner': '0xowner-a',
+                            'owner': '0xaaaaaaaa',
                         },
                     },
                     'totalSupply': '110.002500227305015907',
@@ -739,10 +788,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[],
@@ -769,10 +818,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -804,7 +853,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 2,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '50',
                     'amount_1_in': '50',
                     'amount_0_out': '0',
@@ -815,7 +864,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 3,
                     'transaction_type': 'RemoveLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '0',
                     'amount_1_in': '0',
                     'amount_0_out': '20',
@@ -865,10 +914,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -900,7 +949,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 2,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '50',
                     'amount_1_in': '50',
                     'amount_0_out': '0',
@@ -922,7 +971,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 4,
                     'transaction_type': 'RemoveLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '0',
                     'amount_1_in': '0',
                     'amount_0_out': '18.408945578823790166',
@@ -961,10 +1010,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -996,7 +1045,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 2,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '50',
                     'amount_1_in': '50',
                     'amount_0_out': '0',
@@ -1018,7 +1067,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 4,
                     'transaction_type': 'RemoveLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '0',
                     'amount_1_in': '0',
                     'amount_0_out': '18.408945578823790166',
@@ -1068,10 +1117,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -1097,7 +1146,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 2,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '50',
                     'amount_1_in': '50',
                     'amount_0_out': '0',
@@ -1169,10 +1218,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -1209,7 +1258,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 3,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '45.466945530599254342',
                     'amount_1_in': '55',
                     'amount_0_out': '0',
@@ -1251,9 +1300,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_fetch_live_position_metrics_ignores_legacy_gap_summary_without_actionable_basis(self):
         position = {
-            'pool_application': 'chain-pool:0xpool',
+            'pool_application': '0xcccccccc@chain-pool',
             'pool_id': 7,
-            'owner': 'chain-a:0xowner-a',
+            'owner': '0xaaaaaaaa@chain-a',
             'status': 'active',
             'current_liquidity': '50',
             'opened_at': 1_800_000_000_000,
@@ -1277,14 +1326,14 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             position,
             'https://swap.example',
             liquidity_history=[
                 {
                     'transaction_id': 1,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '45.2',
                     'amount_1_in': '55.1',
                     'amount_0_out': '0',
@@ -1297,7 +1346,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 1,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '45.2',
                     'amount_1_in': '55.1',
                     'amount_0_out': '0',
@@ -1327,9 +1376,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_fetch_live_position_metrics_does_not_clear_stale_gap_warning_from_payload(self):
         position = {
-            'pool_application': 'chain-pool:0xpool',
+            'pool_application': '0xcccccccc@chain-pool',
             'pool_id': 7,
-            'owner': 'chain-a:0xowner-a',
+            'owner': '0xaaaaaaaa@chain-a',
             'status': 'active',
             'current_liquidity': '50',
             'opened_at': 1_800_000_000_000,
@@ -1352,14 +1401,14 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             position,
             'https://swap.example',
             liquidity_history=[
                 {
                     'transaction_id': 1,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '45.2',
                     'amount_1_in': '55.1',
                     'amount_0_out': '0',
@@ -1372,7 +1421,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 1,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '45.2',
                     'amount_1_in': '55.1',
                     'amount_0_out': '0',
@@ -1421,10 +1470,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -1465,7 +1514,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 3,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '45.466945530599254342',
                     'amount_1_in': '55',
                     'amount_0_out': '0',
@@ -1504,7 +1553,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                     'pool': {
                         'fee_to': {
                             'chain_id': 'chain-a',
-                            'owner': '0xowner-a',
+                            'owner': '0xaaaaaaaa',
                         },
                     },
                     'liquidity': {
@@ -1515,10 +1564,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await public_api.fetch_live_position_metrics(
+        metrics = await fetch_legacy_live_position_metrics(
             {
-                'owner': 'chain-a:0xowner-a',
-                'pool_application': 'chain-b:0xpool-app',
+                'owner': '0xaaaaaaaa@chain-a',
+                'pool_application': '0xbbbbbbbb@chain-b',
             },
             'http://swap-host/api/swap',
             liquidity_history=[
@@ -1547,7 +1596,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 1000,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '10499900',
                     'amount_1_in': '8720',
                     'amount_0_out': '0',
@@ -1558,7 +1607,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 {
                     'transaction_id': 1008,
                     'transaction_type': 'AddLiquidity',
-                    'from_account': 'chain-a:0xowner-a',
+                    'from_account': '0xaaaaaaaa@chain-a',
                     'amount_0_in': '12.027692749988587',
                     'amount_1_in': '0.01',
                     'amount_0_out': '0',

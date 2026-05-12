@@ -15,18 +15,6 @@ from position_metrics_public_api import PositionMetricsPublicApi  # noqa: E402
 
 class PositionMetricsPublicApiTest(unittest.IsolatedAsyncioTestCase):
     async def test_public_api_delegates_to_entrypoint_runtime_and_replay_boundaries(self):
-        class FakeLivePayloadApi:
-            def parse_account(self, account):
-                return {'parsed': account}
-
-            def build_position_metrics_query(self, owner):
-                return {'query': owner}
-
-            async def fetch_payload(self, *args, **kwargs):
-                self.fetch_args = args
-                self.fetch_kwargs = dict(kwargs)
-                return {'payload': True}
-
         class FakeEntrypoint:
             def __init__(self):
                 self.enrich_calls = []
@@ -49,7 +37,6 @@ class PositionMetricsPublicApiTest(unittest.IsolatedAsyncioTestCase):
                 self.kwargs = dict(kwargs)
                 return {'audit': True}
 
-        live_payload_api = FakeLivePayloadApi()
         entrypoint = FakeEntrypoint()
         replay_entrypoint = FakeReplayEntrypoint()
         class FakeFetcherFactory:
@@ -59,13 +46,10 @@ class PositionMetricsPublicApiTest(unittest.IsolatedAsyncioTestCase):
                     'query_input_provider': query_input_provider,
                 }
 
-        default_post = object()
         public_api = PositionMetricsPublicApi(
-            live_payload_api=live_payload_api,
             entrypoint=entrypoint,
             replay_entrypoint=replay_entrypoint,
             fetcher_factory=FakeFetcherFactory(),
-            default_post=default_post,
             default_swap_out_tolerance_attos=7,
         )
 
@@ -81,11 +65,6 @@ class PositionMetricsPublicApiTest(unittest.IsolatedAsyncioTestCase):
             {'audit': True},
         )
 
-        fetched = await public_api.fetch_live_position_metrics(
-            {'pool_application': 'chain:pool-app'},
-            'http://swap',
-            replay_bundle=object(),
-        )
         planned = public_api.plan_position_metrics_from_payload(
             {'pool_application': 'chain:pool-app'},
             {'data': {}},
@@ -96,7 +75,6 @@ class PositionMetricsPublicApiTest(unittest.IsolatedAsyncioTestCase):
             replay_bundle='bundle',
         )
 
-        self.assertEqual(fetched, {'enriched': True})
         self.assertEqual(planned, {'planned': True})
         self.assertEqual(enriched, {'enriched': True})
         self.assertEqual(replay_entrypoint.history, [{'transaction_id': 1}])
@@ -107,15 +85,12 @@ class PositionMetricsPublicApiTest(unittest.IsolatedAsyncioTestCase):
                 'swap_out_tolerance_attos': 7,
             },
         )
-        self.assertEqual(live_payload_api.fetch_args, ({'pool_application': 'chain:pool-app'}, 'http://swap'))
-        self.assertIs(live_payload_api.fetch_kwargs['post'], default_post)
         self.assertEqual(
             entrypoint.plan_args,
             ({'pool_application': 'chain:pool-app'}, {'data': {}}),
         )
         self.assertEqual(
             entrypoint.enrich_calls[0]['args'],
-            ({'pool_application': 'chain:pool-app'}, {'payload': True}),
+            ({'pool_application': 'chain:pool-app'}, {'data': {}}),
         )
-        self.assertIsNotNone(entrypoint.enrich_calls[0]['kwargs']['replay_bundle'])
-        self.assertEqual(entrypoint.enrich_calls[1]['kwargs']['replay_bundle'], 'bundle')
+        self.assertEqual(entrypoint.enrich_calls[0]['kwargs']['replay_bundle'], 'bundle')

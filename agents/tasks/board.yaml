@@ -322,7 +322,7 @@ groups:
           - 新增 `pool_transaction_history_projection_repo.py`
           当前 targeted unittest 已覆盖 settled-trade rows、candle 聚合、pool identity 和 shared history boundary。
       - id: POS-038
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-035, POS-036, POS-042]
         title: 实现 positions 的 phase-1 read model
@@ -349,7 +349,12 @@ groups:
           - `ProjectionPoolCatalogRepository` / metadata resolver / product read repos 已改读 projection catalog，
             不再读 legacy `pools` 表
           - `pool_catalog_v2.pool_id` 明确为 read-model stable id，不宣称是 swap GraphQL `poolId`
-          执行约束：禁止补偿实现。
+          已完成最终收口：
+          - 产品 `/positions`、`/position-metrics`、pool catalog、stats/read models 均走 projection-backed runtime wiring
+          - `PositionMetricsPublicApi` 不再暴露 `fetch_live_position_metrics` live-query 入口
+          - 旧 live payload client 只保留为 legacy/integration 单元测试对象，不作为 product public API
+          - 公开 `/position-metrics` 响应不暴露 `owner_is_fee_to`、`metrics_status`、`exact_fee_supported`
+          - 验证：`python3 -m unittest service/kline/tests/positions_api_test.py service/kline/tests/query_stack_read_model_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/position_metrics_public_api_test.py service/kline/tests/position_metrics_test.py service/kline/tests/position_metrics_live_payload_fetcher_test.py service/kline/tests/pool_application_client_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`，`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
       - id: POS-039
         status: Done
         priority: P0

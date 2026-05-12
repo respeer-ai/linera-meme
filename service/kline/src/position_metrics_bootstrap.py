@@ -23,8 +23,6 @@ from position_metrics_estimated_fallback_resolver import PositionMetricsEstimate
 from position_metrics_fee_to_opening_mint_resolver import PositionMetricsFeeToOpeningMintResolver
 from position_metrics_history_enricher import PositionMetricsHistoryEnricher
 from position_metrics_history_semantic_resolver import PositionMetricsHistorySemanticResolver
-from position_metrics_live_payload_api import PositionMetricsLivePayloadApi
-from position_metrics_live_payload_fetcher import PositionMetricsLivePayloadFetcher
 from position_metrics_no_swap_exact_resolver import PositionMetricsNoSwapExactResolver
 from position_metrics_partial_result_builder import PositionMetricsPartialResultBuilder
 from position_metrics_payload_decision_resolver import PositionMetricsPayloadDecisionResolver
@@ -54,7 +52,6 @@ class PositionMetricsBootstrap:
         self.account_codec = AccountCodec()
         self.default_post = async_request.post
         self._pool_application_support = None
-        self._live_payload_api = None
         self._entrypoint = None
         self._replay_entrypoint = None
         self._projection_payload_adapter = None
@@ -76,26 +73,12 @@ class PositionMetricsBootstrap:
     def public_api(self):
         if self._public_api is None:
             self._public_api = PositionMetricsPublicApi(
-                live_payload_api=self.live_payload_api(),
                 entrypoint=self.entrypoint(),
                 replay_entrypoint=self.replay_entrypoint(),
                 fetcher_factory=self,
-                default_post=self.default_post,
                 default_swap_out_tolerance_attos=self.SWAP_OUT_TOLERANCE_ATTOS,
             )
         return self._public_api
-
-    def live_payload_api(self) -> PositionMetricsLivePayloadApi:
-        if self._live_payload_api is None:
-            from integration.pool_application_client import PoolApplicationClient
-            self._live_payload_api = PositionMetricsLivePayloadApi(
-                account_codec=self.account_codec,
-                pool_application_client_type=PoolApplicationClient,
-                payload_fetcher=PositionMetricsLivePayloadFetcher(
-                    parse_account=self.parse_account,
-                ),
-            )
-        return self._live_payload_api
 
     def build(
         self,

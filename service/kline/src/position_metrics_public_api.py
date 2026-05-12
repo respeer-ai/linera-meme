@@ -2,18 +2,14 @@ class PositionMetricsPublicApi:
     def __init__(
         self,
         *,
-        live_payload_api,
         entrypoint,
         replay_entrypoint,
         fetcher_factory,
-        default_post,
         default_swap_out_tolerance_attos,
     ):
-        self.live_payload_api = live_payload_api
         self.entrypoint = entrypoint
         self.replay_entrypoint = replay_entrypoint
         self.fetcher_factory = fetcher_factory
-        self.default_post = default_post
         self.default_swap_out_tolerance_attos = default_swap_out_tolerance_attos
 
     def build_fetcher(
@@ -40,33 +36,6 @@ class PositionMetricsPublicApi:
                 if swap_out_tolerance_attos is None
                 else swap_out_tolerance_attos
             ),
-        )
-
-    async def fetch_live_position_metrics(
-        self,
-        position: dict,
-        swap_base_url: str,
-        *,
-        replay_bundle=None,
-        liquidity_history: list[dict] | None = None,
-        pool_transaction_history: list[dict] | None = None,
-        pool_swap_count_since_open: int | None = None,
-        pool_history_gap_summary: dict | None = None,
-        post=None,
-    ):
-        payload = await self.live_payload_api.fetch_payload(
-            position,
-            swap_base_url,
-            post=self.default_post if post is None else post,
-        )
-        return self.entrypoint.enrich_position_metrics_from_payload(
-            position,
-            payload,
-            replay_bundle=replay_bundle,
-            liquidity_history=liquidity_history,
-            pool_transaction_history=pool_transaction_history,
-            pool_swap_count_since_open=pool_swap_count_since_open,
-            pool_history_gap_summary=pool_history_gap_summary,
         )
 
     def enrich_position_metrics_from_payload(

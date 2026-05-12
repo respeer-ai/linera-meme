@@ -40,16 +40,6 @@ active_focus:
       - maker impact on kline quality
     canonical_refs:
       - agents/tasks/board.yaml
-  - id: POS-038
-    why: positions 的 phase-1 read model 仍在收尾
-    summary: >
-      `/positions` has already cut over to the new query stack, but the task note still
-      tracks continuing position-metrics projection/replay boundary cleanup.
-    read_if_working_on:
-      - positions read model
-      - position-metrics projection cleanup
-    canonical_refs:
-      - agents/tasks/board.yaml
   - id: POS-030
     why: maker wallet 执行断点诊断
     summary: >
