@@ -32,7 +32,7 @@ import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
 import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCatchupFetch, resolveStartupGapBackfillFetch, resolveStartupRequestPlan, shouldContinueStartupFetchAfterEmptyResult, shouldDeferHistoryLoadUntilFirstPaint, shouldRefreshCachedRangeFromNetwork, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
-import { chartStateChanged, mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
+import { chartStateChanged, getLivePointsRenderSignal, mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -197,6 +197,7 @@ const latestPoints = computed(() => selectLivePointsForChartState({
   currentPoints: klinePoints.value,
   latestPoints: _latestPoints.value,
 }))
+const latestPointsRenderSignal = computed(() => getLivePointsRenderSignal(latestPoints.value))
 const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
   firstScreenReady: firstScreenReady.value,
   backgroundHistoryQueued: backgroundHistoryQueued.value,
@@ -205,7 +206,7 @@ const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
   poolCreatedAt: poolCreatedAt.value
 }))
 
-watch(latestPoints, () => {
+const applyLatestPointsToChart = () => {
   if (!_latestPoints.value.length || !latestPoints.value.length) return
 
   const mergedPoints = mergeSortedPointsIntoChartState({
@@ -216,7 +217,9 @@ watch(latestPoints, () => {
   if (!chartStateChanged(klinePoints.value, mergedPoints)) return
 
   klinePoints.value = mergedPoints
-})
+}
+
+watch(latestPointsRenderSignal, applyLatestPointsToChart)
 
 const hydrateFromLatestPoints = () => {
   if (!latestPoints.value.length) return false

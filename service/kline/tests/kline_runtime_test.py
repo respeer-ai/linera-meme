@@ -65,7 +65,7 @@ class KlineRuntimeTest(unittest.TestCase):
         def now_ms(self):
             return 0
 
-    def test_realtime_transaction_history_repository_uses_projection_history_repo(self):
+    def test_realtime_transaction_history_repository_uses_trade_projection_repo(self):
         runtime = KlineRuntime(
             db=self.FakeDb(),
             realtime_db=self.FakeDb(),
@@ -76,9 +76,8 @@ class KlineRuntimeTest(unittest.TestCase):
 
         repository = runtime.realtime_transaction_history_repository()
 
-        self.assertIsInstance(repository, SettledPoolHistoryProjectionRepository)
-        self.assertIsNotNone(repository.settled_trade_projection_repo)
-        self.assertIsNotNone(repository.settled_liquidity_projection_repo)
+        self.assertIsInstance(repository, SettledTradeProjectionRepository)
+        self.assertTrue(hasattr(repository, 'get_pool_transactions_by_ids'))
 
     def test_settled_pool_history_projection_repository_uses_layer3_dependencies(self):
         runtime = KlineRuntime(

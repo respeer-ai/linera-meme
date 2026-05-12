@@ -44,8 +44,18 @@ class MarketDataEventPublisher:
             try:
                 await self.publish(events)
             except ProjectionQueryUnavailableError as exc:
+                self._record_stage(
+                    'publish_skipped_projection_unavailable',
+                    events=events,
+                    details={'error': str(exc), 'error_type': type(exc).__name__},
+                )
                 print(f'Market data event publish skipped: {exc}')
             except Exception as exc:
+                self._record_stage(
+                    'publish_failed',
+                    events=events,
+                    details={'error': str(exc), 'error_type': type(exc).__name__},
+                )
                 print(f'Market data event publish failed: {exc}')
                 traceback.print_exc()
 
@@ -186,6 +196,7 @@ class MarketDataEventPublisher:
         queue_lag_ms: int | None = None,
         build_duration_ms: int | None = None,
         notify_duration_ms: int | None = None,
+        details: dict | None = None,
     ) -> None:
         if self.diagnostic_recorder is None:
             return
@@ -205,6 +216,7 @@ class MarketDataEventPublisher:
             transaction_payload_count=self._payload_item_count(payload.get('transactions') if payload else None),
             positions_payload_count=self._payload_item_count((payload.get('positions') or {}).get('events') if payload else None),
             thread_id=threading.get_ident(),
+            details=details,
         )
 
     def _payload_item_count(self, value) -> int | None:

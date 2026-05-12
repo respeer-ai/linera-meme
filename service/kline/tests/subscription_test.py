@@ -69,6 +69,14 @@ class FakeCandleReader:
         }
 
 
+class FakeDiagnosticRecorder:
+    def __init__(self):
+        self.records = []
+
+    def record(self, **kwargs):
+        self.records.append(kwargs)
+
+
 class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         pools = [
@@ -341,6 +349,71 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             'notification': 'kline',
             'value': payload,
         }])
+
+    async def test_notify_kline_records_send_summary_for_incremental_payload(self):
+        recorder = FakeDiagnosticRecorder()
+        self.manager.diagnostic_recorder = recorder
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.kline_subscriptions[websocket] = {
+            KlineSubscription(
+                token_0='AAA',
+                token_1='BBB',
+                interval='5min',
+                pool_id=7,
+                pool_application='pool-app',
+            ),
+        }
+
+        await self.manager.notify_kline({
+            '5min': [
+                {
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'interval': '5min',
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'points': [],
+                },
+            ],
+        })
+
+        self.assertEqual(recorder.records[-1]['stage'], 'kline_notify_summary')
+        self.assertEqual(recorder.records[-1]['pool_application'], 'pool-app')
+        self.assertEqual(recorder.records[-1]['pool_id'], 7)
+        self.assertEqual(recorder.records[-1]['details']['connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['subscribed_connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['sent_connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['filtered_connection_count'], 0)
+        self.assertEqual(recorder.records[-1]['details']['payload_point_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['sent_point_count'], 1)
+
+    async def test_notify_kline_records_filtered_summary_for_subscription_mismatch(self):
+        recorder = FakeDiagnosticRecorder()
+        self.manager.diagnostic_recorder = recorder
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.kline_subscriptions[websocket] = {
+            KlineSubscription(token_0='CCC', token_1='DDD', interval='5min'),
+        }
+
+        await self.manager.notify_kline({
+            '5min': [
+                {
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'interval': '5min',
+                    'points': [],
+                },
+            ],
+        })
+
+        self.assertEqual(websocket.sent, [])
+        self.assertEqual(recorder.records[-1]['stage'], 'kline_notify_summary')
+        self.assertEqual(recorder.records[-1]['details']['connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['subscribed_connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['sent_connection_count'], 0)
+        self.assertEqual(recorder.records[-1]['details']['filtered_connection_count'], 1)
 
     async def test_notify_positions_filters_by_owner_pool_and_application(self):
         websocket = FakeWebSocket()

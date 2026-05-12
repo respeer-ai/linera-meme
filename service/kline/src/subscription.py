@@ -21,13 +21,14 @@ class PositionsSubscription:
 
 
 class WebSocketManager:
-    def __init__(self, swap, candle_reader, pool_catalog_repository=None):
+    def __init__(self, swap, candle_reader, pool_catalog_repository=None, diagnostic_recorder=None):
         self.connections: list[WebSocket] = []
         self.kline_subscriptions: dict[WebSocket, set[KlineSubscription]] = {}
         self.positions_subscriptions: dict[WebSocket, set[PositionsSubscription]] = {}
         self.swap = swap
         self.candle_reader = candle_reader
         self.pool_catalog_repository = pool_catalog_repository
+        self.diagnostic_recorder = diagnostic_recorder
         self.account_codec = AccountCodec()
 
     async def connect(self, websocket: WebSocket):
@@ -149,18 +150,27 @@ class WebSocketManager:
         intervals = ['1min', '5min', '10min', '15min', '1h', '4h', '1d', '1w', '1ME']
 
         pools = None
+        connection_count = len(self.connections)
+        subscribed_connection_count = 0
+        sent_connection_count = 0
+        filtered_connection_count = 0
+        sent_point_count = 0
+        payload_point_count = self._payload_point_count(payload)
         if payload is None:
             if self.pool_catalog_repository is None:
                 raise RuntimeError('Projection pool catalog repository is required for websocket kline broadcast')
             pools = self.pool_catalog_repository.list_current_pool_views()
         for connection in self.connections:
             subscriptions = self.kline_subscriptions.get(connection) or set()
+            if len(subscriptions) > 0:
+                subscribed_connection_count += 1
             points = {}
 
             if payload is not None:
                 if len(subscriptions) > 0:
                     points = self.filter_incremental_kline_payload(payload, subscriptions)
                     if len(points) == 0:
+                        filtered_connection_count += 1
                         continue
                 else:
                     points = payload
@@ -209,6 +219,17 @@ class WebSocketManager:
                     for interval, interval_points in points.items()
                 },
             })
+            sent_connection_count += 1
+            sent_point_count += self._payload_point_count(points)
+        self._record_notify_kline_summary(
+            payload=payload,
+            connection_count=connection_count,
+            subscribed_connection_count=subscribed_connection_count,
+            sent_connection_count=sent_connection_count,
+            filtered_connection_count=filtered_connection_count,
+            payload_point_count=payload_point_count,
+            sent_point_count=sent_point_count,
+        )
 
     async def notify(self, topic: str, payload):
         if topic == 'kline':
@@ -217,3 +238,53 @@ class WebSocketManager:
             await self.notify_transactions(payload)
         elif topic == 'positions':
             await self.notify_positions(payload)
+
+    def _record_notify_kline_summary(
+        self,
+        *,
+        payload,
+        connection_count: int,
+        subscribed_connection_count: int,
+        sent_connection_count: int,
+        filtered_connection_count: int,
+        payload_point_count: int,
+        sent_point_count: int,
+    ) -> None:
+        if self.diagnostic_recorder is None:
+            return
+        representative = self._representative_payload_point(payload)
+        self.diagnostic_recorder.record(
+            stage='kline_notify_summary',
+            event_type='websocket_kline',
+            pool_application=representative.get('pool_application') if representative else None,
+            pool_id=representative.get('pool_id') if representative else None,
+            event_count=connection_count,
+            kline_payload_count=payload_point_count,
+            details={
+                'connection_count': connection_count,
+                'subscribed_connection_count': subscribed_connection_count,
+                'sent_connection_count': sent_connection_count,
+                'filtered_connection_count': filtered_connection_count,
+                'payload_point_count': payload_point_count,
+                'sent_point_count': sent_point_count,
+            },
+        )
+
+    def _payload_point_count(self, payload) -> int:
+        if not isinstance(payload, dict):
+            return 0
+        total = 0
+        for interval_points in payload.values():
+            if isinstance(interval_points, list):
+                total += len(interval_points)
+        return total
+
+    def _representative_payload_point(self, payload):
+        if not isinstance(payload, dict):
+            return None
+        for interval_points in payload.values():
+            if isinstance(interval_points, list) and interval_points:
+                point = interval_points[0]
+                if isinstance(point, dict):
+                    return point
+        return None

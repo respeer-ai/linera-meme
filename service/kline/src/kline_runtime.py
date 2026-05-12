@@ -159,7 +159,7 @@ class KlineRuntime:
         return WebsocketCandleReader(CandlesReadModel(self.settled_trade_projection_repository()))
 
     def realtime_transaction_history_repository(self):
-        return self.settled_pool_history_projection_repository()
+        return self.settled_trade_projection_repository()
 
     def transactions_handler(self) -> TransactionsHandler:
         return TransactionsHandler(
@@ -215,6 +215,7 @@ class KlineRuntime:
             self._swap,
             self.websocket_candle_reader(),
             self.projection_pool_catalog_repository(),
+            diagnostic_recorder=self.realtime_diagnostic_recorder(),
         )
 
     def build_market_data_event_queue(self):
