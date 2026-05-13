@@ -35,6 +35,10 @@ Canonical LP, position, and fund-consistency semantics.
 - Linera `tracked + bouncing` can help convert a destination-chain reject into a native source-chain failure signal, but only for that one message hop
 - `tracked + bouncing` does not provide atomicity or end-to-end rollback for later async payout or refund hops
 - Grant refunds in bouncing flows concern message execution resources, not business-asset refunds
+- Current swap, add-liquidity, and remove-liquidity flows must not introduce per-operation temp chains by default
+- Temp chains do not make cross-chain asset movement atomic; they move the pending state to another chain and add open-chain fee, gas/funder, listener, cleanup, and permission overhead
+- Temp chains remain a future option only for explicit escrow/isolation products, not for the current AMM pool fund-consistency repair
+- Remote payout, refund, and withdrawal delivery should be modeled as retryable claimable state when direct push delivery cannot be proven reliable
 
 ## Implications
 
@@ -42,3 +46,5 @@ Canonical LP, position, and fund-consistency semantics.
 - When reviewing fund safety, inspect partial-success branches, refund branches, and downstream call failure handling
 - When designing reliable refund paths, tracked messages may be used to close the gap between `pending` and `failed` for a single cross-chain step
 - Do not rely on bouncing messages to recover business funds after a later hop has already diverged; that still requires explicit pending/commit/claim-style protocol design
+- Do not solve current swap or liquidity reliability by opening one temp chain per operation
+- Prefer success-only finalization plus explicit `claimable` records over silently pushing remote assets and assuming delivery succeeded

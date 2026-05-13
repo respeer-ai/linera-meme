@@ -6,10 +6,7 @@ export const dbKline = new Dexie('KLineDatabase') as Dexie & {
   klinePoints: Table<dbModel.KlinePoint, [string, string, number, string, Interval, number]>
   transactions: Table<dbModel._Transaction, [string, string, number, boolean]>
   clientMigrations: Table<dbModel.ClientMigrationRecord, string>
-  klineResolvedIdentities: Table<
-    dbModel.KlineResolvedIdentityRecord,
-    [string, string, number]
-  >
+  klineResolvedIdentities: Table<dbModel.KlineResolvedIdentityRecord, [string, string, number]>
 }
 
 dbKline.version(11).stores({

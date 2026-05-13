@@ -1000,6 +1000,9 @@ groups:
           5. Linera `tracked + bouncing` 应作为原生的一跳 reject receipt 机制纳入协议设计，
              用于把“目标链 reject”可靠反馈回源链并收敛 `pending -> failed/refund-ready`；
              但它只覆盖单跳消息，不能替代多跳业务流程的显式状态机
+          6. 当前 swap / add liquidity / remove liquidity 不引入 per-operation temp chain；
+             temp chain 不能提供跨链原子性，且会增加 open-chain fee、gas/funder、listener、
+             cleanup 与权限复杂度。Canonical 见 `agents/primitives/liquidity-and-funds.md`。
 
           该任务输出协议定义：哪些阶段可持久化、哪些阶段只能 pending、哪些资金在成功前不得最终归
           pool 所有、哪些消息必须 tracked、bounce 回来后如何幂等收敛，以及 claim/refund/commit 的

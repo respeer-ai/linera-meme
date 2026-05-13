@@ -53,11 +53,14 @@ export class Kline {
 
     if (extra.length > 0) {
       await dbKline.klineResolvedIdentities.bulkDelete(
-        extra.map((record) => [
-          record.selectedToken0,
-          record.selectedToken1,
-          record.selectedPoolId,
-        ] as [string, string, number]),
+        extra.map(
+          (record) =>
+            [record.selectedToken0, record.selectedToken1, record.selectedPoolId] as [
+              string,
+              string,
+              number,
+            ],
+        ),
       )
     }
   }

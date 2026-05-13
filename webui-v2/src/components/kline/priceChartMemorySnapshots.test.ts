@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { KLineData } from './chart/KlineData'
-import {
-  buildKlineSnapshotKey,
-  cloneKlineSnapshot,
-} from './priceChartMemorySnapshots'
+import { buildKlineSnapshotKey, cloneKlineSnapshot } from './priceChartMemorySnapshots'
 
 describe('buildKlineSnapshotKey', () => {
   test('builds an interval-specific key for the same pool', () => {
