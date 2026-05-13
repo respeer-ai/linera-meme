@@ -1,38 +1,66 @@
 <template>
-  <div :style='{ height: height }'>
-    <chart-toolbar
-      v-model='toolbarConfig'
-      :token0='token0App'
-      :token1='token1App'
-    />
+  <div :style="{ height: height }">
+    <chart-toolbar v-model="toolbarConfig" :token0="token0App" :token1="token1App" />
     <chart-view
-      style='width: 100%;'
-      :data='klinePoints'
-      :chart-type='toolbarConfig.chartType'
-      :indicator-config='toolbarConfig.indicatorConfig'
-      :background-history-status='backgroundHistoryStatus'
-      @load-new-data='onLoadNewData'
-      @load-old-data='onLoadOldData'
-      @indicators-ready='onIndicatorsReady'
-      :height='chartHeight'
+      style="width: 100%"
+      :data="klinePoints"
+      :chart-type="toolbarConfig.chartType"
+      :indicator-config="toolbarConfig.indicatorConfig"
+      :background-history-status="backgroundHistoryStatus"
+      @load-new-data="onLoadNewData"
+      @load-old-data="onLoadOldData"
+      @indicators-ready="onIndicatorsReady"
+      :height="chartHeight"
     />
   </div>
 </template>
 
-<script setup lang='ts'>
-import { ref, onMounted, onBeforeUnmount, computed, watch, onBeforeMount, toRef, nextTick } from 'vue'
+<script setup lang="ts">
+import {
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  computed,
+  watch,
+  onBeforeMount,
+  toRef,
+  nextTick,
+} from 'vue'
 import { account, kline, swap, ams } from 'src/stores/export'
 import { dbKline, ensureClientMigrations } from 'src/controller'
 // import { useRouter } from 'vue-router'
 import { klineWorker } from 'src/worker'
-import { KLineData } from './chart/KlineData'
+import type { KLineData } from './chart/KlineData'
 
 import ChartView from './chart/ChartView.vue'
 import ChartToolbar from './ChartToolbar.vue'
 import { ChartType } from './ChartType'
 import type { IndicatorConfig } from './IndicatorSelector.vue'
-import { getFirstScreenFetchWindowSize, resolveBackgroundHistoryStatus, resolveEdgeFetchWindow, resolveFetchSortDecision, resolveLoadRange, resolveNextFetchTimestamp, resolveStartupCacheGapFetch, resolveStartupGapBackfillFetches, resolveStartupRequestPlan, shouldContinueStartupFetchAfterEmptyResult, shouldDeferHistoryLoadUntilFirstPaint, shouldRefreshCachedRangeFromNetwork, shouldRestartKlineOnSelectedPoolChange, shouldScheduleBackgroundHistoryBackfill, SortReason, type Reason, type StartupRequestPlan } from './priceChartStartup'
-import { chartStateChanged, getLivePointsRenderSignal, mergeSortedPointsIntoChartState, selectLivePointsForChartState } from './priceChartPointState'
+import {
+  getFirstScreenFetchWindowSize,
+  resolveBackgroundHistoryStatus,
+  resolveEdgeFetchWindow,
+  resolveFetchSortDecision,
+  resolveLoadRange,
+  resolveNextFetchTimestamp,
+  resolveStartupCacheGapFetch,
+  resolveStartupGapBackfillFetches,
+  resolveStartupRequestPlan,
+  shouldContinueStartupFetchAfterEmptyResult,
+  shouldDeferHistoryLoadUntilFirstPaint,
+  shouldRefreshCachedRangeFromNetwork,
+  shouldRestartKlineOnSelectedPoolChange,
+  shouldScheduleBackgroundHistoryBackfill,
+  SortReason,
+  type Reason,
+  type StartupRequestPlan,
+} from './priceChartStartup'
+import {
+  chartStateChanged,
+  getLivePointsRenderSignal,
+  mergeSortedPointsIntoChartState,
+  selectLivePointsForChartState,
+} from './priceChartPointState'
 import { createStartupInstrumentation } from './startupInstrumentation'
 import { createStartupBaselineRecorder, installStartupBaselineDebug } from './startupBaseline'
 import { dequeueLoadDirection, enqueueLoadDirection, type LoadDirection } from './loadQueue'
@@ -44,7 +72,7 @@ const STARTUP_GAP_BACKFILL_BATCH_SIZE = 8
 const MAX_MEMORY_SNAPSHOTS = 12
 
 const props = defineProps({
-  height: { type: String, default: '550px' }
+  height: { type: String, default: '550px' },
 })
 const height = toRef(props, 'height')
 
@@ -59,8 +87,8 @@ const defaultToolbarConfig = {
     volume: true,
     showVolume: true,
     showGrid: true,
-    showCrosshair: true
-  } as IndicatorConfig
+    showCrosshair: true,
+  } as IndicatorConfig,
 }
 
 // 从localStorage读取保存的设置
@@ -69,7 +97,7 @@ const loadSettings = () => {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      return { ...defaultToolbarConfig, ...parsed }
+      return { ...defaultToolbarConfig, ...parsed, interval: defaultToolbarConfig.interval }
     }
   } catch (e) {
     console.error('Failed to load chart settings:', e)
@@ -80,7 +108,13 @@ const loadSettings = () => {
 // 保存设置到localStorage
 const saveSettings = (config: typeof toolbarConfig.value) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        chartType: config.chartType,
+        indicatorConfig: config.indicatorConfig,
+      }),
+    )
   } catch (e) {
     console.error('Failed to save chart settings:', e)
   }
@@ -96,9 +130,13 @@ const chartHeight = computed(() => {
 const toolbarConfig = ref(loadSettings())
 
 // 监听设置变化，自动保存
-watch(toolbarConfig, (newConfig) => {
-  saveSettings(newConfig)
-}, { deep: true })
+watch(
+  toolbarConfig,
+  (newConfig) => {
+    saveSettings(newConfig)
+  },
+  { deep: true },
+)
 
 const selectedInterval = computed(() => toolbarConfig.value.interval)
 
@@ -152,15 +190,19 @@ const token1App = computed(() => {
 })
 
 const selectedPoolId = computed(() => selectedPool.value?.poolId)
-const selectedPoolApplication = computed(() => (
+const selectedPoolApplication = computed(() =>
   selectedPool.value?.poolApplication
-    ? account._Account.poolApplicationDescription(selectedPool.value.poolApplication as account.Account)
-    : undefined
-))
+    ? account._Account.poolApplicationDescription(
+        selectedPool.value.poolApplication as account.Account,
+      )
+    : undefined,
+)
 const resolvedPoolId = ref<number | undefined>(undefined)
 const resolvedPoolApplication = ref<string | undefined>(undefined)
 const activePoolId = computed(() => resolvedPoolId.value ?? selectedPoolId.value)
-const activePoolApplication = computed(() => resolvedPoolApplication.value ?? selectedPoolApplication.value)
+const activePoolApplication = computed(
+  () => resolvedPoolApplication.value ?? selectedPoolApplication.value,
+)
 
 const _latestPoints = computed(() => {
   if (!activePoolId.value || !activePoolApplication.value) return []
@@ -189,27 +231,35 @@ const startupInstrumentation = createStartupInstrumentation({
   emit: (event) => {
     startupBaselineRecorder.record(event)
     console.info('[PriceChartStartup]', JSON.stringify(event))
-  }
+  },
 })
 
-const maxPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
-  item.time > max.time ? item : max
-).time * 1000 : (new Date()).getTime())
-const minPointTimestamp = computed(() => klinePoints.value.length ? klinePoints.value.reduce((max, item) =>
-  item.time < max.time ? item : max
-).time * 1000 : poolCreatedAt.value)
-const latestPoints = computed(() => selectLivePointsForChartState({
-  currentPoints: klinePoints.value,
-  latestPoints: _latestPoints.value,
-}))
+const maxPointTimestamp = computed(() =>
+  klinePoints.value.length
+    ? klinePoints.value.reduce((max, item) => (item.time > max.time ? item : max)).time * 1000
+    : new Date().getTime(),
+)
+const minPointTimestamp = computed(() =>
+  klinePoints.value.length
+    ? klinePoints.value.reduce((max, item) => (item.time < max.time ? item : max)).time * 1000
+    : poolCreatedAt.value,
+)
+const latestPoints = computed(() =>
+  selectLivePointsForChartState({
+    currentPoints: klinePoints.value,
+    latestPoints: _latestPoints.value,
+  }),
+)
 const latestPointsRenderSignal = computed(() => getLivePointsRenderSignal(latestPoints.value))
-const backgroundHistoryStatus = computed(() => resolveBackgroundHistoryStatus({
-  firstScreenReady: firstScreenReady.value,
-  backgroundHistoryQueued: backgroundHistoryQueued.value,
-  loadingDirection: loadingDirection.value,
-  minPointTimestamp: minPointTimestamp.value,
-  poolCreatedAt: poolCreatedAt.value
-}))
+const backgroundHistoryStatus = computed(() =>
+  resolveBackgroundHistoryStatus({
+    firstScreenReady: firstScreenReady.value,
+    backgroundHistoryQueued: backgroundHistoryQueued.value,
+    loadingDirection: loadingDirection.value,
+    minPointTimestamp: minPointTimestamp.value,
+    poolCreatedAt: poolCreatedAt.value,
+  }),
+)
 
 const applyLatestPointsToChart = () => {
   if (!_latestPoints.value.length || !latestPoints.value.length) return
@@ -254,7 +304,7 @@ const saveCurrentMemorySnapshot = (interval = selectedInterval.value) => {
   if (!key || !klinePoints.value.length) return
   memorySnapshotsRef.value.set(key, cloneKlineSnapshot(klinePoints.value))
   if (memorySnapshotsRef.value.size > MAX_MEMORY_SNAPSHOTS) {
-    const firstKey = memorySnapshotsRef.value.keys().next().value as string | undefined
+    const firstKey = memorySnapshotsRef.value.keys().next().value
     if (firstKey) memorySnapshotsRef.value.delete(firstKey)
   }
 }
@@ -317,7 +367,13 @@ const fetchKlineRange = (startAt: number, endAt: number, reverse: boolean) => {
   return true
 }
 
-const loadKline = (offset: number | undefined, limit: number | undefined, timestampBegin: number | undefined, timestampEnd: number | undefined, reverse: boolean) => {
+const loadKline = (
+  offset: number | undefined,
+  limit: number | undefined,
+  timestampBegin: number | undefined,
+  timestampEnd: number | undefined,
+  reverse: boolean,
+) => {
   if (!buyToken.value || !sellToken.value) return false
   if (buyToken.value === sellToken.value) return false
   if (!activePoolId.value || !activePoolApplication.value) return false
@@ -325,7 +381,7 @@ const loadKline = (offset: number | undefined, limit: number | undefined, timest
   loading.value = true
   const loadRange = resolveLoadRange({
     timestampBegin,
-    timestampEnd
+    timestampEnd,
   })
   const loadPayload: klineWorker.LoadPointsPayload = {
     token0: buyToken.value,
@@ -382,7 +438,7 @@ const getStoreKline = () => {
       requestId: currentRequestId.value,
       interval: selectedInterval.value,
       token0: buyToken.value,
-      token1: sellToken.value
+      token1: sellToken.value,
     })
     const restoredSnapshot = restoreCurrentMemorySnapshot()
     if (!restoredSnapshot) {
@@ -395,7 +451,7 @@ const getStoreKline = () => {
     const startupPlan = resolveStartupRequestPlan({
       nowMs: Date.now(),
       interval: selectedInterval.value,
-      poolCreatedAt: poolCreatedAt.value
+      poolCreatedAt: poolCreatedAt.value,
     })
     startupPlanRef.value = startupPlan
 
@@ -404,7 +460,7 @@ const getStoreKline = () => {
       startupPlan.load.limit,
       startupPlan.load.timestampBegin,
       startupPlan.load.timestampEnd,
-      startupPlan.load.reverse
+      startupPlan.load.reverse,
     )
     hydrateFromLatestPoints()
   }
@@ -423,12 +479,19 @@ watch(selectedPool, (newPool, oldPool) => {
   if (loading.value) {
     loading.value = newPool?.poolApplication?.owner === oldPool?.poolApplication?.owner
   }
-  if (!shouldRestartKlineOnSelectedPoolChange({
-    previousPoolId: oldPool?.poolId,
-    nextPoolId: newPool?.poolId,
-    previousPoolApplication: account._Account.poolApplicationDescription(oldPool?.poolApplication as account.Account | undefined),
-    nextPoolApplication: account._Account.poolApplicationDescription(newPool?.poolApplication as account.Account | undefined),
-  })) return
+  if (
+    !shouldRestartKlineOnSelectedPoolChange({
+      previousPoolId: oldPool?.poolId,
+      nextPoolId: newPool?.poolId,
+      previousPoolApplication: account._Account.poolApplicationDescription(
+        oldPool?.poolApplication as account.Account | undefined,
+      ),
+      nextPoolApplication: account._Account.poolApplicationDescription(
+        newPool?.poolApplication as account.Account | undefined,
+      ),
+    })
+  )
+    return
 
   resolvedPoolId.value = undefined
   resolvedPoolApplication.value = undefined
@@ -443,17 +506,20 @@ watch(selectedInterval, (newInterval, oldInterval) => {
   getStoreKline()
 })
 
-watch([activePoolId, activePoolApplication], ([poolId, poolApplication], [oldPoolId, oldPoolApplication]) => {
-  if (!poolId || !poolApplication) return
-  if (poolId === oldPoolId && poolApplication === oldPoolApplication) return
+watch(
+  [activePoolId, activePoolApplication],
+  ([poolId, poolApplication], [oldPoolId, oldPoolApplication]) => {
+    if (!poolId || !poolApplication) return
+    if (poolId === oldPoolId && poolApplication === oldPoolApplication) return
 
-  if (!klinePoints.value.length) {
-    hydrateFromLatestPoints()
-  }
-  if (!klinePoints.value.length && !loading.value) {
-    getStoreKline()
-  }
-})
+    if (!klinePoints.value.length) {
+      hydrateFromLatestPoints()
+    }
+    if (!klinePoints.value.length && !loading.value) {
+      getStoreKline()
+    }
+  },
+)
 
 const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
   if (!activePoolId.value || !activePoolApplication.value) return
@@ -467,8 +533,9 @@ const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) 
       return {
         ...el,
         base_volume: el.volume,
-        quote_volume: 'quote_volume' in el && typeof el.quote_volume === 'number' ? el.quote_volume : 0,
-        timestamp: el.time * 1000
+        quote_volume:
+          'quote_volume' in el && typeof el.quote_volume === 'number' ? el.quote_volume : 0,
+        timestamp: el.time * 1000,
       } as kline.Point
     }),
     newPoints: _points,
@@ -487,24 +554,19 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   if (
     poolApplication !== selectedPoolApplication.value &&
     poolApplication !== activePoolApplication.value
-  ) return
+  )
+    return
   if (requestId !== currentRequestId.value) return
   if (interval !== selectedInterval.value) return
   const previousActivePoolId = activePoolId.value
   resolvedPoolId.value = poolId
   resolvedPoolApplication.value = poolApplication
   if (poolId !== undefined && poolApplication !== undefined && poolId !== previousActivePoolId) {
-    kline.Kline.subscribe(
-      token0,
-      token1,
-      selectedInterval.value,
-      poolId,
-      poolApplication,
-    )
+    kline.Kline.subscribe(token0, token1, selectedInterval.value, poolId, poolApplication)
   }
   startupInstrumentation.markNetworkFetched({
     requestId,
-    pointCount: _points.points.length
+    pointCount: _points.points.length,
   })
 
   const windowSize = getWindowSize(selectedInterval.value)
@@ -514,21 +576,39 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
   const fetchSortDecision = resolveFetchSortDecision({
     reverse,
     startAt,
-    endAt
+    endAt,
   })
 
   updatePoints(_points.points, fetchSortDecision.reason, fetchSortDecision.reverse)
 }
 
 const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
-  const { token0, token1, poolId, poolApplication, reverse, timestampBegin, timestampEnd, interval, requestId } = payload
+  const {
+    token0,
+    token1,
+    poolId,
+    poolApplication,
+    reverse,
+    timestampBegin,
+    timestampEnd,
+    interval,
+    requestId,
+  } = payload
   const startupPlan = startupPlanRef.value
   const isStartupCacheLoad = reverse && timestampBegin === undefined && timestampEnd === undefined
-  const _points = isStartupCacheLoad && startupPlan
-    ? payload.points.filter((point) => point.timestamp >= startupPlan.fetchLatest.startAt)
-    : payload.points
+  const _points =
+    isStartupCacheLoad && startupPlan
+      ? payload.points.filter((point) => point.timestamp >= startupPlan.fetchLatest.startAt)
+      : payload.points
 
-  console.log('[PriceChartView] onLoadedPoints, interval:', interval, 'selectedInterval:', selectedInterval.value, 'points count:', _points.length)
+  console.log(
+    '[PriceChartView] onLoadedPoints, interval:',
+    interval,
+    'selectedInterval:',
+    selectedInterval.value,
+    'points count:',
+    _points.length,
+  )
 
   if (token0 !== buyToken.value || token1 !== sellToken.value) {
     loadKline(undefined, undefined, timestampBegin, timestampEnd, reverse)
@@ -545,18 +625,18 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
 
   startupInstrumentation.markCacheLoaded({
     requestId,
-    pointCount: _points.length
+    pointCount: _points.length,
   })
 
   if (isStartupCacheLoad && _points.length > 0) {
     const cacheGapFetch = startupPlan
       ? resolveStartupCacheGapFetch({
-        pointTimestamps: _points.map((point) => point.timestamp),
-        latestWindowStart: startupPlan.fetchLatest.startAt,
-        latestWindowEnd: startupPlan.fetchLatest.endAt,
-        interval: selectedInterval.value,
-        requestedKeys: startupGapFetchKeysRef.value,
-      })
+          pointTimestamps: _points.map((point) => point.timestamp),
+          latestWindowStart: startupPlan.fetchLatest.startAt,
+          latestWindowEnd: startupPlan.fetchLatest.endAt,
+          interval: selectedInterval.value,
+          requestedKeys: startupGapFetchKeysRef.value,
+        })
       : null
 
     if (cacheGapFetch) {
@@ -585,15 +665,19 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   }
 
   const windowSize = getWindowSize(selectedInterval.value)
-  const startAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - windowSize : (timestampEnd ?? maxPointTimestamp.value) + 1
-  const endAt = reverse ? (timestampBegin ?? minPointTimestamp.value) - 1 : (timestampEnd ?? maxPointTimestamp.value) + windowSize
+  const startAt = reverse
+    ? (timestampBegin ?? minPointTimestamp.value) - windowSize
+    : (timestampEnd ?? maxPointTimestamp.value) + 1
+  const endAt = reverse
+    ? (timestampBegin ?? minPointTimestamp.value) - 1
+    : (timestampEnd ?? maxPointTimestamp.value) + windowSize
 
   const reason = {
     reason: SortReason.LOAD,
     payload: {
       startAt,
-      endAt
-    }
+      endAt,
+    },
   }
 
   updatePoints(_points, reason, reverse)
@@ -617,10 +701,12 @@ const onLoadSorted = (reverse: boolean, timestamp: number) => {
 }
 
 const requestEdgeLoad = (direction: LoadDirection, timestamp: number) => {
-  if (shouldDeferHistoryLoadUntilFirstPaint({
-    direction,
-    firstScreenReady: firstScreenReady.value
-  })) {
+  if (
+    shouldDeferHistoryLoadUntilFirstPaint({
+      direction,
+      firstScreenReady: firstScreenReady.value,
+    })
+  ) {
     pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, direction)
     return
   }
@@ -653,9 +739,10 @@ const flushPendingLoad = () => {
 
   if (!next) return
 
-  const anchorTimestamp = next === 'new'
-    ? Math.floor(maxPointTimestamp.value / 1000)
-    : Math.floor(minPointTimestamp.value / 1000)
+  const anchorTimestamp =
+    next === 'new'
+      ? Math.floor(maxPointTimestamp.value / 1000)
+      : Math.floor(minPointTimestamp.value / 1000)
 
   requestEdgeLoad(next, anchorTimestamp)
 }
@@ -664,13 +751,16 @@ const queueBackgroundHistoryBackfill = () => {
   const startupPlan = startupPlanRef.value
   if (!startupPlan) return
 
-  if (!shouldScheduleBackgroundHistoryBackfill({
-    firstScreenReady: firstScreenReady.value,
-    backgroundHistoryQueued: backgroundHistoryQueued.value,
-    minPointTimestamp: minPointTimestamp.value,
-    poolCreatedAt: poolCreatedAt.value,
-    latestWindowStart: startupPlan.fetchLatest.startAt,
-  })) return
+  if (
+    !shouldScheduleBackgroundHistoryBackfill({
+      firstScreenReady: firstScreenReady.value,
+      backgroundHistoryQueued: backgroundHistoryQueued.value,
+      minPointTimestamp: minPointTimestamp.value,
+      poolCreatedAt: poolCreatedAt.value,
+      latestWindowStart: startupPlan.fetchLatest.startAt,
+    })
+  )
+    return
 
   backgroundHistoryQueued.value = true
   pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, 'old')
@@ -707,12 +797,12 @@ const finishLoading = (requestId: number) => {
     }
     startupInstrumentation.markFirstRender({
       requestId,
-      pointCount: klinePoints.value.length
+      pointCount: klinePoints.value.length,
     })
     if (indicatorsReady.value) {
       startupInstrumentation.markIndicatorsReady({
         requestId,
-        pointCount: klinePoints.value.length
+        pointCount: klinePoints.value.length,
       })
     }
     flushPendingLoad()
@@ -726,7 +816,7 @@ const onIndicatorsReady = () => {
 
   startupInstrumentation.markIndicatorsReady({
     requestId: currentRequestId.value,
-    pointCount: klinePoints.value.length
+    pointCount: klinePoints.value.length,
   })
 }
 
@@ -746,16 +836,19 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   if (!chartStateChanged(klinePoints.value, mergedPoints)) {
     scheduleStartupGapBackfills(klinePoints.value)
 
-    if (!shouldContinueStartupFetchAfterEmptyResult({
-      firstScreenReady: firstScreenReady.value,
-      reverse,
-    })) return
+    if (
+      !shouldContinueStartupFetchAfterEmptyResult({
+        firstScreenReady: firstScreenReady.value,
+        reverse,
+      })
+    )
+      return
 
     const timestamp = resolveNextFetchTimestamp({
       reverse,
       reason: _reason,
       minPointTimestamp: minPointTimestamp.value,
-      maxPointTimestamp: maxPointTimestamp.value
+      maxPointTimestamp: maxPointTimestamp.value,
     })
     if (timestamp < poolCreatedAt.value) return finishLoading(requestId)
     if (timestamp > new Date().getTime()) return finishLoading(requestId)
@@ -769,7 +862,7 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   startupInstrumentation.markPointsMerged({
     requestId,
     pointCount: points.length,
-    source: _reason.reason === SortReason.LOAD ? 'cache' : 'network'
+    source: _reason.reason === SortReason.LOAD ? 'cache' : 'network',
   })
 
   scheduleStartupGapBackfills(klinePoints.value)
@@ -778,7 +871,12 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   const maxMemoryPoints = getMaxPoints(selectedInterval.value)
   if (klinePoints.value.length > maxMemoryPoints * 1.5) {
     // 超过限制的 1.5 倍时，裁剪到限制数量
-    console.log('[PriceChartView] Trimming memory, points:', klinePoints.value.length, 'max:', maxMemoryPoints)
+    console.log(
+      '[PriceChartView] Trimming memory, points:',
+      klinePoints.value.length,
+      'max:',
+      maxMemoryPoints,
+    )
     klinePoints.value = klinePoints.value.slice(-maxMemoryPoints)
   }
 
@@ -810,9 +908,18 @@ onMounted(() => {
       await dbKline.klinePoints.clear()
     })
 
-    klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
-    klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
-    klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
+    klineWorker.KlineWorker.on(
+      klineWorker.KlineEventType.FETCHED_POINTS,
+      onFetchedPoints as klineWorker.ListenerFunc,
+    )
+    klineWorker.KlineWorker.on(
+      klineWorker.KlineEventType.LOADED_POINTS,
+      onLoadedPoints as klineWorker.ListenerFunc,
+    )
+    klineWorker.KlineWorker.on(
+      klineWorker.KlineEventType.SORTED_POINTS,
+      onSortedPoints as klineWorker.ListenerFunc,
+    )
 
     await hydrateResolvedPoolIdentity()
     getStoreKline()
@@ -825,23 +932,19 @@ onMounted(() => {
 onBeforeUnmount(() => {
   startupPlanRef.value = null
   startupGapFetchKeysRef.value = new Set<string>()
-  klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_POINTS, onFetchedPoints as klineWorker.ListenerFunc)
-  klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_POINTS, onLoadedPoints as klineWorker.ListenerFunc)
-  klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_POINTS, onSortedPoints as klineWorker.ListenerFunc)
+  klineWorker.KlineWorker.off(
+    klineWorker.KlineEventType.FETCHED_POINTS,
+    onFetchedPoints as klineWorker.ListenerFunc,
+  )
+  klineWorker.KlineWorker.off(
+    klineWorker.KlineEventType.LOADED_POINTS,
+    onLoadedPoints as klineWorker.ListenerFunc,
+  )
+  klineWorker.KlineWorker.off(
+    klineWorker.KlineEventType.SORTED_POINTS,
+    onSortedPoints as klineWorker.ListenerFunc,
+  )
 })
-
-/*
-const router = useRouter()
-
-const onCreatePoolClick = () => {
-  void router.push({
-    path: '/create/pool',
-    query: {
-      token0: buyToken.value === constants.LINERA_NATIVE_ID ? sellToken.value : buyToken.value
-    }
-  })
-}
-*/
 
 </script>
 

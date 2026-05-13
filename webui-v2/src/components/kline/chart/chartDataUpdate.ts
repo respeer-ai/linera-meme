@@ -306,3 +306,28 @@ export const toVolumePoint = (data: KLineData): HistogramData => ({
   value: data.volume,
   color: data.close >= data.open ? '#26a69a' : '#ef5350',
 })
+
+export const calculateVolumeMovingAverageSeriesData = (
+  volumeData: HistogramData[],
+  period: number,
+): LineData[] => {
+  const maData: LineData[] = []
+
+  for (let index = 0; index < volumeData.length; index += 1) {
+    const point = volumeData[index]
+    if (!point) continue
+
+    if (index < period - 1) {
+      maData.push({ time: point.time } as LineData)
+      continue
+    }
+
+    let sum = 0
+    for (let offset = 0; offset < period; offset += 1) {
+      sum += volumeData[index - offset]?.value || 0
+    }
+    maData.push({ time: point.time, value: sum / period })
+  }
+
+  return maData
+}

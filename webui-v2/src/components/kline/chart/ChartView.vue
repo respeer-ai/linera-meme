@@ -1,112 +1,138 @@
 <template>
-  <div class='chart-wrapper' :style='{ height: height, position: "relative" }'>
-    <div ref='chartContainer' class='kline-chart' />
+  <div class="chart-wrapper" :style="{ height: height, position: 'relative' }">
+    <div ref="chartContainer" class="kline-chart" />
     <!-- 右侧：交易信息 -->
-    <div class='price-info-overlay'>
-      <div class='price-info-panel'>
+    <div class="price-info-overlay">
+      <div class="price-info-panel">
         <!-- 时间和OHLC -->
-        <div class='info-line primary'>
-          <span class='time'>{{ hoveringTime }}</span>
-          <span class='ohlc-group'>
-            <span class='ohlc-item'>
-              <span class='ohlc-label'>O</span>
-              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.open) }}</span>
+        <div class="info-line primary">
+          <span class="time">{{ hoveringTime }}</span>
+          <span class="ohlc-group">
+            <span class="ohlc-item">
+              <span class="ohlc-label">O</span>
+              <span :class="['ohlc-value', priceChangeClass]">{{
+                formatPrice(hoveringCandleStick.open)
+              }}</span>
             </span>
-            <span class='ohlc-item'>
-              <span class='ohlc-label'>H</span>
-              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.high) }}</span>
+            <span class="ohlc-item">
+              <span class="ohlc-label">H</span>
+              <span :class="['ohlc-value', priceChangeClass]">{{
+                formatPrice(hoveringCandleStick.high)
+              }}</span>
             </span>
-            <span class='ohlc-item'>
-              <span class='ohlc-label'>L</span>
-              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.low) }}</span>
+            <span class="ohlc-item">
+              <span class="ohlc-label">L</span>
+              <span :class="['ohlc-value', priceChangeClass]">{{
+                formatPrice(hoveringCandleStick.low)
+              }}</span>
             </span>
-            <span class='ohlc-item'>
-              <span class='ohlc-label'>C</span>
-              <span :class='["ohlc-value", priceChangeClass]'>{{ formatPrice(hoveringCandleStick.close) }}</span>
+            <span class="ohlc-item">
+              <span class="ohlc-label">C</span>
+              <span :class="['ohlc-value', priceChangeClass]">{{
+                formatPrice(hoveringCandleStick.close)
+              }}</span>
             </span>
           </span>
-          <span class='change-badge' :class='priceChangeClass' v-if='priceChangePercent !== null'>
+          <span class="change-badge" :class="priceChangeClass" v-if="priceChangePercent !== null">
             {{ priceChangePercent >= 0 ? '+' : '' }}{{ priceChangePercent.toFixed(2) }}%
           </span>
-          <span class='volume-item'>
-            <span class='volume-label'>Vol</span>
-            <span class='volume-value'>{{ formatVolume(hoveringVolume.value) }}</span>
+          <span class="volume-item">
+            <span class="volume-label">Vol</span>
+            <span class="volume-value">{{ formatVolume(hoveringVolume.value) }}</span>
           </span>
         </div>
         <!-- 指标信息 -->
-        <div class='info-line indicators' v-if='hasVisibleIndicators'>
-          <template v-if='props.indicatorConfig.ma.enabled.ma5'>
-            <span class='indicator-item'>
-              <span class='indicator-name' style='color: #FFA500'>MA5</span>
-              <span class='indicator-val' style='color: #FFA500'>{{ formatPrice(hoveringMA5Min.value) }}</span>
+        <div class="info-line indicators" v-if="hasVisibleIndicators">
+          <template v-if="props.indicatorConfig.ma.enabled.ma5">
+            <span class="indicator-item">
+              <span class="indicator-name" style="color: #ffa500">MA5</span>
+              <span class="indicator-val" style="color: #ffa500">{{
+                formatPrice(hoveringMA5Min.value)
+              }}</span>
             </span>
           </template>
-          <template v-if='props.indicatorConfig.ma.enabled.ma10'>
-            <span class='indicator-item'>
-              <span class='indicator-name' style='color: #00BFFF'>MA10</span>
-              <span class='indicator-val' style='color: #00BFFF'>{{ formatPrice(hoveringMA10Min.value) }}</span>
+          <template v-if="props.indicatorConfig.ma.enabled.ma10">
+            <span class="indicator-item">
+              <span class="indicator-name" style="color: #00bfff">MA10</span>
+              <span class="indicator-val" style="color: #00bfff">{{
+                formatPrice(hoveringMA10Min.value)
+              }}</span>
             </span>
           </template>
-          <template v-if='props.indicatorConfig.ma.enabled.ma30'>
-            <span class='indicator-item'>
-              <span class='indicator-name' style='color: #32CD32'>MA30</span>
-              <span class='indicator-val' style='color: #32CD32'>{{ formatPrice(hoveringMA30Min.value) }}</span>
+          <template v-if="props.indicatorConfig.ma.enabled.ma30">
+            <span class="indicator-item">
+              <span class="indicator-name" style="color: #32cd32">MA30</span>
+              <span class="indicator-val" style="color: #32cd32">{{
+                formatPrice(hoveringMA30Min.value)
+              }}</span>
             </span>
           </template>
-          <template v-if='props.indicatorConfig.ema.enabled.ema7'>
-            <span class='indicator-item'>
-              <span class='indicator-name' style='color: #FF69B4'>EMA7</span>
-              <span class='indicator-val' style='color: #FF69B4'>{{ formatPrice(hoveringEMA7.value) }}</span>
+          <template v-if="props.indicatorConfig.ema.enabled.ema7">
+            <span class="indicator-item">
+              <span class="indicator-name" style="color: #ff69b4">EMA7</span>
+              <span class="indicator-val" style="color: #ff69b4">{{
+                formatPrice(hoveringEMA7.value)
+              }}</span>
             </span>
           </template>
-          <template v-if='props.indicatorConfig.ema.enabled.ema25'>
-            <span class='indicator-item'>
-              <span class='indicator-name' style='color: #9370DB'>EMA25</span>
-              <span class='indicator-val' style='color: #9370DB'>{{ formatPrice(hoveringEMA25.value) }}</span>
+          <template v-if="props.indicatorConfig.ema.enabled.ema25">
+            <span class="indicator-item">
+              <span class="indicator-name" style="color: #9370db">EMA25</span>
+              <span class="indicator-val" style="color: #9370db">{{
+                formatPrice(hoveringEMA25.value)
+              }}</span>
             </span>
           </template>
         </div>
       </div>
     </div>
-    <div v-if='props.indicatorConfig.showVolume' class='volume-ma-overlay'>
-      <span class='volume-ma-item'>
-        <span class='volume-ma-name' style='color: #FFA500'>MA5</span>
-        <span class='volume-ma-val' style='color: #FFA500'>{{ formatVolume(hoveringVolumeMA5.value) }}</span>
+    <div v-if="props.indicatorConfig.showVolume" class="volume-ma-overlay">
+      <span class="volume-ma-item">
+        <span class="volume-ma-name" style="color: #ffa500">MA5</span>
+        <span class="volume-ma-val" style="color: #ffa500">{{
+          formatVolume(hoveringVolumeMA5.value)
+        }}</span>
       </span>
-      <span class='volume-ma-item'>
-        <span class='volume-ma-name' style='color: #00BFFF'>MA10</span>
-        <span class='volume-ma-val' style='color: #00BFFF'>{{ formatVolume(hoveringVolumeMA10.value) }}</span>
+      <span class="volume-ma-item">
+        <span class="volume-ma-name" style="color: #00bfff">MA10</span>
+        <span class="volume-ma-val" style="color: #00bfff">{{
+          formatVolume(hoveringVolumeMA10.value)
+        }}</span>
       </span>
-      <span class='volume-ma-item'>
-        <span class='volume-ma-name' style='color: #32CD32'>MA30</span>
-        <span class='volume-ma-val' style='color: #32CD32'>{{ formatVolume(hoveringVolumeMA30.value) }}</span>
+      <span class="volume-ma-item">
+        <span class="volume-ma-name" style="color: #32cd32">MA30</span>
+        <span class="volume-ma-val" style="color: #32cd32">{{
+          formatVolume(hoveringVolumeMA30.value)
+        }}</span>
       </span>
     </div>
   </div>
 </template>
 
-<script setup lang='ts'>
+<script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
-import {
-  createChart,
-  CrosshairMode,
+import type {
   IChartApi,
   IPriceLine,
   ISeriesApi,
   CandlestickData,
   HistogramData,
+  Time,
+  LineData,
+  MouseEventParams,
+} from 'lightweight-charts'
+import {
+  createChart,
+  CrosshairMode,
   CandlestickSeries,
   HistogramSeries,
-  Time,
   LineSeries,
-  LineData,
   LineType,
   LineStyle,
-  MouseEventParams,
-  AreaSeries
+  AreaSeries,
 } from 'lightweight-charts'
 import { useQuasar } from 'quasar'
-import { KLineData } from './KlineData'
+import type { KLineData } from './KlineData'
 import { ChartType } from '../ChartType'
 import { resolveVisibleRangeLoadDecision } from './visibleRangeLoad'
 import {
@@ -122,6 +148,7 @@ import {
   toCandlestickPoint,
   toLinePoint,
   toVolumePoint,
+  calculateVolumeMovingAverageSeriesData,
 } from './chartDataUpdate'
 import { createIndicatorRenderScheduler } from './indicatorRenderScheduler'
 
@@ -163,8 +190,8 @@ const props = defineProps({
       volume: true,
       showVolume: true,
       showGrid: true,
-      showCrosshair: true
-    })
+      showCrosshair: true,
+    }),
   },
   backgroundHistoryStatus: {
     type: String as () => BackgroundHistoryStatus,
@@ -172,10 +199,12 @@ const props = defineProps({
   },
 })
 
-const hoveringTime = ref((() => {
-  const now = new Date()
-  return (now.toLocaleDateString() + ' ' + now.toLocaleTimeString()) as Time
-})())
+const hoveringTime = ref(
+  (() => {
+    const now = new Date()
+    return (now.toLocaleDateString() + ' ' + now.toLocaleTimeString()) as Time
+  })(),
+)
 const hoveringCandleStick = ref({} as CandlestickData)
 const isHovering = ref(false)
 const hoveringVolume = ref({} as HistogramData)
@@ -192,7 +221,7 @@ const $q = useQuasar()
 const PRICE_COLORS = {
   up: '#26a69a',
   down: '#ef5350',
-  neutral: '#8A94A6'
+  neutral: '#8A94A6',
 } as const
 
 const readThemeVar = (name: string, fallback: string) => {
@@ -203,9 +232,13 @@ const readThemeVar = (name: string, fallback: string) => {
 
 const hexToRgba = (hex: string, alpha: number) => {
   const normalized = hex.replace('#', '').trim()
-  const full = normalized.length === 3
-    ? normalized.split('').map((char) => char + char).join('')
-    : normalized
+  const full =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized
 
   if (full.length !== 6) return `rgba(138, 148, 166, ${alpha})`
 
@@ -231,49 +264,59 @@ const getThemePalette = () => {
     currentPriceLabelText: isDark ? '#ffffff' : '#F6F8FB',
     line: '#2962FF',
     areaTop: hexToRgba('#2962FF', isDark ? 0.4 : 0.24),
-    areaBottom: hexToRgba('#2962FF', isDark ? 0 : 0.03)
+    areaBottom: hexToRgba('#2962FF', isDark ? 0 : 0.03),
   }
 }
 
 const priceChangeClass = computed(() => {
   if (!hoveringCandleStick.value.open || !hoveringCandleStick.value.close) return 'neutral'
-  return hoveringCandleStick.value.close > hoveringCandleStick.value.open ? 'up' :
-         hoveringCandleStick.value.close < hoveringCandleStick.value.open ? 'down' : 'neutral'
+  return hoveringCandleStick.value.close > hoveringCandleStick.value.open
+    ? 'up'
+    : hoveringCandleStick.value.close < hoveringCandleStick.value.open
+      ? 'down'
+      : 'neutral'
 })
 
 const priceChangePercent = computed(() => {
   if (!hoveringCandleStick.value.open || !hoveringCandleStick.value.close) return null
-  const change = ((hoveringCandleStick.value.close - hoveringCandleStick.value.open) / hoveringCandleStick.value.open) * 100
+  const change =
+    ((hoveringCandleStick.value.close - hoveringCandleStick.value.open) /
+      hoveringCandleStick.value.open) *
+    100
   return change
 })
 
 const hasVisibleIndicators = computed(() => {
-  return props.indicatorConfig.ma.enabled.ma5 ||
-         props.indicatorConfig.ma.enabled.ma10 ||
-         props.indicatorConfig.ma.enabled.ma30 ||
-         props.indicatorConfig.ema.enabled.ema7 ||
-         props.indicatorConfig.ema.enabled.ema25
+  return (
+    props.indicatorConfig.ma.enabled.ma5 ||
+    props.indicatorConfig.ma.enabled.ma10 ||
+    props.indicatorConfig.ma.enabled.ma30 ||
+    props.indicatorConfig.ema.enabled.ema7 ||
+    props.indicatorConfig.ema.enabled.ema25
+  )
 })
 
 const chartDataRenderSignal = computed(() => getChartDataRenderSignal(props.data))
-const hasDeferredIndicators = computed(() => (
-  props.indicatorConfig.ma.enabled.ma5 ||
-  props.indicatorConfig.ma.enabled.ma10 ||
-  props.indicatorConfig.ma.enabled.ma30 ||
-  props.indicatorConfig.ema.enabled.ema7 ||
-  props.indicatorConfig.ema.enabled.ema25 ||
-  props.indicatorConfig.boll
-))
-const indicatorRenderSignature = computed(() => JSON.stringify({
-  data: chartDataRenderSignal.value,
-  ma: props.indicatorConfig.ma.enabled,
-  ema: props.indicatorConfig.ema.enabled,
-  boll: props.indicatorConfig.boll,
-}))
-
-const trimTrailingZeros = (value: string) => (
-  value.includes('.') ? value.replace(/\.?0+$/, '') : value
+const hasDeferredIndicators = computed(
+  () =>
+    props.indicatorConfig.ma.enabled.ma5 ||
+    props.indicatorConfig.ma.enabled.ma10 ||
+    props.indicatorConfig.ma.enabled.ma30 ||
+    props.indicatorConfig.ema.enabled.ema7 ||
+    props.indicatorConfig.ema.enabled.ema25 ||
+    props.indicatorConfig.boll,
 )
+const indicatorRenderSignature = computed(() =>
+  JSON.stringify({
+    data: chartDataRenderSignal.value,
+    ma: props.indicatorConfig.ma.enabled,
+    ema: props.indicatorConfig.ema.enabled,
+    boll: props.indicatorConfig.boll,
+  }),
+)
+
+const trimTrailingZeros = (value: string) =>
+  value.includes('.') ? value.replace(/\.?0+$/, '') : value
 
 const formatCompactNumber = (value: number, fractionDigits = 2) => {
   const abs = Math.abs(value)
@@ -328,20 +371,35 @@ const formatVolume = (volume: number | undefined) => {
 const getPriceSeriesFormat = () => ({
   type: 'custom' as const,
   minMove: 1 / Math.pow(10, props.pricePrecision),
-  formatter: formatAxisPrice
+  formatter: formatAxisPrice,
 })
 
 const getVolumeSeriesFormat = () => ({
   type: 'custom' as const,
   minMove: 1 / Math.pow(10, props.volumePrecision),
-  formatter: formatAxisVolume
+  formatter: formatAxisVolume,
 })
 
-const getMainScaleMargins = () => (
-  props.indicatorConfig.showVolume
-    ? { top: 0.15, bottom: 0.3 }
-    : { top: 0.12, bottom: 0.08 }
-)
+const volumeAutoscaleInfoProvider = (
+  baseImplementation: () => {
+    priceRange: { minValue: number; maxValue: number } | null
+    margins?: { above: number; below: number }
+  } | null,
+) => {
+  const info = baseImplementation()
+  if (!info?.priceRange) return info
+
+  return {
+    ...info,
+    priceRange: {
+      ...info.priceRange,
+      minValue: 0,
+    },
+  }
+}
+
+const getMainScaleMargins = () =>
+  props.indicatorConfig.showVolume ? { top: 0.15, bottom: 0.3 } : { top: 0.12, bottom: 0.08 }
 
 const applyPriceScaleLayout = () => {
   if (!chart) return
@@ -355,7 +413,7 @@ const applyPriceScaleLayout = () => {
       : { top: 0.16, bottom: 0.08 },
     entireTextOnly: true,
     minimumWidth: 86,
-    alignLabels: true
+    alignLabels: true,
   })
 
   chart.priceScale('volume').applyOptions({
@@ -364,7 +422,7 @@ const applyPriceScaleLayout = () => {
     scaleMargins: { top: 0.76, bottom: 0.02 },
     entireTextOnly: true,
     minimumWidth: props.indicatorConfig.showVolume ? 72 : 0,
-    alignLabels: true
+    alignLabels: true,
   })
 }
 
@@ -393,7 +451,7 @@ const applyMainSeriesVisualState = () => {
 
   mainSeries.applyOptions({
     lastValueVisible: false,
-    priceLineVisible: false
+    priceLineVisible: false,
   })
 
   if (latestPriceLine) {
@@ -412,7 +470,7 @@ const applyMainSeriesVisualState = () => {
     title: '',
     lineVisible: true,
     axisLabelColor: latestColor,
-    axisLabelTextColor: palette.currentPriceLabelText
+    axisLabelTextColor: palette.currentPriceLabelText,
   })
 }
 
@@ -423,24 +481,24 @@ const applyThemeOptions = () => {
   chart.applyOptions({
     layout: {
       background: { color: palette.background },
-      textColor: palette.text
+      textColor: palette.text,
     },
     grid: {
       vertLines: {
         color: palette.grid,
-        visible: props.indicatorConfig.showGrid
+        visible: props.indicatorConfig.showGrid,
       },
       horzLines: {
         color: palette.grid,
-        visible: props.indicatorConfig.showGrid
-      }
+        visible: props.indicatorConfig.showGrid,
+      },
     },
     crosshair: {
-      mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden
+      mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden,
     },
     timeScale: {
-      borderColor: palette.border
-    }
+      borderColor: palette.border,
+    },
   })
 
   applyPriceScaleLayout()
@@ -497,16 +555,19 @@ const getVisibleLogicalRange = () => chart?.timeScale().getVisibleLogicalRange()
 const logTimeScaleState = (event: string, extra: Record<string, unknown> = {}) => {
   const range = getVisibleLogicalRange()
   const timeScale = chart?.timeScale?.()
-  console.info('[ChartView]', JSON.stringify({
-    event,
-    dataLength: props.data.length,
-    visibleRange: range ? { from: range.from, to: range.to } : null,
-    rightOffset: timeScale?.options?.()?.rightOffset ?? null,
-    barSpacing: timeScale?.options?.()?.barSpacing ?? null,
-    firstTime: props.data[0]?.time ?? null,
-    lastTime: props.data[props.data.length - 1]?.time ?? null,
-    ...extra,
-  }))
+  console.info(
+    '[ChartView]',
+    JSON.stringify({
+      event,
+      dataLength: props.data.length,
+      visibleRange: range ? { from: range.from, to: range.to } : null,
+      rightOffset: timeScale?.options?.()?.rightOffset ?? null,
+      barSpacing: timeScale?.options?.()?.barSpacing ?? null,
+      firstTime: props.data[0]?.time ?? null,
+      lastTime: props.data[props.data.length - 1]?.time ?? null,
+      ...extra,
+    }),
+  )
 }
 
 const restoreVisibleLogicalRange = (range: { from: number; to: number } | null) => {
@@ -588,11 +649,13 @@ const rebuildSeriesPreservingVisibleRange = (rebuild: () => void) => {
   rebuild()
   updateChartData()
 
-  restoreVisibleLogicalRange(resolveVisibleLogicalRangeRestore({
-    previousData,
-    nextData: props.data,
-    previousRange: previousVisibleLogicalRange,
-  }))
+  restoreVisibleLogicalRange(
+    resolveVisibleLogicalRangeRestore({
+      previousData,
+      nextData: props.data,
+      previousRange: previousVisibleLogicalRange,
+    }),
+  )
 }
 
 const clearIndicatorSeries = () => {
@@ -718,7 +781,7 @@ const syncChartSize = () => {
 
   chart.applyOptions({
     width: chartContainer.value.clientWidth,
-    height: chartContainer.value.clientHeight || getChartHeight()
+    height: chartContainer.value.clientHeight || getChartHeight(),
   })
 }
 
@@ -740,12 +803,12 @@ const resetHoverToLatest = () => {
     open: latestData.open,
     high: latestData.high,
     low: latestData.low,
-    close: latestData.close
+    close: latestData.close,
   }
   hoveringVolume.value = {
     time: latestData.time as Time,
     value: latestData.volume,
-    color: latestData.close >= latestData.open ? PRICE_COLORS.up : PRICE_COLORS.down
+    color: latestData.close >= latestData.open ? PRICE_COLORS.up : PRICE_COLORS.down,
   }
 }
 
@@ -772,24 +835,6 @@ const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLengt
   return maData
 }
 
-const calculateVolumeMovingAverageSeriesData = (volumeData: HistogramData[], maLength: number) => {
-  const maData = [] as LineData[]
-
-  for (let i = 0; i < volumeData.length; i++) {
-    if (i < maLength - 1) {
-      maData.push({ time: volumeData[i]?.time } as LineData)
-    } else {
-      let sum = 0
-      for (let j = 0; j < maLength; j++) {
-        sum += volumeData[i - j]?.value || 0
-      }
-      maData.push({ time: volumeData[i]!.time as Time, value: sum / maLength })
-    }
-  }
-
-  return maData
-}
-
 const syncLatestVolumeMovingAverageHoverState = (
   volumeMA5Data: LineData[],
   volumeMA10Data: LineData[],
@@ -798,7 +843,8 @@ const syncLatestVolumeMovingAverageHoverState = (
   if (isHovering.value) return
 
   const latestVolumeMA5 = volumeMA5Data[volumeMA5Data.length - 1]
-  hoveringVolumeMA5.value = latestVolumeMA5?.value !== undefined ? latestVolumeMA5 : ({} as LineData)
+  hoveringVolumeMA5.value =
+    latestVolumeMA5?.value !== undefined ? latestVolumeMA5 : ({} as LineData)
 
   const latestVolumeMA10 = volumeMA10Data[volumeMA10Data.length - 1]
   hoveringVolumeMA10.value =
@@ -836,20 +882,20 @@ const initChart = () => {
     layout: { background: { color: palette.background }, textColor: palette.text },
     grid: {
       vertLines: { color: palette.grid, visible: props.indicatorConfig.showGrid },
-      horzLines: { color: palette.grid, visible: props.indicatorConfig.showGrid }
+      horzLines: { color: palette.grid, visible: props.indicatorConfig.showGrid },
     },
     crosshair: {
-      mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden
+      mode: props.indicatorConfig.showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden,
     },
     timeScale: {
       timeVisible: true,
       secondsVisible: false,
       barSpacing: 9,
       minBarSpacing: 5,
-      rightOffset: INITIAL_TIME_SCALE_RIGHT_OFFSET
+      rightOffset: INITIAL_TIME_SCALE_RIGHT_OFFSET,
     },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
-    autoSize: false
+    autoSize: false,
   })
 
   chart.applyOptions({
@@ -858,11 +904,11 @@ const initChart = () => {
       secondsVisible: false,
       borderColor: palette.border,
       tickMarkFormatter: (time: Time) => {
-        const date = new Date(time as number * 1000)
+        const date = new Date((time as number) * 1000)
         const hours = date.getHours().toString().padStart(2, '0')
         const minutes = date.getMinutes().toString().padStart(2, '0')
         return `${hours}:${minutes}`
-      }
+      },
     },
     localization: {
       timeFormatter: (time: number) => {
@@ -872,8 +918,8 @@ const initChart = () => {
         const hours = date.getHours().toString().padStart(2, '0')
         const minutes = date.getMinutes().toString().padStart(2, '0')
         return `${month}-${day} ${hours}:${minutes}`
-      }
-    }
+      },
+    },
   })
 
   createMainSeries()
@@ -913,14 +959,14 @@ const createMainSeries = () => {
       wickUpColor: '#26a69a',
       wickDownColor: '#ef5350',
       priceFormat: getPriceSeriesFormat(),
-      priceScaleId: 'price'
+      priceScaleId: 'price',
     })
   } else if (props.chartType === ChartType.LINE) {
     mainSeries = chart.addSeries(LineSeries, {
       color: getThemePalette().line,
       lineWidth: 2,
       priceFormat: getPriceSeriesFormat(),
-      priceScaleId: 'price'
+      priceScaleId: 'price',
     })
   } else if (props.chartType === ChartType.AREA) {
     const palette = getThemePalette()
@@ -930,12 +976,12 @@ const createMainSeries = () => {
       bottomColor: palette.areaBottom,
       lineWidth: 2,
       priceFormat: getPriceSeriesFormat(),
-      priceScaleId: 'price'
+      priceScaleId: 'price',
     })
   }
 
   mainSeries.priceScale().applyOptions({
-    scaleMargins: getMainScaleMargins()
+    scaleMargins: getMainScaleMargins(),
   })
 
   applyMainSeriesVisualState()
@@ -979,31 +1025,35 @@ const createVolumeSeries = () => {
 
   volumeSeries = chart.addSeries(HistogramSeries, {
     priceFormat: getVolumeSeriesFormat(),
-    priceScaleId: 'volume'
+    priceScaleId: 'volume',
+    autoscaleInfoProvider: volumeAutoscaleInfoProvider,
   })
   volumeSeries.priceScale().applyOptions({
-    scaleMargins: { top: 0.85, bottom: 0 }
+    scaleMargins: { top: 0.85, bottom: 0 },
   })
   volumeMA5Series = chart.addSeries(LineSeries, {
     color: '#FFA500',
     lineWidth: 2,
-    lineType: LineType.Curved,
+    lineType: LineType.Simple,
     priceScaleId: 'volume',
     priceFormat: getVolumeSeriesFormat(),
+    autoscaleInfoProvider: volumeAutoscaleInfoProvider,
   })
   volumeMA10Series = chart.addSeries(LineSeries, {
     color: '#00BFFF',
     lineWidth: 2,
-    lineType: LineType.Curved,
+    lineType: LineType.Simple,
     priceScaleId: 'volume',
     priceFormat: getVolumeSeriesFormat(),
+    autoscaleInfoProvider: volumeAutoscaleInfoProvider,
   })
   volumeMA30Series = chart.addSeries(LineSeries, {
     color: '#32CD32',
     lineWidth: 2,
-    lineType: LineType.Curved,
+    lineType: LineType.Simple,
     priceScaleId: 'volume',
     priceFormat: getVolumeSeriesFormat(),
+    autoscaleInfoProvider: volumeAutoscaleInfoProvider,
   })
   applyPriceScaleLayout()
 }
@@ -1034,10 +1084,10 @@ const createIndicatorSeries = () => {
       lineWidth: 2,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
     ma5MinSeries.priceScale().applyOptions({
-      scaleMargins: getMainScaleMargins()
+      scaleMargins: getMainScaleMargins(),
     })
   }
 
@@ -1047,10 +1097,10 @@ const createIndicatorSeries = () => {
       lineWidth: 2,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
     ma10MinSeries.priceScale().applyOptions({
-      scaleMargins: getMainScaleMargins()
+      scaleMargins: getMainScaleMargins(),
     })
   }
 
@@ -1060,10 +1110,10 @@ const createIndicatorSeries = () => {
       lineWidth: 2,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
     ma30MinSeries.priceScale().applyOptions({
-      scaleMargins: getMainScaleMargins()
+      scaleMargins: getMainScaleMargins(),
     })
   }
 
@@ -1074,10 +1124,10 @@ const createIndicatorSeries = () => {
       lineWidth: 2,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
     ema7Series.priceScale().applyOptions({
-      scaleMargins: getMainScaleMargins()
+      scaleMargins: getMainScaleMargins(),
     })
   }
 
@@ -1087,10 +1137,10 @@ const createIndicatorSeries = () => {
       lineWidth: 2,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
     ema25Series.priceScale().applyOptions({
-      scaleMargins: getMainScaleMargins()
+      scaleMargins: getMainScaleMargins(),
     })
   }
 
@@ -1101,7 +1151,7 @@ const createIndicatorSeries = () => {
       lineWidth: 1,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
 
     bollMiddleSeries = chart.addSeries(LineSeries, {
@@ -1109,7 +1159,7 @@ const createIndicatorSeries = () => {
       lineWidth: 1,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
 
     bollLowerSeries = chart.addSeries(LineSeries, {
@@ -1117,7 +1167,7 @@ const createIndicatorSeries = () => {
       lineWidth: 1,
       lineType: LineType.Curved,
       priceScaleId: 'price',
-      priceFormat: getPriceSeriesFormat()
+      priceFormat: getPriceSeriesFormat(),
     })
   }
 }
@@ -1130,7 +1180,7 @@ const handleCrosshairMove = (param: MouseEventParams) => {
 
   isHovering.value = true
 
-  const date = new Date(param.time as number * 1000)
+  const date = new Date((param.time as number) * 1000)
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
@@ -1173,7 +1223,7 @@ const handleCrosshairMove = (param: MouseEventParams) => {
         open: lineData.value || 0,
         high: lineData.value || 0,
         low: lineData.value || 0,
-        close: lineData.value || 0
+        close: lineData.value || 0,
       } as CandlestickData
     }
   }
@@ -1212,7 +1262,6 @@ const handleCrosshairMove = (param: MouseEventParams) => {
       hoveringEMA25.value = ema25Point
     }
   }
-
 }
 
 const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | null) => {
@@ -1227,7 +1276,7 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
   const toIndex = Math.min(Math.ceil(logicalRange.to), props.data.length - 1)
   const loadDecision = resolveVisibleRangeLoadDecision({
     range: logicalRange,
-    dataLength: props.data.length
+    dataLength: props.data.length,
   })
 
   const firstVisibleTime = props.data[fromIndex]?.time || 0
@@ -1235,10 +1284,20 @@ const handleVisibleRangeChange = (logicalRange: { from: number; to: number } | n
 
   const lastIndex = props.data.length - 1
   for (const direction of loadDecision.loadOrder) {
-    if (direction === 'new' && props.data[lastIndex] && lastVisibleTime && lastVisibleTime >= props.data[lastIndex].time) {
+    if (
+      direction === 'new' &&
+      props.data[lastIndex] &&
+      lastVisibleTime &&
+      lastVisibleTime >= props.data[lastIndex].time
+    ) {
       emit('load-new-data', props.data[lastIndex]?.time)
     }
-    if (direction === 'old' && props.data[0] && firstVisibleTime && firstVisibleTime <= props.data[0].time) {
+    if (
+      direction === 'old' &&
+      props.data[0] &&
+      firstVisibleTime &&
+      firstVisibleTime <= props.data[0].time
+    ) {
       emit('load-old-data', props.data[0]?.time)
     }
   }
@@ -1326,12 +1385,12 @@ const updateChartData = () => {
         open: latestData.open,
         high: latestData.high,
         low: latestData.low,
-        close: latestData.close
+        close: latestData.close,
       }
       hoveringVolume.value = {
         time: latestData.time as Time,
         value: latestData.volume,
-        color: latestData.close >= latestData.open ? '#26a69a' : '#ef5350'
+        color: latestData.close >= latestData.open ? '#26a69a' : '#ef5350',
       }
     }
   }
@@ -1349,27 +1408,42 @@ const updateChartData = () => {
     updateVolumeMovingAverageSeries()
   }
 
-  if (primaryRenderPlan.mode === 'full' && shouldScrollToLatestOnFirstRender({
-    previousData: lastRenderedPrimarySeriesData,
-    nextData: props.data,
-    previousRange: previousVisibleLogicalRange,
-    minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
-  })) {
-    logTimeScaleState('update_chart_data_decision', { action: 'scroll_to_latest_first_render', renderMode: primaryRenderPlan.mode })
+  if (
+    primaryRenderPlan.mode === 'full' &&
+    shouldScrollToLatestOnFirstRender({
+      previousData: lastRenderedPrimarySeriesData,
+      nextData: props.data,
+      previousRange: previousVisibleLogicalRange,
+      minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+    })
+  ) {
+    logTimeScaleState('update_chart_data_decision', {
+      action: 'scroll_to_latest_first_render',
+      renderMode: primaryRenderPlan.mode,
+    })
     scheduleScrollToLatest()
-  } else if (primaryRenderPlan.mode === 'full' && shouldAnchorLatestAfterBootstrapExpansion({
-    previousData: lastRenderedPrimarySeriesData,
-    nextData: props.data,
-    minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
-  })) {
-    logTimeScaleState('update_chart_data_decision', { action: 'scroll_to_latest_bootstrap_expansion', renderMode: primaryRenderPlan.mode })
+  } else if (
+    primaryRenderPlan.mode === 'full' &&
+    shouldAnchorLatestAfterBootstrapExpansion({
+      previousData: lastRenderedPrimarySeriesData,
+      nextData: props.data,
+      minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+    })
+  ) {
+    logTimeScaleState('update_chart_data_decision', {
+      action: 'scroll_to_latest_bootstrap_expansion',
+      renderMode: primaryRenderPlan.mode,
+    })
     scheduleScrollToLatest()
-  } else if (primaryRenderPlan.mode === 'full' && shouldFitContentOnFirstRender({
-    previousData: lastRenderedPrimarySeriesData,
-    nextData: props.data,
-    previousRange: previousVisibleLogicalRange,
-    minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
-  })) {
+  } else if (
+    primaryRenderPlan.mode === 'full' &&
+    shouldFitContentOnFirstRender({
+      previousData: lastRenderedPrimarySeriesData,
+      nextData: props.data,
+      previousRange: previousVisibleLogicalRange,
+      minimumDataPointsToAnchor: MIN_DATA_POINTS_TO_ANCHOR_LATEST,
+    })
+  ) {
     const sparseRange = resolveSparseFirstRenderLogicalRange({
       previousData: lastRenderedPrimarySeriesData,
       nextData: props.data,
@@ -1379,28 +1453,45 @@ const updateChartData = () => {
     })
 
     if (sparseRange) {
-      logTimeScaleState('update_chart_data_decision', { action: 'apply_sparse_first_render_range', renderMode: primaryRenderPlan.mode, targetRange: sparseRange })
+      logTimeScaleState('update_chart_data_decision', {
+        action: 'apply_sparse_first_render_range',
+        renderMode: primaryRenderPlan.mode,
+        targetRange: sparseRange,
+      })
       scheduleSparseFirstRenderRange(sparseRange)
     } else {
-      logTimeScaleState('update_chart_data_decision', { action: 'fit_content_first_render', renderMode: primaryRenderPlan.mode })
+      logTimeScaleState('update_chart_data_decision', {
+        action: 'fit_content_first_render',
+        renderMode: primaryRenderPlan.mode,
+      })
       scheduleFitContent()
     }
-  } else if (shouldScrollToLatestAfterIncrementalAppend({
-    renderMode: primaryRenderPlan.mode,
-    previousData: lastRenderedPrimarySeriesData,
-    nextData: props.data,
-    previousRange: previousVisibleLogicalRange,
-  })) {
-    logTimeScaleState('update_chart_data_decision', { action: 'scroll_to_latest_incremental_append', renderMode: primaryRenderPlan.mode })
-    scheduleScrollToLatest()
-  } else {
-    logTimeScaleState('update_chart_data_decision', { action: 'restore_visible_range', renderMode: primaryRenderPlan.mode })
-    restoreVisibleLogicalRange(resolveVisibleLogicalRangeAfterPrimaryRender({
+  } else if (
+    shouldScrollToLatestAfterIncrementalAppend({
       renderMode: primaryRenderPlan.mode,
       previousData: lastRenderedPrimarySeriesData,
       nextData: props.data,
       previousRange: previousVisibleLogicalRange,
-    }))
+    })
+  ) {
+    logTimeScaleState('update_chart_data_decision', {
+      action: 'scroll_to_latest_incremental_append',
+      renderMode: primaryRenderPlan.mode,
+    })
+    scheduleScrollToLatest()
+  } else {
+    logTimeScaleState('update_chart_data_decision', {
+      action: 'restore_visible_range',
+      renderMode: primaryRenderPlan.mode,
+    })
+    restoreVisibleLogicalRange(
+      resolveVisibleLogicalRangeAfterPrimaryRender({
+        renderMode: primaryRenderPlan.mode,
+        previousData: lastRenderedPrimarySeriesData,
+        nextData: props.data,
+        previousRange: previousVisibleLogicalRange,
+      }),
+    )
   }
 
   if (!hasDeferredIndicators.value) {
@@ -1427,20 +1518,24 @@ const calculateEMASeriesData = (candleData: CandlestickData[], period: number) =
       for (let j = 0; j < period; j++) {
         sum += candleData[i - j]?.close || 0
       }
-      emaData.push({ time: candleData[i]!.time as Time, value: sum / period })
+      emaData.push({ time: candleData[i]!.time, value: sum / period })
     } else {
       // EMA = (Close - EMA(prev)) * multiplier + EMA(prev)
       const prevEMA = emaData[i - 1]!.value || 0
       const close = candleData[i]?.close || 0
       const emaValue = (close - prevEMA) * multiplier + prevEMA
-      emaData.push({ time: candleData[i]!.time as Time, value: emaValue })
+      emaData.push({ time: candleData[i]!.time, value: emaValue })
     }
   }
 
   return emaData
 }
 
-const calculateBollingerBands = (candleData: CandlestickData[], period: number = 20, stdDev: number = 2) => {
+const calculateBollingerBands = (
+  candleData: CandlestickData[],
+  period: number = 20,
+  stdDev: number = 2,
+) => {
   const upper: LineData[] = []
   const middle: LineData[] = []
   const lower: LineData[] = []
@@ -1464,9 +1559,9 @@ const calculateBollingerBands = (candleData: CandlestickData[], period: number =
       }
       const std = Math.sqrt(variance / period)
 
-      middle.push({ time: candleData[i]!.time as Time, value: sma })
-      upper.push({ time: candleData[i]!.time as Time, value: sma + stdDev * std })
-      lower.push({ time: candleData[i]!.time as Time, value: sma - stdDev * std })
+      middle.push({ time: candleData[i]!.time, value: sma })
+      upper.push({ time: candleData[i]!.time, value: sma + stdDev * std })
+      lower.push({ time: candleData[i]!.time, value: sma - stdDev * std })
     }
   }
 
@@ -1474,53 +1569,72 @@ const calculateBollingerBands = (candleData: CandlestickData[], period: number =
 }
 
 watch(chartDataRenderSignal, updateChartData)
-watch(() => props.chartType, () => {
-  rebuildSeriesPreservingVisibleRange(() => {
-    createMainSeries()
-  })
-})
-watch(() => props.indicatorConfig, () => {
-  rebuildSeriesPreservingVisibleRange(() => {
-    applyThemeOptions()
-    createMainSeries()
-    createIndicatorSeries()
-    createVolumeSeries()
-  })
-}, { deep: true })
-watch(() => props.pricePrecision, () => {
-  if (mainSeries) {
-    mainSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  }
-  if (ma5MinSeries) ma5MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (ma10MinSeries) ma10MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (ma30MinSeries) ma30MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (ema7Series) ema7Series.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (ema25Series) ema25Series.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (bollUpperSeries) bollUpperSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (bollMiddleSeries) bollMiddleSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  if (bollLowerSeries) bollLowerSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
-  applyPriceScaleLayout()
-})
-watch(() => props.volumePrecision, () => {
-  if (volumeSeries) {
-    volumeSeries.applyOptions({ priceFormat: getVolumeSeriesFormat() })
-  }
-  if (volumeMA5Series) volumeMA5Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
-  if (volumeMA10Series) volumeMA10Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
-  if (volumeMA30Series) volumeMA30Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
-})
-watch(() => props.height, () => {
-  syncChartSize()
-})
-watch(() => $q.dark.isActive, () => {
-  if (!chart) return
-  rebuildSeriesPreservingVisibleRange(() => {
-    applyThemeOptions()
-    createMainSeries()
-    createIndicatorSeries()
-    createVolumeSeries()
-  })
-})
+watch(
+  () => props.chartType,
+  () => {
+    rebuildSeriesPreservingVisibleRange(() => {
+      createMainSeries()
+    })
+  },
+)
+watch(
+  () => props.indicatorConfig,
+  () => {
+    rebuildSeriesPreservingVisibleRange(() => {
+      applyThemeOptions()
+      createMainSeries()
+      createIndicatorSeries()
+      createVolumeSeries()
+    })
+  },
+  { deep: true },
+)
+watch(
+  () => props.pricePrecision,
+  () => {
+    if (mainSeries) {
+      mainSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    }
+    if (ma5MinSeries) ma5MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (ma10MinSeries) ma10MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (ma30MinSeries) ma30MinSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (ema7Series) ema7Series.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (ema25Series) ema25Series.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (bollUpperSeries) bollUpperSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (bollMiddleSeries) bollMiddleSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    if (bollLowerSeries) bollLowerSeries.applyOptions({ priceFormat: getPriceSeriesFormat() })
+    applyPriceScaleLayout()
+  },
+)
+watch(
+  () => props.volumePrecision,
+  () => {
+    if (volumeSeries) {
+      volumeSeries.applyOptions({ priceFormat: getVolumeSeriesFormat() })
+    }
+    if (volumeMA5Series) volumeMA5Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
+    if (volumeMA10Series) volumeMA10Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
+    if (volumeMA30Series) volumeMA30Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
+  },
+)
+watch(
+  () => props.height,
+  () => {
+    syncChartSize()
+  },
+)
+watch(
+  () => $q.dark.isActive,
+  () => {
+    if (!chart) return
+    rebuildSeriesPreservingVisibleRange(() => {
+      applyThemeOptions()
+      createMainSeries()
+      createIndicatorSeries()
+      createVolumeSeries()
+    })
+  },
+)
 
 onMounted(initChart)
 onBeforeUnmount(() => {
@@ -1545,7 +1659,7 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped lang='sass'>
+<style scoped lang="sass">
 .chart-wrapper
   width: 100%
   position: relative

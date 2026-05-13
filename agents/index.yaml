@@ -44,6 +44,7 @@ decision_map:
       - docker/AGENTS.md
   funds_consistency_issue:
     read_first:
+      - agents/primitives/funds-consistency-protocol.md
       - agents/primitives/liquidity-and-funds.md
       - agents/primitives/cross-chain.md
       - agents/runbooks/bug-investigation.md
@@ -137,6 +138,15 @@ navigation:
         - debugging positions
         - reviewing liquidity accounting
         - reviewing refund/payout safety
+    - path: agents/primitives/funds-consistency-protocol.md
+      canonical_for:
+        - cross_chain_funds_state_machine
+        - claimable_delivery_protocol
+        - temp_chain_decision_for_current_amm
+      when_to_read:
+        - designing funds consistency fixes
+        - reviewing swap or liquidity failure handling
+        - implementing FUND-002
     - path: agents/primitives/data-sources.md
       canonical_for:
         - truth_hierarchy

@@ -18,6 +18,8 @@ Authority: High
 
 - Unless the user explicitly asks for human-facing docs, write docs for assistants
 - Default assistant docs belong either under `agents/` or in directory-scoped `AGENTS.md` files near the code they govern
+- User-facing conversation in this repository may use Chinese, but repository documents, assistant primitives, AI constraints, runbooks, task titles, and task notes must be written in English
+- When updating existing non-English assistant docs or task metadata, translate the touched durable content to English instead of adding new non-English text
 - Optimize assistant docs for execution and maintenance, not for human readability
 - For assistant docs with non-trivial semantics, prefer Markdown with a fixed section contract over forcing pure YAML or TOML
 - Use YAML for navigation, indexes, and task metadata; use Markdown for semantics, rules, implications, and workflows

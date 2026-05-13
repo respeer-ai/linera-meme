@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import type { Time } from 'lightweight-charts'
 
 import type { KLineData } from './KlineData'
 import {
@@ -11,6 +12,7 @@ import {
   resolveVisibleLogicalRangeAfterPrimaryRender,
   resolveVisibleLogicalRangeRestore,
   resolvePrimarySeriesRenderPlan,
+  calculateVolumeMovingAverageSeriesData,
   toCandlestickPoint,
   toLinePoint,
   toVolumePoint,
@@ -440,6 +442,28 @@ describe('chart point conversion helpers', () => {
       time: 60,
       value: 10,
       color: '#26a69a',
+    })
+  })
+})
+
+describe('calculateVolumeMovingAverageSeriesData', () => {
+  test('uses the arithmetic average of the last N volume bars', () => {
+    const volumeData = [100, 200, 300, 400, 500].map((volume, index) => ({
+      time: ((index + 1) * 60) as Time,
+      value: volume,
+    }))
+
+    const ma5 = calculateVolumeMovingAverageSeriesData(volumeData, 5)
+
+    expect(ma5.slice(0, 4).map((point) => point.value)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ])
+    expect(ma5[4]).toEqual({
+      time: 300,
+      value: 300,
     })
   })
 })

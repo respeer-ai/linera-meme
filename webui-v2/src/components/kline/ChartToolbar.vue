@@ -1,66 +1,52 @@
 <template>
-  <div class='chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary no-wrap'>
+  <div
+    class="chart-toolbar row items-center justify-between q-px-md q-py-xs bg-dark-secondary no-wrap"
+  >
     <!-- 左侧：Token信息 + 图表类型 + 指标 + 时间周期 -->
-    <div class='chart-toolbar-main row items-center no-wrap q-gutter-sm'>
+    <div class="chart-toolbar-main row items-center no-wrap">
       <pool-logo-view
-        :token0-application='(token0ForLogo as ams.Application)'
-        :token1-application='(token1ForLogo as ams.Application)'
-        avatar-size='36px'
-        :show-chips='false'
-        pool-name-font-size='14px'
-        :no-wrap='true'
+        :token0-application="token0ForLogo as ams.Application"
+        :token1-application="token1ForLogo as ams.Application"
+        avatar-size="36px"
+        :show-chips="false"
+        pool-name-font-size="14px"
+        :no-wrap="true"
       />
-      <q-separator vertical class='q-mx-sm' />
-      <chart-type-selector v-model='chartType' />
-      <indicator-selector v-model='indicatorConfig' />
-      <interval-selector-dropdown v-model='selectedInterval' />
+      <q-separator vertical class="q-mx-sm" />
+      <chart-type-selector v-model="chartType" />
+      <indicator-selector v-model="indicatorConfig" />
+      <interval-selector-dropdown v-model="selectedInterval" />
     </div>
 
     <!-- 右侧：工具按钮 -->
-    <div class='row items-center q-gutter-sm'>
+    <div class="row items-center q-gutter-sm">
       <q-btn
-        :icon='isFullscreen ? "fullscreen_exit" : "fullscreen"'
+        :icon="isFullscreen ? 'fullscreen_exit' : 'fullscreen'"
         flat
         dense
         round
-        color='neutral'
-        size='sm'
-        @click='toggleFullscreen'
+        color="neutral"
+        size="sm"
+        @click="toggleFullscreen"
       >
-        <q-tooltip>全屏</q-tooltip>
+        <q-tooltip>Fullscreen</q-tooltip>
       </q-btn>
 
-      <q-btn
-        icon='settings'
-        flat
-        dense
-        round
-        color='neutral'
-        size='sm'
-        @click='openSettings'
-      >
-        <q-tooltip>设置</q-tooltip>
+      <q-btn icon="settings" flat dense round color="neutral" size="sm" @click="openSettings">
+        <q-tooltip>Settings</q-tooltip>
       </q-btn>
 
-      <q-btn
-        icon='camera_alt'
-        flat
-        dense
-        round
-        color='neutral'
-        size='sm'
-        @click='takeScreenshot'
-      >
-        <q-tooltip>截图</q-tooltip>
+      <q-btn icon="camera_alt" flat dense round color="neutral" size="sm" @click="takeScreenshot">
+        <q-tooltip>Snapshot</q-tooltip>
       </q-btn>
     </div>
   </div>
 
   <!-- 设置面板 -->
-  <chart-settings ref='chartSettingsRef' @update:config='onConfigUpdate' />
+  <chart-settings ref="chartSettingsRef" @update:config="onConfigUpdate" />
 </template>
 
-<script setup lang='ts'>
+<script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { Interval } from 'src/stores/kline/const'
 import { ChartType } from './ChartType'
@@ -80,10 +66,10 @@ const props = defineProps({
       chartType: ChartType
       indicatorConfig: IndicatorConfig
     },
-    required: true
+    required: true,
   },
   token0: { type: Object as () => ams.Application | undefined, default: undefined },
-  token1: { type: Object as () => ams.Application | undefined, default: undefined }
+  token1: { type: Object as () => ams.Application | undefined, default: undefined },
 })
 
 const emit = defineEmits<{
@@ -92,15 +78,17 @@ const emit = defineEmits<{
 
 const selectedInterval = ref<Interval>(props.modelValue?.interval || Interval.FIVE_MINUTE)
 const chartType = ref<ChartType>(props.modelValue?.chartType || ChartType.CANDLESTICK)
-const indicatorConfig = ref<IndicatorConfig>(props.modelValue?.indicatorConfig || {
-  ma: { enabled: { ma5: true, ma10: true, ma30: true } },
-  ema: { enabled: { ema7: false, ema25: false } },
-  boll: false,
-  volume: true,
-  showVolume: true,
-  showGrid: true,
-  showCrosshair: true
-})
+const indicatorConfig = ref<IndicatorConfig>(
+  props.modelValue?.indicatorConfig || {
+    ma: { enabled: { ma5: true, ma10: true, ma30: true } },
+    ema: { enabled: { ema7: false, ema25: false } },
+    boll: false,
+    volume: true,
+    showVolume: true,
+    showGrid: true,
+    showCrosshair: true,
+  },
+)
 
 const isFullscreen = ref(false)
 const chartSettingsRef = ref<InstanceType<typeof ChartSettings> | null>(null)
@@ -117,23 +105,31 @@ const token1ForLogo = computed(() => {
 })
 
 // 监听内部状态变化，同步到外部
-watch([selectedInterval, chartType, indicatorConfig], () => {
-  console.log('[ChartToolbar] State changed, interval:', selectedInterval.value)
-  emit('update:modelValue', {
-    interval: selectedInterval.value,
-    chartType: chartType.value,
-    indicatorConfig: indicatorConfig.value
-  })
-}, { deep: true })
+watch(
+  [selectedInterval, chartType, indicatorConfig],
+  () => {
+    console.log('[ChartToolbar] State changed, interval:', selectedInterval.value)
+    emit('update:modelValue', {
+      interval: selectedInterval.value,
+      chartType: chartType.value,
+      indicatorConfig: indicatorConfig.value,
+    })
+  },
+  { deep: true },
+)
 
 // 监听外部值变化
-watch(() => props.modelValue, (newVal) => {
-  if (newVal) {
-    selectedInterval.value = newVal.interval
-    chartType.value = newVal.chartType
-    indicatorConfig.value = newVal.indicatorConfig
-  }
-}, { deep: true })
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    if (newVal) {
+      selectedInterval.value = newVal.interval
+      chartType.value = newVal.chartType
+      indicatorConfig.value = newVal.indicatorConfig
+    }
+  },
+  { deep: true },
+)
 
 const toggleFullscreen = () => {
   // 查找图表容器
@@ -141,10 +137,10 @@ const toggleFullscreen = () => {
   if (!chartWrapper) return
 
   if (!document.fullscreenElement) {
-    chartWrapper.requestFullscreen()
+    void chartWrapper.requestFullscreen()
     isFullscreen.value = true
   } else {
-    document.exitFullscreen()
+    void document.exitFullscreen()
     isFullscreen.value = false
   }
 }
@@ -154,19 +150,19 @@ const openSettings = () => {
     ma: {
       ma5: indicatorConfig.value.ma.enabled.ma5,
       ma10: indicatorConfig.value.ma.enabled.ma10,
-      ma30: indicatorConfig.value.ma.enabled.ma30
+      ma30: indicatorConfig.value.ma.enabled.ma30,
     },
     maPeriods: { ma5: 5, ma10: 10, ma30: 30 },
     ema: {
       ema7: indicatorConfig.value.ema.enabled.ema7,
-      ema25: indicatorConfig.value.ema.enabled.ema25
+      ema25: indicatorConfig.value.ema.enabled.ema25,
     },
     emaPeriods: { ema7: 7, ema25: 25 },
     boll: indicatorConfig.value.boll,
     bollPeriod: 20,
     showVolume: indicatorConfig.value.showVolume,
     showGrid: indicatorConfig.value.showGrid,
-    showCrosshair: indicatorConfig.value.showCrosshair
+    showCrosshair: indicatorConfig.value.showCrosshair,
   })
 }
 
@@ -177,25 +173,25 @@ const onConfigUpdate = (config: ChartSettingsConfig) => {
       enabled: {
         ma5: config.ma.ma5,
         ma10: config.ma.ma10,
-        ma30: config.ma.ma30
-      }
+        ma30: config.ma.ma30,
+      },
     },
     ema: {
       enabled: {
         ema7: config.ema.ema7,
-        ema25: config.ema.ema25
-      }
+        ema25: config.ema.ema25,
+      },
     },
     boll: config.boll,
     volume: config.showVolume,
     showVolume: config.showVolume,
     showGrid: config.showGrid,
-    showCrosshair: config.showCrosshair
+    showCrosshair: config.showCrosshair,
   }
   emit('update:modelValue', {
     interval: selectedInterval.value,
     chartType: chartType.value,
-    indicatorConfig: indicatorConfig.value
+    indicatorConfig: indicatorConfig.value,
   })
 }
 
@@ -226,7 +222,7 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped lang='sass'>
+<style scoped lang="sass">
 .chart-toolbar
   border-bottom: 1px solid var(--q-neutral-twenty-five)
   min-height: 44px
@@ -236,6 +232,7 @@ onBeforeUnmount(() => {
   min-width: 0
   flex: 1 1 auto
   flex-wrap: nowrap
+  column-gap: 4px
 
 :deep(.chart-toolbar-main .pool-logo-view)
   min-width: 0
