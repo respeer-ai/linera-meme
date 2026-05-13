@@ -220,10 +220,11 @@ impl MutationRoot {
             "Permission denied"
         );
 
-        self.runtime.schedule_operation(&ProxyOperation::CreateMeme {
-            meme_instantiation_argument,
-            meme_parameters,
-        });
+        self.runtime
+            .schedule_operation(&ProxyOperation::CreateMeme {
+                meme_instantiation_argument,
+                meme_parameters,
+            });
         []
     }
 }

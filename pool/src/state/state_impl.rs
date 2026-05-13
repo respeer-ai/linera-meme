@@ -314,5 +314,4 @@ impl StateInterface for PoolState {
             created_at: timestamp,
         }
     }
-
 }

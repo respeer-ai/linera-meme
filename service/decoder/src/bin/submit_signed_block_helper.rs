@@ -15,8 +15,8 @@ use linera_base::{
     hex,
     identifiers::{Account, AccountOwner, ApplicationId, ChainId},
 };
-use linera_chain::data_types::ProposalContent;
 use linera_chain::data_types::BlockProposal;
+use linera_chain::data_types::ProposalContent;
 use linera_core::data_types::UnsignedBlockProposal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -123,20 +123,28 @@ fn build_operation(input: &HelperInput) -> Result<Vec<u8>> {
     bcs::to_bytes(&operation).context("failed to encode proxy create meme operation")
 }
 
-fn sign_unsigned_block(unsigned_block_proposal: &UnsignedBlockProposal, secret_key: &AccountSecretKey) -> Result<AccountSignature> {
+fn sign_unsigned_block(
+    unsigned_block_proposal: &UnsignedBlockProposal,
+    secret_key: &AccountSecretKey,
+) -> Result<AccountSignature> {
     let content: ProposalContent = unsigned_block_proposal.content.clone().into();
     let hash = CryptoHash::new(&content);
     Ok(secret_key.sign_prehash(hash))
 }
 
-fn sign_proposal_content(content: ProposalContent, secret_key: &AccountSecretKey) -> Result<AccountSignature> {
+fn sign_proposal_content(
+    content: ProposalContent,
+    secret_key: &AccountSecretKey,
+) -> Result<AccountSignature> {
     let hash = CryptoHash::new(&content);
     Ok(secret_key.sign_prehash(hash))
 }
 
 fn validate_round(unsigned_block_proposal: &UnsignedBlockProposal) -> Result<()> {
     match unsigned_block_proposal.content.round {
-        Round::Fast | Round::MultiLeader(_) | Round::SingleLeader(_) | Round::Validator(_) => Ok(()),
+        Round::Fast | Round::MultiLeader(_) | Round::SingleLeader(_) | Round::Validator(_) => {
+            Ok(())
+        }
     }
 }
 
@@ -149,9 +157,8 @@ fn main() -> Result<()> {
 
     if input.unsigned_block_proposal.is_none() {
         if let Some(value) = input.block_proposal_json.take() {
-            input.unsigned_block_proposal = Some(
-                serde_json::from_value(value).context("failed to decode blockProposal json")?,
-            );
+            input.unsigned_block_proposal =
+                Some(serde_json::from_value(value).context("failed to decode blockProposal json")?);
         }
     }
 
@@ -176,7 +183,11 @@ fn main() -> Result<()> {
         }
     };
 
-    let block_proposal_bcs_hex = match (&input.unsigned_block_proposal, &input.proposal_content_json, &signature) {
+    let block_proposal_bcs_hex = match (
+        &input.unsigned_block_proposal,
+        &input.proposal_content_json,
+        &signature,
+    ) {
         (Some(unsigned_block_proposal), None, Some(signature)) => {
             let block_proposal = BlockProposal {
                 content: unsigned_block_proposal.content.clone().into(),

@@ -213,5 +213,4 @@ impl StateInterface for StateAdapter {
             timestamp,
         )
     }
-
 }

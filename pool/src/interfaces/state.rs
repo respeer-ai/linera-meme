@@ -109,5 +109,4 @@ pub trait StateInterface {
         liquidity: Option<Amount>,
         timestamp: Timestamp,
     ) -> Transaction;
-
 }

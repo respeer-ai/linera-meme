@@ -1,8 +1,6 @@
 use super::super::{ProxyService, ProxyState};
 use abi::{
-    meme::{
-        Liquidity, Metadata,
-    },
+    meme::{Liquidity, Metadata},
     proxy::ProxyOperation,
     store_type::StoreType,
 };
@@ -59,22 +57,18 @@ fn sample_create_meme_request() -> Request {
         )
         .unwrap(),
     };
-    let blob_gateway_application_id = ApplicationId::from_str(
-        "a93b53e910d6315a4d434cf1e7ccb303a5f1e7086a1c0841aba2586f275605fd",
-    )
-    .unwrap();
-    let ams_application_id = ApplicationId::from_str(
-        "3ad58a7d0ebab07cdb7fd335c5f5b91f499ac8db409d1090b0e75051f8eed42b",
-    )
-    .unwrap();
-    let swap_application_id = ApplicationId::from_str(
-        "27b9d4877d72f287adf99e928f6fb9e0c531aceb1657b2ddba6649abee05a4e0",
-    )
-    .unwrap();
-    let swap_creator_chain_id = ChainId::from_str(
-        "40338f2ac6faed71b91177156cb50831b175fe469eaccf5fdd7300b2d41d457e",
-    )
-    .unwrap();
+    let blob_gateway_application_id =
+        ApplicationId::from_str("a93b53e910d6315a4d434cf1e7ccb303a5f1e7086a1c0841aba2586f275605fd")
+            .unwrap();
+    let ams_application_id =
+        ApplicationId::from_str("3ad58a7d0ebab07cdb7fd335c5f5b91f499ac8db409d1090b0e75051f8eed42b")
+            .unwrap();
+    let swap_application_id =
+        ApplicationId::from_str("27b9d4877d72f287adf99e928f6fb9e0c531aceb1657b2ddba6649abee05a4e0")
+            .unwrap();
+    let swap_creator_chain_id =
+        ChainId::from_str("40338f2ac6faed71b91177156cb50831b175fe469eaccf5fdd7300b2d41d457e")
+            .unwrap();
     let logo_hash =
         CryptoHash::from_str("67f81b16f9303d3e95fd9a8634f06294addd8788ff5f789d2872a12490b03704")
             .unwrap();
@@ -136,10 +130,9 @@ fn sample_create_meme_request() -> Request {
 #[test]
 fn create_meme_mutation_rejects_creator_chain() {
     let runtime = Arc::new(ServiceRuntime::<ProxyService>::new());
-    let creator_chain = ChainId::from_str(
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    )
-    .unwrap();
+    let creator_chain =
+        ChainId::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .unwrap();
     runtime.set_chain_id(creator_chain);
     runtime.set_application_creator_chain_id(creator_chain);
     let state = ProxyState::load(runtime.root_view_storage_context())
@@ -171,14 +164,12 @@ fn create_meme_mutation_rejects_creator_chain() {
 #[test]
 fn create_meme_mutation_schedules_operation_on_user_chain() {
     let runtime = Arc::new(ServiceRuntime::<ProxyService>::new());
-    let creator_chain = ChainId::from_str(
-        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    )
-    .unwrap();
-    let other_chain = ChainId::from_str(
-        "1111111111111111111111111111111111111111111111111111111111111111",
-    )
-    .unwrap();
+    let creator_chain =
+        ChainId::from_str("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+            .unwrap();
+    let other_chain =
+        ChainId::from_str("1111111111111111111111111111111111111111111111111111111111111111")
+            .unwrap();
     runtime.set_chain_id(other_chain);
     runtime.set_application_creator_chain_id(creator_chain);
     let state = ProxyState::load(runtime.root_view_storage_context())
@@ -196,7 +187,11 @@ fn create_meme_mutation_schedules_operation_on_user_chain() {
         .now_or_never()
         .expect("Query should not await anything");
 
-    assert!(response.errors.is_empty(), "unexpected graphql errors: {:?}", response.errors);
+    assert!(
+        response.errors.is_empty(),
+        "unexpected graphql errors: {:?}",
+        response.errors
+    );
     let scheduled = runtime.scheduled_operations::<ProxyOperation>();
     assert_eq!(scheduled.len(), 1);
     let ProxyOperation::CreateMeme {
@@ -237,7 +232,10 @@ fn create_meme_mutation_schedules_operation_on_user_chain() {
             live_stream: None,
         }
     );
-    assert_eq!(meme_instantiation_argument.meme.virtual_initial_liquidity, true);
+    assert_eq!(
+        meme_instantiation_argument.meme.virtual_initial_liquidity,
+        true
+    );
     assert_eq!(meme_instantiation_argument.meme.initial_liquidity, None);
     assert_eq!(
         meme_instantiation_argument.blob_gateway_application_id,

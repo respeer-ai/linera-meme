@@ -63,7 +63,6 @@ impl PoolService {
             .application_parameters()
             .virtual_initial_liquidity
     }
-
 }
 
 fn effective_total_supply(pool: &Pool, total_supply: Amount) -> Amount {

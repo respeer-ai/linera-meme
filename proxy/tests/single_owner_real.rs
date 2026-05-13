@@ -18,8 +18,8 @@ use abi::{
 use async_graphql::{Request, Variables};
 use linera_sdk::{
     linera_base_types::{
-        Account, AccountOwner, AccountSecretKey, Amount, ApplicationId, BlobType,
-        ChainDescription, CryptoHash, Ed25519SecretKey, TestString,
+        Account, AccountOwner, AccountSecretKey, Amount, ApplicationId, BlobType, ChainDescription,
+        CryptoHash, Ed25519SecretKey, TestString,
     },
     test::{ActiveChain, QueryOutcome},
 };
@@ -373,7 +373,10 @@ async fn proxy_create_meme_real_logo_blob_same_input_in_memory_test() {
         .await;
     let (certificate, _) = proxy_chain
         .add_block(move |block| {
-            block.with_messages_from_by_action(&certificate, linera_sdk::test::MessageAction::Accept);
+            block.with_messages_from_by_action(
+                &certificate,
+                linera_sdk::test::MessageAction::Accept,
+            );
         })
         .await;
 
@@ -480,7 +483,11 @@ async fn proxy_create_meme_real_logo_blob_same_input_in_memory_test() {
         .next()
         .unwrap();
 
-    let pool_chain = ActiveChain::new(swap_chain.key_pair().copy(), description, suite.clone().validator);
+    let pool_chain = ActiveChain::new(
+        swap_chain.key_pair().copy(),
+        description,
+        suite.clone().validator,
+    );
     suite.validator.add_chain(pool_chain.clone());
 
     let certificate = pool_chain.handle_received_messages().await;

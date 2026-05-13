@@ -67,7 +67,9 @@ fn decode_single(request: &DecodeRequest) -> Value {
     let result = match (request.app_type.as_str(), request.payload_kind.as_str()) {
         ("pool", "operation") => decode_pool_operation(&request.application_id, &raw_bytes),
         ("pool", "message") => decode_pool_message(&request.application_id, &raw_bytes),
-        ("pool", "event") => Err(anyhow::anyhow!("pool:event canonical decoding is not implemented")),
+        ("pool", "event") => Err(anyhow::anyhow!(
+            "pool:event canonical decoding is not implemented"
+        )),
         ("swap", "operation") => decode_swap_operation(&request.application_id, &raw_bytes),
         ("swap", "message") => decode_swap_message(&request.application_id, &raw_bytes),
         ("meme", "operation") => decode_meme_operation(&request.application_id, &raw_bytes),
@@ -970,7 +972,9 @@ fn decode_ams_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<
                 "application_name": metadata.application_name,
             },
         }),
-        AmsMessage::Claim { application_id: claimed_application_id } => json!({
+        AmsMessage::Claim {
+            application_id: claimed_application_id,
+        } => json!({
             "payload_type": "claim",
             "decoder_version": "ams-message-rust-v1",
             "decoded_payload_json": {
@@ -979,7 +983,10 @@ fn decode_ams_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<
                 "claimed_application_id": claimed_application_id.to_string(),
             },
         }),
-        AmsMessage::AddApplicationType { owner, application_type } => json!({
+        AmsMessage::AddApplicationType {
+            owner,
+            application_type,
+        } => json!({
             "payload_type": "add_application_type",
             "decoder_version": "ams-message-rust-v1",
             "decoded_payload_json": {
@@ -1100,7 +1107,9 @@ fn encode_account(value: Account) -> Value {
 fn encode_account_owner(value: AccountOwner) -> Option<String> {
     match value {
         AccountOwner::Reserved(_) => None,
-        AccountOwner::Address32(hash) => Some(format!("0x{}", encode_bytes(hash.as_bytes().as_ref()))),
+        AccountOwner::Address32(hash) => {
+            Some(format!("0x{}", encode_bytes(hash.as_bytes().as_ref())))
+        }
         AccountOwner::Address20(bytes) => Some(format!("0x{}", encode_bytes(bytes.as_ref()))),
     }
 }

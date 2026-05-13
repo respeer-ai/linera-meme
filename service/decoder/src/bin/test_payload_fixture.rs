@@ -5,7 +5,9 @@ use abi::proxy::ProxyMessage;
 use abi::store_type::StoreType;
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Timestamp};
+use linera_sdk::linera_base_types::{
+    Account, AccountOwner, Amount, ApplicationId, ChainId, CryptoHash, Timestamp,
+};
 use serde_json::json;
 
 fn main() {
@@ -15,9 +17,15 @@ fn main() {
         "swap_update_pool_message" => bcs::to_bytes(&build_swap_update_pool_message()).unwrap(),
         "meme_transfer_operation" => bcs::to_bytes(&build_meme_transfer_operation()).unwrap(),
         "meme_transfer_message" => bcs::to_bytes(&build_meme_transfer_message()).unwrap(),
-        "proxy_register_miner_message" => bcs::to_bytes(&build_proxy_register_miner_message()).unwrap(),
-        "ams_add_application_type_message" => bcs::to_bytes(&build_ams_add_application_type_message()).unwrap(),
-        "blob_gateway_register_message" => bcs::to_bytes(&build_blob_gateway_register_message()).unwrap(),
+        "proxy_register_miner_message" => {
+            bcs::to_bytes(&build_proxy_register_miner_message()).unwrap()
+        }
+        "ams_add_application_type_message" => {
+            bcs::to_bytes(&build_ams_add_application_type_message()).unwrap()
+        }
+        "blob_gateway_register_message" => {
+            bcs::to_bytes(&build_blob_gateway_register_message()).unwrap()
+        }
         _ => {
             eprintln!("unknown fixture: {fixture}");
             std::process::exit(1);
@@ -94,10 +102,7 @@ fn sample_transaction() -> Transaction {
     Transaction {
         transaction_id: Some(12),
         transaction_type: TransactionType::AddLiquidity,
-        from: Account::new(
-            sample_chain_id(0x33),
-            AccountOwner::from([0x44; 32]),
-        ),
+        from: Account::new(sample_chain_id(0x33), AccountOwner::from([0x44; 32])),
         amount_0_in: Some(Amount::from_attos(3)),
         amount_0_out: None,
         amount_1_in: Some(Amount::from_attos(4)),

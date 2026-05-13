@@ -293,7 +293,6 @@ impl TestSuite {
             .await;
         chain.handle_received_messages().await;
     }
-
 }
 
 /// Test setting a pool and testing its coherency across microchains.
