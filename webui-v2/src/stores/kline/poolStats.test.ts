@@ -46,8 +46,7 @@ describe('pool stats identity helpers', () => {
     const statsByApplication = buildPoolStatsByApplicationMap([stat])
 
     expect(
-      findPoolStatByIdentity(statsByPoolId, statsByApplication, 1000, '0xpool-app@chain-a')
-        ?.volume,
+      findPoolStatByIdentity(statsByPoolId, statsByApplication, 1000, '0xpool-app@chain-a')?.volume,
     ).toBe('42')
   })
 })

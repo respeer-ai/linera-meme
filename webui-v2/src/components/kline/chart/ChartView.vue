@@ -731,7 +731,7 @@ const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLengt
   const maData = [] as LineData[]
 
   for (let i = 0; i < candleData.length; i++) {
-    if (i < maLength) {
+    if (i < maLength - 1) {
       maData.push({ time: candleData[i]?.time } as LineData)
     } else {
       let sum = 0
@@ -911,6 +911,7 @@ const createIndicatorSeries = () => {
       color: '#FFA500',
       lineWidth: 2,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
     ma5MinSeries.priceScale().applyOptions({
@@ -923,6 +924,7 @@ const createIndicatorSeries = () => {
       color: '#00BFFF',
       lineWidth: 2,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
     ma10MinSeries.priceScale().applyOptions({
@@ -935,6 +937,7 @@ const createIndicatorSeries = () => {
       color: '#32CD32',
       lineWidth: 2,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
     ma30MinSeries.priceScale().applyOptions({
@@ -948,6 +951,7 @@ const createIndicatorSeries = () => {
       color: '#FF69B4',
       lineWidth: 2,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
     ema7Series.priceScale().applyOptions({
@@ -960,6 +964,7 @@ const createIndicatorSeries = () => {
       color: '#9370DB',
       lineWidth: 2,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
     ema25Series.priceScale().applyOptions({
@@ -973,6 +978,7 @@ const createIndicatorSeries = () => {
       color: 'rgba(180, 85, 255, 0.72)',
       lineWidth: 1,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
 
@@ -980,6 +986,7 @@ const createIndicatorSeries = () => {
       color: 'rgba(244, 197, 66, 0.82)',
       lineWidth: 1,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
 
@@ -987,6 +994,7 @@ const createIndicatorSeries = () => {
       color: 'rgba(77, 212, 255, 0.72)',
       lineWidth: 1,
       lineType: LineType.Curved,
+      priceScaleId: 'price',
       priceFormat: getPriceSeriesFormat()
     })
   }

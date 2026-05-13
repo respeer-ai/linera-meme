@@ -15,20 +15,21 @@ type SelectLivePointsInput = {
 
 export const LIVE_POINT_OVERLAY_WINDOW_MS = 5 * 60 * 1000
 
-export const getLivePointsRenderSignal = (points: Point[]): string => (
+export const getLivePointsRenderSignal = (points: Point[]): string =>
   points
-    .map((point) => [
-      point.timestamp,
-      point.open,
-      point.high,
-      point.low,
-      point.close,
-      point.base_volume,
-      point.quote_volume,
-      point.is_final === true ? 1 : 0,
-    ].join(':'))
+    .map((point) =>
+      [
+        point.timestamp,
+        point.open,
+        point.high,
+        point.low,
+        point.close,
+        point.base_volume,
+        point.quote_volume,
+        point.is_final === true ? 1 : 0,
+      ].join(':'),
+    )
     .join('|')
-)
 
 const toChartPoint = (point: Point): KLineData => ({
   ...point,

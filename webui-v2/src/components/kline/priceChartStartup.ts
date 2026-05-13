@@ -172,9 +172,7 @@ export const shouldScheduleBackgroundHistoryBackfill = ({
   minPointTimestamp,
   poolCreatedAt,
 }: BackgroundHistoryScheduleInput): boolean =>
-  firstScreenReady &&
-  !backgroundHistoryQueued &&
-  minPointTimestamp > poolCreatedAt
+  firstScreenReady && !backgroundHistoryQueued && minPointTimestamp > poolCreatedAt
 
 export const resolveBackgroundHistoryStatus = ({
   firstScreenReady,

@@ -142,9 +142,7 @@ describe('selectLivePointsForChartState', () => {
 
 describe('getLivePointsRenderSignal', () => {
   test('changes when an unfinished live candle is updated in place semantically', () => {
-    const first = getLivePointsRenderSignal([
-      { ...sortedPoint(550_000, 101, 12), is_final: false },
-    ])
+    const first = getLivePointsRenderSignal([{ ...sortedPoint(550_000, 101, 12), is_final: false }])
     const updated = getLivePointsRenderSignal([
       { ...sortedPoint(550_000, 102, 14), is_final: false },
     ])
@@ -156,9 +154,7 @@ describe('getLivePointsRenderSignal', () => {
     const unfinished = getLivePointsRenderSignal([
       { ...sortedPoint(550_000, 101, 12), is_final: false },
     ])
-    const final = getLivePointsRenderSignal([
-      { ...sortedPoint(550_000, 101, 12), is_final: true },
-    ])
+    const final = getLivePointsRenderSignal([{ ...sortedPoint(550_000, 101, 12), is_final: true }])
 
     expect(final === unfinished).toBe(false)
   })

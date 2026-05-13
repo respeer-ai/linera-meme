@@ -118,10 +118,12 @@ export const calculateTransactionValueInNative = (
     if (amount0In !== undefined && token0Price !== undefined) return amount0In * token0Price
   }
 
-  const amount0 = finiteOrUndefined(transaction.amount_0_in) ?? finiteOrUndefined(transaction.amount_0_out)
+  const amount0 =
+    finiteOrUndefined(transaction.amount_0_in) ?? finiteOrUndefined(transaction.amount_0_out)
   if (amount0 !== undefined && token0Price !== undefined) return amount0 * token0Price
 
-  const amount1 = finiteOrUndefined(transaction.amount_1_in) ?? finiteOrUndefined(transaction.amount_1_out)
+  const amount1 =
+    finiteOrUndefined(transaction.amount_1_in) ?? finiteOrUndefined(transaction.amount_1_out)
   if (amount1 !== undefined && token1Price !== undefined) return amount1 * token1Price
 
   return undefined

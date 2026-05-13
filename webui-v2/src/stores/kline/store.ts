@@ -130,7 +130,9 @@ export const useKlineStore = defineStore('kline', {
     addPositionsListener(listener: (payload: PositionsInvalidationPayload) => void) {
       this.positionsListeners.push(listener)
       return () => {
-        this.positionsListeners = this.positionsListeners.filter((candidate) => candidate !== listener)
+        this.positionsListeners = this.positionsListeners.filter(
+          (candidate) => candidate !== listener,
+        )
       }
     },
     onPositions(payload: PositionsInvalidationPayload) {
@@ -158,7 +160,9 @@ export const useKlineStore = defineStore('kline', {
     },
     onTransactions(transactions: Transactions[]) {
       klineWorker.KlineWorker.send(klineWorker.KlineEventType.NEW_TRANSACTIONS, transactions)
-      this.latestCombinedTransactions = transactions.flatMap((_transactions) => _transactions.transactions)
+      this.latestCombinedTransactions = transactions.flatMap(
+        (_transactions) => _transactions.transactions,
+      )
       transactions.forEach((_transactions) => {
         const trans =
           this.pushedTransactions.get(_transactions.token_0) || new Map<string, TransactionExt[]>()

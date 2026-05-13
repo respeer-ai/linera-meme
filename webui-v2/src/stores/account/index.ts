@@ -43,9 +43,7 @@ export class _Account {
   }
 
   static fromString = (str: string) => {
-    const [owner, chain] = str.includes('@')
-      ? str.split('@', 2)
-      : [_Account.CHAIN, str]
+    const [owner, chain] = str.includes('@') ? str.split('@', 2) : [_Account.CHAIN, str]
     return {
       chain_id: chain,
       owner: owner === _Account.CHAIN ? undefined : owner,
