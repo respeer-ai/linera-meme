@@ -3,19 +3,43 @@
     <main class='page-width positions-page'>
       <section class='main-column'>
         <div class='reward-card'>
-          <div class='reward-copy'>
-            <div class='reward-value'>
-              {{ formattedLiquidityShare }} LMM
-              <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
+          <div class='reward-hero'>
+            <div class='reward-copy'>
+              <div class='reward-value-row'>
+                <div class='reward-value'>
+                  <span>{{ formattedLiquidityShare }}</span>
+                  <span class='reward-unit'>LMM</span>
+                  <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
+                </div>
+                <div class='reward-native-value'>
+                  <span>{{ positionValueNativeSummary.label }}</span>
+                  <q-img class='reward-native-logo' :src='constants.LINERA_LOGO' width='18px' height='18px' fit='contain' />
+                </div>
+              </div>
+              <div class='reward-label'>
+                LMM liquidity share
+                <span class='reward-info'>i
+                  <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                    <p>LMM tracks your liquidity share, not a tradable token.</p>
+                    <p>Holding LMM lets you redeem liquidity and earn swap fees.</p>
+                  </q-tooltip>
+                </span>
+              </div>
             </div>
-            <div class='reward-label'>
-              LMM liquidity share
-              <span class='reward-info'>i
-                <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
-                  <p>LMM tracks your liquidity share, not a tradable token.</p>
-                  <p>Holding LMM lets you redeem liquidity and earn swap fees.</p>
-                </q-tooltip>
-              </span>
+          </div>
+
+          <div v-if='hasProtocolFeeReceiverPosition' class='reward-yield-strip'>
+            <div class='reward-yield-item reward-yield-item-primary'>
+              <span class='reward-yield-label'>Total yield</span>
+              <span class='reward-yield-value'>{{ totalYieldSummary.label }}</span>
+            </div>
+            <div class='reward-yield-item'>
+              <span class='reward-yield-label'>Trading</span>
+              <span class='reward-yield-value'>{{ tradingYieldSummary.label }}</span>
+            </div>
+            <div class='reward-yield-item reward-yield-item-protocol'>
+              <span class='reward-yield-label'>Protocol</span>
+              <span class='reward-yield-value'>{{ protocolYieldSummary.label }}</span>
             </div>
           </div>
         </div>
@@ -54,10 +78,7 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div
-                class='position-summary-row'
-                :style='{ "--position-summary-columns": "4" }'
-              >
+              <div class='position-summary-row' :style='{ "--position-summary-columns": "4" }'>
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
@@ -99,20 +120,47 @@
                     </q-menu>
                   </button>
                   <span :class='["position-badge", `position-badge-${position.status}`]'>
-                    {{ position.status === 'active' ? 'Active' : 'Closed' }}
-                  </span>
-                  <span
-                    v-if='positionMetrics(position)?.owner_is_fee_to'
-                    class='position-badge position-badge-fee-to'
-                  >
-                    Protocol Fee Receiver
+                    {{ positionStatusLabel(position.status) }}
                   </span>
                 </div>
               </div>
 
               <div
+                v-if='isVirtualPosition(position)'
+                class='position-summary-row position-summary-row-virtual'
+                :style='{ "--position-summary-columns": "2" }'
+              >
+                <div class='position-metric'>
+                  <span class='metric-label'>Deposited token</span>
+                  <span class='metric-value metric-value-stack virtual-bootstrap-stack'>
+                    <span class='virtual-bootstrap-line'>
+                      <span>{{ virtualDepositedLiquidityItem(position).label }}</span>
+                      <span class='virtual-bootstrap-tag'>Deposited</span>
+                    </span>
+                  </span>
+                </div>
+                <div class='position-metric position-metric-virtual-quote'>
+                  <span class='metric-label'>
+                    Virtual reference
+                    <span class='metric-info'>?
+                      <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                        Used to seed the initial pool price; not deposited as liquidity.
+                      </q-tooltip>
+                    </span>
+                  </span>
+                  <span class='metric-value metric-value-stack virtual-bootstrap-stack'>
+                    <span class='virtual-bootstrap-line virtual-bootstrap-line-quote'>
+                      <span>{{ virtualQuoteLiquidityItem(position).label }}</span>
+                      <span class='virtual-bootstrap-tag'>Virtual</span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-else
                 class='position-summary-row'
-                :style='{ "--position-summary-columns": positionMetrics(position)?.owner_is_fee_to ? "5" : "4" }'
+                :style='{ "--position-summary-columns": "4" }'
               >
                 <div class='position-metric'>
                   <span class='metric-label'>Pool share</span>
@@ -140,20 +188,6 @@
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionFeesLabel(position).token0 }}</span>
                     <span>{{ positionFeesLabel(position).token1 }}</span>
-                  </span>
-                </div>
-                <div v-if='positionMetrics(position)?.owner_is_fee_to' class='position-metric'>
-                  <span class='metric-label'>
-                    Protocol Fees
-                    <span v-if='hasMetricsWarning(position)' class='metric-warning'>!
-                      <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
-                        {{ metricsWarningMessage(position) }}
-                      </q-tooltip>
-                    </span>
-                  </span>
-                  <span class='metric-value metric-value-stack'>
-                    <span>{{ positionProtocolFeesLabel(position).token0 }}</span>
-                    <span>{{ positionProtocolFeesLabel(position).token1 }}</span>
                   </span>
                 </div>
                 <div class='position-metric'>
@@ -194,16 +228,17 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, ref, watch } from 'vue'
+import axios from 'axios'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useMeta } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { usePageSeo } from 'src/utils/seo'
 import { constants } from 'src/constant'
 import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
 import { useUserStore } from 'src/stores/user'
-import { usePositionsStore, type Position, type PositionStatusFilter } from 'src/stores/positions'
-import { type PositionMetricsEntry } from 'src/stores/kline'
-import { ams, kline, swap, type meme } from 'src/stores/export'
+import { usePositionsStore, type Position, type PositionStatusFilter, type PositionsResponse } from 'src/stores/positions'
+import { type PositionMetricsEntry, type PositionsInvalidationPayload } from 'src/stores/kline'
+import { account, ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 
@@ -214,19 +249,33 @@ const positionsStore = usePositionsStore()
 
 const selectedStatus = ref<PositionStatusFilter>('active')
 const owner = ref('')
+const summaryPositions = ref<Position[]>([])
+const summaryPositionsRequestSerial = ref(0)
+const summaryPositionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
+const positionsRefreshTimer = ref<number | undefined>(undefined)
 
 const statusOptions: Array<{ value: PositionStatusFilter; label: string }> = [
   { value: 'all', label: 'All positions' },
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
+  { value: 'virtual', label: 'Virtual' },
 ]
 
 const selectedStatusLabel = computed(() => (
   statusOptions.find((option) => option.value === selectedStatus.value)?.label || 'Status'
 ))
 const walletConnected = computed(() => Boolean(userStore.chainId && userStore.publicKey))
-const visiblePositions = computed(() => positionsStore.positions)
-const formattedLiquidityShare = computed(() => formatLiquidity(positionsStore.activeLiquidityShare))
+const allPositions = computed(() => positionsStore.positions)
+const visiblePositions = computed(() => allPositions.value)
+const rewardPositions = computed(() => summaryPositions.value)
+const formattedLiquidityShare = computed(() => {
+  const total = rewardPositions.value.reduce((sum, position) => {
+    if (position.status === 'closed') return sum
+    const metrics = summaryPositionMetrics(position)
+    return sum + Number.parseFloat(metrics?.position_liquidity || position.current_liquidity || '0')
+  }, 0)
+  return formatFixedLiquidity(Number.isFinite(total) ? total : 0, 2)
+})
 const pools = computed(() => swap.Swap.pools())
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 const positionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
@@ -235,12 +284,13 @@ const showClosedHint = computed(() => (
   walletConnected.value &&
   positionsStore.loaded &&
   !positionsStore.loading &&
-  !visiblePositions.value.length &&
+  !allPositions.value.length &&
   selectedStatus.value !== 'closed'
 ))
 const emptyStateTitle = computed(() => {
   if (!walletConnected.value) return 'Connect wallet to view positions'
   if (selectedStatus.value === 'closed') return 'No closed positions'
+  if (selectedStatus.value === 'virtual') return 'No virtual positions'
   return 'No positions'
 })
 const emptyStateText = computed(() => {
@@ -250,18 +300,23 @@ const emptyStateText = computed(() => {
   if (selectedStatus.value === 'closed') {
     return 'You have not fully redeemed any liquidity positions yet.'
   }
+  if (selectedStatus.value === 'virtual') {
+    return 'No virtual initial liquidity positions are associated with your account.'
+  }
   return 'You do not have any liquidity positions for the selected filter yet.'
 })
 
 const buildOwnerParam = async () => {
-  const account = await userStore.account()
-  if (!account.owner || !account.chain_id) return ''
-  return `${account.chain_id}:${account.owner}`
+  const currentAccount = await userStore.account()
+  if (!currentAccount.owner || !account._Account.chainId(currentAccount)) return ''
+  return account._Account.accountDescription(currentAccount)
 }
 
 const refreshPositions = async () => {
   if (!walletConnected.value) {
     owner.value = ''
+    summaryPositions.value = []
+    summaryPositionMetricsSnapshots.value = {}
     positionMetricsSnapshots.value = {}
     positionsStore.clear()
     return
@@ -271,17 +326,44 @@ const refreshPositions = async () => {
   owner.value = nextOwner
 
   if (!nextOwner) {
+    summaryPositions.value = []
+    summaryPositionMetricsSnapshots.value = {}
     positionMetricsSnapshots.value = {}
     positionsStore.clear()
     return
   }
 
   void kline.Kline.getPoolStats(kline.TickerInterval.OneDay)
+  void refreshSummaryPositions(nextOwner)
   await positionsStore.fetchPositions(nextOwner, selectedStatus.value)
   void refreshPositionMetricsSnapshots(nextOwner, selectedStatus.value)
 }
 
-const positionKey = (position: Position) => `${position.pool_application}:${position.pool_id}:${position.status}`
+const schedulePositionsRefresh = () => {
+  if (positionsRefreshTimer.value !== undefined) {
+    window.clearTimeout(positionsRefreshTimer.value)
+  }
+  positionsRefreshTimer.value = window.setTimeout(() => {
+    positionsRefreshTimer.value = undefined
+    void refreshPositions()
+  }, 250)
+}
+
+const positionsInvalidationMatchesOwner = (payload: PositionsInvalidationPayload) => {
+  if (!owner.value) return false
+  return (payload.events || []).some((event) => {
+    const owners = event.owners || []
+    return owners.length === 0 || owners.includes(owner.value)
+  })
+}
+
+const positionKey = (position: Position) =>
+  `${position.pool_application}:${position.pool_id}:${position.status}:${position.position_kind || 'recorded'}`
+const positionStatusLabel = (status: Position['status']) => {
+  if (status === 'active') return 'Active'
+  if (status === 'virtual') return 'Virtual'
+  return 'Closed'
+}
 const tokenApplication = (token: string) => {
   if (!token || token === constants.LINERA_NATIVE_ID) return undefined
   return ams.Ams.application(token)
@@ -297,17 +379,95 @@ const tokenLogo = (token: string) => {
   const application = tokenApplication(token)
   return application ? ams.Ams.applicationLogo(application) : constants.LINERA_LOGO
 }
-const positionMetrics = (position: Position) => positionMetricsSnapshots.value[positionKey(position)]
-const positionLiquidity = (position: Position) =>
-  ({
-    liquidity:
-      positionMetrics(position)?.position_liquidity_live || position.current_liquidity || '0',
-    amount0: positionMetrics(position)?.redeemable_amount0 || '0',
-    amount1: positionMetrics(position)?.redeemable_amount1 || '0',
+const positionMetrics = (position: Position) =>
+  positionMetricsSnapshots.value[positionKey(position)] ||
+  positionMetricsSnapshots.value[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
+const summaryPositionMetrics = (position: Position) =>
+  summaryPositionMetricsSnapshots.value[positionKey(position)] ||
+  summaryPositionMetricsSnapshots.value[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
+const isProtocolFeeReceiver = (position: Position) =>
+  Boolean(owner.value && position.protocol_fee_receiver_account === owner.value)
+const hasProtocolFeeReceiverPosition = computed(() => (
+  rewardPositions.value.some((position) => isProtocolFeeReceiver(position))
+))
+const nativeValuationTotal = (
+  positions: Position[],
+  selectAmounts: (position: Position) => Array<{ token: string, amount: string | null | undefined }>,
+) => {
+  let memeValueNative = 0
+  let nativeAmount = 0
+  positions.forEach((position) => {
+    selectAmounts(position).forEach(({ token, amount }) => {
+      const numeric = Number.parseFloat(amount || '0')
+      if (!Number.isFinite(numeric)) return
+      if (token === constants.LINERA_NATIVE_ID) {
+        nativeAmount += numeric
+        return
+      }
+      memeValueNative += numeric * (nativePriceMap.value.get(token) || 0)
+    })
   })
+
+  return nativeAmount + memeValueNative
+}
+const nativeYieldLabel = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return `0 ${constants.LINERA_TICKER}`
+  return `≈ ${formatLiquidity(value)} ${constants.LINERA_TICKER}`
+}
+const isVirtualPosition = (position: Position) => position.status === 'virtual' || Boolean(position.is_virtual_position)
+const virtualInitialTokenAmounts = (position: Position): Array<{ token: string, amount: string | null | undefined }> => [
+  { token: position.token_0, amount: position.virtual_initial_amount0 },
+  { token: position.token_1, amount: position.virtual_initial_amount1 },
+]
+const virtualDepositedLiquidityItem = (position: Position) => {
+  const item = virtualInitialTokenAmounts(position).find(({ token, amount }) => {
+    const numeric = Number.parseFloat(amount || '0')
+    return token !== constants.LINERA_NATIVE_ID && Number.isFinite(numeric) && numeric > 0
+  })
+
+  if (!item) return { token: 'none', label: 'No meme token amount recorded' }
+  return {
+    token: item.token,
+    label: `${formatLiquidity(item.amount || '0')} ${tokenTicker(item.token)}`,
+  }
+}
+const virtualQuoteLiquidityItem = (position: Position) => {
+  const item = virtualInitialTokenAmounts(position).find(({ token, amount }) => {
+    const numeric = Number.parseFloat(amount || '0')
+    return token === constants.LINERA_NATIVE_ID && Number.isFinite(numeric) && numeric > 0
+  })
+
+  if (!item) return { token: constants.LINERA_NATIVE_ID, label: `No ${constants.LINERA_TICKER} reference recorded` }
+  return {
+    token: item.token,
+    label: `${formatLiquidity(item.amount || '0')} ${tokenTicker(item.token)}`,
+  }
+}
+const positionLiquidity = (position: Position) => {
+  if (isVirtualPosition(position)) {
+    return {
+      liquidity: position.current_liquidity || '0',
+      amount0: position.virtual_initial_amount0 || '0',
+      amount1: position.virtual_initial_amount1 || '0',
+    }
+  }
+
+  return {
+    liquidity:
+      positionMetrics(position)?.position_liquidity || position.current_liquidity || '0',
+    amount0:
+      positionMetrics(position)?.redeemable_amount0 ||
+      position.virtual_initial_amount0 ||
+      '0',
+    amount1:
+      positionMetrics(position)?.redeemable_amount1 ||
+      position.virtual_initial_amount1 ||
+      '0',
+  }
+}
 const poolForPosition = (position: Position) => swap.Swap.getPool(position.token_0, position.token_1)
 const positionShareRatio = (position: Position) => {
-  const ratio = Number.parseFloat(positionMetrics(position)?.exact_share_ratio || '0')
+  const ratio = Number.parseFloat(positionMetrics(position)?.share_ratio || '0')
 
   if (!Number.isFinite(ratio) || ratio <= 0) return 0
   return ratio
@@ -322,6 +482,13 @@ const formatPercentLabel = (value: number, fractionDigits = 2) => {
   return `${value.toFixed(fractionDigits).replace(/\.?0+$/, '')}%`
 }
 const positionFeesLabel = (position: Position) => {
+  if (isVirtualPosition(position)) {
+    return {
+      token0: '--',
+      token1: '--',
+    }
+  }
+
   const metrics = positionMetrics(position)
   if (!metrics) {
     return {
@@ -335,34 +502,95 @@ const positionFeesLabel = (position: Position) => {
     token1: `${formatLiquidity(metrics.fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
   }
 }
-const positionProtocolFeesLabel = (position: Position) => {
-  const metrics = positionMetrics(position)
-  if (!metrics?.owner_is_fee_to) {
-    return {
-      token0: '--',
-      token1: '--',
-    }
+const yieldSummaryPositions = computed(() => (
+  hasProtocolFeeReceiverPosition.value
+    ? rewardPositions.value.filter((position) => isProtocolFeeReceiver(position))
+    : rewardPositions.value.filter((position) => !position.is_virtual_position)
+))
+const tradingYieldNative = computed(() => nativeValuationTotal(
+  yieldSummaryPositions.value,
+  (position) => {
+    const metrics = summaryPositionMetrics(position)
+    return [
+      { token: position.token_0, amount: metrics?.fee_amount0 || '0' },
+      { token: position.token_1, amount: metrics?.fee_amount1 || '0' },
+    ]
+  },
+))
+const protocolYieldNative = computed(() => nativeValuationTotal(
+  rewardPositions.value.filter((position) => isProtocolFeeReceiver(position)),
+  (position) => {
+    const metrics = summaryPositionMetrics(position)
+    return [
+      {
+        token: position.token_0,
+        amount: metrics?.protocol_fee_amount0 || position.protocol_fee_reference_amount0 || '0',
+      },
+      {
+        token: position.token_1,
+        amount: metrics?.protocol_fee_amount1 || position.protocol_fee_reference_amount1 || '0',
+      },
+    ]
+  },
+))
+const positionValueNative = computed(() => nativeValuationTotal(
+  rewardPositions.value.filter((position) => position.status !== 'closed'),
+  (position) => {
+    const metrics = summaryPositionMetrics(position)
+    return [
+      { token: position.token_0, amount: metrics?.redeemable_amount0 || '0' },
+      { token: position.token_1, amount: metrics?.redeemable_amount1 || '0' },
+    ]
+  },
+))
+const positionValueNativeSummary = computed(() => ({
+  label: nativeYieldLabel(positionValueNative.value),
+}))
+const totalYieldSummary = computed(() => ({
+  label: nativeYieldLabel(tradingYieldNative.value + protocolYieldNative.value),
+}))
+const tradingYieldSummary = computed(() => ({
+  label: nativeYieldLabel(tradingYieldNative.value),
+}))
+const protocolYieldSummary = computed(() => ({
+  label: nativeYieldLabel(protocolYieldNative.value),
+}))
+const refreshSummaryPositions = async (nextOwner: string) => {
+  const requestSerial = ++summaryPositionsRequestSerial.value
+
+  if (!walletConnected.value || !nextOwner) {
+    summaryPositions.value = []
+    return
   }
 
-  return {
-    token0: `${formatLiquidity(metrics.protocol_fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
-    token1: `${formatLiquidity(metrics.protocol_fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
-  }
+  const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/positions`)
+  const response = await axios.get<PositionsResponse>(url, {
+    params: { owner: nextOwner, status: 'all' },
+  })
+  const metricsResponse = await kline.Kline.getPositionMetrics(nextOwner, 'all')
+
+  if (requestSerial !== summaryPositionsRequestSerial.value) return
+  summaryPositions.value = response.data.positions
+  summaryPositionMetricsSnapshots.value = Object.fromEntries(
+    (metricsResponse?.metrics || []).map((entry) => [
+      `${entry.pool_application}:${entry.pool_id}:${entry.status}:recorded`,
+      entry,
+    ]),
+  )
 }
 const hasMetricsWarning = (position: Position) => {
+  if (isVirtualPosition(position)) return false
   const metrics = positionMetrics(position)
-  return Boolean(metrics?.value_warning_message || (metrics?.value_warning_codes?.length || 0) > 0 || !metrics?.exact_fee_supported)
+  return Boolean(metrics?.value_warning_message || (metrics?.value_warning_codes?.length || 0) > 0)
 }
 const metricsWarningMessage = (position: Position) => {
   const metrics = positionMetrics(position)
   if (!metrics) return 'Fee values are still updating.'
   if (metrics.value_warning_message) return metrics.value_warning_message
-  if (!metrics.exact_fee_supported) {
-    return 'Current fee values are best-effort estimates and may change as more pool history is reconciled.'
-  }
   return 'Current fee values are still updating.'
 }
 const positionAprLabel = (position: Position) => {
+  if (isVirtualPosition(position)) return '--'
   const selectedPool = poolForPosition(position)
   if (!selectedPool) return '--'
 
@@ -390,6 +618,11 @@ const formatLiquidity = (value: string | number) => {
   if (numeric >= 1) return numeric.toFixed(4).replace(/\.?0+$/, '')
   return numeric.toFixed(6).replace(/\.?0+$/, '')
 }
+const formatFixedLiquidity = (value: string | number, fractionDigits: number) => {
+  const numeric = typeof value === 'number' ? value : Number.parseFloat(value || '0')
+  if (!Number.isFinite(numeric)) return (0).toFixed(fractionDigits)
+  return numeric.toFixed(fractionDigits)
+}
 const onExplorePoolsClick = () => {
   void router.push('/explore')
 }
@@ -414,13 +647,14 @@ const refreshPositionMetricsSnapshots = async (
     return
   }
 
-  const response = await kline.Kline.getPositionMetrics(nextOwner, status)
+  const metricsStatus = status === 'virtual' ? 'all' : status
+  const response = await kline.Kline.getPositionMetrics(nextOwner, metricsStatus)
   if (requestSerial !== positionMetricsRequestSerial.value) return
 
   const metrics = response?.metrics || []
   positionMetricsSnapshots.value = Object.fromEntries(
     metrics.map((entry) => [
-      `${entry.pool_application}:${entry.pool_id}:${entry.status}`,
+      `${entry.pool_application}:${entry.pool_id}:${entry.status}:recorded`,
       entry,
     ]),
   )
@@ -439,6 +673,28 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  owner,
+  (nextOwner) => {
+    if (!nextOwner) return
+    kline.Kline.initialize()
+    kline.Kline.subscribePositions(nextOwner)
+  },
+  { immediate: true },
+)
+
+const unsubscribePositionsListener = kline.Kline.onPositions((payload) => {
+  if (!positionsInvalidationMatchesOwner(payload)) return
+  schedulePositionsRefresh()
+})
+
+onBeforeUnmount(() => {
+  unsubscribePositionsListener?.()
+  if (positionsRefreshTimer.value !== undefined) {
+    window.clearTimeout(positionsRefreshTimer.value)
+  }
+})
 
 useMeta(() => ({
   script: {
@@ -488,38 +744,152 @@ usePageSeo(() => ({
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025)
 
 .reward-card
-  display: flex
-  justify-content: space-between
-  align-items: flex-start
-  gap: 24px
-  padding: 20px
-  border-radius: 24px
-  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 0.7px, transparent 0.7px)
-  background-size: 12px 12px
-  background-position: -5px -5px
+  position: relative
+  overflow: hidden
+  display: block
+  padding: 24px
+  border-radius: 28px
+  background: radial-gradient(circle at 12% 0%, rgba(247, 196, 92, 0.16), transparent 34%), radial-gradient(circle at 96% 18%, rgba(112, 221, 166, 0.10), transparent 34%), linear-gradient(135deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014))
+
+  &::after
+    content: ''
+    position: absolute
+    inset: 1px
+    border-radius: 27px
+    pointer-events: none
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 0.7px, transparent 0.7px)
+    background-size: 12px 12px
+    background-position: -5px -5px
+    opacity: 0.8
+
+.reward-hero,
+.reward-yield-strip
+  position: relative
+  z-index: 1
+
+.reward-kicker
+  margin-bottom: 12px
+  color: #9aa0ab
+  font-size: 12px
+  font-weight: 800
+  letter-spacing: 0.12em
+  text-transform: uppercase
 
 .reward-copy
   min-width: 0
 
+.reward-value-row
+  display: flex
+  align-items: baseline
+  justify-content: space-between
+  gap: 18px
+  min-width: 0
+
 .reward-value
-  font-size: 50px
+  display: flex
+  align-items: baseline
+  gap: 10px
+  flex-wrap: nowrap
+  min-width: 0
+  font-size: clamp(44px, 8vw, 68px)
   line-height: 1
-  letter-spacing: -0.05em
-  font-weight: 500
+  letter-spacing: -0.06em
+  font-weight: 650
   color: var(--q-light)
+
+.reward-value span
+  white-space: nowrap
+
+.reward-unit
+  display: inline-flex
+  align-items: center
+  height: 0.38em
+  font-size: 0.34em
+  line-height: 1
+  letter-spacing: 0.02em
+  color: #f3cf7a
+  font-weight: 800
 
 .reward-inline-logo
   display: inline-block
-  width: 0.92em !important
-  height: 0.92em !important
-  margin-left: 6px
-  vertical-align: -0.06em
+  width: 0.38em !important
+  height: 0.38em !important
+  flex: 0 0 auto
+  transform: translateY(0.08em)
+
+.reward-native-value
+  display: inline-flex
+  align-items: center
+  justify-content: flex-end
+  gap: 7px
+  flex: 0 0 auto
+  color: #d7dde7
+  font-size: clamp(15px, 2.2vw, 20px)
+  font-weight: 800
+  line-height: 1
+  letter-spacing: -0.02em
+  text-align: right
+  white-space: nowrap
+
+.reward-native-logo
+  width: 1em !important
+  height: 1em !important
+  flex: 0 0 auto
 
 .reward-label
-  margin-top: 8px
+  margin-top: 10px
   font-size: 14px
   font-weight: 600
   color: #9aa0ab
+
+.reward-yield-strip
+  display: flex
+  align-items: stretch
+  justify-content: space-between
+  gap: 10px
+  width: 100%
+  margin-top: 24px
+  border: 1px solid rgba(255, 255, 255, 0.07)
+  border-radius: 20px
+  background: rgba(10, 12, 18, 0.34)
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035)
+
+.reward-yield-item
+  display: grid
+  gap: 6px
+  min-width: 0
+  flex: 1 1 0
+  padding: 12px 14px
+  border-radius: 0
+  background: rgba(255, 255, 255, 0.035)
+  flex: 1 1 0
+  text-align: left
+
+  &:first-child
+    border-radius: 19px 0 0 19px
+
+  &:last-child
+    border-radius: 0 19px 19px 0
+
+.reward-yield-item-primary
+  background: rgba(255, 255, 255, 0.055)
+
+.reward-yield-item-protocol .reward-yield-value
+  color: #f3cf7a
+
+.reward-yield-label
+  font-size: 12px
+  font-weight: 700
+  letter-spacing: 0.04em
+  color: #9aa0ab
+  text-transform: uppercase
+
+.reward-yield-value
+  color: var(--q-light)
+  font-size: 17px
+  font-weight: 800
+  line-height: 1.1
+  white-space: nowrap
 
 .reward-info
   display: inline-flex
@@ -702,6 +1072,22 @@ usePageSeo(() => ({
   line-height: 1
   cursor: help
 
+.metric-info
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  width: 14px
+  height: 14px
+  margin-left: 6px
+  border-radius: 999px
+  border: 1px solid rgba(255, 255, 255, 0.12)
+  background: rgba(255, 255, 255, 0.04)
+  color: #aab1bd
+  font-size: 10px
+  font-weight: 700
+  line-height: 1
+  cursor: help
+
 .position-subtitle
   margin-top: 4px
 
@@ -724,6 +1110,10 @@ usePageSeo(() => ({
 .position-badge-closed
   background: rgba(255, 255, 255, 0.08)
   color: #d1d7e0
+
+.position-badge-virtual
+  background: rgba(247, 196, 92, 0.14)
+  color: #f3cf7a
 
 .position-badge-fee-to
   background: rgba(247, 196, 92, 0.14)
@@ -770,6 +1160,38 @@ usePageSeo(() => ({
   gap: 2px
   white-space: normal
   word-break: break-word
+
+.virtual-bootstrap-stack
+  gap: 8px
+
+.virtual-bootstrap-line
+  display: flex
+  align-items: center
+  flex-wrap: wrap
+  gap: 8px
+
+.virtual-bootstrap-line-quote
+  color: #d1d7e0
+
+.virtual-bootstrap-tag
+  display: inline-flex
+  align-items: center
+  min-height: 20px
+  padding: 0 8px
+  border-radius: 999px
+  background: rgba(255, 255, 255, 0.08)
+  color: #9aa0ab
+  font-size: 11px
+  font-weight: 700
+  line-height: 1
+
+.virtual-bootstrap-line:not(.virtual-bootstrap-line-quote) .virtual-bootstrap-tag
+  background: rgba(77, 214, 143, 0.12)
+  color: #7de9ab
+
+.virtual-bootstrap-line-quote .virtual-bootstrap-tag
+  background: rgba(247, 196, 92, 0.14)
+  color: #f3cf7a
 
 .empty-card
   display: flex
@@ -876,8 +1298,31 @@ usePageSeo(() => ({
     padding-left: 16px
     padding-right: 16px
 
-  .reward-card
-    display: block
+  .reward-yield-strip
+    flex-wrap: wrap
+    justify-content: flex-start
+
+  .reward-yield-item
+    flex: 1 1 100%
+    border-radius: 0
+    text-align: left
+
+    &:first-child
+      border-radius: 19px 19px 0 0
+
+    &:last-child
+      border-radius: 0 0 19px 19px
+
+  .reward-yield-value
+    white-space: normal
+
+  .reward-value-row
+    display: grid
+    gap: 12px
+
+  .reward-native-value
+    margin-bottom: 0
+    text-align: left
 
   .positions-header,
   .position-card-header

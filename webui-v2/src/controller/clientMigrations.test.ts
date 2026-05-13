@@ -1,8 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 
-import { runClientMigrations, type ClientMigration, type ClientMigrationDatabase } from './clientMigrations'
+import {
+  runClientMigrations,
+  type ClientMigration,
+  type ClientMigrationDatabase,
+} from './clientMigrations'
 
-const createFakeDb = (appliedIds: string[] = []): ClientMigrationDatabase & {
+const createFakeDb = (
+  appliedIds: string[] = [],
+): ClientMigrationDatabase & {
   clearedTables: string[]
   appliedOrder: string[]
 } => {

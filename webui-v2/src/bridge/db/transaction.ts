@@ -45,8 +45,8 @@ export class Transaction {
     timestampEnd?: number,
     limit?: number,
   ) => {
-    const startAt = timestampBegin ? timestampBegin * 1000 : 0
-    const endAt = timestampEnd ? timestampEnd * 1000 : Number.MAX_SAFE_INTEGER
+    const startAt = timestampBegin ?? 0
+    const endAt = timestampEnd ?? Number.MAX_SAFE_INTEGER
 
     const _startAt = startAt > endAt ? endAt : startAt
     const _endAt = startAt > endAt ? startAt : endAt

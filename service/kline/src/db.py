@@ -3,8 +3,9 @@ from swap import Transaction, Pool
 import time
 import warnings
 import json
-import os
 from decimal import Decimal
+from account_codec import AccountCodec
+from legacy_candle_materialization_tool import LegacyCandleMaterializationTool
 from candle_schema import (
     INTERVAL_BUCKET_MS,
     CandleState,
@@ -131,7 +132,10 @@ def build_kline_log_line(event: str, **fields) -> str:
 
 
 def build_pool_application_value(pool: Pool) -> str:
-    return f'{pool.pool_application.chain_id}:{pool.pool_application.owner}'
+    return AccountCodec().format_account(
+        chain_id=pool.pool_application.chain_id,
+        owner=pool.pool_application.owner,
+    )
 
 
 def build_legacy_pool_application_value(pool_id: int) -> str:
@@ -141,34 +145,6 @@ def build_legacy_pool_application_value(pool_id: int) -> str:
 class Db:
     TRANSACTIONS_RANGE_INDEX = 'idx_transactions_pool_reverse_created_at'
     TABLE_FULL_ERRNO = 1114
-    DEBUG_TRACES_MAX_BYTES = 1024 * 1024 * 1024
-    DEBUG_TRACES_CLEANUP_INTERVAL_MS = 5 * 60 * 1000
-    DEBUG_TRACES_RECENT_FULL_MS = 6 * 60 * 60 * 1000
-    DEBUG_TRACES_SUCCESS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-    DEBUG_TRACES_FAILURE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
-    DEBUG_TRACES_SUCCESS_SAMPLE_MOD = 25
-    DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD = 100
-    DEBUG_TRACES_CLEANUP_BATCH_SIZE = 2000
-    DEBUG_TRACES_SUCCESS_FIELD_LIMITS = {
-        'request_payload': 16 * 1024,
-        'response_body': 32 * 1024,
-        'details': 16 * 1024,
-    }
-    DEBUG_TRACES_FAILURE_FIELD_LIMITS = {
-        'request_payload': 64 * 1024,
-        'response_body': 128 * 1024,
-        'details': 64 * 1024,
-    }
-    DEBUG_TRACES_ARCHIVED_SUCCESS_FIELD_LIMITS = {
-        'request_payload': 2 * 1024,
-        'response_body': 4 * 1024,
-        'details': 2 * 1024,
-    }
-    DEBUG_TRACES_ARCHIVED_FAILURE_FIELD_LIMITS = {
-        'request_payload': 16 * 1024,
-        'response_body': 32 * 1024,
-        'details': 16 * 1024,
-    }
 
     def __init__(self, host, port, db_name, username, password, clean_kline):
         self.host = host
@@ -183,6 +159,10 @@ class Db:
             'port': self.port,
             'autocommit': True,
             'raise_on_warnings': False, # TODO: Test with alchemy
+            'connection_timeout': 5,
+            'read_timeout': 30,
+            'write_timeout': 30,
+            'use_pure': True,
         }
 
         # TODO: use alchemy in feature
@@ -197,9 +177,13 @@ class Db:
         self.maker_events_table = 'maker_events'
         self.diagnostics_table = 'diagnostics'
         self.debug_traces_table = 'debug_traces'
+        self.realtime_diagnostics_table = 'realtime_diagnostics'
         self.debug_storage_degraded_tables = set()
-        self.last_debug_trace_cleanup_at_ms = 0
-        self._load_debug_trace_runtime_config()
+        self.debug_retention_ttl_ms = 24 * 60 * 60 * 1000
+        self.debug_retention_max_rows = 10_000
+        self._debug_retention_cleanup_interval_ms = 60_000
+        self._debug_retention_last_cleanup_ms_by_table = {}
+        self.legacy_candle_materialization_tool = LegacyCandleMaterializationTool(self)
 
         if clean_kline is True:
             self.cursor.execute(f'DROP DATABASE {self.db_name}')
@@ -343,64 +327,37 @@ class Db:
             ''')
             self.connection.commit()
 
+        if self.realtime_diagnostics_table not in tables:
+            self.cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.realtime_diagnostics_table} (
+                    realtime_diagnostic_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    stage VARCHAR(64) NOT NULL,
+                    event_type VARCHAR(64) NULL,
+                    pool_application VARCHAR(256) NULL,
+                    pool_id INT UNSIGNED NULL,
+                    transaction_id INT UNSIGNED NULL,
+                    event_time_ms BIGINT UNSIGNED NULL,
+                    queue_lag_ms BIGINT NULL,
+                    build_duration_ms BIGINT NULL,
+                    notify_duration_ms BIGINT NULL,
+                    event_count INT UNSIGNED NULL,
+                    kline_payload_count INT UNSIGNED NULL,
+                    transaction_payload_count INT UNSIGNED NULL,
+                    positions_payload_count INT UNSIGNED NULL,
+                    thread_id BIGINT UNSIGNED NULL,
+                    details TEXT NULL,
+                    created_at BIGINT UNSIGNED NOT NULL,
+                    PRIMARY KEY (realtime_diagnostic_id)
+                )
+            ''')
+            self.connection.commit()
+
         self.ensure_kline_identity_columns()
         self.ensure_transactions_indexes()
         self.ensure_debug_indexes()
         self.ensure_kline_columns()
 
         self.cursor_dict = self.connection.cursor(dictionary=True)
-
-    def _read_int_env(self, env_name: str, default_value: int) -> int:
-        raw_value = os.getenv(env_name)
-        if raw_value is None or str(raw_value).strip() == '':
-            return int(default_value)
-        try:
-            return int(str(raw_value).strip())
-        except ValueError:
-            self.log_kline_event(
-                'debug_trace_config_invalid',
-                env=env_name,
-                value=raw_value,
-                fallback=default_value,
-            )
-            return int(default_value)
-
-    def _load_debug_trace_runtime_config(self):
-        self.DEBUG_TRACES_MAX_BYTES = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_MAX_BYTES', self.DEBUG_TRACES_MAX_BYTES),
-            1024 * 1024,
-        )
-        self.DEBUG_TRACES_CLEANUP_INTERVAL_MS = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_CLEANUP_INTERVAL_MS', self.DEBUG_TRACES_CLEANUP_INTERVAL_MS),
-            1000,
-        )
-        self.DEBUG_TRACES_RECENT_FULL_MS = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_RECENT_FULL_MS', self.DEBUG_TRACES_RECENT_FULL_MS),
-            60 * 1000,
-        )
-        self.DEBUG_TRACES_SUCCESS_RETENTION_MS = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_SUCCESS_RETENTION_MS', self.DEBUG_TRACES_SUCCESS_RETENTION_MS),
-            self.DEBUG_TRACES_RECENT_FULL_MS,
-        )
-        self.DEBUG_TRACES_FAILURE_RETENTION_MS = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_FAILURE_RETENTION_MS', self.DEBUG_TRACES_FAILURE_RETENTION_MS),
-            self.DEBUG_TRACES_SUCCESS_RETENTION_MS,
-        )
-        self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_SUCCESS_SAMPLE_MOD', self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD),
-            1,
-        )
-        self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD = max(
-            self._read_int_env(
-                'KLINE_DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD',
-                self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD,
-            ),
-            self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD,
-        )
-        self.DEBUG_TRACES_CLEANUP_BATCH_SIZE = max(
-            self._read_int_env('KLINE_DEBUG_TRACES_CLEANUP_BATCH_SIZE', self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
-            1,
-        )
 
     def _reconnect_read_connection(self):
         for cursor_name in ('cursor_dict', 'cursor'):
@@ -436,6 +393,10 @@ class Db:
         except Exception:
             self._reconnect_read_connection()
 
+    def fresh_cursor(self, *, dictionary: bool = False):
+        self.ensure_fresh_read_connection()
+        return self.connection.cursor(dictionary=dictionary)
+
     def log_kline_event(self, event: str, **fields):
         print(build_kline_log_line(event, **fields))
 
@@ -464,6 +425,7 @@ class Db:
 
     def _run_debug_write(self, *, table_name: str, operation: str, callback):
         try:
+            self._cleanup_debug_table_if_due(table_name=table_name, reserve_rows=1)
             callback()
             self.connection.commit()
             return True
@@ -476,6 +438,53 @@ class Db:
                 )
                 return False
             raise
+
+    def _cleanup_debug_table_if_due(self, *, table_name: str, reserve_rows: int = 0):
+        now_ms = self.now_ms()
+        last_cleanup_ms = self._debug_retention_last_cleanup_ms_by_table.get(table_name, 0)
+        if now_ms - last_cleanup_ms < self._debug_retention_cleanup_interval_ms:
+            return
+        self._debug_retention_last_cleanup_ms_by_table[table_name] = now_ms
+        self._cleanup_debug_table(table_name=table_name, now_ms=now_ms, reserve_rows=reserve_rows)
+
+    def _cleanup_debug_table(self, *, table_name: str, now_ms: int | None = None, reserve_rows: int = 0):
+        id_columns = {
+            self.diagnostics_table: 'diagnostic_id',
+            self.debug_traces_table: 'trace_id',
+            self.realtime_diagnostics_table: 'realtime_diagnostic_id',
+        }
+        id_column = id_columns.get(table_name)
+        if id_column is None:
+            return
+        effective_now_ms = self.now_ms() if now_ms is None else int(now_ms)
+        cutoff_ms = effective_now_ms - self.debug_retention_ttl_ms
+        self.cursor.execute(
+            f'DELETE FROM {table_name} WHERE created_at < %s',
+            (cutoff_ms,),
+        )
+        self.cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+        row_count = int((self.cursor.fetchone() or [0])[0] or 0)
+        max_rows_after_cleanup = max(0, self.debug_retention_max_rows - int(reserve_rows))
+        overflow = row_count - max_rows_after_cleanup
+        if overflow > 0:
+            self.cursor.execute(
+                f'''
+                    DELETE FROM {table_name}
+                    ORDER BY {id_column} ASC
+                    LIMIT %s
+                ''',
+                (overflow,),
+            )
+        self.connection.commit()
+
+    def cleanup_debug_tables(self):
+        now_ms = self.now_ms()
+        for table_name in (
+            self.diagnostics_table,
+            self.debug_traces_table,
+            self.realtime_diagnostics_table,
+        ):
+            self._cleanup_debug_table(table_name=table_name, now_ms=now_ms)
 
     def record_diagnostic_event(
         self,
@@ -593,14 +602,7 @@ class Db:
         pool_id: int | None = None,
         details: dict | None = None,
     ):
-        trace_values = self._prepare_debug_trace_values(
-            request_payload=request_payload,
-            response_status=response_status,
-            response_body=response_body,
-            error=error,
-            details=details,
-        )
-        wrote_trace = self._run_debug_write(
+        self._run_debug_write(
             table_name=self.debug_traces_table,
             operation='insert',
             callback=lambda: self.cursor.execute(
@@ -633,19 +635,166 @@ class Db:
                     pool_application,
                     None if pool_id is None else int(pool_id),
                     request_url,
-                    trace_values['request_payload'],
+                    serialize_trace_value(request_payload),
                     None if response_status is None else int(response_status),
-                    trace_values['response_body'],
+                    serialize_trace_value(response_body),
                     error,
-                    trace_values['details'],
+                    serialize_trace_value(details),
                     self.now_ms(),
                 ),
             ),
         )
-        if wrote_trace is False:
-            self._maybe_cleanup_debug_traces(force=True)
-            return
-        self._maybe_cleanup_debug_traces()
+
+    def record_realtime_diagnostic(
+        self,
+        *,
+        stage: str,
+        event_type: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        transaction_id: int | None = None,
+        event_time_ms: int | None = None,
+        queue_lag_ms: int | None = None,
+        build_duration_ms: int | None = None,
+        notify_duration_ms: int | None = None,
+        event_count: int | None = None,
+        kline_payload_count: int | None = None,
+        transaction_payload_count: int | None = None,
+        positions_payload_count: int | None = None,
+        thread_id: int | None = None,
+        details: dict | None = None,
+    ):
+        self._run_debug_write(
+            table_name=self.realtime_diagnostics_table,
+            operation='insert',
+            callback=lambda: self.cursor.execute(
+                f'''
+                    INSERT INTO {self.realtime_diagnostics_table}
+                    (
+                        stage,
+                        event_type,
+                        pool_application,
+                        pool_id,
+                        transaction_id,
+                        event_time_ms,
+                        queue_lag_ms,
+                        build_duration_ms,
+                        notify_duration_ms,
+                        event_count,
+                        kline_payload_count,
+                        transaction_payload_count,
+                        positions_payload_count,
+                        thread_id,
+                        details,
+                        created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''',
+                (
+                    stage,
+                    event_type,
+                    pool_application,
+                    None if pool_id is None else int(pool_id),
+                    None if transaction_id is None else int(transaction_id),
+                    None if event_time_ms is None else int(event_time_ms),
+                    None if queue_lag_ms is None else int(queue_lag_ms),
+                    None if build_duration_ms is None else int(build_duration_ms),
+                    None if notify_duration_ms is None else int(notify_duration_ms),
+                    None if event_count is None else int(event_count),
+                    None if kline_payload_count is None else int(kline_payload_count),
+                    None if transaction_payload_count is None else int(transaction_payload_count),
+                    None if positions_payload_count is None else int(positions_payload_count),
+                    None if thread_id is None else int(thread_id),
+                    None if details is None else json.dumps(details, ensure_ascii=True, sort_keys=True),
+                    self.now_ms(),
+                ),
+            ),
+        )
+
+    def get_realtime_diagnostics(
+        self,
+        *,
+        stage: str | None = None,
+        event_type: str | None = None,
+        pool_application: str | None = None,
+        pool_id: int | None = None,
+        start_at: int | None = None,
+        end_at: int | None = None,
+        limit: int = 200,
+    ):
+        self.ensure_fresh_read_connection()
+        where_clauses = []
+        params = []
+        if stage is not None:
+            where_clauses.append('stage = %s')
+            params.append(stage)
+        if event_type is not None:
+            where_clauses.append('event_type = %s')
+            params.append(event_type)
+        if pool_application is not None:
+            where_clauses.append('pool_application = %s')
+            params.append(pool_application)
+        if pool_id is not None:
+            where_clauses.append('pool_id = %s')
+            params.append(int(pool_id))
+        if start_at is not None:
+            where_clauses.append('created_at >= %s')
+            params.append(int(start_at))
+        if end_at is not None:
+            where_clauses.append('created_at <= %s')
+            params.append(int(end_at))
+        where_sql = ''
+        if where_clauses:
+            where_sql = 'WHERE ' + ' AND '.join(where_clauses)
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    realtime_diagnostic_id,
+                    stage,
+                    event_type,
+                    pool_application,
+                    pool_id,
+                    transaction_id,
+                    event_time_ms,
+                    queue_lag_ms,
+                    build_duration_ms,
+                    notify_duration_ms,
+                    event_count,
+                    kline_payload_count,
+                    transaction_payload_count,
+                    positions_payload_count,
+                    thread_id,
+                    details,
+                    created_at
+                FROM {self.realtime_diagnostics_table}
+                {where_sql}
+                ORDER BY realtime_diagnostic_id DESC
+                LIMIT %s
+            ''',
+            (*params, int(limit)),
+        )
+        rows = []
+        for row in self.cursor_dict.fetchall():
+            rows.append({
+                'realtime_diagnostic_id': int(row['realtime_diagnostic_id']),
+                'stage': row['stage'],
+                'event_type': row['event_type'],
+                'pool_application': row['pool_application'],
+                'pool_id': None if row['pool_id'] is None else int(row['pool_id']),
+                'transaction_id': None if row['transaction_id'] is None else int(row['transaction_id']),
+                'event_time_ms': None if row['event_time_ms'] is None else int(row['event_time_ms']),
+                'queue_lag_ms': None if row['queue_lag_ms'] is None else int(row['queue_lag_ms']),
+                'build_duration_ms': None if row['build_duration_ms'] is None else int(row['build_duration_ms']),
+                'notify_duration_ms': None if row['notify_duration_ms'] is None else int(row['notify_duration_ms']),
+                'event_count': None if row['event_count'] is None else int(row['event_count']),
+                'kline_payload_count': None if row['kline_payload_count'] is None else int(row['kline_payload_count']),
+                'transaction_payload_count': None if row['transaction_payload_count'] is None else int(row['transaction_payload_count']),
+                'positions_payload_count': None if row['positions_payload_count'] is None else int(row['positions_payload_count']),
+                'thread_id': None if row['thread_id'] is None else int(row['thread_id']),
+                'details': None if row['details'] is None else json.loads(row['details']),
+                'created_at': int(row['created_at']),
+            })
+        return rows
 
     def get_debug_traces(
         self,
@@ -765,7 +914,9 @@ class Db:
         pool_stub.token_0 = token_0
         pool_stub.token_1 = token_1
         pool_stub.pool_application = type('PoolApplicationStub', (), {})()
-        pool_stub.pool_application.chain_id, pool_stub.pool_application.owner = pool_application.split(':', 1)
+        parsed_pool_application = AccountCodec().parse_account(pool_application)
+        pool_stub.pool_application.chain_id = parsed_pool_application['chain_id']
+        pool_stub.pool_application.owner = parsed_pool_application['owner']
         return pool_stub, pool_application
 
     def resolve_pool_application(self, pool_id: int, pool_application: str | None = None) -> str:
@@ -867,374 +1018,14 @@ class Db:
         if len(existing_columns) > 0:
             self.cursor.execute(f'DROP INDEX {index_name} ON {table_name}')
 
-        self.cursor.execute(
-            f'CREATE INDEX {index_name} ON {table_name} ({", ".join(expected_columns)})'
-        )
-        self.connection.commit()
-
-    def _is_failure_trace(self, response_status: int | None, error: str | None) -> bool:
-        if error is not None:
-            return True
-        if response_status is None:
-            return False
-        return int(response_status) >= 400
-
-    def _clip_trace_text(self, value: str | None, max_bytes: int, field_name: str) -> str | None:
-        if value is None:
-            return None
-
-        encoded = value.encode('utf-8')
-        if len(encoded) <= max_bytes:
-            return value
-
-        suffix = f'...[truncated {len(encoded) - max_bytes} bytes from {field_name}]'
-        suffix_bytes = suffix.encode('utf-8')
-        if len(suffix_bytes) >= max_bytes:
-            return suffix_bytes[:max_bytes].decode('utf-8', errors='ignore')
-
-        prefix_bytes = encoded[:max_bytes - len(suffix_bytes)]
-        prefix = prefix_bytes.decode('utf-8', errors='ignore')
-        return f'{prefix}{suffix}'
-
-    def _serialize_and_clip_trace_value(self, value, max_bytes: int, field_name: str) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            return self._clip_trace_text(value, max_bytes, field_name)
-
-        serialized = serialize_trace_value(value)
-        if serialized is None:
-            return None
-        encoded = serialized.encode('utf-8')
-        if len(encoded) <= max_bytes:
-            return serialized
-
-        preview = self._clip_trace_text(
-            serialized,
-            max(256, min(max_bytes // 2, 4096)),
-            field_name,
-        )
-        return json.dumps(
-            {
-                '_truncated': True,
-                '_field': field_name,
-                '_original_bytes': len(encoded),
-                '_preview': preview,
-            },
-            ensure_ascii=True,
-            sort_keys=True,
-        )
-
-    def _get_trace_field_limits(
-        self,
-        *,
-        is_failure: bool,
-        archived: bool = False,
-        hard_pressure: bool = False,
-    ) -> dict[str, int]:
-        if archived:
-            limits = (
-                self.DEBUG_TRACES_ARCHIVED_FAILURE_FIELD_LIMITS
-                if is_failure
-                else self.DEBUG_TRACES_ARCHIVED_SUCCESS_FIELD_LIMITS
-            )
-        else:
-            limits = (
-                self.DEBUG_TRACES_FAILURE_FIELD_LIMITS
-                if is_failure
-                else self.DEBUG_TRACES_SUCCESS_FIELD_LIMITS
-            )
-
-        if hard_pressure is False:
-            return limits
-
-        return {
-            field_name: max(512, int(limit // 2))
-            for field_name, limit in limits.items()
-        }
-
-    def _prepare_debug_trace_values(
-        self,
-        *,
-        request_payload,
-        response_status: int | None,
-        response_body,
-        error: str | None,
-        details,
-        archived: bool = False,
-        hard_pressure: bool = False,
-    ) -> dict[str, str | None]:
-        is_failure = self._is_failure_trace(response_status, error)
-        limits = self._get_trace_field_limits(
-            is_failure=is_failure,
-            archived=archived,
-            hard_pressure=hard_pressure,
-        )
-        return {
-            'request_payload': self._serialize_and_clip_trace_value(
-                request_payload,
-                limits['request_payload'],
-                'request_payload',
-            ),
-            'response_body': self._serialize_and_clip_trace_value(
-                response_body,
-                limits['response_body'],
-                'response_body',
-            ),
-            'details': self._serialize_and_clip_trace_value(
-                details,
-                limits['details'],
-                'details',
-            ),
-        }
-
-    def _get_debug_trace_table_bytes(self) -> int:
-        self.cursor_dict.execute(
-            '''
-                SELECT COALESCE(DATA_LENGTH + INDEX_LENGTH, 0) AS table_bytes
-                FROM information_schema.TABLES
-                WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
-            ''',
-            (self.db_name, self.debug_traces_table),
-        )
-        row = self.cursor_dict.fetchone()
-        if row is None:
-            return 0
-        value = row['table_bytes'] if isinstance(row, dict) else row[0]
-        return 0 if value is None else int(value)
-
-    def get_debug_trace_retention_config(self) -> dict:
-        return {
-            'max_bytes': int(self.DEBUG_TRACES_MAX_BYTES),
-            'cleanup_interval_ms': int(self.DEBUG_TRACES_CLEANUP_INTERVAL_MS),
-            'recent_full_ms': int(self.DEBUG_TRACES_RECENT_FULL_MS),
-            'success_retention_ms': int(self.DEBUG_TRACES_SUCCESS_RETENTION_MS),
-            'failure_retention_ms': int(self.DEBUG_TRACES_FAILURE_RETENTION_MS),
-            'success_sample_mod': int(self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD),
-            'hard_pressure_success_sample_mod': int(self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD),
-            'cleanup_batch_size': int(self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
-            'success_field_limits': dict(self.DEBUG_TRACES_SUCCESS_FIELD_LIMITS),
-            'failure_field_limits': dict(self.DEBUG_TRACES_FAILURE_FIELD_LIMITS),
-            'archived_success_field_limits': dict(self.DEBUG_TRACES_ARCHIVED_SUCCESS_FIELD_LIMITS),
-            'archived_failure_field_limits': dict(self.DEBUG_TRACES_ARCHIVED_FAILURE_FIELD_LIMITS),
-        }
-
-    def get_debug_trace_storage_status(self) -> dict:
-        table_bytes = self._get_debug_trace_table_bytes()
-        max_bytes = int(self.DEBUG_TRACES_MAX_BYTES)
-        usage_ratio = 0.0 if max_bytes <= 0 else round(table_bytes / max_bytes, 6)
-        return {
-            'table': self.debug_traces_table,
-            'table_bytes': table_bytes,
-            'table_mib': round(table_bytes / 1024 / 1024, 4),
-            'max_bytes': max_bytes,
-            'max_mib': round(max_bytes / 1024 / 1024, 4),
-            'usage_ratio': usage_ratio,
-            'over_budget': table_bytes > max_bytes,
-            'last_cleanup_at_ms': int(self.last_debug_trace_cleanup_at_ms or 0),
-            'storage_degraded': self.debug_traces_table in self.debug_storage_degraded_tables,
-            'retention': self.get_debug_trace_retention_config(),
-        }
-
-    def _compact_debug_trace_rows(
-        self,
-        *,
-        failure_only: bool,
-        older_than_ms: int,
-        hard_pressure: bool = False,
-    ) -> int:
-        where_clause = (
-            '(error IS NOT NULL OR response_status >= 400)'
-            if failure_only
-            else '(error IS NULL AND (response_status IS NULL OR response_status < 400))'
-        )
-        self.cursor_dict.execute(
-            f'''
-                SELECT trace_id, request_payload, response_status, response_body, error, details
-                FROM {self.debug_traces_table}
-                WHERE created_at < %s
-                AND {where_clause}
-                ORDER BY trace_id ASC
-                LIMIT %s
-            ''',
-            (int(older_than_ms), self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
-        )
-        rows = self.cursor_dict.fetchall()
-        updated_count = 0
-        for row in rows:
-            clipped = self._prepare_debug_trace_values(
-                request_payload=row['request_payload'],
-                response_status=row['response_status'],
-                response_body=row['response_body'],
-                error=row['error'],
-                details=row['details'],
-                archived=True,
-                hard_pressure=hard_pressure,
-            )
-            if (
-                clipped['request_payload'] == row['request_payload']
-                and clipped['response_body'] == row['response_body']
-                and clipped['details'] == row['details']
-            ):
-                continue
-
-            self.cursor.execute(
-                f'''
-                    UPDATE {self.debug_traces_table}
-                    SET request_payload = %s, response_body = %s, details = %s
-                    WHERE trace_id = %s
-                ''',
-                (
-                    clipped['request_payload'],
-                    clipped['response_body'],
-                    clipped['details'],
-                    int(row['trace_id']),
-                ),
-            )
-            updated_count += 1
-
-        if updated_count > 0:
-            self.connection.commit()
-        return updated_count
-
-    def _delete_expired_debug_traces(self, *, older_than_ms: int) -> int:
-        self.cursor.execute(
-            f'''
-                DELETE FROM {self.debug_traces_table}
-                WHERE created_at < %s
-                ORDER BY trace_id ASC
-                LIMIT %s
-            ''',
-            (int(older_than_ms), self.DEBUG_TRACES_CLEANUP_BATCH_SIZE),
-        )
-        deleted_count = int(self.cursor.rowcount)
-        if deleted_count > 0:
-            self.connection.commit()
-        return deleted_count
-
-    def _delete_sampled_success_debug_traces(
-        self,
-        *,
-        older_than_ms: int,
-        sample_mod: int,
-    ) -> int:
-        self.cursor.execute(
-            f'''
-                DELETE FROM {self.debug_traces_table}
-                WHERE created_at < %s
-                AND error IS NULL
-                AND (response_status IS NULL OR response_status < 400)
-                AND MOD(trace_id, %s) != 0
-                ORDER BY trace_id ASC
-                LIMIT %s
-            ''',
-            (
-                int(older_than_ms),
-                int(sample_mod),
-                self.DEBUG_TRACES_CLEANUP_BATCH_SIZE,
-            ),
-        )
-        deleted_count = int(self.cursor.rowcount)
-        if deleted_count > 0:
-            self.connection.commit()
-        return deleted_count
-
-    def _optimize_debug_traces_table(self):
-        self.cursor.execute(f'OPTIMIZE TABLE {self.debug_traces_table}')
-        self.connection.commit()
-
-    def _enforce_debug_trace_storage_budget(self, *, force: bool = False):
-        now_ms = self.now_ms()
-        if force is False and (
-            now_ms - self.last_debug_trace_cleanup_at_ms < self.DEBUG_TRACES_CLEANUP_INTERVAL_MS
-        ):
-            return
-        self.last_debug_trace_cleanup_at_ms = now_ms
-
-        table_bytes = self._get_debug_trace_table_bytes()
-        if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
-            return
-
-        changed = False
-        expired_before_ms = now_ms - self.DEBUG_TRACES_FAILURE_RETENTION_MS
-        success_before_ms = now_ms - self.DEBUG_TRACES_SUCCESS_RETENTION_MS
-        recent_before_ms = now_ms - self.DEBUG_TRACES_RECENT_FULL_MS
-
-        while table_bytes > self.DEBUG_TRACES_MAX_BYTES:
-            step_changed = False
-
-            if self._delete_expired_debug_traces(older_than_ms=expired_before_ms) > 0:
-                step_changed = True
-                changed = True
-            table_bytes = self._get_debug_trace_table_bytes()
-            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
-                break
-
-            if self._delete_sampled_success_debug_traces(
-                older_than_ms=success_before_ms,
-                sample_mod=self.DEBUG_TRACES_SUCCESS_SAMPLE_MOD,
-            ) > 0:
-                step_changed = True
-                changed = True
-            table_bytes = self._get_debug_trace_table_bytes()
-            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
-                break
-
-            if self._compact_debug_trace_rows(
-                failure_only=False,
-                older_than_ms=recent_before_ms,
-                hard_pressure=False,
-            ) > 0:
-                step_changed = True
-                changed = True
-            table_bytes = self._get_debug_trace_table_bytes()
-            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
-                break
-
-            if self._compact_debug_trace_rows(
-                failure_only=True,
-                older_than_ms=recent_before_ms,
-                hard_pressure=False,
-            ) > 0:
-                step_changed = True
-                changed = True
-            table_bytes = self._get_debug_trace_table_bytes()
-            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
-                break
-
-            if self._delete_sampled_success_debug_traces(
-                older_than_ms=recent_before_ms,
-                sample_mod=self.DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD,
-            ) > 0:
-                step_changed = True
-                changed = True
-            table_bytes = self._get_debug_trace_table_bytes()
-            if table_bytes <= self.DEBUG_TRACES_MAX_BYTES:
-                break
-
-            if self._compact_debug_trace_rows(
-                failure_only=True,
-                older_than_ms=recent_before_ms,
-                hard_pressure=True,
-            ) > 0:
-                step_changed = True
-                changed = True
-
-            table_bytes = self._get_debug_trace_table_bytes()
-            if step_changed is False:
-                break
-
-        if changed:
-            self._optimize_debug_traces_table()
-
-    def _maybe_cleanup_debug_traces(self, *, force: bool = False):
         try:
-            self._enforce_debug_trace_storage_budget(force=force)
-        except Exception as error:
-            self.log_kline_event(
-                'debug_trace_cleanup_failed',
-                error=str(error),
+            self.cursor.execute(
+                f'CREATE INDEX {index_name} ON {table_name} ({", ".join(expected_columns)})'
             )
+        except Exception as exc:
+            if getattr(exc, 'errno', None) != 1061:
+                raise
+        self.connection.commit()
 
     def backfill_legacy_pool_application(self):
         legacy_pool_application = f'CONCAT("legacy:", pool_id)'
@@ -1323,6 +1114,16 @@ class Db:
                 'idx_diagnostics_owner_created_diag',
                 ('owner', 'created_at', 'diagnostic_id'),
             ),
+            (
+                self.realtime_diagnostics_table,
+                'idx_realtime_diag_stage_created_id',
+                ('stage', 'created_at', 'realtime_diagnostic_id'),
+            ),
+            (
+                self.realtime_diagnostics_table,
+                'idx_realtime_diag_pool_created_id',
+                ('pool_id', 'created_at', 'realtime_diagnostic_id'),
+            ),
         ]
         for table_name, index_name, columns in index_specs:
             try:
@@ -1390,6 +1191,10 @@ class Db:
         quote_volume = transaction.quote_volume(token_reversed)
         price = transaction.price(token_reversed)
         created_at_ms = transaction.created_at // 1000
+        from_account = AccountCodec().format_account(
+            chain_id=transaction.from_.chain_id,
+            owner=transaction.from_.owner,
+        )
         self.cursor.execute(
             f'''
                 INSERT IGNORE INTO {self.transactions_table}
@@ -1399,7 +1204,7 @@ class Db:
              pool.pool_id,
              transaction.transaction_id,
              transaction.transaction_type,
-             f'{transaction.from_.chain_id}:{transaction.from_.owner}',
+             from_account,
              transaction.amount_0_in,
              transaction.amount_0_out,
              transaction.amount_1_in,
@@ -1431,7 +1236,7 @@ class Db:
             'pool_id': pool.pool_id,
             'transaction_id': transaction.transaction_id,
             'transaction_type': transaction.transaction_type,
-            'from_account': f'{transaction.from_.chain_id}:{transaction.from_.owner}',
+            'from_account': from_account,
             'amount_0_in': transaction.amount_0_in,
             'amount_0_out': transaction.amount_0_out,
             'amount_1_in': transaction.amount_1_in,
@@ -1529,27 +1334,13 @@ class Db:
         return len(candles_by_bucket)
 
     def rebuild_pair_candles(self, token_0: str, token_1: str, start_at: int, end_at: int, intervals=None):
-        (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
-        selected_intervals = list(intervals) if intervals is not None else list(INTERVAL_BUCKET_MS.keys())
-        results = {}
-        for interval in selected_intervals:
-            results[f'{interval}:forward'] = self.rebuild_candles_from_transactions(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                start_at=start_at,
-                end_at=end_at,
-            )
-            results[f'{interval}:reverse'] = self.rebuild_candles_from_transactions(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=not token_reversed,
-                interval=interval,
-                start_at=start_at,
-                end_at=end_at,
-            )
-        return results
+        return self.legacy_candle_materialization_tool.rebuild_pair_candles(
+            token_0=token_0,
+            token_1=token_1,
+            start_at=start_at,
+            end_at=end_at,
+            intervals=intervals,
+        )
 
     def new_maker_event(
         self,
@@ -1713,25 +1504,7 @@ class Db:
         if row is None:
             return None
         if row['quote_volume'] is None:
-            candle = self.rebuild_candle_from_transactions(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                bucket_start_ms=bucket_start_ms,
-            )
-            if candle is None:
-                return None
-
-            bucket_key = build_candle_bucket_key(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                created_at_ms=bucket_start_ms,
-            )
-            self.save_candle(bucket_key, candle)
-            return candle
+            return None
 
         return CandleState(
             open=float(row['open']),
@@ -1746,42 +1519,6 @@ class Db:
             first_trade_at_ms=int(row['first_trade_at_ms']),
             last_trade_at_ms=int(row['last_trade_at_ms']),
         )
-
-    def rebuild_candle_from_transactions(
-        self,
-        pool_id: int,
-        token_reversed: bool,
-        interval: str,
-        bucket_start_ms: int,
-        pool_application: str | None = None,
-    ):
-        pool_application = self.resolve_pool_application(pool_id, pool_application)
-        bucket_end_ms = bucket_start_ms + get_interval_bucket_ms(interval) - 1
-        query = build_kline_points_query(
-            table_name=self.transactions_table,
-            pool_application=pool_application,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-            start_at=bucket_start_ms,
-            end_at=bucket_end_ms,
-        )
-        self.cursor_dict.execute(query)
-        rows = self.cursor_dict.fetchall()
-
-        candle = None
-        for row in rows:
-            candle = apply_candle_update(
-                existing=candle,
-                update=CandleUpdate(
-                    transaction_id=int(row['transaction_id']),
-                    created_at_ms=int(row['created_at']),
-                    price=float(row['price']),
-                    base_volume=float(row['volume']),
-                    quote_volume=float(row['quote_volume']),
-                ),
-            )
-
-        return candle
 
     def save_candle(self, bucket_key, candle: CandleState):
         self.cursor.execute(
@@ -1867,6 +1604,43 @@ class Db:
             'base_volume': float(row['volume']),
             'quote_volume': float(row['quote_volume']),
         }
+
+    def has_legacy_candle_bucket(
+        self,
+        pool_id: int,
+        token_reversed: bool,
+        interval: str,
+        bucket_start_ms: int,
+        pool_application: str | None = None,
+    ) -> bool:
+        pool_application = self.resolve_pool_application(pool_id, pool_application)
+        self.cursor_dict.execute(
+            f'''
+                SELECT
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    quote_volume,
+                    trade_count,
+                    first_trade_id,
+                    last_trade_id,
+                    first_trade_at_ms,
+                    last_trade_at_ms
+                FROM {self.candles_table}
+                WHERE pool_application = %s
+                AND pool_id = %s
+                AND token_reversed = %s
+                AND interval_name = %s
+                AND bucket_start_ms = %s
+            ''',
+            (pool_application, pool_id, token_reversed, interval, bucket_start_ms),
+        )
+        row = self.cursor_dict.fetchone()
+        if row is None:
+            return False
+        return row['quote_volume'] is None
 
     def load_previous_candle(
         self,
@@ -1954,6 +1728,28 @@ class Db:
                 interval=interval,
                 bucket_start_ms=bucket_key.bucket_start_ms,
             )
+            if existing is None and self.has_legacy_candle_bucket(
+                pool_application=pool_application,
+                pool_id=pool_id,
+                token_reversed=token_reversed,
+                interval=interval,
+                bucket_start_ms=bucket_key.bucket_start_ms,
+            ):
+                self.rebuild_candles_from_transactions(
+                    pool_application=pool_application,
+                    pool_id=pool_id,
+                    token_reversed=token_reversed,
+                    interval=interval,
+                    start_at=bucket_key.bucket_start_ms,
+                    end_at=bucket_key.bucket_start_ms,
+                )
+                existing = self.load_candle(
+                    pool_application=pool_application,
+                    pool_id=pool_id,
+                    token_reversed=token_reversed,
+                    interval=interval,
+                    bucket_start_ms=bucket_key.bucket_start_ms,
+                )
             candle = apply_candle_update(existing=existing, update=update)
             self.save_candle(bucket_key, candle)
 
@@ -1992,515 +1788,25 @@ class Db:
 
         return (pool_id, pool_application, token_0, token_1, token_reversed)
 
-    def get_transactions_information(self, token_0: str, token_1: str):
-        self.ensure_fresh_read_connection()
-        if token_0 is None or token_1 is None:
-            query = f'''
-                SELECT
-                    COUNT(*) AS count,
-                    MAX(created_at) AS timestamp_begin,
-                    MIN(created_at) AS timestamp_end
-                FROM {self.transactions_table}
-                JOIN {self.pools_table}
-                  ON {self.transactions_table}.pool_id = {self.pools_table}.pool_id
-                 AND {self.transactions_table}.pool_application = {self.pools_table}.pool_application
-            '''
-        else:
-            try:
-                (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
-            except Exception as e:
-                print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
-                return []
-
-            query = f'''
-                SELECT
-                    COUNT(*) AS count,
-                    MAX(created_at) AS timestamp_begin,
-                    MIN(created_at) AS timestamp_end
-                FROM {self.transactions_table}
-                WHERE pool_application = "{pool_application}"
-                AND pool_id = {pool_id}
-                AND token_reversed = {token_reversed}
-            '''
-
-        self.cursor_dict.execute(query)
-        return self.cursor_dict.fetchone()
-
-    def get_latest_transaction_watermarks(self):
-        self.ensure_fresh_read_connection()
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    t.pool_id,
-                    t.pool_application,
-                    MAX(t.created_at) AS max_created_at
-                FROM {self.transactions_table} t
-                JOIN {self.pools_table} p
-                  ON t.pool_id = p.pool_id
-                 AND t.pool_application = p.pool_application
-                GROUP BY t.pool_id, t.pool_application
-            '''
-        )
-        watermark_rows = self.cursor_dict.fetchall()
-        watermarks = {}
-
-        for row in watermark_rows:
-            pool_id = int(row['pool_id'])
-            pool_application = row['pool_application']
-            created_at = int(row['max_created_at'])
-            self.cursor_dict.execute(
-                f'''
-                    SELECT
-                        transaction_id,
-                        created_at,
-                        token_reversed
-                    FROM {self.transactions_table}
-                    WHERE pool_application = %s
-                    AND pool_id = %s
-                    AND created_at = %s
-                    ORDER BY transaction_id DESC, token_reversed DESC
-                    LIMIT 1
-                ''',
-                (pool_application, pool_id, created_at),
-            )
-            latest_row = self.cursor_dict.fetchone()
-            if latest_row is None:
-                continue
-
-            watermarks[(pool_id, *pool_application.split(':', 1))] = (
-                int(latest_row['created_at']),
-                int(latest_row['transaction_id']),
-                1 if bool(latest_row['token_reversed']) else 0,
-            )
-
-        return watermarks
-
-    def get_pool_catalog(self):
-        self.ensure_fresh_read_connection()
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    pool_id,
-                    pool_application,
-                    token_0,
-                    token_1
-                FROM {self.pools_table}
-                ORDER BY pool_id ASC
-            '''
-        )
-        rows = []
-        for row in self.cursor_dict.fetchall():
-            rows.append({
-                'pool_id': int(row['pool_id']),
-                'pool_application': row['pool_application'],
-                'token_0': row['token_0'],
-                'token_1': row['token_1'],
-            })
-        return rows
-
-    def get_pool_transaction_id_bounds(self, pool_id: int, pool_application: str | None = None):
-        self.ensure_fresh_read_connection()
-        pool_application = self.resolve_pool_application(pool_id, pool_application)
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    MIN(transaction_id) AS min_transaction_id,
-                    MAX(transaction_id) AS max_transaction_id
-                FROM {self.transactions_table}
-                WHERE pool_application = %s
-                AND pool_id = %s
-                AND token_reversed = 0
-            ''',
-            (pool_application, pool_id),
-        )
-        row = self.cursor_dict.fetchone()
-        if row is None or row['min_transaction_id'] is None or row['max_transaction_id'] is None:
-            return None
-
-        return {
-            'min_transaction_id': int(row['min_transaction_id']),
-            'max_transaction_id': int(row['max_transaction_id']),
-        }
-
-    def get_pool_transaction_ids(
-        self,
-        pool_id: int,
-        pool_application: str | None = None,
-        start_id: int | None = None,
-        end_id: int | None = None,
-    ):
-        self.ensure_fresh_read_connection()
-        pool_application = self.resolve_pool_application(pool_id, pool_application)
-        lower_bound = 0 if start_id is None else int(start_id)
-        upper_bound = 2 ** 32 - 1 if end_id is None else int(end_id)
-        self.cursor_dict.execute(
-            f'''
-                SELECT transaction_id
-                FROM {self.transactions_table}
-                WHERE pool_application = %s
-                AND pool_id = %s
-                AND token_reversed = 0
-                AND transaction_id >= %s
-                AND transaction_id <= %s
-                ORDER BY transaction_id ASC
-            ''',
-            (pool_application, pool_id, lower_bound, upper_bound),
-        )
-        return [
-            int(row['transaction_id'])
-            for row in self.cursor_dict.fetchall()
-        ]
-
-    def get_transactions(self, token_0: str, token_1: str, start_at: int, end_at: int):
-        self.ensure_fresh_read_connection()
-        if token_0 is None or token_1 is None:
-            query = f'''
-                SELECT t.* FROM {self.transactions_table} t
-                JOIN {self.pools_table} p
-                  ON t.pool_id = p.pool_id
-                 AND t.pool_application = p.pool_application
-                WHERE created_at >= {start_at}
-                AND created_at <= {end_at}
-            '''
-        else:
-            try:
-                (pool_id, pool_application, token_0, token_1, token_reversed) = self.get_pool_identity(token_0, token_1)
-            except Exception as e:
-                print(f'Failed get pool {token_0}:{token_1} -> ERROR {e}')
-                return []
-
-            query = f'''
-                SELECT * FROM {self.transactions_table}
-                WHERE pool_application = "{pool_application}"
-                AND pool_id = {pool_id}
-                AND token_reversed = {token_reversed}
-                AND created_at >= {start_at}
-                AND created_at <= {end_at}
-            '''
-
-        self.cursor_dict.execute(query)
-        return self.cursor_dict.fetchall()
-
-    def get_positions(self, owner: str, status: str = 'active'):
-        self.ensure_fresh_read_connection()
-        normalized_status = (status or 'active').lower()
-        if normalized_status not in {'active', 'closed', 'all'}:
-            raise ValueError('Invalid positions status')
-
-        query_started_at = time.perf_counter()
-        query = f'''
-            SELECT
-                t.pool_application,
-                t.pool_id,
-                p.token_0,
-                p.token_1,
-                t.from_account AS owner,
-                COALESCE(SUM(CASE
-                    WHEN t.transaction_type = 'AddLiquidity' THEN t.liquidity
-                    ELSE 0
-                END), 0) AS added_liquidity,
-                COALESCE(SUM(CASE
-                    WHEN t.transaction_type = 'RemoveLiquidity' THEN t.liquidity
-                    ELSE 0
-                END), 0) AS removed_liquidity,
-                COALESCE(SUM(CASE
-                    WHEN t.transaction_type = 'AddLiquidity' THEN 1
-                    ELSE 0
-                END), 0) AS add_tx_count,
-                COALESCE(SUM(CASE
-                    WHEN t.transaction_type = 'RemoveLiquidity' THEN 1
-                    ELSE 0
-                END), 0) AS remove_tx_count,
-                MIN(CASE
-                    WHEN t.transaction_type = 'AddLiquidity' THEN t.created_at
-                    ELSE NULL
-                END) AS opened_at,
-                MAX(t.created_at) AS updated_at
-            FROM {self.transactions_table} t
-            JOIN {self.pools_table} p
-              ON p.pool_id = t.pool_id
-             AND p.pool_application = t.pool_application
-            WHERE
-                t.from_account = %s
-                AND t.transaction_type IN ('AddLiquidity', 'RemoveLiquidity')
-            GROUP BY
-                t.pool_application,
-                t.pool_id,
-                p.token_0,
-                p.token_1,
-                t.from_account
-        '''
-        try:
-            self.cursor_dict.execute(query, (owner,))
-            rows = self.cursor_dict.fetchall()
-        except Exception:
-            self._reconnect_read_connection()
-            self.cursor_dict.execute(query, (owner,))
-            rows = self.cursor_dict.fetchall()
-        query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
-
-        positions = []
-        for row in rows:
-            added_liquidity = Decimal(str(row['added_liquidity']))
-            removed_liquidity = Decimal(str(row['removed_liquidity']))
-            current_liquidity = added_liquidity - removed_liquidity
-            if abs(current_liquidity) < Decimal('0.000000000001'):
-                current_liquidity = Decimal('0')
-
-            position_status = 'active' if current_liquidity > 0 else 'closed'
-            if normalized_status != 'all' and position_status != normalized_status:
-                continue
-
-            positions.append({
-                'pool_application': row['pool_application'],
-                'pool_id': int(row['pool_id']),
-                'token_0': row['token_0'],
-                'token_1': row['token_1'],
-                'owner': row['owner'],
-                'status': position_status,
-                'current_liquidity': self.serialize_decimal(current_liquidity),
-                'added_liquidity': self.serialize_decimal(added_liquidity),
-                'removed_liquidity': self.serialize_decimal(removed_liquidity),
-                'add_tx_count': int(row['add_tx_count']),
-                'remove_tx_count': int(row['remove_tx_count']),
-                'opened_at': int(row['opened_at']) if row['opened_at'] is not None else None,
-                'updated_at': int(row['updated_at']) if row['updated_at'] is not None else None,
-                'closed_at': int(row['updated_at']) if position_status == 'closed' and row['updated_at'] is not None else None,
-            })
-
-        positions.sort(
-            key=lambda row: (
-                -(row['closed_at'] if normalized_status == 'closed' else row['updated_at'] or 0),
-                row['pool_id'],
-            ),
-        )
-        self.log_positions_event(
-            'query',
-            duration_ms=query_duration_ms,
-            owner=owner,
-            row_count=len(positions),
-            status=normalized_status,
-        )
-        return positions
-
-    def get_position_liquidity_history(self, owner: str, pool_application: str, pool_id: int):
-        self.ensure_fresh_read_connection()
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    transaction_id,
-                    transaction_type,
-                    amount_0_in,
-                    amount_0_out,
-                    amount_1_in,
-                    amount_1_out,
-                    liquidity,
-                    created_at
-                FROM {self.transactions_table}
-                WHERE
-                    from_account = %s
-                    AND pool_application = %s
-                    AND pool_id = %s
-                    AND transaction_type IN ('AddLiquidity', 'RemoveLiquidity')
-                ORDER BY created_at ASC, transaction_id ASC
-            ''',
-            (owner, pool_application, pool_id),
-        )
-        return self.cursor_dict.fetchall()
-
-    def get_pool_transaction_history(self, pool_application: str, pool_id: int):
-        self.ensure_fresh_read_connection()
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    transaction_id,
-                    transaction_type,
-                    from_account,
-                    amount_0_in,
-                    amount_0_out,
-                    amount_1_in,
-                    amount_1_out,
-                    liquidity,
-                    created_at
-                FROM {self.transactions_table}
-                WHERE
-                    pool_application = %s
-                    AND pool_id = %s
-                    AND token_reversed = 0
-                ORDER BY created_at ASC, transaction_id ASC
-            ''',
-            (pool_application, pool_id),
-        )
-        return self.cursor_dict.fetchall()
-
-    def get_pool_swap_count_since(
-        self,
-        pool_application: str,
-        pool_id: int,
-        created_at: int | None,
-    ) -> int:
-        self.ensure_fresh_read_connection()
-        lower_bound = int(created_at or 0)
-        self.cursor_dict.execute(
-            f'''
-                SELECT COUNT(*) AS swap_count
-                FROM {self.transactions_table}
-                WHERE
-                    pool_application = %s
-                    AND pool_id = %s
-                    AND created_at >= %s
-                    AND transaction_type NOT IN ('AddLiquidity', 'RemoveLiquidity')
-            ''',
-            (pool_application, pool_id, lower_bound),
-        )
-        row = self.cursor_dict.fetchone()
-        return int(row['swap_count']) if row is not None else 0
-
-    def get_pool_transaction_gap_summary(
-        self,
-        pool_application: str,
-        pool_id: int,
-        *,
-        start_id: int | None = None,
-        end_id: int | None = None,
-        sample_limit: int = 8,
-    ):
-        bounds = self.get_pool_transaction_id_bounds(pool_id, pool_application)
-        if bounds is None:
-            return {
-                'has_internal_gaps': False,
-                'start_id': None,
-                'end_id': None,
-                'missing_count': 0,
-                'missing_ids_sample': [],
-                'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
-            }
-
-        lower_bound = int(bounds['min_transaction_id']) if start_id is None else max(int(start_id), int(bounds['min_transaction_id']))
-        upper_bound = int(bounds['max_transaction_id']) if end_id is None else min(int(end_id), int(bounds['max_transaction_id']))
-        if lower_bound > upper_bound:
-            return {
-                'has_internal_gaps': False,
-                'start_id': lower_bound,
-                'end_id': upper_bound,
-                'missing_count': 0,
-                'missing_ids_sample': [],
-                'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
-            }
-
-        return {
-            'has_internal_gaps': False,
-            'start_id': lower_bound,
-            'end_id': upper_bound,
-            'missing_count': 0,
-            'missing_ids_sample': [],
-            'basis': 'accepted_transaction_ids_are_not_required_to_be_contiguous',
-        }
-
     def get_kline_information(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
-        self.ensure_fresh_read_connection()
-        (pool_id, pool_application, token_0, token_1, token_reversed) = self.resolve_pool_identity_for_read(
-            token_0,
-            token_1,
-            pool_id=pool_id,
-            pool_application=pool_application,
-        )
-
-        query = f'''
-            SELECT
-                COUNT(*) AS count,
-                MAX(created_at) AS timestamp_begin,
-                MIN(created_at) AS timestamp_end
-            FROM {self.transactions_table}
-            WHERE pool_application = "{pool_application}"
-            AND pool_id = {pool_id}
-            AND token_reversed = {token_reversed}
-            AND transaction_type != 'AddLiquidity'
-            AND transaction_type != 'RemoveLiquidity';
-        '''
-        self.cursor_dict.execute(query)
-        return self.cursor_dict.fetchone()
-
-    def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str, pool_id: int | None = None, pool_application: str | None = None):
-        self.ensure_fresh_read_connection()
-        request_started_at = time.perf_counter()
-        (pool_id, pool_application, token_0, token_1, token_reversed) = self.resolve_pool_identity_for_read(
-            token_0,
-            token_1,
-            pool_id=pool_id,
-            pool_application=pool_application,
-        )
-        interval = interval if interval is not None else '1min'
-        self.log_kline_event(
-            event='request_start',
-            end_at=end_at,
+        return self.legacy_candle_materialization_tool.get_kline_information(
+            token_0=token_0,
+            token_1=token_1,
             interval=interval,
             pool_id=pool_id,
-            start_at=start_at,
-            token_reversed=token_reversed,
-        )
-        points = self.get_kline_from_candles(
             pool_application=pool_application,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
+        )
+
+    def get_kline(self, token_0: str, token_1: str, start_at: int, end_at: int, interval: str, pool_id: int | None = None, pool_application: str | None = None):
+        return self.legacy_candle_materialization_tool.get_kline(
             token_0=token_0,
             token_1=token_1,
             start_at=start_at,
             end_at=end_at,
             interval=interval,
-        )
-        self.log_kline_event(
-            event='candles_result',
-            interval=interval,
-            point_count=len(points),
             pool_id=pool_id,
-            token_reversed=token_reversed,
-        )
-
-        if len(points) > 0:
-            self.log_kline_event(
-                event='request_complete',
-                duration_ms=int((time.perf_counter() - request_started_at) * 1000),
-                interval=interval,
-                point_count=len(points),
-                pool_id=pool_id,
-                source='candles',
-                token_reversed=token_reversed,
-            )
-            return (pool_id, pool_application, token_0, token_1, points)
-
-        self.log_kline_event(
-            event='transactions_fallback_start',
-            interval=interval,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-        )
-        points = self.get_kline_from_transactions(
             pool_application=pool_application,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-            start_at=start_at,
-            end_at=end_at,
-            interval=interval,
         )
-        self.log_kline_event(
-            event='transactions_result',
-            interval=interval,
-            point_count=len(points),
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-        )
-        self.log_kline_event(
-            event='request_complete',
-            duration_ms=int((time.perf_counter() - request_started_at) * 1000),
-            interval=interval,
-            point_count=len(points),
-            pool_id=pool_id,
-            source='transactions',
-            token_reversed=token_reversed,
-        )
-
-        return (pool_id, pool_application, token_0, token_1, points)
 
     def get_kline_from_candles(
         self,
@@ -2513,281 +1819,17 @@ class Db:
         interval: str,
         pool_application: str | None = None,
     ):
-        pool_application = self.resolve_pool_application(pool_id, pool_application)
-        interval = interval if interval is not None else '1min'
-        query_start_at = build_candle_bucket_key(
-            pool_application=pool_application,
+        return self.legacy_candle_materialization_tool.get_kline_from_candles(
             pool_id=pool_id,
             token_reversed=token_reversed,
-            interval=interval,
-            created_at_ms=start_at,
-        ).bucket_start_ms
-        query_end_at = build_candle_bucket_key(
-            pool_application=pool_application,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-            interval=interval,
-            created_at_ms=end_at,
-        ).bucket_start_ms
-
-        query_started_at = time.perf_counter()
-        self.cursor_dict.execute(
-            f'''
-                SELECT
-                    bucket_start_ms,
-                    open,
-                    high,
-                    low,
-                    close,
-                    volume,
-                    quote_volume
-                FROM {self.candles_table}
-                WHERE pool_application = %s
-                AND pool_id = %s
-                AND token_reversed = %s
-                AND interval_name = %s
-                AND bucket_start_ms >= %s
-                AND bucket_start_ms <= %s
-                ORDER BY bucket_start_ms ASC
-            ''',
-            (pool_application, pool_id, token_reversed, interval, query_start_at, query_end_at),
-        )
-        rows = self.cursor_dict.fetchall()
-        query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
-        self.log_kline_event(
-            event='candles_query',
-            bucket_end_ms=query_end_at,
-            bucket_start_ms=query_start_at,
-            interval=interval,
-            pool_id=pool_id,
-            query_ms=query_duration_ms,
-            row_count=len(rows),
-            token_reversed=token_reversed,
-        )
-        if len(rows) == 0:
-            previous_candle = self.load_previous_candle(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                before_bucket_start_ms=query_start_at,
-            )
-            if previous_candle is None:
-                return []
-
-            return build_continuous_candle_points(
-                interval=interval,
-                start_bucket_ms=query_start_at,
-                end_bucket_ms=query_end_at,
-                points=[],
-                previous_close=previous_candle.close,
-                now_ms=self.now_ms(),
-            )
-
-        if any(row.get('quote_volume') is None for row in rows):
-            self.log_kline_event(
-                event='candles_missing_quote_volume',
-                interval=interval,
-                pool_id=pool_id,
-                row_count=len(rows),
-                token_reversed=token_reversed,
-            )
-            return []
-
-        now_ms = self.now_ms()
-        json_data = [
-            build_candle_point_payload(
-                interval=interval,
-                bucket_start_ms=int(row['bucket_start_ms']),
-                point=row,
-                now_ms=now_ms,
-            )
-            for row in rows
-        ]
-        previous_candle = self.load_previous_candle(
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-            interval=interval,
-            before_bucket_start_ms=query_start_at,
-            pool_application=pool_application,
-        )
-
-        return build_continuous_candle_points(
-            interval=interval,
-            start_bucket_ms=query_start_at,
-            end_bucket_ms=query_end_at,
-            points=json_data,
-            previous_close=previous_candle.close if previous_candle is not None else None,
-            now_ms=now_ms,
-        )
-
-    def get_kline_from_transactions(
-        self,
-        pool_id: int,
-        token_reversed: bool,
-        start_at: int,
-        end_at: int,
-        interval: str,
-        pool_application: str | None = None,
-    ):
-        pool_application = self.resolve_pool_application(pool_id, pool_application)
-        query = build_kline_points_query(
-            table_name=self.transactions_table,
-            pool_application=pool_application,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
+            token_0=token_0,
+            token_1=token_1,
             start_at=start_at,
             end_at=end_at,
-        )
-        query_started_at = time.perf_counter()
-        self.cursor_dict.execute(query)
-        rows = self.cursor_dict.fetchall()
-        query_duration_ms = int((time.perf_counter() - query_started_at) * 1000)
-        self.log_kline_event(
-            event='transactions_query',
-            end_at=end_at,
-            interval=interval if interval is not None else '1min',
-            pool_id=pool_id,
-            query_ms=query_duration_ms,
-            row_count=len(rows),
-            start_at=start_at,
-            token_reversed=token_reversed,
-        )
-        if len(rows) == 0:
-            return []
-
-        interval = interval if interval is not None else '1min'
-        now_ms = self.now_ms()
-        candle_items = []
-        candles_by_bucket = {}
-
-        aggregate_started_at = time.perf_counter()
-        for row in rows:
-            created_at_ms = int(row['created_at'])
-            bucket_key = build_candle_bucket_key(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                created_at_ms=created_at_ms,
-            )
-            update = CandleUpdate(
-                transaction_id=int(row['transaction_id']),
-                created_at_ms=created_at_ms,
-                price=float(row['price']),
-                base_volume=float(row['volume']),
-                quote_volume=float(row['quote_volume']),
-            )
-            candle = apply_candle_update(
-                existing=candles_by_bucket.get(bucket_key.bucket_start_ms),
-                update=update,
-            )
-            candles_by_bucket[bucket_key.bucket_start_ms] = candle
-        aggregate_duration_ms = int((time.perf_counter() - aggregate_started_at) * 1000)
-
-        persist_started_at = time.perf_counter()
-        for bucket_start_ms in sorted(candles_by_bucket.keys()):
-            bucket_key = build_candle_bucket_key(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                created_at_ms=bucket_start_ms,
-            )
-            candle = candles_by_bucket[bucket_start_ms]
-            self.save_candle(bucket_key, candle)
-            candle_items.append(build_candle_point_payload(
-                interval=interval,
-                bucket_start_ms=bucket_start_ms,
-                point={
-                    'open': candle.open,
-                    'high': candle.high,
-                    'low': candle.low,
-                    'close': candle.close,
-                    'base_volume': candle.base_volume,
-                    'quote_volume': candle.quote_volume,
-                },
-                now_ms=now_ms,
-            ))
-
-        self.connection.commit()
-        persist_duration_ms = int((time.perf_counter() - persist_started_at) * 1000)
-        self.log_kline_event(
-            event='transactions_materialized',
-            aggregate_ms=aggregate_duration_ms,
-            bucket_count=len(candles_by_bucket),
             interval=interval,
-            persist_ms=persist_duration_ms,
-            point_count=len(candle_items),
-            pool_id=pool_id,
-            row_count=len(rows),
-            token_reversed=token_reversed,
-        )
-        previous_candle = self.load_previous_candle(
-            pool_application=pool_application,
-            pool_id=pool_id,
-            token_reversed=token_reversed,
-            interval=interval,
-            before_bucket_start_ms=build_candle_bucket_key(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                created_at_ms=start_at,
-            ).bucket_start_ms,
-        )
-
-        return build_continuous_candle_points(
-            interval=interval,
-            start_bucket_ms=build_candle_bucket_key(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                created_at_ms=start_at,
-            ).bucket_start_ms,
-            end_bucket_ms=build_candle_bucket_key(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                token_reversed=token_reversed,
-                interval=interval,
-                created_at_ms=end_at,
-            ).bucket_start_ms,
-            points=candle_items,
-            previous_close=previous_candle.close if previous_candle is not None else None,
-            now_ms=now_ms,
-        )
-
-    def get_last_kline(self, token_0: str, token_1: str, interval: str, pool_id: int | None = None, pool_application: str | None = None):
-        # Only use full minutes data. Only for minute currently
-        end_at = time.time() // 60 * 60
-
-        intervals = {
-            '1min': 60 * 5,
-            '5min': 300 * 3,
-            '10min': 600 * 3,
-            '1h': 3600 * 3,
-            '1D': 86400 * 3,
-            '1W': 86400 * 7 * 4,
-            '1ME': 86400 * 30 * 12
-        }
-        interval = interval if interval in intervals else '5min'
-        start_at = end_at - intervals[interval]
-
-        start_at *= 1000
-        end_at *= 1000
-
-        (pool_id, pool_application, token_0, token_1, points) = self.get_kline(
-            token_0,
-            token_1,
-            start_at,
-            end_at,
-            interval,
-            pool_id=pool_id,
             pool_application=pool_application,
         )
 
-        return  (pool_id, pool_application, token_0, token_1, start_at, end_at, interval, points)
 
     def get_ticker(self, interval: str):
         self.ensure_fresh_read_connection()

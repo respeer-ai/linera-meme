@@ -11,6 +11,8 @@ SRC_ROOT = ROOT / 'src'
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+if not getattr(sys.modules.get('async_request'), '__file__', None):
+    sys.modules.pop('async_request', None)
 
 aiohttp_stub = types.ModuleType('aiohttp')
 aiohttp_stub.ClientTimeout = lambda **kwargs: kwargs

@@ -151,7 +151,6 @@ pub struct Pool {
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub pool_application: Account,
-    pub latest_transaction: Option<Transaction>,
     pub token_0_price: Option<Amount>,
     pub token_1_price: Option<Amount>,
     pub reserve_0: Option<Amount>,

@@ -48,6 +48,9 @@ export type StartupGapBackfillFetchRequest = StartupFetchRequest & {
   key: string
 }
 
+export type StartupCacheGapFetchRequest = StartupGapBackfillFetchRequest
+export type StartupGapBackfillFetchRequests = StartupGapBackfillFetchRequest[]
+
 type EdgeFetchWindowInput = {
   anchorTimestamp: number
   reverse: boolean
@@ -78,6 +81,18 @@ type StartupCatchupFetchInput = {
 }
 
 type StartupGapBackfillInput = {
+  pointTimestamps: number[]
+  latestWindowStart: number
+  latestWindowEnd: number
+  interval: Interval
+  requestedKeys: Set<string>
+}
+
+type StartupGapBackfillBatchInput = StartupGapBackfillInput & {
+  maxRequests: number
+}
+
+type StartupCacheGapInput = {
   pointTimestamps: number[]
   latestWindowStart: number
   latestWindowEnd: number
@@ -171,12 +186,8 @@ export const shouldScheduleBackgroundHistoryBackfill = ({
   backgroundHistoryQueued,
   minPointTimestamp,
   poolCreatedAt,
-  latestWindowStart,
 }: BackgroundHistoryScheduleInput): boolean =>
-  firstScreenReady &&
-  !backgroundHistoryQueued &&
-  minPointTimestamp > poolCreatedAt &&
-  minPointTimestamp < latestWindowStart
+  firstScreenReady && !backgroundHistoryQueued && minPointTimestamp > poolCreatedAt
 
 export const resolveBackgroundHistoryStatus = ({
   firstScreenReady,
@@ -388,6 +399,87 @@ export const resolveStartupGapBackfillFetch = ({
   const lastTimestamp = timestamps[timestamps.length - 1]
   if (lastTimestamp !== undefined && latestWindowEnd - lastTimestamp > bucketSize) {
     const startAt = lastTimestamp + bucketSize
+    const endAt = latestWindowEnd
+    const key = `${startAt}:${endAt}`
+    if (!requestedKeys.has(key) && endAt >= startAt) {
+      return { reverse: false, startAt, endAt, key }
+    }
+  }
+
+  return null
+}
+
+export const resolveStartupGapBackfillFetches = ({
+  pointTimestamps,
+  latestWindowStart,
+  latestWindowEnd,
+  interval,
+  requestedKeys,
+  maxRequests,
+}: StartupGapBackfillBatchInput): StartupGapBackfillFetchRequests => {
+  if (maxRequests <= 0) return []
+
+  const fetches: StartupGapBackfillFetchRequests = []
+  const nextRequestedKeys = new Set(requestedKeys)
+
+  while (fetches.length < maxRequests) {
+    const nextFetch = resolveStartupGapBackfillFetch({
+      pointTimestamps,
+      latestWindowStart,
+      latestWindowEnd,
+      interval,
+      requestedKeys: nextRequestedKeys,
+    })
+
+    if (!nextFetch) break
+
+    fetches.push(nextFetch)
+    nextRequestedKeys.add(nextFetch.key)
+  }
+
+  return fetches
+}
+
+export const resolveStartupCacheGapFetch = ({
+  pointTimestamps,
+  latestWindowStart,
+  latestWindowEnd,
+  interval,
+  requestedKeys,
+}: StartupCacheGapInput): StartupCacheGapFetchRequest | null => {
+  if (pointTimestamps.length === 0) return null
+
+  const bucketSize = getIntervalBucketSize(interval)
+  const timestamps = [...new Set(pointTimestamps)].sort((left, right) => left - right)
+  const firstTimestamp = timestamps[0]
+
+  if (firstTimestamp !== undefined && firstTimestamp - latestWindowStart > bucketSize) {
+    const startAt = latestWindowStart
+    const endAt = firstTimestamp - 1
+    const key = `${startAt}:${endAt}`
+    if (!requestedKeys.has(key) && endAt >= startAt) {
+      return { reverse: false, startAt, endAt, key }
+    }
+  }
+
+  for (let index = 1; index < timestamps.length; index += 1) {
+    const previous = timestamps[index - 1]
+    const current = timestamps[index]
+
+    if (previous === undefined || current === undefined) continue
+    if (current - previous <= bucketSize) continue
+
+    const startAt = previous + bucketSize
+    const endAt = current - 1
+    const key = `${startAt}:${endAt}`
+    if (!requestedKeys.has(key) && endAt >= startAt) {
+      return { reverse: false, startAt, endAt, key }
+    }
+  }
+
+  const latestTimestamp = timestamps[timestamps.length - 1]
+  if (latestTimestamp !== undefined && latestWindowEnd - latestTimestamp > bucketSize) {
+    const startAt = latestTimestamp + bucketSize
     const endAt = latestWindowEnd
     const key = `${startAt}:${endAt}`
     if (!requestedKeys.has(key) && endAt >= startAt) {

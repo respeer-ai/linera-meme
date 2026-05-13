@@ -37,10 +37,23 @@ Canonical execution semantics for operation, message, replica, and application-c
 - In `pool`, `PoolMessage::FundSuccess` persists `FundStatus::Success` and may queue follow-up `RequestFund` or `AddLiquidity`
 - Queued follow-up messages are not yet executed state changes
 - Liquidity is minted only when `PoolMessage::AddLiquidity` executes
-- Transaction history is recorded only when `PoolMessage::NewTransaction` executes `create_transaction`
-- Building a transaction struct or queueing the message is not equivalent to persistence
+- `PoolMessage::NewTransaction` is the settled pool fact carrier and catalog-update trigger
+- Building a transaction struct or queueing the message is not equivalent to a settled fact
+- Pool contracts must not keep a product-facing transaction-history queue; observability derives product history from parsed blocks
+- `SwapOperation::UpdatePool` is currently a public operation surface for catalog updates
+- Risk: if external callers can invoke `UpdatePool` directly, they may spoof pool catalog reserve/price updates
+- Do not rely on transaction cursors to secure `UpdatePool`; the correct mitigation is source/authentication validation or narrowing the callable surface
+- Linera `tracked` messages only guarantee a receipt when that specific destination-chain message is rejected
+- A rejected tracked message is returned as a protocol-generated bouncing message to the sender chain
+- Contracts can detect the bounced receipt with `message_is_bouncing()`
+- `tracked + bouncing` applies to one message hop, not to an entire multi-hop business workflow
+- If hop N succeeds but a later hop fails, hop N will not be automatically bounced
+- Therefore `tracked + bouncing` can be used as a native reject-receipt mechanism for one-hop failure handling, but it cannot replace explicit pending/success/fail protocol state across multi-hop flows
 
 ## Implications
 
 - If funds moved but no transaction exists, inspect the async message chain and termination point
 - Never assume a successful initiating operation implies completed downstream state changes
+- When designing refund or rollback behavior, use `tracked` for critical one-hop messages where a native reject receipt is valuable
+- Do not treat a non-bounced tracked message as proof that the whole workflow completed; it only proves that hop was not rejected
+- Multi-hop flows such as swap, payout, refund, or liquidity funding still require explicit intent IDs, pending states, and success-only finalization

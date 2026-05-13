@@ -76,6 +76,7 @@ import { constants } from 'src/constant'
 import { protocol } from 'src/utils'
 import { useRouter } from 'vue-router'
 import { buildAddLiquidityRoute } from '../pools/poolFlow'
+import { _Account, type Account } from 'src/stores/account'
 
 import PoolLogoView from '../pools/PoolLogoView.vue'
 
@@ -155,13 +156,17 @@ const totalPages = computed(() => Math.ceil(tokens.value.length / pagination.val
 
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 
+const poolApplicationKey = (pool: Pool) => {
+  return _Account.poolApplicationDescription(pool.poolApplication as Account)
+}
+
 const formatNativeAmount = (value: number | undefined) => {
   return value === undefined ? '--' : `${value.toFixed(4)} TLINERA`
 }
 
 const poolOneDayVolume = (pool: Pool) => {
   const volume = protocol.calculatePoolVolumeInNative(
-    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneDay),
+    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneDay, poolApplicationKey(pool)),
     nativePriceMap.value,
   )
   return formatNativeAmount(volume)
@@ -169,7 +174,7 @@ const poolOneDayVolume = (pool: Pool) => {
 
 const poolOneMonthVolume = (pool: Pool) => {
   const volume = protocol.calculatePoolVolumeInNative(
-    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneMonth),
+    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneMonth, poolApplicationKey(pool)),
     nativePriceMap.value,
   )
   return formatNativeAmount(volume)
@@ -183,7 +188,7 @@ const poolTvl = (pool: Pool) => {
 const apr = (pool: Pool) => {
   const tvl = protocol.calculatePoolTvlInNative(pool, nativePriceMap.value)
   const oneDayVolume = protocol.calculatePoolVolumeInNative(
-    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneDay),
+    kline.Kline.poolStat(pool.poolId, kline.TickerInterval.OneDay, poolApplicationKey(pool)),
     nativePriceMap.value,
   )
   if (tvl === undefined || oneDayVolume === undefined) return '--'

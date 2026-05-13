@@ -1,0 +1,57 @@
+import json
+
+from storage.mysql.position_metrics_snapshot_semantic_facts_projector import (
+    PositionMetricsSnapshotSemanticFactsProjector,
+)
+
+
+class PositionStateProjectionRepository:
+    def __init__(
+        self,
+        db,
+        *,
+        snapshot_semantic_facts_projector=None,
+    ):
+        self.db = db
+        self.position_state_table = 'position_state_v2'
+        self.snapshot_semantic_facts_projector = (
+            snapshot_semantic_facts_projector
+            or PositionMetricsSnapshotSemanticFactsProjector()
+        )
+
+    def get_position_basis_snapshot(
+        self,
+        *,
+        owner: str,
+        pool_application_id: str,
+        status: str = 'active',
+    ) -> dict | None:
+        cursor = self.db.fresh_cursor(dictionary=True)
+        try:
+            cursor.execute(
+                f'''
+                SELECT *
+                FROM {self.position_state_table}
+                WHERE owner = %s
+                  AND pool_application_id = %s
+                  AND status = %s
+                LIMIT 1
+                ''',
+                (owner, pool_application_id, status),
+            )
+            return self.snapshot_semantic_facts_projector.project(
+                self._decode_row(cursor.fetchone())
+            )
+        except Exception:
+            return None
+        finally:
+            cursor.close()
+
+    def _decode_row(self, row: dict | None) -> dict | None:
+        if row is None:
+            return None
+        decoded = dict(row)
+        payload = decoded.get('state_payload_json')
+        if isinstance(payload, str):
+            decoded['state_payload_json'] = json.loads(payload)
+        return decoded

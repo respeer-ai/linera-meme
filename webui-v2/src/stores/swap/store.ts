@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type CreatePoolRequest, type LatestTransactionsRequest } from './types'
+import { type CreatePoolRequest, type PoolsRequest } from './types'
 import { ApolloClient } from '@apollo/client/core'
 import { getClientOptions } from 'src/apollo'
 import { provideApolloClient, useQuery } from '@vue/apollo-composable'
@@ -7,19 +7,11 @@ import { POOLS } from 'src/graphql'
 import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { formalizeFloat, graphqlResult } from 'src/utils'
 import { constants } from 'src/constant'
-import { type Transaction } from '../transaction'
 import { Subscription } from 'src/subscription'
+import { poolIdentityKey } from './poolIdentity'
 
 const options = /* await */ getClientOptions()
 const apolloClient = new ApolloClient(options)
-
-const poolApplicationKey = (pool: Pool) => {
-  const chainId = pool.poolApplication?.chainId ?? pool.poolApplication?.chain_id
-  const owner = pool.poolApplication?.owner
-  return `${chainId || ''}:${owner || ''}`
-}
-
-const poolIdentityKey = (pool: Pool) => `${pool.poolId}:${poolApplicationKey(pool)}`
 
 export const useSwapStore = defineStore('swap', {
   state: () => ({
@@ -44,7 +36,7 @@ export const useSwapStore = defineStore('swap', {
     finalizeProxy() {
       this.subscription?.unsubscribe()
     },
-    getPools(req: LatestTransactionsRequest, done?: (error: boolean, rows?: Pool[]) => void) {
+    getPools(req: PoolsRequest, done?: (error: boolean, rows?: Pool[]) => void) {
       const { /* result, refetch, fetchMore, */ onResult, onError } = provideApolloClient(
         apolloClient,
       )(() =>
@@ -110,11 +102,6 @@ export const useSwapStore = defineStore('swap', {
     },
   },
   getters: {
-    latestTransaction(): (token: string) => Transaction | undefined {
-      return (token: string) => {
-        return this.pools.find((el) => el.token0 === token)?.latestTransaction as Transaction
-      }
-    },
     price(): (token: string) => string | undefined {
       return (token: string) => {
         const pool = this.pools.find(

@@ -109,9 +109,4 @@ pub trait StateInterface {
         liquidity: Option<Amount>,
         timestamp: Timestamp,
     ) -> Transaction;
-
-    async fn create_transaction(
-        &mut self,
-        transaction: Transaction,
-    ) -> Result<Option<Transaction>, Self::Error>;
 }

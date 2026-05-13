@@ -53,7 +53,6 @@ const pool = (token0: string, token0Price: string): Pool =>
     token0,
     token1: constants.LINERA_NATIVE_ID,
     poolApplication: `pool-${token0}`,
-    latestTransaction: null,
     token0Price,
     token1Price: '1',
     reserve0: '100',

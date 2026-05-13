@@ -26,7 +26,8 @@ groups:
         priority: P2
         depends_on: [POS-002]
         title: V2 文案语义校正
-        notes: 已去掉 V3 风格 `in range / rewards / incentives`
+        notes: |
+          已去掉 V3 风格 `in range / rewards / incentives`
       - id: POS-004
         status: Done
         priority: P2
@@ -130,65 +131,758 @@ groups:
         title: 核验 liquidity 字段是否可直接净额相减
         notes: 依赖后端字段单位和精度确认
       - id: POS-021
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [POS-013]
         title: 保持 /positions 为轻量列表接口
-        notes: 仅承载 position 列表和基础状态；不要在此接口内叠加真实 fees principal redeemable 重计算
+        notes: 已实现 ALLOWED_FIELDS frozenset 白名单，serializer 过滤非 Position 上下文字段
       - id: POS-022
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-021]
         title: service/kline 新增 position metrics 接口
-        notes: 已新增 /position-metrics，并接入 position 历史流动性记录、全池 transaction history 和开仓后池子 swap 计数；在当前锁定 virtual initial supply 语义下，无 swap 时无论是否 virtual initial liquidity 都可返回 exact principal=redeemable / fee=0；有 swap 时，现已支持“以用户最后一次流动性变更为基准，其之后池子再无任何 Add/RemoveLiquidity”的严格子集：若最后一次变更是 Add，则其之前通常不能有 swap；但若 owner 当前就是 fee_to，且 latest Add 之前 owner 净流动性为 0，则允许把 latest Add 时同步 mint 到 owner 的 protocol fee shares 识别为 fee 而非 principal，因此 fee-on 池子里 fee_to 本人开仓后也可返回 exact fee，不再一律 Unavailable。若最后一次变更是 Remove，则允许它之前已有 swap，并把这次 Remove 后的剩余仓位视为新的精确基准，因此已覆盖单次 Add、Add 后部分 Remove、swap 后 Remove 再继续持仓/继续被后续 swap 稀释、以及 fee_to owner 领取 protocol fee shares 的场景。实现基于当前 Uniswap V2 fee-on 语义重放 total_supply/reserve/k_last 历史，并用 fee-free counterfactual swap path 精确拆分 principal/fee；当记录历史在批次边界缺少一笔可由后续同批两笔 swap 唯一反推的 hidden swap 时，现也会把该隐含 swap 重建进 replay，而不再直接退化成 Unavailable。其余开仓后仍有流动性变更、latest Add 之前已发生 swap 且无法归因为 fee_to protocol mint、或历史无法重放的场景仍返回更具体 blockers。新增确认：当前费用卡住不只是算法子集不足，还暴露出两类底层问题需要并行处理：1) 金融数值精度链路仍有风险，`service/kline/src/async_request.py` 目前用默认 `json.loads`，若上游返回 JSON number 会先落成 Python float，必须改为 Decimal-safe 解析并继续排查 live GraphQL -> MySQL -> API 的全链路字符串/Decimal 传递；2) 已证明 `service/kline` 的历史同步存在 bug：ticker 曾把只保留最近 5000 条的 `latestTransactions(startId)` 当成历史修复来源，DB 一旦出现老内部缺口且该缺口已滑出 5000 窗口，就会永久留洞。现已改为保留“最近 5000 条仍可用于 recent backfill/增量同步”的事实，但不再把该接口冒充成全历史修复；同时已确认 accepted transaction history 不能假设 `transaction_id` 连续，因为上游 `Reject` 会合法消耗 id 但不会进入 `latestTransactions`，所以 `position-metrics` 和 ticker 诊断都不再把 id 跳号直接视为 incomplete history，而只保留 live-vs-DB 实际返回集合的差异诊断。现 `/debug/pool` 也可按需导出 DB 历史、owner liquidity history、gap summary、diagnostics，以及最近窗口 live-vs-DB transaction id 差异，便于直接定位生产缺口是否仍落在 recent 5000 内
+        notes: |
+          已新增 `/position-metrics`，active query path 已切到 projection-backed snapshot/replay inputs。
+          Identity PositionMetricsSerializer 已删除（内联到 handler）。
+          8 个 legacy facade/support 文件已删除，compatibility 目录已清理。
       - id: POS-023
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-022]
         title: 前端接入真实 position fee 展示
-        notes: 前端已切到消费 /position-metrics，不再使用 24h 成交量近似 fee；当前线上在 exact_fee_supported=false 时仍显示 `Syncing` 作为临时占位，但这不是最终语义。后续目标不是展示“不可计算”，而是在 POS-022/024 把底层精度和交易队列问题修到足以返回真实值或带轻微误差说明的值；在此之前不要引入与当前算法无关的 TVL/24h volume 近似
+        notes: 已过期。Layer 3 可靠交易数据下 fee 不存在 exact 问题，被新观测系统覆盖。
       - id: POS-025
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [POS-022]
         title: position-metrics 改为与池历史长度无关的物化查询
-        notes: 当前 /position-metrics 仍需按请求读取全池 transaction history 并重放，时间复杂度随池历史长度增长。下一步改为仅在 service/kline 侧实现写时物化和查询时常数级读取：为每个 pool 维护可增量更新的 live / fee-free 累积状态，为每个 owner+pool active position 维护“最近一次流动性变更”为 basis 的快照；查询时只读取 position basis snapshot 和 pool current snapshot，不再扫描全历史。该任务只涉及 kline/MySQL/同步逻辑与接口实现，不修改 pool/swap 合约侧语义
+        notes: 已过期。Layer 3 可靠数据下不再需要此区分，被新观测系统覆盖。
+      - id: POS-043
+        status: Done
+        priority: P0
+        depends_on: [POS-034, POS-035]
+        title: 删除 position-metrics 对 latestTransactions 的所有依赖
+        notes: |
+          Python 测已全部清除 latestTransactions 引用。
+          active runtime `/position-metrics` 已确认只走 projection-backed snapshot/replay inputs，不再引用 `latestTransactions`。
       - id: POS-026
-        status: Todo
+        status: Done
         priority: P0
         depends_on: []
-        title: 设计基于链区块的可靠交易事件同步系统
-        notes: 当前不仅 `position-metrics`，连 `ticker` / K 线 / 持仓 / fee 计算都依赖合约侧 `latestTransactions` 最近窗口，可靠性不足。先记录需求，不在本任务内展开 `linera-protocol` 细节学习与实现。目标方向：1) 订阅 chain 的新区块事件，实时获取区块推进；2) 支持按区块标识拉取完整区块并解析其中交易/消息，作为可靠补偿路径；3) 本地维护每条链已处理到的链上进度水位；4) 当订阅断开、主机资源不足导致处理落后、或本地进度与链上最新进度不一致时，按链上顺序补拉直到追平；5) 统一为交易落库、K 线、positions、fees 提供可重放的可靠事件源。若该能力成立，后续还需要专项评估合约内 `latestTransactions` 是否仍有保留必要，或可从“K 线依赖的最近窗口”退化为可选辅助查询，因为届时我们本地将具备自建可靠交易事件系统。具体采用区块高度、hash、cursor 或其他 Linera 原生位置语义，待后续结合 `linera-protocol` 代码确认
+        title: 设计基于链区块的可靠观测与事件同步系统
+        notes: |
+          架构设计已完成。三层架构（Layer 1 raw → Layer 2 normalized → Layer 3 market-data）已落地。
+          当前所有 observability tests 通过。499/548 测试通过，49 个 ERROR 均为环境依赖（MySQL/network）。
+      - id: POS-031
+        status: Done
+        priority: P0
+        depends_on: [POS-026]
+        title: 设计 Layer 1 raw schema 与主键
+        notes: |
+          DDL 已落地 raw_repo.py。Operational tables（chain_cursors, processing_cursors, ingestion_anomalies, raw_block_ingest_runs）已定义。Raw root/child tables 已定义。
+          RawRepository 14 tests pass。下一步连接 bootstrap 见 POS-032。
+      - id: POS-032
+        status: Done
+        priority: P0
+        depends_on: [POS-031]
+        title: 实现 Layer 1 block ingestion 与 cursor
+        notes: |
+          已完成。E2E 验证见 OBS-E2E-001。
+          - `IngestionCoordinator`: mark_attempt → fetch → parse → ingest → mark_failure
+          - `CatchUpRunner` / `CatchUpDriver` / `ChainEventProcessor` / `LineraGraphqlNotificationListener`
+          - `PostIngestPipeline` 连接 ingestion → normalization → market derivation
+          - `ObservabilityRuntime` 编排 schema/registry/catch-up/listener 各阶段
+          - `ObservabilitySupervisor` 提供 fail-open 生命周期
+          - Unit tests: ingestion_coordinator / catch_up_runner / catch_up_driver / post_ingest_pipeline / app_bootstrap
+          - 验证：所有 ingestion tests 通过
+      - id: POS-042
+        status: Done
+        priority: P0
+        depends_on: [POS-032, POS-036]
+        title: 重构 observability 为单进程内 fail-open 子生命周期
+        notes: |
+          已完成。ObservabilitySupervisor 提供 start_in_background() / recover() / shutdown() 与 fail-open 语义。
+          KlineServiceLifecycle.startup() 对 observability 异常做 fail-open 吞吐。
+          fail-open lifecycle test 已覆盖 "后台启动同步抛错时 kline startup 仍成功" 场景。
+      - id: POS-033
+        status: Done
+        priority: P0
+        depends_on: [POS-042]
+        title: 设计 application registry 与 decoder registry
+        notes: |
+          为 `pool`、`swap`、`meme`、`proxy`、`ams`、`blob-gateway` 建立 app 类型注册与 decoder 选择规则。
+          当前已完成：
+          - 持久化 `application_registry` 与 MySQL repo
+          - `ApplicationRegistry`、`DecoderRegistry`、`DecoderDispatcher`
+          - `SwapCatalogClient`、`ProxyCatalogClient`、`ApplicationDiscoveryService`
+          - Rust canonical decoder 路径接线
+          - `DecodeScheduler`
+          - `proxy/ams/blob-gateway` message decoder 接线补齐，已不再把这些已声明 pair 落为 `unimplemented_decoder`
+          当前硬约束：
+          - 复杂 ABI/BCS payload 不再用 Python 手写 field-level BCS
+          - decode 失败不阻断 ingestion
+      - id: POS-046
+        status: Done
+        priority: P0
+        depends_on: [POS-042]
+        title: Rust decoder crate 迁移与 batch 子进程优化
+        notes: |
+          Rust canonical decoder 从 `abi/src/bin/` 迁移到独立 `service/decoder/` crate，
+          并实现 batch 子进程接口替代逐条启动。
+          已完成：
+          - 创建 `service/decoder/` crate，移入所有 decoder（pool/swap/meme/proxy/ams/blob-gateway）
+          - Rust 端接收 JSON 数组，返回每项独立 `{"status": "ok/error", ...}`
+          - `RustDecoderRunner.decode_batch()` 一次子进程处理整 block
+          - `DecodeScheduler.decode_batch()` 接入管线，不再逐条启动子进程
+          - Docker/脚本/测试路径同步更新
+          - 工作空间成员注册：`Cargo.toml` 加入 `"service/decoder"`
+      - id: POS-034
+        status: Done
+        priority: P0
+        depends_on: [POS-033]
+        title: 定义 Layer 2 normalized events 与关联键
+        notes: |
+          统一定义业务事件字典、source/target 关联键、decode failure 记录，以及 `Reject` 到业务事件的映射。
+          已完成：
+          - `normalized_event_result`、`decode_result_normalizer`
+          - `normalized_events` 表与 materializer
+          - `processing_cursor_repo`、`normalization_worker`、`normalization_replay_driver`
+          - `POST /debug/normalization/replay/run`
+          - 第一批 pool-specific Layer 2 families
+          - proxy operation/message families 不再落 generic application fallback
+          - ams/blob-gateway operation/message families 改为显式 Layer 2 families
+          - meme `creator_chain_id` operation 改为显式 Layer 2 family
+          - `post_ingest_pipeline` 挂到 `CatchUpRunner`
+          - matrix-style normalizer coverage 锁住所有6 app types 的显式 family 分支
+          - 验证：34/34 normalizer 测试通过，无 generic fallback 泄漏
+      - id: POS-035
+        status: Done
+        priority: P0
+        depends_on: [POS-034]
+        title: 定义 Layer 3 market-data 契约并替换 latestTransactions
+        notes: |
+          已落第一版可执行 Layer 3 主干，并把 `market_deriver` 从 planned 提升为真实 worker boundary。
+          已完成：
+          - `settled_market_result`、`settled_market_deriver`、`settled_market_materializer`
+          - `market_derivation_worker`、`market_derivation_replay_driver`
+          - `settled_trades`、`settled_liquidity_changes` MySQL repo 与 schema
+          - `POST /debug/market-derivation/replay/run`
+          - Layer 3 runtime 已切到 `raw_posted_messages + pool_new_transaction_recorded`
+          - 所有 product 读路径已审计通过，全部使用 Layer 3 projection repos
+          - Python side latestTransactions cleanup done
+          审计确认：
+          - `/transactions` → `SettledTradeProjectionRepository` (L3)
+          - `/points` → `SettledTradeProjectionRepository` (L3)
+          - `/positions` → `SettledLiquidityProjectionRepository` (L3)
+          - `/position-metrics` → snapshot inputs + settled repos (L3)
+          - ticker history → `SettledPoolHistoryProjectionRepository` (L3)
+          - ticker watermarks → `TransactionWatermarksQueryRepository` (L3)
+          - maker stall diagnostics → query repos (L3)
+          - 0 latestTransactions references in kline src + tests
+          合约侧 `latestTransactions` 队列正在移除。
+          风险记录：`SwapOperation::UpdatePool` 当前是 operation surface；若可被外部直接调用，需要 source/auth 校验或收窄 callable surface，不能靠 cursor 防伪。
+      - id: POS-044
+        status: Done
+        priority: P0
+        depends_on: [POS-035]
+        title: 删除交易/K线/debug audit 对 latestTransactions 的所有依赖
+        notes: |
+          服务端 latestTransactions 清理已完成。
+          - 所有 product 读路径已切到 projection repos
+          - Python kline src/tests 0 引用
+          - active runtime 审计确认所有路径走 projection
+          合约侧 `latestTransactions` 队列正在移除。
+      - id: POS-036
+        status: Done
+        priority: P0
+        depends_on: []
+        title: 创建 kline phase-1 新包骨架
+        notes: |
+          按 `agents/primitives/kline-package-layout.md` 创建 phase-1 所需的最小骨架。
+          当前已落地：
+          - `app/{config,bootstrap,lifecycle}`
+          - `integration/chain_client.py`
+          - `storage/mysql/{connection,raw_repo,projection_repo}.py`
+          - `ingestion/{coordinator,cursors,anomalies}.py`
+          - `projection/{projector,trades,candles,positions,pools}`
+          - `query/{handlers,read_models,serializers}`
+          - `compatibility/legacy_response_shapes.py`
+          并已通过 `py_compile` 做最小导入校验。
+      - id: POS-037
+        status: Done
+        priority: P0
+        depends_on: [POS-035, POS-036, POS-042]
+        title: 实现 transactions 与 candles 的 phase-1 read models
+        notes: |
+          已落 `query.read_models.transactions` / `query.read_models.candles`、对应 handlers 与 serializers，并把 endpoint runtime 切到新查询栈。
+          当前 `ProjectionRepository` 已只走 projection boundary：
+          - `settled_trade_projection_repo` 直接从 Layer 3 `settled_trades` 生成 `/transactions`
+          - `/points` 也从同一来源按 interval 聚合 candle points
+          - 新增 `pool_identity_projection_repo.py`
+          - 新增 `pool_transaction_history_projection_repo.py`
+          当前 targeted unittest 已覆盖 settled-trade rows、candle 聚合、pool identity 和 shared history boundary。
+      - id: POS-038
+        status: Done
+        priority: P0
+        depends_on: [POS-035, POS-036, POS-042]
+        title: 实现 positions 的 phase-1 read model
+        notes: |
+          已落 `query.read_models.positions`、对应 handler 与 serializer，并把 `/positions` 切到新查询栈。
+          当前 `ProjectionRepository.get_positions()` 与 `PositionMetricsProjectionRepository.get_positions()` 都已只走 `settled_liquidity_projection_repo`，不再回退 `Db.get_positions`。
+          当前硬约束进一步收紧：仓位存在性、虚拟初始仓位、protocol fee receiver 等业务语义必须只来自 parse-block 后的 projection，
+          不允许再用 live pool/swap/wallet query 决定业务真值。Canonical 见 `agents/context/observability-architecture.md`。
+          `position-metrics` 当前 active runtime 已确认只走 projection-backed snapshot/replay inputs。
+          本任务剩余重点不再是补 projection payload，而是把仓位相关依赖继续收紧到 projection-only：
+          - 清理产品路径残留 fallback / dead projection wiring
+          - virtual positions / protocol fee receiver 语义继续只由 parse-block 后的 snapshot + projection 合成
+          - pool catalog 的生产侧改为 parse-block 驱动，避免 consumer 再依赖历史 query-service 写入
+          当前 `db.py` legacy read methods 审计结论：
+          - active product endpoints 已由 `KlineRuntime` 接到 projection repos，旧 `Db.get_kline*` / `get_ticker`
+            / `get_pool_stats` / `get_protocol_stats` 保留为 legacy compatibility，不再作为产品读路径
+          - runtime guard tests 已覆盖 stats/protocol stats 不回退 legacy `Db.get_*`
+          - 剩余结构性问题是 `ProjectionPoolCatalogRepository` / metadata resolver 仍临时通过 legacy
+            `pools` 表取得 numeric `pool_id` bridge；生产侧需要改成 parse-block-driven pool catalog
+            或重新定义 public API identity，不能从 `pool_created` 事件伪造 pool_id
+          已推进：
+          - 新增 `pool_catalog_v2` projection，由 observed `swap_pool_created_recorded` /
+            `swap_user_pool_created_recorded` normalized events 物化
+          - `ProjectionPoolCatalogRepository` / metadata resolver / product read repos 已改读 projection catalog，
+            不再读 legacy `pools` 表
+          - `pool_catalog_v2.pool_id` 明确为 read-model stable id，不宣称是 swap GraphQL `poolId`
+          已完成最终收口：
+          - 产品 `/positions`、`/position-metrics`、pool catalog、stats/read models 均走 projection-backed runtime wiring
+          - `PositionMetricsPublicApi` 不再暴露 `fetch_pool_application_position_metrics` pool-application query 入口
+          - 旧 projection payload client 只保留为 legacy/integration 单元测试对象，不作为 product public API
+          - 公开 `/position-metrics` 响应不暴露 `owner_receives_protocol_fees`、`metrics_status`、`fee_calculation_complete`
+          - 验证：`python3 -m unittest service/kline/tests/positions_api_test.py service/kline/tests/query_stack_read_model_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/position_metrics_public_api_test.py service/kline/tests/position_metrics_test.py service/kline/tests/position_metrics_pool_application_payload_fetcher_test.py service/kline/tests/pool_application_client_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`，`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+      - id: POS-039
+        status: Done
+        priority: P0
+        depends_on: [POS-037]
+        title: 切换 points 与 transactions handlers 到新 read models
+        notes: |
+          已完成主 read-path cutover：
+          - `/points/...`
+          - `/points/.../information`
+          - `/transactions/...`
+          - `/transactions/information`
+          以上路径现都通过 `query.handlers.* + query.serializers.* + projection repos` 读数据，不再在 endpoint 内调用 legacy `Db`，也不再保留 runtime fallback。
+      - id: POS-040
+        status: Done
+        priority: P0
+        depends_on: [POS-038]
+        title: 切换 positions handler 到新 read model
+        notes: |
+          `/positions` 已切到 `query.handlers.positions` 和 `query.serializers.positions`，由新 read model 返回 owner envelope。
+          当前 handler runtime 只走 projection 契约，`settled_liquidity_projection_repo` 负责 positions 与 owner/pool liquidity history。
+          `position-metrics` 侧的 projection fetch / replay / payload enrichment / repo contract 已完成多轮对象化与 bundled-contract 收口。
+          当前稳定边界：
+          - read path 消费 `get_replay_facts()` 与 `get_snapshot_inputs()`
+          - runtime 通过公开 `build_runtime()` / `build_replay_entrypoint()` 获取 position-metrics 能力
+          - `PositionMetricsPublicApi` 已成为稳定入口
+          后续继续把 replay-time derivation 从 query/read boundary 下推到 projection/repository 契约。
+      - id: POS-041
+        status: Done
+        priority: P0
+        depends_on: [POS-039, POS-040]
+        title: 为 phase-1 迁移增加 parity 与回退护栏
+        notes: |
+          parity / rollback runtime 方案已废弃。
+          当前目标明确为纯新架构，不再允许 runtime legacy path、handler shadow compare 或 rollout debug surface。
+          之前规划中的 `compatibility/legacy_response_shapes.py` 未成为活跃运行时依赖，
+          现已不再保留兼容层运行时代码。
+      - id: OBS-E2E-001
+        status: Done
+        priority: P0
+        depends_on: [POS-032, POS-035, POS-044]
+        title: 端到端 observability 集成测试
+        notes: |
+          这一批工作的主线任务。参考 `scripts/run_local.sh` 搭建本地完整测试环境，验证
+          L1→L2→L3 全管线，并完成与前端读路径相关的最终语义核对。
+
+          范围收口：
+          - observability E2E 闭环
+          - maker 交易流对 observability / 1min K 线的影响验证
+          - 前端主读路径的金融语义核对（不是只看接口通不通，也不依赖人工逐项浏览器对账）
+          - 完整数据平台约束核对：生产数据只来自 chain parse，消费数据只来自 projections；
+            不允许产品业务真值来自 chain query。Canonical 见 `agents/context/observability-architecture.md`。
+
+          环境准备：
+          - 启动 MySQL (docker-compose)
+          - 编译 `canonical_decoder` (cargo build --release -p decoder --bin canonical_decoder)
+          - 安装 Python 依赖 (pip install -r requirements.txt)
+          - 启动 kline service，配置 observability 参数指向本地/测试网
+
+          验证检查点：
+          - `GET /debug/observability` 返回非空 cursors
+          - `POST /debug/normalization/replay/run` 执行 normalization
+          - `POST /debug/market-derivation/replay/run` 执行 market derivation
+          - `/transactions` 和 `/points` 返回 Layer 3 数据
+          - 日志包含预期的 lifecycle 消息
+          - maker 发起真实交易后，链上与 Layer 3 projection 保持一致
+          - 前端消费接口由自动 E2E/回归测试覆盖金融语义；浏览器只做烟测，不作为账务正确性的完成标准
+
+          当前已落地：
+          - `service/kline/start_kline_e2e.sh` 可在本地拉起 kline，注入 decoder / MySQL / GraphQL 参数并等待 `/debug/observability` ready
+          - 为本地 E2E 启动补了 MySQL 兼容与幂等修正：
+            - `settled_trade_repo.ensure_schema()` 改为 `information_schema` 探测后按需 `ALTER`
+            - `raw_posted_messages` 重复写入改为 `INSERT IGNORE`
+          - 前端主链路中，token 列表、交易、K 线基础拉取与实时更新问题已基本跑通
+          - 2026-05-12 runtime 复核：
+            - `compose_maker_and_funder.sh` 与 `compose_webui.sh` 已重跑，`kline` / `maker` / `funder` / `linera-meme-webui` healthy
+            - `/debug/observability` 返回 `ready=true`，schema/registry/startup_catch_up/listener/workers 均 ready
+            - maker 曾因未传 `SUDO_PASSWORD` 导致 `WALLET_CHAIN` 为空；用 `SUDO_PASSWORD=12345679` 重跑后 maker wallet chain 恢复为 `507e...a733`，swap mutation 成功
+            - `/transactions` 最新交易、`/points` 1m K 线、`/protocol/stats`、`/poolstats/interval/1d` 均能从 projection 返回数据
+          - 已新增系统回归 `service/kline/tests/observability_reconciliation_test.py`：
+            固定 projection facts，独立对账 transactions、1m candles、pool/protocol stats、virtual positions 与
+            protocol fee metrics，防止前端/接口人工观测替代金融语义验证
+          - maker 已完成第一版成熟做市商重构，当前 1min K 线质量验收为可接受
+
+          最终收口：
+          - `service/kline/tests/observability_e2e_test.sh` 已成为 shell-level 集成验证入口，
+            包含 observability ready、replay/debug 入口、product API smoke checks
+          - 该脚本已接入 `observability_reconciliation_test.py`，用固定 projection facts 自动对账
+            transactions、1m candles、pool/protocol stats、virtual positions 与 protocol fee metrics
+          - positions / TVL / APR 等金融语义核对已转为自动回归约束，不再以人工浏览器逐项对账作为完成标准
+          - 验证：`bash -n service/kline/tests/observability_e2e_test.sh`
+          - 验证：`output/pytest-venv/bin/pytest service/kline/tests`，683 passed
+      - id: POS-045
+        status: Done
+        priority: P1
+        depends_on: [POS-044]
+        title: review kline OO 架构并消除 facade/URL 透传中间态
+        notes: |
+          observability 整体功能、代码和架构审查已完成，本轮不做高风险大重构。
+
+          审查范围：
+          - Layer 1 ingestion/cursor/raw storage
+          - application registry / decoder dispatch / Rust decoder runner
+          - Layer 2 normalization / pool catalog projection materialization
+          - Layer 3 market derivation / settled trades / liquidity / snapshots
+          - product query read models / serializers / stats / positions / position-metrics
+          - realtime event queue / publisher / candle finality / websocket invalidation
+          - diagnostics/debug/fail-open lifecycle
+          - bootstrap/lifecycle/runtime composition 与外部 integration client 边界
+
+          主要结论：
+          - L1→L2→L3 主链路已经按数据平台分层落地：producer facts 来自 parsed chain blocks，
+            normalized events 由 decoder/normalizer 生成，consumer-facing business data 由 Layer 3
+            projection repos/read models 提供。
+          - `PostIngestPipeline` 明确按 normalization → market derivation 串联，`MarketDerivationWorker`
+            在 projection materialize 成功后再发布 market-data events，符合“projection commit 驱动 realtime”的约束。
+          - `/transactions`、`/points`、`/positions`、`/position-metrics`、stats/read models 的 active runtime
+            通过 `KlineRuntime` 接 projection repos/read models；未发现 product handler 直接以 live chain query
+            或 `latestTransactions` 作为业务真值。
+          - `latestTransactions` 在 kline src/tests 的产品依赖已经清理；当前 Layer 3 事实载体是
+            block-observed `pool_new_transaction_recorded`，不是 pool state history queue。
+          - diagnostics/realtime debug 写入已有 best-effort 与 TTL/max-row 配额，符合“诊断不能打死业务路径”的约束。
+          - account 解析已集中到 `AccountCodec`，运行时写入路径使用 public account 形态；`ensure_schema()`
+            中的 account-format UPDATE 属于历史数据迁移边界，不是运行时兼容 fallback。
+          - `position_metrics_pool_application_payload_*` 不属于 product runtime truth path，当前只应保留为
+            legacy/integration/test 边界，不能重新进入产品读路径。
+
+          仍需后续结构清理但不阻断当前完成的点：
+          - `service/kline/src/db.py` 仍是 legacy monolith，混有 debug persistence、旧表 schema、历史方法和
+            compatibility surface；它不是 canonical architecture，应逐步拆到 storage/diagnostics/repositories。
+          - `service/kline/src/kline.py` 仍是较大的 FastAPI entrypoint，包含 global state、endpoint wiring、
+            debug endpoint 与 runtime construction；后续应拆成 query/diagnostics API 组合层，而不是继续扩写。
+          - `app/bootstrap.py` 当前是 composition root，但对象装配过重，并重复构建 decoder/repo/pipeline bundle；
+            后续可拆为 observability container builder / projection pipeline builder / integration client builder。
+          - `ObservabilityFacade` 与 `KlineObservabilityDebugService` 当前主要承担 fail-open/debug payload 包装，
+            可以接受；但不要继续扩成只有转发行为、没有独立策略的 pass-through 层。
+          - URL/base URL 拼装仍存在于 outer/integration boundary：
+            `kline.py`、`maker.py`、`funder.py`、`app/bootstrap.py`、`integration/*client.py`。
+            当前作为迁移中间态可接受；稳态目标是外层注入 configured client/transport object，
+            内层不再传递 resolved endpoint string。
+          - `position_metrics_*` 模块数量多且命名仍带历史阶段痕迹；业务真值边界已收敛到 projection，
+            但代码结构后续应按 read-model/snapshot/replay/diagnostics 重新聚合，避免继续碎片化。
+
+          完成标准：
+          - 已按 observability 全链路审查功能、代码和架构边界
+          - 已记录符合架构约束的证据、可接受中间态和后续结构清理点
+          - 未发现需要立即阻断当前 observability 批次收尾的产品业务真值违例
       - id: POS-027
-        status: Doing
+        status: Done
         priority: P0
         depends_on: []
         title: 排查生产环境 K 线自 03:00 起归零原因
-        notes: 聚焦线上已发生故障：用户最初描述为“03:00 起归零”，已校正为“03:00 之后没有新蜡烛、价格一直横着”。当前已证实对 production 活跃池 1000/1001/1002，`/points` 在 2026-04-20 03:00 CST 之后并未返回 `close=0`，而是继续返回非零价格；`pool 1000` 的最近真实成交停在约 2026-04-20 04:36:45 CST（kline 侧最近记录 tx 37990/37991），`/transactions/audit/recent` 也显示 recent live-vs-DB 无缺口，因此不是 recent window 丢交易导致的“假平线”。进一步线上取证显示，三个活跃池最后一批成交几乎全部来自同 3 个固定地址，且 3 池在相近时间一起停，强烈指向 maker-like 自动交易流；再查这 3 个地址的 native chain balance 仍约 96~99 TLINERA，基本排除 gas 不足；但查 3 个活跃池对应 meme token 余额时，这 3 个地址在各 token 上都只剩约 0.0002~0.0011，库存几乎耗尽。结合 `service/kline/src/trader.py` 当前策略在 sell path 依赖 token inventory，可初步判断“平线”更像生产 maker 库存枯竭/策略进入 no-op，而非 kline 服务异常。补充：`maker-wallet-service` 已确认发生 OOM；结合 `linera-protocol` 代码，当前 `linera service` 启动参数未收紧 worker TTL/并发/缓存，且会对 wallet 中全部链启动 listener，并为 full-chain listener 开启后台 `find_received_certificates` 同步，因此 wallet OOM 很可能直接导致 maker 无法继续稳定发单，进而表现为成交停止和 K 线横盘。另已在 `service/kline` 落地原始 debug trace 持久化：maker 发往 wallet/swap/proxy 的请求与响应、GraphQL errors 和异常文本会写入 `debug_traces`，并可通过 kline API 导出；同时修正 maker 不再把失败 swap 误记为 `executed`，而会写 `failed` 事件，便于后续直接按数据库与 API 对账。新增线上取证：2026-04-21 15:49 CST 左右 maker 仍在持续向 wallet 发起 `swap` mutation，wallet balances 与 token inventory 均正常，说明这次不是 maker 进程停掉、gas 不足或库存见底；但三个活跃池的 live `latestTransactions` 与 kline DB 都仍停在更早时间点（pool 1001 约 2026-04-21 13:13:34 CST，pool 1002 约 2026-04-21 12:54:28 CST，pool 1000 约 2026-04-21 11:53:25 CST），且 recent live-vs-DB audit 无缺口，说明当前断点不在 kline 同步，而在 wallet/chain 执行层：mutation 已被 wallet HTTP 层接收，但没有稳定推进为 pool 可见交易历史。后续排障重点从“kline 是否漏写”转为“maker-wallet OOM/重启是否打断 linera service 的后续执行、监听或证书处理”。实施清单拆到 POS-028/029/030
+        notes: |
+          聚焦线上已发生故障：用户最初描述为“03:00 起归零”，已校正为“03:00 之后没有新蜡烛、价格一直横着”。
+          当前结论：
+          - production 活跃池 1000/1001/1002 的 `/points` 在 2026-04-20 03:00 CST 后并未返回 `close=0`，而是继续返回非零价格
+          - recent projection-vs-DB audit 无缺口，因此不是 recent window 丢交易导致的“假平线”
+          - 早期一轮排查曾指向 maker-like 地址库存枯竭与 `maker-wallet-service` OOM
+          - 新一轮线上取证又确认 maker 仍持续向 wallet 发起 `swap` mutation，wallet balances 与 token inventory 正常
+          - 三个活跃池的 pool-application `latestTransactions` 与 kline DB 都停在更早时间点，断点位于 wallet/chain 执行层，不在 kline 同步
+
+          当前排障已由 POS-028/029/030 收口：
+          - maker-wallet metrics 与 maker debug API 已补齐
+          - kline/projection recent audit 未发现同步缺口
+          - 断点诊断已能暴露 maker→wallet mutation accepted 但 projection 未结算的阶段
+          - Reject 精确映射到合约 panic 点不作为可实现完成条件
+
+          结论：该故障不再作为 kline 同步缺陷追踪；剩余生产质量问题应通过 observability E2E
+          与自动 projection-fact 对账覆盖。
       - id: POS-028
         status: Done
         priority: P0
         depends_on: [POS-027]
         title: maker-wallet-service 暴露 8082 metrics 端口
-        notes: 已在 `k8s/maker/02-deployment.yaml` 的 `maker-wallet-service` 容器声明 `containerPort: 8082`，并在同文件的 Service 增加 `maker-wallet-metrics` 端口，保持对外仍只走业务 `8080`。后续部署后可由 `maker-service` 通过 `http://maker-wallet-service-$index.maker-wallet-service:8082/metrics` 拉取指标
+        notes: |
+          已在 `k8s/maker/02-deployment.yaml` 的 `maker-wallet-service` 容器声明 `containerPort: 8082`，
+          并在同文件的 Service 增加 `maker-wallet-metrics` 端口，保持对外仍只走业务 `8080`。
+          部署后可由 `maker-service` 通过
+          `http://maker-wallet-service-$index.maker-wallet-service:8082/metrics`
+          拉取指标。
       - id: POS-029
         status: Done
         priority: P0
         depends_on: [POS-028]
         title: maker-service 新增 wallet debug/export API
-        notes: 已直接扩展现有 `service/kline/src/maker_api.py`，复用 `Db` 与现有 trace/event 表，在 maker-service 原 `8080` 上提供只读 debug API，避免再起第三个进程和新端口。当前已落地 `/debug/wallets`、`/debug/wallets/{index}/metrics`、`/debug/wallets/{index}/balances`、`/debug/traces`、`/debug/pools/stall`、`/debug/health`；接口会聚合 wallet metrics、wallet GraphQL 余额、maker DB 事件和 pool 最新交易水位，并返回语义化 health/stall 结论
+        notes: |
+          已直接扩展现有 `service/kline/src/maker_api.py`，复用 `Db` 与现有 trace/event 表，
+          在 maker-service 原 `8080` 上提供只读 debug API，避免再起第三个进程和新端口。
+          当前已落地：
+          - `/debug/wallets`
+          - `/debug/wallets/{index}/metrics`
+          - `/debug/wallets/{index}/balances`
+          - `/debug/traces`
+          - `/debug/pools/stall`
+          - `/debug/health`
+
+          接口会聚合 wallet metrics、wallet GraphQL 余额、maker DB 事件和 pool 最新交易水位，
+          并返回语义化 health/stall 结论。
       - id: POS-030
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [POS-029]
         title: maker wallet 执行断点诊断闭环
-        notes: 已在 `/debug/pools/stall` 聚合最近 maker event、wallet swap trace、DB 最新 transaction 和 wallet health，并输出 `lag_seconds` 与 `suspected_stage`；当前已覆盖 `maker_idle` / `wallet_metrics_unreachable` / `wallet_low_gas` / `wallet_memory_high` / `mutation_accepted_but_not_settled` / `unknown`，并补了最小 API 假数据回归。新增确认：2026-04-22 线上 maker-service CrashLoop 的直接原因不是 wallet，而是 `service/kline/src/db.py` 在启动时对超大 `maker_events` 表执行 `ensure_debug_indexes()`，MySQL 返回 `1114 The table 'maker_events' is full`，导致 maker 主进程与 maker API 进程双双退出。现已把 debug 索引创建与 debug 表写入改为 best-effort：表满时只记录 `debug_storage_degraded`，不再阻断 maker 启动和主交易循环。新增落地：现已将 `docker/maker-entrypoint.sh` 从 `maker.py & maker_api.py` 双进程改为单进程 `maker_api.py`，并把交易循环内嵌到 API 生命周期里；启动时会在同一进程创建独立 trader DB 连接并拉起后台交易任务，异常时不再直接丢失整个交易循环，而是记录 `last_error`、累计 `consecutive_failures` 并按退避继续重试，同时通过 `/debug/health` 与新增 `/debug/trader` 暴露循环状态，避免再次出现“API 还活着但 maker 子进程已死”的假健康。另已为 `debug_traces` 增加事件驱动的分层保留与空间预算控制：新写入会按成功/失败分级裁剪大字段，超出 1GiB 预算时优先删除过期数据、对旧成功 trace 做采样保留、压缩旧 payload，并在发生实际清理后执行 `OPTIMIZE TABLE debug_traces` 回收 `.ibd` 空间，从而保留最近窗口和失败上下文而不是简单粗暴清空；当前保留预算和清理节奏可通过 `KLINE_DEBUG_TRACES_*` 环境变量调节，并可通过 `/debug/storage` 或 `/debug/traces?include_storage=true` 直接查看运行中的生效配置与表空间占用。剩余工作是部署后继续核对 2026-04-21 13:10 CST 之后真实线上 wallet/listener 指标，并确认单进程自恢复后 K 线停滞是否仍是 `mutation accepted but not settled`
+        notes: |
+          已在 `/debug/pools/stall` 聚合最近 maker event、wallet swap trace、DB 最新 transaction 和
+          wallet health，并输出 `lag_seconds` 与 `suspected_stage`。
+          当前已覆盖：
+          - `maker_idle`
+          - `wallet_metrics_unreachable`
+          - `wallet_low_gas`
+          - `wallet_memory_high`
+          - `mutation_accepted_but_not_settled`
+          - `unknown`
+
+          已确认的关键事实：
+          - 2026-04-22 线上 maker-service CrashLoop 的直接原因不是 wallet，而是
+            `service/kline/src/db.py` 启动时对超大 `maker_events` 表执行 `ensure_debug_indexes()`，
+            MySQL 返回 `1114 The table 'maker_events' is full`
+          - 现已把 debug 索引创建与 debug 表写入改为 best-effort，表满时只记录
+            `debug_storage_degraded`，不再阻断 maker 启动和主交易循环
+          - 后续线上复核已推翻“没有稳定 inbox 处理者”的中间结论：pool creator 链仍在持续出块并处理 inbox
+          - 最近用户链发来的 `PoolMessage::Swap` 在 creator 链上稳定表现为 `ReceiveMessages + Reject`
+          - maker trace 显示 wallet mutation 持续返回 200，但 pool `latestTransactions` 与 swap root
+            仍停在旧时间窗，同时 pool 合约真实资产余额与 `reserve` 明显漂移
+
+          结论：断点已收敛到“资金/消息已到 creator 链，但 swap 执行阶段发生硬失败”，
+          而不是 kline 漏同步或 creator 链无人监听。
+          可实现的诊断目标已完成：系统能暴露 maker→wallet mutation 已接受但 projection 未结算的阶段。
+          由于链上 Reject 不必携带合约 panic 细节，不能把“精确对应到 panic 点”作为完成条件。
+      - id: POS-047
+        status: Done
+        priority: P0
+        depends_on: [POS-030]
+        title: 围绕现有 AMM pool 重构 maker 为成熟做市商
+        notes: |
+          该任务统一收口 maker 侧重构目标，约束如下：
+          - 只重构 maker 侧，不重写 pool / swap AMM 合约
+          - 围绕现有 AMM pool 实现成熟做市商算法，而不是再造一套 AMM
+          - 优先改 `service/kline/src/trader.py`，允许新增小模块
+          - 尽量保持 `service/kline/src/swap.py` 与 `service/kline/src/wallet.py` 的外部接口语义不变
+
+          已完成第一版实现：
+          - `maker_reference_price_engine.py` 提供 reference price / regime / directional score
+          - `maker_inventory_controller.py` 管理 pending imbalance、long-term bias 与 active slice plan
+          - `maker_execution_policy.py` 基于 AMM reserves、mispricing、inventory、risk limits 输出交易方向与规模
+          - `maker_minute_scheduler.py` / `maker_minute_plan.py` 将窗口净额拆成 execution slices
+          - `Trader` 已接入上述模块，不再使用“随机抽方向 + 随机抽重尾单量”作为主策略
+          - 当前 1min K 线质量验收为可接受
+      - id: POS-048
+        status: Done
+        priority: P0
+        depends_on: [POS-047]
+        title: 提取 maker market state 与 reference/inventory 边界
+        notes: |
+          从 `Trader` 中拆出每 pool 独立状态与核心状态机边界，至少包括：
+          - `PoolMarketState`
+          - `ReferencePriceEngine`
+          - `InventoryController`
+
+          约束：
+          - 不再把 `pending_*`、`long_term_quote_bias`、价格状态散落在 `Trader` 顶层字段
+          - 先完成结构与语义收口，再推进执行策略替换
+          已完成：reference / inventory / minute planning 边界已拆出并由 `Trader` 组合。
+      - id: POS-049
+        status: Done
+        priority: P0
+        depends_on: [POS-048]
+        title: 实现基于 reference price 偏离的 AMM execution policy
+        notes: |
+          用成熟做市商语义替换当前随机 `trade_amounts()`：
+          - 输入：pool reserves、pool price、reference price、inventory skew、risk limits
+          - 输出：side、target price correction、target quote notional、max impact
+
+          必须实现：
+          - 偏离越大，纠偏越强
+          - 库存越偏，同向交易越弱
+          - 下单量按“希望把价格往 reference 拉回多少”反推
+
+          禁止继续使用“随机抽方向 + 随机抽重尾单量”作为主策略。
+          已完成：`MakerExecutionPolicy.decide_trade()` 已按 reference mispricing、inventory bias、
+          AMM 曲线 target price、quote cap、impact/risk limits 决策。
+      - id: POS-050
+        status: Done
+        priority: P0
+        depends_on: [POS-049]
+        title: 用 minute scheduler 替换高频随机 plan 与 15s flush
+        notes: |
+          把当前：
+          - 每 `2~4s` 独立 plan
+          - 每 `15s` pending 净额 flush
+
+          改成：
+          - 按分钟生成 `minute plan`
+          - 本分钟定义目标总量、净方向、目标笔数、最大允许波动
+          - 再拆成多个 execution slices
+
+          目标：
+          - 减少 1min K 线的离散脉冲感
+          - 让 volume、close 连续性、wick 长度更可控
+          已完成：`MinuteScheduler` 与 `MinutePlan` 已接入 `Trader.prepare_slice_plans()` /
+          `Trader.execute_next_slices()`。
+      - id: POS-051
+        status: Done
+        priority: P1
+        depends_on: [POS-049, POS-050]
+        title: 为 maker 做市策略补单测与 K 线形态回归基线
+        notes: |
+          至少覆盖：
+          - AMM target-price sizing
+          - inventory skew 对方向和单量的抑制
+          - minute plan / slice 执行节奏
+          - 单笔 impact limit 与单分钟风险上限
+
+          已完成：
+          - `maker_execution_policy_test.py` 覆盖 target-price sizing、inventory bias、activity flow、quote cap
+          - `maker_inventory_controller_test.py` 覆盖 pending/long-term bias 与 slice plan
+          - `maker_minute_scheduler_test.py` 覆盖 minute plan / slice 执行节奏
+          - `maker_simulation_test.py` 覆盖 1min gap/range 形态回归基线
+          当前 1min K 线质量验收为可接受，不再要求旧算法 vs 新算法人工肉眼对比。
+      - id: POS-052
+        status: Done
+        priority: P0
+        depends_on: [POS-035, POS-038, OBS-E2E-001]
+        title: 核对前端 positions TVL APR 等金融语义
+        notes: |
+          当前重点不是“接口能返回”，而是确保前端消费的 API 与链上/Layer 3 真值一致。
+          人工浏览器逐项对账不是合理完成标准；账务核对应由自动 E2E/回归测试完成。
+
+          当前范围：
+          - `positions`
+          - `TVL`
+          - `APR`
+          - 其他与资金、仓位、收益率直接相关的前端指标
+
+          核对约束：
+          - 以链上原始交易与 Layer 3 projection 为真值，不以前端 cache 或单条 DB 聚合结果为真值
+          - 明确 virtual liquidity、真实 reserve、用户 position、fee / yield 语义边界
+          - 核对单位、精度、时间窗和分母定义，不接受“看起来差不多”
+
+          2026-05-12 runtime 复核：
+          - creator/protocol fee receiver `0xc21...8c13@b0f87...e9f2` 的 `/positions?status=all`
+            返回 `status=virtual`、`position_kind=virtual_initial_liquidity`
+          - 同一 owner 的 `/position-metrics?status=all` 返回 projection-derived protocol fee，
+            公开字段为 `position_liquidity` / `total_supply`，无 `owner_receives_protocol_fees` / `fee calculation` 泄漏
+          - maker owner positions/metrics 为空是合理结果；maker 当前只 swap，不是 LP/creator
+          - `/protocol/stats` 与 `/poolstats/interval/1d` 当前能返回 TVL / volume / fees / tx_count，
+            相关金融语义由 projection facts 自动对账覆盖；浏览器展示只做烟测
+          - 自动回归已覆盖 projection facts 到 transactions / candles / stats / virtual positions /
+            protocol fee metrics 的确定性对账，并锁住 TLINERA native reserve 必须按 1:1 计入 TVL
+      - id: POS-053
+        status: Done
+        priority: P0
+        depends_on: [POS-035, POS-037, POS-038, OBS-E2E-001]
+        title: 重构实时推送为 projection event queue
+        notes: |
+          目标：把实时推送从 `Ticker.run` 的 10s 轮询迁到数据平台事件流。
+
+          当前设计结论：
+          - websocket 推送属于数据平台消费层，必须由 Layer 3 projection commit 或 projection-derived
+            finality event 驱动
+          - 采用多生产者、单消费者、面向多客户端 fan-out：
+            - producer: market derivation commit、replay/catch-up rebuild notification、candle finality scheduler
+            - queue: in-memory async market-data event queue
+            - consumer: event publisher drain/coalesce 后通过 WebSocketManager 推送
+          - `transactions` 是全市场 feed，默认推给所有连接
+          - `kline` 按 pool / pair / interval subscription 过滤
+          - `positions` 新增 topic 与 notification，value 为批量 invalidation，不推单条 position 真值
+          - 前端收到 `positions` 后重新拉 `/positions`、`/position-metrics`、必要 stats；
+            HTTP/projection read model 仍是业务真值
+          - candle finality 由后端统一提供，但 finality scheduler 只产生事件，不直接推 websocket
+          - 禁止继续给 `Ticker` 增加新产品 realtime topic
+
+          当前拆分：
+          - POS-054: 已建立 market-data event 类型、queue、publisher 基础设施
+          - POS-055: 已把 Layer 3 market derivation commit 接入 event producer
+          - POS-056: 已实现 `positions` websocket topic 与前端自动刷新
+          - POS-057: 已抽出 candle finality scheduler，保留后端统一 `is_final`
+          - POS-058: 已删除 legacy `Ticker` 主运行路径与实现
+
+          验证：
+          - `python3 -m compileall -q service/kline/src`
+          - `python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/market_data_event_sink_test.py service/kline/tests/market_data_event_publisher_test.py service/kline/tests/subscription_test.py service/kline/tests/kline_service_lifecycle_test.py service/kline/tests/market_derivation_worker_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/positions_api_test.py`
+          - `bun test src/stores/kline/liveUpdate.test.ts`
+          - `bun run build`
+          2026-05-12 补充：market-data queue 已支持跨线程 producer 安全唤醒 asyncio consumer，
+          并新增有 TTL/max-row 配额的 `/debug/realtime` 诊断 API，用于定位 enqueue→publish→payload→notify 延迟。
+      - id: POS-054
+        status: Done
+        priority: P0
+        depends_on: [POS-053]
+        title: 建立 market-data event queue 与 publisher
+        notes: |
+          新增实时推送基础设施：
+          - 定义 MarketDataEvent 类型，覆盖 settled_trade、settled_liquidity_change、candle_finalized、
+            projection_rebuilt/range_invalidated
+          - 建立 async queue，支持多 producer 入队、单 consumer drain
+          - publisher 负责 coalesce、dedupe、按 topic 组装 websocket notification
+          - WebSocketManager 只做 subscription registry 与 fan-out，不计算业务数据
+          - 添加单测覆盖 drain/coalesce、空事件、重复 pool/owner 合并、断开连接清理
+          - 调试/诊断写入必须有资源配额；当前 realtime diagnostics 表按 TTL 和 max rows 清理
+      - id: POS-055
+        status: Done
+        priority: P0
+        depends_on: [POS-054, POS-035]
+        title: 将 Layer 3 commit 接入实时事件生产
+        notes: |
+          在 market derivation 成功写入 projection 后发布事件，保证前端收到 websocket notification
+          后再拉 HTTP read model 能读到新数据。
+
+          要求：
+          - settled_trade 产生 transactions/kline/market-stats invalidation
+          - settled_liquidity_change 产生 positions/pool-state invalidation
+          - replay/catch-up 可以发布 range_invalidated 或 projection_rebuilt
+          - 不从 raw block 或 Layer 2 半成品直接推产品事件
+      - id: POS-056
+        status: Done
+        priority: P0
+        depends_on: [POS-054, POS-055, POS-052]
+        title: 实现 positions websocket topic 与前端自动刷新
+        notes: |
+          后端：
+          - 支持 `{"action":"subscribe","topic":"positions","owner":"..."}`，owner 可选但推荐传
+          - 推送 `{"notification":"positions","value":{"events":[...]}}`
+          - value 是批量 invalidation，包含 owner/pool_application/pool_id/event_types/updated_at 等足够过滤字段
+
+          前端：
+          - positions 页订阅 `positions`
+          - 收到命中当前 owner 或相关 pool 的 invalidation 后 throttle 刷新 `/positions`、
+            `/position-metrics`、poolstats/protocol stats
+          - 不用 blockHash 驱动 positions
+          - 不把 websocket payload 当 position 真值
+      - id: POS-057
+        status: Done
+        priority: P0
+        depends_on: [POS-054]
+        title: 抽出 candle finality scheduler
+        notes: |
+          后端继续统一提供 `is_final`，避免不同前端本地时间漂移导致 candle 状态不一致。
+
+          实现要求：
+          - scheduler 只在 bucket 边界产生 candle_finalized 事件
+          - finality event 进入同一个 market-data queue，由 publisher 推送
+          - HTTP `/points` 仍以服务端时间/projection 语义返回统一 `is_final`
+          - 不依赖 `Ticker.run` 10s loop 做 finality rollover
+      - id: POS-058
+        status: Done
+        priority: P1
+        depends_on: [POS-054, POS-055, POS-057]
+        title: 删除 legacy Ticker
+        notes: |
+          当前 `Ticker` 同时承担 10s 轮询、pool catalog 读取、projection transaction history 读取、
+          kline payload 构造、transactions feed 推送和 candle rollover。
+
+          目标：
+          - 新交易发现、transactions 推送、kline 增量推送迁出 `Ticker`
+          - candle finality 迁到 `CandleFinalityScheduler`
+          - 删除 `Ticker.run` 后台 loop、`Ticker` 类和启动生命周期 wiring
+          - 不保留兼容或诊断用 ticker 路径
+          - 如果需要诊断，新增 diagnostics/observability 指标或 debug endpoint，不复用 ticker
+          - 不再在 `Ticker` 中新增 positions 或其他产品实时 topic
+      - id: POS-059
+        status: Done
+        priority: P0
+        depends_on: [OBS-E2E-001, POS-035, POS-037]
+        title: 将 transactions 分页改为 projection cursor
+        notes: |
+          Review 发现：前端全市场 transactions 当前仍用固定 10 分钟窗口拼下一页，
+          这不符合 projection read model 的 cursor 语义。
+
+          已完成：
+          - 后端 projection query 已支持 `end_at=<oldest.created_at - 1>&limit=N`
+          - 前端分页不再用 `loadInterval` 决定历史窗口
+          - token-pair 与全市场路径都以 projection query 结果为真值
+          - 全市场 feed 保持只返回 `token_reversed=false` 原始交易
+          - 修复 pair 页 pool created timestamp 毫秒/秒混用问题
+          - 验证：`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+      - id: POS-060
+        status: Done
+        priority: P1
+        depends_on: [POS-053, POS-055]
+        title: 实时交易 payload 改为按事件 transaction ids 精确读取
+        notes: |
+          Review 发现：`MarketDataPayloadBuilder._load_transactions_for_events` 当前读取整个 pool history，
+          再按 transaction_id 过滤。它仍消费 projection，但不是严格事件驱动，交易量增长后成本会随池历史线性增加。
+
+          已完成：
+          - 新增 projection query repo 方法按 `(pool_application, pool_id, transaction_ids)` 精确读取 settled trades
+          - websocket transactions/kline 增量 payload 只读取当前事件涉及的交易
+          - 保持全市场推送只使用原始交易，反向视角只用于 pair-specific K 线/transactions
+          - 单测覆盖不会加载整池历史
+          - 验证：`python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/settled_trade_projection_repo_test.py`
+      - id: POS-061
+        status: Done
+        priority: P1
+        depends_on: [POS-053, POS-057]
+        title: candle finality 推送状态改为 projection/subscription 驱动
+        notes: |
+          Review 发现：当前 rollover 推送依赖 `MarketDataPayloadBuilder.last_emitted_bucket_starts`
+          的内存状态。服务重启后，如果某 pool 没有新 trade，finality scheduler 产生事件也可能无法推送该 stream 的 final candle。
+
+          已完成：
+          - finality event 携带 interval 与 finalized bucket
+          - builder 在无 `last_emitted` 内存状态时按 finality event bucket 从 projection 读取并推送
+          - 保持后端统一 `is_final` 语义，前端不本地决定 finality
+          - 添加重启/新订阅后无新 trade 仍能得到一致 final candle 的测试
+          - 验证：`python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py`
+      - id: POS-062
+        status: Done
+        priority: P2
+        depends_on: [POS-038, POS-052]
+        title: 收敛 position-metrics projection 命名与公开字段
+        notes: |
+          Review 发现：`position_metrics` 主路径已通过 projection payload adapter 构造数据，
+          但内部和公开字段仍大量使用 `current_*` 命名，例如 `position_liquidity`、
+          `current_total_supply`。这容易让后续实现误以为可以回到 chain query。
+
+          已完成：
+          - 公开 `/position-metrics` 响应把 `position_liquidity`/`current_total_supply`
+            收敛为 `position_liquidity`/`total_supply`
+          - 内部 legacy `current_*` 命名仅保留在 payload/replay 计算边界，不作为公开产品字段
+          - 公开响应继续隐藏 `owner_receives_protocol_fees`、`metrics_status`、`fee_calculation_complete`
+          - `status=active` 不再触发 virtual position enrichment，virtual 仅属于 `all/virtual`
+          - 验证：`python3 -m unittest service/kline/tests/query_stack_read_model_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`，`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
       - id: POS-024
-        status: Doing
+        status: Done
         priority: P0
         depends_on: []
         title: pool/swap 语义对齐 Uniswap V2
-        notes: 已移除未生效的 protocol_fee_percent_mul_100，当前锁定为固定 Uniswap V2 fee-on 语义；swap 输出改为 constant-product with input-side fee，swap invariant 改为基于真实 amount_in/out 校验，非零 total_supply 的 add-liquidity mint 改为按 fee mint 后 total_supply 和现有 reserve 比例计算；同时修正 k_last 不再在 swap 时刷新，并让 remove_liquidity 也会结算 mint_fee 和更新 reserves。`validate_swap_invariant` / `mint_protocol_fee` / `update_k_last` 已从 StateInterface 顶层 helper 收回到 swap/add/remove 主流程，只保留 Pool 纯数学函数。pool service 的 `totalSupply` / `liquidity(owner)` / `calculate_amount_liquidity` 查询现已按 pending protocol fee 稀释后的 effective total supply 返回，避免把尚未 mint 的 protocol share 错算进用户可提资产；并新增了真实集成级 GraphQL 回归来断言 swap 后 `totalSupply/liquidity(owner)` 已体现 pending fee 稀释，不过该集成测在当前环境执行仍会被 Wasmer 模块实例化阶段的 os error 12 卡住，只能先完成 no-run 编译校验并依赖轻量 service 单测验证语义。virtual initial liquidity 现已转为锁定初始 supply，不再把初始储备注入首个真实 LP；contract 回归已覆盖初始 user liquidity=0、首次 add 后 user liquidity<total_supply、用户清空自身 LP 后池子仍保留锁定 supply/reserve。另已开始修正 `NewTransaction` 历史写入的内容级去重问题，改为预分配稳定 transaction_id 以保留真实重复交易，同时仍对重复消息投递保持幂等；当前代码和测试已表明“同内容但不同 transaction_id”的真实交易应被保留，但仍需核验线上坏历史是否来自旧版本遗留，以及 async 闭环在 `NewTransaction` 前中断时是否造成永久历史缺口；受限内存下 Wasmer 集成测仍需单独环境验证
+        notes: 已过期。被新观测系统覆盖，不再单独推进。
   - name: Contract Tests
     tasks:
       - id: TEST-001
@@ -290,36 +984,61 @@ groups:
   - name: Funds Consistency
     tasks:
       - id: FUND-001
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: []
-        title: 审计 Reject 后残留资金与 reserve 副作用
-        notes: 术语约束：`transaction_id` 不连续本身不是缺记录，也不自动表示异常；只有当某笔已 `Reject` 的交易仍然影响了 pool 状态、资金、reserve、total supply、share 或其他副作用时，才定义为“状态不一致 / 不变量被破坏”。已确认存在这样一类严重一致性问题：`NewTransaction` 自消息若被 `Reject`，该笔交易不应成立；若此前已经扣款、改变 reserve、改变 total supply 或产生其他状态副作用，则必须回滚或走显式退款补偿。后续任务包含两部分：1) review pool/swap 及相关异步消息链路，排查是否还有其他 `Reject` / 下游失败 / 部分成功后导致状态不一致的路径；2) 设计并落地修复方案，明确每个阶段的原子边界、失败补偿、幂等语义与回归测试，确保失败交易要么完全不生效，要么用户与池子状态都进入可验证的一致结果
-    tasks:
-      - id: FUNDS-001
+        title: 定义跨链资金一致性协议边界与状态机
+        notes: |
+          先收口协议边界，再分实现。已确认：
+          1. `transaction_id` 不连续本身不是异常；只有某笔已 `Reject` 或下游失败的交易仍残留
+             reserve / total supply / share / 资金副作用，才算真实不一致
+          2. Linera Wasm 合约里 native `transfer` 失败不可在合约内 catch，也拿不到可恢复的 fail 返回，
+             因此不能依赖“payout fail 回执”修复
+          3. 跨链消息无法原子，meme 输入链与 pool payout 链之间必须显式建模
+             pending / success-only completion / user-claim or escrow 语义
+          4. virtual liquidity、真实 reserve、可支付余额三者语义必须一并收口
+          5. Linera `tracked + bouncing` 应作为原生的一跳 reject receipt 机制纳入协议设计，
+             用于把“目标链 reject”可靠反馈回源链并收敛 `pending -> failed/refund-ready`；
+             但它只覆盖单跳消息，不能替代多跳业务流程的显式状态机
+
+          该任务输出协议定义：哪些阶段可持久化、哪些阶段只能 pending、哪些资金在成功前不得最终归
+          pool 所有、哪些消息必须 tracked、bounce 回来后如何幂等收敛，以及 claim/refund/commit 的
+          幂等边界。
+      - id: FUND-002
         status: Todo
         priority: P0
-        depends_on: [REV-001]
-        title: 修复 AddLiquidity 双腿部分成功后的退款缺失
-        notes: 第一腿 FundSuccess 后第二腿 FundFail 只记失败 未退回第一腿资金
-      - id: FUNDS-002
+        depends_on: [FUND-001, REV-001]
+        title: 按统一协议修复 pool/swap 异步资金闭环
+        notes: |
+          合并原先分散 TODO，一次性覆盖高风险路径：
+          - AddLiquidity 双腿部分成功后失败无退款
+          - swap/remove/refund/payout 对下游 meme/native 发放缺少可靠闭环
+          - 初始建池路径吞掉下游失败仍持久化成功
+          - `NewTransaction` 或其他后续消息 `Reject` 后仍残留资金/状态副作用
+
+          目标不是在合约内捕获 host transfer panic，而是让失败最多留下可验证的 pending，
+          不留下错误 finalized 状态，并为成功路径补齐显式确认、幂等键与状态收敛。
+
+          约束：
+          - 优先利用 Linera `tracked + bouncing` 承接关键单跳消息的 reject 回执与源链收敛
+          - 不能把它误当成全流程原子回滚
+          - 后续 hop 的失败仍必须由业务协议状态机显式处理
+      - id: FUND-003
         status: Todo
         priority: P0
-        depends_on: [REV-001]
-        title: 修复 pool payout / refund 对 MemeResponse::Fail 的静默吞错
-        notes: 涉及 swap 输出发放 swap refund add-liquidity excess refund remove-liquidity payout
-      - id: FUNDS-003
-        status: Todo
-        priority: P0
-        depends_on: [REV-001]
-        title: 修复初始建池链路的伪成功持久化
-        notes: PoolCreated / LiquidityFunded 等路径忽略下游 call 结果 可能出现 pool 已登记但初始资金或初始化未完成
-      - id: FUNDS-004
+        depends_on: [FUND-001]
+        title: 明确 gas/funder 覆盖与链级运行保障
+        notes: |
+          `funder` OOM 已证明 chain gas 不足会直接打断任何可靠协议推进，这条线需要与资金一致性并行治理。
+          需要定义必须持续充值的链集合与覆盖来源，确认包含预创建链和运行期新增链；
+          并落实 `funder` 资源、链发现、监控告警与人工诊断接口，避免再次出现
+          chain balance 耗尽但 application balance 仍在、表面看像资金一致性故障的情况。
+      - id: FUND-004
         status: Todo
         priority: P1
-        depends_on: [REV-001]
-        title: 为资金闭环补集成测试
-        notes: 覆盖部分成功退款 输出发放失败 初始建池下游失败后的状态一致性
+        depends_on: [FUND-002]
+        title: 为资金协议与失败收敛补回归测试
+        notes: 覆盖部分成功退款、pending 不 finalize、重复 success/commit/claim 幂等、初始建池下游失败、Reject 后无残留副作用，以及 virtual liquidity 与真实可支付余额边界
   - name: WebUI
     tasks:
       - id: WEBUI-001

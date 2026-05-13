@@ -1,10 +1,7 @@
 import { NotifyType } from '../notify'
 import { useAmsStore } from './store'
 import { type Application } from './types'
-import {
-  resolveApplicationsQueryCreatedAfter,
-  resolveNextApplicationsCursor,
-} from './pagination'
+import { resolveApplicationsQueryCreatedAfter, resolveNextApplicationsCursor } from './pagination'
 
 const ams = useAmsStore()
 

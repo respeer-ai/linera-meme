@@ -18,12 +18,19 @@ export type Scalars = {
   Account: { input: any; output: any; }
   /** A unique identifier for a user or an application. */
   AccountOwner: { input: any; output: any; }
+  /** A non-negative amount of tokens. */
+  Amount: { input: any; output: any; }
   /** A unique identifier for a user application */
   ApplicationId: { input: any; output: any; }
   /** The unique identifier (UID) of a chain. This is currently computed as the hash value of a ChainDescription. */
   ChainId: { input: any; output: any; }
+  /** A Keccak256 value */
+  CryptoHash: { input: any; output: any; }
+  Liquidity: { input: any; output: any; }
+  MemeParameters: { input: any; output: any; }
   /** A unique identifier for an application module */
   ModuleId: { input: any; output: any; }
+  StoreType: { input: any; output: any; }
   /** A timestamp, in microseconds since the Unix epoch */
   Timestamp: { input: any; output: any; }
 };
@@ -35,6 +42,37 @@ export type Chain = {
   token?: Maybe<Scalars['ApplicationId']['output']>;
 };
 
+export type InstantiationArgument = {
+  amsApplicationId?: InputMaybe<Scalars['ApplicationId']['input']>;
+  blobGatewayApplicationId?: InputMaybe<Scalars['ApplicationId']['input']>;
+  meme: Meme;
+  proxyApplicationId?: InputMaybe<Scalars['ApplicationId']['input']>;
+  swapApplicationId?: InputMaybe<Scalars['ApplicationId']['input']>;
+};
+
+export type Meme = {
+  decimals: Scalars['Int']['input'];
+  initialLiquidity?: InputMaybe<Scalars['Liquidity']['input']>;
+  initialSupply: Scalars['Amount']['input'];
+  metadata: Metadata;
+  name: Scalars['String']['input'];
+  ticker: Scalars['String']['input'];
+  totalSupply: Scalars['Amount']['input'];
+  virtualInitialLiquidity: Scalars['Boolean']['input'];
+};
+
+export type Metadata = {
+  description: Scalars['String']['input'];
+  discord?: InputMaybe<Scalars['String']['input']>;
+  github?: InputMaybe<Scalars['String']['input']>;
+  liveStream?: InputMaybe<Scalars['String']['input']>;
+  logo?: InputMaybe<Scalars['CryptoHash']['input']>;
+  logoStoreType: Scalars['StoreType']['input'];
+  telegram?: InputMaybe<Scalars['String']['input']>;
+  twitter?: InputMaybe<Scalars['String']['input']>;
+  website?: InputMaybe<Scalars['String']['input']>;
+};
+
 /** We don't set any chain for owner because it may be stored on-chain in future */
 export type Miner = {
   __typename?: 'Miner';
@@ -44,7 +82,14 @@ export type Miner = {
 
 export type MutationRoot = {
   __typename?: 'MutationRoot';
+  createMeme: Array<Scalars['Int']['output']>;
   registerMiner: Array<Scalars['Int']['output']>;
+};
+
+
+export type MutationRootCreateMemeArgs = {
+  memeInstantiationArgument: InstantiationArgument;
+  memeParameters: Scalars['MemeParameters']['input'];
 };
 
 export type QueryRoot = {

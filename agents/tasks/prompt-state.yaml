@@ -1,0 +1,92 @@
+version: 1
+type: prompt-state
+authority: high
+derived_from:
+  - agents/tasks/board.yaml
+purpose: >
+  Default low-token task routing state for assistants. This file is derived from the
+  task board and canonical docs. It is not a task source.
+read_policy:
+  read_before:
+    - agents/tasks/board.yaml
+  read_board_when:
+    - updating task status
+    - needing full notes for an active task listed here
+    - checking dependencies or neighboring tasks for an active task
+defaults:
+  include_statuses:
+    - Doing
+    - Blocked
+  exclude_statuses:
+    - Done
+  include_done_only_when:
+    - active_semantic_dependency
+    - unresolved_caveat_still_relevant
+    - canonical_doc_promotion_incomplete
+active_focus: []
+on_demand_done:
+  - id: OBS-E2E-001
+    why: shell-level observability E2E entrypoint and projection-fact reconciliation completion history
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-045
+    why: observability end-to-end architecture review and remaining code-structure cleanup boundaries
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-030
+    why: maker wallet diagnostics implementation and limits of Reject-to-panic attribution
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-047
+    why: maker AMM market-maker implementation history
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-052
+    why: automated projection-fact financial reconciliation scope
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-053
+    why: realtime push architecture and legacy Ticker deletion implementation history
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/context/observability-architecture.md
+  - id: POS-041
+    why: explains why parity or rollback guardrails were intentionally removed
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-028
+    why: useful only when touching maker wallet metrics exposure
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-029
+    why: useful only when touching maker debug API surfaces
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-046
+    why: Rust decoder crate migration and batch subprocess optimization
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-033
+    why: application registry and decoder registry design
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-034
+    why: Layer 2 normalized events family mappings and normalizer coverage
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-035
+    why: Layer 3 market-data contract and product read path cutover
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-044
+    why: latestTransactions dependency removal across all product paths
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-032
+    why: Layer 1 block ingestion cursor infrastructure
+    canonical_refs:
+      - agents/tasks/board.yaml
+maintenance_rules:
+  - Update this file whenever a task changes status between Todo, Doing, Blocked, or Done
+  - Remove Done tasks from `active_focus` unless they still satisfy `include_done_only_when`
+  - If a task note grows beyond prompt value, move durable semantics to canonical docs and shorten the board note

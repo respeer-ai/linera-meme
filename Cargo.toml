@@ -9,6 +9,7 @@ members = [
     "abi",
     "base",
     "runtime",
+    "service/decoder",
 ]
 exclude = [
     "webui/wasm",

@@ -9,8 +9,10 @@ import {
   resolveLoadRange,
   resolveNextFetchTimestamp,
   resolveBackgroundHistoryStatus,
+  resolveStartupCacheGapFetch,
   resolveStartupCatchupFetch,
   resolveStartupGapBackfillFetch,
+  resolveStartupGapBackfillFetches,
   resolveStartupRequestPlan,
   shouldContinueStartupFetchAfterEmptyResult,
   shouldRestartKlineOnSelectedPoolChange,
@@ -236,6 +238,150 @@ describe('resolveNextFetchTimestamp', () => {
     ).toBe(null)
   })
 
+  test('finds the first middle gap in cached startup points without requesting the full latest window', () => {
+    expect(
+      resolveStartupCacheGapFetch({
+        pointTimestamps: [9 * 60 * 60 * 1000, 9 * 60 * 60 * 1000 + 30 * 60 * 1000],
+        latestWindowStart: 9 * 60 * 60 * 1000,
+        latestWindowEnd: 10 * 60 * 60 * 1000,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+      }),
+    ).toEqual({
+      reverse: false,
+      startAt: 9 * 60 * 60 * 1000 + 10 * 60 * 1000,
+      endAt: 9 * 60 * 60 * 1000 + 30 * 60 * 1000 - 1,
+      key: `${9 * 60 * 60 * 1000 + 10 * 60 * 1000}:${9 * 60 * 60 * 1000 + 30 * 60 * 1000 - 1}`,
+    })
+  })
+
+  test('finds only the trailing catch-up gap when cached startup points are internally continuous', () => {
+    expect(
+      resolveStartupCacheGapFetch({
+        pointTimestamps: [
+          9 * 60 * 60 * 1000,
+          9 * 60 * 60 * 1000 + 10 * 60 * 1000,
+          9 * 60 * 60 * 1000 + 20 * 60 * 1000,
+        ],
+        latestWindowStart: 9 * 60 * 60 * 1000,
+        latestWindowEnd: 10 * 60 * 60 * 1000,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+      }),
+    ).toEqual({
+      reverse: false,
+      startAt: 9 * 60 * 60 * 1000 + 30 * 60 * 1000,
+      endAt: 10 * 60 * 60 * 1000,
+      key: `${9 * 60 * 60 * 1000 + 30 * 60 * 1000}:${10 * 60 * 60 * 1000}`,
+    })
+  })
+
+  test('does not request startup cache correction when cache is continuous and current enough', () => {
+    expect(
+      resolveStartupCacheGapFetch({
+        pointTimestamps: [
+          9 * 60 * 60 * 1000,
+          9 * 60 * 60 * 1000 + 10 * 60 * 1000,
+          9 * 60 * 60 * 1000 + 20 * 60 * 1000,
+        ],
+        latestWindowStart: 9 * 60 * 60 * 1000,
+        latestWindowEnd: 9 * 60 * 60 * 1000 + 29 * 60 * 1000,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+      }),
+    ).toBe(null)
+  })
+
+  test('finds the leading cached startup gap as a precise background correction', () => {
+    expect(
+      resolveStartupCacheGapFetch({
+        pointTimestamps: [9 * 60 * 60 * 1000 + 30 * 60 * 1000],
+        latestWindowStart: 9 * 60 * 60 * 1000,
+        latestWindowEnd: 10 * 60 * 60 * 1000,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+      }),
+    ).toEqual({
+      reverse: false,
+      startAt: 9 * 60 * 60 * 1000,
+      endAt: 9 * 60 * 60 * 1000 + 30 * 60 * 1000 - 1,
+      key: `${9 * 60 * 60 * 1000}:${9 * 60 * 60 * 1000 + 30 * 60 * 1000 - 1}`,
+    })
+  })
+
+  test('continues startup cache correction after a requested leading gap', () => {
+    const latestWindowStart = 9 * 60 * 60 * 1000
+    const firstTimestamp = latestWindowStart + 20 * 60 * 1000
+    const secondTimestamp = latestWindowStart + 50 * 60 * 1000
+
+    expect(
+      resolveStartupCacheGapFetch({
+        pointTimestamps: [firstTimestamp, secondTimestamp],
+        latestWindowStart,
+        latestWindowEnd: 10 * 60 * 60 * 1000 + 10 * 60 * 1000,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>([`${latestWindowStart}:${firstTimestamp - 1}`]),
+      }),
+    ).toEqual({
+      reverse: false,
+      startAt: firstTimestamp + 10 * 60 * 1000,
+      endAt: secondTimestamp - 1,
+      key: `${firstTimestamp + 10 * 60 * 1000}:${secondTimestamp - 1}`,
+    })
+  })
+
+  test('batches startup gap backfills without requesting the full latest window', () => {
+    const latestWindowStart = 9 * 60 * 60 * 1000
+    const latestWindowEnd = 10 * 60 * 60 * 1000 + 10 * 60 * 1000
+    const firstTimestamp = latestWindowStart + 20 * 60 * 1000
+    const secondTimestamp = latestWindowStart + 50 * 60 * 1000
+
+    expect(
+      resolveStartupGapBackfillFetches({
+        pointTimestamps: [firstTimestamp, secondTimestamp],
+        latestWindowStart,
+        latestWindowEnd,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+        maxRequests: 3,
+      }),
+    ).toEqual([
+      {
+        reverse: false,
+        startAt: latestWindowStart,
+        endAt: firstTimestamp - 1,
+        key: `${latestWindowStart}:${firstTimestamp - 1}`,
+      },
+      {
+        reverse: false,
+        startAt: firstTimestamp + 10 * 60 * 1000,
+        endAt: secondTimestamp - 1,
+        key: `${firstTimestamp + 10 * 60 * 1000}:${secondTimestamp - 1}`,
+      },
+      {
+        reverse: false,
+        startAt: secondTimestamp + 10 * 60 * 1000,
+        endAt: latestWindowEnd,
+        key: `${secondTimestamp + 10 * 60 * 1000}:${latestWindowEnd}`,
+      },
+    ])
+  })
+
+  test('limits batched startup gap backfills', () => {
+    const latestWindowStart = 9 * 60 * 60 * 1000
+
+    expect(
+      resolveStartupGapBackfillFetches({
+        pointTimestamps: [latestWindowStart + 20 * 60 * 1000, latestWindowStart + 50 * 60 * 1000],
+        latestWindowStart,
+        latestWindowEnd: 10 * 60 * 60 * 1000,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+        maxRequests: 2,
+      }),
+    ).toHaveLength(2)
+  })
+
   test('defers old-history loads until first paint is ready', () => {
     expect(
       shouldDeferHistoryLoadUntilFirstPaint({
@@ -287,7 +433,17 @@ describe('resolveNextFetchTimestamp', () => {
       shouldScheduleBackgroundHistoryBackfill({
         firstScreenReady: true,
         backgroundHistoryQueued: false,
-        minPointTimestamp: 3_000,
+        minPointTimestamp: 4_000,
+        poolCreatedAt: 1_000,
+        latestWindowStart: 3_000,
+      }),
+    ).toBe(true)
+
+    expect(
+      shouldScheduleBackgroundHistoryBackfill({
+        firstScreenReady: true,
+        backgroundHistoryQueued: false,
+        minPointTimestamp: 1_000,
         poolCreatedAt: 1_000,
         latestWindowStart: 3_000,
       }),

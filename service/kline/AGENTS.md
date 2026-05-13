@@ -38,6 +38,9 @@ Local rules for `service/kline/` code, tests, and bug investigation.
 - When changing websocket logic, consider stale overwrite and cross-client consistency risks
 - When changing API behavior, update tests in `tests/`
 - Prefer narrow DB and API tests over broad manual validation
+- For newly created or actively refactored Python modules in this package, keep each file at or below 1000 lines
+- For newly created or actively refactored Python modules in this package, define only one top-level object per file
+- Prefer object-oriented organization for new code; extract behavior out of legacy large files instead of adding new helper clusters there
 
 ## Checklist
 

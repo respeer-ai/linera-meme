@@ -229,7 +229,12 @@ export const summarizeStartupRun = (run: StartupBaselineRun): StartupBaselineSum
   if (lastEvent?.indicatorReadyMs !== undefined) {
     summary.indicatorReadyMs = lastEvent.indicatorReadyMs
   }
-  if (lastEvent?.pointCount !== undefined) {
+  const latestPositivePointEvent = [...run.events]
+    .reverse()
+    .find((event) => event.pointCount !== undefined && event.pointCount > 0)
+  if (latestPositivePointEvent?.pointCount !== undefined) {
+    summary.finalPointCount = latestPositivePointEvent.pointCount
+  } else if (lastEvent?.pointCount !== undefined) {
     summary.finalPointCount = lastEvent.pointCount
   }
 

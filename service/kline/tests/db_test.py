@@ -11,6 +11,9 @@ SRC_ROOT = ROOT / 'src'
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+if not getattr(sys.modules.get('db'), '__file__', None):
+    sys.modules.pop('db', None)
+
 
 class FakeCursor:
     def __init__(self, database_catalog, table_catalog, index_catalog):
@@ -57,12 +60,6 @@ class FakeCursor:
         if normalized.startswith('SHOW INDEX FROM '):
           table_name = normalized.split('SHOW INDEX FROM ')[1]
           self._last_result = [row for row in self.index_catalog if row[0] == table_name]
-          return
-
-        if normalized.startswith('SELECT COALESCE(DATA_LENGTH + INDEX_LENGTH, 0) AS table_bytes FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s'):
-          self._last_result = [{
-              'table_bytes': self.connection.get_table_bytes(params[1]),
-          }] if self.dictionary else [(self.connection.get_table_bytes(params[1]),)]
           return
 
         if normalized.startswith('SELECT pool_id, pool_application FROM pools'):
@@ -116,6 +113,12 @@ class FakeCursor:
         if normalized.startswith('CREATE TABLE IF NOT EXISTS debug_traces'):
           if 'debug_traces' not in self.table_catalog:
               self.table_catalog.append('debug_traces')
+          self._last_result = []
+          return
+
+        if normalized.startswith('CREATE TABLE IF NOT EXISTS realtime_diagnostics'):
+          if 'realtime_diagnostics' not in self.table_catalog:
+              self.table_catalog.append('realtime_diagnostics')
           self._last_result = []
           return
 
@@ -226,6 +229,13 @@ class FakeCursor:
           index_name = normalized.split('CREATE INDEX ')[1].split(' ON ')[0]
           table_name = normalized.split(' ON ')[1].split(' (')[0]
           columns = normalized.split(' (', 1)[1].rstrip(')').split(', ')
+          if getattr(self.connection, 'duplicate_create_index_once', None) == index_name:
+              self.connection.duplicate_create_index_once = None
+              error = type('FakeProgrammingError', (Exception,), {})(
+                  f"1061 (42000): Duplicate key name '{index_name}'"
+              )
+              error.errno = 1061
+              raise error
           self.index_catalog[:] = [row for row in self.index_catalog if row[2] != index_name]
           self.index_catalog.extend([
               (table_name, 1, index_name, seq + 1, column)
@@ -618,94 +628,6 @@ class FakeCursor:
           self._last_result = []
           return
 
-        if normalized.startswith('SELECT trace_id, request_payload, response_status, response_body, error, details FROM debug_traces'):
-          rows = [row.copy() for row in self.connection.debug_trace_rows]
-          older_than_ms, limit = params
-          rows = [row for row in rows if row['created_at'] < older_than_ms]
-          if '(error IS NOT NULL OR response_status >= 400)' in normalized:
-              rows = [
-                  row for row in rows
-                  if row['error'] is not None or (row['response_status'] is not None and row['response_status'] >= 400)
-              ]
-          else:
-              rows = [
-                  row for row in rows
-                  if row['error'] is None and (row['response_status'] is None or row['response_status'] < 400)
-              ]
-          rows.sort(key=lambda row: row['trace_id'])
-          rows = rows[:limit]
-          self._last_result = rows if self.dictionary else [
-              (
-                  row['trace_id'],
-                  row['request_payload'],
-                  row['response_status'],
-                  row['response_body'],
-                  row['error'],
-                  row['details'],
-              )
-              for row in rows
-          ]
-          return
-
-        if normalized.startswith('UPDATE debug_traces SET request_payload = %s, response_body = %s, details = %s WHERE trace_id = %s'):
-          request_payload, response_body, details, trace_id = params
-          updated_rows = []
-          self.rowcount = 0
-          for row in self.connection.debug_trace_rows:
-              if row['trace_id'] != trace_id:
-                  updated_rows.append(row)
-                  continue
-              updated_row = row.copy()
-              updated_row['request_payload'] = request_payload
-              updated_row['response_body'] = response_body
-              updated_row['details'] = details
-              updated_rows.append(updated_row)
-              self.rowcount = 1
-          self.connection.debug_trace_rows = updated_rows
-          self._last_result = []
-          return
-
-        if normalized.startswith('DELETE FROM debug_traces WHERE created_at < %s AND error IS NULL AND (response_status IS NULL OR response_status < 400) AND MOD(trace_id, %s) != 0 ORDER BY trace_id ASC LIMIT %s'):
-          older_than_ms, sample_mod, limit = params
-          retained = []
-          deleted = 0
-          for row in sorted(self.connection.debug_trace_rows, key=lambda item: item['trace_id']):
-              should_delete = (
-                  row['created_at'] < older_than_ms
-                  and row['error'] is None
-                  and (row['response_status'] is None or row['response_status'] < 400)
-                  and row['trace_id'] % sample_mod != 0
-                  and deleted < limit
-              )
-              if should_delete:
-                  deleted += 1
-                  continue
-              retained.append(row)
-          self.connection.debug_trace_rows = retained
-          self.rowcount = deleted
-          self._last_result = []
-          return
-
-        if normalized.startswith('DELETE FROM debug_traces WHERE created_at < %s ORDER BY trace_id ASC LIMIT %s'):
-          older_than_ms, limit = params
-          retained = []
-          deleted = 0
-          for row in sorted(self.connection.debug_trace_rows, key=lambda item: item['trace_id']):
-              should_delete = row['created_at'] < older_than_ms and deleted < limit
-              if should_delete:
-                  deleted += 1
-                  continue
-              retained.append(row)
-          self.connection.debug_trace_rows = retained
-          self.rowcount = deleted
-          self._last_result = []
-          return
-
-        if normalized.startswith('OPTIMIZE TABLE debug_traces'):
-          self.connection.optimized_tables.append('debug_traces')
-          self._last_result = []
-          return
-
         if normalized.startswith('SELECT trace_id, source, component, operation, target, owner, pool_application, pool_id, request_url, request_payload, response_status, response_body, error, details, created_at FROM debug_traces'):
           rows = [row.copy() for row in self.connection.debug_trace_rows]
           if 'WHERE ' in normalized:
@@ -725,6 +647,75 @@ class FakeCursor:
           rows.sort(key=lambda row: row['trace_id'], reverse=True)
           rows = rows[:params[-1]]
           self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
+          return
+
+        if normalized.startswith('INSERT INTO realtime_diagnostics ( stage, event_type, pool_application, pool_id, transaction_id, event_time_ms, queue_lag_ms, build_duration_ms, notify_duration_ms, event_count, kline_payload_count, transaction_payload_count, positions_payload_count, thread_id, details, created_at ) VALUES'):
+          next_id = max(
+              (row['realtime_diagnostic_id'] for row in self.connection.realtime_diagnostic_rows),
+              default=0,
+          ) + 1
+          self.connection.realtime_diagnostic_rows.append({
+              'realtime_diagnostic_id': next_id,
+              'stage': params[0],
+              'event_type': params[1],
+              'pool_application': params[2],
+              'pool_id': params[3],
+              'transaction_id': params[4],
+              'event_time_ms': params[5],
+              'queue_lag_ms': params[6],
+              'build_duration_ms': params[7],
+              'notify_duration_ms': params[8],
+              'event_count': params[9],
+              'kline_payload_count': params[10],
+              'transaction_payload_count': params[11],
+              'positions_payload_count': params[12],
+              'thread_id': params[13],
+              'details': params[14],
+              'created_at': params[15],
+          })
+          self.rowcount = 1
+          self._last_result = []
+          return
+
+        if normalized.startswith('SELECT realtime_diagnostic_id, stage, event_type, pool_application, pool_id, transaction_id, event_time_ms, queue_lag_ms, build_duration_ms, notify_duration_ms, event_count, kline_payload_count, transaction_payload_count, positions_payload_count, thread_id, details, created_at FROM realtime_diagnostics'):
+          rows = [row.copy() for row in self.connection.realtime_diagnostic_rows]
+          if 'WHERE ' in normalized:
+              clauses = normalized.split('WHERE ')[1].split(' ORDER BY ')[0].split(' AND ')
+              values = list(params[:-1])
+              for clause in clauses:
+                  value = values.pop(0)
+                  if clause.endswith(' = %s'):
+                      column = clause[:-5]
+                      rows = [row for row in rows if row.get(column) == value]
+                  elif clause.endswith(' >= %s'):
+                      column = clause[:-6]
+                      rows = [row for row in rows if row.get(column) is not None and row.get(column) >= value]
+                  elif clause.endswith(' <= %s'):
+                      column = clause[:-6]
+                      rows = [row for row in rows if row.get(column) is not None and row.get(column) <= value]
+          rows.sort(key=lambda row: row['realtime_diagnostic_id'], reverse=True)
+          rows = rows[:params[-1]]
+          self._last_result = rows if self.dictionary else [tuple(row.values()) for row in rows]
+          return
+
+        if normalized.startswith('DELETE FROM realtime_diagnostics WHERE created_at < %s'):
+          cutoff_ms = params[0]
+          self.connection.realtime_diagnostic_rows = [
+              row for row in self.connection.realtime_diagnostic_rows
+              if row['created_at'] >= cutoff_ms
+          ]
+          self._last_result = []
+          return
+
+        if normalized == 'SELECT COUNT(*) FROM realtime_diagnostics':
+          self._last_result = [(len(self.connection.realtime_diagnostic_rows),)]
+          return
+
+        if normalized.startswith('DELETE FROM realtime_diagnostics') and 'ORDER BY realtime_diagnostic_id ASC LIMIT %s' in normalized:
+          overflow = params[0]
+          self.connection.realtime_diagnostic_rows.sort(key=lambda row: row['realtime_diagnostic_id'])
+          self.connection.realtime_diagnostic_rows = self.connection.realtime_diagnostic_rows[overflow:]
+          self._last_result = []
           return
 
         self._last_result = []
@@ -753,9 +744,9 @@ class FakeConnection:
         self.candle_rows = {}
         self.maker_event_rows = []
         self.debug_trace_rows = []
-        self.optimized_tables = []
-        self.table_size_overrides = {}
+        self.realtime_diagnostic_rows = []
         self.query_failures = []
+        self.duplicate_create_index_once = None
         self.transaction_columns = [
             'pool_application', 'pool_id', 'transaction_id', 'transaction_type', 'from_account',
             'amount_0_in', 'amount_0_out', 'amount_1_in', 'amount_1_out',
@@ -831,22 +822,6 @@ class FakeConnection:
         self.cursors.append(cursor)
         return cursor
 
-    def get_table_bytes(self, table_name):
-        if table_name in self.table_size_overrides:
-            return self.table_size_overrides[table_name]
-        if table_name != 'debug_traces':
-            return 0
-
-        total = 0
-        for row in self.debug_trace_rows:
-            total += 256
-            for field_name in ('source', 'component', 'operation', 'target', 'owner', 'pool_application', 'request_url', 'request_payload', 'response_body', 'error', 'details'):
-                value = row.get(field_name)
-                if value is None:
-                    continue
-                total += len(str(value).encode('utf-8'))
-        return total
-
     def commit(self):
         self.commits += 1
 
@@ -863,25 +838,29 @@ class FakeConnection:
 swap_stub = types.ModuleType('swap')
 swap_stub.Transaction = object
 swap_stub.Pool = object
-sys.modules.setdefault('swap', swap_stub)
+sys.modules['swap'] = swap_stub
 
 mysql_stub = types.ModuleType('mysql')
 mysql_connector_stub = types.ModuleType('mysql.connector')
 mysql_connector_stub.connect = None
 mysql_stub.connector = mysql_connector_stub
-sys.modules.setdefault('mysql', mysql_stub)
-sys.modules.setdefault('mysql.connector', mysql_connector_stub)
+sys.modules['mysql'] = mysql_stub
+sys.modules['mysql.connector'] = mysql_connector_stub
 
 pandas_stub = types.ModuleType('pandas')
 numpy_stub = types.ModuleType('numpy')
-sys.modules.setdefault('pandas', pandas_stub)
-sys.modules.setdefault('numpy', numpy_stub)
+sys.modules['pandas'] = pandas_stub
+sys.modules['numpy'] = numpy_stub
 
 from db import Db, align_timestamp_to_minute_ms, build_kline_log_line, build_kline_points_query  # noqa: E402
 
 
+DB_MODULE = sys.modules['db']
+VALID_TEST_OWNER = '0x' + 'a' * 64
+
+
 class FakeFromAccount:
-    def __init__(self, chain_id='chain', owner='owner'):
+    def __init__(self, chain_id='chain', owner=VALID_TEST_OWNER):
         self.chain_id = chain_id
         self.owner = owner
 
@@ -965,7 +944,7 @@ class DbIndexInitializationTest(unittest.TestCase):
         connection.query_failures.append((prefix, error))
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_creates_range_query_index_when_missing(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -986,7 +965,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_does_not_recreate_range_query_index_when_present(self, connect_mock):
         self.index_catalog.extend([
             ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_application'),
@@ -1013,7 +992,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_recreates_range_query_index_when_legacy_definition_is_present(self, connect_mock):
         self.index_catalog.append(
             ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_id'),
@@ -1041,7 +1020,40 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
+    def test_ignores_duplicate_key_error_when_creating_range_query_index(self, connect_mock):
+        connect_mock.side_effect = self.create_connection
+
+        Db(
+            host='localhost',
+            port=3306,
+            db_name='kline',
+            username='user',
+            password='pass',
+            clean_kline=False,
+        )
+
+        runtime_connection = self.connections[-1]
+        runtime_connection.duplicate_create_index_once = Db.TRANSACTIONS_RANGE_INDEX
+
+        db = object.__new__(Db)
+        db.connection = runtime_connection
+        db.cursor = runtime_connection.cursor()
+        db.transactions_table = 'transactions'
+
+        db.ensure_index(
+            db.transactions_table,
+            Db.TRANSACTIONS_RANGE_INDEX,
+            ('pool_application', 'pool_id', 'token_reversed', 'created_at'),
+        )
+
+        executed_queries = [query for cursor in runtime_connection.cursors for query, _ in cursor.executed]
+        self.assertTrue(any(
+            'CREATE INDEX idx_transactions_pool_reverse_created_at ON transactions (pool_application, pool_id, token_reversed, created_at)'
+            in query for query in executed_queries
+        ))
+
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_skips_debug_index_creation_when_table_is_full(self, connect_mock):
         class FakeTableFullError(Exception):
             def __init__(self):
@@ -1071,7 +1083,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_creates_candles_table_when_missing(self, connect_mock):
         self.table_catalog = ['pools', 'transactions']
         connect_mock.side_effect = self.create_connection
@@ -1092,7 +1104,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             'CREATE TABLE IF NOT EXISTS candles' in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_runtime_connection_enables_autocommit(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1136,7 +1148,7 @@ class DbReadFreshnessTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_get_kline_rolls_back_before_reading(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1224,7 +1236,7 @@ class DbIdentityMigrationTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_backfills_legacy_pool_application_before_switching_primary_keys(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1270,7 +1282,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_reads_maker_events_and_information(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1298,7 +1310,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(info['timestamp_begin'], 2000)
         self.assertEqual(info['timestamp_end'], 1000)
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_skips_maker_event_insert_when_table_is_full(self, connect_mock):
         class FakeTableFullError(Exception):
             def __init__(self):
@@ -1334,7 +1346,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(db.get_maker_events('AAA', 'BBB', 0, 2000), [])
         self.assertIn('maker_events', db.debug_storage_degraded_tables)
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_records_and_reads_debug_traces(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1364,18 +1376,18 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         )
         db.record_debug_trace(
             source='kline',
-            component='swap',
-            operation='get_pool_transactions',
-            target='pool_query',
+            component='ticker',
+            operation='load_pool_transactions',
+            target='projection_repo',
             owner=None,
             pool_application='chain:pool-app',
             pool_id=7,
-            request_url='http://swap/query',
-            request_payload={'query': 'query { latestTransactions }'},
-            response_status=500,
-            response_body='{"errors":["boom"]}',
-            error='HTTP 500',
-            details={'start_id': 1000},
+            request_url='mysql://projection/pool_transaction_history',
+            request_payload={'pool_application': 'chain:pool-app', 'pool_id': 7, 'start_id': 1000},
+            response_status=200,
+            response_body='{"rows":2}',
+            error=None,
+            details={'start_id': 1000, 'fetched_count': 2},
         )
 
         maker_traces = db.get_debug_traces(source='maker', component='swap', limit=10)
@@ -1385,10 +1397,10 @@ class DbMakerEventsQueryTest(unittest.TestCase):
 
         all_traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
         self.assertEqual(len(all_traces), 2)
-        self.assertEqual(all_traces[0]['error'], 'HTTP 500')
+        self.assertIsNone(all_traces[0]['error'])
 
-    @patch('db.mysql.connector.connect')
-    def test_clips_large_success_debug_trace_payloads(self, connect_mock):
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
+    def test_records_reads_and_bounds_realtime_diagnostics(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
         db = Db(
@@ -1399,155 +1411,88 @@ class DbMakerEventsQueryTest(unittest.TestCase):
             password='pass',
             clean_kline=False,
         )
-
-        db.record_debug_trace(
-            source='kline',
-            component='swap',
-            operation='latest_transactions',
-            target='pool_query',
-            owner=None,
-            pool_application='chain:pool-app',
-            pool_id=7,
-            request_url='http://swap/query',
-            request_payload='x' * (Db.DEBUG_TRACES_SUCCESS_FIELD_LIMITS['request_payload'] + 512),
-            response_status=200,
-            response_body='y' * (Db.DEBUG_TRACES_SUCCESS_FIELD_LIMITS['response_body'] + 512),
-            error=None,
-            details={'payload': 'z' * (Db.DEBUG_TRACES_SUCCESS_FIELD_LIMITS['details'] + 512)},
-        )
-
-        traces = db.get_debug_traces(pool_application='chain:pool-app', pool_id=7, limit=10)
-        self.assertEqual(len(traces), 1)
-        self.assertIn('[truncated', traces[0]['request_payload'])
-        self.assertIn('[truncated', traces[0]['response_body'])
-        self.assertTrue(traces[0]['details']['_truncated'])
-        self.assertEqual(traces[0]['details']['_field'], 'details')
-
-    @patch('db.mysql.connector.connect')
-    def test_debug_trace_cleanup_preserves_failure_rows_and_samples_old_successes(self, connect_mock):
-        connect_mock.side_effect = self.create_connection
-
-        db = Db(
-            host='localhost',
-            port=3306,
-            db_name='kline',
-            username='user',
-            password='pass',
-            clean_kline=False,
-        )
-
-        now_ms = 2_000_000_000_000
-        db.now_ms = lambda: now_ms
-        db.DEBUG_TRACES_MAX_BYTES = 20 * 1024
-        runtime_connection = self.connections[-1]
-        runtime_connection.debug_trace_rows = [
+        db.debug_retention_ttl_ms = 1_000
+        db.debug_retention_max_rows = 2
+        connection = self.connections[-1]
+        connection.realtime_diagnostic_rows = [
             {
-                'trace_id': 1,
-                'source': 'maker',
-                'component': 'swap',
-                'operation': 'swap',
-                'target': 'wallet',
-                'owner': 'chain:owner',
+                'realtime_diagnostic_id': 1,
+                'stage': 'old',
+                'event_type': 'settled_trade',
                 'pool_application': 'chain:pool-app',
                 'pool_id': 7,
-                'request_url': 'http://wallet',
-                'request_payload': 'a' * 9000,
-                'response_status': 200,
-                'response_body': 'b' * 9000,
-                'error': None,
-                'details': '{"note":"' + ('c' * 9000) + '"}',
-                'created_at': now_ms - Db.DEBUG_TRACES_SUCCESS_RETENTION_MS - 1000,
+                'transaction_id': 1,
+                'event_time_ms': None,
+                'queue_lag_ms': None,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': None,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': None,
+                'details': None,
+                'created_at': db.now_ms() - 2_000,
             },
             {
-                'trace_id': 25,
-                'source': 'maker',
-                'component': 'swap',
-                'operation': 'swap',
-                'target': 'wallet',
-                'owner': 'chain:owner',
+                'realtime_diagnostic_id': 2,
+                'stage': 'older_overflow',
+                'event_type': 'settled_trade',
                 'pool_application': 'chain:pool-app',
                 'pool_id': 7,
-                'request_url': 'http://wallet',
-                'request_payload': 'd' * 9000,
-                'response_status': 200,
-                'response_body': 'e' * 9000,
-                'error': None,
-                'details': '{"note":"' + ('f' * 9000) + '"}',
-                'created_at': now_ms - Db.DEBUG_TRACES_SUCCESS_RETENTION_MS - 1000,
+                'transaction_id': 2,
+                'event_time_ms': None,
+                'queue_lag_ms': None,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': None,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': None,
+                'details': None,
+                'created_at': db.now_ms(),
             },
             {
-                'trace_id': 26,
-                'source': 'maker',
-                'component': 'swap',
-                'operation': 'swap',
-                'target': 'wallet',
-                'owner': 'chain:owner',
+                'realtime_diagnostic_id': 3,
+                'stage': 'newer_overflow',
+                'event_type': 'settled_trade',
                 'pool_application': 'chain:pool-app',
                 'pool_id': 7,
-                'request_url': 'http://wallet',
-                'request_payload': 'g' * 9000,
-                'response_status': 500,
-                'response_body': 'h' * 500,
-                'error': 'boom',
-                'details': '{"note":"' + ('i' * 500) + '"}',
-                'created_at': now_ms - Db.DEBUG_TRACES_SUCCESS_RETENTION_MS - 1000,
+                'transaction_id': 3,
+                'event_time_ms': None,
+                'queue_lag_ms': None,
+                'build_duration_ms': None,
+                'notify_duration_ms': None,
+                'event_count': None,
+                'kline_payload_count': None,
+                'transaction_payload_count': None,
+                'positions_payload_count': None,
+                'thread_id': None,
+                'details': None,
+                'created_at': db.now_ms(),
             },
         ]
 
-        db._enforce_debug_trace_storage_budget(force=True)
-
-        remaining_trace_ids = [row['trace_id'] for row in runtime_connection.debug_trace_rows]
-        self.assertEqual(remaining_trace_ids, [25, 26])
-        failure_row = next(row for row in runtime_connection.debug_trace_rows if row['trace_id'] == 26)
-        sampled_success_row = next(row for row in runtime_connection.debug_trace_rows if row['trace_id'] == 25)
-        self.assertIn('[truncated', sampled_success_row['response_body'])
-        self.assertIn('debug_traces', runtime_connection.optimized_tables)
-
-    @patch.dict('os.environ', {
-        'KLINE_DEBUG_TRACES_MAX_BYTES': '2097152',
-        'KLINE_DEBUG_TRACES_CLEANUP_INTERVAL_MS': '30000',
-        'KLINE_DEBUG_TRACES_RECENT_FULL_MS': '600000',
-        'KLINE_DEBUG_TRACES_SUCCESS_RETENTION_MS': '1200000',
-        'KLINE_DEBUG_TRACES_FAILURE_RETENTION_MS': '2400000',
-        'KLINE_DEBUG_TRACES_SUCCESS_SAMPLE_MOD': '10',
-        'KLINE_DEBUG_TRACES_HARD_PRESSURE_SUCCESS_SAMPLE_MOD': '50',
-        'KLINE_DEBUG_TRACES_CLEANUP_BATCH_SIZE': '123',
-    }, clear=False)
-    @patch('db.mysql.connector.connect')
-    def test_debug_trace_runtime_config_and_storage_status(self, connect_mock):
-        connect_mock.side_effect = self.create_connection
-
-        db = Db(
-            host='localhost',
-            port=3306,
-            db_name='kline',
-            username='user',
-            password='pass',
-            clean_kline=False,
+        db.record_realtime_diagnostic(
+            stage='publish_received',
+            event_type='settled_trade',
+            pool_application='chain:pool-app',
+            pool_id=7,
+            transaction_id=4,
+            queue_lag_ms=12,
+            event_count=1,
+            details={'source_thread': 'worker'},
         )
 
-        runtime_connection = self.connections[-1]
-        runtime_connection.table_size_overrides['debug_traces'] = 512 * 1024
-        db.last_debug_trace_cleanup_at_ms = 123456
+        rows = db.get_realtime_diagnostics(pool_application='chain:pool-app', pool_id=7, limit=10)
 
-        retention = db.get_debug_trace_retention_config()
-        storage = db.get_debug_trace_storage_status()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([row['stage'] for row in rows], ['publish_received', 'newer_overflow'])
+        self.assertEqual(rows[0]['details'], {'source_thread': 'worker'})
+        self.assertEqual(rows[0]['queue_lag_ms'], 12)
 
-        self.assertEqual(retention['max_bytes'], 2 * 1024 * 1024)
-        self.assertEqual(retention['cleanup_interval_ms'], 30000)
-        self.assertEqual(retention['recent_full_ms'], 600000)
-        self.assertEqual(retention['success_retention_ms'], 1200000)
-        self.assertEqual(retention['failure_retention_ms'], 2400000)
-        self.assertEqual(retention['success_sample_mod'], 10)
-        self.assertEqual(retention['hard_pressure_success_sample_mod'], 50)
-        self.assertEqual(retention['cleanup_batch_size'], 123)
-        self.assertEqual(storage['table_bytes'], 512 * 1024)
-        self.assertEqual(storage['max_bytes'], 2 * 1024 * 1024)
-        self.assertEqual(storage['last_cleanup_at_ms'], 123456)
-        self.assertFalse(storage['over_budget'])
-        self.assertAlmostEqual(storage['usage_ratio'], 0.25, places=6)
-
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):
         def connect_with_seed(**_kwargs):
             connection = FakeConnection(
@@ -1617,7 +1562,7 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertIn('ORDER BY created_at ASC, transaction_id ASC', query)
 
     def test_build_expected_bucket_count_aligns_to_interval_boundaries(self):
-        from db import build_expected_bucket_count
+        build_expected_bucket_count = DB_MODULE.build_expected_bucket_count
 
         self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_000_000, 60_000), 1)
         self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_120_000, 60_000), 3)
@@ -1626,82 +1571,6 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertEqual(
             build_kline_log_line('request_complete', pool_id=7, source='candles', point_count=15),
             '[kline] event=request_complete point_count=15 pool_id=7 source=candles',
-        )
-
-    @patch('db.mysql.connector.connect')
-    def test_get_latest_transaction_watermarks_reads_latest_persisted_trade_per_pool(self, connect_mock):
-        database_catalog = ['kline']
-        table_catalog = ['pools', 'transactions', 'candles']
-        index_catalog = []
-        connections = []
-
-        def create_connection(**_kwargs):
-            connection = FakeConnection(database_catalog, table_catalog, index_catalog)
-            if len(connections) == 1:
-                connection.pool_rows[7] = {'pool_id': 7, 'pool_application': 'chain:app', 'token_0': 'AAA', 'token_1': 'BBB'}
-                connection.pool_rows[8] = {'pool_id': 8, 'pool_application': 'chain:app-2', 'token_0': 'CCC', 'token_1': 'DDD'}
-                connection.transaction_rows = [
-                    (7, 10, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
-                    (7, 11, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_001_000),
-                    (7, 12, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_060_000),
-                    (8, 3, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_020_000),
-                ]
-            connections.append(connection)
-            return connection
-
-        connect_mock.side_effect = create_connection
-
-        db = Db(
-            host='localhost',
-            port=3306,
-            db_name='kline',
-            username='user',
-            password='pass',
-            clean_kline=False,
-        )
-
-        self.assertEqual(
-            db.get_latest_transaction_watermarks(),
-            {
-                (7, 'chain', 'app'): (1_800_000_060_000, 12, 0),
-                (8, 'chain', 'app-2'): (1_800_000_020_000, 3, 0),
-            },
-        )
-
-    @patch('db.mysql.connector.connect')
-    def test_get_pool_transaction_id_bounds_reads_current_pool_application_only(self, connect_mock):
-        database_catalog = ['kline']
-        table_catalog = ['pools', 'transactions', 'candles']
-        index_catalog = []
-        connections = []
-
-        def create_connection(**_kwargs):
-            connection = FakeConnection(database_catalog, table_catalog, index_catalog)
-            if len(connections) == 1:
-                connection.pool_rows[7] = {'pool_id': 7, 'pool_application': 'chain:app', 'token_0': 'AAA', 'token_1': 'BBB'}
-                connection.transaction_rows = [
-                    ('legacy:7', 7, 1005, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_001_000),
-                    ('chain:app', 7, 1010, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_002_000),
-                    ('chain:app', 7, 1022, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', False, 1_800_000_003_000),
-                    ('chain:app', 7, 1022, 'BuyToken0', 'chain:owner', 0, 0, 0, 0, 0, 2.0, 10.0, 20.0, 'Buy', True, 1_800_000_003_000),
-                ]
-            connections.append(connection)
-            return connection
-
-        connect_mock.side_effect = create_connection
-
-        db = Db(
-            host='localhost',
-            port=3306,
-            db_name='kline',
-            username='user',
-            password='pass',
-            clean_kline=False,
-        )
-
-        self.assertEqual(
-            db.get_pool_transaction_id_bounds(7),
-            {'min_transaction_id': 1010, 'max_transaction_id': 1022},
         )
 
 
@@ -1726,7 +1595,7 @@ class DbCandleIngestTest(unittest.TestCase):
         return connection
 
     def create_db(self):
-        with patch('db.mysql.connector.connect') as connect_mock:
+        with patch.object(DB_MODULE.mysql.connector, 'connect') as connect_mock:
             connect_mock.side_effect = self.create_connection
             return Db(
                 host='localhost',
@@ -1738,7 +1607,7 @@ class DbCandleIngestTest(unittest.TestCase):
             )
 
     def seed_pool(self, db):
-        pool_application = types.SimpleNamespace(chain_id='chain', owner='app')
+        pool_application = types.SimpleNamespace(chain_id='chain', owner=VALID_TEST_OWNER)
         pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB', pool_application=pool_application)
         db.new_pools([pool])
 
@@ -1988,7 +1857,7 @@ class DbCandleQueryTest(unittest.TestCase):
         return connection
 
     def create_db(self):
-        with patch('db.mysql.connector.connect') as connect_mock:
+        with patch.object(DB_MODULE.mysql.connector, 'connect') as connect_mock:
             connect_mock.side_effect = self.create_connection
             db = Db(
                 host='localhost',
@@ -2327,38 +2196,40 @@ class DbCandleQueryTest(unittest.TestCase):
 
         self.assertEqual(points, [])
 
-    def test_get_kline_falls_back_to_transactions_only_when_no_candle_points_exist(self):
+    def test_load_candle_returns_none_for_legacy_rows_without_quote_volume(self):
+        db = self.create_db()
+        connection = self.connections[-1]
+        connection.candle_rows[(7, False, '1min', 1_800_000_000_000)] = {
+            'pool_id': 7,
+            'token_reversed': False,
+            'interval_name': '1min',
+            'bucket_start_ms': 1_800_000_000_000,
+            'open': 2.0,
+            'high': 3.0,
+            'low': 1.5,
+            'close': 2.5,
+            'volume': 10.0,
+            'quote_volume': None,
+            'trade_count': 2,
+            'first_trade_id': 10,
+            'last_trade_id': 11,
+            'first_trade_at_ms': 1_800_000_001_000,
+            'last_trade_at_ms': 1_800_000_030_000,
+        }
+
+        candle = db.load_candle(
+            pool_id=7,
+            token_reversed=False,
+            interval='1min',
+            bucket_start_ms=1_800_000_000_000,
+        )
+
+        self.assertIsNone(candle)
+
+    def test_get_kline_returns_empty_when_no_materialized_candle_points_exist(self):
         db = self.create_db()
 
-        with patch.object(db, 'get_kline_from_candles', return_value=[]) as candle_mock, patch.object(db, 'get_kline_from_transactions', return_value=[
-            {
-                'timestamp': 1_800_000_000_000,
-                'open': 2.0,
-                'high': 3.0,
-                'low': 1.5,
-                'close': 2.5,
-                'base_volume': 10.0,
-                'quote_volume': 25.0,
-            },
-            {
-                'timestamp': 1_800_000_120_000,
-                'open': 2.5,
-                'high': 2.8,
-                'low': 2.4,
-                'close': 2.6,
-                'base_volume': 6.0,
-                'quote_volume': 15.600000000000001,
-            },
-            {
-                'timestamp': 1_800_000_180_000,
-                'open': 2.6,
-                'high': 2.9,
-                'low': 2.5,
-                'close': 2.7,
-                'base_volume': 5.0,
-                'quote_volume': 13.5,
-            },
-        ]) as transaction_mock, patch.object(db, 'log_kline_event') as log_mock:
+        with patch.object(db, 'get_kline_from_candles', return_value=[]) as candle_mock, patch.object(db, 'log_kline_event') as log_mock:
             _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
@@ -2368,13 +2239,11 @@ class DbCandleQueryTest(unittest.TestCase):
             )
 
         candle_mock.assert_called_once()
-        transaction_mock.assert_called_once()
         self.assertEqual(
             [call.kwargs['event'] for call in log_mock.call_args_list],
-            ['request_start', 'candles_result', 'transactions_fallback_start', 'transactions_result', 'request_complete'],
+            ['request_start', 'candles_result', 'request_complete'],
         )
-        self.assertEqual(points[0]['timestamp'], 1_800_000_000_000)
-        self.assertEqual(len(points), 3)
+        self.assertEqual(points, [])
 
     def test_get_kline_prefers_sparse_candle_history_without_falling_back(self):
         db = self.create_db()
@@ -2399,7 +2268,7 @@ class DbCandleQueryTest(unittest.TestCase):
             },
         ]
 
-        with patch.object(db, 'get_kline_from_candles', return_value=candle_points) as candle_mock, patch.object(db, 'get_kline_from_transactions') as transaction_mock:
+        with patch.object(db, 'get_kline_from_candles', return_value=candle_points) as candle_mock:
             _, _, _, _, points = db.get_kline(
                 token_0='AAA',
                 token_1='BBB',
@@ -2409,111 +2278,7 @@ class DbCandleQueryTest(unittest.TestCase):
             )
 
         candle_mock.assert_called_once()
-        transaction_mock.assert_not_called()
         self.assertEqual(points, candle_points)
-
-    def test_get_kline_from_transactions_materializes_candles_for_historical_backfill(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            (
-                7, 10, 'BuyToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                2.0, 10.0, 'Buy', False, 1_800_000_001_000,
-            ),
-            (
-                7, 11, 'SellToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                3.0, 4.0, 'Sell', False, 1_800_000_030_000,
-            ),
-            (
-                7, 12, 'BuyToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                5.0, 6.0, 'Buy', False, 1_800_000_061_000,
-            ),
-        ])
-
-        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            points = db.get_kline_from_transactions(
-                pool_id=7,
-                token_reversed=False,
-                start_at=1_800_000_000_000,
-                end_at=1_800_000_120_000,
-                interval='1min',
-            )
-
-        self.assertEqual(points, [
-            {
-                'timestamp': 1_800_000_000_000,
-                'bucket_start_ms': 1_800_000_000_000,
-                'bucket_end_ms': 1_800_000_059_999,
-                'is_final': True,
-                'open': 2.0,
-                'high': 3.0,
-                'low': 2.0,
-                'close': 3.0,
-                'base_volume': 14.0,
-                'quote_volume': 32.0,
-            },
-            {
-                'timestamp': 1_800_000_060_000,
-                'bucket_start_ms': 1_800_000_060_000,
-                'bucket_end_ms': 1_800_000_119_999,
-                'is_final': True,
-                'open': 5.0,
-                'high': 5.0,
-                'low': 5.0,
-                'close': 5.0,
-                'base_volume': 6.0,
-                'quote_volume': 30.0,
-            },
-            {
-                'timestamp': 1_800_000_120_000,
-                'bucket_start_ms': 1_800_000_120_000,
-                'bucket_end_ms': 1_800_000_179_999,
-                'is_final': True,
-                'open': 5.0,
-                'high': 5.0,
-                'low': 5.0,
-                'close': 5.0,
-                'base_volume': 0.0,
-                'quote_volume': 0.0,
-            },
-        ])
-        self.assertIn((7, False, '1min', 1_800_000_000_000), connection.candle_rows)
-        self.assertIn((7, False, '1min', 1_800_000_060_000), connection.candle_rows)
-
-    def test_get_kline_uses_materialized_candles_after_transaction_backfill(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.append(
-            (
-                7, 10, 'BuyToken0', 'chain:owner',
-                0, 0, 0, 0, 0,
-                2.0, 10.0, 'Buy', False, 1_800_000_001_000,
-            ),
-        )
-
-        with patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            first_points = db.get_kline(
-                token_0='AAA',
-                token_1='BBB',
-                start_at=1_800_000_000_000,
-                end_at=1_800_000_060_000,
-                interval='1min',
-            )[2]
-
-        with patch.object(db, 'get_kline_from_transactions') as transaction_mock, patch.object(db, 'now_ms', return_value=1_800_000_300_000):
-            second_points = db.get_kline(
-                token_0='AAA',
-                token_1='BBB',
-                start_at=1_800_000_000_000,
-                end_at=1_800_000_060_000,
-                interval='1min',
-            )[2]
-
-        transaction_mock.assert_not_called()
-        self.assertEqual(second_points, first_points)
 
     def test_get_kline_marks_latest_forming_bucket_explicitly(self):
         db = self.create_db()
@@ -2607,7 +2372,7 @@ class DbPositionsQueryTest(unittest.TestCase):
         return connection
 
     def create_db(self):
-        with patch('db.mysql.connector.connect') as connect_mock:
+        with patch.object(DB_MODULE.mysql.connector, 'connect') as connect_mock:
             connect_mock.side_effect = self.create_connection
             db = Db(
                 host='localhost',
@@ -2660,91 +2425,3 @@ class DbPositionsQueryTest(unittest.TestCase):
             False,
             created_at,
         )
-
-    def test_get_positions_returns_active_and_closed_positions(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
-            self.transaction_row(7, 11, 'RemoveLiquidity', 'chain:owner-a', 40, 1_800_000_010_000),
-            self.transaction_row(8, 12, 'AddLiquidity', 'chain:owner-a', 50, 1_800_000_020_000),
-            self.transaction_row(8, 13, 'RemoveLiquidity', 'chain:owner-a', 50, 1_800_000_030_000),
-            self.transaction_row(7, 14, 'AddLiquidity', 'chain:owner-b', 999, 1_800_000_040_000),
-        ])
-
-        positions = db.get_positions('chain:owner-a', status='all')
-
-        self.assertEqual(len(positions), 2)
-        self.assertEqual(
-            positions,
-            [
-                {
-                    'pool_application': 'chain:app',
-                    'pool_id': 8,
-                    'token_0': 'CCC',
-                    'token_1': 'DDD',
-                    'owner': 'chain:owner-a',
-                    'status': 'closed',
-                    'current_liquidity': '0',
-                    'added_liquidity': '50',
-                    'removed_liquidity': '50',
-                    'add_tx_count': 1,
-                    'remove_tx_count': 1,
-                    'opened_at': 1_800_000_020_000,
-                    'updated_at': 1_800_000_030_000,
-                    'closed_at': 1_800_000_030_000,
-                },
-                {
-                    'pool_application': 'chain:app',
-                    'pool_id': 7,
-                    'token_0': 'AAA',
-                    'token_1': 'BBB',
-                    'owner': 'chain:owner-a',
-                    'status': 'active',
-                    'current_liquidity': '60',
-                    'added_liquidity': '100',
-                    'removed_liquidity': '40',
-                    'add_tx_count': 1,
-                    'remove_tx_count': 1,
-                    'opened_at': 1_800_000_001_000,
-                    'updated_at': 1_800_000_010_000,
-                    'closed_at': None,
-                },
-            ],
-        )
-
-    def test_get_positions_filters_active_only(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
-            self.transaction_row(8, 12, 'AddLiquidity', 'chain:owner-a', 50, 1_800_000_020_000),
-            self.transaction_row(8, 13, 'RemoveLiquidity', 'chain:owner-a', 50, 1_800_000_030_000),
-        ])
-
-        positions = db.get_positions('chain:owner-a', status='active')
-
-        self.assertEqual(len(positions), 1)
-        self.assertEqual(positions[0]['pool_id'], 7)
-        self.assertEqual(positions[0]['status'], 'active')
-
-    def test_get_positions_filters_closed_only(self):
-        db = self.create_db()
-        connection = self.connections[-1]
-        connection.transaction_rows.extend([
-            self.transaction_row(7, 10, 'AddLiquidity', 'chain:owner-a', 100, 1_800_000_001_000),
-            self.transaction_row(7, 11, 'RemoveLiquidity', 'chain:owner-a', 100, 1_800_000_010_000),
-        ])
-
-        positions = db.get_positions('chain:owner-a', status='closed')
-
-        self.assertEqual(len(positions), 1)
-        self.assertEqual(positions[0]['pool_id'], 7)
-        self.assertEqual(positions[0]['status'], 'closed')
-        self.assertEqual(positions[0]['closed_at'], 1_800_000_010_000)
-
-    def test_get_positions_rejects_invalid_status(self):
-        db = self.create_db()
-
-        with self.assertRaises(ValueError):
-            db.get_positions('chain:owner-a', status='bad')

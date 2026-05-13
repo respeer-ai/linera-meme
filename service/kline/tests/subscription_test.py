@@ -15,7 +15,7 @@ fastapi_stub = types.ModuleType('fastapi')
 fastapi_stub.WebSocket = object
 sys.modules.setdefault('fastapi', fastapi_stub)
 
-from subscription import KlineSubscription, WebSocketManager  # noqa: E402
+from subscription import KlineSubscription, PositionsSubscription, WebSocketManager  # noqa: E402
 
 
 class FakeWebSocket:
@@ -35,19 +35,29 @@ class FakeSwap:
         return self.pools
 
 
-class FakeDb:
+class FakePoolCatalogRepository:
+    def __init__(self, pools):
+        self.pools = pools
+
+    def list_current_pool_views(self):
+        return list(self.pools)
+
+
+class FakeCandleReader:
     def __init__(self):
         self.calls = []
 
-    def get_last_kline(self, token_0, token_1, interval):
-        self.calls.append((token_0, token_1, interval))
-        return (
-            token_0,
-            token_1,
-            1_000,
-            2_000,
-            interval,
-            [{
+    def get_last_points(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            'pool_id': kwargs.get('pool_id'),
+            'pool_application': kwargs.get('pool_application'),
+            'token_0': kwargs['token_0'],
+            'token_1': kwargs['token_1'],
+            'interval': kwargs['interval'],
+            'start_at': 1_000,
+            'end_at': 2_000,
+            'points': [{
                 'timestamp': 1_000,
                 'open': 1.0,
                 'high': 1.0,
@@ -56,17 +66,39 @@ class FakeDb:
                 'base_volume': 1.0,
                 'quote_volume': 2.0,
             }],
-        )
+        }
+
+
+class FakeDiagnosticRecorder:
+    def __init__(self):
+        self.records = []
+
+    def record(self, **kwargs):
+        self.records.append(kwargs)
 
 
 class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         pools = [
-            types.SimpleNamespace(token_0='AAA', token_1='BBB'),
-            types.SimpleNamespace(token_0='CCC', token_1='DDD'),
+            types.SimpleNamespace(
+                token_0='AAA',
+                token_1='BBB',
+                pool_id=1001,
+                pool_application=types.SimpleNamespace(chain_id='chain-a', owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+            ),
+            types.SimpleNamespace(
+                token_0='CCC',
+                token_1='DDD',
+                pool_id=1002,
+                pool_application=types.SimpleNamespace(chain_id='chain-b', owner='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+            ),
         ]
-        self.db = FakeDb()
-        self.manager = WebSocketManager(FakeSwap(pools), self.db)
+        self.candle_reader = FakeCandleReader()
+        self.manager = WebSocketManager(
+            FakeSwap(pools),
+            self.candle_reader,
+            FakePoolCatalogRepository(pools),
+        )
 
     def test_handle_message_tracks_pair_aware_interval_aware_subscription(self):
         websocket = FakeWebSocket()
@@ -88,6 +120,23 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    def test_handle_message_tracks_positions_subscription(self):
+        websocket = FakeWebSocket()
+        self.manager.positions_subscriptions[websocket] = set()
+
+        self.manager.handle_message(websocket, {
+            'action': 'subscribe',
+            'topic': 'positions',
+            'owner': 'owner-a',
+            'pool_id': 7,
+            'pool_application': 'pool-app',
+        })
+
+        self.assertEqual(
+            self.manager.positions_subscriptions[websocket],
+            {PositionsSubscription(owner='owner-a', pool_id=7, pool_application='pool-app')},
+        )
+
     async def test_notify_kline_only_sends_requested_pair_and_interval_for_subscribed_connection(self):
         websocket = FakeWebSocket()
         self.manager.connections = [websocket]
@@ -97,11 +146,19 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
 
         await self.manager.notify_kline()
 
-        self.assertEqual(self.db.calls, [('AAA', 'BBB', '5min')])
+        self.assertEqual(self.candle_reader.calls, [{
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'interval': '5min',
+            'pool_id': None,
+            'pool_application': None,
+        }])
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': {
                 '5min': [{
+                    'pool_id': None,
+                    'pool_application': None,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
                     'interval': '5min',
@@ -120,6 +177,26 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             },
         }])
 
+    async def test_notify_kline_requires_projection_pool_catalog_for_broadcast(self):
+        pools = [
+            types.SimpleNamespace(
+                token_0='AAA',
+                token_1='BBB',
+                pool_id=1001,
+                pool_application=types.SimpleNamespace(chain_id='chain-a', owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
+            ),
+        ]
+        manager = WebSocketManager(FakeSwap(pools), self.candle_reader, None)
+        websocket = FakeWebSocket()
+        manager.connections = [websocket]
+        manager.kline_subscriptions[websocket] = set()
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            'Projection pool catalog repository is required',
+        ):
+            await manager.notify_kline()
+
     async def test_notify_kline_preserves_legacy_broadcast_for_unsubscribed_connection(self):
         websocket = FakeWebSocket()
         self.manager.connections = [websocket]
@@ -127,11 +204,31 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
 
         await self.manager.notify_kline()
 
-        self.assertIn(('AAA', 'BBB', '1min'), self.db.calls)
-        self.assertIn(('BBB', 'AAA', '1min'), self.db.calls)
-        self.assertIn(('CCC', 'DDD', '1ME'), self.db.calls)
+        self.assertIn({
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'interval': '1min',
+            'pool_id': 1001,
+            'pool_application': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+        }, self.candle_reader.calls)
+        self.assertIn({
+            'token_0': 'BBB',
+            'token_1': 'AAA',
+            'interval': '1min',
+            'pool_id': 1001,
+            'pool_application': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+        }, self.candle_reader.calls)
+        self.assertIn({
+            'token_0': 'CCC',
+            'token_1': 'DDD',
+            'interval': '1ME',
+            'pool_id': 1002,
+            'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-b',
+        }, self.candle_reader.calls)
         self.assertEqual(websocket.sent[0]['notification'], 'kline')
         self.assertIn('1min', websocket.sent[0]['value'])
+        self.assertIn('1d', websocket.sent[0]['value'])
+        self.assertIn('1w', websocket.sent[0]['value'])
         self.assertIn('1ME', websocket.sent[0]['value'])
 
     async def test_notify_kline_filters_incremental_payload_for_subscribed_connection(self):
@@ -196,7 +293,7 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
             ],
         })
 
-        self.assertEqual(self.db.calls, [])
+        self.assertEqual(self.candle_reader.calls, [])
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': {
@@ -247,10 +344,141 @@ class SubscriptionManagerTest(unittest.IsolatedAsyncioTestCase):
 
         await self.manager.notify_kline(payload)
 
-        self.assertEqual(self.db.calls, [])
+        self.assertEqual(self.candle_reader.calls, [])
         self.assertEqual(websocket.sent, [{
             'notification': 'kline',
             'value': payload,
+        }])
+
+    async def test_notify_kline_records_send_summary_for_incremental_payload(self):
+        recorder = FakeDiagnosticRecorder()
+        self.manager.diagnostic_recorder = recorder
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.kline_subscriptions[websocket] = {
+            KlineSubscription(
+                token_0='AAA',
+                token_1='BBB',
+                interval='5min',
+                pool_id=7,
+                pool_application='pool-app',
+            ),
+        }
+
+        await self.manager.notify_kline({
+            '5min': [
+                {
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'interval': '5min',
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'points': [],
+                },
+            ],
+        })
+
+        self.assertEqual(recorder.records[-1]['stage'], 'kline_notify_summary')
+        self.assertEqual(recorder.records[-1]['pool_application'], 'pool-app')
+        self.assertEqual(recorder.records[-1]['pool_id'], 7)
+        self.assertEqual(recorder.records[-1]['details']['connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['subscribed_connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['sent_connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['filtered_connection_count'], 0)
+        self.assertEqual(recorder.records[-1]['details']['payload_point_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['sent_point_count'], 1)
+
+    async def test_notify_kline_records_filtered_summary_for_subscription_mismatch(self):
+        recorder = FakeDiagnosticRecorder()
+        self.manager.diagnostic_recorder = recorder
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.kline_subscriptions[websocket] = {
+            KlineSubscription(token_0='CCC', token_1='DDD', interval='5min'),
+        }
+
+        await self.manager.notify_kline({
+            '5min': [
+                {
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'interval': '5min',
+                    'points': [],
+                },
+            ],
+        })
+
+        self.assertEqual(websocket.sent, [])
+        self.assertEqual(recorder.records[-1]['stage'], 'kline_notify_summary')
+        self.assertEqual(recorder.records[-1]['details']['connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['subscribed_connection_count'], 1)
+        self.assertEqual(recorder.records[-1]['details']['sent_connection_count'], 0)
+        self.assertEqual(recorder.records[-1]['details']['filtered_connection_count'], 1)
+
+    async def test_notify_positions_filters_by_owner_pool_and_application(self):
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.positions_subscriptions[websocket] = {
+            PositionsSubscription(owner='owner-a', pool_id=7, pool_application='pool-app'),
+        }
+
+        await self.manager.notify_positions({
+            'events': [
+                {
+                    'owners': ['owner-a'],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_liquidity_change'],
+                },
+                {
+                    'owners': ['owner-b'],
+                    'pool_id': 8,
+                    'pool_application': 'other-pool',
+                    'event_types': ['settled_liquidity_change'],
+                },
+            ],
+        })
+
+        self.assertEqual(websocket.sent, [{
+            'notification': 'positions',
+            'value': {
+                'events': [{
+                    'owners': ['owner-a'],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_liquidity_change'],
+                }],
+            },
+        }])
+
+    async def test_notify_positions_treats_empty_owners_as_pool_wide_invalidation(self):
+        websocket = FakeWebSocket()
+        self.manager.connections = [websocket]
+        self.manager.positions_subscriptions[websocket] = {
+            PositionsSubscription(owner='owner-a', pool_id=7, pool_application='pool-app'),
+        }
+
+        await self.manager.notify_positions({
+            'events': [
+                {
+                    'owners': [],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_trade'],
+                },
+            ],
+        })
+
+        self.assertEqual(websocket.sent, [{
+            'notification': 'positions',
+            'value': {
+                'events': [{
+                    'owners': [],
+                    'pool_id': 7,
+                    'pool_application': 'pool-app',
+                    'event_types': ['settled_trade'],
+                }],
+            },
         }])
 
 

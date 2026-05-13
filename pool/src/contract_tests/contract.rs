@@ -5,7 +5,6 @@ use abi::{
     swap::pool::{
         InstantiationArgument, PoolAbi, PoolMessage, PoolOperation, PoolParameters, PoolResponse,
     },
-    swap::transaction::{Transaction, TransactionType},
 };
 use futures::FutureExt as _;
 use linera_sdk::{
@@ -340,14 +339,6 @@ async fn message_swap_min_amount_boundary() {
     let owner = authenticated_account(&pool);
     let reserve_0 = pool.state.borrow().reserve_0();
     let reserve_1 = pool.state.borrow().reserve_1();
-    let transactions_before = pool
-        .state
-        .borrow()
-        .latest_transactions
-        .elements()
-        .await
-        .unwrap()
-        .len();
     pool.execute_message(PoolMessage::Swap {
         origin: owner,
         amount_0_in: None,
@@ -360,27 +351,12 @@ async fn message_swap_min_amount_boundary() {
     .await;
     assert_eq!(pool.state.borrow().reserve_0(), reserve_0);
     assert_eq!(pool.state.borrow().reserve_1(), reserve_1);
-    assert_eq!(
-        pool.state
-            .borrow()
-            .latest_transactions
-            .elements()
-            .await
-            .unwrap()
-            .len(),
-        transactions_before
-    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn message_add_liquidity() {
     let mut pool = create_and_instantiate_pool(true).await;
-    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
-
-    let owner = Account {
-        chain_id: runtime_context.chain_id(),
-        owner: runtime_context.authenticated_signer().unwrap(),
-    };
+    let owner = authenticated_account(&pool);
 
     pool.execute_message(PoolMessage::AddLiquidity {
         origin: owner,
@@ -396,38 +372,6 @@ async fn message_add_liquidity() {
     assert_eq!(
         pool.state.borrow().liquidity(owner).await.unwrap(),
         Amount::from_str("0.1").unwrap()
-    );
-
-    let add_liquidity = pool.state.borrow_mut().build_transaction(
-        owner,
-        Some(Amount::ONE),
-        Some(Amount::from_tokens(10)),
-        None,
-        None,
-        Some(Amount::from_str("0.1").unwrap()),
-        runtime_context.system_time(),
-    );
-    pool.execute_message(PoolMessage::NewTransaction {
-        transaction: add_liquidity,
-    })
-    .await;
-
-    let transactions = pool
-        .state
-        .borrow()
-        .latest_transactions
-        .elements()
-        .await
-        .unwrap();
-    assert_eq!(transactions.len(), 1);
-    assert_eq!(
-        transactions[0].transaction_type,
-        TransactionType::AddLiquidity
-    );
-    assert_eq!(transactions[0].from, owner);
-    assert_eq!(
-        transactions[0].liquidity,
-        Some(Amount::from_str("0.1").unwrap())
     );
 
     let (amount_0_out, amount_1_out) = pool
@@ -451,37 +395,8 @@ async fn message_add_liquidity() {
         Amount::from_str("0.05").unwrap()
     );
 
-    let remove_liquidity = pool.state.borrow_mut().build_transaction(
-        owner,
-        None,
-        None,
-        Some(amount_0_out),
-        Some(amount_1_out),
-        Some(Amount::from_str("0.05").unwrap()),
-        runtime_context.system_time(),
-    );
-    pool.execute_message(PoolMessage::NewTransaction {
-        transaction: remove_liquidity,
-    })
-    .await;
-
-    let transactions = pool
-        .state
-        .borrow()
-        .latest_transactions
-        .elements()
-        .await
-        .unwrap();
-    assert_eq!(transactions.len(), 2);
-    assert_eq!(
-        transactions[1].transaction_type,
-        TransactionType::RemoveLiquidity
-    );
-    assert_eq!(transactions[1].from, owner);
-    assert_eq!(
-        transactions[1].liquidity,
-        Some(Amount::from_str("0.05").unwrap())
-    );
+    assert!(amount_0_out > Amount::ZERO);
+    assert!(amount_1_out > Amount::ZERO);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -806,16 +721,6 @@ async fn add_liquidity_fund_second_leg_fail_does_not_close_flow() {
         pool.state.borrow().liquidity(owner).await.unwrap(),
         Amount::ZERO
     );
-    assert_eq!(
-        pool.state
-            .borrow()
-            .latest_transactions
-            .elements()
-            .await
-            .unwrap()
-            .len(),
-        0
-    );
 
     let runtime = pool.runtime.borrow();
     let requests = runtime.created_send_message_requests();
@@ -867,16 +772,6 @@ async fn add_liquidity_fund_success_only_queues_follow_up_message() {
         pool.state.borrow().liquidity(owner).await.unwrap(),
         Amount::ZERO
     );
-    assert_eq!(
-        pool.state
-            .borrow()
-            .latest_transactions
-            .elements()
-            .await
-            .unwrap()
-            .len(),
-        0
-    );
 
     let runtime = pool.runtime.borrow();
     let requests = runtime.created_send_message_requests();
@@ -903,7 +798,7 @@ async fn add_liquidity_fund_success_only_queues_follow_up_message() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_new_transaction_is_idempotent() {
+async fn message_new_transaction_forwards_catalog_update_without_history_storage() {
     let mut pool = create_and_instantiate_pool(true).await;
     let owner = authenticated_account(&pool);
     let transaction = pool.state.borrow_mut().build_transaction(
@@ -921,96 +816,7 @@ async fn message_new_transaction_is_idempotent() {
     pool.execute_message(PoolMessage::NewTransaction { transaction })
         .await;
 
-    let transactions = pool
-        .state
-        .borrow()
-        .latest_transactions
-        .elements()
-        .await
-        .unwrap();
-    assert_eq!(transactions.len(), 1);
-    assert_eq!(transactions[0].transaction_id, Some(1001));
-    assert_eq!(transactions[0].from, owner);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn message_new_transaction_keeps_distinct_same_content_transactions() {
-    let mut pool = create_and_instantiate_pool(true).await;
-    let owner = authenticated_account(&pool);
-    let first = pool.state.borrow_mut().build_transaction(
-        owner,
-        Some(Amount::ONE),
-        None,
-        None,
-        Some(Amount::from_str("0.00997").unwrap()),
-        None,
-        1.into(),
-    );
-    let second = pool.state.borrow_mut().build_transaction(
-        owner,
-        Some(Amount::ONE),
-        None,
-        None,
-        Some(Amount::from_str("0.00997").unwrap()),
-        None,
-        1.into(),
-    );
-
-    pool.execute_message(PoolMessage::NewTransaction { transaction: first })
-        .await;
-    pool.execute_message(PoolMessage::NewTransaction {
-        transaction: second,
-    })
-    .await;
-
-    let transactions = pool
-        .state
-        .borrow()
-        .latest_transactions
-        .elements()
-        .await
-        .unwrap();
-    assert_eq!(transactions.len(), 2);
-    assert_eq!(transactions[0].transaction_id, Some(1001));
-    assert_eq!(transactions[1].transaction_id, Some(1002));
-    assert_eq!(transactions[0].created_at, transactions[1].created_at);
-    assert_eq!(transactions[0].from, owner);
-    assert_eq!(transactions[1].from, owner);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn message_new_transaction_queue_keeps_latest_5000() {
-    let mut pool = create_and_instantiate_pool(true).await;
-    let owner = authenticated_account(&pool);
-
-    for index in 0..5001u64 {
-        let transaction = Transaction {
-            transaction_id: None,
-            transaction_type: TransactionType::BuyToken0,
-            from: owner,
-            amount_0_in: None,
-            amount_0_out: Some(Amount::from_attos(index as u128 + 1)),
-            amount_1_in: Some(Amount::from_attos(index as u128 + 11)),
-            amount_1_out: None,
-            liquidity: None,
-            created_at: (index + 1).into(),
-        };
-        pool.execute_message(PoolMessage::NewTransaction { transaction })
-            .await;
-    }
-
-    let transactions = pool
-        .state
-        .borrow()
-        .latest_transactions
-        .elements()
-        .await
-        .unwrap();
-    assert_eq!(transactions.len(), 5000);
-    assert_eq!(transactions.first().unwrap().transaction_id, Some(1002));
-    assert_eq!(transactions.first().unwrap().created_at, 2.into());
-    assert_eq!(transactions.last().unwrap().transaction_id, Some(6001));
-    assert_eq!(transactions.last().unwrap().created_at, 5001.into());
+    assert_eq!(transaction.transaction_id, Some(1001));
 }
 
 #[test]

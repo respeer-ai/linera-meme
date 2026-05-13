@@ -16,6 +16,15 @@ while getopts $options opt; do
 done
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+SUDO_PASSWORD=${SUDO_PASSWORD:-}
+
+function sudo_run() {
+  if [ -n "$SUDO_PASSWORD" ]; then
+    printf '%s\n' "$SUDO_PASSWORD" | sudo -S "$@"
+  else
+    sudo "$@"
+  fi
+}
 
 OUTPUT_DIR="${SCRIPT_DIR}/../output/compose"
 mkdir -p $OUTPUT_DIR
@@ -63,7 +72,7 @@ function generate_nginx_conf() {
   }" > ${CONFIG_DIR}/$endpoint.nginx.json
 
   jinja -d ${CONFIG_DIR}/$endpoint.nginx.json $NGINX_TEMPLATE_FILE > ${CONFIG_DIR}/$endpoint.nginx.conf
-  sudo cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
+  sudo_run cp -v ${CONFIG_DIR}/$endpoint.nginx.conf /etc/nginx/sites-enabled/
 }
 
 SUB_DOMAIN=$(echo "${CLUSTER}." | sed 's/\.\./\./g')
@@ -71,4 +80,4 @@ generate_nginx_conf 18080 linera-meme-webui linerameme.fun
 generate_nginx_conf 18080 linera-swap-webui lineraswap.fun
 generate_nginx_conf 18080 linera-blobgateway-webui blobgateway.com
 
-sudo nginx -s reload
+sudo_run nginx -s reload

@@ -5,7 +5,6 @@
       :rows='transactions'
       row-key='id'
       separator='none'
-      @request='onPageRequest'
       :loading='loading'
       :virtual-scroll='true'
       hide-pagination
@@ -24,7 +23,7 @@
 
       <template #body='props'>
         <q-tr :props='props' class='cursor-pointer'>
-          <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at * 1000) }}</td>
+          <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at) }}</td>
           <td :props='props' class='text-left row items-center'>
             <div class='text-neutral q-mr-xs'>Swap</div>
             {{ tokenTicker(buyToken(props.row)) }}
@@ -37,7 +36,7 @@
               <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
-          <td :props='props' class='text-center'>0 TLINERA</td>
+          <td :props='props' class='text-center'>{{ transactionValue(props.row) }}</td>
           <td :props='props' class='text-center'>
             {{ Number(buyAmount(props.row)).toFixed(5) }}
             <q-avatar class='q-ml-xs' size='20px'>
@@ -78,7 +77,8 @@ import { ams, meme, swap, transaction, kline } from 'src/stores/export'
 import { klineWorker } from 'src/worker'
 import { Token } from '../trade/Token'
 import { constants } from 'src/constant'
-import { shortid, timestamp } from 'src/utils'
+import { protocol, shortid, timestamp } from 'src/utils'
+import { findPoolByIdentity } from 'src/stores/swap/poolIdentity'
 
 interface Props {
   token0?: string
@@ -89,6 +89,7 @@ const token0 = toRef(props, 'token0')
 const token1 = toRef(props, 'token1')
 
 const pools = computed(() => swap.Swap.pools())
+const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 
 const tokenTicker = (token: string) => {
   const application = ams.Ams.application(token) as Token
@@ -103,7 +104,7 @@ const tokenLogo = (token: string) => {
 }
 
 const transactionPool = (_transaction: transaction.TransactionExt) => {
-  return pools.value.find((el) => el.poolId === _transaction.pool_id)
+  return findPoolByIdentity(pools.value, _transaction.pool_id, _transaction.pool_application)
 }
 
 const buyToken = (_transaction: transaction.TransactionExt) => {
@@ -117,11 +118,20 @@ const sellToken = (_transaction: transaction.TransactionExt) => {
 }
 
 const buyAmount = (_transaction: transaction.TransactionExt) => {
-  return _transaction.direction === 'Buy' ? _transaction.amount_1_in : _transaction.amount_0_in
+  return _transaction.direction === 'Buy' ? _transaction.amount_0_out : _transaction.amount_1_out
 }
 
 const sellAmount = (_transaction: transaction.TransactionExt) => {
-  return _transaction.direction === 'Sell' ? _transaction.amount_1_out : _transaction.amount_0_out
+  return _transaction.direction === 'Buy' ? _transaction.amount_1_in : _transaction.amount_0_in
+}
+
+const transactionValue = (_transaction: transaction.TransactionExt) => {
+  const value = protocol.calculateTransactionValueInNative(
+    _transaction,
+    transactionPool(_transaction),
+    nativePriceMap.value,
+  )
+  return value === undefined ? '--' : `${value.toFixed(4)} TLINERA`
 }
 
 const columns = computed(() => [
@@ -176,11 +186,16 @@ const selectedToken0 = computed(() => token0.value as string)
 const selectedToken1 = computed(() => token1.value as string)
 const selectedPool = computed(() => swap.Swap.getPool(token0.value as string, token1.value as string))
 const tokenReversed = computed(() => (selectedToken0.value === selectedPool.value?.token1) && selectedToken0.value !== undefined && selectedToken1.value !== undefined)
-const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000))
-const loadInterval = ref(600 * 1000)
+const poolCreatedAt = computed(() => selectedPool.value?.createdAt ?? 0)
+const globalTransactionsEndAt = 9999999999999
+const pageCursors = ref(new Map<number, { timestampBegin?: number; timestampEnd?: number }>())
+const activeRequestId = ref(0)
+const mounted = ref(false)
 
 const transactions = ref([] as transaction.TransactionExt[])
-const latestTransactions = computed(() => kline.Kline.latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value))
+const pushedTransactions = computed(() =>
+  kline.Kline.pushedTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value),
+)
 
 const getTransactions = (startAt: number, endAt: number) => {
   if (selectedToken0.value === selectedToken1.value && selectedToken0.value && selectedToken1.value) return
@@ -189,7 +204,9 @@ const getTransactions = (startAt: number, endAt: number) => {
     token0: selectedToken0.value,
     token1: selectedToken1.value,
     startAt,
-    endAt
+    endAt,
+    limit: pagination.value.rowsPerPage,
+    requestId: activeRequestId.value
   })
 }
 
@@ -204,7 +221,8 @@ const loadTransactions = (timestampBegin: number | undefined, timestampEnd: numb
     tokenReversed: tokenReversed.value,
     timestampBegin,
     timestampEnd,
-    limit
+    limit,
+    requestId: activeRequestId.value
   } as klineWorker.LoadTransactionsPayload)
 
   return true
@@ -218,12 +236,18 @@ const getTransactionsInformation = async () => {
 }
 
 const getStoreTransactions = async () => {
+  activeRequestId.value += 1
   transactions.value = []
+  pageCursors.value = new Map()
+  pagination.value = {
+    ...pagination.value,
+    page: 1
+  }
+  loading.value = false
   if (loading.value) return
 
-  if (loadTransactions(undefined, undefined, pagination.value.rowsPerPage)) {
-    await getTransactionsInformation()
-  }
+  loadTransactions(undefined, undefined, pagination.value.rowsPerPage)
+  void getTransactionsInformation()
 }
 
 watch(selectedToken0, async () => {
@@ -251,10 +275,10 @@ interface Reason {
   payload: ReasonPayload
 }
 
-const MAX_TRANSACTIONS = -1
-
-watch(latestTransactions, () => {
-  if (!latestTransactions.value.length) return
+watch(pushedTransactions, () => {
+  if (!mounted.value) return
+  if (!pushedTransactions.value.length) return
+  if (pagination.value.page !== 1) return
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
     token0: selectedToken0.value,
@@ -262,11 +286,11 @@ watch(latestTransactions, () => {
     originTransactions: transactions.value.map((el) => {
       return { ...el }
     }),
-    newTransactions: latestTransactions.value.map((el) => {
+    newTransactions: pushedTransactions.value.map((el) => {
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,
-    keepCount: MAX_TRANSACTIONS,
+    keepCount: pagination.value.rowsPerPage,
     reverse: true,
     reason: {
       reason: SortReason.LATEST,
@@ -276,8 +300,9 @@ watch(latestTransactions, () => {
 })
 
 const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) => {
-  const { token0, token1, startAt } = payload
+  const { token0, token1, startAt, endAt, requestId } = payload
 
+  if (!mounted.value || requestId !== activeRequestId.value) return
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
@@ -288,13 +313,13 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,
-    keepCount: MAX_TRANSACTIONS,
+    keepCount: pagination.value.rowsPerPage,
     reverse: true,
     reason: {
       reason: SortReason.FETCH,
       payload: {
-        startAt: startAt - loadInterval.value,
-        endAt: startAt - 1
+        startAt,
+        endAt
       }
     }
   })
@@ -302,8 +327,9 @@ const onFetchedTransactions = (payload: klineWorker.FetchedTransactionsPayload) 
 
 const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPayload) => {
   const _transactions = payload.transactions || []
-  const { token0, token1, timestampBegin, timestampEnd } = payload
+  const { token0, token1, timestampBegin, timestampEnd, requestId } = payload
 
+  if (!mounted.value || requestId !== activeRequestId.value) return
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) {
     if (loadTransactions(timestampBegin, timestampEnd, pagination.value.rowsPerPage)) {
       await getTransactionsInformation()
@@ -311,8 +337,8 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
     return
   }
 
-  const startAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - loadInterval.value
-  const endAt = (payload.timestampBegin ?? (_transactions[0]?.created_at || new Date().getTime())) - 1
+  const startAt = payload.timestampBegin ?? 0
+  const endAt = payload.timestampEnd ?? globalTransactionsEndAt
 
   const reason = {
     reason: SortReason.LOAD,
@@ -330,7 +356,7 @@ const onLoadedTransactions = async (payload: klineWorker.LoadedTransactionsPaylo
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,
-    keepCount: MAX_TRANSACTIONS,
+    keepCount: pagination.value.rowsPerPage,
     reverse: true,
     reason
   })
@@ -340,17 +366,15 @@ const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) =>
   const _reason = payload.reason as Reason
   const { token0, token1 } = payload
 
+  if (!mounted.value) return
   if (token0 !== selectedToken0.value || token1 !== selectedToken1.value) return
 
   if (payload.transactions.length === 0) {
-    const startAt = _reason.payload.startAt
-    const endAt = _reason.payload.endAt
-
-    if (endAt < poolCreatedAt.value) {
-      loading.value = false
-      return
+    if (_reason.reason === SortReason.LOAD) {
+      return getTransactions(_reason.payload.startAt, _reason.payload.endAt)
     }
-    if (startAt > new Date().getTime()) {
+    if (_reason.reason === SortReason.FETCH) {
+      transactions.value = []
       loading.value = false
       return
     }
@@ -359,20 +383,31 @@ const onSortedTransactions = (payload: klineWorker.SortedTransactionsPayload) =>
   }
 
   transactions.value = payload.transactions.slice(0, pagination.value.rowsPerPage)
+  const oldest = transactions.value[transactions.value.length - 1]
+  if (oldest) {
+    pageCursors.value.set(pagination.value.page + 1, {
+      timestampEnd: oldest.created_at - 1
+    })
+  }
   loading.value = false
 }
 
 const onPageRequest = (requestProp: { pagination: { page: number; rowsPerPage: number }}) => {
   if (loading.value) return
 
-  const startAt = (transactions.value[0]?.created_at || new Date().getTime()) - 1
-  const endAt = (transactions.value[0]?.created_at || new Date().getTime()) - loadInterval.value
+  const nextPage = requestProp.pagination.page
+  const cursor = pageCursors.value.get(nextPage)
+  const anchor = cursor?.timestampEnd ?? (transactions.value[transactions.value.length - 1]?.created_at || new Date().getTime())
+  const startAt = Math.max(poolCreatedAt.value || 0, 0)
+  const endAt = anchor
 
-  loadTransactions(startAt, endAt, pagination.value.rowsPerPage)
-  pagination.value.page = requestProp.pagination.page
+  if (loadTransactions(startAt, endAt, pagination.value.rowsPerPage)) {
+    pagination.value.page = nextPage
+  }
 }
 
 watch(() => pagination.value.page, () => {
+  if (!mounted.value) return
   onPageRequest({ pagination: pagination.value })
 })
 
@@ -381,6 +416,7 @@ onBeforeMount(() => {
 })
 
 onMounted(async () => {
+  mounted.value = true
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.on(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)
@@ -392,6 +428,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  mounted.value = false
+  activeRequestId.value += 1
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.FETCHED_TRANSACTIONS, onFetchedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.LOADED_TRANSACTIONS, onLoadedTransactions as klineWorker.ListenerFunc)
   klineWorker.KlineWorker.off(klineWorker.KlineEventType.SORTED_TRANSACTIONS, onSortedTransactions as klineWorker.ListenerFunc)

@@ -28,6 +28,14 @@ export const DEFAULT_CLIENT_MIGRATIONS: ClientMigration[] = [
       await db.klinePoints.clear()
     },
   },
+  {
+    id: '2026-05-09-kline-cache-rebuild-v2',
+    description:
+      'Rebuild cached K-line history after native-token pair routing and observability fixes',
+    run: async (db) => {
+      await db.klinePoints.clear()
+    },
+  },
 ]
 
 export const runClientMigrations = async (

@@ -1,5 +1,4 @@
 import async_request
-from environment import running_in_k8s
 from request_trace import persist_http_trace
 
 class MemeApplication:
@@ -9,28 +8,45 @@ class MemeApplication:
 
 
 class Proxy:
-    def __init__(self, host, chain_id, application_id, db=None):
+    def __init__(
+        self,
+        host,
+        chain_id,
+        application_id,
+        db=None,
+        query_base_url: str | None = None,
+        mutation_base_url: str | None = None,
+    ):
         self.host = host
-        self.base_url = f'http://{host}' + ('/api/proxy' if not running_in_k8s() else '')
+        self.query_base_url = self._resolve_query_base_url(host, query_base_url)
+        self.mutation_base_url = self._resolve_mutation_base_url(host, mutation_base_url)
+        self.base_url = self.query_base_url
         self.application = application_id
         self.chain = chain_id
         self.db = db
 
     def application_url(self) -> str:
-        prefix = '' if running_in_k8s() else '/query'
-        return f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
+        return f'{self.query_base_url}/chains/{self.chain}/applications/{self.application}'
 
     def mutation_application_url(self) -> str:
-        prefix = '' if running_in_k8s() else '/mutation'
-        return f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
+        return f'{self.mutation_base_url}/chains/{self.chain}/applications/{self.application}'
+
+    def _resolve_query_base_url(self, host: str, query_base_url: str | None) -> str:
+        if query_base_url is not None:
+            return str(query_base_url).rstrip('/')
+        return f'http://{host}/api/proxy/query'
+
+    def _resolve_mutation_base_url(self, host: str, mutation_base_url: str | None) -> str:
+        if mutation_base_url is not None:
+            return str(mutation_base_url).rstrip('/')
+        return f'http://{host}/api/proxy/mutation'
 
 
     async def get_memes(self) -> list[MemeApplication]:
         payload = {
             'query': 'query {\n memeApplications { chainId token } \n}'
         }
-        prefix = '' if running_in_k8s() else '/query'
-        url = f'{self.base_url}{prefix}/chains/{self.chain}/applications/{self.application}'
+        url = self.application_url()
         try:
             resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
             payload_json = resp.json() if resp.text else {}

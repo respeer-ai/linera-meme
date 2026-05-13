@@ -32,8 +32,13 @@ Canonical LP, position, and fund-consistency semantics.
 - Add-liquidity two-leg flows can partially succeed and still fail later
 - Payout and refund paths must not silently swallow downstream token-transfer failures
 - Initial pool creation must not persist success if downstream initialization or funding failed
+- Linera `tracked + bouncing` can help convert a destination-chain reject into a native source-chain failure signal, but only for that one message hop
+- `tracked + bouncing` does not provide atomicity or end-to-end rollback for later async payout or refund hops
+- Grant refunds in bouncing flows concern message execution resources, not business-asset refunds
 
 ## Implications
 
 - When debugging missing LP share or missing positions, inspect both minted liquidity state and transaction persistence
 - When reviewing fund safety, inspect partial-success branches, refund branches, and downstream call failure handling
+- When designing reliable refund paths, tracked messages may be used to close the gap between `pending` and `failed` for a single cross-chain step
+- Do not rely on bouncing messages to recover business funds after a later hop has already diverged; that still requires explicit pending/commit/claim-style protocol design

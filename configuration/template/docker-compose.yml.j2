@@ -6,10 +6,16 @@ services:
     ports:
       - "{{ service.port }}:8080"
     command: [ "./wallet-entrypoint.sh" ]
+    extra_hosts:
+      api.lineraswap.fun: "{{ lan_ip }}"
+      api.linerameme.fun: "{{ lan_ip }}"
+      api.testnet-conway.lineraswap.fun: "{{ lan_ip }}"
+      api.testnet-conway.linerameme.fun: "{{ lan_ip }}"
     volumes:
       - ../wallet/{{ service.name }}/{{ service.index }}:/wallet
     environment:
       RUST_LOG: info
       LINERA_LISTENER_SKIP_PERMISSIONLESS_CHAIN: true
+      LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY: "true"
     restart: always
 {% endfor %}

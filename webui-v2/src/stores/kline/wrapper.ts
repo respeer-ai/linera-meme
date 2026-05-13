@@ -1,4 +1,10 @@
-import { type Interval, useKlineStore, type Point, type TickerInterval } from './store'
+import {
+  type Interval,
+  useKlineStore,
+  type Point,
+  type PositionsInvalidationPayload,
+  type TickerInterval,
+} from './store'
 
 const kline = useKlineStore()
 
@@ -13,6 +19,12 @@ export class Kline {
     poolApplication: string,
   ) => kline.subscribeKline(token0, token1, interval, poolId, poolApplication)
 
+  static subscribePositions = (owner: string, poolId?: number, poolApplication?: string) =>
+    kline.subscribePositions(owner, poolId, poolApplication)
+
+  static onPositions = (listener: (payload: PositionsInvalidationPayload) => void) =>
+    kline.addPositionsListener(listener)
+
   static latestPoints = (
     key: Interval,
     token0: string,
@@ -23,8 +35,8 @@ export class Kline {
     return kline._latestPoints(key, token0, token1, poolId, poolApplication)
   }
 
-  static latestTransactions = (token0: string, token1: string, tokenReversed: boolean) => {
-    return kline._latestTransactions(token0, token1, tokenReversed ? 1 : 0)
+  static pushedTransactions = (token0: string, token1: string, tokenReversed: boolean) => {
+    return kline._pushedTransactions(token0, token1, tokenReversed ? 1 : 0)
   }
 
   static getTransactionsInformation = async (token0?: string, token1?: string) => {
@@ -45,8 +57,12 @@ export class Kline {
     return kline.tokenStat(tokenId, interval)
   }
 
-  static poolStat = (poolId: number, interval: TickerInterval) => {
-    return kline.poolStat(poolId, interval)
+  static poolStat = (
+    poolId: number | string,
+    interval: TickerInterval,
+    poolApplication?: string,
+  ) => {
+    return kline.poolStat(poolId, interval, poolApplication)
   }
 
   static getProtocolStat = async () => {

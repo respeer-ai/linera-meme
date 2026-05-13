@@ -1,176 +1,128 @@
 from fastapi import FastAPI, Request, WebSocket, Query
 from fastapi.responses import JSONResponse
-import asyncio
 import uvicorn
 import argparse
-import traceback
+import inspect
 import time
-import async_request
-from environment import running_in_k8s
-import position_metrics
 
 
 from swap import Swap
-from subscription import WebSocketManager
-from ticker import Ticker
 from db import Db, align_timestamp_to_minute_ms
 from request_trace import build_api_request_log_line, build_api_trace_context
-
+from kline_debug_service import KlineDebugService
+from kline_entrypoint_services import KlineEntrypointServices
+from kline_position_metrics_dependencies import KlinePositionMetricsDependencies
+from query.handlers.position_metrics import PositionMetricsHandler
+from query.read_models.position_metrics import PositionMetricsReadModel
+from realtime.market_data_event_queue import MarketDataEventQueue
 
 app = FastAPI()
 _swap = None
 manager = None
-_ticker = None
-_ticker_task = None
 _db = None
-_ticker_db = None
 _db_config = None
+_observability_config = None
+_observability_supervisor = None
+_observability_facade = None
+_entrypoint_services = None
+_entrypoint_graph_signature = None
+_position_metrics_entrypoint_overrides = None
+_market_data_event_queue = MarketDataEventQueue()
 
 
-async def _default_position_metrics_fetcher(position: dict):
-    if _swap is None:
-        raise RuntimeError('Swap client is not initialized')
-    if _db is None:
-        raise RuntimeError('Db client is not initialized')
-    return await position_metrics.fetch_live_position_metrics(
-        position,
-        _swap.base_url,
-        liquidity_history=_db.get_position_liquidity_history(
-            owner=position['owner'],
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-        ),
-        pool_transaction_history=_db.get_pool_transaction_history(
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-        ),
-        pool_swap_count_since_open=_db.get_pool_swap_count_since(
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-            created_at=position['opened_at'],
-        ),
-        pool_history_gap_summary=_db.get_pool_transaction_gap_summary(
-            pool_application=position['pool_application'],
-            pool_id=position['pool_id'],
-        ),
-        post=async_request.post,
-        in_k8s=running_in_k8s(),
+def _reset_entrypoint_graph():
+    global _entrypoint_services, _entrypoint_graph_signature
+    _entrypoint_services = None
+    _entrypoint_graph_signature = None
+
+
+def _entrypoint_signature():
+    services_signature = ()
+    if _entrypoint_services is not None:
+        services_signature = _entrypoint_services.signature_tuple()
+    return (
+        _db,
+        _observability_config,
+        _swap,
+        manager,
+        _db_config,
+        _observability_supervisor,
+        _market_data_event_queue,
+        *services_signature,
     )
 
 
-_position_metrics_fetcher = _default_position_metrics_fetcher
-
-
-async def _fetch_live_pool_transaction_ids(
-    pool_application: str,
-    *,
-    recent_window: int,
-):
-    if _swap is None:
-        raise RuntimeError('Swap client is not initialized')
-
-    url = position_metrics.pool_application_url(
-        _swap.base_url,
-        pool_application,
-        in_k8s=running_in_k8s(),
-    )
-    response = await async_request.post(
-        url=url,
-        json={'query': 'query {\n latestTransactions \n}'},
-        timeout=(3, 10),
-    )
-    response.raise_for_status()
-    payload = response.json()
-    if 'errors' in payload:
-        raise RuntimeError(str(payload['errors']))
-
-    latest_transactions = payload['data']['latestTransactions'] or []
-    latest_ids = sorted(
-        int(transaction['transactionId'])
-        for transaction in latest_transactions
-        if transaction.get('transactionId') is not None
-    )
-    if recent_window > 0 and len(latest_ids) > recent_window:
-        latest_ids = latest_ids[-recent_window:]
-    return latest_ids
-
-
-async def _build_recent_transaction_window_audit(
-    *,
-    pool_id: int,
-    pool_application: str,
-    recent_window: int,
-):
-    if _db is None:
-        raise RuntimeError('Db client is not initialized')
-    if recent_window <= 0:
-        raise ValueError('recent_window must be positive')
-
-    live_ids = await _fetch_live_pool_transaction_ids(
-        pool_application,
-        recent_window=recent_window,
-    )
-    if not live_ids:
-        return {
-            'pool_id': pool_id,
-            'pool_application': pool_application,
-            'recent_window': recent_window,
-            'window_start_id': None,
-            'window_end_id': None,
-            'live_ids': [],
-            'db_ids': [],
-            'missing_in_db': [],
-            'missing_in_live': [],
-        }
-
-    window_start_id = live_ids[0]
-    window_end_id = live_ids[-1]
-    db_ids = _db.get_pool_transaction_ids(
-        pool_id=pool_id,
-        pool_application=pool_application,
-        start_id=window_start_id,
-        end_id=window_end_id,
-    )
-    live_id_set = set(live_ids)
-    db_id_set = set(db_ids)
-
-    return {
-        'pool_id': pool_id,
-        'pool_application': pool_application,
-        'recent_window': recent_window,
-        'window_start_id': window_start_id,
-        'window_end_id': window_end_id,
-        'live_ids': live_ids,
-        'db_ids': db_ids,
-        'missing_in_db': sorted(live_id_set - db_id_set),
-        'missing_in_live': sorted(db_id_set - live_id_set),
-    }
-
-
-@app.get('/transactions/audit/recent')
-async def on_get_recent_transaction_audit(
-    pool_id: int = Query(...),
-    pool_application: str = Query(...),
-    recent_window: int = Query(default=5000),
-):
-    try:
-        return await _build_recent_transaction_window_audit(
-            pool_id=pool_id,
-            pool_application=pool_application,
-            recent_window=recent_window,
+def _services() -> KlineEntrypointServices:
+    global _entrypoint_services, _entrypoint_graph_signature
+    signature = _entrypoint_signature()
+    if _entrypoint_services is None or _entrypoint_graph_signature != signature:
+        _entrypoint_services = KlineEntrypointServices(
+            db=_db,
+            observability_config=_observability_config,
+            swap=_swap,
+            websocket_manager=manager,
+            db_config=_db_config,
+            observability_supervisor=_observability_supervisor,
+            market_data_event_queue=_market_data_event_queue,
         )
-    except ValueError as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": str(e)}
-        )
-    except Exception as e:
-        print(f'Failed audit recent transactions: {e}')
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+        _entrypoint_graph_signature = signature
+    return _entrypoint_services
 
+
+def _runtime():
+    return _services().runtime()
+
+
+def _lifecycle():
+    return _services().lifecycle()
+
+
+def _debug_service():
+    return KlineDebugService(
+        runtime=_runtime(),
+        position_metrics_public_api=_runtime().position_metrics_public_api(),
+        position_metrics_dependencies_factory=_position_metrics_dependencies,
+        observability_facade=_observability_facade,
+    )
+
+def _build_kline_handler():
+    return _runtime().kline_handler()
+
+
+def _build_transactions_handler():
+    return _runtime().transactions_handler()
+
+
+def _build_positions_handler():
+    return _runtime().positions_handler()
+
+
+def _build_position_metrics_handler():
+    dependencies = _position_metrics_dependencies()
+    runtime = _runtime()
+
+    return PositionMetricsHandler(
+        PositionMetricsReadModel(
+            dependencies.positions_repository(),
+            dependencies.fetcher(
+                position_metrics_public_api=runtime.position_metrics_public_api(),
+            ),
+            virtual_positions_read_model=runtime.virtual_positions_read_model(),
+        ),
+        runtime.position_metrics_diagnostic_recorder(),
+    )
+
+def _position_metrics_entrypoint_overrides_resolved():
+    if _position_metrics_entrypoint_overrides is not None:
+        return _position_metrics_entrypoint_overrides
+    return {}
+
+
+def _position_metrics_dependencies():
+    return KlinePositionMetricsDependencies.resolve(
+        runtime=_runtime(),
+        overrides=_position_metrics_entrypoint_overrides_resolved(),
+    )
 
 @app.get('/transactions/audit/replay')
 async def on_get_replay_transaction_audit(
@@ -182,37 +134,14 @@ async def on_get_replay_transaction_audit(
     swap_out_tolerance_attos: int = Query(default=1),
 ):
     try:
-        if _db is None:
-            raise RuntimeError('Db client is not initialized')
-        if swap_out_tolerance_attos < 0:
-            raise ValueError('swap_out_tolerance_attos must be non-negative')
-
-        pool_transaction_history = _db.get_pool_transaction_history(
-            pool_application=pool_application,
+        return _debug_service().get_replay_transaction_audit(
             pool_id=pool_id,
+            pool_application=pool_application,
+            virtual_initial_liquidity=virtual_initial_liquidity,
+            start_id=start_id,
+            end_id=end_id,
+            swap_out_tolerance_attos=swap_out_tolerance_attos,
         )
-        if start_id is not None or end_id is not None:
-            lower_bound = int(start_id or 0)
-            upper_bound = int(end_id or (2 ** 32 - 1))
-            pool_transaction_history = [
-                tx
-                for tx in pool_transaction_history
-                if lower_bound <= int(tx.get('transaction_id') or 0) <= upper_bound
-            ]
-
-        return {
-            'pool_id': pool_id,
-            'pool_application': pool_application,
-            'virtual_initial_liquidity': virtual_initial_liquidity,
-            'start_id': start_id,
-            'end_id': end_id,
-            'swap_out_tolerance_attos': swap_out_tolerance_attos,
-            'audit': position_metrics.inspect_pool_history_replay(
-                pool_transaction_history,
-                virtual_initial_liquidity=virtual_initial_liquidity,
-                swap_out_tolerance_attos=swap_out_tolerance_attos,
-            ),
-        }
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -264,7 +193,7 @@ async def on_get_kline(
     ))
 
     try:
-        (response_pool_id, response_pool_application, token_0, token_1, points) = _db.get_kline(
+        payload = _build_kline_handler().get_points(
             token_0=token0,
             token_1=token1,
             start_at=start_at,
@@ -273,6 +202,11 @@ async def on_get_kline(
             pool_id=pool_id,
             pool_application=pool_application,
         )
+        response_pool_id = payload['pool_id']
+        response_pool_application = payload['pool_application']
+        token_0 = payload['token_0']
+        token_1 = payload['token_1']
+        points = payload['points']
     except Exception as e:
         print(f'Failed get kline: {e}')
     finally:
@@ -306,7 +240,7 @@ async def on_get_kline_information(
     pool_application: str | None = Query(default=None),
 ):
     try:
-        return _db.get_kline_information(
+        return _build_kline_handler().get_information(
             token_0=token0,
             token_1=token1,
             interval=interval,
@@ -322,19 +256,31 @@ async def on_get_kline_information(
 
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/start_at/{start_at}/end_at/{end_at}')
-async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int):
-    return _db.get_transactions(token_0=token0, token_1=token1, start_at=start_at, end_at=end_at)
+async def on_get_transactions(token0: str, token1: str, start_at: int, end_at: int, limit: int | None = None):
+    return _build_transactions_handler().get_transactions(
+        token_0=token0,
+        token_1=token1,
+        start_at=start_at,
+        end_at=end_at,
+        limit=limit,
+    )
 
 
 @app.get('/transactions/start_at/{start_at}/end_at/{end_at}')
-async def on_get_combined_transactions(start_at: int, end_at: int):
-    return _db.get_transactions(token_0=None, token_1=None, start_at=start_at, end_at=end_at)
+async def on_get_combined_transactions(start_at: int, end_at: int, limit: int | None = None):
+    return _build_transactions_handler().get_transactions(
+        token_0=None,
+        token_1=None,
+        start_at=start_at,
+        end_at=end_at,
+        limit=limit,
+    )
 
 
 @app.get('/transactions/token0/{token0}/token1/{token1}/information')
 async def on_get_transactions_information(token0: str, token1: str):
     try:
-        return _db.get_transactions_information(token_0=token0, token_1=token1)
+        return _build_transactions_handler().get_information(token_0=token0, token_1=token1)
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
@@ -346,7 +292,7 @@ async def on_get_transactions_information(token0: str, token1: str):
 @app.get('/transactions/information')
 async def on_get_combined_transactions_information():
     try:
-        return _db.get_transactions_information(token_0=None, token_1=None)
+        return _build_transactions_handler().get_information(token_0=None, token_1=None)
     except Exception as e:
         print(f'Failed get transactions information: {e}')
         return JSONResponse(
@@ -361,10 +307,10 @@ async def on_get_positions(
     status: str = Query(default='active'),
 ):
     try:
-        return {
-            'owner': owner,
-            'positions': _db.get_positions(owner=owner, status=status),
-        }
+        response = _build_positions_handler().get_positions(owner=owner, status=status)
+        if inspect.isawaitable(response):
+            return await response
+        return response
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -384,52 +330,10 @@ async def on_get_position_metrics(
     status: str = Query(default='active'),
 ):
     try:
-        positions = _db.get_positions(owner=owner, status=status)
-        metrics = []
-        for position in positions:
-            live_metrics = await _position_metrics_fetcher(position)
-            if 'value_warning_codes' not in live_metrics:
-                live_metrics['value_warning_codes'] = []
-            if 'value_warning_message' not in live_metrics:
-                live_metrics['value_warning_message'] = None
-            for field_name in ('fee_amount0', 'fee_amount1', 'protocol_fee_amount0', 'protocol_fee_amount1'):
-                if live_metrics.get(field_name) is None:
-                    live_metrics[field_name] = '0'
-            if (
-                not bool(live_metrics.get('exact_fee_supported'))
-                or bool(live_metrics.get('computation_blockers'))
-                or bool(live_metrics.get('value_warning_codes'))
-            ):
-                _db.record_diagnostic_event(
-                    source='position_metrics',
-                    event_type='inexact_position_metrics',
-                    severity='warning',
-                    owner=position['owner'],
-                    pool_application=position['pool_application'],
-                    pool_id=position['pool_id'],
-                    status=position['status'],
-                    details={
-                        'metrics_status': live_metrics.get('metrics_status'),
-                        'exact_fee_supported': bool(live_metrics.get('exact_fee_supported')),
-                        'exact_principal_supported': bool(live_metrics.get('exact_principal_supported')),
-                        'computation_blockers': list(live_metrics.get('computation_blockers') or []),
-                        'value_warning_codes': list(live_metrics.get('value_warning_codes') or []),
-                    },
-                )
-            metrics.append({
-                'pool_application': position['pool_application'],
-                'pool_id': position['pool_id'],
-                'token_0': position['token_0'],
-                'token_1': position['token_1'],
-                'owner': position['owner'],
-                'status': position['status'],
-                'current_liquidity': position['current_liquidity'],
-                **live_metrics,
-            })
-        return {
-            'owner': owner,
-            'metrics': metrics,
-        }
+        return await _build_position_metrics_handler().get_position_metrics(
+            owner=owner,
+            status=status,
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -437,6 +341,33 @@ async def on_get_position_metrics(
         )
     except Exception as e:
         print(f'Failed get position metrics: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/position-metrics/readiness')
+async def on_get_position_metrics_readiness_debug(
+    owner: str = Query(...),
+    status: str = Query(default='active'),
+    sample_limit: int = Query(default=100),
+):
+    try:
+        if sample_limit <= 0:
+            raise ValueError('sample_limit must be positive')
+        return await _debug_service().build_position_metrics_readiness_debug_payload(
+            owner=owner,
+            status=status,
+            sample_limit=sample_limit,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get position metrics readiness debug: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -452,19 +383,13 @@ async def on_get_diagnostics(
     limit: int = Query(default=200),
 ):
     try:
-        if _db is None:
-            raise RuntimeError('Db client is not initialized')
-        if limit <= 0:
-            raise ValueError('limit must be positive')
-        return {
-            'diagnostics': _db.get_diagnostic_events(
-                source=source,
-                owner=owner,
-                pool_application=pool_application,
-                pool_id=pool_id,
-                limit=limit,
-            ),
-        }
+        return _debug_service().get_diagnostics(
+            source=source,
+            owner=owner,
+            pool_application=pool_application,
+            pool_id=pool_id,
+            limit=limit,
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -489,30 +414,19 @@ async def on_get_debug_traces(
     start_at: int | None = Query(default=None),
     end_at: int | None = Query(default=None),
     limit: int = Query(default=200),
-    include_storage: bool = Query(default=False),
 ):
     try:
-        if _db is None:
-            raise RuntimeError('Db client is not initialized')
-        if limit <= 0:
-            raise ValueError('limit must be positive')
-
-        response = {
-            'traces': _db.get_debug_traces(
-                source=source,
-                component=component,
-                operation=operation,
-                owner=owner,
-                pool_application=pool_application,
-                pool_id=pool_id,
-                start_at=start_at,
-                end_at=end_at,
-                limit=limit,
-            ),
-        }
-        if include_storage:
-            response['storage'] = _db.get_debug_trace_storage_status()
-        return response
+        return _debug_service().get_debug_traces(
+            source=source,
+            component=component,
+            operation=operation,
+            owner=owner,
+            pool_application=pool_application,
+            pool_id=pool_id,
+            start_at=start_at,
+            end_at=end_at,
+            limit=limit,
+        )
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -526,16 +440,44 @@ async def on_get_debug_traces(
         )
 
 
-@app.get('/debug/storage')
-async def on_get_debug_storage():
+@app.get('/debug/realtime')
+async def on_get_realtime_diagnostics(
+    stage: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+    pool_id: int | None = Query(default=None),
+    start_at: int | None = Query(default=None),
+    end_at: int | None = Query(default=None),
+    limit: int = Query(default=200),
+):
+    if limit <= 0:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "limit must be positive"},
+        )
+    if limit > 1000:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "limit must be <= 1000"},
+        )
     try:
-        if _db is None:
-            raise RuntimeError('Db client is not initialized')
         return {
-            'debug_traces': _db.get_debug_trace_storage_status(),
+            'retention': {
+                'ttl_ms': getattr(_db, 'debug_retention_ttl_ms', None),
+                'max_rows_per_table': getattr(_db, 'debug_retention_max_rows', None),
+            },
+            'realtime': _runtime().get_realtime_diagnostics(
+                stage=stage,
+                event_type=event_type,
+                pool_application=pool_application,
+                pool_id=pool_id,
+                start_at=start_at,
+                end_at=end_at,
+                limit=limit,
+            ),
         }
     except Exception as e:
-        print(f'Failed get debug storage: {e}')
+        print(f'Failed get realtime diagnostics: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
@@ -549,59 +491,15 @@ async def on_get_debug_pool_bundle(
     owner: str | None = Query(default=None),
     transaction_limit: int = Query(default=1000),
     diagnostics_limit: int = Query(default=200),
-    include_live_recent: bool = Query(default=False),
-    recent_window: int = Query(default=5000),
 ):
     try:
-        if _db is None:
-            raise RuntimeError('Db client is not initialized')
-        if transaction_limit <= 0 or diagnostics_limit <= 0:
-            raise ValueError('limits must be positive')
-        if recent_window <= 0:
-            raise ValueError('recent_window must be positive')
-
-        transactions = _db.get_pool_transaction_history(
+        return _debug_service().get_debug_pool_bundle(
             pool_application=pool_application,
             pool_id=pool_id,
+            owner=owner,
+            transaction_limit=transaction_limit,
+            diagnostics_limit=diagnostics_limit,
         )
-        if len(transactions) > transaction_limit:
-            transactions = transactions[-transaction_limit:]
-
-        liquidity_history = []
-        if owner is not None:
-            liquidity_history = _db.get_position_liquidity_history(
-                owner=owner,
-                pool_application=pool_application,
-                pool_id=pool_id,
-            )
-
-        live_recent_audit = None
-        if include_live_recent:
-            live_recent_audit = await _build_recent_transaction_window_audit(
-                pool_id=pool_id,
-                pool_application=pool_application,
-                recent_window=recent_window,
-            )
-
-        return {
-            'pool_application': pool_application,
-            'pool_id': pool_id,
-            'owner': owner,
-            'transaction_count': len(transactions),
-            'transactions': transactions,
-            'liquidity_history': liquidity_history,
-            'gap_summary': _db.get_pool_transaction_gap_summary(
-                pool_application=pool_application,
-                pool_id=pool_id,
-            ),
-            'diagnostics': _db.get_diagnostic_events(
-                pool_application=pool_application,
-                pool_id=pool_id,
-                owner=owner,
-                limit=diagnostics_limit,
-            ),
-            'live_recent_audit': live_recent_audit,
-        }
     except ValueError as e:
         return JSONResponse(
             status_code=400,
@@ -615,10 +513,134 @@ async def on_get_debug_pool_bundle(
         )
 
 
+@app.post('/debug/catch-up/run')
+async def on_post_debug_catch_up_run(
+    chain_id: str | None = Query(default=None),
+    max_blocks: int | None = Query(default=None),
+):
+    try:
+        return await _debug_service().run_catch_up(
+            chain_id=chain_id,
+            max_blocks=max_blocks,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed run debug catch-up: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post('/debug/normalization/replay/run')
+async def on_post_debug_normalization_replay_run(
+    raw_table: str | None = Query(default=None),
+    batch_limit: int | None = Query(default=None),
+    after_sequence: int | None = Query(default=None),
+    ignore_cursor: bool = Query(default=False),
+    max_batches: int | None = Query(default=None),
+    reprocess_reason: str | None = Query(default=None),
+):
+    try:
+        return await _debug_service().run_normalization_replay(
+            raw_table=raw_table,
+            batch_limit=batch_limit,
+            after_sequence=after_sequence,
+            ignore_cursor=ignore_cursor,
+            max_batches=max_batches,
+            reprocess_reason=reprocess_reason,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed run debug normalization replay: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post('/debug/market-derivation/replay/run')
+async def on_post_debug_market_derivation_replay_run(
+    raw_table: str | None = Query(default=None),
+    batch_limit: int | None = Query(default=None),
+    after_sequence: int | None = Query(default=None),
+    ignore_cursor: bool = Query(default=False),
+    max_batches: int | None = Query(default=None),
+    reprocess_reason: str | None = Query(default=None),
+):
+    try:
+        return await _debug_service().run_market_derivation_replay(
+            raw_table=raw_table,
+            batch_limit=batch_limit,
+            after_sequence=after_sequence,
+            ignore_cursor=ignore_cursor,
+            max_batches=max_batches,
+            reprocess_reason=reprocess_reason,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed run debug market derivation replay: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/observability')
+async def on_get_debug_observability(
+    chain_ids: str | None = Query(default=None),
+    run_statuses: str | None = Query(default=None),
+    anomaly_statuses: str | None = Query(default=None),
+    limit: int = Query(default=200),
+):
+    try:
+        return _debug_service().get_debug_observability(
+            chain_ids=chain_ids,
+            run_statuses=run_statuses,
+            anomaly_statuses=anomaly_statuses,
+            limit=limit,
+        )
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        print(f'Failed get debug observability: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.post('/debug/observability/recover')
+async def on_post_debug_observability_recover():
+    try:
+        return await _debug_service().recover_observability()
+    except Exception as e:
+        print(f'Failed recover observability: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 @app.get('/ticker/interval/{interval}')
 async def on_get_ticker(interval: str):
     try:
-        stats =  _db.get_ticker(interval=interval)
+        stats = _runtime().get_ticker_stats(interval=interval)
         return {
             'interval': interval,
             'stats': stats,
@@ -633,7 +655,7 @@ async def on_get_ticker(interval: str):
 @app.get('/poolstats/interval/{interval}')
 async def on_get_pool_stats(interval: str):
     try:
-        stats =  _db.get_pool_stats(interval=interval)
+        stats = _runtime().get_pool_stats(interval=interval)
         return {
             'interval': interval,
             'stats': stats,
@@ -648,8 +670,7 @@ async def on_get_pool_stats(interval: str):
 @app.get('/protocol/stats')
 async def get_protocol_stats() -> dict:
     try:
-        pools = await _swap.get_pools()
-        stats = _db.get_protocol_stats(pools)
+        stats = await _runtime().get_protocol_stats()
         return stats
     except Exception as e:
         print(f'Failed get protocol stats: {e}')
@@ -663,47 +684,21 @@ async def on_subscribe(websocket: WebSocket):
     await websocket.accept()
     await manager.connect(websocket)
 
-async def run_ticker_forever():
-    global _ticker
-    while _ticker is not None and _ticker.running():
-        try:
-            await _ticker.run()
-        except Exception as e:
-            print(f'Ticker quiting ... {e}')
-            traceback.print_exc()
-            await asyncio.sleep(10)
-
-
 @app.on_event('startup')
 async def on_startup():
-    global _ticker, _ticker_task, _ticker_db
     if _swap is None or manager is None or _db_config is None:
         return
-    if _ticker_task is not None:
-        return
-
-    _ticker_db = Db(
-        _db_config['host'],
-        _db_config['port'],
-        _db_config['db_name'],
-        _db_config['username'],
-        _db_config['password'],
-        False,
-    )
-    _ticker = Ticker(manager, _swap, _ticker_db)
-    _ticker_task = asyncio.create_task(run_ticker_forever())
+    _reset_entrypoint_graph()
+    lifecycle = _lifecycle()
+    await lifecycle.startup()
+    _reset_entrypoint_graph()
 
 
 @app.on_event('shutdown')
 async def on_shutdown():
-    global _ticker_task
-    if _ticker is not None:
-        _ticker.stop()
-    if _ticker_task is not None:
-        await _ticker_task
-        _ticker_task = None
-    if _ticker_db is not None:
-        _ticker_db.close()
+    lifecycle = _lifecycle()
+    await lifecycle.shutdown()
+    _reset_entrypoint_graph()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Linera Swap Kline')
@@ -713,12 +708,23 @@ if __name__ == '__main__':
     parser.add_argument('--swap-host', type=str, default='api.lineraswap.fun', help='Host of swap service')
     parser.add_argument('--swap-chain-id', type=str, required=True, help='Swap chain id')
     parser.add_argument('--swap-application-id', type=str, default='', help='Swap application id')
+    parser.add_argument('--proxy-host', type=str, default='', help='Host of proxy service')
+    parser.add_argument('--proxy-chain-id', type=str, default='', help='Proxy chain id')
+    parser.add_argument('--proxy-application-id', type=str, default='', help='Proxy application id')
     parser.add_argument('--database-host', type=str, default='localhost', help='Kline database host')
     parser.add_argument('--database-port', type=str, default='3306', help='Kline database port')
     parser.add_argument('--database-user', type=str, default='debian-sys-maint ', help='Kline database user')
     parser.add_argument('--database-password', type=str, default='4EwQJrNprvw8McZm', help='Kline database password')
     parser.add_argument('--database-name', type=str, default='linera_swap_kline', help='Kline database name')
     parser.add_argument('--clean-kline', action='store_true', help='Clean kline database')
+    parser.add_argument('--chain-graphql-url', type=str, default='', help='Linera node service GraphQL URL for raw block ingestion')
+    parser.add_argument('--chain-graphql-ws-url', type=str, default='', help='Optional Linera node service GraphQL WebSocket URL for notifications')
+    parser.add_argument('--catch-up-chain-ids', type=str, default='', help='Comma-separated chain ids for event-driven/admin catch-up')
+    parser.add_argument('--catch-up-max-blocks-per-chain', type=int, default=50, help='Bounded catch-up block limit per chain run')
+    parser.add_argument('--catch-up-task-timeout-seconds', type=float, default=30.0, help='Timeout for one bounded catch-up task')
+    parser.add_argument('--catch-up-retry-delay-seconds', type=float, default=0.05, help='Delay before scheduling the next catch-up task for an unfinished chain')
+    parser.add_argument('--disable-catch-up-on-startup', action='store_true', help='Disable startup reconciliation catch-up for configured chains')
+    parser.add_argument('--notification-reconnect-delay-seconds', type=float, default=1.0, help='Reconnect backoff in seconds for Linera notification subscriptions')
 
     args = parser.parse_args()
 
@@ -729,12 +735,57 @@ if __name__ == '__main__':
         'username': args.database_user,
         'password': args.database_password,
     }
-
+    parsed_catch_up_chain_ids = tuple(
+        chain_id.strip()
+        for chain_id in args.catch_up_chain_ids.split(',')
+        if chain_id.strip()
+    )
+    if args.chain_graphql_url:
+        _observability_config = {
+            'database_host': args.database_host,
+            'database_port': args.database_port,
+            'database_name': args.database_name,
+            'database_username': args.database_user,
+            'database_password': args.database_password,
+            'chain_graphql_url': args.chain_graphql_url,
+            'chain_graphql_ws_url': args.chain_graphql_ws_url or None,
+            'catch_up_chain_ids': parsed_catch_up_chain_ids,
+            'catch_up_max_blocks_per_chain': args.catch_up_max_blocks_per_chain,
+            'catch_up_task_timeout_seconds': args.catch_up_task_timeout_seconds,
+            'catch_up_retry_delay_seconds': args.catch_up_retry_delay_seconds,
+            'catch_up_on_startup': not args.disable_catch_up_on_startup,
+            'notification_reconnect_delay_seconds': args.notification_reconnect_delay_seconds,
+            'swap_host': args.swap_host,
+            'swap_chain_id': args.swap_chain_id,
+            'swap_application_id': args.swap_application_id,
+            'proxy_host': args.proxy_host or None,
+            'proxy_chain_id': args.proxy_chain_id or None,
+            'proxy_application_id': args.proxy_application_id or None,
+        }
     _db = Db(args.database_host, args.database_port, args.database_name, args.database_user, args.database_password, args.clean_kline)
-    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, None, db=_db)
-    manager = WebSocketManager(_swap, _db)
+    _swap = Swap(
+        args.swap_host,
+        args.swap_chain_id,
+        args.swap_application_id,
+        None,
+        db=_db,
+        query_base_url=f'http://{args.swap_host}/api/swap/query',
+    )
+    manager = _runtime().build_websocket_manager()
+    _reset_entrypoint_graph()
+    _observability_facade = _runtime().build_observability_facade()
+    _observability_supervisor = _observability_facade.supervisor
+    _reset_entrypoint_graph()
 
-    uvicorn.run(app, host=args.host, port=args.port, ws_ping_interval=30, ws_ping_timeout=10)
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        loop='asyncio',
+        http='h11',
+        ws_ping_interval=30,
+        ws_ping_timeout=10,
+    )
 
     if _db is not None:
         _db.close()

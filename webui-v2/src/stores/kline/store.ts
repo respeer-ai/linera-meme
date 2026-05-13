@@ -11,6 +11,7 @@ import {
   type PoolStat,
   type ProtocolStat,
   type PositionMetricsResponse,
+  type PositionsInvalidationPayload,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
 import { constants } from 'src/constant'
@@ -18,7 +19,16 @@ import { type TransactionExt } from '../transaction'
 import { klineWorker } from 'src/worker'
 import { type TickerInterval, type Interval } from './const'
 import axios from 'axios'
-import { buildKlineSubscriptionMessage, mergeLatestPointMaps } from './liveUpdate'
+import {
+  buildKlineSubscriptionMessage,
+  buildPositionsSubscriptionMessage,
+  mergeLatestPointMaps,
+} from './liveUpdate'
+import {
+  buildPoolStatsByApplicationMap,
+  buildPoolStatsMap,
+  findPoolStatByIdentity,
+} from './poolStats'
 
 export const useKlineStore = defineStore('kline', {
   state: () => ({
@@ -34,13 +44,24 @@ export const useKlineStore = defineStore('kline', {
           interval: Interval
         }
       | undefined,
-    latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
+    activePositionsSubscription: undefined as
+      | {
+          owner: string
+          poolId?: number
+          poolApplication?: string
+        }
+      | undefined,
+    positionsListeners: [] as Array<(payload: PositionsInvalidationPayload) => void>,
+    pushedTransactions: new Map<string, Map<string, TransactionExt[]>>(),
+    latestCombinedTransactions: [] as TransactionExt[],
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
+    poolStatsByApplication: new Map<TickerInterval, Map<string, PoolStat>>(),
     protocolStat: {} as ProtocolStat,
   }),
   actions: {
     initializeKline() {
+      if (this.websocket) return
       this.websocket = new _WebSocket(constants.KLINE_WS_URL)
       this.websocket.withOnOpen(() => this.onOpen())
       this.websocket.withOnMessage((notification) => this.onMessage(notification))
@@ -48,17 +69,26 @@ export const useKlineStore = defineStore('kline', {
     },
     onOpen() {
       const subscription = this.activeSubscription
-      if (!subscription) return
-
-      this.websocket.sendJson(
-        buildKlineSubscriptionMessage(
-          subscription.token0,
-          subscription.token1,
-          subscription.interval,
-          subscription.poolId,
-          subscription.poolApplication,
-        ),
-      )
+      if (subscription) {
+        this.websocket.sendJson(
+          buildKlineSubscriptionMessage(
+            subscription.token0,
+            subscription.token1,
+            subscription.interval,
+            subscription.poolId,
+            subscription.poolApplication,
+          ),
+        )
+      }
+      if (this.activePositionsSubscription) {
+        this.websocket.sendJson(
+          buildPositionsSubscriptionMessage(
+            this.activePositionsSubscription.owner,
+            this.activePositionsSubscription.poolId,
+            this.activePositionsSubscription.poolApplication,
+          ),
+        )
+      }
     },
     onMessage(notification: Notification) {
       if (notification.notification === 'kline') {
@@ -70,6 +100,8 @@ export const useKlineStore = defineStore('kline', {
         )
       } else if (notification.notification === 'transactions') {
         this.onTransactions(notification.value as Transactions[])
+      } else if (notification.notification === 'positions') {
+        this.onPositions(notification.value as PositionsInvalidationPayload)
       }
     },
     subscribeKline(
@@ -85,6 +117,26 @@ export const useKlineStore = defineStore('kline', {
       this.websocket?.sendJson(
         buildKlineSubscriptionMessage(token0, token1, interval, poolId, poolApplication),
       )
+    },
+    subscribePositions(owner: string, poolId?: number, poolApplication?: string) {
+      if (!owner) return
+      this.activePositionsSubscription = {
+        owner,
+        ...(poolId !== undefined ? { poolId } : {}),
+        ...(poolApplication !== undefined ? { poolApplication } : {}),
+      }
+      this.websocket?.sendJson(buildPositionsSubscriptionMessage(owner, poolId, poolApplication))
+    },
+    addPositionsListener(listener: (payload: PositionsInvalidationPayload) => void) {
+      this.positionsListeners.push(listener)
+      return () => {
+        this.positionsListeners = this.positionsListeners.filter(
+          (candidate) => candidate !== listener,
+        )
+      }
+    },
+    onPositions(payload: PositionsInvalidationPayload) {
+      this.positionsListeners.forEach((listener) => listener(payload))
     },
     onKline(points: Map<Interval, Points[]>) {
       points.forEach((_points, interval) => {
@@ -108,11 +160,14 @@ export const useKlineStore = defineStore('kline', {
     },
     onTransactions(transactions: Transactions[]) {
       klineWorker.KlineWorker.send(klineWorker.KlineEventType.NEW_TRANSACTIONS, transactions)
+      this.latestCombinedTransactions = transactions.flatMap(
+        (_transactions) => _transactions.transactions,
+      )
       transactions.forEach((_transactions) => {
         const trans =
-          this.latestTransactions.get(_transactions.token_0) || new Map<string, TransactionExt[]>()
+          this.pushedTransactions.get(_transactions.token_0) || new Map<string, TransactionExt[]>()
         trans.set(_transactions.token_1, _transactions.transactions)
-        this.latestTransactions.set(_transactions.token_0, trans)
+        this.pushedTransactions.set(_transactions.token_0, trans)
       })
     },
     async getKlineInformation(token0: string, token1: string, interval: Interval) {
@@ -167,10 +222,9 @@ export const useKlineStore = defineStore('kline', {
       )
       try {
         const res = await axios.get(url)
-        this.poolStats.set(
-          interval,
-          new Map<number, PoolStat>((res.data as PoolStats).stats.map((s) => [s.pool_id, s])),
-        )
+        const stats = (res.data as PoolStats).stats
+        this.poolStats.set(interval, buildPoolStatsMap(stats))
+        this.poolStatsByApplication.set(interval, buildPoolStatsByApplicationMap(stats))
         return res.data as PoolStats
       } catch (e) {
         console.log('Failed get tickers', e)
@@ -243,14 +297,19 @@ export const useKlineStore = defineStore('kline', {
         ).sort((a, b) => a.timestamp - b.timestamp)
       }
     },
-    _latestTransactions(): (
+    _pushedTransactions(): (
       token0: string,
       token1: string,
       tokenReversed: number,
     ) => TransactionExt[] {
       return (token0: string, token1: string, tokenReversed: number) => {
+        if (!token0 || !token1) {
+          return this.latestCombinedTransactions
+            .sort((a, b) => a.created_at - b.created_at)
+            .filter((el) => !el.token_reversed)
+        }
         return (
-          this.latestTransactions
+          this.pushedTransactions
             .get(token0)
             ?.get(token1)
             ?.sort((a, b) => a.created_at - b.created_at)
@@ -263,10 +322,18 @@ export const useKlineStore = defineStore('kline', {
         return this.tickers.get(interval)?.get(token)
       }
     },
-    poolStat(): (poolId: number, interval: TickerInterval) => PoolStat | undefined {
-      return (poolId: number, interval: TickerInterval) => {
-        console.log(poolId, interval, this.poolStats)
-        return this.poolStats.get(interval)?.get(poolId)
+    poolStat(): (
+      poolId: number | string,
+      interval: TickerInterval,
+      poolApplication?: string,
+    ) => PoolStat | undefined {
+      return (poolId: number | string, interval: TickerInterval, poolApplication?: string) => {
+        return findPoolStatByIdentity(
+          this.poolStats.get(interval),
+          this.poolStatsByApplication.get(interval),
+          poolId,
+          poolApplication,
+        )
       }
     },
   },

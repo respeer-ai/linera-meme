@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import type { KLineData } from './chart/KlineData'
 import {
   chartStateChanged,
+  getLivePointsRenderSignal,
   mergeSortedPointsIntoChartState,
   selectLivePointsForChartState,
 } from './priceChartPointState'
@@ -136,5 +137,25 @@ describe('selectLivePointsForChartState', () => {
     })
 
     expect(selected).toEqual([])
+  })
+})
+
+describe('getLivePointsRenderSignal', () => {
+  test('changes when an unfinished live candle is updated in place semantically', () => {
+    const first = getLivePointsRenderSignal([{ ...sortedPoint(550_000, 101, 12), is_final: false }])
+    const updated = getLivePointsRenderSignal([
+      { ...sortedPoint(550_000, 102, 14), is_final: false },
+    ])
+
+    expect(updated === first).toBe(false)
+  })
+
+  test('changes when a candle becomes final', () => {
+    const unfinished = getLivePointsRenderSignal([
+      { ...sortedPoint(550_000, 101, 12), is_final: false },
+    ])
+    const final = getLivePointsRenderSignal([{ ...sortedPoint(550_000, 101, 12), is_final: true }])
+
+    expect(final === unfinished).toBe(false)
   })
 })

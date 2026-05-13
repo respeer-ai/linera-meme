@@ -1,0 +1,113 @@
+# Market Data Semantics
+
+Type: Primitive
+Audience: Coding assistants
+Authority: High
+
+## Purpose
+
+Canonical semantics for normalized events, decoder responsibilities, and the derived market-data layer.
+
+## Facts
+
+- Kline semantics match standard exchange semantics
+- `settled_trade` is the only valid candle input
+- Layer 2 must decode known application payloads for:
+  - `pool`
+  - `swap`
+  - `meme`
+  - `proxy`
+  - `ams`
+  - `blob-gateway`
+- Unknown or undecodable user payloads must remain available as raw facts
+
+## Semantics
+
+- Application registry maps `application_id` to app type and discovery metadata
+- Decoder registry maps app type plus payload kind to a decoder
+- Decoder failures create explicit decode-failure facts; they do not block raw ingestion
+- Current-stage pool execution facts are observed from `PoolMessage::NewTransaction`
+  - `latestTransactions` state is not the truth source
+  - the block message itself is the truth source
+  - this is a temporary carrier and may later be replaced by official class-EVM-event-like capabilities when available upstream
+- Current Layer 3 contract is decoded `NewTransaction.transaction`
+  - Layer 2 decoders should emit `decoded_payload_json.transaction`
+  - Layer 3 must not depend on decoder-specific ad-hoc field layouts
+- Future pool execution-fact carriers must decode into one stable contract before Layer 3 consumes them
+- Normalized business events may include:
+  - `pool_swap_requested`
+  - `swap_update_pool_requested`
+  - `swap_update_pool_message_observed`
+  - `swap_pool_created_recorded`
+  - `swap_message_observed`
+  - `swap_message_rejected`
+  - `pool_add_liquidity_requested`
+  - `pool_add_liquidity_message_observed`
+  - `pool_remove_liquidity_requested`
+  - `pool_remove_liquidity_message_observed`
+  - `meme_transfer_requested`
+  - `meme_transfer_message_observed`
+  - `meme_liquidity_funded_recorded`
+  - `pool_fund_request_recorded`
+  - `fund_success_recorded`
+  - `fund_fail_recorded`
+  - `pool_swap_message_observed`
+  - `pool_add_liquidity_message_observed`
+  - `pool_remove_liquidity_message_observed`
+  - `pool_new_transaction_recorded`
+- Derived market events are stricter than normalized business events
+- `settled_trade` means:
+  - a trade is finalized under product semantics
+  - the event is allowed to affect candles and trade history
+- Requests, pending states, and rejects are not settled trades
+- Current pool `new_transaction` is the temporary new-trade observability fact carrier
+  - it must be consumed from block messages, not from pool `latestTransactions` state
+  - it remains a temporary carrier, not a permanent architecture commitment
+
+## Flow
+
+```mermaid
+sequenceDiagram
+    participant L1 as Layer 1 raw facts
+    participant AR as Application registry
+    participant DR as Decoder registry
+    participant L2 as Layer 2 normalized events
+    participant L3 as Layer 3 market data
+
+    L1->>AR: resolve application_id
+    AR->>DR: select decoder(app_type,payload_kind)
+    DR->>L2: decoded business event or decode_failed
+    L2->>L3: derive settled_trade / settled_liquidity_change
+    L3-->>L3: update candles, transactions, positions, fees
+```
+
+## Rules
+
+- Do not let Layer 3 consume raw bytes directly
+- Do not let candles consume requests, pending actions, or rejects
+- Do not let decode failures block Layer 1 persistence
+- Do not assume all user payloads are decodable without an application registry entry
+- Do not treat a raw `Swap`-related fact as a settled trade without explicit Layer 2 to Layer 3 rules
+
+## Checklist
+
+1. Define `application_registry`
+2. Define `decoder_registry`
+3. Define normalized event schemas and correlation keys
+4. Define `settled_trade`
+5. Define `settled_liquidity_change`
+6. Re-point existing `transactions`, `candles`, `positions`, and `fees` derivation to Layer 3
+
+## Validation
+
+- A raw swap request without final settlement must not create a candle
+- A rejected incoming bundle must not create a settled trade
+- A decode failure must remain queryable through diagnostics
+- A settled trade replay must be idempotent
+
+## Sources
+
+- `agents/context/observability-architecture.md`
+- `agents/primitives/observability-storage.md`
+- `agents/primitives/cross-chain.md`
+- `agents/tasks/board.yaml` (`POS-026`, `FUND-001`)

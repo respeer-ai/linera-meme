@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   applySwapFee,
   buildNativePriceMap,
+  calculateTransactionValueInNative,
   calculateConstantProductPriceImpact,
   calculatePoolAprFromDailyVolume,
   calculatePoolTvlInNative,
@@ -30,7 +31,6 @@ const nativePairPool = (
     token0,
     token1,
     poolApplication: 'pool-app',
-    latestTransaction: null,
     token0Price,
     token1Price,
     reserve0,
@@ -86,6 +86,16 @@ describe('protocol swap fee helpers', () => {
     expect(priceMap.get('ALT')).toBe(2)
   })
 
+  test('builds native prices transitively through non-native pools when anchors exist', () => {
+    const priceMap = buildNativePriceMap([
+      nativePairPool('MEME', constants.LINERA_NATIVE_ID, '2', '0.5', '100', '200'),
+      nativePairPool('ALT', 'MEME', '0.5', '2', '80', '20'),
+    ])
+
+    expect(priceMap.get('MEME')).toBe(2)
+    expect(priceMap.get('ALT')).toBe(1)
+  })
+
   test('calculates pool tvl in native units only when both token valuations are known', () => {
     const priceMap = buildNativePriceMap([
       nativePairPool('MEME', constants.LINERA_NATIVE_ID, '2', '0.5', '100', '200'),
@@ -139,5 +149,25 @@ describe('protocol swap fee helpers', () => {
     }
 
     expect(calculatePoolVolumeInNative(poolStat, new Map())).toBe(undefined)
+  })
+
+  test('calculates transaction value in native units from the input side of the swap', () => {
+    const priceMap = new Map<string, number>([
+      [constants.LINERA_NATIVE_ID, 1],
+      ['MEME', 2],
+      ['ALT', 0.5],
+    ])
+    const buyTx = {
+      direction: 'Buy',
+      amount_1_in: '3',
+    }
+    const sellTx = {
+      direction: 'Sell',
+      amount_0_in: '4',
+    }
+    const buyPool = nativePairPool('MEME', 'ALT', '2', '0.5', '100', '200')
+
+    expect(calculateTransactionValueInNative(buyTx, buyPool, priceMap)).toBe(1.5)
+    expect(calculateTransactionValueInNative(sellTx, buyPool, priceMap)).toBe(8)
   })
 })

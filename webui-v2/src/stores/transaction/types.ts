@@ -21,6 +21,7 @@ export interface Transaction {
 }
 
 export interface TransactionExt {
+  pool_application?: string
   pool_id: number
   transaction_id: number
   transaction_type: TransactionType

@@ -1082,9 +1082,7 @@ export type MutationRootForgetChainArgs = {
 
 export type MutationRootImportChainArgs = {
   chainId: Scalars['ChainId']['input'];
-  creatorChainId: Scalars['ChainId']['input'];
   owner: Scalars['AccountOwner']['input'];
-  signature: Scalars['AccountSignature']['input'];
 };
 
 

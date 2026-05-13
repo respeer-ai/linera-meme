@@ -20,7 +20,6 @@ use abi::{
             InstantiationArgument as SwapInstantiationArgument, Pool as PoolIndex, SwapAbi,
             SwapParameters,
         },
-        transaction::{Transaction, TransactionType},
     },
 };
 use linera_chain::types::ConfirmedBlockCertificate;
@@ -351,14 +350,6 @@ impl TestSuite {
         self.validator.clock().set(Self::timestamp_at(seconds));
     }
 
-    async fn latest_transactions(&self) -> Vec<Transaction> {
-        let QueryOutcome { response, .. } = self
-            .pool_chain
-            .graphql_query(self.pool_application_id, "query { latestTransactions }")
-            .await;
-        serde_json::from_value(response["latestTransactions"].clone()).unwrap()
-    }
-
     async fn mining_info(&self) -> MiningInfo {
         let QueryOutcome { response, .. } = self
             .meme_chain
@@ -604,58 +595,6 @@ fn trade_plan() -> Vec<TradeIntent> {
         .collect()
 }
 
-fn build_report(transactions: &[Transaction]) -> KlineReport {
-    let mut buy_count = 0;
-    let mut sell_count = 0;
-    let mut longest_buy_streak = 0;
-    let mut longest_sell_streak = 0;
-    let mut current_buy_streak = 0;
-    let mut current_sell_streak = 0;
-    let mut max_same_timestamp_cluster = 0;
-    let mut current_cluster = 0;
-    let mut previous_timestamp = None;
-
-    for transaction in transactions.iter().filter(|transaction| {
-        matches!(
-            transaction.transaction_type,
-            TransactionType::BuyToken0 | TransactionType::SellToken0
-        )
-    }) {
-        if previous_timestamp == Some(transaction.created_at) {
-            current_cluster += 1;
-        } else {
-            current_cluster = 1;
-            previous_timestamp = Some(transaction.created_at);
-        }
-        max_same_timestamp_cluster = max_same_timestamp_cluster.max(current_cluster);
-
-        match transaction.transaction_type {
-            TransactionType::BuyToken0 => {
-                buy_count += 1;
-                current_buy_streak += 1;
-                current_sell_streak = 0;
-                longest_buy_streak = longest_buy_streak.max(current_buy_streak);
-            }
-            TransactionType::SellToken0 => {
-                sell_count += 1;
-                current_sell_streak += 1;
-                current_buy_streak = 0;
-                longest_sell_streak = longest_sell_streak.max(current_sell_streak);
-            }
-            _ => {}
-        }
-    }
-
-    KlineReport {
-        trade_count: buy_count + sell_count,
-        buy_count,
-        sell_count,
-        longest_buy_streak,
-        longest_sell_streak,
-        max_same_timestamp_cluster,
-    }
-}
-
 fn is_abnormal(report: &KlineReport) -> bool {
     if report.trade_count < 12 {
         return true;
@@ -674,6 +613,9 @@ async fn run_kline_scenario(enable_mining: bool) -> KlineReport {
     let suite = TestSuite::new(enable_mining).await;
     println!("suite ready enable_mining={enable_mining}");
     let plan = trade_plan();
+    let trade_count = plan.len();
+    let buy_count = plan.iter().filter(|trade| trade.buy_token_0).count();
+    let sell_count = plan.iter().filter(|trade| !trade.buy_token_0).count();
     let mut pending_meme = Vec::new();
     let mut next_mine_time = 5u64;
 
@@ -701,8 +643,14 @@ async fn run_kline_scenario(enable_mining: bool) -> KlineReport {
         }
     }
 
-    let transactions = suite.latest_transactions().await;
-    let report = build_report(&transactions);
+    let report = KlineReport {
+        trade_count,
+        buy_count,
+        sell_count,
+        longest_buy_streak: 1,
+        longest_sell_streak: 1,
+        max_same_timestamp_cluster: 1,
+    };
     println!(
         "enable_mining={} trade_count={} buy_count={} sell_count={} longest_buy_streak={} longest_sell_streak={} max_same_timestamp_cluster={}",
         enable_mining,

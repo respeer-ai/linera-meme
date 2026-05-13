@@ -6,9 +6,17 @@ services:
       - "24080:30080"
       - "24082:30082"
     command: [ "./rpc-entrypoint.sh" ]
+    extra_hosts:
+      api.lineraswap.fun: "${LAN_IP}"
+      api.linerameme.fun: "${LAN_IP}"
+      api.testnet-conway.lineraswap.fun: "${LAN_IP}"
+      api.testnet-conway.linerameme.fun: "${LAN_IP}"
     volumes:
       - ../wallet/query/0:/wallet
     environment:
+      NO_PROXY: ${NO_PROXY}
+      no_proxy: ${no_proxy}
       RUST_LOG: info
+      LINERA_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY: "true"
       ENABLE_LISTENER_AUTO_IMPORT_OWNED_CHILD_CHAINS_WITHOUT_KEY: "true"
     restart: always

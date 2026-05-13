@@ -1,0 +1,30 @@
+from dataclasses import dataclass
+
+
+@dataclass(slots=True)
+class KlineAppConfig:
+    database_host: str
+    database_port: str
+    database_name: str
+    database_username: str
+    database_password: str
+    database_connection_timeout_seconds: int = 5
+    database_read_timeout_seconds: int = 30
+    database_write_timeout_seconds: int = 30
+    chain_graphql_url: str | None = None
+    chain_graphql_ws_url: str | None = None
+    chain_graphql_header_batch_limit: int = 50
+    catch_up_chain_ids: tuple[str, ...] = ()
+    catch_up_max_blocks_per_chain: int = 50
+    catch_up_task_timeout_seconds: float = 30.0
+    catch_up_retry_delay_seconds: float = 0.05
+    normalization_replay_batch_limit: int = 100
+    market_derivation_replay_batch_limit: int = 100
+    catch_up_on_startup: bool = True
+    notification_reconnect_delay_seconds: float = 1.0
+    swap_host: str | None = None
+    swap_chain_id: str | None = None
+    swap_application_id: str | None = None
+    proxy_host: str | None = None
+    proxy_chain_id: str | None = None
+    proxy_application_id: str | None = None

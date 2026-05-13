@@ -2,7 +2,6 @@ import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { NotifyType } from '../notify'
 import { useSwapStore } from './store'
 import { type Account } from '../account'
-import { constants } from 'src/constant'
 import { protocol } from 'src/utils'
 
 const swap = useSwapStore()
@@ -78,10 +77,8 @@ export class Swap {
   }
 
   static tokenPrice = (token: string) => {
-    const pool = swap.getPool(constants.LINERA_NATIVE_ID, token)
-    if (!pool) return '0'
-
-    return (Number(token === pool.token0 ? pool.token0Price : pool.token1Price) || 0).toFixed(8)
+    const nativePriceMap = protocol.buildNativePriceMap(swap.pools)
+    return (nativePriceMap.get(token) || 0).toFixed(8)
   }
 
   static poolTvl = (pool: Pool) => {

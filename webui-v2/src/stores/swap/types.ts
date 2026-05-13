@@ -1,7 +1,7 @@
 import { type Account } from '../account'
 import { type BaseRequest } from '../request'
 
-export type LatestTransactionsRequest = BaseRequest
+export type PoolsRequest = BaseRequest
 
 export interface CreatePoolRequest extends BaseRequest {
   token0: string

@@ -213,14 +213,4 @@ impl StateInterface for StateAdapter {
             timestamp,
         )
     }
-
-    async fn create_transaction(
-        &mut self,
-        transaction: Transaction,
-    ) -> Result<Option<Transaction>, Self::Error> {
-        self.state
-            .borrow_mut()
-            .create_transaction(transaction)
-            .await
-    }
 }

@@ -13,6 +13,36 @@ INTERVAL_BUCKET_MS = {
     '1ME': 2_592_000_000,
 }
 
+API_TO_STORAGE_INTERVAL = {
+    '1m': '1min',
+    '1min': '1min',
+    '5m': '5min',
+    '5min': '5min',
+    '10m': '10min',
+    '10min': '10min',
+    '15m': '15min',
+    '15min': '15min',
+    '1h': '1h',
+    '4h': '4h',
+    '1d': '1D',
+    '1w': '1W',
+    '1ME': '1ME',
+    '1D': '1D',
+    '1W': '1W',
+}
+
+STORAGE_TO_API_INTERVAL = {
+    '1min': '1min',
+    '5min': '5min',
+    '10min': '10min',
+    '15min': '15min',
+    '1h': '1h',
+    '4h': '4h',
+    '1D': '1d',
+    '1W': '1w',
+    '1ME': '1ME',
+}
+
 
 @dataclass(frozen=True)
 class CandleBucketKey:
@@ -47,10 +77,25 @@ class CandleState:
     last_trade_at_ms: int
 
 
-def get_interval_bucket_ms(interval: str) -> int:
-    if interval not in INTERVAL_BUCKET_MS:
+def normalize_interval_for_storage(interval: str) -> str:
+    normalized = API_TO_STORAGE_INTERVAL.get(interval)
+    if normalized is None:
         raise ValueError(f'Unsupported interval: {interval}')
-    return INTERVAL_BUCKET_MS[interval]
+    return normalized
+
+
+def normalize_interval_for_api(interval: str) -> str:
+    if interval in API_TO_STORAGE_INTERVAL and interval not in STORAGE_TO_API_INTERVAL:
+        return interval
+    normalized = STORAGE_TO_API_INTERVAL.get(interval)
+    if normalized is None:
+        raise ValueError(f'Unsupported interval: {interval}')
+    return normalized
+
+
+def get_interval_bucket_ms(interval: str) -> int:
+    normalized = normalize_interval_for_storage(interval)
+    return INTERVAL_BUCKET_MS[normalized]
 
 
 def build_candle_bucket_key(
@@ -60,14 +105,15 @@ def build_candle_bucket_key(
     interval: str,
     created_at_ms: int,
 ) -> CandleBucketKey:
-    bucket_ms = get_interval_bucket_ms(interval)
+    normalized_interval = normalize_interval_for_storage(interval)
+    bucket_ms = get_interval_bucket_ms(normalized_interval)
     bucket_start_ms = created_at_ms // bucket_ms * bucket_ms
 
     return CandleBucketKey(
         pool_application=pool_application,
         pool_id=pool_id,
         token_reversed=token_reversed,
-        interval=interval,
+        interval=normalized_interval,
         bucket_start_ms=bucket_start_ms,
     )
 

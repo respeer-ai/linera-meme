@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 
 
 from swap import Swap
@@ -22,17 +23,29 @@ async def main():
     parser.add_argument('--maker-wallets', type=str, default='', help='Wallets of maker in $CHAIN_ID@$HOST:$PORT', nargs='+')
     parser.add_argument('--miner-wallets', type=str, default='', help='Wallets of miner in $CHAIN_ID@$HOST:$PORT', nargs='+')
     parser.add_argument('--wallet-host', type=str, default='localhost:30081', help='Host of wallet service')
-    parser.add_argument('--wallet-owner', type=str, default='', help='Owner of wallet')
-    parser.add_argument('--wallet-chain', type=str, default='', help='Chain of wallet')
     parser.add_argument('--faucet-url', type=str, default='https://faucet.testnet-conway.linera.net', help='Faucet url')
 
     args = parser.parse_args()
+    wallet_owner = str(os.environ.get('WALLET_OWNER') or '').strip()
+    wallet_chain = str(os.environ.get('WALLET_CHAIN') or '').strip()
 
-    _wallet = Wallet(args.wallet_host, args.wallet_owner, args.wallet_chain, args.faucet_url)
+    _wallet = Wallet(args.wallet_host, wallet_owner, wallet_chain, args.faucet_url)
 
-    _swap = Swap(args.swap_host, args.swap_chain_id, args.swap_application_id, _wallet)
+    _swap = Swap(
+        args.swap_host,
+        args.swap_chain_id,
+        args.swap_application_id,
+        _wallet,
+        query_base_url=f'http://{args.swap_host}/api/swap/query',
+    )
 
-    _proxy = Proxy(args.proxy_host, args.proxy_chain_id, args.proxy_application_id)
+    _proxy = Proxy(
+        args.proxy_host,
+        args.proxy_chain_id,
+        args.proxy_application_id,
+        query_base_url=f'http://{args.proxy_host}/api/proxy/query',
+        mutation_base_url=f'http://{args.proxy_host}/api/proxy/mutation',
+    )
 
     def parse_wallets(wallets):
         parsed_wallets = []

@@ -60,7 +60,8 @@ export interface Tickers {
 }
 
 export interface PoolStat {
-  pool_id: number
+  pool_id: number | string
+  pool_application?: string
   token_0: string
   token_1: string
   high: string
@@ -87,20 +88,20 @@ export interface ProtocolStat {
 }
 
 export type PositionMetricsStatus =
-  | 'partial_live_redeemable_only'
-  | 'estimated_live_redeemable_with_history'
+  | 'partial_projected_redeemable_only'
+  | 'estimated_projected_redeemable_with_history'
   | 'exact_no_swap_history'
   | 'exact_swap_history_no_post_open_liquidity_changes'
 
 export type PositionMetricsBlocker =
   | 'missing_liquidity_history'
-  | 'missing_live_liquidity'
+  | 'missing_position_liquidity'
   | 'liquidity_history_mismatch'
   | 'virtual_initial_liquidity_present'
   | 'pool_has_swap_history_after_position_open'
   | 'pool_history_has_internal_gaps'
   | 'uniswap_v2_fee_split_not_supported_yet'
-  | 'missing_live_redeemable_amounts'
+  | 'missing_projected_redeemable_amounts'
 
 export interface PositionMetricsEntry {
   pool_application: string
@@ -108,18 +109,14 @@ export interface PositionMetricsEntry {
   token_0: string
   token_1: string
   owner: string
-  status: 'active' | 'closed'
+  status: 'active' | 'closed' | 'virtual'
   current_liquidity: string
-  position_liquidity_live: string | null
-  total_supply_live: string | null
-  exact_share_ratio: string | null
+  position_liquidity: string | null
+  total_supply: string | null
+  share_ratio: string | null
   redeemable_amount0: string | null
   redeemable_amount1: string | null
   virtual_initial_liquidity: boolean
-  metrics_status: PositionMetricsStatus
-  exact_fee_supported: boolean
-  exact_principal_supported: boolean
-  owner_is_fee_to: boolean
   computation_blockers: PositionMetricsBlocker[]
   principal_amount0: string | null
   principal_amount1: string | null
@@ -134,4 +131,16 @@ export interface PositionMetricsEntry {
 export interface PositionMetricsResponse {
   owner: string
   metrics: PositionMetricsEntry[]
+}
+
+export interface PositionsInvalidationEvent {
+  pool_application?: string
+  pool_id?: number
+  owners?: string[]
+  event_types?: string[]
+  updated_at?: number
+}
+
+export interface PositionsInvalidationPayload {
+  events: PositionsInvalidationEvent[]
 }
