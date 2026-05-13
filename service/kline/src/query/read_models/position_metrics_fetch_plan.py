@@ -19,7 +19,7 @@ class PositionMetricsFetchPlan:
         self.needs_assembly = bool(needs_assembly)
 
     @property
-    def live_metrics(self):
+    def projected_metrics(self):
         if self.payload_result is None:
             return None
         return self.payload_result.metrics
@@ -33,10 +33,10 @@ class PositionMetricsFetchPlan:
     def needs_replay_fallback(self) -> bool:
         return self.stage == PositionMetricsFetchStage.REPLAY_FALLBACK
 
-    def resolved_live_metrics(self) -> dict | None:
+    def resolved_projected_metrics(self) -> dict | None:
         if self.fast_path_payload is not None:
-            return self.fast_path_payload.get('live_metrics', self.fast_path_payload)
-        return self.live_metrics
+            return self.fast_path_payload.get('projected_metrics', self.fast_path_payload)
+        return self.projected_metrics
 
     def snapshot_shadow(self) -> dict | None:
         if self.fast_path_payload is None:

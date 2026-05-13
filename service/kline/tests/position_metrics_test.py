@@ -21,8 +21,8 @@ sys.modules['async_request'] = async_request_stub
 
 from position_metrics_bootstrap import PositionMetricsBootstrap  # noqa: E402
 from integration.pool_application_client import PoolApplicationClient  # noqa: E402
-from position_metrics_live_payload_api import PositionMetricsLivePayloadApi  # noqa: E402
-from position_metrics_live_payload_fetcher import PositionMetricsLivePayloadFetcher  # noqa: E402
+from position_metrics_pool_application_payload_api import PositionMetricsPoolApplicationPayloadApi  # noqa: E402
+from position_metrics_pool_application_payload_fetcher import PositionMetricsPoolApplicationPayloadFetcher  # noqa: E402
 
 bootstrap = PositionMetricsBootstrap()
 public_api = bootstrap.public_api()
@@ -57,16 +57,16 @@ class LegacyPositionMetricsTestClient:
         return payload
 
 
-async def fetch_legacy_live_position_metrics(position, swap_base_url, **kwargs):
+async def fetch_legacy_pool_application_position_metrics(position, swap_base_url, **kwargs):
     post = kwargs.pop('post', None) or bootstrap.default_post
-    live_payload_api = PositionMetricsLivePayloadApi(
+    pool_application_payload_api = PositionMetricsPoolApplicationPayloadApi(
         account_codec=bootstrap.account_codec,
         pool_application_client_type=LegacyPositionMetricsTestClient,
-        payload_fetcher=PositionMetricsLivePayloadFetcher(
+        payload_fetcher=PositionMetricsPoolApplicationPayloadFetcher(
             parse_account=bootstrap.parse_account,
         ),
     )
-    payload = await live_payload_api.fetch_payload(position, swap_base_url, post=post)
+    payload = await pool_application_payload_api.fetch_payload(position, swap_base_url, post=post)
     return bootstrap.entrypoint().enrich_position_metrics_from_payload(
         position,
         payload,
@@ -174,7 +174,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('virtualInitialLiquidity', query['query'])
         self.assertIn('liquidity(owner: $owner)', query['query'])
 
-    async def test_fetch_live_position_metrics_parses_redeemable_and_swap_blockers(self):
+    async def test_fetch_pool_application_position_metrics_parses_redeemable_and_swap_blockers(self):
         captured = {}
 
         async def fake_post(url, json, timeout):
@@ -193,7 +193,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -268,18 +268,18 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         })
         self.assertEqual(metrics['redeemable_amount0'], '123.45')
         self.assertEqual(metrics['redeemable_amount1'], '6.78')
-        self.assertEqual(metrics['position_liquidity_live'], '0.346087')
-        self.assertEqual(metrics['total_supply_live'], '1.500000')
+        self.assertEqual(metrics['position_liquidity'], '0.346087')
+        self.assertEqual(metrics['current_total_supply'], '1.500000')
         self.assertTrue(metrics['virtual_initial_liquidity'])
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertFalse(metrics['exact_principal_supported'])
-        self.assertEqual(metrics['metrics_status'], 'partial_live_redeemable_only')
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertFalse(metrics['fee_calculation_complete'])
+        self.assertFalse(metrics['principal_calculation_complete'])
+        self.assertEqual(metrics['metrics_status'], 'partial_projected_redeemable_only')
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertIn('pool_has_swap_history_after_position_open', metrics['computation_blockers'])
         self.assertIn('pool_history_bootstrap_supply_unknown', metrics['computation_blockers'])
         self.assertIn('uniswap_v2_fee_split_not_supported_yet', metrics['computation_blockers'])
 
-    async def test_fetch_live_position_metrics_marks_exact_when_no_swaps_and_no_virtual_liquidity(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_when_no_swaps_and_no_virtual_liquidity(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -293,7 +293,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -310,9 +310,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '40')
         self.assertEqual(metrics['principal_amount1'], '80')
         self.assertEqual(metrics['fee_amount0'], '0')
@@ -321,7 +321,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_marks_exact_when_no_swaps_with_virtual_liquidity(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_when_no_swaps_with_virtual_liquidity(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -335,7 +335,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -353,9 +353,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
         self.assertTrue(metrics['virtual_initial_liquidity'])
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '40')
         self.assertEqual(metrics['principal_amount1'], '80')
         self.assertEqual(metrics['fee_amount0'], '0')
@@ -364,7 +364,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_keeps_persisted_liquidity_history_when_live_window_drops_old_open(self):
+    async def test_fetch_pool_application_position_metrics_keeps_persisted_liquidity_history_when_pool_application_payload_drops_old_open(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -378,7 +378,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -410,8 +410,8 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
         self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
         self.assertEqual(metrics['principal_amount0'], '40')
         self.assertEqual(metrics['principal_amount1'], '80')
@@ -419,7 +419,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['fee_amount1'], '0')
         self.assertNotIn('missing_liquidity_history', metrics['computation_blockers'])
 
-    async def test_fetch_live_position_metrics_raises_when_total_supply_field_is_missing(self):
+    async def test_fetch_pool_application_position_metrics_raises_when_total_supply_field_is_missing(self):
         captured_queries = []
 
         async def fake_post(url, json, timeout):
@@ -432,7 +432,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             })
 
         with self.assertRaises(RuntimeError):
-            await fetch_legacy_live_position_metrics(
+            await fetch_legacy_pool_application_position_metrics(
                 {
                     'owner': '0xaaaaaaaa@chain-a',
                     'pool_application': '0xbbbbbbbb@chain-b',
@@ -451,7 +451,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(captured_queries), 1)
         self.assertIn('totalSupply', captured_queries[0])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_bootstrap_lp_with_swap_history(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_bootstrap_lp_with_swap_history(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -465,7 +465,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -508,9 +508,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '90.907024652497691554')
         self.assertEqual(metrics['principal_amount1'], '109.997499829522206781')
         self.assertEqual(metrics['fee_amount0'], '0.024799588429343737')
@@ -519,7 +519,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_partial_lp_without_post_open_liquidity_changes(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_partial_lp_without_post_open_liquidity_changes(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -533,7 +533,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -587,9 +587,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '45.453512326248845777')
         self.assertEqual(metrics['principal_amount1'], '54.99874991476110339')
         self.assertEqual(metrics['fee_amount0'], '0.012399794214671869')
@@ -598,7 +598,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_fee_to_owner_opening_after_prior_swaps(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_fee_to_owner_opening_after_prior_swaps(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -618,7 +618,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -671,9 +671,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertTrue(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertTrue(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertEqual(metrics['principal_amount0'], '9.093389106119850867')
         self.assertEqual(metrics['principal_amount1'], '10.999999999999999999')
@@ -683,7 +683,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0.002500170477793218')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_fee_to_owner_with_virtual_initial_bootstrap(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_fee_to_owner_with_virtual_initial_bootstrap(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -703,7 +703,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -756,9 +756,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertTrue(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertTrue(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
         self.assertEqual(metrics['principal_amount0'], '9.093389106119850867')
         self.assertEqual(metrics['principal_amount1'], '10.999999999999999999')
@@ -768,7 +768,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0.002500170477793218')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_does_not_repair_stale_db_history_from_payload(self):
+    async def test_fetch_pool_application_position_metrics_does_not_repair_stale_db_history_from_payload(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -788,7 +788,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -800,11 +800,11 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['owner_is_fee_to'])
+        self.assertFalse(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['owner_receives_protocol_fees'])
         self.assertIn('missing_liquidity_history', metrics['computation_blockers'])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_add_then_partial_remove_without_post_change(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_add_then_partial_remove_without_post_change(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -818,7 +818,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -889,9 +889,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '27.272107395749307466')
         self.assertEqual(metrics['principal_amount1'], '32.999249948856662034')
         self.assertEqual(metrics['fee_amount0'], '0.007439876528803121')
@@ -900,7 +900,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_remove_then_hold_after_swap_history(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_remove_then_hold_after_swap_history(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -914,7 +914,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -984,10 +984,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '27.61341836823568525')
         self.assertEqual(metrics['principal_amount1'], '32.599349961114979873')
         self.assertEqual(metrics['fee_amount0'], '0')
@@ -996,7 +996,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_marks_exact_for_remove_then_swap_after_swap_history(self):
+    async def test_fetch_pool_application_position_metrics_marks_exact_for_remove_then_swap_after_swap_history(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -1010,7 +1010,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -1091,10 +1091,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '26.309420568294123204')
         self.assertEqual(metrics['principal_amount1'], '34.214293559470987611')
         self.assertEqual(metrics['fee_amount0'], '0.003726896234285846')
@@ -1103,7 +1103,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_reconstructs_hidden_batch_boundary_swap(self):
+    async def test_fetch_pool_application_position_metrics_reconstructs_hidden_batch_boundary_swap(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -1117,7 +1117,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -1192,10 +1192,10 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertFalse(metrics['owner_is_fee_to'])
+        self.assertFalse(metrics['owner_receives_protocol_fees'])
         self.assertEqual(metrics['principal_amount0'], '49.593558462066005957')
         self.assertEqual(metrics['principal_amount1'], '50.405102203900773274')
         self.assertEqual(metrics['fee_amount0'], '0.013044900115585296')
@@ -1204,7 +1204,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['protocol_fee_amount1'], '0')
         self.assertEqual(metrics['computation_blockers'], [])
 
-    async def test_fetch_live_position_metrics_blocks_when_latest_add_happens_after_swap_history(self):
+    async def test_fetch_pool_application_position_metrics_blocks_when_latest_add_happens_after_swap_history(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -1218,7 +1218,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -1282,9 +1282,9 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertFalse(metrics['exact_principal_supported'])
-        self.assertEqual(metrics['metrics_status'], 'partial_live_redeemable_only')
+        self.assertFalse(metrics['fee_calculation_complete'])
+        self.assertFalse(metrics['principal_calculation_complete'])
+        self.assertEqual(metrics['metrics_status'], 'partial_projected_redeemable_only')
         self.assertIn('pool_has_swap_history_after_position_open', metrics['computation_blockers'])
         self.assertIn(
             'pool_has_swaps_before_latest_position_liquidity_change',
@@ -1298,7 +1298,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
         self.assertIn('estimated', metrics['value_warning_message'])
 
-    async def test_fetch_live_position_metrics_ignores_legacy_gap_summary_without_actionable_basis(self):
+    async def test_fetch_pool_application_position_metrics_ignores_legacy_gap_summary_without_actionable_basis(self):
         position = {
             'pool_application': '0xcccccccc@chain-pool',
             'pool_id': 7,
@@ -1326,7 +1326,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             position,
             'https://swap.example',
             liquidity_history=[
@@ -1366,15 +1366,15 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
         self.assertNotIn('pool_history_has_internal_gaps', metrics['computation_blockers'])
         self.assertEqual(metrics['value_warning_codes'], [])
         self.assertIsNone(metrics['value_warning_message'])
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0')
 
-    async def test_fetch_live_position_metrics_does_not_clear_stale_gap_warning_from_payload(self):
+    async def test_fetch_pool_application_position_metrics_does_not_clear_stale_gap_warning_from_payload(self):
         position = {
             'pool_application': '0xcccccccc@chain-pool',
             'pool_id': 7,
@@ -1401,7 +1401,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             position,
             'https://swap.example',
             liquidity_history=[
@@ -1456,7 +1456,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
         self.assertNotIn('incomplete history', metrics['value_warning_message'])
 
-    async def test_fetch_live_position_metrics_estimates_non_zero_fee_from_liquidity_amount_history(self):
+    async def test_fetch_pool_application_position_metrics_estimates_non_zero_fee_from_liquidity_amount_history(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -1470,7 +1470,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -1538,13 +1538,13 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertEqual(metrics['metrics_status'], 'estimated_live_redeemable_with_history')
+        self.assertFalse(metrics['fee_calculation_complete'])
+        self.assertEqual(metrics['metrics_status'], 'estimated_projected_redeemable_with_history')
         self.assertEqual(metrics['fee_amount0'], '0')
         self.assertEqual(metrics['fee_amount1'], '0.004999963234483096')
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
 
-    async def test_fetch_live_position_metrics_estimate_ignores_zero_liquidity_bootstrap_basis(self):
+    async def test_fetch_pool_application_position_metrics_estimate_ignores_zero_liquidity_bootstrap_basis(self):
         async def fake_post(url, json, timeout):
             return FakeResponse({
                 'data': {
@@ -1564,7 +1564,7 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
                 },
             })
 
-        metrics = await fetch_legacy_live_position_metrics(
+        metrics = await fetch_legacy_pool_application_position_metrics(
             {
                 'owner': '0xaaaaaaaa@chain-a',
                 'pool_application': '0xbbbbbbbb@chain-b',
@@ -1649,8 +1649,8 @@ class PositionMetricsTest(unittest.IsolatedAsyncioTestCase):
             post=fake_post,
         )
 
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertEqual(metrics['metrics_status'], 'estimated_live_redeemable_with_history')
+        self.assertFalse(metrics['fee_calculation_complete'])
+        self.assertEqual(metrics['metrics_status'], 'estimated_projected_redeemable_with_history')
         self.assertEqual(metrics['protocol_fee_amount0'], '2.815826584948614052')
         self.assertEqual(metrics['protocol_fee_amount1'], '0.002493643816370376')
         self.assertEqual(metrics['principal_amount0'], '11.699324153185959156')

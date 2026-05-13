@@ -21,7 +21,7 @@ class PositionMetricsPayloadSemanticBuilder:
         liquidity_value = liquidity.get('liquidity')
         total_supply_value = payload_data.get('totalSupply')
         virtual_initial_liquidity = bool(payload_data.get('virtualInitialLiquidity'))
-        owner_is_fee_to = (
+        owner_receives_protocol_fees = (
             self.account_payload_to_string((payload_data.get('pool') or {}).get('fee_to')) == position['owner']
         )
         partial_metrics = self.build_partial_metrics(
@@ -33,5 +33,5 @@ class PositionMetricsPayloadSemanticBuilder:
             partial_metrics['exact_share_ratio'] = str(
                 (Decimal(str(liquidity_value)) / Decimal(str(total_supply_value))).normalize()
             )
-        partial_metrics['owner_is_fee_to'] = owner_is_fee_to
+        partial_metrics['owner_receives_protocol_fees'] = owner_receives_protocol_fees
         return partial_metrics

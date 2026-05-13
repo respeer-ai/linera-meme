@@ -11,6 +11,9 @@ SRC_ROOT = ROOT / 'src'
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+if not getattr(sys.modules.get('db'), '__file__', None):
+    sys.modules.pop('db', None)
+
 
 class FakeCursor:
     def __init__(self, database_catalog, table_catalog, index_catalog):
@@ -835,25 +838,29 @@ class FakeConnection:
 swap_stub = types.ModuleType('swap')
 swap_stub.Transaction = object
 swap_stub.Pool = object
-sys.modules.setdefault('swap', swap_stub)
+sys.modules['swap'] = swap_stub
 
 mysql_stub = types.ModuleType('mysql')
 mysql_connector_stub = types.ModuleType('mysql.connector')
 mysql_connector_stub.connect = None
 mysql_stub.connector = mysql_connector_stub
-sys.modules.setdefault('mysql', mysql_stub)
-sys.modules.setdefault('mysql.connector', mysql_connector_stub)
+sys.modules['mysql'] = mysql_stub
+sys.modules['mysql.connector'] = mysql_connector_stub
 
 pandas_stub = types.ModuleType('pandas')
 numpy_stub = types.ModuleType('numpy')
-sys.modules.setdefault('pandas', pandas_stub)
-sys.modules.setdefault('numpy', numpy_stub)
+sys.modules['pandas'] = pandas_stub
+sys.modules['numpy'] = numpy_stub
 
 from db import Db, align_timestamp_to_minute_ms, build_kline_log_line, build_kline_points_query  # noqa: E402
 
 
+DB_MODULE = sys.modules['db']
+VALID_TEST_OWNER = '0x' + 'a' * 64
+
+
 class FakeFromAccount:
-    def __init__(self, chain_id='chain', owner='owner'):
+    def __init__(self, chain_id='chain', owner=VALID_TEST_OWNER):
         self.chain_id = chain_id
         self.owner = owner
 
@@ -937,7 +944,7 @@ class DbIndexInitializationTest(unittest.TestCase):
         connection.query_failures.append((prefix, error))
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_creates_range_query_index_when_missing(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -958,7 +965,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_does_not_recreate_range_query_index_when_present(self, connect_mock):
         self.index_catalog.extend([
             ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_application'),
@@ -985,7 +992,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_recreates_range_query_index_when_legacy_definition_is_present(self, connect_mock):
         self.index_catalog.append(
             ('transactions', 1, Db.TRANSACTIONS_RANGE_INDEX, 1, 'pool_id'),
@@ -1013,7 +1020,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_ignores_duplicate_key_error_when_creating_range_query_index(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1046,7 +1053,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_skips_debug_index_creation_when_table_is_full(self, connect_mock):
         class FakeTableFullError(Exception):
             def __init__(self):
@@ -1076,7 +1083,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_creates_candles_table_when_missing(self, connect_mock):
         self.table_catalog = ['pools', 'transactions']
         connect_mock.side_effect = self.create_connection
@@ -1097,7 +1104,7 @@ class DbIndexInitializationTest(unittest.TestCase):
             'CREATE TABLE IF NOT EXISTS candles' in query for query in executed_queries
         ))
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_runtime_connection_enables_autocommit(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1141,7 +1148,7 @@ class DbReadFreshnessTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_get_kline_rolls_back_before_reading(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1229,7 +1236,7 @@ class DbIdentityMigrationTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_backfills_legacy_pool_application_before_switching_primary_keys(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1275,7 +1282,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.connections.append(connection)
         return connection
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_reads_maker_events_and_information(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1303,7 +1310,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(info['timestamp_begin'], 2000)
         self.assertEqual(info['timestamp_end'], 1000)
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_skips_maker_event_insert_when_table_is_full(self, connect_mock):
         class FakeTableFullError(Exception):
             def __init__(self):
@@ -1339,7 +1346,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(db.get_maker_events('AAA', 'BBB', 0, 2000), [])
         self.assertIn('maker_events', db.debug_storage_degraded_tables)
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_records_and_reads_debug_traces(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1392,7 +1399,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(len(all_traces), 2)
         self.assertIsNone(all_traces[0]['error'])
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_records_reads_and_bounds_realtime_diagnostics(self, connect_mock):
         connect_mock.side_effect = self.create_connection
 
@@ -1485,7 +1492,7 @@ class DbMakerEventsQueryTest(unittest.TestCase):
         self.assertEqual(rows[0]['details'], {'source_thread': 'worker'})
         self.assertEqual(rows[0]['queue_lag_ms'], 12)
 
-    @patch('db.mysql.connector.connect')
+    @patch.object(DB_MODULE.mysql.connector, 'connect')
     def test_backfills_missing_transaction_quote_volume_on_startup(self, connect_mock):
         def connect_with_seed(**_kwargs):
             connection = FakeConnection(
@@ -1555,7 +1562,7 @@ class DbQueryHelperTest(unittest.TestCase):
         self.assertIn('ORDER BY created_at ASC, transaction_id ASC', query)
 
     def test_build_expected_bucket_count_aligns_to_interval_boundaries(self):
-        from db import build_expected_bucket_count
+        build_expected_bucket_count = DB_MODULE.build_expected_bucket_count
 
         self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_000_000, 60_000), 1)
         self.assertEqual(build_expected_bucket_count(1_800_000_000_000, 1_800_000_120_000, 60_000), 3)
@@ -1588,7 +1595,7 @@ class DbCandleIngestTest(unittest.TestCase):
         return connection
 
     def create_db(self):
-        with patch('db.mysql.connector.connect') as connect_mock:
+        with patch.object(DB_MODULE.mysql.connector, 'connect') as connect_mock:
             connect_mock.side_effect = self.create_connection
             return Db(
                 host='localhost',
@@ -1600,7 +1607,7 @@ class DbCandleIngestTest(unittest.TestCase):
             )
 
     def seed_pool(self, db):
-        pool_application = types.SimpleNamespace(chain_id='chain', owner='app')
+        pool_application = types.SimpleNamespace(chain_id='chain', owner=VALID_TEST_OWNER)
         pool = types.SimpleNamespace(pool_id=7, token_0='AAA', token_1='BBB', pool_application=pool_application)
         db.new_pools([pool])
 
@@ -1850,7 +1857,7 @@ class DbCandleQueryTest(unittest.TestCase):
         return connection
 
     def create_db(self):
-        with patch('db.mysql.connector.connect') as connect_mock:
+        with patch.object(DB_MODULE.mysql.connector, 'connect') as connect_mock:
             connect_mock.side_effect = self.create_connection
             db = Db(
                 host='localhost',
@@ -2365,7 +2372,7 @@ class DbPositionsQueryTest(unittest.TestCase):
         return connection
 
     def create_db(self):
-        with patch('db.mysql.connector.connect') as connect_mock:
+        with patch.object(DB_MODULE.mysql.connector, 'connect') as connect_mock:
             connect_mock.side_effect = self.create_connection
             db = Db(
                 host='localhost',

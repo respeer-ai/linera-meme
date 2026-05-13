@@ -62,6 +62,9 @@ class DummyJSONResponse:
             + '}'
         ).encode()
 
+    def __getitem__(self, key):
+        return self.content[key]
+
 
 fastapi_responses_stub.JSONResponse = DummyJSONResponse
 sys.modules['fastapi.responses'] = fastapi_responses_stub
@@ -106,6 +109,10 @@ class FakeDb:
     def cursor(self, dictionary=False):
         return self.FakeCursor(self)
 
+    def fresh_cursor(self, dictionary=False):
+        self.ensure_fresh_read_connection()
+        return self.cursor_dict
+
     class FakeCursor:
         def __init__(self, outer):
             self.outer = outer
@@ -141,10 +148,10 @@ class FakeDb:
                 return [
                     {
                         'pool_application_id': row['pool_application'],
-                        'live_reserve_0': '0',
-                        'live_reserve_1': '0',
-                        'live_total_supply': '0',
-                        'live_k_last': '0',
+                        'current_reserve_0': '0',
+                        'current_reserve_1': '0',
+                        'current_total_supply': '0',
+                        'current_k_last': '0',
                         'last_trade_time_ms': None,
                         'last_liquidity_event_time_ms': None,
                         'state_payload_json': {},

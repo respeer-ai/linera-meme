@@ -16,7 +16,7 @@ from position_metrics_payload_decision import PositionMetricsPayloadDecision  # 
 
 class PositionMetricsPayloadDecisionResolverTest(unittest.TestCase):
     def test_returns_payload_only_when_no_history_inputs_are_available(self):
-        partial_metrics = {'metrics_status': 'partial_live_redeemable_only'}
+        partial_metrics = {'metrics_status': 'partial_projected_redeemable_only'}
         result = PositionMetricsPayloadDecisionResolver().resolve(
             partial_metrics,
             liquidity_history=None,
@@ -29,7 +29,7 @@ class PositionMetricsPayloadDecisionResolverTest(unittest.TestCase):
         self.assertEqual(result.metrics, partial_metrics)
 
     def test_returns_history_enrichment_when_any_history_input_exists(self):
-        partial_metrics = {'metrics_status': 'partial_live_redeemable_only'}
+        partial_metrics = {'metrics_status': 'partial_projected_redeemable_only'}
         result = PositionMetricsPayloadDecisionResolver().resolve(
             partial_metrics,
             liquidity_history=[],

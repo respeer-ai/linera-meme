@@ -22,17 +22,17 @@ from query.read_models.position_metrics_snapshot_shadow_evaluator import Positio
 
 _public_api = PositionMetricsBootstrap().public_api()
 
-_build_live_position_metrics_fetcher = QueryStackReadModelTestSupport.build_live_position_metrics_fetcher
+_build_projection_position_metrics_fetcher = QueryStackReadModelTestSupport.build_projection_position_metrics_fetcher
 _snapshot_inputs = QueryStackReadModelTestSupport.snapshot_inputs
 _build_snapshot_only_repository = QueryStackReadModelTestSupport.build_snapshot_only_repository
 _position_metrics_payload = QueryStackReadModelTestSupport.position_metrics_payload
 _build_payload_builder = QueryStackReadModelTestSupport.build_payload_builder
 
 
-class QueryStackLivePositionMetricsFeeToMixin:
+class QueryStackProjectionPositionMetricsFeeToMixin:
     def _metrics(self, payload):
         if isinstance(payload, PositionMetricsFetchedResult):
-            return payload.live_metrics
+            return payload.projected_metrics
         return self._metrics(payload)
 
     def _shadow(self, payload):
@@ -40,7 +40,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
             return payload.snapshot_shadow
         return self._shadow(payload)
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_owner_materialized_current_principal_with_post_basis_remove_when_current_owner_protocol_fee_component_is_proven(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_owner_materialized_current_principal_with_post_basis_remove_when_current_owner_protocol_fee_component_is_proven(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -98,7 +98,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -123,14 +123,14 @@ class QueryStackLivePositionMetricsFeeToMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertTrue(self._metrics(payload)['owner_is_fee_to'])
+        self.assertTrue(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['position_basis_snapshot']['materialized_protocol_fee_split_case'],
             'current_owner_protocol_fee_component_proven',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_safe_fee_to_continuous_nonzero_prior_add_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_safe_fee_to_continuous_nonzero_prior_add_basis(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -187,7 +187,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -212,14 +212,14 @@ class QueryStackLivePositionMetricsFeeToMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertTrue(self._metrics(payload)['owner_is_fee_to'])
+        self.assertTrue(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['position_basis_snapshot']['materialized_protocol_fee_split_case'],
             'fee_to_continuous_nonzero_prior_add_basis',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_basis_only_fee_to_nonzero_prior_add_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_basis_only_fee_to_nonzero_prior_add_basis(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -281,7 +281,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -306,14 +306,14 @@ class QueryStackLivePositionMetricsFeeToMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertTrue(self._metrics(payload)['owner_is_fee_to'])
+        self.assertTrue(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['position_basis_snapshot']['materialized_protocol_fee_split_case'],
             'fee_to_basis_only_nonzero_prior_add_basis',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_historical_protocol_fee_mints_owned_by_current_owner(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_historical_protocol_fee_mints_owned_by_current_owner(self):
         class FakeRepository:
             def get_snapshot_inputs(self, **_kwargs):
                 return _snapshot_inputs(
@@ -385,7 +385,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=FakeRepository(),
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -410,14 +410,14 @@ class QueryStackLivePositionMetricsFeeToMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertFalse(self._metrics(payload)['owner_is_fee_to'])
+        self.assertFalse(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['position_basis_snapshot']['materialized_protocol_fee_split_case'],
             'all_protocol_fee_mints_owned_by_current_owner',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_proven_current_owner_protocol_fee_component(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_proven_current_owner_protocol_fee_component(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -486,7 +486,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -511,14 +511,14 @@ class QueryStackLivePositionMetricsFeeToMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertFalse(self._metrics(payload)['owner_is_fee_to'])
+        self.assertFalse(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['position_basis_snapshot']['materialized_protocol_fee_split_case'],
             'current_owner_protocol_fee_component_proven',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_nonzero_prior_add_basis_when_no_protocol_fee_lp_is_live(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_nonzero_prior_add_basis_when_no_protocol_fee_lp_is_current(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -566,7 +566,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -596,7 +596,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
             self._shadow(payload)['snapshot_shadow']['position_basis_snapshot']['materialized_protocol_fee_split_case']
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_latest_add_after_prior_current_round_swaps_when_materialized_current_principal_exists(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_latest_add_after_prior_current_round_swaps_when_materialized_current_principal_exists(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -647,7 +647,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -676,7 +676,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
             'post_basis_liquidity_changes_with_intervening_swaps',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_zero_liquidity_bootstrap_with_post_basis_swaps(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_zero_liquidity_bootstrap_with_post_basis_swaps(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -716,7 +716,7 @@ class QueryStackLivePositionMetricsFeeToMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(

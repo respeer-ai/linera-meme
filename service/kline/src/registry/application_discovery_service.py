@@ -2,6 +2,13 @@ from registry.application_registry import ApplicationRegistry
 
 
 class ApplicationDiscoveryService:
+    """Bootstrap-only registry discovery.
+
+    This service may call live catalog APIs to discover which chains should be
+    listened to, but those responses must not be used as market/product truth.
+    Product facts still have to come from parsed blocks and Layer 3 projections.
+    """
+
     def __init__(
         self,
         *,

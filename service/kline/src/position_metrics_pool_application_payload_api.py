@@ -1,4 +1,4 @@
-class PositionMetricsLivePayloadApi:
+class PositionMetricsPoolApplicationPayloadApi:
     def __init__(
         self,
         *,

@@ -40,6 +40,9 @@ class TransactionWatermarksQueryRepositoryTest(unittest.TestCase):
         def fetchall(self):
             return list(self.rows)
 
+        def close(self):
+            return None
+
     class FakeDb:
         def __init__(self, rows, error=None):
             self.cursor_dict = TransactionWatermarksQueryRepositoryTest.FakeCursor(rows, error=error)
@@ -47,6 +50,10 @@ class TransactionWatermarksQueryRepositoryTest(unittest.TestCase):
 
         def ensure_fresh_read_connection(self):
             self.ensure_count += 1
+
+        def fresh_cursor(self, dictionary=False):
+            self.ensure_fresh_read_connection()
+            return self.cursor_dict
 
     def test_reads_latest_watermarks_from_settled_trades(self):
         db = self.FakeDb([

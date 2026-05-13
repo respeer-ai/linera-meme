@@ -129,8 +129,13 @@ python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --quiet websocket-client
 pass "Python environment ready"
 
-# ─── Step 3: Start kline service ─────────────────────────────────────
-echo "=== [3/5] Starting kline service ==="
+# ─── Step 3: Automated projection-fact reconciliation ─────────────────
+echo "=== [3/6] Running projection-fact reconciliation regression ==="
+"$VENV_DIR/bin/python3" -m pytest "$KLINE_DIR/tests/observability_reconciliation_test.py" -q
+pass "projection facts reconcile transactions, candles, stats, virtual positions and protocol fee metrics"
+
+# ─── Step 4: Start kline service ─────────────────────────────────────
+echo "=== [4/6] Starting kline service ==="
 KLINE_RUST_DECODER_BIN="$ROOT_DIR/target/release/canonical_decoder"
 export KLINE_RUST_DECODER_BIN
 
@@ -196,8 +201,8 @@ if ! curl -sf "http://localhost:$SERVICE_PORT/debug/observability" > /dev/null 2
     exit 1
 fi
 
-# ─── Step 4: Verify observability debug endpoint ─────────────────────
-echo "=== [4/5] Verifying observability debug endpoint ==="
+# ─── Step 5: Verify observability debug endpoint ─────────────────────
+echo "=== [5/6] Verifying observability debug endpoint ==="
 OBSERVABILITY_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/debug/observability")
 echo "$OBSERVABILITY_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /debug/observability returns valid JSON"
 
@@ -230,11 +235,13 @@ print(len(d.get('cursors', [])))
 " 2>/dev/null || echo "0")
 echo "  Chain cursors: $CURSOR_COUNT"
 
-# ─── Step 5: Verify API endpoints ────────────────────────────────────
-echo "=== [5/5] Verifying product API endpoints ==="
+# ─── Step 6: Verify API endpoints ────────────────────────────────────
+echo "=== [6/6] Verifying product API endpoints ==="
+
+OWNER_ACCOUNT="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-e2e"
 
 # /transactions (with no filters returns empty or data)
-TRANSACTIONS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/transactions?start_at=0&end_at=9999999999999" 2>/dev/null || echo "")
+TRANSACTIONS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/transactions/start_at/0/end_at/9999999999999?limit=25" 2>/dev/null || echo "")
 if [ -n "$TRANSACTIONS_JSON" ]; then
     echo "$TRANSACTIONS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /transactions returns valid JSON"
 else
@@ -242,9 +249,39 @@ else
 fi
 
 # /points (with no filters returns empty or data)
-POINTS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/points?token_0=test&token_1=test&start_at=0&end_at=9999999999999&interval=1m" 2>/dev/null || echo "")
+POINTS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/points/token0/test/token1/test/start_at/0/end_at/9999999999999/interval/1m" 2>/dev/null || echo "")
 if [ -n "$POINTS_JSON" ]; then
     echo "$POINTS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /points returns valid JSON"
+else
+    fail "GET /points returned empty"
+fi
+
+POSITIONS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/positions?owner=$OWNER_ACCOUNT&status=all" 2>/dev/null || echo "")
+if [ -n "$POSITIONS_JSON" ]; then
+    echo "$POSITIONS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /positions returns valid JSON"
+else
+    fail "GET /positions returned empty"
+fi
+
+POSITION_METRICS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/position-metrics?owner=$OWNER_ACCOUNT&status=all" 2>/dev/null || echo "")
+if [ -n "$POSITION_METRICS_JSON" ]; then
+    echo "$POSITION_METRICS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /position-metrics returns valid JSON"
+else
+    fail "GET /position-metrics returned empty"
+fi
+
+POOL_STATS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/poolstats/interval/1d" 2>/dev/null || echo "")
+if [ -n "$POOL_STATS_JSON" ]; then
+    echo "$POOL_STATS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /poolstats/interval/1d returns valid JSON"
+else
+    fail "GET /poolstats/interval/1d returned empty"
+fi
+
+PROTOCOL_STATS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/protocol/stats" 2>/dev/null || echo "")
+if [ -n "$PROTOCOL_STATS_JSON" ]; then
+    echo "$PROTOCOL_STATS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /protocol/stats returns valid JSON"
+else
+    fail "GET /protocol/stats returned empty"
 fi
 
 # Service log health check

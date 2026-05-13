@@ -26,10 +26,6 @@ swap_stub.Transaction = getattr(swap_stub, 'Transaction', object)
 swap_stub.Pool = getattr(swap_stub, 'Pool', object)
 sys.modules['swap'] = swap_stub
 
-subscription_stub = types.ModuleType('subscription')
-subscription_stub.WebSocketManager = object
-sys.modules['subscription'] = subscription_stub
-
 async_request_stub = types.ModuleType('async_request')
 
 async def dummy_post(*_args, **_kwargs):
@@ -601,7 +597,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"Invalid positions status"}')
 
-    async def test_on_get_position_metrics_returns_live_metrics(self):
+    async def test_on_get_position_metrics_returns_projected_metrics(self):
         original_overrides = PositionMetricsEntrypointOverrideState()
         original_db = kline_module._db
         fake_db = FakeDb()
@@ -625,16 +621,16 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         async def fake_fetcher(position):
             self.assertEqual(position['pool_id'], 7)
             return {
-                'position_liquidity_live': '0.346087',
-                'total_supply_live': '1.000000',
+                'position_liquidity': '0.346087',
+                'current_total_supply': '1.000000',
                 'exact_share_ratio': '0.346087',
                 'redeemable_amount0': '123.45',
                 'redeemable_amount1': '6.78',
                 'virtual_initial_liquidity': True,
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
-                'owner_is_fee_to': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
+                'owner_receives_protocol_fees': False,
                 'computation_blockers': [
                     'missing_historical_total_supply',
                     'missing_fee_growth_trace',
@@ -714,9 +710,9 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                         'current_liquidity': '2.5',
                     },
                     'pool_state_snapshot': {
-                        'live_total_supply': '10',
-                        'live_reserve_0': '20',
-                        'live_reserve_1': '30',
+                        'current_total_supply': '10',
+                        'current_reserve_0': '20',
+                        'current_reserve_1': '30',
                         'state_payload_json': {
                             'virtual_initial_liquidity': False,
                         },
@@ -772,7 +768,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             captured['planned_position'] = position
             captured['planned_payload'] = payload
             return PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_live_redeemable_only'},
+                metrics={'metrics_status': 'partial_projected_redeemable_only'},
                 decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
                 reason_code='payload_requires_history',
             )
@@ -802,7 +798,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         finally:
             kline_module._swap = original_swap
 
-        self.assertEqual(response.live_metrics, {'metrics_status': 'ok'})
+        self.assertEqual(response.projected_metrics, {'metrics_status': 'ok'})
         self.assertIsNotNone(response.snapshot_shadow)
         self.assertEqual(captured['planned_payload'], {
             'data': {
@@ -985,10 +981,10 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             if position['pool_id'] == 1:
                 return {
                     'fetch_stage': 'snapshot_fast_path',
-                    'live_metrics': {
+                    'projected_metrics': {
                         'metrics_status': 'exact',
-                        'exact_fee_supported': True,
-                        'exact_principal_supported': True,
+                        'fee_calculation_complete': True,
+                        'principal_calculation_complete': True,
                     },
                     'snapshot_shadow': {
                         'owner': position['owner'],
@@ -996,8 +992,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                         'pool_id': position['pool_id'],
                         'status': position['status'],
                         'metrics_status': 'exact',
-                        'exact_fee_supported': True,
-                        'exact_principal_supported': True,
+                        'fee_calculation_complete': True,
+                        'principal_calculation_complete': True,
                         'snapshot_shadow': {
                             'readiness': 'candidate',
                             'exact_case': 'post_basis_swaps',
@@ -1033,10 +1029,10 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             if position['pool_id'] == 2:
                 return {
                 'fetch_stage': 'payload_only',
-                'live_metrics': {
+                'projected_metrics': {
                     'metrics_status': 'partial',
-                    'exact_fee_supported': False,
-                    'exact_principal_supported': False,
+                    'fee_calculation_complete': False,
+                    'principal_calculation_complete': False,
                 },
                 'snapshot_shadow': {
                     'owner': position['owner'],
@@ -1044,8 +1040,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'pool_id': position['pool_id'],
                     'status': position['status'],
                     'metrics_status': 'partial',
-                    'exact_fee_supported': False,
-                    'exact_principal_supported': False,
+                    'fee_calculation_complete': False,
+                    'principal_calculation_complete': False,
                     'snapshot_shadow': {
                         'readiness': 'financial_semantics_pending',
                         'exact_case': None,
@@ -1076,7 +1072,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                         'readiness_reason_codes': [
                             'unresolved_fee_to_nonzero_prior_add__basis_only__changed_after_basis__owner_and_non_owner_mints',
                             'materialized_protocol_fee_split_unresolved',
-                            'exact_fee_not_supported',
+                            'fee_calculation_incomplete',
                             'estimated_values',
                         ],
                             'mismatch_codes': [],
@@ -1086,10 +1082,10 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             if position['pool_id'] == 3:
                 return {
                 'fetch_stage': 'replay_fallback',
-                'live_metrics': {
+                'projected_metrics': {
                     'metrics_status': 'exact',
-                    'exact_fee_supported': True,
-                    'exact_principal_supported': True,
+                    'fee_calculation_complete': True,
+                    'principal_calculation_complete': True,
                 },
                 'snapshot_shadow': {
                     'owner': position['owner'],
@@ -1097,8 +1093,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'pool_id': position['pool_id'],
                     'status': position['status'],
                     'metrics_status': 'exact',
-                    'exact_fee_supported': True,
-                    'exact_principal_supported': True,
+                    'fee_calculation_complete': True,
+                    'principal_calculation_complete': True,
                     'snapshot_shadow': {
                         'readiness': 'candidate',
                         'exact_case': 'materialized_current_principal_with_later_liquidity',
@@ -1133,10 +1129,10 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
             return {
                 'fetch_stage': 'replay_fallback',
-                'live_metrics': {
+                'projected_metrics': {
                     'metrics_status': 'exact',
-                    'exact_fee_supported': True,
-                    'exact_principal_supported': True,
+                    'fee_calculation_complete': True,
+                    'principal_calculation_complete': True,
                 },
                 'snapshot_shadow': {
                     'owner': position['owner'],
@@ -1144,8 +1140,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'pool_id': position['pool_id'],
                     'status': position['status'],
                     'metrics_status': 'exact',
-                    'exact_fee_supported': True,
-                    'exact_principal_supported': True,
+                    'fee_calculation_complete': True,
+                    'principal_calculation_complete': True,
                     'snapshot_shadow': {
                         'readiness': 'candidate',
                         'exact_case': 'materialized_current_principal_with_later_liquidity',
@@ -1243,7 +1239,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             {
                 'unresolved_fee_to_nonzero_prior_add__basis_only__changed_after_basis__owner_and_non_owner_mints': 1,
                 'materialized_protocol_fee_split_unresolved': 1,
-                'exact_fee_not_supported': 1,
+                'fee_calculation_incomplete': 1,
                 'estimated_values': 1,
             },
         )
@@ -1486,7 +1482,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             [
                 'unresolved_fee_to_nonzero_prior_add__basis_only__changed_after_basis__owner_and_non_owner_mints',
                 'materialized_protocol_fee_split_unresolved',
-                'exact_fee_not_supported',
+                'fee_calculation_incomplete',
                 'estimated_values',
             ],
         )
@@ -1829,7 +1825,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'pool_application': 'chain:pool-app',
                 'pool_id': 7,
                 'status': 'active',
-                'details': {'metrics_status': 'estimated_live_redeemable_with_history'},
+                'details': {'metrics_status': 'estimated_projected_redeemable_with_history'},
                 'created_at': 456,
             },
         ]
@@ -1897,7 +1893,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['diagnostics'], fake_db.diagnostics)
         self.assertIsNone(response['position_basis_snapshot'])
         self.assertIsNone(response['pool_state_snapshot'])
-        self.assertNotIn('live_recent_audit', response)
+        self.assertNotIn('recent_audit', response)
         self.assertEqual(
             replay_repository.settled_pool_history_projection_repo.history_kwargs,
             {

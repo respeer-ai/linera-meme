@@ -10,6 +10,8 @@ SRC_ROOT = ROOT / 'src'
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+if not getattr(sys.modules.get('swap'), '__file__', None):
+    sys.modules.pop('swap', None)
 
 async_request_stub = types.ModuleType('async_request')
 async_request_stub.post = None

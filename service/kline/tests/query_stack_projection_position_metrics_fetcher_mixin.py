@@ -24,7 +24,7 @@ from position_metrics_payload_result import PositionMetricsPayloadResult  # noqa
 
 _public_api = PositionMetricsBootstrap().public_api()
 
-_build_live_position_metrics_fetcher = QueryStackReadModelTestSupport.build_live_position_metrics_fetcher
+_build_projection_position_metrics_fetcher = QueryStackReadModelTestSupport.build_projection_position_metrics_fetcher
 _replay_summary = QueryStackReadModelTestSupport.replay_summary
 _replay_facts = QueryStackReadModelTestSupport.replay_facts
 _snapshot_inputs = QueryStackReadModelTestSupport.snapshot_inputs
@@ -33,10 +33,10 @@ _position_metrics_payload = QueryStackReadModelTestSupport.position_metrics_payl
 _build_payload_builder = QueryStackReadModelTestSupport.build_payload_builder
 
 
-class QueryStackLivePositionMetricsFetcherMixin:
+class QueryStackProjectionPositionMetricsFetcherMixin:
     def _metrics(self, payload):
         if isinstance(payload, PositionMetricsFetchedResult):
-            return payload.live_metrics
+            return payload.projected_metrics
         return self._metrics(payload)
 
     def _shadow(self, payload):
@@ -44,7 +44,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             return payload.snapshot_shadow
         return self._shadow(payload)
 
-    def test_live_position_metrics_fetcher_uses_repository_histories(self):
+    def test_projection_position_metrics_fetcher_uses_repository_histories(self):
         class FakeRepository:
             def get_replay_facts(self, **kwargs):
                 self.replay_kwargs = dict(kwargs)
@@ -80,9 +80,9 @@ class QueryStackLivePositionMetricsFetcherMixin:
                     },
                     pool_state_snapshot={
                         'pool_state_id': 'pool-state-1',
-                        'live_total_supply': '10',
-                        'live_reserve_0': '20',
-                        'live_reserve_1': '30',
+                        'current_total_supply': '10',
+                        'current_reserve_0': '20',
+                        'current_reserve_1': '30',
                         'state_payload_json': {'virtual_initial_liquidity': False},
                     },
                 )
@@ -101,11 +101,11 @@ class QueryStackLivePositionMetricsFetcherMixin:
             )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=_build_payload_builder({'data': {}}),
                 plan_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                    metrics={'metrics_status': 'partial_live_redeemable_only'},
+                    metrics={'metrics_status': 'partial_projected_redeemable_only'},
                     decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
                     reason_code='payload_requires_history',
                 ),
@@ -119,7 +119,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         self.assertIsInstance(payload, PositionMetricsFetchedResult)
-        self.assertEqual(payload.live_metrics, {'metrics_status': 'ok'})
+        self.assertEqual(payload.projected_metrics, {'metrics_status': 'ok'})
         self.assertEqual(payload.fetch_stage, 'replay_fallback')
         self.assertEqual(
             payload.fetch_reason_code,
@@ -186,7 +186,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             'fee_to_account_latest_known': None,
         })
         self.assertEqual(captured['pool_state_snapshot'].raw()['pool_state_id'], 'pool-state-1')
-        self.assertEqual(captured['pool_state_snapshot'].live_total_supply(), '10')
+        self.assertEqual(captured['pool_state_snapshot'].current_total_supply(), '10')
         self.assertEqual(
             repository.snapshot_kwargs,
             {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'status': 'active'},
@@ -196,7 +196,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'pool_id': 5, 'opened_at': 1500},
         )
 
-    def test_live_position_metrics_fetcher_returns_shadow_evaluation_when_enabled(self):
+    def test_projection_position_metrics_fetcher_returns_shadow_evaluation_when_enabled(self):
         class FakeRepository:
             def get_replay_facts(self, **_kwargs):
                 return _replay_facts(
@@ -217,22 +217,22 @@ class QueryStackLivePositionMetricsFetcherMixin:
                     position_basis_snapshot=None,
                     pool_state_snapshot={
                         'last_transaction_id': 11,
-                        'live_total_supply': '10',
-                        'live_reserve_0': '20',
-                        'live_reserve_1': '30',
+                        'current_total_supply': '10',
+                        'current_reserve_0': '20',
+                        'current_reserve_1': '30',
                         'state_payload_json': {'virtual_initial_liquidity': False},
                     },
                 )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=FakeRepository(),
                 payload_builder=_build_payload_builder({'data': {}}),
                 plan_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
                     metrics={
-                        'metrics_status': 'partial_live_redeemable_only',
-                        'exact_fee_supported': True,
-                        'exact_principal_supported': True,
+                        'metrics_status': 'partial_projected_redeemable_only',
+                        'fee_calculation_complete': True,
+                        'principal_calculation_complete': True,
                     },
                     decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
                     reason_code='payload_requires_history',
@@ -240,8 +240,8 @@ class QueryStackLivePositionMetricsFetcherMixin:
                 enrich_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
                     metrics={
                         'metrics_status': 'exact',
-                        'exact_fee_supported': True,
-                        'exact_principal_supported': True,
+                        'fee_calculation_complete': True,
+                        'principal_calculation_complete': True,
                     },
                     decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
                     reason_code='payload_requires_history',
@@ -268,7 +268,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             ['missing_position_basis_snapshot', 'pool_last_trade_time_mismatch'],
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_without_loading_histories(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_without_loading_histories(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -282,9 +282,9 @@ class QueryStackLivePositionMetricsFetcherMixin:
                     'last_transaction_id': 13,
                     'last_trade_time_ms': None,
                     'last_liquidity_event_time_ms': 1234,
-                    'live_total_supply': '10',
-                    'live_reserve_0': '20',
-                    'live_reserve_1': '30',
+                    'current_total_supply': '10',
+                    'current_reserve_0': '20',
+                    'current_reserve_1': '30',
                     'fee_free_basis_transaction_id': 13,
                     'fee_free_basis_time_ms': 1234,
                     'fee_free_reserve_0': '14',
@@ -296,7 +296,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 plan_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
                     AssertionError('fast path should bypass payload planning')
@@ -323,7 +323,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_zero_liquidity_bootstrap_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_zero_liquidity_bootstrap_basis(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -363,7 +363,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -382,10 +382,10 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         self.assertEqual(self._metrics(payload)['metrics_status'], 'exact_no_swap_history')
-        self.assertTrue(self._metrics(payload)['owner_is_fee_to'])
+        self.assertTrue(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_reopen_from_zero_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_reopen_from_zero_basis(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -425,7 +425,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -448,7 +448,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._metrics(payload)['principal_amount1'], '11')
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_latest_add_without_current_round_swaps_before_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_latest_add_without_current_round_swaps_before_basis(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -493,7 +493,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -516,7 +516,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._metrics(payload)['principal_amount1'], '21')
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_later_pool_liquidity_without_intervening_swaps(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_later_pool_liquidity_without_intervening_swaps(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -554,7 +554,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -578,7 +578,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['exact_case'], 'post_basis_liquidity_changes')
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_opening_mint_with_later_pool_liquidity(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_opening_mint_with_later_pool_liquidity(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -618,7 +618,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -647,7 +647,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             'fee_to_opening_mint_post_basis_liquidity_changes',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_materialized_current_principal_after_intervening_swaps(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_materialized_current_principal_after_intervening_swaps(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -693,7 +693,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -722,7 +722,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             'post_basis_liquidity_changes_with_intervening_swaps',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_materialized_current_principal_with_post_basis_remove_when_fee_to_disabled(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_materialized_current_principal_with_post_basis_remove_when_fee_to_disabled(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -767,7 +767,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -796,7 +796,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
             'post_basis_liquidity_changes_with_intervening_swaps',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_materialized_current_principal_with_post_basis_remove_when_fee_to_enabled_but_owner_is_not_fee_to(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_materialized_current_principal_with_post_basis_remove_when_fee_to_enabled_but_owner_is_not_fee_to(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -841,7 +841,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -864,14 +864,14 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._metrics(payload)['principal_amount1'], '9')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '1')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '1')
-        self.assertFalse(self._metrics(payload)['owner_is_fee_to'])
+        self.assertFalse(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['exact_case'],
             'post_basis_liquidity_changes_with_intervening_swaps',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_owner_materialized_current_principal_with_post_basis_remove_for_opening_add_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_owner_materialized_current_principal_with_post_basis_remove_for_opening_add_basis(self):
         repository = _build_snapshot_only_repository(
             _snapshot_inputs(
                 position_basis_snapshot={
@@ -918,7 +918,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -943,14 +943,14 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertTrue(self._metrics(payload)['owner_is_fee_to'])
+        self.assertTrue(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_liquidity_changes_with_intervening_swaps',
         )
 
-    def test_live_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_owner_materialized_current_principal_with_latest_remove_basis(self):
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_fee_to_owner_materialized_current_principal_with_latest_remove_basis(self):
         class FakeRepository:
             def get_snapshot_inputs(self, **_kwargs):
                 return _snapshot_inputs(
@@ -998,7 +998,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         )
 
         payload = asyncio.run(
-            _build_live_position_metrics_fetcher(
+            _build_projection_position_metrics_fetcher(
                 product_state_provider=FakeRepository(),
                 payload_builder=client,
                 enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
@@ -1023,7 +1023,7 @@ class QueryStackLivePositionMetricsFetcherMixin:
         self.assertEqual(self._metrics(payload)['protocol_fee_amount1'], '2')
         self.assertEqual(self._metrics(payload)['fee_amount0'], '0')
         self.assertEqual(self._metrics(payload)['fee_amount1'], '0')
-        self.assertTrue(self._metrics(payload)['owner_is_fee_to'])
+        self.assertTrue(self._metrics(payload)['owner_receives_protocol_fees'])
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             self._shadow(payload)['snapshot_shadow']['exact_case'],

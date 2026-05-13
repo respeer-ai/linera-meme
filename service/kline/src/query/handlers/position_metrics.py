@@ -18,7 +18,7 @@ class PositionMetricsHandler:
 
     def _should_record(self, metric: dict) -> bool:
         return (
-            not bool(metric.get('exact_fee_supported'))
+            not bool(metric.get('fee_calculation_complete'))
             or bool(metric.get('computation_blockers'))
             or bool(metric.get('value_warning_codes'))
         )

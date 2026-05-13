@@ -390,13 +390,13 @@ class PositionMetricsBootstrap:
         *,
         redeemable_amount0: Decimal,
         redeemable_amount1: Decimal,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         history_liquidity: Decimal,
     ) -> tuple[int, int]:
         return self.value_support().split_protocol_fee_redeemable_attos(
             redeemable_amount0=redeemable_amount0,
             redeemable_amount1=redeemable_amount1,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             history_liquidity=history_liquidity,
         )
 
@@ -415,13 +415,13 @@ class PositionMetricsBootstrap:
         pool_transaction_history: list[dict] | None,
         latest_position_tx: dict | None,
         liquidity_basis: Decimal,
-        total_supply_live: Decimal,
+        current_total_supply: Decimal,
     ) -> tuple[Decimal, Decimal]:
         return self.liquidity_history_analyzer().build_observed_swap_fee_estimate(
             pool_transaction_history=pool_transaction_history,
             latest_position_tx=latest_position_tx,
             liquidity_basis=liquidity_basis,
-            total_supply_live=total_supply_live,
+            current_total_supply=current_total_supply,
         )
 
     def build_estimated_metrics_from_liquidity_history(
@@ -430,14 +430,14 @@ class PositionMetricsBootstrap:
         *,
         liquidity_history: list[dict],
         pool_transaction_history: list[dict] | None,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
         history_liquidity: Decimal,
     ) -> dict:
         return self.liquidity_history_analyzer().build_estimated_metrics_from_liquidity_history(
             partial_metrics,
             liquidity_history=liquidity_history,
             pool_transaction_history=pool_transaction_history,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             history_liquidity=history_liquidity,
         )
 

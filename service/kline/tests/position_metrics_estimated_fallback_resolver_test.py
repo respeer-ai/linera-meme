@@ -18,7 +18,7 @@ class PositionMetricsEstimatedFallbackResolverTest(unittest.TestCase):
         resolver = PositionMetricsEstimatedFallbackResolver(
             build_estimated_metrics_from_liquidity_history=lambda partial_metrics, **_kwargs: {
                 **partial_metrics,
-                'metrics_status': 'estimated_live_redeemable_with_history',
+                'metrics_status': 'estimated_projected_redeemable_with_history',
                 'principal_amount0': '10',
                 'principal_amount1': '20',
             },
@@ -26,18 +26,18 @@ class PositionMetricsEstimatedFallbackResolverTest(unittest.TestCase):
 
         result = resolver.resolve(
             {
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
             },
             blockers=['pool_has_swap_history_after_position_open'],
             liquidity_history=[{'transaction_type': 'AddLiquidity'}],
             pool_transaction_history=[{'transaction_type': 'BuyToken0'}],
-            live_liquidity=__import__('decimal').Decimal('2'),
+            current_liquidity=__import__('decimal').Decimal('2'),
             history_liquidity=__import__('decimal').Decimal('2'),
         )
 
-        self.assertEqual(result['metrics_status'], 'estimated_live_redeemable_with_history')
+        self.assertEqual(result['metrics_status'], 'estimated_projected_redeemable_with_history')
         self.assertEqual(result['principal_amount0'], '10')
         self.assertEqual(result['principal_amount1'], '20')
         self.assertEqual(

@@ -25,11 +25,11 @@ class PositionMetricsReplayFallbackExecutor:
         snapshot_shadow = self.replay_snapshot_shadow_builder.build(
             snapshot_inputs=fetch_inputs.snapshot_inputs(),
             position=fetch_context.position,
-            live_metrics=payload_result.metrics,
+            projected_metrics=payload_result.metrics,
             replay_summary=fetch_inputs.replay_summary(),
         )
         return self.replay_fallback_result_builder.build(
-            live_metrics=payload_result.metrics,
+            projected_metrics=payload_result.metrics,
             snapshot_shadow=snapshot_shadow,
             plan=plan,
         )

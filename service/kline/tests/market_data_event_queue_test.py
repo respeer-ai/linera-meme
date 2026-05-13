@@ -79,6 +79,29 @@ class MarketDataEventQueueTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(recorder.records[0]['event_type'], MarketDataEvent.TYPE_SETTLED_TRADE)
         self.assertEqual(recorder.records[0]['pool_id'], 7)
 
+    async def test_put_nowait_sheds_oldest_when_queue_is_full(self):
+        recorder = FakeDiagnosticRecorder()
+        queue = MarketDataEventQueue(maxsize=1, diagnostic_recorder=recorder)
+        old_event = MarketDataEvent(
+            event_type=MarketDataEvent.TYPE_SETTLED_TRADE,
+            pool_application='pool-app',
+            transaction_id=1,
+        )
+        new_event = MarketDataEvent(
+            event_type=MarketDataEvent.TYPE_SETTLED_TRADE,
+            pool_application='pool-app',
+            transaction_id=2,
+        )
+
+        queue.put_nowait(old_event)
+        queue.put_nowait(new_event)
+
+        self.assertEqual(await queue.get(), new_event)
+        self.assertIn(
+            'enqueue_shed_oldest',
+            [record['stage'] for record in recorder.records],
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

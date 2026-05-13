@@ -59,14 +59,14 @@ class PositionMetricsPayloadEnricher:
                 decision=payload_decision.decision,
                 reason_code=payload_decision.reason_code,
             )
-        owner_is_fee_to = bool(partial_metrics.get('owner_is_fee_to'))
+        owner_receives_protocol_fees = bool(partial_metrics.get('owner_receives_protocol_fees'))
 
         metrics = self.enrich_metrics_with_history(
             partial_metrics,
             liquidity_history=liquidity_history,
             pool_transaction_history=pool_transaction_history,
             pool_swap_count_since_open=pool_swap_count_since_open,
-            owner_is_fee_to=owner_is_fee_to,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
         )
         return PositionMetricsPayloadResult(
             metrics=self.apply_data_quality_warnings(

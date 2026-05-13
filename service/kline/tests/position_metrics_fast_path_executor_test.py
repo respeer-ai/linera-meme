@@ -19,12 +19,12 @@ class PositionMetricsFastPathExecutorTest(unittest.TestCase):
     def test_wraps_fast_path_payload_with_plan_metadata(self):
         executor = PositionMetricsFastPathExecutor()
         plan = PositionMetricsFetchPlan.snapshot_fast_path(
-            {'live_metrics': {'metrics_status': 'exact'}}
+            {'projected_metrics': {'metrics_status': 'exact'}}
         )
 
         result = executor.execute(plan=plan)
         self.assertIsInstance(result, PositionMetricsFetchedResult)
-        self.assertEqual(result.live_metrics, {'metrics_status': 'exact'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'exact'})
         self.assertEqual(result.fetch_stage, 'snapshot_fast_path')
         self.assertEqual(result.fetch_reason_code, 'snapshot_fast_path_hit')
         self.assertIsNone(result.snapshot_shadow)

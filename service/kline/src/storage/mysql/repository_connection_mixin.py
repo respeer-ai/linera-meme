@@ -1,6 +1,8 @@
 class MysqlRepositoryConnectionMixin:
     def ensure_connection(self) -> None:
-        self.connection.ping(reconnect=True, attempts=1, delay=0)
+        ping = getattr(self.connection, 'ping', None)
+        if callable(ping):
+            ping(reconnect=True, attempts=1, delay=0)
 
     def cursor(self, **kwargs):
         self.ensure_connection()

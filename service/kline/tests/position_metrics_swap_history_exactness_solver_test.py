@@ -68,19 +68,19 @@ class PositionMetricsSwapHistoryExactnessSolverTest(unittest.TestCase):
 
         metrics, blockers = solver.solve(
             {
-                'position_liquidity_live': '1',
-                'total_supply_live': '2',
+                'position_liquidity': '1',
+                'current_total_supply': '2',
                 'redeemable_amount0': None,
                 'redeemable_amount1': '1',
                 'virtual_initial_liquidity': False,
             },
             liquidity_history=[{'transaction_type': 'AddLiquidity'}],
             pool_transaction_history=[],
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
         )
 
         self.assertIsNone(metrics)
-        self.assertEqual(blockers, ['missing_live_redeemable_amounts'])
+        self.assertEqual(blockers, ['missing_projected_redeemable_amounts'])
 
     def test_solve_formats_exact_metrics_when_simulation_succeeds(self):
         solver = PositionMetricsSwapHistoryExactnessSolver(
@@ -117,8 +117,8 @@ class PositionMetricsSwapHistoryExactnessSolverTest(unittest.TestCase):
         )
 
         payload = {
-            'position_liquidity_live': '2',
-            'total_supply_live': '4',
+            'position_liquidity': '2',
+            'current_total_supply': '4',
             'redeemable_amount0': '40',
             'redeemable_amount1': '80',
             'virtual_initial_liquidity': False,
@@ -128,14 +128,14 @@ class PositionMetricsSwapHistoryExactnessSolverTest(unittest.TestCase):
             payload,
             liquidity_history=[{'transaction_id': 10, 'transaction_type': 'AddLiquidity', 'created_at': 100}],
             pool_transaction_history=[{'transaction_id': 10, 'transaction_type': 'AddLiquidity', 'created_at': 100}],
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
         )
 
         self.assertEqual(blockers, [])
         self.assertIs(metrics, payload)
         self.assertEqual(metrics['metrics_status'], 'exact_swap_history_no_post_open_liquidity_changes')
-        self.assertTrue(metrics['exact_fee_supported'])
-        self.assertTrue(metrics['exact_principal_supported'])
+        self.assertTrue(metrics['fee_calculation_complete'])
+        self.assertTrue(metrics['principal_calculation_complete'])
         self.assertEqual(metrics['principal_amount0'], '40')
         self.assertEqual(metrics['principal_amount1'], '80')
         self.assertEqual(metrics['fee_amount0'], '0')

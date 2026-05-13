@@ -14,10 +14,10 @@ class ProjectionPoolView:
         self.token_0 = row['token_0']
         self.token_1 = row['token_1']
         self.pool_application = ProjectionPoolApplicationRef(row['pool_application'])
-        self.reserve_0 = row.get('live_reserve_0')
-        self.reserve_1 = row.get('live_reserve_1')
-        self.total_supply = row.get('live_total_supply')
-        self.k_last = row.get('live_k_last')
+        self.reserve_0 = row.get('current_reserve_0')
+        self.reserve_1 = row.get('current_reserve_1')
+        self.total_supply = row.get('current_total_supply')
+        self.k_last = row.get('current_k_last')
         self.last_trade_time_ms = row.get('last_trade_time_ms')
         self.last_liquidity_event_time_ms = row.get('last_liquidity_event_time_ms')
         self.state_payload_json = row.get('state_payload_json')
@@ -61,10 +61,10 @@ class ProjectionPoolCatalogRepository:
                 'pool_application': pool_application,
                 'token_0': token_0,
                 'token_1': token_1,
-                'live_reserve_0': None if state is None else state.get('live_reserve_0'),
-                'live_reserve_1': None if state is None else state.get('live_reserve_1'),
-                'live_total_supply': None if state is None else state.get('live_total_supply'),
-                'live_k_last': None if state is None else state.get('live_k_last'),
+                'current_reserve_0': None if state is None else state.get('current_reserve_0'),
+                'current_reserve_1': None if state is None else state.get('current_reserve_1'),
+                'current_total_supply': None if state is None else state.get('current_total_supply'),
+                'current_k_last': None if state is None else state.get('current_k_last'),
                 'last_trade_time_ms': None if state is None else state.get('last_trade_time_ms'),
                 'last_liquidity_event_time_ms': None if state is None else state.get('last_liquidity_event_time_ms'),
                 'state_payload_json': None if state is None else state.get('state_payload_json'),

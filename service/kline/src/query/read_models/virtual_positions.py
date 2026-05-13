@@ -70,7 +70,7 @@ class VirtualPositionsReadModel:
                 or position_basis.fee_to_continuity_owner()
                 or synthetic_basis.get('protocol_fee_receiver_account')
             )
-            owner_is_fee_to = owner == protocol_fee_receiver_account
+            owner_receives_protocol_fees = owner == protocol_fee_receiver_account
             basis_amount_0 = self._string_or_zero(
                 position_basis.raw().get('basis_amount_0') if position_basis.raw() else synthetic_basis.get('basis_amount_0')
             )
@@ -84,7 +84,7 @@ class VirtualPositionsReadModel:
                 synthetic_kind = self.SYNTHETIC_VIRTUAL_INITIAL_POSITION_KIND
                 if liquidity_value in (None, ''):
                     liquidity_value = '0'
-            elif owner_is_fee_to:
+            elif owner_receives_protocol_fees:
                 synthetic_kind = self.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND
                 liquidity_value = '0'
             if synthetic_kind is None:

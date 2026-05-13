@@ -47,9 +47,9 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '14')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '21')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '14')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '21')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
 
     def test_snapshot_fast_path_rejects_latest_add_after_prior_current_round_liquidity_when_current_round_had_swaps_before_basis(self):
@@ -156,10 +156,10 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '14')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '21')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '14')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '21')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'post_basis_liquidity_changes_with_intervening_swaps',
@@ -206,11 +206,11 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '5')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '5')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '5')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '5')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['exact_case'], 'post_basis_liquidity_changes')
 
@@ -299,12 +299,12 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '10')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '2')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '2')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '10')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '2')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '2')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_liquidity_changes',
@@ -359,10 +359,10 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '5')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '20')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '2')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '2')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '5')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '20')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '2')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '2')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'post_basis_liquidity_changes_with_intervening_swaps',
@@ -420,10 +420,10 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '3')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '9')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '1')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '1')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '3')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '9')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '1')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '1')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'post_basis_liquidity_changes_with_intervening_swaps',
@@ -477,11 +477,11 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '3')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '9')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '1')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '1')
-        self.assertFalse(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '3')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '9')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '1')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '1')
+        self.assertFalse(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'post_basis_liquidity_changes_with_intervening_swaps',
@@ -537,13 +537,13 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '5')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '1')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '2')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
-        self.assertTrue(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '5')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '1')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '2')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
+        self.assertTrue(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_liquidity_changes_with_intervening_swaps',
@@ -597,13 +597,13 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '5')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '1')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '2')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
-        self.assertTrue(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '5')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '1')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '2')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
+        self.assertTrue(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_liquidity_changes_with_intervening_swaps',
@@ -674,13 +674,13 @@ class QueryStackSnapshotFastPathMaterializedMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['principal_amount0'], '5')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '1')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '2')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
-        self.assertTrue(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '5')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '1')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '2')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
+        self.assertTrue(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_liquidity_changes_with_intervening_swaps',

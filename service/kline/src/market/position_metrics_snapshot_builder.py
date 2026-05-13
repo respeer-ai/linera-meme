@@ -132,7 +132,7 @@ class PositionMetricsSnapshotBuilder:
             pool_chain_id=pool_chain_id,
         )
         latest_state = states[-1]
-        live_total_supply_attos = self._effective_total_supply_attos(latest_state)
+        current_total_supply_attos = self._effective_total_supply_attos(latest_state)
         fee_free_state, fee_free_basis = self._fee_free_state_from_latest_liquidity_event(
             states=exact_states or states,
             effective_history=exact_effective_history or effective_history or [],
@@ -175,10 +175,10 @@ class PositionMetricsSnapshotBuilder:
             'last_liquidity_event_time_ms': last_liquidity_event_time_ms,
             'last_transaction_id': last_transaction_id,
             'swap_count': swap_count,
-            'live_reserve_0': self._serialize_attos(latest_state['reserve0_after']),
-            'live_reserve_1': self._serialize_attos(latest_state['reserve1_after']),
-            'live_total_supply': self._serialize_attos(live_total_supply_attos),
-            'live_k_last': self._serialize_attos(latest_state['k_last_after']),
+            'current_reserve_0': self._serialize_attos(latest_state['reserve0_after']),
+            'current_reserve_1': self._serialize_attos(latest_state['reserve1_after']),
+            'current_total_supply': self._serialize_attos(current_total_supply_attos),
+            'current_k_last': self._serialize_attos(latest_state['k_last_after']),
             'fee_free_basis_transaction_id': fee_free_basis.get('transaction_id') if fee_free_basis is not None else None,
             'fee_free_basis_time_ms': fee_free_basis.get('created_at') if fee_free_basis is not None else None,
             'fee_free_reserve_0': self._serialize_attos(fee_free_state['reserve0']),

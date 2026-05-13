@@ -14,7 +14,7 @@ class PositionMetricsSnapshotFastPathExactCaseResolver:
         self,
         *,
         position_basis_snapshot,
-        owner_is_fee_to: bool,
+        owner_receives_protocol_fees: bool,
         last_transaction_id: int | None,
         basis_transaction_id: int | None,
         fee_free_basis_transaction_id: int | None,
@@ -23,7 +23,7 @@ class PositionMetricsSnapshotFastPathExactCaseResolver:
     ) -> str:
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         fee_to_opening_mint = (
-            owner_is_fee_to
+            owner_receives_protocol_fees
             and liquidity_value is not None
             and tracked_liquidity_value is not None
             and liquidity_value > tracked_liquidity_value

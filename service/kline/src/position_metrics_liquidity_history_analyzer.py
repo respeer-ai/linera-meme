@@ -70,15 +70,15 @@ class PositionMetricsLiquidityHistoryAnalyzer:
         pool_transaction_history: list[dict] | None,
         latest_position_tx: dict | None,
         liquidity_basis: Decimal,
-        total_supply_live: Decimal,
+        current_total_supply: Decimal,
     ) -> tuple[Decimal, Decimal]:
         if not pool_transaction_history or latest_position_tx is None:
             return Decimal('0'), Decimal('0')
-        if liquidity_basis <= Decimal('0') or total_supply_live <= Decimal('0'):
+        if liquidity_basis <= Decimal('0') or current_total_supply <= Decimal('0'):
             return Decimal('0'), Decimal('0')
         latest_created_at = int(latest_position_tx.get('created_at') or 0)
         latest_transaction_id = int(latest_position_tx.get('transaction_id') or 0)
-        share_ratio = liquidity_basis / total_supply_live
+        share_ratio = liquidity_basis / current_total_supply
         fee_rate = Decimal(self.fee_denominator - self.fee_numerator) / Decimal(self.fee_denominator)
         observed_fee0 = Decimal('0')
         observed_fee1 = Decimal('0')
@@ -106,7 +106,7 @@ class PositionMetricsLiquidityHistoryAnalyzer:
         *,
         liquidity_history: list[dict],
         pool_transaction_history: list[dict] | None,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
         history_liquidity: Decimal,
     ) -> dict:
         redeemable_amount0 = self.to_decimal(partial_metrics['redeemable_amount0'])
@@ -124,31 +124,31 @@ class PositionMetricsLiquidityHistoryAnalyzer:
             return partial_metrics
         protocol_fee_amount0 = Decimal('0')
         protocol_fee_amount1 = Decimal('0')
-        if live_liquidity is not None and live_liquidity > history_liquidity > Decimal('0'):
+        if current_liquidity is not None and current_liquidity > history_liquidity > Decimal('0'):
             protocol_fee_amount0_attos, protocol_fee_amount1_attos = self.split_protocol_fee_redeemable_attos(
                 redeemable_amount0=redeemable_amount0,
                 redeemable_amount1=redeemable_amount1,
-                live_liquidity=live_liquidity,
+                current_liquidity=current_liquidity,
                 history_liquidity=history_liquidity,
             )
             protocol_fee_amount0 = self.from_attos(protocol_fee_amount0_attos) or Decimal('0')
             protocol_fee_amount1 = self.from_attos(protocol_fee_amount1_attos) or Decimal('0')
         redeemable_ex_protocol0 = self.normalize_non_negative(redeemable_amount0 - protocol_fee_amount0)
         redeemable_ex_protocol1 = self.normalize_non_negative(redeemable_amount1 - protocol_fee_amount1)
-        total_supply_live = self.to_decimal(partial_metrics.get('total_supply_live')) or Decimal('0')
+        current_total_supply = self.to_decimal(partial_metrics.get('current_total_supply')) or Decimal('0')
         latest_position_tx = self.latest_position_liquidity_tx(liquidity_history)
-        liquidity_basis = min(history_liquidity, live_liquidity or history_liquidity)
+        liquidity_basis = min(history_liquidity, current_liquidity or history_liquidity)
         observed_fee0, observed_fee1 = self.build_observed_swap_fee_estimate(
             pool_transaction_history=pool_transaction_history,
             latest_position_tx=latest_position_tx,
             liquidity_basis=liquidity_basis,
-            total_supply_live=total_supply_live,
+            current_total_supply=current_total_supply,
         )
         fee_amount0 = min(redeemable_ex_protocol0, self.normalize_non_negative(observed_fee0))
         fee_amount1 = min(redeemable_ex_protocol1, self.normalize_non_negative(observed_fee1))
         principal_amount0 = self.normalize_non_negative(redeemable_ex_protocol0 - fee_amount0)
         principal_amount1 = self.normalize_non_negative(redeemable_ex_protocol1 - fee_amount1)
-        partial_metrics['metrics_status'] = 'estimated_live_redeemable_with_history'
+        partial_metrics['metrics_status'] = 'estimated_projected_redeemable_with_history'
         partial_metrics['principal_amount0'] = self.serialize_decimal(principal_amount0)
         partial_metrics['principal_amount1'] = self.serialize_decimal(principal_amount1)
         partial_metrics['fee_amount0'] = self.serialize_decimal(fee_amount0)

@@ -6,7 +6,9 @@ from realtime.market_data_event import MarketDataEvent
 
 
 class MarketDataEventQueue:
-    def __init__(self, *, maxsize: int = 0, diagnostic_recorder=None):
+    DEFAULT_MAXSIZE = 10_000
+
+    def __init__(self, *, maxsize: int = DEFAULT_MAXSIZE, diagnostic_recorder=None):
         self._queue = asyncio.Queue(maxsize=maxsize)
         self.diagnostic_recorder = diagnostic_recorder
         self._loop = None
@@ -19,10 +21,10 @@ class MarketDataEventQueue:
     def put_nowait(self, event: MarketDataEvent) -> None:
         if self._should_schedule_threadsafe():
             self._record_event(stage='enqueue_threadsafe_scheduled', event=event)
-            self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
+            self._loop.call_soon_threadsafe(self._put_nowait_bounded, event)
             return
         self._record_event(stage='enqueue_inline', event=event)
-        self._queue.put_nowait(event)
+        self._put_nowait_bounded(event)
 
     async def get(self) -> MarketDataEvent:
         self._bind_running_loop()
@@ -71,6 +73,23 @@ class MarketDataEventQueue:
             queue_lag_ms=self._lag_ms(event),
             thread_id=threading.get_ident(),
         )
+
+    def _put_nowait_bounded(self, event: MarketDataEvent) -> None:
+        try:
+            self._queue.put_nowait(event)
+            return
+        except asyncio.QueueFull:
+            pass
+        try:
+            dropped = self._queue.get_nowait()
+        except asyncio.QueueEmpty:
+            dropped = None
+        if dropped is not None:
+            self._record_event(stage='enqueue_shed_oldest', event=dropped)
+        try:
+            self._queue.put_nowait(event)
+        except asyncio.QueueFull:
+            self._record_event(stage='enqueue_dropped_full', event=event)
 
     def _lag_ms(self, event: MarketDataEvent) -> int | None:
         if event.updated_at_ms is None:

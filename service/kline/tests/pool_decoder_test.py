@@ -76,7 +76,7 @@ class PoolDecoderTest(unittest.TestCase):
         self.assertEqual(transaction['transaction_id'], 12)
         self.assertEqual(transaction['transaction_type'], 'AddLiquidity')
         self.assertEqual(transaction['from']['chain_id'], '11' * 32)
-        self.assertEqual(transaction['from']['owner'], '22' * 32)
+        self.assertEqual(transaction['from']['owner'], '0x' + '22' * 32)
         self.assertEqual(transaction['amount_0_in'], '3')
         self.assertEqual(transaction['amount_1_in'], '4')
         self.assertEqual(transaction['liquidity'], '5')

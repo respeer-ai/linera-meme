@@ -28,7 +28,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
                         'transaction': {
                             'transaction_id': 21,
                             'transaction_type': 'BuyToken0',
-                            'from': {'chain_id': 'user-chain', 'owner': 'user-owner'},
+                            'from': {'chain_id': 'user-chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
                             'amount_0_out': '77',
                             'amount_1_in': '8',
                             'created_at_micros': 777000,
@@ -46,7 +46,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
         self.assertEqual(fact.transaction_type(), 'BuyToken0')
         self.assertEqual(fact.transaction_id(), 21)
         self.assertEqual(fact.trade_time_ms(), 777)
-        self.assertEqual(fact.from_account(), 'user-chain:user-owner')
+        self.assertEqual(fact.from_account(), '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
         self.assertTrue(fact.is_trade())
         self.assertFalse(fact.is_liquidity_change())
 
@@ -64,7 +64,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
                         'transaction': {
                             'transaction_id': 22,
                             'transaction_type': 'SellToken0',
-                            'from_account': 'user-chain:user-owner',
+                            'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain',
                             'amount_0_in': '12',
                             'amount_1_out': '34',
                             'created_at': 888000,
@@ -75,8 +75,8 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
         )
 
         self.assertEqual(fact.trade_time_ms(), 888000)
-        self.assertEqual(fact.from_account(), 'user-chain:user-owner')
-        self.assertEqual(fact.position_owner(), 'user-owner@user-chain')
+        self.assertEqual(fact.from_account(), '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
+        self.assertEqual(fact.position_owner(), '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
 
     def test_falls_back_to_owner_string_when_from_fields_are_missing(self):
         fact = PoolNewTransactionExecutionFactExtractor().extract(
@@ -92,7 +92,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
                         'transaction': {
                             'transaction_id': 23,
                             'transaction_type': 'AddLiquidity',
-                            'owner': 'user-owner@user-chain',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain',
                             'amount_0_in': '1',
                             'amount_1_in': '2',
                             'liquidity': '3',
@@ -104,9 +104,9 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
         )
 
         self.assertIsNone(fact.from_account())
-        self.assertEqual(fact.position_owner(), 'user-owner@user-chain')
+        self.assertEqual(fact.position_owner(), '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
 
-    def test_position_owner_uses_unknown_placeholders_when_owner_identity_is_missing(self):
+    def test_position_owner_is_none_when_owner_identity_is_missing(self):
         fact = PoolNewTransactionExecutionFactExtractor().extract(
             {
                 'normalized_event_id': 'event-5',
@@ -131,7 +131,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
         )
 
         self.assertIsNone(fact.from_account())
-        self.assertEqual(fact.position_owner(), 'unknown_owner@unknown_chain')
+        self.assertIsNone(fact.position_owner())
 
     def test_returns_none_when_transaction_payload_is_missing(self):
         fact = PoolNewTransactionExecutionFactExtractor().extract(

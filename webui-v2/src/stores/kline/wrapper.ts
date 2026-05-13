@@ -35,8 +35,8 @@ export class Kline {
     return kline._latestPoints(key, token0, token1, poolId, poolApplication)
   }
 
-  static latestTransactions = (token0: string, token1: string, tokenReversed: boolean) => {
-    return kline._latestTransactions(token0, token1, tokenReversed ? 1 : 0)
+  static pushedTransactions = (token0: string, token1: string, tokenReversed: boolean) => {
+    return kline._pushedTransactions(token0, token1, tokenReversed ? 1 : 0)
   }
 
   static getTransactionsInformation = async (token0?: string, token1?: string) => {

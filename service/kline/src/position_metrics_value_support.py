@@ -83,21 +83,21 @@ class PositionMetricsValueSupport:
         *,
         redeemable_amount0: Decimal,
         redeemable_amount1: Decimal,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         history_liquidity: Decimal,
     ) -> tuple[int, int]:
         redeemable_amount0_attos = self.to_attos(redeemable_amount0) or 0
         redeemable_amount1_attos = self.to_attos(redeemable_amount1) or 0
-        live_liquidity_attos = self.to_attos(live_liquidity) or 0
+        current_liquidity_attos = self.to_attos(current_liquidity) or 0
         history_liquidity_attos = self.to_attos(history_liquidity) or 0
-        protocol_fee_liquidity_attos = max(live_liquidity_attos - history_liquidity_attos, 0)
+        protocol_fee_liquidity_attos = max(current_liquidity_attos - history_liquidity_attos, 0)
 
-        if protocol_fee_liquidity_attos == 0 or live_liquidity_attos == 0:
+        if protocol_fee_liquidity_attos == 0 or current_liquidity_attos == 0:
             return 0, 0
 
         return (
-            redeemable_amount0_attos * protocol_fee_liquidity_attos // live_liquidity_attos,
-            redeemable_amount1_attos * protocol_fee_liquidity_attos // live_liquidity_attos,
+            redeemable_amount0_attos * protocol_fee_liquidity_attos // current_liquidity_attos,
+            redeemable_amount1_attos * protocol_fee_liquidity_attos // current_liquidity_attos,
         )
 
     def history_net_token_amounts(self, liquidity_history: list[dict]) -> tuple[Decimal, Decimal]:

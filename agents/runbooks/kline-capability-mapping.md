@@ -221,7 +221,7 @@ Canonical mapping from current `service/kline` capabilities to the target modula
 
 - `position_metrics.py`
   - current role:
-    - correctness logic and blocker derivation for live position metrics
+    - correctness logic and blocker derivation for projection position metrics
   - target modules:
     - `projection` for exactness-critical accounting
     - `diagnostics` for blocker explanations

@@ -12,15 +12,15 @@ class PositionMetricsWarningApplier:
         if (
             pool_history_gap_summary
             and bool(pool_history_gap_summary.get('has_internal_gaps'))
-            and pool_history_gap_summary.get('basis') in {'archive_reconciliation', 'live_db_mismatch'}
+            and pool_history_gap_summary.get('basis') in {'archive_reconciliation', 'projection_mismatch'}
         ):
             if 'pool_history_has_internal_gaps' not in blockers:
                 blockers.append('pool_history_has_internal_gaps')
-            metrics['exact_fee_supported'] = False
-            metrics['exact_principal_supported'] = False
+            metrics['fee_calculation_complete'] = False
+            metrics['principal_calculation_complete'] = False
             warning_message = 'Current values are estimated from incomplete history and may change as data continues to reconcile.'
 
-        if not metrics.get('exact_fee_supported'):
+        if not metrics.get('fee_calculation_complete'):
             if 'estimated_values' not in warning_codes:
                 warning_codes.append('estimated_values')
             if warning_message is None:

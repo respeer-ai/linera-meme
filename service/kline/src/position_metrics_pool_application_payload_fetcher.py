@@ -1,4 +1,4 @@
-class PositionMetricsLivePayloadFetcher:
+class PositionMetricsPoolApplicationPayloadFetcher:
     def __init__(
         self,
         *,

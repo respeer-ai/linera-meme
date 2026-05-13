@@ -366,8 +366,8 @@ class ObservabilityReconciliationTest(unittest.TestCase):
                 'pool_application': self.POOL_APPLICATION,
                 'token_0': self.TOKEN_0,
                 'token_1': self.TOKEN_1,
-                'live_reserve_0': '21',
-                'live_reserve_1': '72',
+                'current_reserve_0': '21',
+                'current_reserve_1': '72',
             }]
         )
 
@@ -400,9 +400,9 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'pool_application_id': self.POOL_APPLICATION,
             'last_trade_time_ms': 181_000,
             'last_liquidity_event_time_ms': 50_000,
-            'live_reserve_0': '120',
-            'live_reserve_1': '90',
-            'live_total_supply': '110',
+            'current_reserve_0': '120',
+            'current_reserve_1': '90',
+            'current_total_supply': '110',
             'fee_free_total_supply': '100',
             'state_payload_json': {
                 'virtual_initial_liquidity': True,
@@ -444,7 +444,7 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         ).get_positions(owner=self.OWNER, status='all'))['positions']
         metrics = asyncio.run(PositionMetricsReadModel(
             positions_repository,
-            fetcher=self._unexpected_live_fetcher,
+            fetcher=self._unexpected_chain_query_fetcher,
             virtual_positions_read_model=virtual_read_model,
         ).get_position_metrics(owner=self.OWNER, status='all')).public_payload()['metrics']
 
@@ -464,11 +464,11 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         self.assertEqual(metric['share_ratio'], '0.090909090909090909')
         self.assertEqual(metric['protocol_fee_amount0'], self._serialize_decimal(Decimal('120') * expected_protocol_fee_ratio))
         self.assertEqual(metric['protocol_fee_amount1'], self._serialize_decimal(Decimal('90') * expected_protocol_fee_ratio))
-        self.assertNotIn('owner_is_fee_to', metric)
-        self.assertNotIn('exact_fee_supported', metric)
+        self.assertNotIn('owner_receives_protocol_fees', metric)
+        self.assertNotIn('fee_calculation_complete', metric)
 
-    async def _unexpected_live_fetcher(self, _position):
-        raise AssertionError('observability product test must not query live chain metrics')
+    async def _unexpected_chain_query_fetcher(self, _position):
+        raise AssertionError('observability product test must not query chain metrics outside projections')
 
     def _trade(self, *, settled_trade_id, transaction_id, trade_time_ms, side, amount_in, amount_out):
         row = {

@@ -42,12 +42,12 @@ class PositionMetricsSnapshotInputs:
         self,
         *,
         position: dict,
-        live_metrics: dict,
+        projected_metrics: dict,
         replay_summary,
     ) -> dict:
         return {
             'position': position,
-            'live_metrics': live_metrics,
+            'projected_metrics': projected_metrics,
             'replay_summary': replay_summary,
             'position_basis_snapshot': self.position_basis_snapshot(),
             'pool_state_snapshot': self.pool_state_snapshot(),

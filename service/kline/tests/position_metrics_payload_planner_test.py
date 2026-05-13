@@ -21,7 +21,7 @@ class PositionMetricsPayloadPlannerTest(unittest.TestCase):
             payload_semantic_builder=type(
                 'FakeBuilder',
                 (),
-                {'build': lambda self, **_kwargs: {'metrics_status': 'partial_live_redeemable_only'}},
+                {'build': lambda self, **_kwargs: {'metrics_status': 'partial_projected_redeemable_only'}},
             )(),
             payload_decision_resolver=type(
                 'FakeResolver',
@@ -56,7 +56,7 @@ class PositionMetricsPayloadPlannerTest(unittest.TestCase):
             payload_semantic_builder=type(
                 'FakeBuilder',
                 (),
-                {'build': lambda self, **_kwargs: {'metrics_status': 'partial_live_redeemable_only'}},
+                {'build': lambda self, **_kwargs: {'metrics_status': 'partial_projected_redeemable_only'}},
             )(),
             payload_decision_resolver=type(
                 'FakeResolver',

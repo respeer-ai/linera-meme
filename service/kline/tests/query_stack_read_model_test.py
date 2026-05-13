@@ -10,8 +10,8 @@ if str(TEST_ROOT) not in sys.path:
 
 from query_stack_test_support import QueryStackTestSupport
 from query_stack_read_model_test_support import QueryStackReadModelTestSupport
-from query_stack_live_position_metrics_fee_to_mixin import QueryStackLivePositionMetricsFeeToMixin
-from query_stack_live_position_metrics_fetcher_mixin import QueryStackLivePositionMetricsFetcherMixin
+from query_stack_projection_position_metrics_fee_to_mixin import QueryStackProjectionPositionMetricsFeeToMixin
+from query_stack_projection_position_metrics_fetcher_mixin import QueryStackProjectionPositionMetricsFetcherMixin
 
 
 QueryStackTestSupport.install()
@@ -34,8 +34,8 @@ _recorded_method_names = QueryStackReadModelTestSupport.recorded_method_names
 
 
 class ReadModelBridgeTest(
-    QueryStackLivePositionMetricsFetcherMixin,
-    QueryStackLivePositionMetricsFeeToMixin,
+    QueryStackProjectionPositionMetricsFetcherMixin,
+    QueryStackProjectionPositionMetricsFeeToMixin,
     unittest.TestCase,
 ):
     def test_candles_read_model_uses_direct_settled_trade_projection_contract(self):
@@ -363,9 +363,9 @@ class ReadModelBridgeTest(
             self.assertEqual(position['pool_id'], 5)
             self.assertEqual(position['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
             return {
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': ['missing_history'],
                 'fee_amount0': None,
                 'fee_amount1': None,
@@ -418,7 +418,7 @@ class ReadModelBridgeTest(
         repository = QueryStackTestSupport.FakeRepository()
 
         async def fake_fetcher(_position):
-            raise AssertionError('synthetic protocol fee receiver position should not use live fetcher')
+            raise AssertionError('synthetic protocol fee receiver position should not use projection fetcher')
 
         repository.get_positions = lambda **_kwargs: [{
             'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
@@ -491,9 +491,9 @@ class ReadModelBridgeTest(
         class FakeSnapshotInputs:
             def pool_state_snapshot(self):
                 return {
-                    'live_reserve_0': '10295748.920834746000739898',
-                    'live_reserve_1': '8918.133215886841456363',
-                    'live_total_supply': '302658.785013077036092077',
+                    'current_reserve_0': '10295748.920834746000739898',
+                    'current_reserve_1': '8918.133215886841456363',
+                    'current_total_supply': '302658.785013077036092077',
                     'fee_free_total_supply': '302587.389030012286796095',
                     'state_payload_json': {'virtual_initial_liquidity': True},
                 }
@@ -535,8 +535,8 @@ class ReadModelBridgeTest(
 
         metric = payload.public_payload()['metrics'][0]
         self.assertNotIn('metrics_status', metric)
-        self.assertNotIn('exact_fee_supported', metric)
-        self.assertNotIn('exact_principal_supported', metric)
+        self.assertNotIn('fee_calculation_complete', metric)
+        self.assertNotIn('principal_calculation_complete', metric)
         self.assertNotIn('exact_share_ratio', metric)
         self.assertEqual(metric['position_liquidity'], '71.395983064749295982')
         self.assertGreater(float(metric['share_ratio']), 0)
@@ -545,7 +545,7 @@ class ReadModelBridgeTest(
         self.assertEqual(metric['redeemable_amount0'], metric['protocol_fee_amount0'])
         self.assertEqual(metric['redeemable_amount1'], metric['protocol_fee_amount1'])
         self.assertEqual(payload.metric_diagnostics[0]['metrics_status'], 'projection_protocol_fee_receiver_virtual')
-        self.assertEqual(payload.metric_diagnostics[0]['exact_fee_supported'], True)
+        self.assertEqual(payload.metric_diagnostics[0]['fee_calculation_complete'], True)
         self.assertEqual(payload.shadow_diagnostics, [])
         self.assertEqual(payload.metric_diagnostics[0]['fetch_stage'], 'synthetic_virtual_position')
         self.assertEqual(
@@ -565,8 +565,8 @@ class ReadModelBridgeTest(
                             'pool_id': 5,
                             'status': 'active',
                             'metrics_status': 'partial',
-                            'exact_fee_supported': False,
-                            'exact_principal_supported': False,
+                            'fee_calculation_complete': False,
+                            'principal_calculation_complete': False,
                             'computation_blockers': ['missing_history'],
                             'value_warning_codes': [],
                         },
@@ -576,8 +576,8 @@ class ReadModelBridgeTest(
                             'pool_id': 6,
                             'status': 'active',
                             'metrics_status': 'exact',
-                            'exact_fee_supported': True,
-                            'exact_principal_supported': True,
+                            'fee_calculation_complete': True,
+                            'principal_calculation_complete': True,
                             'computation_blockers': [],
                             'value_warning_codes': [],
                         },
@@ -589,8 +589,8 @@ class ReadModelBridgeTest(
                             'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'partial',
-                            'exact_fee_supported': False,
-                            'exact_principal_supported': False,
+                            'fee_calculation_complete': False,
+                            'principal_calculation_complete': False,
                             'computation_blockers': ['missing_history'],
                             'value_warning_codes': [],
                             'fetch_stage': 'payload_only',
@@ -602,8 +602,8 @@ class ReadModelBridgeTest(
                             'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'exact',
-                            'exact_fee_supported': True,
-                            'exact_principal_supported': True,
+                            'fee_calculation_complete': True,
+                            'principal_calculation_complete': True,
                             'computation_blockers': [],
                             'value_warning_codes': [],
                             'fetch_stage': 'snapshot_fast_path',
@@ -653,8 +653,8 @@ class ReadModelBridgeTest(
                 'fetch_stage': 'payload_only',
                 'fetch_reason_code': 'snapshot_fast_path_miss_payload_only',
                 'metrics_status': 'partial',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': ['missing_history'],
                 'value_warning_codes': ['estimated_values'],
             }
@@ -669,8 +669,8 @@ class ReadModelBridgeTest(
                 'fetch_stage': 'payload_only',
                 'fetch_reason_code': 'snapshot_fast_path_miss_payload_only',
                 'metrics_status': 'partial',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': ['missing_history'],
                 'value_warning_codes': ['estimated_values'],
             },
@@ -694,8 +694,8 @@ class ReadModelBridgeTest(
                 'fetch_stage': 'replay_fallback',
                 'fetch_reason_code': 'snapshot_fast_path_miss_payload_requires_history',
                 'metrics_status': 'exact',
-                'exact_fee_supported': True,
-                'exact_principal_supported': True,
+                'fee_calculation_complete': True,
+                'principal_calculation_complete': True,
                 'snapshot_shadow': {
                     'comparable': False,
                     'position_basis_snapshot_present': False,
@@ -704,9 +704,9 @@ class ReadModelBridgeTest(
                     'readiness': 'snapshot_missing',
                     'readiness_reason_codes': ['missing_position_basis_snapshot'],
                     'exact_case': None,
-                    'live_position_status': 'active',
-                    'live_current_liquidity': '7',
-                    'live_metrics_status': 'exact',
+                    'projected_position_status': 'active',
+                    'projected_current_liquidity': '7',
+                    'projected_metrics_status': 'exact',
                     'computation_blockers': [],
                     'value_warning_codes': [],
                     'latest_position_transaction_id': 13,
@@ -728,8 +728,8 @@ class ReadModelBridgeTest(
                 'fetch_stage': 'replay_fallback',
                 'fetch_reason_code': 'snapshot_fast_path_miss_payload_requires_history',
                 'metrics_status': 'exact',
-                'exact_fee_supported': True,
-                'exact_principal_supported': True,
+                'fee_calculation_complete': True,
+                'principal_calculation_complete': True,
                 'comparable': False,
                 'position_basis_snapshot_present': False,
                 'pool_state_snapshot_present': True,
@@ -737,9 +737,9 @@ class ReadModelBridgeTest(
                 'readiness': 'snapshot_missing',
                 'readiness_reason_codes': ['missing_position_basis_snapshot'],
                 'exact_case': None,
-                'live_position_status': 'active',
-                'live_current_liquidity': '7',
-                'live_metrics_status': 'exact',
+                'projected_position_status': 'active',
+                'projected_current_liquidity': '7',
+                'projected_metrics_status': 'exact',
                 'computation_blockers': [],
                 'value_warning_codes': [],
                 'latest_position_transaction_id': 13,
@@ -871,15 +871,15 @@ class ReadModelBridgeTest(
             self.assertEqual(position['pool_application'], '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain')
             self.assertEqual(position['pool_id'], 1)
             return {
-                'position_liquidity_live': '5',
-                'total_supply_live': '10',
+                'position_liquidity': '5',
+                'current_total_supply': '10',
                 'exact_share_ratio': '0.5',
                 'redeemable_amount0': '50',
                 'redeemable_amount1': '60',
                 'virtual_initial_liquidity': True,
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': [],
                 'principal_amount0': None,
                 'principal_amount1': None,
@@ -903,11 +903,11 @@ class ReadModelBridgeTest(
         self.assertEqual(result.owner, '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertEqual(len(result.metrics), 1)
         self.assertTrue(result.metrics[0]['virtual_initial_liquidity'])
-        self.assertNotIn('owner_is_fee_to', result.metrics[0])
-        self.assertNotIn('owner_is_fee_to', result.public_payload()['metrics'][0])
+        self.assertNotIn('owner_receives_protocol_fees', result.metrics[0])
+        self.assertNotIn('owner_receives_protocol_fees', result.public_payload()['metrics'][0])
         self.assertNotIn('metrics_status', result.public_payload()['metrics'][0])
-        self.assertNotIn('exact_fee_supported', result.public_payload()['metrics'][0])
-        self.assertNotIn('exact_principal_supported', result.public_payload()['metrics'][0])
+        self.assertNotIn('fee_calculation_complete', result.public_payload()['metrics'][0])
+        self.assertNotIn('principal_calculation_complete', result.public_payload()['metrics'][0])
 
     def test_position_metrics_handler_records_snapshot_shadow_and_hides_internal_payload(self):
         class FakeReadModel:
@@ -921,8 +921,8 @@ class ReadModelBridgeTest(
                             'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'exact',
-                            'exact_fee_supported': True,
-                            'exact_principal_supported': True,
+                            'fee_calculation_complete': True,
+                            'principal_calculation_complete': True,
                             'computation_blockers': [],
                             'value_warning_codes': [],
                         },
@@ -934,8 +934,8 @@ class ReadModelBridgeTest(
                             'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                             'status': 'active',
                             'metrics_status': 'exact',
-                            'exact_fee_supported': True,
-                            'exact_principal_supported': True,
+                            'fee_calculation_complete': True,
+                            'principal_calculation_complete': True,
                             'computation_blockers': [],
                             'value_warning_codes': [],
                             'fetch_stage': 'snapshot_fast_path',
@@ -951,12 +951,12 @@ class ReadModelBridgeTest(
                             'fetch_stage': 'snapshot_fast_path',
                             'fetch_reason_code': 'snapshot_fast_path_hit',
                             'metrics_status': 'exact',
-                            'exact_fee_supported': False,
-                            'exact_principal_supported': True,
+                            'fee_calculation_complete': False,
+                            'principal_calculation_complete': True,
                             'snapshot_shadow': {
                                 'mismatch_codes': [],
                                 'readiness': 'financial_semantics_pending',
-                                'readiness_reason_codes': ['exact_fee_not_supported'],
+                                'readiness_reason_codes': ['fee_calculation_incomplete'],
                             },
                         }
                     ],
@@ -983,8 +983,8 @@ class ReadModelBridgeTest(
 
         self.assertEqual(payload['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
         self.assertNotIn('metrics_status', payload['metrics'][0])
-        self.assertNotIn('exact_fee_supported', payload['metrics'][0])
-        self.assertNotIn('exact_principal_supported', payload['metrics'][0])
+        self.assertNotIn('fee_calculation_complete', payload['metrics'][0])
+        self.assertNotIn('principal_calculation_complete', payload['metrics'][0])
         self.assertEqual(recorder.inexact_rows, [])
         self.assertEqual(len(recorder.shadow_rows), 1)
         self.assertEqual(recorder.shadow_rows[0]['pool_id'], 5)

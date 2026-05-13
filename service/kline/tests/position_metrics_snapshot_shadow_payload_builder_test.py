@@ -24,11 +24,11 @@ class PositionMetricsSnapshotShadowPayloadBuilderTest(unittest.TestCase):
                 'pool_id': 7,
                 'status': 'active',
             },
-            live_metrics={
+            projected_metrics={
                 'metrics_status': 'exact_no_swap_history',
             },
-            exact_fee_supported=True,
-            exact_principal_supported=False,
+            fee_calculation_complete=True,
+            principal_calculation_complete=False,
             snapshot_shadow={
                 'comparable': True,
             },
@@ -42,8 +42,8 @@ class PositionMetricsSnapshotShadowPayloadBuilderTest(unittest.TestCase):
                 'pool_id': 7,
                 'status': 'active',
                 'metrics_status': 'exact_no_swap_history',
-                'exact_fee_supported': True,
-                'exact_principal_supported': False,
+                'fee_calculation_complete': True,
+                'principal_calculation_complete': False,
                 'snapshot_shadow': {
                     'comparable': True,
                 },

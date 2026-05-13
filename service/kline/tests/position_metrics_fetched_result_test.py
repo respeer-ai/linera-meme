@@ -14,12 +14,12 @@ from query.read_models.position_metrics_fetched_result import PositionMetricsFet
 
 
 class PositionMetricsFetchedResultTest(unittest.TestCase):
-    def test_wraps_plain_live_metrics_payload(self):
+    def test_wraps_plain_projected_metrics_payload(self):
         result = PositionMetricsFetchedResult.from_fetcher_payload(
             {'metrics_status': 'partial'}
         )
 
-        self.assertEqual(result.live_metrics, {'metrics_status': 'partial'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'partial'})
         self.assertIsNone(result.fetch_stage)
         self.assertIsNone(result.fetch_reason_code)
         self.assertIsNone(result.snapshot_shadow)
@@ -27,14 +27,14 @@ class PositionMetricsFetchedResultTest(unittest.TestCase):
     def test_wraps_composite_fetcher_payload(self):
         result = PositionMetricsFetchedResult.from_fetcher_payload(
             {
-                'live_metrics': {'metrics_status': 'exact'},
+                'projected_metrics': {'metrics_status': 'exact'},
                 'fetch_stage': 'snapshot_fast_path',
                 'fetch_reason_code': 'snapshot_fast_path_hit',
                 'snapshot_shadow': {'snapshot_shadow': {'readiness': 'candidate'}},
             }
         )
 
-        self.assertEqual(result.live_metrics, {'metrics_status': 'exact'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'exact'})
         self.assertEqual(result.fetch_stage, 'snapshot_fast_path')
         self.assertEqual(result.fetch_reason_code, 'snapshot_fast_path_hit')
         self.assertEqual(

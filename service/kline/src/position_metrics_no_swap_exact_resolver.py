@@ -11,8 +11,8 @@ class PositionMetricsNoSwapExactResolver:
         blockers: list[str],
     ) -> dict:
         partial_metrics['metrics_status'] = 'exact_no_swap_history'
-        partial_metrics['exact_fee_supported'] = True
-        partial_metrics['exact_principal_supported'] = True
+        partial_metrics['fee_calculation_complete'] = True
+        partial_metrics['principal_calculation_complete'] = True
         partial_metrics['principal_amount0'] = self.serialize_decimal(redeemable_amount0)
         partial_metrics['principal_amount1'] = self.serialize_decimal(redeemable_amount1)
         partial_metrics['fee_amount0'] = '0'

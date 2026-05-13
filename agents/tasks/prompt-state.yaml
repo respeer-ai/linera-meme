@@ -23,58 +23,28 @@ defaults:
     - active_semantic_dependency
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
-active_focus:
+active_focus: []
+on_demand_done:
   - id: OBS-E2E-001
-    why: 端到端 observability 集成测试
-    summary: >
-      This is now the umbrella verification track: local observability E2E,
-      maker-behavior validation against Layer 3 outputs, and remaining frontend
-      financial-semantic reconciliation. The recent architecture review follow-ups
-      for projection-cursor transactions pagination, event-id realtime payload
-      reads, restart-safe candle finality, and position-metrics public field
-      cleanup are done.
-    read_if_working_on:
-      - E2E verification
-      - integration testing
-      - frontend semantics audit
-      - maker impact on kline quality
+    why: shell-level observability E2E entrypoint and projection-fact reconciliation completion history
+    canonical_refs:
+      - agents/tasks/board.yaml
+  - id: POS-045
+    why: observability end-to-end architecture review and remaining code-structure cleanup boundaries
     canonical_refs:
       - agents/tasks/board.yaml
   - id: POS-030
-    why: maker wallet 执行断点诊断
-    summary: >
-      Production diagnosis remains active. Current focus is reject or runtime failure at
-      creator-chain execution, not kline sync.
-    read_if_working_on:
-      - maker diagnostics
-      - production stall analysis
+    why: maker wallet diagnostics implementation and limits of Reject-to-panic attribution
     canonical_refs:
       - agents/tasks/board.yaml
   - id: POS-047
-    why: maker 做市商算法重构主任务
-    summary: >
-      Current maker behavior is intentionally noisy because it is still a random
-      trade generator with pending-net flush semantics. Active work should route
-      through the canonical AMM-market-maker refactor task and its child tasks.
-    read_if_working_on:
-      - maker algorithm redesign
-      - AMM market maker refactor
-      - 1min kline quality caused by maker behavior
+    why: maker AMM market-maker implementation history
     canonical_refs:
       - agents/tasks/board.yaml
   - id: POS-052
-    why: 前端资金与收益类指标仍需精确核对
-    summary: >
-      Frontend primary paths are mostly working, but positions, TVL, APR, and
-      related financial semantics still need source-of-truth reconciliation.
-    read_if_working_on:
-      - positions semantics
-      - TVL reconciliation
-      - APR calculation audit
-      - frontend finance metrics
+    why: automated projection-fact financial reconciliation scope
     canonical_refs:
       - agents/tasks/board.yaml
-on_demand_done:
   - id: POS-053
     why: realtime push architecture and legacy Ticker deletion implementation history
     canonical_refs:

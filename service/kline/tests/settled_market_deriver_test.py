@@ -138,6 +138,39 @@ class SettledMarketDeriverTest(unittest.TestCase):
         self.assertFalse(change['is_position_liquidity'])
         self.assertEqual(change['liquidity_semantics'], 'virtual_initial_liquidity')
 
+    def test_blocks_liquidity_change_when_owner_identity_is_invalid(self):
+        deriver = SettledMarketDeriver()
+
+        derived = deriver.derive_item(
+            {
+                'normalized_event_id': 'event-invalid-owner',
+                'raw_fact_id': '12',
+                'application_id': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                'event_family': 'pool_new_transaction_recorded',
+                'normalization_status': 'observed',
+                'target_chain_id': 'pool-chain',
+                'target_block_hash': 'block-2',
+                'transaction_index': 8,
+                'event_payload_json': {
+                    'decoded_payload_json': {
+                        'transaction': {
+                            'transaction_id': 20,
+                            'transaction_type': 'AddLiquidity',
+                            'from': {'chain_id': 'user-chain', 'owner': 'invalid-owner'},
+                            'amount_0_in': '1000',
+                            'amount_1_in': '55',
+                            'liquidity': '888',
+                            'created_at_micros': 555000,
+                        }
+                    }
+                },
+            }
+        )
+
+        self.assertEqual(derived['derivation_status'], 'blocked_missing_context')
+        self.assertEqual(derived['settled_outputs'], [])
+        self.assertEqual(derived['error_text'], 'liquidity transaction has invalid owner account')
+
     def test_derives_remove_liquidity_change_from_new_transaction_message(self):
         deriver = SettledMarketDeriver()
 

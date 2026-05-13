@@ -59,16 +59,16 @@ class PositionMetricsSwapHistoryExactnessValidatorTest(unittest.TestCase):
 
         context, blockers = validator.validate(
             {
-                'position_liquidity_live': '1',
-                'total_supply_live': '2',
+                'position_liquidity': '1',
+                'current_total_supply': '2',
                 'redeemable_amount0': None,
                 'redeemable_amount1': '1',
                 'virtual_initial_liquidity': False,
             },
             liquidity_history=[{'transaction_type': 'AddLiquidity'}],
             pool_transaction_history=[],
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
         )
 
         self.assertIsNone(context)
-        self.assertEqual(blockers, ['missing_live_redeemable_amounts'])
+        self.assertEqual(blockers, ['missing_projected_redeemable_amounts'])

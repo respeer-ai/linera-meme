@@ -133,10 +133,6 @@ class QueryStackTestSupport:
         swap_stub.Pool = getattr(swap_stub, 'Pool', object)
         sys.modules['swap'] = swap_stub
 
-        subscription_stub = types.ModuleType('subscription')
-        subscription_stub.WebSocketManager = object
-        sys.modules['subscription'] = subscription_stub
-
         async_request_stub = types.ModuleType('async_request')
         async_request_stub.post = cls.dummy_post
         sys.modules['async_request'] = async_request_stub

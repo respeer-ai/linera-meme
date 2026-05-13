@@ -10,10 +10,10 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 
-from position_metrics_live_payload_fetcher import PositionMetricsLivePayloadFetcher  # noqa: E402
+from position_metrics_pool_application_payload_fetcher import PositionMetricsPoolApplicationPayloadFetcher  # noqa: E402
 
 
-class PositionMetricsLivePayloadFetcherTest(unittest.IsolatedAsyncioTestCase):
+class PositionMetricsPoolApplicationPayloadFetcherTest(unittest.IsolatedAsyncioTestCase):
     async def test_fetch_uses_supplied_client_and_parsed_owner(self):
         class FakeClient:
             async def get_position_metrics_payload(self, *, owner):
@@ -21,7 +21,7 @@ class PositionMetricsLivePayloadFetcherTest(unittest.IsolatedAsyncioTestCase):
                 return {'payload': True}
 
         client = FakeClient()
-        fetcher = PositionMetricsLivePayloadFetcher(
+        fetcher = PositionMetricsPoolApplicationPayloadFetcher(
             parse_account=lambda account: {'chain_id': 'chain-a', 'owner': account.split(':', 1)[1]},
         )
 

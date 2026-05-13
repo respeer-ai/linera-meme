@@ -81,16 +81,25 @@ class PoolNewTransactionExecutionFact:
             return None
         return self.account_codec.format_account(chain_id=owner_chain_id, owner=owner)
 
-    def position_owner(self) -> str:
+    def position_owner(self) -> str | None:
         explicit = self.transaction.get('owner')
         if isinstance(explicit, str) and '@' in explicit:
-            return explicit
-        owner_chain_id = self.owner_chain_id() or 'unknown_chain'
-        owner = self.owner() or 'unknown_owner'
+            try:
+                parsed = self.account_codec.parse_account(explicit)
+                return self.account_codec.format_account(
+                    chain_id=parsed['chain_id'],
+                    owner=parsed['owner'],
+                )
+            except ValueError:
+                return None
+        owner_chain_id = self.owner_chain_id()
+        owner = self.owner()
+        if owner_chain_id is None or owner is None:
+            return None
         try:
             return self.account_codec.format_account(chain_id=owner_chain_id, owner=owner)
         except ValueError:
-            return f'{owner}@{owner_chain_id}'
+            return None
 
     def amount_0_in(self):
         return self.transaction.get('amount_0_in')

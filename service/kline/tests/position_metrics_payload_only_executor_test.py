@@ -22,7 +22,7 @@ class PositionMetricsPayloadOnlyExecutorTest(unittest.TestCase):
         executor = PositionMetricsPayloadOnlyExecutor()
         plan = PositionMetricsFetchPlan.payload_only(
             PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_live_redeemable_only'},
+                metrics={'metrics_status': 'partial_projected_redeemable_only'},
                 decision=PositionMetricsPayloadDecision.PAYLOAD_ONLY,
                 reason_code='payload_history_unavailable',
             )
@@ -30,7 +30,7 @@ class PositionMetricsPayloadOnlyExecutorTest(unittest.TestCase):
 
         result = executor.execute(plan=plan)
         self.assertIsInstance(result, PositionMetricsFetchedResult)
-        self.assertEqual(result.live_metrics, {'metrics_status': 'partial_live_redeemable_only'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'partial_projected_redeemable_only'})
         self.assertEqual(result.fetch_stage, 'payload_only')
         self.assertEqual(result.fetch_reason_code, 'snapshot_fast_path_miss_payload_only')
 

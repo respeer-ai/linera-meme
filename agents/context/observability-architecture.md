@@ -103,6 +103,10 @@ flowchart LR
   - explicit debug or operations endpoints
   - chain-health diagnostics
   - temporary bootstrap paths that are clearly marked as non-truth and scheduled for removal
+- Live swap/proxy catalog discovery may be used only as a bootstrap aid for application registry and chain-listener expansion
+  - discovered registry entries decide which chains to ingest
+  - discovered registry entries must not decide transactions, candles, positions, fees, TVL, APR, volume, ranking, ownership, or pool state
+  - parsed chain events must replace bootstrap discovery as the durable source for dynamically created applications
 - `ticker` is a projection consumer only
   - it may read persisted pool transaction history and candles
   - it must not perform chain-history repair, recent-window backfill, or pool-application transaction queries

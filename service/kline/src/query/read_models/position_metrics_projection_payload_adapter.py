@@ -26,37 +26,37 @@ class PositionMetricsProjectionPayloadAdapter:
         if pool_state_snapshot.raw() is None:
             raise RuntimeError('position_metrics_pool_state_snapshot_unavailable')
 
-        live_liquidity = self._decimal_or_none(position_basis_snapshot.current_liquidity())
-        if live_liquidity is None:
-            live_liquidity = self._decimal_or_none(position.get('current_liquidity'))
-        if live_liquidity is None:
+        current_liquidity = self._decimal_or_none(position_basis_snapshot.current_liquidity())
+        if current_liquidity is None:
+            current_liquidity = self._decimal_or_none(position.get('current_liquidity'))
+        if current_liquidity is None:
             raise RuntimeError('position_metrics_position_liquidity_unavailable')
-        live_total_supply = self._decimal_or_none(
-            pool_state_snapshot.live_total_supply()
+        current_total_supply = self._decimal_or_none(
+            pool_state_snapshot.current_total_supply()
         ) or self._decimal_or_none(
             pool_state_snapshot.fee_free_total_supply()
         )
-        live_reserve_0 = self._decimal_or_none(
-            pool_state_snapshot.live_reserve_0()
+        current_reserve_0 = self._decimal_or_none(
+            pool_state_snapshot.current_reserve_0()
         ) or self._decimal_or_none(
             pool_state_snapshot.fee_free_reserve_0()
         )
-        live_reserve_1 = self._decimal_or_none(
-            pool_state_snapshot.live_reserve_1()
+        current_reserve_1 = self._decimal_or_none(
+            pool_state_snapshot.current_reserve_1()
         ) or self._decimal_or_none(
             pool_state_snapshot.fee_free_reserve_1()
         )
         if (
-            live_liquidity is None
-            or live_total_supply is None
-            or live_total_supply <= Decimal('0')
-            or live_reserve_0 is None
-            or live_reserve_1 is None
+            current_liquidity is None
+            or current_total_supply is None
+            or current_total_supply <= Decimal('0')
+            or current_reserve_0 is None
+            or current_reserve_1 is None
         ):
             raise RuntimeError('position_metrics_projection_payload_incomplete')
 
-        redeemable_amount0 = self._serialize_decimal(live_liquidity * live_reserve_0 / live_total_supply)
-        redeemable_amount1 = self._serialize_decimal(live_liquidity * live_reserve_1 / live_total_supply)
+        redeemable_amount0 = self._serialize_decimal(current_liquidity * current_reserve_0 / current_total_supply)
+        redeemable_amount1 = self._serialize_decimal(current_liquidity * current_reserve_1 / current_total_supply)
         fee_to_account = position_basis_snapshot.semantic_facts().fee_to_account_latest_known()
 
         return {
@@ -64,10 +64,10 @@ class PositionMetricsProjectionPayloadAdapter:
                 'pool': {
                     'fee_to': self._account_payload(fee_to_account),
                 },
-                'totalSupply': self._serialize_decimal(live_total_supply),
+                'totalSupply': self._serialize_decimal(current_total_supply),
                 'virtualInitialLiquidity': pool_state_snapshot.virtual_initial_liquidity(),
                 'liquidity': {
-                    'liquidity': self._serialize_decimal(live_liquidity),
+                    'liquidity': self._serialize_decimal(current_liquidity),
                     'amount0': redeemable_amount0,
                     'amount1': redeemable_amount1,
                 },

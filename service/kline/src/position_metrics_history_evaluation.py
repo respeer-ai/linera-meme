@@ -6,7 +6,7 @@ class PositionMetricsHistoryEvaluation:
         blockers: list[str],
         liquidity_history: list[dict],
         pool_transaction_history: list[dict] | None,
-        live_liquidity,
+        current_liquidity,
         history_liquidity,
         redeemable_amount0,
         redeemable_amount1,
@@ -18,7 +18,7 @@ class PositionMetricsHistoryEvaluation:
         self.blockers = list(blockers)
         self.liquidity_history = liquidity_history
         self.pool_transaction_history = pool_transaction_history
-        self.live_liquidity = live_liquidity
+        self.current_liquidity = current_liquidity
         self.history_liquidity = history_liquidity
         self.redeemable_amount0 = redeemable_amount0
         self.redeemable_amount1 = redeemable_amount1
@@ -32,7 +32,7 @@ class PositionMetricsHistoryEvaluation:
             'blockers': list(self.blockers),
             'liquidity_history': self.liquidity_history,
             'pool_transaction_history': self.pool_transaction_history,
-            'live_liquidity': self.live_liquidity,
+            'current_liquidity': self.current_liquidity,
             'history_liquidity': self.history_liquidity,
             'redeemable_amount0': self.redeemable_amount0,
             'redeemable_amount1': self.redeemable_amount1,

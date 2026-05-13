@@ -48,7 +48,7 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
         class FakeFastPath:
             def resolve(self, **kwargs):
                 self.kwargs = dict(kwargs)
-                return {'live_metrics': {'metrics_status': 'exact'}}
+                return {'projected_metrics': {'metrics_status': 'exact'}}
 
         coordinator = PositionMetricsFetchCoordinator(
             payload_builder=lambda **_kwargs: {'data': {}},
@@ -75,7 +75,7 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
         ))
 
         self.assertIsInstance(payload, PositionMetricsFetchedResult)
-        self.assertEqual(payload.live_metrics, {'metrics_status': 'exact'})
+        self.assertEqual(payload.projected_metrics, {'metrics_status': 'exact'})
         self.assertEqual(payload.fetch_stage, 'snapshot_fast_path')
         self.assertEqual(
             payload.fetch_reason_code,
@@ -98,7 +98,7 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
             query_input_provider=FakeLoader(),
             fast_path_plan_builder=PositionMetricsFastPathPlanBuilder(),
             plan_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_live_redeemable_only'},
+                metrics={'metrics_status': 'partial_projected_redeemable_only'},
                 decision=PositionMetricsPayloadDecision.PAYLOAD_ONLY,
                 reason_code='payload_history_unavailable',
             ),
@@ -118,14 +118,14 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
         ))
 
         self.assertIsInstance(result, PositionMetricsFetchedResult)
-        self.assertEqual(result.live_metrics, {'metrics_status': 'partial_live_redeemable_only'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'partial_projected_redeemable_only'})
         self.assertEqual(result.fetch_stage, 'payload_only')
         self.assertEqual(
             result.fetch_reason_code,
             PositionMetricsFetchReasonCode.SNAPSHOT_FAST_PATH_MISS_PAYLOAD_ONLY,
         )
 
-    def test_fetch_builds_live_metrics_and_shadow_from_replay_inputs(self):
+    def test_fetch_builds_projected_metrics_and_shadow_from_replay_inputs(self):
         class FakeLoader:
             def load_snapshot_inputs(self, **_kwargs):
                 return PositionMetricsSnapshotInputs({
@@ -173,7 +173,7 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
             query_input_provider=FakeLoader(),
             fast_path_plan_builder=PositionMetricsFastPathPlanBuilder(),
             plan_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_live_redeemable_only'},
+                metrics={'metrics_status': 'partial_projected_redeemable_only'},
                 decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
                 reason_code='payload_requires_history',
             ),
@@ -195,7 +195,7 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
         ))
 
         self.assertIsInstance(result, PositionMetricsFetchedResult)
-        self.assertEqual(result.live_metrics, {'metrics_status': 'ok'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'ok'})
         self.assertEqual(result.fetch_stage, 'replay_fallback')
         self.assertEqual(
             result.fetch_reason_code,

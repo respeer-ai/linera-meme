@@ -66,14 +66,14 @@ class PositionMetricsSnapshotFastPath:
         liquidity_value = self._to_decimal(liquidity.get('liquidity'))
         total_supply_value = self._to_decimal(data.get('totalSupply'))
         tracked_liquidity_value = self._tracked_liquidity_value(position_basis_snapshot)
-        owner_is_fee_to = self._account_payload_to_string((data.get('pool') or {}).get('fee_to')) == position['owner']
+        owner_receives_protocol_fees = self._account_payload_to_string((data.get('pool') or {}).get('fee_to')) == position['owner']
         pool_has_fee_to = (data.get('pool') or {}).get('fee_to') is not None
         redeemable_amount0 = self._serialize_decimal(self._to_decimal(liquidity.get('amount0')))
         redeemable_amount1 = self._serialize_decimal(self._to_decimal(liquidity.get('amount1')))
         materialized_protocol_fee_split_case = self._materialized_protocol_fee_split_case(
             position_basis_snapshot=position_basis_snapshot,
-            owner_is_fee_to=owner_is_fee_to,
-            live_liquidity=liquidity_value,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
+            current_liquidity=liquidity_value,
             tracked_liquidity=tracked_liquidity_value,
         )
         principal_amount0, principal_amount1, fee_amount0, fee_amount1, protocol_fee_amount0, protocol_fee_amount1 = self._principal_and_fee(
@@ -84,7 +84,7 @@ class PositionMetricsSnapshotFastPath:
             redeemable_amount1=self._to_decimal(liquidity.get('amount1')),
             position_basis_snapshot=position_basis_snapshot,
             pool_state_snapshot=pool_state_snapshot,
-            owner_is_fee_to=owner_is_fee_to,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
             pool_has_fee_to=pool_has_fee_to,
         )
         if (
@@ -98,7 +98,7 @@ class PositionMetricsSnapshotFastPath:
             return None
         exact_case = self.exact_case_resolver.resolve(
             position_basis_snapshot=position_basis_snapshot,
-            owner_is_fee_to=owner_is_fee_to,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
             last_transaction_id=self._int_or_none(pool_state_snapshot.last_transaction_id()),
             basis_transaction_id=self._int_or_none(position_basis_snapshot.basis_transaction_id()),
             fee_free_basis_transaction_id=self._int_or_none(pool_state_snapshot.fee_free_basis_transaction_id()),
@@ -112,17 +112,17 @@ class PositionMetricsSnapshotFastPath:
             and total_supply_value > Decimal('0')
         ):
             share_ratio = self._serialize_decimal(liquidity_value / total_supply_value)
-        live_metrics = {
-            'position_liquidity_live': self._serialize_decimal(liquidity_value),
-            'total_supply_live': self._serialize_decimal(total_supply_value),
+        projected_metrics = {
+            'position_liquidity': self._serialize_decimal(liquidity_value),
+            'current_total_supply': self._serialize_decimal(total_supply_value),
             'exact_share_ratio': share_ratio,
             'redeemable_amount0': redeemable_amount0,
             'redeemable_amount1': redeemable_amount1,
             'virtual_initial_liquidity': bool(data.get('virtualInitialLiquidity')),
             'metrics_status': 'exact_no_swap_history',
-            'exact_fee_supported': True,
-            'exact_principal_supported': True,
-            'owner_is_fee_to': owner_is_fee_to,
+            'fee_calculation_complete': True,
+            'principal_calculation_complete': True,
+            'owner_receives_protocol_fees': owner_receives_protocol_fees,
             'computation_blockers': [],
             'principal_amount0': self._serialize_decimal(principal_amount0),
             'principal_amount1': self._serialize_decimal(principal_amount1),
@@ -135,7 +135,7 @@ class PositionMetricsSnapshotFastPath:
         }
         return self.result_builder.build(
             position=position,
-            live_metrics=live_metrics,
+            projected_metrics=projected_metrics,
             exact_case=exact_case,
             position_basis_snapshot=position_basis_snapshot,
             pool_state_snapshot=pool_state_snapshot,
@@ -151,7 +151,7 @@ class PositionMetricsSnapshotFastPath:
         redeemable_amount1: Decimal | None,
         position_basis_snapshot,
         pool_state_snapshot,
-        owner_is_fee_to: bool,
+        owner_receives_protocol_fees: bool,
         pool_has_fee_to: bool,
     ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
         if (
@@ -164,9 +164,9 @@ class PositionMetricsSnapshotFastPath:
         ):
             return None, None, None, None, None, None
         protocol_fee_amount0, protocol_fee_amount1, liquidity_basis = self._protocol_fee_split(
-            owner_is_fee_to=owner_is_fee_to,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
             position_basis_snapshot=position_basis_snapshot,
-            live_liquidity=liquidity_value,
+            current_liquidity=liquidity_value,
             tracked_liquidity=tracked_liquidity_value,
             redeemable_amount0=redeemable_amount0,
             redeemable_amount1=redeemable_amount1,
@@ -178,8 +178,8 @@ class PositionMetricsSnapshotFastPath:
         if self._materialized_current_principal_allowed(
             position_basis_snapshot=position_basis_snapshot,
             pool_has_fee_to=pool_has_fee_to,
-            owner_is_fee_to=owner_is_fee_to,
-            live_liquidity=liquidity_value,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
+            current_liquidity=liquidity_value,
             tracked_liquidity=tracked_liquidity_value,
         ):
             materialized_principal_amount0 = self._materialized_principal_amount_current(
@@ -239,9 +239,9 @@ class PositionMetricsSnapshotFastPath:
         payload: dict,
         position_basis_snapshot,
         tracked_liquidity: Decimal,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
     ) -> bool:
-        if live_liquidity is None or live_liquidity <= tracked_liquidity:
+        if current_liquidity is None or current_liquidity <= tracked_liquidity:
             return False
         if self._account_payload_to_string(((payload.get('data') or {}).get('pool') or {}).get('fee_to')) != position['owner']:
             return False
@@ -257,34 +257,34 @@ class PositionMetricsSnapshotFastPath:
     def _protocol_fee_split(
         self,
         *,
-        owner_is_fee_to: bool,
+        owner_receives_protocol_fees: bool,
         position_basis_snapshot,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         tracked_liquidity: Decimal,
         redeemable_amount0: Decimal,
         redeemable_amount1: Decimal,
     ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
-        if live_liquidity <= tracked_liquidity:
+        if current_liquidity <= tracked_liquidity:
             return Decimal('0'), Decimal('0'), tracked_liquidity
         if self._safe_current_owner_protocol_fee_component_proven(
             position_basis_snapshot=position_basis_snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             facts = self._semantic_facts(position_basis_snapshot)
             protocol_fee_liquidity = self._to_decimal(facts.protocol_fee_liquidity_owned_by_current_owner_current())
             if protocol_fee_liquidity is None:
                 return None, None, None
-            protocol_fee_ratio = protocol_fee_liquidity / live_liquidity
+            protocol_fee_ratio = protocol_fee_liquidity / current_liquidity
             protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
             protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
             return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
-        if not owner_is_fee_to:
+        if not owner_receives_protocol_fees:
             return None, None, None
         materialized_protocol_fee_split_case = self._materialized_protocol_fee_split_case(
             position_basis_snapshot=position_basis_snapshot,
-            owner_is_fee_to=owner_is_fee_to,
-            live_liquidity=live_liquidity,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         )
         if (
@@ -298,12 +298,12 @@ class PositionMetricsSnapshotFastPath:
         ):
             protocol_fee_liquidity = self._protocol_fee_liquidity_current(
                 position_basis_snapshot=position_basis_snapshot,
-                live_liquidity=live_liquidity,
+                current_liquidity=current_liquidity,
                 tracked_liquidity=tracked_liquidity,
             )
             if protocol_fee_liquidity is None:
                 return None, None, None
-            protocol_fee_ratio = protocol_fee_liquidity / live_liquidity
+            protocol_fee_ratio = protocol_fee_liquidity / current_liquidity
             protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
             protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
             return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
@@ -312,7 +312,7 @@ class PositionMetricsSnapshotFastPath:
             return None, None, None
         if self._prior_liquidity_before_basis(position_basis_snapshot) != Decimal('0'):
             return None, None, None
-        protocol_fee_ratio = (live_liquidity - tracked_liquidity) / live_liquidity
+        protocol_fee_ratio = (current_liquidity - tracked_liquidity) / current_liquidity
         protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
         protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
         return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
@@ -380,14 +380,14 @@ class PositionMetricsSnapshotFastPath:
         self,
         *,
         position_basis_snapshot: dict,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         tracked_liquidity: Decimal,
     ) -> Decimal | None:
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         materialized_protocol_fee_split_case = self._materialized_protocol_fee_split_case(
             position_basis_snapshot=position_basis_snapshot,
-            owner_is_fee_to=True,
-            live_liquidity=live_liquidity,
+            owner_receives_protocol_fees=True,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         )
         if materialized_protocol_fee_split_case == 'fee_to_continuous_nonzero_prior_add_basis':
@@ -399,16 +399,16 @@ class PositionMetricsSnapshotFastPath:
             'current_owner_protocol_fee_component_proven',
         }:
             return self._to_decimal(position_basis_snapshot.protocol_fee_liquidity_owned_by_current_owner_current())
-        return live_liquidity - tracked_liquidity
+        return current_liquidity - tracked_liquidity
 
     def _safe_all_protocol_fee_mints_owned_by_current_owner(
         self,
         *,
         position_basis_snapshot: dict,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
         tracked_liquidity: Decimal | None,
     ) -> bool:
-        if live_liquidity is None or tracked_liquidity is None:
+        if current_liquidity is None or tracked_liquidity is None:
             return False
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         if self._materialized_current_owner_protocol_fee_provenance_case(position_basis_snapshot) != (
@@ -424,31 +424,31 @@ class PositionMetricsSnapshotFastPath:
             return False
         if owner_unknown not in (None, Decimal('0')):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + owned_by_current_owner)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + owned_by_current_owner)
 
     def _safe_current_owner_protocol_fee_component_proven(
         self,
         *,
         position_basis_snapshot: dict,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
         tracked_liquidity: Decimal | None,
     ) -> bool:
-        if live_liquidity is None or tracked_liquidity is None:
+        if current_liquidity is None or tracked_liquidity is None:
             return False
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         owned_by_current_owner = self._to_decimal(position_basis_snapshot.protocol_fee_liquidity_owned_by_current_owner_current())
         if owned_by_current_owner is None or owned_by_current_owner <= Decimal('0'):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + owned_by_current_owner)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + owned_by_current_owner)
 
     def _safe_fee_to_basis_only_nonzero_prior_add_basis(
         self,
         *,
         position_basis_snapshot: dict,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
         tracked_liquidity: Decimal | None,
     ) -> bool:
-        if live_liquidity is None or tracked_liquidity is None:
+        if current_liquidity is None or tracked_liquidity is None:
             return False
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         if position_basis_snapshot.fee_to_continuity_known_before_basis() is not True:
@@ -463,16 +463,16 @@ class PositionMetricsSnapshotFastPath:
         protocol_fee_liquidity = self._to_decimal(position_basis_snapshot.basis_protocol_fee_liquidity_minted())
         if protocol_fee_liquidity is None or protocol_fee_liquidity <= Decimal('0'):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + protocol_fee_liquidity)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + protocol_fee_liquidity)
 
     def _safe_fee_to_continuous_nonzero_prior_add_basis(
         self,
         *,
         position_basis_snapshot: dict,
-        live_liquidity: Decimal | None,
+        current_liquidity: Decimal | None,
         tracked_liquidity: Decimal | None,
     ) -> bool:
-        if live_liquidity is None or tracked_liquidity is None:
+        if current_liquidity is None or tracked_liquidity is None:
             return False
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         if position_basis_snapshot.fee_to_continuity_case() != 'continuous_no_changes_after_basis':
@@ -487,15 +487,15 @@ class PositionMetricsSnapshotFastPath:
         protocol_fee_liquidity = self._to_decimal(position_basis_snapshot.fee_to_continuous_protocol_fee_liquidity_current())
         if protocol_fee_liquidity is None or protocol_fee_liquidity <= Decimal('0'):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + protocol_fee_liquidity)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + protocol_fee_liquidity)
 
     def _materialized_current_principal_allowed(
         self,
         *,
         position_basis_snapshot,
         pool_has_fee_to: bool,
-        owner_is_fee_to: bool,
-        live_liquidity: Decimal | None,
+        owner_receives_protocol_fees: bool,
+        current_liquidity: Decimal | None,
         tracked_liquidity: Decimal | None,
     ) -> bool:
         exact_case = self._materialized_exact_current_principal_case(position_basis_snapshot)
@@ -503,12 +503,12 @@ class PositionMetricsSnapshotFastPath:
             return False
         if not pool_has_fee_to:
             return True
-        if not owner_is_fee_to:
+        if not owner_receives_protocol_fees:
             return True
         if (
-            live_liquidity is not None
+            current_liquidity is not None
             and tracked_liquidity is not None
-            and live_liquidity <= tracked_liquidity
+            and current_liquidity <= tracked_liquidity
         ):
             return True
         if self._materialized_post_basis_remove_count(position_basis_snapshot) == 0:
@@ -516,12 +516,12 @@ class PositionMetricsSnapshotFastPath:
                 self._prior_liquidity_before_basis(position_basis_snapshot) == Decimal('0')
                 or self._safe_fee_to_basis_only_nonzero_prior_add_basis(
                     position_basis_snapshot=position_basis_snapshot,
-                    live_liquidity=live_liquidity,
+                    current_liquidity=current_liquidity,
                     tracked_liquidity=tracked_liquidity,
                 )
                 or self._safe_fee_to_continuous_nonzero_prior_add_basis(
                     position_basis_snapshot=position_basis_snapshot,
-                    live_liquidity=live_liquidity,
+                    current_liquidity=current_liquidity,
                     tracked_liquidity=tracked_liquidity,
                 )
             )
@@ -537,25 +537,25 @@ class PositionMetricsSnapshotFastPath:
         self,
         *,
         position_basis_snapshot,
-        owner_is_fee_to: bool,
-        live_liquidity: Decimal | None,
+        owner_receives_protocol_fees: bool,
+        current_liquidity: Decimal | None,
         tracked_liquidity: Decimal | None,
     ) -> str | None:
-        if live_liquidity is None or tracked_liquidity is None or live_liquidity <= tracked_liquidity:
+        if current_liquidity is None or tracked_liquidity is None or current_liquidity <= tracked_liquidity:
             return None
         if self._safe_all_protocol_fee_mints_owned_by_current_owner(
             position_basis_snapshot=position_basis_snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'all_protocol_fee_mints_owned_by_current_owner'
         if self._safe_current_owner_protocol_fee_component_proven(
             position_basis_snapshot=position_basis_snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'current_owner_protocol_fee_component_proven'
-        if not owner_is_fee_to:
+        if not owner_receives_protocol_fees:
             return 'owner_not_fee_to'
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         basis_type = str(position_basis_snapshot.basis_type() or '')
@@ -566,13 +566,13 @@ class PositionMetricsSnapshotFastPath:
             return 'fee_to_opening_add_from_zero'
         if self._safe_fee_to_basis_only_nonzero_prior_add_basis(
             position_basis_snapshot=position_basis_snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'fee_to_basis_only_nonzero_prior_add_basis'
         if self._safe_fee_to_continuous_nonzero_prior_add_basis(
             position_basis_snapshot=position_basis_snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'fee_to_continuous_nonzero_prior_add_basis'

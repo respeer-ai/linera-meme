@@ -98,6 +98,31 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
             0,
         )
 
+    def test_materialize_events_rejects_legacy_colon_pool_application_accounts(self):
+        class FakeConnection:
+            def cursor(self, dictionary=False):
+                raise AssertionError('cursor should not be used for invalid account payloads')
+
+        repo = PoolCatalogProjectionRepository(FakeConnection())
+
+        self.assertEqual(
+            repo.materialize_events([
+                {
+                    'normalized_event_id': 'event-legacy-account',
+                    'event_family': 'swap_pool_created_recorded',
+                    'normalization_status': 'observed',
+                    'event_payload_json': {
+                        'decoded_payload_json': {
+                            'pool_application': 'chain-a:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                            'token_0': 'AAA',
+                            'token_1': 'TLINERA',
+                        },
+                    },
+                },
+            ]),
+            0,
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

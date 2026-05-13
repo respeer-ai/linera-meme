@@ -47,7 +47,7 @@ class PositionMetricsLiquidityHistoryAnalyzerTest(unittest.TestCase):
             {
                 'redeemable_amount0': '40',
                 'redeemable_amount1': '80',
-                'total_supply_live': '10',
+                'current_total_supply': '10',
             },
             liquidity_history=[
                 {
@@ -67,11 +67,11 @@ class PositionMetricsLiquidityHistoryAnalyzerTest(unittest.TestCase):
                     'transaction_id': 1,
                 },
             ],
-            live_liquidity=Decimal('2'),
+            current_liquidity=Decimal('2'),
             history_liquidity=Decimal('2'),
         )
 
-        self.assertEqual(metrics['metrics_status'], 'estimated_live_redeemable_with_history')
+        self.assertEqual(metrics['metrics_status'], 'estimated_projected_redeemable_with_history')
         self.assertEqual(metrics['principal_amount0'], '39.994')
         self.assertEqual(metrics['principal_amount1'], '80')
         self.assertEqual(metrics['fee_amount0'], '0.006')

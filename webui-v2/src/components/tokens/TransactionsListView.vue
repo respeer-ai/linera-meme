@@ -193,8 +193,8 @@ const activeRequestId = ref(0)
 const mounted = ref(false)
 
 const transactions = ref([] as transaction.TransactionExt[])
-const latestTransactions = computed(() =>
-  kline.Kline.latestTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value),
+const pushedTransactions = computed(() =>
+  kline.Kline.pushedTransactions(selectedToken0.value, selectedToken1.value, tokenReversed.value),
 )
 
 const getTransactions = (startAt: number, endAt: number) => {
@@ -275,9 +275,9 @@ interface Reason {
   payload: ReasonPayload
 }
 
-watch(latestTransactions, () => {
+watch(pushedTransactions, () => {
   if (!mounted.value) return
-  if (!latestTransactions.value.length) return
+  if (!pushedTransactions.value.length) return
   if (pagination.value.page !== 1) return
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_TRANSACTIONS, {
@@ -286,7 +286,7 @@ watch(latestTransactions, () => {
     originTransactions: transactions.value.map((el) => {
       return { ...el }
     }),
-    newTransactions: latestTransactions.value.map((el) => {
+    newTransactions: pushedTransactions.value.map((el) => {
       return { ...el }
     }),
     tokenReversed: tokenReversed.value,

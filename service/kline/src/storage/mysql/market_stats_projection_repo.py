@@ -165,8 +165,8 @@ class MarketStatsProjectionRepository:
         tvl_now = Decimal('0')
         tvl_prev = Decimal('0')
         for pool in pools:
-            reserve_0 = Decimal(str(pool.get('live_reserve_0') or '0'))
-            reserve_1 = Decimal(str(pool.get('live_reserve_1') or '0'))
+            reserve_0 = Decimal(str(pool.get('current_reserve_0') or '0'))
+            reserve_1 = Decimal(str(pool.get('current_reserve_1') or '0'))
             token_0 = str(pool.get('token_0'))
             token_1 = str(pool.get('token_1'))
             price_0_now = latest_native_prices.get(token_0, Decimal('0'))

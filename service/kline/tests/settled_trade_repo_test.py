@@ -62,13 +62,16 @@ class SettledTradeRepositoryTest(unittest.TestCase):
 
         executed = connection.cursor_instances[0].executed
         executed_sql = executed[0][0]
+        all_sql = '\n'.join(sql for sql, _params in executed)
         self.assertIn('CREATE TABLE IF NOT EXISTS settled_trades', executed_sql)
-        self.assertIn('SELECT COLUMN_NAME FROM information_schema.COLUMNS', executed[1][0])
-        self.assertIn('ADD COLUMN from_account', executed[2][0])
-        self.assertIn('ADD COLUMN amount_0_in', executed[4][0])
-        self.assertIn('ADD COLUMN amount_0_out', executed[6][0])
-        self.assertIn('ADD COLUMN amount_1_in', executed[8][0])
-        self.assertIn('ADD COLUMN amount_1_out', executed[10][0])
+        self.assertIn('MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL', all_sql)
+        self.assertIn("SET pool_application_id = CONCAT('0x', pool_application_id, '@', pool_chain_id)", all_sql)
+        self.assertIn('SELECT COLUMN_NAME FROM information_schema.COLUMNS', all_sql)
+        self.assertIn('ADD COLUMN from_account', all_sql)
+        self.assertIn('ADD COLUMN amount_0_in', all_sql)
+        self.assertIn('ADD COLUMN amount_0_out', all_sql)
+        self.assertIn('ADD COLUMN amount_1_in', all_sql)
+        self.assertIn('ADD COLUMN amount_1_out', all_sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_ensure_schema_skips_alter_for_existing_columns(self):
@@ -94,7 +97,12 @@ class SettledTradeRepositoryTest(unittest.TestCase):
         repository.ensure_schema()
 
         executed_sql = '\n'.join(sql for sql, _params in connection.cursor_instances[0].executed)
-        self.assertNotIn('ALTER TABLE settled_trades', executed_sql)
+        self.assertIn('MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL', executed_sql)
+        self.assertNotIn('ADD COLUMN from_account', executed_sql)
+        self.assertNotIn('ADD COLUMN amount_0_in', executed_sql)
+        self.assertNotIn('ADD COLUMN amount_0_out', executed_sql)
+        self.assertNotIn('ADD COLUMN amount_1_in', executed_sql)
+        self.assertNotIn('ADD COLUMN amount_1_out', executed_sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_upsert_settled_trades_persists_canonical_payload_json(self):

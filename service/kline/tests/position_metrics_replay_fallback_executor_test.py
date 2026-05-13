@@ -19,15 +19,10 @@ from position_metrics_payload_result import PositionMetricsPayloadResult  # noqa
 
 class PositionMetricsReplayFallbackExecutorTest(unittest.TestCase):
     def test_assembles_replay_payload_and_applies_plan_metadata(self):
-        class FakeAssembler:
-            def assemble(self, **kwargs):
+        class FakeShadowBuilder:
+            def build(self, **kwargs):
                 self.kwargs = dict(kwargs)
-                return PositionMetricsFetchedResult(
-                    live_metrics=kwargs['live_metrics'],
-                    fetch_stage='replay_fallback',
-                    fetch_reason_code='snapshot_fast_path_miss_payload_requires_history',
-                    snapshot_shadow={'snapshot_shadow': {'readiness': 'candidate'}},
-                )
+                return {'snapshot_shadow': {'readiness': 'candidate'}}
 
         class FakeFetchContext:
             position = {'pool_id': 7}
@@ -52,7 +47,11 @@ class PositionMetricsReplayFallbackExecutorTest(unittest.TestCase):
                 decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
                 reason_code='payload_requires_history',
             ),
-            result_assembler=FakeAssembler(),
+            replay_snapshot_shadow_builder=FakeShadowBuilder(),
+            replay_fallback_result_builder=__import__(
+                'query.read_models.position_metrics_replay_fallback_result_builder',
+                fromlist=['PositionMetricsReplayFallbackResultBuilder'],
+            ).PositionMetricsReplayFallbackResultBuilder(),
         )
         plan = PositionMetricsFetchPlan.replay_fallback(
             PositionMetricsPayloadResult(
@@ -67,7 +66,7 @@ class PositionMetricsReplayFallbackExecutorTest(unittest.TestCase):
             fetch_context=FakeFetchContext(),
         )
         self.assertIsInstance(result, PositionMetricsFetchedResult)
-        self.assertEqual(result.live_metrics, {'metrics_status': 'exact'})
+        self.assertEqual(result.projected_metrics, {'metrics_status': 'exact'})
         self.assertEqual(result.snapshot_shadow, {'snapshot_shadow': {'readiness': 'candidate'}})
         self.assertEqual(result.fetch_stage, 'replay_fallback')
         self.assertEqual(result.fetch_reason_code, 'snapshot_fast_path_miss_payload_requires_history')

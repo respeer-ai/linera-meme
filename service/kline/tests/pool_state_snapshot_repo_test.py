@@ -55,7 +55,11 @@ class PoolStateSnapshotRepositoryTest(unittest.TestCase):
 
         executed_sql = connection.cursor_instances[0].executed[0][0]
         self.assertIn('CREATE TABLE IF NOT EXISTS pool_state_v2', executed_sql)
-        migration_sql = connection.cursor_instances[0].executed[2][0]
+        migration_sql = [
+            sql
+            for sql, _params in connection.cursor_instances[0].executed
+            if "pool_application_id LIKE '%:%'" in sql
+        ][0]
         self.assertIn("pool_application_id LIKE '%:%'", migration_sql)
         self.assertIn("CONCAT(SUBSTRING_INDEX(pool_application_id, ':', -1), '@', pool_chain_id)", migration_sql)
         self.assertEqual(connection.commit_count, 1)
@@ -74,10 +78,10 @@ class PoolStateSnapshotRepositoryTest(unittest.TestCase):
                     'last_liquidity_event_time_ms': 1200,
                     'last_transaction_id': 9,
                     'swap_count': 17,
-                    'live_reserve_0': '100',
-                    'live_reserve_1': '200',
-                    'live_total_supply': '300',
-                    'live_k_last': '400',
+                    'current_reserve_0': '100',
+                    'current_reserve_1': '200',
+                    'current_total_supply': '300',
+                    'current_k_last': '400',
                     'fee_free_reserve_0': '90',
                     'fee_free_reserve_1': '190',
                     'fee_free_total_supply': '280',

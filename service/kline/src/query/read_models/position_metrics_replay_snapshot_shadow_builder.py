@@ -14,7 +14,7 @@ class PositionMetricsReplaySnapshotShadowBuilder:
         *,
         snapshot_inputs,
         position: dict,
-        live_metrics: dict,
+        projected_metrics: dict,
         replay_summary,
     ):
         if self.snapshot_shadow_evaluator is None:
@@ -24,7 +24,7 @@ class PositionMetricsReplaySnapshotShadowBuilder:
         return self.snapshot_shadow_evaluator.evaluate(
             **snapshot_inputs.shadow_kwargs(
                 position=position,
-                live_metrics=live_metrics,
+                projected_metrics=projected_metrics,
                 replay_summary=replay_summary,
             )
         )

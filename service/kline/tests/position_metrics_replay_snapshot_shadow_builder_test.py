@@ -22,7 +22,7 @@ class PositionMetricsReplaySnapshotShadowBuilderTest(unittest.TestCase):
             builder.build(
                 snapshot_inputs=PositionMetricsSnapshotInputs({}),
                 position={'owner': 'chain:owner-a'},
-                live_metrics={'metrics_status': 'exact'},
+                projected_metrics={'metrics_status': 'exact'},
                 replay_summary=None,
             )
         )
@@ -46,7 +46,7 @@ class PositionMetricsReplaySnapshotShadowBuilderTest(unittest.TestCase):
                     }
                 ),
                 position={'owner': 'chain:owner-a'},
-                live_metrics={'metrics_status': 'exact'},
+                projected_metrics={'metrics_status': 'exact'},
                 replay_summary={
                     'latest_position_transaction_id': 11,
                     'latest_pool_transaction_id': 12,

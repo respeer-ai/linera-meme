@@ -13,14 +13,14 @@ class PositionMetricsEstimatedFallbackResolver:
         blockers: list[str],
         liquidity_history: list[dict],
         pool_transaction_history: list[dict] | None,
-        live_liquidity,
+        current_liquidity,
         history_liquidity,
     ) -> dict:
         partial_metrics = self.build_estimated_metrics_from_liquidity_history(
             partial_metrics,
             liquidity_history=liquidity_history,
             pool_transaction_history=pool_transaction_history,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             history_liquidity=history_liquidity,
         )
         partial_metrics['computation_blockers'] = list(blockers)

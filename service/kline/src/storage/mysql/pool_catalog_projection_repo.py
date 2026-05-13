@@ -51,6 +51,8 @@ class PoolCatalogProjectionRepository:
             cursor.close()
 
     def _migrate_pool_application_account_format(self, cursor) -> None:
+        # Legacy one-time migration for pre-canonical rows. Runtime writes must
+        # already use AccountCodec public-account format.
         cursor.execute(
             f'''
             UPDATE {self.pool_catalog_table}
@@ -171,24 +173,13 @@ class PoolCatalogProjectionRepository:
         return {}
 
     def _account_to_pool_application(self, account: object) -> str | None:
-        if isinstance(account, str):
-            try:
-                parsed = self.account_codec.parse_account(account)
-            except ValueError:
-                return None
-            if parsed['owner'] == self.account_codec.CHAIN_OWNER:
-                return None
-            return self.account_codec.format_account(
-                chain_id=parsed['chain_id'],
-                owner=parsed['owner'],
-            )
-        if not isinstance(account, dict):
+        public_account = self.account_codec.public_account_from_payload(account)
+        if public_account is None:
             return None
-        chain_id = account.get('chain_id')
-        owner = account.get('owner')
-        if chain_id in (None, '') or owner in (None, ''):
+        parsed = self.account_codec.parse_account(public_account)
+        if parsed['owner'] == self.account_codec.CHAIN_OWNER:
             return None
-        owner_value = str(owner)
-        if not owner_value.startswith('0x'):
-            owner_value = f'0x{owner_value}'
-        return self.account_codec.format_account(chain_id=chain_id, owner=owner_value)
+        return self.account_codec.format_account(
+            chain_id=parsed['chain_id'],
+            owner=parsed['owner'],
+        )

@@ -14,7 +14,7 @@ class PositionMetricsSwapHistoryExactnessValidator:
         *,
         liquidity_history: list[dict],
         pool_transaction_history: list[dict] | None,
-        owner_is_fee_to: bool,
+        owner_receives_protocol_fees: bool,
     ) -> tuple[dict | None, list[str]]:
         precheck_context, blockers = self.precheck.check(
             partial_metrics,
@@ -26,6 +26,6 @@ class PositionMetricsSwapHistoryExactnessValidator:
             partial_metrics,
             liquidity_history=liquidity_history,
             pool_transaction_history=pool_transaction_history,
-            owner_is_fee_to=owner_is_fee_to,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
             precheck_context=precheck_context,
         )

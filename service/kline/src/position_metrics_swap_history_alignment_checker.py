@@ -18,7 +18,7 @@ class PositionMetricsSwapHistoryAlignmentChecker:
         *,
         liquidity_history: list[dict],
         pool_transaction_history: list[dict] | None,
-        owner_is_fee_to: bool,
+        owner_receives_protocol_fees: bool,
         precheck_context: dict,
     ) -> tuple[dict | None, list[str]]:
         effective_history, states, blockers = self.replay_entrypoint.reconstruct_pool_history(
@@ -46,7 +46,7 @@ class PositionMetricsSwapHistoryAlignmentChecker:
         fee_to_context, blockers = self.fee_to_opening_mint_resolver.resolve(
             liquidity_history=liquidity_history,
             latest_position_tx=latest_position_tx,
-            owner_is_fee_to=owner_is_fee_to,
+            owner_receives_protocol_fees=owner_receives_protocol_fees,
             precheck_context=precheck_context,
         )
         if blockers:
@@ -59,10 +59,10 @@ class PositionMetricsSwapHistoryAlignmentChecker:
                         return None, ['pool_has_swaps_before_latest_position_liquidity_change']
                     break
 
-        current_total_supply_attos = self.to_attos(partial_metrics['total_supply_live'])
+        current_total_supply_attos = self.to_attos(partial_metrics['current_total_supply'])
         liquidity_basis_attos = self.to_attos(fee_to_context['liquidity_basis'])
         if current_total_supply_attos is None or liquidity_basis_attos is None:
-            return None, ['missing_live_liquidity_or_total_supply']
+            return None, ['missing_current_liquidity_or_total_supply']
         if not self.attos_within_tolerance(
             self.replay_entrypoint.effective_total_supply_attos_from_state(states[-1]),
             current_total_supply_attos,

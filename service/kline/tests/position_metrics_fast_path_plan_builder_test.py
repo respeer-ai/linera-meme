@@ -23,7 +23,7 @@ class PositionMetricsFastPathPlanBuilderTest(unittest.TestCase):
         class FakeFastPath:
             def resolve(self, **kwargs):
                 self.kwargs = dict(kwargs)
-                return {'live_metrics': {'metrics_status': 'exact'}}
+                return {'projected_metrics': {'metrics_status': 'exact'}}
 
         class FakeFetchContext:
             class FakeFetchInputs:

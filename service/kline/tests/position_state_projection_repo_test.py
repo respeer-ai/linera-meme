@@ -23,11 +23,18 @@ class FakeDb:
     def ensure_fresh_read_connection(self):
         self.ensure_fresh_read_connection_calls += 1
 
+    def fresh_cursor(self, dictionary=False):
+        self.ensure_fresh_read_connection()
+        return self.cursor_dict
+
     def execute(self, sql, params):
         self.executed.append((sql, params))
 
     def fetchone(self):
         return self.row
+
+    def close(self):
+        return None
 
 
 class PositionStateProjectionRepositoryTest(unittest.TestCase):

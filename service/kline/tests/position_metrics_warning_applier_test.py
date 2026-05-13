@@ -14,10 +14,10 @@ from position_metrics_warning_applier import PositionMetricsWarningApplier  # no
 
 
 class PositionMetricsWarningApplierTest(unittest.TestCase):
-    def test_apply_marks_estimated_values_when_exact_fee_unsupported(self):
+    def test_apply_marks_estimated_values_when_fee_calculation_incomplete(self):
         metrics = PositionMetricsWarningApplier().apply({
-            'exact_fee_supported': False,
-            'exact_principal_supported': False,
+            'fee_calculation_complete': False,
+            'principal_calculation_complete': False,
             'computation_blockers': [],
             'fee_amount0': None,
             'fee_amount1': None,
@@ -37,8 +37,8 @@ class PositionMetricsWarningApplierTest(unittest.TestCase):
     def test_apply_adds_gap_blocker_for_actionable_gap_basis(self):
         metrics = PositionMetricsWarningApplier().apply(
             {
-                'exact_fee_supported': True,
-                'exact_principal_supported': True,
+                'fee_calculation_complete': True,
+                'principal_calculation_complete': True,
                 'computation_blockers': [],
                 'fee_amount0': '1',
                 'fee_amount1': '2',
@@ -54,8 +54,8 @@ class PositionMetricsWarningApplierTest(unittest.TestCase):
         )
 
         self.assertIn('pool_history_has_internal_gaps', metrics['computation_blockers'])
-        self.assertFalse(metrics['exact_fee_supported'])
-        self.assertFalse(metrics['exact_principal_supported'])
+        self.assertFalse(metrics['fee_calculation_complete'])
+        self.assertFalse(metrics['principal_calculation_complete'])
         self.assertEqual(metrics['value_warning_codes'], ['estimated_values'])
         self.assertIn('incomplete history', metrics['value_warning_message'])
 

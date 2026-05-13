@@ -60,6 +60,12 @@ class SettledMarketDeriver:
                 settled_outputs=[trade],
             )
         if execution_fact.is_liquidity_change():
+            if execution_fact.position_owner() is None:
+                return self._result(
+                    event,
+                    derivation_status=SettledMarketResult.STATUS_BLOCKED_MISSING_CONTEXT,
+                    error_text='liquidity transaction has invalid owner account',
+                )
             liquidity_change = self._build_liquidity_change(execution_fact)
             if liquidity_change is None:
                 return self._result(
@@ -144,6 +150,9 @@ class SettledMarketDeriver:
         liquidity_delta = execution_fact.liquidity()
         if None in (amount_0_delta, amount_1_delta, liquidity_delta):
             return None
+        owner = execution_fact.position_owner()
+        if owner is None:
+            return None
         liquidity_semantics = self._liquidity_semantics(
             change_type=change_type,
             liquidity_delta=liquidity_delta,
@@ -154,7 +163,7 @@ class SettledMarketDeriver:
             'normalized_event_id': execution_fact.normalized_event_id,
             'pool_application_id': self._pool_application(execution_fact),
             'pool_chain_id': execution_fact.pool_chain_id,
-            'owner': execution_fact.position_owner(),
+            'owner': owner,
             'block_hash': execution_fact.block_hash,
             'event_time_ms': execution_fact.trade_time_ms(),
             'transaction_index': execution_fact.transaction_index,

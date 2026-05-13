@@ -23,7 +23,7 @@ class PositionMetricsHistoryEnricher:
         liquidity_history: list[dict] | None,
         pool_transaction_history: list[dict] | None,
         pool_swap_count_since_open: int | None,
-        owner_is_fee_to: bool,
+        owner_receives_protocol_fees: bool,
     ) -> dict:
         blockers = list(partial_metrics['computation_blockers'])
         liquidity_history = liquidity_history or []
@@ -36,7 +36,7 @@ class PositionMetricsHistoryEnricher:
                     blockers=blockers,
                     liquidity_history=liquidity_history,
                     pool_transaction_history=pool_transaction_history,
-                    live_liquidity=None,
+                    current_liquidity=None,
                     history_liquidity=None,
                     redeemable_amount0=None,
                     redeemable_amount1=None,
@@ -46,11 +46,11 @@ class PositionMetricsHistoryEnricher:
                 ),
             )
 
-        live_liquidity = self.to_decimal(partial_metrics['position_liquidity_live'])
+        current_liquidity = self.to_decimal(partial_metrics['position_liquidity'])
         history_liquidity = self.history_liquidity(liquidity_history)
-        if live_liquidity is None:
-            blockers.append('missing_live_liquidity')
-        elif abs(live_liquidity - history_liquidity) > Decimal('0.000000000001'):
+        if current_liquidity is None:
+            blockers.append('missing_current_liquidity')
+        elif abs(current_liquidity - history_liquidity) > Decimal('0.000000000001'):
             blockers.append('liquidity_history_mismatch')
 
         swap_count = int(pool_swap_count_since_open or 0)
@@ -65,7 +65,7 @@ class PositionMetricsHistoryEnricher:
                 partial_metrics,
                 liquidity_history=liquidity_history,
                 pool_transaction_history=pool_transaction_history,
-                owner_is_fee_to=owner_is_fee_to,
+                owner_receives_protocol_fees=owner_receives_protocol_fees,
             )
 
         redeemable_amount0 = self.to_decimal(partial_metrics['redeemable_amount0'])
@@ -76,7 +76,7 @@ class PositionMetricsHistoryEnricher:
                 blockers=blockers,
                 liquidity_history=liquidity_history,
                 pool_transaction_history=pool_transaction_history,
-                live_liquidity=live_liquidity,
+                current_liquidity=current_liquidity,
                 history_liquidity=history_liquidity,
                 redeemable_amount0=redeemable_amount0,
                 redeemable_amount1=redeemable_amount1,

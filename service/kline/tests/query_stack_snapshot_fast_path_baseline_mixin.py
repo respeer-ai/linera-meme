@@ -76,9 +76,9 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '14')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '21')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '14')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '21')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
 
     def test_snapshot_fast_path_rejects_late_add_basis_when_position_opened_earlier(self):
@@ -158,11 +158,11 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '3.333333333333333334')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '7.5')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0.666666666666666666')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '1.5')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '3.333333333333333334')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '7.5')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0.666666666666666666')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '1.5')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['exact_case'], 'post_basis_swaps')
         self.assertEqual(
@@ -247,11 +247,11 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '3.333333333333333334')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '7.5')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0.666666666666666666')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '1.5')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '3.333333333333333334')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '7.5')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0.666666666666666666')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '1.5')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['exact_case'], 'post_basis_swaps')
 
@@ -301,14 +301,14 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '9.093389106119850868')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10.999999999999999999')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '0.002066820271473392')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '0.002500170477793219')
-        self.assertTrue(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '9.093389106119850868')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10.999999999999999999')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '0.002066820271473392')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '0.002500170477793219')
+        self.assertTrue(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
@@ -408,14 +408,14 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '6.666666666666666667')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '1.333333333333333333')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '2')
-        self.assertTrue(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '6.666666666666666667')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '1.333333333333333333')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '2')
+        self.assertTrue(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
@@ -468,14 +468,14 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '44.129357936641051392')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '56.666249990808418013')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0.003894110474745511')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '0')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '0')
-        self.assertFalse(result['live_metrics']['owner_is_fee_to'])
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '44.129357936641051392')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '56.666249990808418013')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0.003894110474745511')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '0')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '0')
+        self.assertFalse(result['projected_metrics']['owner_receives_protocol_fees'])
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['exact_case'], 'post_basis_swaps')
 
@@ -526,7 +526,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
@@ -580,9 +580,9 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '9.090909090909090909')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '11')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '9.090909090909090909')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '11')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['readiness'], 'candidate')
 
     def test_snapshot_fast_path_rejects_add_basis_when_prior_current_round_liquidity_is_non_zero(self):
@@ -680,11 +680,11 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '6.666666666666666667')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '10')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount0'], '1.333333333333333333')
-        self.assertEqual(result['live_metrics']['protocol_fee_amount1'], '2')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '6.666666666666666667')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '10')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount0'], '1.333333333333333333')
+        self.assertEqual(result['projected_metrics']['protocol_fee_amount1'], '2')
         self.assertEqual(
             result['snapshot_shadow']['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_swaps',
@@ -737,11 +737,11 @@ class QueryStackSnapshotFastPathBaselineMixin:
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result['live_metrics']['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(result['live_metrics']['principal_amount0'], '44.129357936641051392')
-        self.assertEqual(result['live_metrics']['principal_amount1'], '56.666249990808418013')
-        self.assertEqual(result['live_metrics']['fee_amount0'], '0.003894110474745511')
-        self.assertEqual(result['live_metrics']['fee_amount1'], '0')
+        self.assertEqual(result['projected_metrics']['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '44.129357936641051392')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '56.666249990808418013')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '0.003894110474745511')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '0')
         self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['exact_case'], 'post_basis_swaps')
 
     def test_snapshot_shadow_evaluator_marks_structurally_aligned_non_exact_metrics_as_financially_pending(self):
@@ -753,10 +753,10 @@ class QueryStackSnapshotFastPathBaselineMixin:
                 'status': 'active',
                 'current_liquidity': '7',
             },
-            live_metrics={
+            projected_metrics={
                 'metrics_status': 'partial',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': ['missing_fee_growth_trace'],
                 'value_warning_codes': ['estimated_values'],
             },
@@ -785,7 +785,7 @@ class QueryStackSnapshotFastPathBaselineMixin:
         self.assertEqual(shadow['snapshot_shadow']['readiness'], 'financial_semantics_pending')
         self.assertEqual(
             shadow['snapshot_shadow']['readiness_reason_codes'],
-            ['exact_fee_not_supported', 'exact_principal_not_supported', 'missing_fee_growth_trace', 'estimated_values'],
+            ['fee_calculation_incomplete', 'principal_calculation_incomplete', 'missing_fee_growth_trace', 'estimated_values'],
         )
         self.assertEqual(
             shadow['snapshot_shadow']['position_basis_snapshot'],

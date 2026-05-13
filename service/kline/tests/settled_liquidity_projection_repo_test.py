@@ -33,6 +33,9 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         def fetchall(self):
             return list(self.rows)
 
+        def close(self):
+            return None
+
     class FakeDb:
         def __init__(self):
             self.cursor_dict = SettledLiquidityProjectionRepositoryTest.FakeCursor()
@@ -41,6 +44,10 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
 
         def ensure_fresh_read_connection(self):
             self.calls.append('ensure_fresh_read_connection')
+
+        def fresh_cursor(self, dictionary=False):
+            self.ensure_fresh_read_connection()
+            return self.cursor_dict
 
         def get_positions(self, **kwargs):
             self.calls.append(('legacy_get_positions', dict(kwargs)))

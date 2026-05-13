@@ -26,9 +26,9 @@ class PositionMetricsFeeToOpeningMintResolverTest(unittest.TestCase):
         context, blockers = resolver.resolve(
             liquidity_history=[{'transaction_id': 10, 'transaction_type': 'AddLiquidity', 'created_at': 100}],
             latest_position_tx={'transaction_id': 10, 'transaction_type': 'AddLiquidity', 'created_at': 100},
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
             precheck_context={
-                'live_liquidity': Decimal('3'),
+                'current_liquidity': Decimal('3'),
                 'history_liquidity': Decimal('2'),
                 'redeemable_amount0': Decimal('40'),
                 'redeemable_amount1': Decimal('80'),

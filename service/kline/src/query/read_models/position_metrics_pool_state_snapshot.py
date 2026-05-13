@@ -10,25 +10,25 @@ class PositionMetricsPoolStateSnapshot:
             return None
         return self.payload.get('fee_free_reserve_0')
 
-    def live_reserve_0(self):
+    def current_reserve_0(self):
         if self.payload is None:
             return None
-        return self.payload.get('live_reserve_0')
+        return self.payload.get('current_reserve_0')
 
     def fee_free_reserve_1(self):
         if self.payload is None:
             return None
         return self.payload.get('fee_free_reserve_1')
 
-    def live_reserve_1(self):
+    def current_reserve_1(self):
         if self.payload is None:
             return None
-        return self.payload.get('live_reserve_1')
+        return self.payload.get('current_reserve_1')
 
-    def live_total_supply(self):
+    def current_total_supply(self):
         if self.payload is None:
             return None
-        return self.payload.get('live_total_supply')
+        return self.payload.get('current_total_supply')
 
     def fee_free_total_supply(self):
         if self.payload is None:

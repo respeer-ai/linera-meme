@@ -68,8 +68,8 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                     'pool_application': 'chain-a:pool-app',
                     'token_0': 'AAA',
                     'token_1': 'TLINERA',
-                    'live_reserve_0': '2',
-                    'live_reserve_1': '5',
+                    'current_reserve_0': '2',
+                    'current_reserve_1': '5',
                 }
             ]
         )

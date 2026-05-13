@@ -36,11 +36,11 @@ class PositionMetricsSwapHistoryExactMaterializer:
         )
 
         if fee_amount0 < 0 or fee_amount1 < 0:
-            return None, ['fee_simulation_exceeds_live_redeemable']
+            return None, ['fee_simulation_exceeds_projected_redeemable']
 
         partial_metrics['metrics_status'] = 'exact_swap_history_no_post_open_liquidity_changes'
-        partial_metrics['exact_fee_supported'] = True
-        partial_metrics['exact_principal_supported'] = True
+        partial_metrics['fee_calculation_complete'] = True
+        partial_metrics['principal_calculation_complete'] = True
         partial_metrics['principal_amount0'] = self.serialize_decimal(principal_amount0)
         partial_metrics['principal_amount1'] = self.serialize_decimal(principal_amount1)
         partial_metrics['fee_amount0'] = self.serialize_decimal(fee_amount0)

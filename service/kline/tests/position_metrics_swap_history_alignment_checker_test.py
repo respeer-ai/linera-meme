@@ -54,12 +54,12 @@ class PositionMetricsSwapHistoryAlignmentCheckerTest(unittest.TestCase):
         )
 
         context, blockers = checker.check(
-            {'total_supply_live': '4', 'virtual_initial_liquidity': False},
+            {'current_total_supply': '4', 'virtual_initial_liquidity': False},
             liquidity_history=[{'transaction_id': 10, 'transaction_type': 'AddLiquidity', 'created_at': 100}],
             pool_transaction_history=[{'transaction_id': 10, 'transaction_type': 'AddLiquidity', 'created_at': 100}],
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
             precheck_context={
-                'live_liquidity': Decimal('2'),
+                'current_liquidity': Decimal('2'),
                 'redeemable_amount0': Decimal('40'),
                 'redeemable_amount1': Decimal('80'),
                 'history_liquidity': Decimal('2'),

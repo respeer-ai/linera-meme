@@ -34,30 +34,30 @@ class PositionMetricsHistoryEnricherTest(unittest.TestCase):
 
         result = enricher.enrich(
             {
-                'position_liquidity_live': '2.0',
+                'position_liquidity': '2.0',
                 'redeemable_amount0': '40',
                 'redeemable_amount1': '80',
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': [],
             },
             liquidity_history=[{'transaction_type': 'AddLiquidity', 'liquidity': '2.0'}],
             pool_transaction_history=[],
             pool_swap_count_since_open=0,
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
         )
 
         self.assertEqual(result['metrics_status'], 'exact_no_swap_history')
-        self.assertTrue(result['exact_fee_supported'])
-        self.assertTrue(result['exact_principal_supported'])
+        self.assertTrue(result['fee_calculation_complete'])
+        self.assertTrue(result['principal_calculation_complete'])
         self.assertEqual(result['principal_amount0'], '40')
         self.assertEqual(result['principal_amount1'], '80')
         self.assertEqual(result['computation_blockers'], [])
 
     def test_enrich_adds_swap_blockers_and_uses_estimated_metrics_when_exact_fails(self):
         estimated = {
-            'metrics_status': 'estimated_live_redeemable_with_history',
+            'metrics_status': 'estimated_projected_redeemable_with_history',
             'principal_amount0': '10',
             'principal_amount1': '20',
             'fee_amount0': '1',
@@ -86,21 +86,21 @@ class PositionMetricsHistoryEnricherTest(unittest.TestCase):
 
         result = enricher.enrich(
             {
-                'position_liquidity_live': '2.0',
+                'position_liquidity': '2.0',
                 'redeemable_amount0': '40',
                 'redeemable_amount1': '80',
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': [],
             },
             liquidity_history=[{'transaction_type': 'AddLiquidity', 'liquidity': '2.0'}],
             pool_transaction_history=[{'transaction_type': 'BuyToken0'}],
             pool_swap_count_since_open=1,
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
         )
 
-        self.assertEqual(result['metrics_status'], 'estimated_live_redeemable_with_history')
+        self.assertEqual(result['metrics_status'], 'estimated_projected_redeemable_with_history')
         self.assertIn('pool_has_swap_history_after_position_open', result['computation_blockers'])
         self.assertIn('pool_history_bootstrap_supply_unknown', result['computation_blockers'])
         self.assertIn('uniswap_v2_fee_split_not_supported_yet', result['computation_blockers'])

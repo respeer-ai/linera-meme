@@ -22,9 +22,9 @@ class PositionMetricsNoSwapExactResolverTest(unittest.TestCase):
 
         result = resolver.resolve(
             {
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
             },
             redeemable_amount0=decimal_module.Decimal('40'),
             redeemable_amount1=decimal_module.Decimal('80'),
@@ -32,8 +32,8 @@ class PositionMetricsNoSwapExactResolverTest(unittest.TestCase):
         )
 
         self.assertEqual(result['metrics_status'], 'exact_no_swap_history')
-        self.assertTrue(result['exact_fee_supported'])
-        self.assertTrue(result['exact_principal_supported'])
+        self.assertTrue(result['fee_calculation_complete'])
+        self.assertTrue(result['principal_calculation_complete'])
         self.assertEqual(result['principal_amount0'], '40')
         self.assertEqual(result['principal_amount1'], '80')
         self.assertEqual(result['fee_amount0'], '0')

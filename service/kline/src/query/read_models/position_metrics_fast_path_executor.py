@@ -8,7 +8,7 @@ class PositionMetricsFastPathExecutor:
         plan,
     ):
         return PositionMetricsFetchedResult.from_plan(
-            live_metrics=plan.resolved_live_metrics(),
+            projected_metrics=plan.resolved_projected_metrics(),
             plan=plan,
             snapshot_shadow=plan.snapshot_shadow(),
         )

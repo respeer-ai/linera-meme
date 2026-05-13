@@ -41,7 +41,7 @@ class PositionMetricsReadModel:
                 )
                 continue
             fetched_result = PositionMetricsFetchedResult.from_fetcher_payload(await self.fetcher(position))
-            metric_row = self._build_position_metrics_row(position, fetched_result.live_metrics)
+            metric_row = self._build_position_metrics_row(position, fetched_result.projected_metrics)
             metrics.append(metric_row)
             metric_diagnostics.append(
                 self._build_metric_diagnostic(
@@ -68,9 +68,9 @@ class PositionMetricsReadModel:
     def _build_position_metrics_row(
         self,
         position: dict,
-        live_metrics: dict,
+        projected_metrics: dict,
     ) -> dict:
-        normalized_metrics = dict(live_metrics)
+        normalized_metrics = dict(projected_metrics)
         if 'value_warning_codes' not in normalized_metrics:
             normalized_metrics['value_warning_codes'] = []
         if 'value_warning_message' not in normalized_metrics:
@@ -107,15 +107,15 @@ class PositionMetricsReadModel:
             'owner': position['owner'],
             'status': position['status'],
             'current_liquidity': position['current_liquidity'],
-            'position_liquidity_live': '0',
-            'total_supply_live': None,
+            'position_liquidity': '0',
+            'current_total_supply': None,
             'exact_share_ratio': None,
             'redeemable_amount0': position.get('protocol_fee_reference_amount0', '0'),
             'redeemable_amount1': position.get('protocol_fee_reference_amount1', '0'),
             'virtual_initial_liquidity': True,
-            'metrics_status': 'partial_live_redeemable_only',
-            'exact_fee_supported': False,
-            'exact_principal_supported': False,
+            'metrics_status': 'partial_projected_redeemable_only',
+            'fee_calculation_complete': False,
+            'principal_calculation_complete': False,
             'computation_blockers': [],
             'principal_amount0': '0',
             'principal_amount1': '0',
@@ -150,25 +150,25 @@ class PositionMetricsReadModel:
         if pool_snapshot is None:
             return None
 
-        live_total_supply = self._to_decimal(pool_snapshot.live_total_supply())
+        current_total_supply = self._to_decimal(pool_snapshot.current_total_supply())
         fee_free_total_supply = self._to_decimal(pool_snapshot.fee_free_total_supply())
         if (
-            live_total_supply is None
+            current_total_supply is None
             or fee_free_total_supply is None
-            or live_total_supply <= Decimal('0')
-            or live_total_supply <= fee_free_total_supply
+            or current_total_supply <= Decimal('0')
+            or current_total_supply <= fee_free_total_supply
         ):
             return None
 
-        live_reserve_0 = self._to_decimal(pool_snapshot.live_reserve_0())
-        live_reserve_1 = self._to_decimal(pool_snapshot.live_reserve_1())
-        if live_reserve_0 is None or live_reserve_1 is None:
+        current_reserve_0 = self._to_decimal(pool_snapshot.current_reserve_0())
+        current_reserve_1 = self._to_decimal(pool_snapshot.current_reserve_1())
+        if current_reserve_0 is None or current_reserve_1 is None:
             return None
 
-        protocol_fee_liquidity = live_total_supply - fee_free_total_supply
-        protocol_fee_ratio = protocol_fee_liquidity / live_total_supply
-        protocol_fee_amount0 = live_reserve_0 * protocol_fee_ratio
-        protocol_fee_amount1 = live_reserve_1 * protocol_fee_ratio
+        protocol_fee_liquidity = current_total_supply - fee_free_total_supply
+        protocol_fee_ratio = protocol_fee_liquidity / current_total_supply
+        protocol_fee_amount0 = current_reserve_0 * protocol_fee_ratio
+        protocol_fee_amount1 = current_reserve_1 * protocol_fee_ratio
         return {
             'pool_application': position['pool_application'],
             'pool_id': position['pool_id'],
@@ -177,15 +177,15 @@ class PositionMetricsReadModel:
             'owner': position['owner'],
             'status': position['status'],
             'current_liquidity': position['current_liquidity'],
-            'position_liquidity_live': self._serialize_decimal(protocol_fee_liquidity),
-            'total_supply_live': self._serialize_decimal(live_total_supply),
+            'position_liquidity': self._serialize_decimal(protocol_fee_liquidity),
+            'current_total_supply': self._serialize_decimal(current_total_supply),
             'exact_share_ratio': self._serialize_decimal(protocol_fee_ratio),
             'redeemable_amount0': self._serialize_decimal(protocol_fee_amount0),
             'redeemable_amount1': self._serialize_decimal(protocol_fee_amount1),
             'virtual_initial_liquidity': True,
             'metrics_status': 'projection_protocol_fee_receiver_virtual',
-            'exact_fee_supported': True,
-            'exact_principal_supported': False,
+            'fee_calculation_complete': True,
+            'principal_calculation_complete': False,
             'computation_blockers': [],
             'principal_amount0': '0',
             'principal_amount1': '0',

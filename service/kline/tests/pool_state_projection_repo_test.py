@@ -28,6 +28,9 @@ class FakeCursor:
     def fetchall(self):
         return list(self.fetchall_result)
 
+    def close(self):
+        return None
+
 
 class FakeDb:
     def __init__(self):
@@ -36,6 +39,10 @@ class FakeDb:
 
     def ensure_fresh_read_connection(self):
         self.ensure_fresh_read_connection_called += 1
+
+    def fresh_cursor(self, dictionary=False):
+        self.ensure_fresh_read_connection()
+        return self.cursor_dict
 
 
 class PoolStateProjectionRepositoryTest(unittest.TestCase):

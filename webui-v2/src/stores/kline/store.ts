@@ -52,7 +52,7 @@ export const useKlineStore = defineStore('kline', {
         }
       | undefined,
     positionsListeners: [] as Array<(payload: PositionsInvalidationPayload) => void>,
-    latestTransactions: new Map<string, Map<string, TransactionExt[]>>(),
+    pushedTransactions: new Map<string, Map<string, TransactionExt[]>>(),
     latestCombinedTransactions: [] as TransactionExt[],
     tickers: new Map<TickerInterval, Map<string, TickerStat>>(),
     poolStats: new Map<TickerInterval, Map<number, PoolStat>>(),
@@ -161,9 +161,9 @@ export const useKlineStore = defineStore('kline', {
       this.latestCombinedTransactions = transactions.flatMap((_transactions) => _transactions.transactions)
       transactions.forEach((_transactions) => {
         const trans =
-          this.latestTransactions.get(_transactions.token_0) || new Map<string, TransactionExt[]>()
+          this.pushedTransactions.get(_transactions.token_0) || new Map<string, TransactionExt[]>()
         trans.set(_transactions.token_1, _transactions.transactions)
-        this.latestTransactions.set(_transactions.token_0, trans)
+        this.pushedTransactions.set(_transactions.token_0, trans)
       })
     },
     async getKlineInformation(token0: string, token1: string, interval: Interval) {
@@ -293,7 +293,7 @@ export const useKlineStore = defineStore('kline', {
         ).sort((a, b) => a.timestamp - b.timestamp)
       }
     },
-    _latestTransactions(): (
+    _pushedTransactions(): (
       token0: string,
       token1: string,
       tokenReversed: number,
@@ -305,7 +305,7 @@ export const useKlineStore = defineStore('kline', {
             .filter((el) => !el.token_reversed)
         }
         return (
-          this.latestTransactions
+          this.pushedTransactions
             .get(token0)
             ?.get(token1)
             ?.sort((a, b) => a.created_at - b.created_at)

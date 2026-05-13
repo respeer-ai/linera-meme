@@ -16,7 +16,7 @@ class PositionMetricsHistorySemanticResolver:
         blockers = evaluation.blockers
         liquidity_history = evaluation.liquidity_history
         pool_transaction_history = evaluation.pool_transaction_history
-        live_liquidity = evaluation.live_liquidity
+        current_liquidity = evaluation.current_liquidity
         history_liquidity = evaluation.history_liquidity
         redeemable_amount0 = evaluation.redeemable_amount0
         redeemable_amount1 = evaluation.redeemable_amount1
@@ -37,7 +37,7 @@ class PositionMetricsHistorySemanticResolver:
                 resolved_blockers.append('uniswap_v2_fee_split_not_supported_yet')
 
         if redeemable_amount0 is None or redeemable_amount1 is None:
-            resolved_blockers.append('missing_live_redeemable_amounts')
+            resolved_blockers.append('missing_projected_redeemable_amounts')
 
         if not resolved_blockers:
             return self.no_swap_exact_resolver.resolve(
@@ -52,6 +52,6 @@ class PositionMetricsHistorySemanticResolver:
             blockers=resolved_blockers,
             liquidity_history=liquidity_history,
             pool_transaction_history=pool_transaction_history,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             history_liquidity=history_liquidity,
         )

@@ -30,15 +30,15 @@ class PositionMetricsHistorySemanticResolverTest(unittest.TestCase):
         result = resolver.resolve(
             PositionMetricsHistoryEvaluation(
                 partial_metrics={
-                    'metrics_status': 'partial_live_redeemable_only',
-                    'exact_fee_supported': False,
-                    'exact_principal_supported': False,
+                    'metrics_status': 'partial_projected_redeemable_only',
+                    'fee_calculation_complete': False,
+                    'principal_calculation_complete': False,
                     'computation_blockers': [],
                 },
                 blockers=['missing_liquidity_history'],
                 liquidity_history=[],
                 pool_transaction_history=None,
-                live_liquidity=None,
+                current_liquidity=None,
                 history_liquidity=None,
                 redeemable_amount0=None,
                 redeemable_amount1=None,
@@ -48,7 +48,7 @@ class PositionMetricsHistorySemanticResolverTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(result['metrics_status'], 'partial_live_redeemable_only')
+        self.assertEqual(result['metrics_status'], 'partial_projected_redeemable_only')
         self.assertEqual(result['computation_blockers'], ['missing_liquidity_history'])
 
     def test_marks_exact_when_no_blockers_and_no_swap_history(self):
@@ -65,15 +65,15 @@ class PositionMetricsHistorySemanticResolverTest(unittest.TestCase):
         result = resolver.resolve(
             PositionMetricsHistoryEvaluation(
                 partial_metrics={
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': [],
                 },
                 blockers=[],
                 liquidity_history=[{'transaction_type': 'AddLiquidity'}],
                 pool_transaction_history=[],
-                live_liquidity=decimal_module.Decimal('2'),
+                current_liquidity=decimal_module.Decimal('2'),
                 history_liquidity=decimal_module.Decimal('2'),
                 redeemable_amount0=decimal_module.Decimal('40'),
                 redeemable_amount1=decimal_module.Decimal('80'),
@@ -84,15 +84,15 @@ class PositionMetricsHistorySemanticResolverTest(unittest.TestCase):
         )
 
         self.assertEqual(result['metrics_status'], 'exact_no_swap_history')
-        self.assertTrue(result['exact_fee_supported'])
-        self.assertTrue(result['exact_principal_supported'])
+        self.assertTrue(result['fee_calculation_complete'])
+        self.assertTrue(result['principal_calculation_complete'])
         self.assertEqual(result['principal_amount0'], '40')
         self.assertEqual(result['principal_amount1'], '80')
         self.assertEqual(result['computation_blockers'], [])
 
     def test_uses_estimated_metrics_when_swap_history_prevents_exact_result(self):
         estimated = {
-            'metrics_status': 'estimated_live_redeemable_with_history',
+            'metrics_status': 'estimated_projected_redeemable_with_history',
             'principal_amount0': '10',
             'principal_amount1': '20',
             'fee_amount0': '1',
@@ -116,15 +116,15 @@ class PositionMetricsHistorySemanticResolverTest(unittest.TestCase):
         result = resolver.resolve(
             PositionMetricsHistoryEvaluation(
                 partial_metrics={
-                'metrics_status': 'partial_live_redeemable_only',
-                'exact_fee_supported': False,
-                'exact_principal_supported': False,
+                'metrics_status': 'partial_projected_redeemable_only',
+                'fee_calculation_complete': False,
+                'principal_calculation_complete': False,
                 'computation_blockers': [],
                 },
                 blockers=[],
                 liquidity_history=[{'transaction_type': 'AddLiquidity'}],
                 pool_transaction_history=[{'transaction_type': 'BuyToken0'}],
-                live_liquidity=decimal_module.Decimal('2'),
+                current_liquidity=decimal_module.Decimal('2'),
                 history_liquidity=decimal_module.Decimal('2'),
                 redeemable_amount0=decimal_module.Decimal('40'),
                 redeemable_amount1=decimal_module.Decimal('80'),
@@ -134,7 +134,7 @@ class PositionMetricsHistorySemanticResolverTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(result['metrics_status'], 'estimated_live_redeemable_with_history')
+        self.assertEqual(result['metrics_status'], 'estimated_projected_redeemable_with_history')
         self.assertIn('pool_has_swap_history_after_position_open', result['computation_blockers'])
         self.assertIn('pool_history_bootstrap_supply_unknown', result['computation_blockers'])
         self.assertIn('uniswap_v2_fee_split_not_supported_yet', result['computation_blockers'])

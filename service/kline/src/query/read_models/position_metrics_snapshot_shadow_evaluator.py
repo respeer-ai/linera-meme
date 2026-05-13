@@ -21,7 +21,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         self,
         *,
         position: dict,
-        live_metrics: dict,
+        projected_metrics: dict,
         replay_summary,
         position_basis_snapshot: dict | None,
         pool_state_snapshot: dict | None,
@@ -67,21 +67,21 @@ class PositionMetricsSnapshotShadowEvaluator:
 
         position_snapshot_summary = self._position_snapshot_summary(
             position_basis_snapshot,
-            live_metrics=live_metrics,
+            projected_metrics=projected_metrics,
         )
         pool_snapshot_summary = self.build_pool_snapshot_summary(pool_state_snapshot)
         comparable = position_basis_snapshot.raw() is not None and pool_state_snapshot.raw() is not None
         readiness, readiness_reason_codes = self._readiness(
             comparable=comparable,
             mismatch_codes=mismatch_codes,
-            live_metrics=live_metrics,
+            projected_metrics=projected_metrics,
             position_snapshot_summary=position_snapshot_summary,
         )
         return self.payload_builder.build(
             position=position,
-            live_metrics=live_metrics,
-            exact_fee_supported=bool(live_metrics.get('exact_fee_supported')),
-            exact_principal_supported=bool(live_metrics.get('exact_principal_supported')),
+            projected_metrics=projected_metrics,
+            fee_calculation_complete=bool(projected_metrics.get('fee_calculation_complete')),
+            principal_calculation_complete=bool(projected_metrics.get('principal_calculation_complete')),
             snapshot_shadow={
                 'comparable': comparable,
                 'position_basis_snapshot_present': position_basis_snapshot.raw() is not None,
@@ -89,11 +89,11 @@ class PositionMetricsSnapshotShadowEvaluator:
                 'mismatch_codes': mismatch_codes,
                 'readiness': readiness,
                 'readiness_reason_codes': readiness_reason_codes,
-                'live_position_status': position.get('status') or 'active',
-                'live_current_liquidity': position.get('current_liquidity'),
-                'live_metrics_status': live_metrics.get('metrics_status'),
-                'computation_blockers': list(live_metrics.get('computation_blockers') or []),
-                'value_warning_codes': list(live_metrics.get('value_warning_codes') or []),
+                'projected_position_status': position.get('status') or 'active',
+                'projected_current_liquidity': position.get('current_liquidity'),
+                'projected_metrics_status': projected_metrics.get('metrics_status'),
+                'computation_blockers': list(projected_metrics.get('computation_blockers') or []),
+                'value_warning_codes': list(projected_metrics.get('value_warning_codes') or []),
                 **latest_markers,
                 'position_basis_snapshot': position_snapshot_summary,
                 'pool_state_snapshot': pool_snapshot_summary,
@@ -104,7 +104,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         self,
         *,
         position: dict,
-        live_metrics: dict,
+        projected_metrics: dict,
         exact_case: str,
         position_basis_snapshot,
         pool_state_snapshot,
@@ -113,9 +113,9 @@ class PositionMetricsSnapshotShadowEvaluator:
         pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
         return self.payload_builder.build(
             position=position,
-            live_metrics=live_metrics,
-            exact_fee_supported=True,
-            exact_principal_supported=True,
+            projected_metrics=projected_metrics,
+            fee_calculation_complete=True,
+            principal_calculation_complete=True,
             snapshot_shadow={
                 'comparable': True,
                 'position_basis_snapshot_present': True,
@@ -124,16 +124,16 @@ class PositionMetricsSnapshotShadowEvaluator:
                 'readiness': 'candidate',
                 'readiness_reason_codes': [],
                 'exact_case': exact_case,
-                'live_position_status': position.get('status') or 'active',
-                'live_current_liquidity': position.get('current_liquidity'),
-                'live_metrics_status': live_metrics['metrics_status'],
+                'projected_position_status': position.get('status') or 'active',
+                'projected_current_liquidity': position.get('current_liquidity'),
+                'projected_metrics_status': projected_metrics['metrics_status'],
                 'computation_blockers': [],
                 'value_warning_codes': [],
                 **position_basis_snapshot.shadow_latest_dict(),
                 **pool_state_snapshot.shadow_latest_dict(),
                 'position_basis_snapshot': self.build_position_snapshot_summary(
                     position_basis_snapshot,
-                    live_metrics=live_metrics,
+                    projected_metrics=projected_metrics,
                 ),
                 'pool_state_snapshot': self.build_pool_snapshot_summary(
                     pool_state_snapshot
@@ -160,11 +160,11 @@ class PositionMetricsSnapshotShadowEvaluator:
         self,
         snapshot,
         *,
-        live_metrics: dict,
+        projected_metrics: dict,
     ) -> dict | None:
         return self._position_snapshot_summary(
             snapshot,
-            live_metrics=live_metrics,
+            projected_metrics=projected_metrics,
         )
 
     def build_pool_snapshot_summary(self, snapshot) -> dict | None:
@@ -174,7 +174,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         self,
         snapshot,
         *,
-        live_metrics: dict,
+        projected_metrics: dict,
     ) -> dict | None:
         position_basis_snapshot = self._position_basis_snapshot(snapshot)
         if position_basis_snapshot.raw() is None:
@@ -182,7 +182,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         summary = position_basis_snapshot.summary_dict()
         materialized_protocol_fee_split_case = self._materialized_protocol_fee_split_case(
             position_basis_snapshot,
-            live_metrics=live_metrics,
+            projected_metrics=projected_metrics,
         )
         unresolved_profile = self.protocol_fee_split_semantics.unresolved_profile(
             materialized_protocol_fee_split_case=materialized_protocol_fee_split_case,
@@ -218,7 +218,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         *,
         comparable: bool,
         mismatch_codes: list[str],
-        live_metrics: dict,
+        projected_metrics: dict,
         position_snapshot_summary: dict | None,
     ) -> tuple[str, list[str]]:
         if not comparable:
@@ -246,12 +246,12 @@ class PositionMetricsSnapshotShadowEvaluator:
             if unresolved_reason_code is not None:
                 reasons.append(unresolved_reason_code)
             reasons.append('materialized_protocol_fee_split_unresolved')
-        if not bool(live_metrics.get('exact_fee_supported')):
-            reasons.append('exact_fee_not_supported')
-        if not bool(live_metrics.get('exact_principal_supported')):
-            reasons.append('exact_principal_not_supported')
-        reasons.extend(str(code) for code in (live_metrics.get('computation_blockers') or []))
-        reasons.extend(str(code) for code in (live_metrics.get('value_warning_codes') or []))
+        if not bool(projected_metrics.get('fee_calculation_complete')):
+            reasons.append('fee_calculation_incomplete')
+        if not bool(projected_metrics.get('principal_calculation_complete')):
+            reasons.append('principal_calculation_incomplete')
+        reasons.extend(str(code) for code in (projected_metrics.get('computation_blockers') or []))
+        reasons.extend(str(code) for code in (projected_metrics.get('value_warning_codes') or []))
         if reasons:
             return 'financial_semantics_pending', reasons
         return 'candidate', []
@@ -296,26 +296,26 @@ class PositionMetricsSnapshotShadowEvaluator:
         self,
         snapshot,
         *,
-        live_metrics: dict,
+        projected_metrics: dict,
     ) -> str | None:
-        live_liquidity = self._decimal_or_none(live_metrics.get('position_liquidity_live'))
+        current_liquidity = self._decimal_or_none(projected_metrics.get('position_liquidity'))
         position_basis_snapshot = self._position_basis_snapshot(snapshot)
         tracked_liquidity = self._decimal_or_none(position_basis_snapshot.current_liquidity())
-        if live_liquidity is None or tracked_liquidity is None or live_liquidity <= tracked_liquidity:
+        if current_liquidity is None or tracked_liquidity is None or current_liquidity <= tracked_liquidity:
             return None
         if self._safe_all_protocol_fee_mints_owned_by_current_owner(
             snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'all_protocol_fee_mints_owned_by_current_owner'
         if self._safe_current_owner_protocol_fee_component_proven(
             snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'current_owner_protocol_fee_component_proven'
-        if not bool(live_metrics.get('owner_is_fee_to')):
+        if not bool(projected_metrics.get('owner_receives_protocol_fees')):
             return 'owner_not_fee_to'
         basis_type = str(position_basis_snapshot.basis_type() or '')
         if basis_type == 'remove_liquidity':
@@ -325,13 +325,13 @@ class PositionMetricsSnapshotShadowEvaluator:
             return 'fee_to_opening_add_from_zero'
         if self._safe_fee_to_basis_only_nonzero_prior_add_basis(
             snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'fee_to_basis_only_nonzero_prior_add_basis'
         if self._safe_fee_to_continuous_nonzero_prior_add_basis(
             snapshot,
-            live_liquidity=live_liquidity,
+            current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             return 'fee_to_continuous_nonzero_prior_add_basis'
@@ -355,7 +355,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         self,
         snapshot,
         *,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         tracked_liquidity: Decimal,
     ) -> bool:
         facts = self._semantic_facts(snapshot)
@@ -373,13 +373,13 @@ class PositionMetricsSnapshotShadowEvaluator:
         )
         if protocol_fee_liquidity is None or protocol_fee_liquidity <= Decimal('0'):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + protocol_fee_liquidity)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + protocol_fee_liquidity)
 
     def _safe_fee_to_basis_only_nonzero_prior_add_basis(
         self,
         snapshot,
         *,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         tracked_liquidity: Decimal,
     ) -> bool:
         facts = self._semantic_facts(snapshot)
@@ -397,13 +397,13 @@ class PositionMetricsSnapshotShadowEvaluator:
         )
         if protocol_fee_liquidity is None or protocol_fee_liquidity <= Decimal('0'):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + protocol_fee_liquidity)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + protocol_fee_liquidity)
 
     def _safe_all_protocol_fee_mints_owned_by_current_owner(
         self,
         snapshot,
         *,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         tracked_liquidity: Decimal,
     ) -> bool:
         facts = self._semantic_facts(snapshot)
@@ -424,13 +424,13 @@ class PositionMetricsSnapshotShadowEvaluator:
             return False
         if owner_unknown not in (None, Decimal('0')):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + owned_by_current_owner)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + owned_by_current_owner)
 
     def _safe_current_owner_protocol_fee_component_proven(
         self,
         snapshot,
         *,
-        live_liquidity: Decimal,
+        current_liquidity: Decimal,
         tracked_liquidity: Decimal,
     ) -> bool:
         facts = self._semantic_facts(snapshot)
@@ -439,7 +439,7 @@ class PositionMetricsSnapshotShadowEvaluator:
         )
         if owned_by_current_owner is None or owned_by_current_owner <= Decimal('0'):
             return False
-        return self._decimal_equal(live_liquidity, tracked_liquidity + owned_by_current_owner)
+        return self._decimal_equal(current_liquidity, tracked_liquidity + owned_by_current_owner)
 
     def _semantic_facts(self, snapshot) -> PositionMetricsSnapshotSemanticFacts:
         return self._position_basis_snapshot(snapshot).semantic_facts()

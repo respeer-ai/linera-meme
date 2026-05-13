@@ -62,8 +62,8 @@ class PositionMetricsSnapshotFastPathEligibility:
         ):
             return False
         liquidity = (payload.get('data') or {}).get('liquidity') or {}
-        live_liquidity = self.to_decimal(liquidity.get('liquidity'))
-        if live_liquidity is None:
+        current_liquidity = self.to_decimal(liquidity.get('liquidity'))
+        if current_liquidity is None:
             return False
         if self.to_decimal((payload.get('data') or {}).get('totalSupply')) is None:
             return False
@@ -74,19 +74,19 @@ class PositionMetricsSnapshotFastPathEligibility:
         tracked_liquidity = self.tracked_liquidity_value(position_basis_snapshot)
         if tracked_liquidity is None:
             return False
-        live_liquidity_allowed = self.decimal_equal(position.get('current_liquidity'), liquidity.get('liquidity'))
+        current_liquidity_allowed = self.decimal_equal(position.get('current_liquidity'), liquidity.get('liquidity'))
         if (
-            not live_liquidity_allowed
+            not current_liquidity_allowed
             and not self.eligible_fee_to_opening_mint_case(
                 position=position,
                 payload=payload,
                 position_basis_snapshot=position_basis_snapshot,
                 tracked_liquidity=tracked_liquidity,
-                live_liquidity=live_liquidity,
+                current_liquidity=current_liquidity,
             )
             and not self.safe_current_owner_protocol_fee_component_proven(
                 position_basis_snapshot=position_basis_snapshot,
-                live_liquidity=live_liquidity,
+                current_liquidity=current_liquidity,
                 tracked_liquidity=tracked_liquidity,
             )
         ):

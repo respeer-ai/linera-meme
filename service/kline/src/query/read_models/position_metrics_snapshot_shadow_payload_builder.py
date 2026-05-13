@@ -3,9 +3,9 @@ class PositionMetricsSnapshotShadowPayloadBuilder:
         self,
         *,
         position: dict,
-        live_metrics: dict,
-        exact_fee_supported: bool,
-        exact_principal_supported: bool,
+        projected_metrics: dict,
+        fee_calculation_complete: bool,
+        principal_calculation_complete: bool,
         snapshot_shadow: dict,
     ) -> dict:
         return {
@@ -13,8 +13,8 @@ class PositionMetricsSnapshotShadowPayloadBuilder:
             'pool_application': position['pool_application'],
             'pool_id': position['pool_id'],
             'status': position.get('status') or 'active',
-            'metrics_status': live_metrics.get('metrics_status'),
-            'exact_fee_supported': exact_fee_supported,
-            'exact_principal_supported': exact_principal_supported,
+            'metrics_status': projected_metrics.get('metrics_status'),
+            'fee_calculation_complete': fee_calculation_complete,
+            'principal_calculation_complete': principal_calculation_complete,
             'snapshot_shadow': snapshot_shadow,
         }

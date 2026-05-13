@@ -35,7 +35,7 @@ class PositionMetricsSnapshotFastPathExactCaseResolverTest(unittest.TestCase):
                     'basis_type': 'add_liquidity',
                 }
             ),
-            owner_is_fee_to=False,
+            owner_receives_protocol_fees=False,
             last_transaction_id=11,
             basis_transaction_id=10,
             fee_free_basis_transaction_id=10,

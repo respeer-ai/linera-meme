@@ -33,7 +33,7 @@ from position_metrics_payload_result import PositionMetricsPayloadResult
 
 class QueryStackReadModelTestSupport:
     @staticmethod
-    def build_live_position_metrics_fetcher(
+    def build_projection_position_metrics_fetcher(
         *,
         payload_builder=None,
         plan_payload=None,
@@ -45,7 +45,7 @@ class QueryStackReadModelTestSupport:
     ):
         if plan_payload is None:
             plan_payload = lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_live_redeemable_only'},
+                metrics={'metrics_status': 'partial_projected_redeemable_only'},
                 decision=PositionMetricsPayloadDecision.PAYLOAD_ONLY,
                 reason_code='payload_history_unavailable',
             )

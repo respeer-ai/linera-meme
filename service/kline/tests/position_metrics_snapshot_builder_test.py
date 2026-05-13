@@ -105,9 +105,9 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         self.assertEqual(len(plan['position_replacements']), 1)
         pool_state = plan['pool_states'][0]
         self.assertEqual(pool_state['pool_state_id'], pool_application_id)
-        self.assertEqual(pool_state['live_reserve_0'], '2')
-        self.assertEqual(pool_state['live_reserve_1'], '5')
-        self.assertEqual(pool_state['live_total_supply'], '3')
+        self.assertEqual(pool_state['current_reserve_0'], '2')
+        self.assertEqual(pool_state['current_reserve_1'], '5')
+        self.assertEqual(pool_state['current_total_supply'], '3')
         self.assertEqual(pool_state['fee_free_basis_transaction_id'], 11)
         self.assertEqual(pool_state['fee_free_basis_time_ms'], 2000)
         self.assertEqual(pool_state['fee_free_reserve_0'], '2')
@@ -203,8 +203,8 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
 
         self.assertEqual(len(plan['pool_states']), 1)
         pool_state = plan['pool_states'][0]
-        self.assertEqual(pool_state['live_reserve_0'], '998')
-        self.assertEqual(pool_state['live_reserve_1'], '1001')
+        self.assertEqual(pool_state['current_reserve_0'], '998')
+        self.assertEqual(pool_state['current_reserve_1'], '1001')
         self.assertEqual(
             pool_state['state_payload_json']['exact_replay_blockers'],
             ['pool_history_contains_invalid_swap_amounts'],
@@ -278,8 +278,8 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         self.assertEqual(pool_state['fee_free_reserve_0'], '3.333333333333333334')
         self.assertEqual(pool_state['fee_free_reserve_1'], '7.5')
         self.assertEqual(pool_state['fee_free_total_supply'], '5')
-        self.assertEqual(pool_state['live_reserve_0'], '3.336670003336670003')
-        self.assertEqual(pool_state['live_reserve_1'], '7.5')
+        self.assertEqual(pool_state['current_reserve_0'], '3.336670003336670003')
+        self.assertEqual(pool_state['current_reserve_1'], '7.5')
         self.assertEqual(
             source_repository.last_pool_history_request,
             {'pool_application_id': pool_application_id, 'pool_chain_id': 'chain-a'},

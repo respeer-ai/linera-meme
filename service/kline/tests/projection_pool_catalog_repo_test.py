@@ -37,10 +37,10 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
                 return [
                     {
                         'pool_application_id': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
-                        'live_reserve_0': '10',
-                        'live_reserve_1': '20',
-                        'live_total_supply': '30',
-                        'live_k_last': '40',
+                        'current_reserve_0': '10',
+                        'current_reserve_1': '20',
+                        'current_total_supply': '30',
+                        'current_k_last': '40',
                         'last_trade_time_ms': 1000,
                         'last_liquidity_event_time_ms': 900,
                         'state_payload_json': {'virtual_initial_liquidity': False},
@@ -62,10 +62,10 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
                     'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
                     'token_0': 'AAA',
                     'token_1': 'BBB',
-                    'live_reserve_0': '10',
-                    'live_reserve_1': '20',
-                    'live_total_supply': '30',
-                    'live_k_last': '40',
+                    'current_reserve_0': '10',
+                    'current_reserve_1': '20',
+                    'current_total_supply': '30',
+                    'current_k_last': '40',
                     'last_trade_time_ms': 1000,
                     'last_liquidity_event_time_ms': 900,
                     'state_payload_json': {'virtual_initial_liquidity': False},
@@ -75,10 +75,10 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
                     'pool_application': '0x2222222222222222222222222222222222222222222222222222222222222222@chain-b',
                     'token_0': 'CCC',
                     'token_1': 'TLINERA',
-                    'live_reserve_0': None,
-                    'live_reserve_1': None,
-                    'live_total_supply': None,
-                    'live_k_last': None,
+                    'current_reserve_0': None,
+                    'current_reserve_1': None,
+                    'current_total_supply': None,
+                    'current_k_last': None,
                     'last_trade_time_ms': None,
                     'last_liquidity_event_time_ms': None,
                     'state_payload_json': None,
@@ -103,10 +103,10 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
                 return [
                     {
                         'pool_application_id': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
-                        'live_reserve_0': '10',
-                        'live_reserve_1': '20',
-                        'live_total_supply': '30',
-                        'live_k_last': '40',
+                        'current_reserve_0': '10',
+                        'current_reserve_1': '20',
+                        'current_total_supply': '30',
+                        'current_k_last': '40',
                         'last_trade_time_ms': 1000,
                         'last_liquidity_event_time_ms': 900,
                         'state_payload_json': {
@@ -146,10 +146,10 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
                     {
                         'pool_application_id': 'chain-a:0x1111111111111111111111111111111111111111111111111111111111111111',
                         'pool_chain_id': 'chain-a',
-                        'live_reserve_0': '10',
-                        'live_reserve_1': '20',
-                        'live_total_supply': '30',
-                        'live_k_last': '40',
+                        'current_reserve_0': '10',
+                        'current_reserve_1': '20',
+                        'current_total_supply': '30',
+                        'current_k_last': '40',
                         'last_trade_time_ms': 1000,
                         'last_liquidity_event_time_ms': 900,
                         'state_payload_json': {},
@@ -165,7 +165,7 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
 
         self.assertEqual(len(pools), 1)
         self.assertEqual(pools[0]['pool_application'], '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a')
-        self.assertIsNone(pools[0]['live_reserve_0'])
+        self.assertIsNone(pools[0]['current_reserve_0'])
 
     def test_list_current_pool_views_builds_compat_objects(self):
         class FakePoolCatalogProjectionRepository:
@@ -184,10 +184,10 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
                 return [
                     {
                         'pool_application_id': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
-                        'live_reserve_0': '10',
-                        'live_reserve_1': '20',
-                        'live_total_supply': '30',
-                        'live_k_last': '40',
+                        'current_reserve_0': '10',
+                        'current_reserve_1': '20',
+                        'current_total_supply': '30',
+                        'current_k_last': '40',
                         'last_trade_time_ms': 1000,
                         'last_liquidity_event_time_ms': 900,
                         'state_payload_json': {},

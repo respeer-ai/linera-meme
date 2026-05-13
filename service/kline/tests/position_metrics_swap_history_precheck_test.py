@@ -23,8 +23,8 @@ class PositionMetricsSwapHistoryPrecheckTest(unittest.TestCase):
 
         context, blockers = precheck.check(
             {
-                'position_liquidity_live': '1',
-                'total_supply_live': '2',
+                'position_liquidity': '1',
+                'current_total_supply': '2',
                 'redeemable_amount0': None,
                 'redeemable_amount1': '1',
             },
@@ -32,4 +32,4 @@ class PositionMetricsSwapHistoryPrecheckTest(unittest.TestCase):
         )
 
         self.assertIsNone(context)
-        self.assertEqual(blockers, ['missing_live_redeemable_amounts'])
+        self.assertEqual(blockers, ['missing_projected_redeemable_amounts'])

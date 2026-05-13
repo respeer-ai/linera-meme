@@ -5,12 +5,12 @@ class PositionMetricsReplayFallbackResultBuilder:
     def build(
         self,
         *,
-        live_metrics: dict,
+        projected_metrics: dict,
         snapshot_shadow,
         plan,
     ):
         return PositionMetricsFetchedResult.from_plan(
-            live_metrics=live_metrics,
+            projected_metrics=projected_metrics,
             plan=plan,
             snapshot_shadow=snapshot_shadow,
         )

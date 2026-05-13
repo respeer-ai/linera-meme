@@ -17,8 +17,8 @@ class PositionMetricsPayloadSemanticBuilderTest(unittest.TestCase):
     def test_builds_partial_metrics_owner_fee_to_and_share_ratio(self):
         builder = PositionMetricsPayloadSemanticBuilder(
             build_partial_metrics=lambda liquidity, total_supply_value, virtual_initial_liquidity: {
-                'position_liquidity_live': liquidity.get('liquidity'),
-                'total_supply_live': total_supply_value,
+                'position_liquidity': liquidity.get('liquidity'),
+                'current_total_supply': total_supply_value,
                 'virtual_initial_liquidity': virtual_initial_liquidity,
                 'computation_blockers': [],
             },
@@ -37,17 +37,17 @@ class PositionMetricsPayloadSemanticBuilderTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(result['position_liquidity_live'], '4')
-        self.assertEqual(result['total_supply_live'], '10')
+        self.assertEqual(result['position_liquidity'], '4')
+        self.assertEqual(result['current_total_supply'], '10')
         self.assertTrue(result['virtual_initial_liquidity'])
-        self.assertTrue(result['owner_is_fee_to'])
+        self.assertTrue(result['owner_receives_protocol_fees'])
         self.assertEqual(result['exact_share_ratio'], '0.4')
 
     def test_builds_partial_metrics_owner_fee_to_from_public_account_string(self):
         builder = PositionMetricsPayloadSemanticBuilder(
             build_partial_metrics=lambda liquidity, total_supply_value, virtual_initial_liquidity: {
-                'position_liquidity_live': liquidity.get('liquidity'),
-                'total_supply_live': total_supply_value,
+                'position_liquidity': liquidity.get('liquidity'),
+                'current_total_supply': total_supply_value,
                 'virtual_initial_liquidity': virtual_initial_liquidity,
                 'computation_blockers': [],
             },
@@ -64,4 +64,4 @@ class PositionMetricsPayloadSemanticBuilderTest(unittest.TestCase):
             },
         )
 
-        self.assertTrue(result['owner_is_fee_to'])
+        self.assertTrue(result['owner_receives_protocol_fees'])
