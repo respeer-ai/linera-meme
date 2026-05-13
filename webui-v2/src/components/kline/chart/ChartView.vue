@@ -68,6 +68,20 @@
         </div>
       </div>
     </div>
+    <div v-if='props.indicatorConfig.showVolume' class='volume-ma-overlay'>
+      <span class='volume-ma-item'>
+        <span class='volume-ma-name' style='color: #FFA500'>MA5</span>
+        <span class='volume-ma-val' style='color: #FFA500'>{{ formatVolume(hoveringVolumeMA5.value) }}</span>
+      </span>
+      <span class='volume-ma-item'>
+        <span class='volume-ma-name' style='color: #00BFFF'>MA10</span>
+        <span class='volume-ma-val' style='color: #00BFFF'>{{ formatVolume(hoveringVolumeMA10.value) }}</span>
+      </span>
+      <span class='volume-ma-item'>
+        <span class='volume-ma-name' style='color: #32CD32'>MA30</span>
+        <span class='volume-ma-val' style='color: #32CD32'>{{ formatVolume(hoveringVolumeMA30.value) }}</span>
+      </span>
+    </div>
   </div>
 </template>
 
@@ -170,6 +184,9 @@ const hoveringMA10Min = ref({} as LineData)
 const hoveringMA30Min = ref({} as LineData)
 const hoveringEMA7 = ref({} as LineData)
 const hoveringEMA25 = ref({} as LineData)
+const hoveringVolumeMA5 = ref({} as LineData)
+const hoveringVolumeMA10 = ref({} as LineData)
+const hoveringVolumeMA30 = ref({} as LineData)
 const $q = useQuasar()
 
 const PRICE_COLORS = {
@@ -449,6 +466,9 @@ const chartContainer = ref<HTMLDivElement | null>(null)
 let chart: IChartApi
 let mainSeries: ISeriesApi<'Candlestick'> | ISeriesApi<'Line'> | ISeriesApi<'Area'>
 let volumeSeries: ISeriesApi<'Histogram'> | null = null
+let volumeMA5Series: ISeriesApi<'Line'> | null = null
+let volumeMA10Series: ISeriesApi<'Line'> | null = null
+let volumeMA30Series: ISeriesApi<'Line'> | null = null
 let ma5MinSeries: ISeriesApi<'Line'> | null = null
 let ma10MinSeries: ISeriesApi<'Line'> | null = null
 let ma30MinSeries: ISeriesApi<'Line'> | null = null
@@ -584,6 +604,12 @@ const clearIndicatorSeries = () => {
   bollUpperSeries?.setData([])
   bollMiddleSeries?.setData([])
   bollLowerSeries?.setData([])
+}
+
+const clearVolumeMovingAverageSeries = () => {
+  volumeMA5Series?.setData([])
+  volumeMA10Series?.setData([])
+  volumeMA30Series?.setData([])
 }
 
 const updateLatestIndicatorHoverState = ({
@@ -746,6 +772,60 @@ const calculateMovingAverageSeriesData = (candleData: CandlestickData[], maLengt
   return maData
 }
 
+const calculateVolumeMovingAverageSeriesData = (volumeData: HistogramData[], maLength: number) => {
+  const maData = [] as LineData[]
+
+  for (let i = 0; i < volumeData.length; i++) {
+    if (i < maLength - 1) {
+      maData.push({ time: volumeData[i]?.time } as LineData)
+    } else {
+      let sum = 0
+      for (let j = 0; j < maLength; j++) {
+        sum += volumeData[i - j]?.value || 0
+      }
+      maData.push({ time: volumeData[i]!.time as Time, value: sum / maLength })
+    }
+  }
+
+  return maData
+}
+
+const syncLatestVolumeMovingAverageHoverState = (
+  volumeMA5Data: LineData[],
+  volumeMA10Data: LineData[],
+  volumeMA30Data: LineData[],
+) => {
+  if (isHovering.value) return
+
+  const latestVolumeMA5 = volumeMA5Data[volumeMA5Data.length - 1]
+  hoveringVolumeMA5.value = latestVolumeMA5?.value !== undefined ? latestVolumeMA5 : ({} as LineData)
+
+  const latestVolumeMA10 = volumeMA10Data[volumeMA10Data.length - 1]
+  hoveringVolumeMA10.value =
+    latestVolumeMA10?.value !== undefined ? latestVolumeMA10 : ({} as LineData)
+
+  const latestVolumeMA30 = volumeMA30Data[volumeMA30Data.length - 1]
+  hoveringVolumeMA30.value =
+    latestVolumeMA30?.value !== undefined ? latestVolumeMA30 : ({} as LineData)
+}
+
+const updateVolumeMovingAverageSeries = () => {
+  if (!props.indicatorConfig.showVolume) {
+    clearVolumeMovingAverageSeries()
+    return
+  }
+
+  const volumeData = props.data.map(toVolumePoint)
+  const volumeMA5Data = calculateVolumeMovingAverageSeriesData(volumeData, 5)
+  const volumeMA10Data = calculateVolumeMovingAverageSeriesData(volumeData, 10)
+  const volumeMA30Data = calculateVolumeMovingAverageSeriesData(volumeData, 30)
+
+  volumeMA5Series?.setData(volumeMA5Data)
+  volumeMA10Series?.setData(volumeMA10Data)
+  volumeMA30Series?.setData(volumeMA30Data)
+  syncLatestVolumeMovingAverageHoverState(volumeMA5Data, volumeMA10Data, volumeMA30Data)
+}
+
 const initChart = () => {
   if (!chartContainer.value) return
   const palette = getThemePalette()
@@ -868,12 +948,33 @@ const createVolumeSeries = () => {
       chart.removeSeries(volumeSeries)
       volumeSeries = null
     }
+    if (volumeMA5Series) {
+      chart.removeSeries(volumeMA5Series)
+      volumeMA5Series = null
+    }
+    if (volumeMA10Series) {
+      chart.removeSeries(volumeMA10Series)
+      volumeMA10Series = null
+    }
+    if (volumeMA30Series) {
+      chart.removeSeries(volumeMA30Series)
+      volumeMA30Series = null
+    }
     applyPriceScaleLayout()
     return
   }
 
   if (volumeSeries) {
     chart.removeSeries(volumeSeries)
+  }
+  if (volumeMA5Series) {
+    chart.removeSeries(volumeMA5Series)
+  }
+  if (volumeMA10Series) {
+    chart.removeSeries(volumeMA10Series)
+  }
+  if (volumeMA30Series) {
+    chart.removeSeries(volumeMA30Series)
   }
 
   volumeSeries = chart.addSeries(HistogramSeries, {
@@ -882,6 +983,27 @@ const createVolumeSeries = () => {
   })
   volumeSeries.priceScale().applyOptions({
     scaleMargins: { top: 0.85, bottom: 0 }
+  })
+  volumeMA5Series = chart.addSeries(LineSeries, {
+    color: '#FFA500',
+    lineWidth: 2,
+    lineType: LineType.Curved,
+    priceScaleId: 'volume',
+    priceFormat: getVolumeSeriesFormat(),
+  })
+  volumeMA10Series = chart.addSeries(LineSeries, {
+    color: '#00BFFF',
+    lineWidth: 2,
+    lineType: LineType.Curved,
+    priceScaleId: 'volume',
+    priceFormat: getVolumeSeriesFormat(),
+  })
+  volumeMA30Series = chart.addSeries(LineSeries, {
+    color: '#32CD32',
+    lineWidth: 2,
+    lineType: LineType.Curved,
+    priceScaleId: 'volume',
+    priceFormat: getVolumeSeriesFormat(),
   })
   applyPriceScaleLayout()
 }
@@ -1024,6 +1146,21 @@ const handleCrosshairMove = (param: MouseEventParams) => {
     }
   }
 
+  if (volumeMA5Series) {
+    const point = param.seriesData.get(volumeMA5Series) as LineData
+    hoveringVolumeMA5.value = point?.value !== undefined ? point : ({} as LineData)
+  }
+
+  if (volumeMA10Series) {
+    const point = param.seriesData.get(volumeMA10Series) as LineData
+    hoveringVolumeMA10.value = point?.value !== undefined ? point : ({} as LineData)
+  }
+
+  if (volumeMA30Series) {
+    const point = param.seriesData.get(volumeMA30Series) as LineData
+    hoveringVolumeMA30.value = point?.value !== undefined ? point : ({} as LineData)
+  }
+
   const mainData = param.seriesData.get(mainSeries)
   if (mainData !== undefined) {
     if (props.chartType === ChartType.CANDLESTICK) {
@@ -1118,6 +1255,7 @@ const updateChartData = () => {
   if (!props.data.length) {
     ;(mainSeries as ISeriesApi<'Candlestick'>).setData([])
     volumeSeries?.setData([])
+    clearVolumeMovingAverageSeries()
     ma5MinSeries?.setData([])
     ma10MinSeries?.setData([])
     ma30MinSeries?.setData([])
@@ -1208,6 +1346,7 @@ const updateChartData = () => {
         volumeSeries?.update(toVolumePoint(point))
       }
     }
+    updateVolumeMovingAverageSeries()
   }
 
   if (primaryRenderPlan.mode === 'full' && shouldScrollToLatestOnFirstRender({
@@ -1366,6 +1505,9 @@ watch(() => props.volumePrecision, () => {
   if (volumeSeries) {
     volumeSeries.applyOptions({ priceFormat: getVolumeSeriesFormat() })
   }
+  if (volumeMA5Series) volumeMA5Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
+  if (volumeMA10Series) volumeMA10Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
+  if (volumeMA30Series) volumeMA30Series.applyOptions({ priceFormat: getVolumeSeriesFormat() })
 })
 watch(() => props.height, () => {
   syncChartSize()
@@ -1425,6 +1567,30 @@ onBeforeUnmount(() => {
   padding: 10px 12px
   pointer-events: none
   color: var(--q-light)
+
+.volume-ma-overlay
+  position: absolute
+  left: 12px
+  bottom: 23%
+  display: flex
+  align-items: center
+  gap: 12px
+  pointer-events: none
+  z-index: 10
+  font-size: 11px
+  line-height: 1.4
+
+.volume-ma-item
+  display: flex
+  align-items: center
+  gap: 4px
+
+.volume-ma-name
+  font-weight: 700
+
+.volume-ma-val
+  font-weight: 600
+  font-family: 'Roboto Mono', monospace
 
 .info-line
   display: flex

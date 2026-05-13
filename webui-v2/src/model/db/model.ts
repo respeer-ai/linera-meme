@@ -30,3 +30,12 @@ export interface ClientMigrationRecord {
   id: string
   appliedAt: string
 }
+
+export interface KlineResolvedIdentityRecord {
+  selectedToken0: string
+  selectedToken1: string
+  selectedPoolId: number
+  poolId: number
+  poolApplication: string
+  updatedAt: number
+}

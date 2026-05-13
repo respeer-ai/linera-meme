@@ -159,6 +159,8 @@ export const appendKlineTraceParams = (url: string, traceId: string, sentAtMs: n
   return `${url}${separator}request_id=${encodeURIComponent(traceId)}&client_sent_at_ms=${sentAtMs}`
 }
 
+const yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve))
+
 export class KlineRunner {
   static storePoints = async (
     token0: string,
@@ -170,29 +172,18 @@ export class KlineRunner {
     offset: number,
     count: number,
   ) => {
-    if (offset >= points.points.length) return
-
-    await dbBridge.Kline.bulkPut(
-      token0,
-      token1,
-      poolId,
-      poolApplication,
-      interval,
-      points.points.slice(offset, offset + count),
-    )
-
-    setTimeout(() => {
-      void KlineRunner.storePoints(
+    for (let currentOffset = offset; currentOffset < points.points.length; currentOffset += count) {
+      await dbBridge.Kline.bulkPut(
         token0,
         token1,
         poolId,
         poolApplication,
         interval,
-        points,
-        offset + count,
-        count,
+        points.points.slice(currentOffset, currentOffset + count),
       )
-    })
+
+      await yieldToEventLoop()
+    }
   }
 
   static bulkStorePoints = (
@@ -203,7 +194,7 @@ export class KlineRunner {
     interval: Interval,
     points: Points,
   ) => {
-    void KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, 0, 20)
+    return KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, 0, 20)
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
@@ -251,7 +242,12 @@ export class KlineRunner {
       const resolvedPoolId = points.pool_id ?? poolId
       const resolvedPoolApplication = points.pool_application ?? poolApplication
 
-      KlineRunner.bulkStorePoints(
+      await dbBridge.Kline.putResolvedIdentity(
+        { token0, token1, poolId },
+        { poolId: resolvedPoolId, poolApplication: resolvedPoolApplication },
+      )
+
+      await KlineRunner.bulkStorePoints(
         token0,
         token1,
         resolvedPoolId,
@@ -444,7 +440,7 @@ export class KlineRunner {
     points.forEach((_points, interval) => {
       _points.forEach((__points) => {
         // Timestamp is already converted, not good but work
-        KlineRunner.bulkStorePoints(
+        void KlineRunner.bulkStorePoints(
           __points.token_0,
           __points.token_1,
           __points.pool_id ?? 0,

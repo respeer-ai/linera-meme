@@ -5,7 +5,63 @@ import { type Point } from 'src/stores/kline/types'
 import { type dbModel } from 'src/model'
 import { splitCompatibleKlinePoints } from './klineCacheCompatibility'
 
+export type KlineSelectedIdentity = {
+  token0: string
+  token1: string
+  poolId: number
+}
+
+export type KlineResolvedIdentity = {
+  poolId: number
+  poolApplication: string
+}
+
+const MAX_RESOLVED_IDENTITIES = 200
+
 export class Kline {
+  static resolvedIdentity = async ({
+    token0,
+    token1,
+    poolId,
+  }: KlineSelectedIdentity): Promise<KlineResolvedIdentity | null> => {
+    const record = await dbKline.klineResolvedIdentities.get([token0, token1, poolId])
+    if (!record) return null
+    return {
+      poolId: record.poolId,
+      poolApplication: record.poolApplication,
+    }
+  }
+
+  static putResolvedIdentity = async (
+    selected: KlineSelectedIdentity,
+    resolved: KlineResolvedIdentity,
+  ) => {
+    await dbKline.klineResolvedIdentities.put({
+      selectedToken0: selected.token0,
+      selectedToken1: selected.token1,
+      selectedPoolId: selected.poolId,
+      poolId: resolved.poolId,
+      poolApplication: resolved.poolApplication,
+      updatedAt: Date.now(),
+    })
+
+    const extra = await dbKline.klineResolvedIdentities
+      .orderBy('updatedAt')
+      .reverse()
+      .offset(MAX_RESOLVED_IDENTITIES)
+      .toArray()
+
+    if (extra.length > 0) {
+      await dbKline.klineResolvedIdentities.bulkDelete(
+        extra.map((record) => [
+          record.selectedToken0,
+          record.selectedToken1,
+          record.selectedPoolId,
+        ] as [string, string, number]),
+      )
+    }
+  }
+
   static bulkPut = async (
     token0: string,
     token1: string,
