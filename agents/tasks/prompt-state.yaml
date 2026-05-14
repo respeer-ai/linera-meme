@@ -35,6 +35,18 @@ active_focus:
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
+  - id: FUND-005
+    why: active iteration for contract-path audit and executable baseline
+    summary: >
+      Audit current pool/swap/meme/proxy/frontend/observability funding paths,
+      map exact files/functions/state transitions, and add only focused
+      characterization tests needed before protocol behavior changes.
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/funding/current-delta.md
+      - agents/primitives/funding/state-machines.md
+      - agents/primitives/cross-chain.md
+      - agents/primitives/identity-and-origin.md
 on_demand_done:
   - id: OBS-E2E-001
     why: shell-level observability E2E entrypoint and projection-fact reconciliation completion history

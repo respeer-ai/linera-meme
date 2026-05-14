@@ -974,7 +974,7 @@ groups:
           - Later-hop failures still require the business protocol state machine.
           - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
       - id: FUND-005
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-002]
         title: "Iteration 0: Contract-path audit and executable baseline"
