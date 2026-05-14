@@ -44,7 +44,10 @@ decision_map:
       - docker/AGENTS.md
   funds_consistency_issue:
     read_first:
-      - agents/primitives/funds-consistency-protocol.md
+      - agents/primitives/funding/architecture.md
+      - agents/primitives/funding/state-machines.md
+      - agents/primitives/funding/claim.md
+      - agents/primitives/funding/open-issues.md
       - agents/primitives/liquidity-and-funds.md
       - agents/primitives/cross-chain.md
       - agents/runbooks/bug-investigation.md
@@ -138,15 +141,42 @@ navigation:
         - debugging positions
         - reviewing liquidity accounting
         - reviewing refund/payout safety
-    - path: agents/primitives/funds-consistency-protocol.md
+    - path: agents/primitives/funding/architecture.md
       canonical_for:
-        - cross_chain_funds_state_machine
-        - claimable_delivery_protocol
-        - temp_chain_decision_for_current_amm
+        - funding_architecture
+        - user_reachable_operation_boundary
+        - single_claim_funds_exit
       when_to_read:
         - designing funds consistency fixes
         - reviewing swap or liquidity failure handling
         - implementing FUND-002
+    - path: agents/primitives/funding/state-machines.md
+      canonical_for:
+        - funding_state_machines
+        - create_pool_add_liquidity_swap_remove_claim_flows
+        - forever_pending_workflow_rules
+      when_to_read:
+        - implementing funding protocol state transitions
+        - auditing async funding message flows
+        - reasoning about stalled cross-chain workflows
+    - path: agents/primitives/funding/claim.md
+      canonical_for:
+        - single_claim_operation
+        - claim_balance_model
+        - meme_delivery_attempt_rules
+      when_to_read:
+        - designing or implementing funds exit behavior
+        - reviewing refund or payout semantics
+        - implementing claim delivery
+    - path: agents/primitives/funding/open-issues.md
+      canonical_for:
+        - funding_open_protocol_risks
+        - unresolved_forever_pending_cases
+        - recovery_operation_constraints
+      when_to_read:
+        - proposing recovery behavior
+        - resolving stalled funding workflows
+        - changing open funding assumptions
     - path: agents/primitives/data-sources.md
       canonical_for:
         - truth_hierarchy

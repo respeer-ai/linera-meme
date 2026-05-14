@@ -933,7 +933,7 @@ groups:
   - name: Funds Consistency
     tasks:
       - id: FUND-001
-        status: Doing
+        status: Done
         priority: P0
         depends_on: []
         title: Define cross-chain funds consistency protocol boundary and state machine
@@ -946,26 +946,212 @@ groups:
           5. Linera `tracked + bouncing` is a native one-hop reject receipt mechanism that can converge a target-chain reject into source-chain `pending -> failed/refund-ready`; it covers only one hop and cannot replace an explicit multi-hop business state machine.
           6. Current swap/add-liquidity/remove-liquidity flows must not introduce per-operation temp chains. Temp chains do not provide cross-chain atomicity and add open-chain fee, gas/funder, listener, cleanup, and permission complexity. Canonical reference: `agents/primitives/liquidity-and-funds.md`.
 
-          The complete protocol is in `agents/primitives/funds-consistency-protocol.md`. It covers create meme native pool, user `CreatePool` with initial liquidity, existing add liquidity, swap, remove, claim, internal entry boundaries, application reentrancy boundaries, and per-path risks and mitigations.
+          The complete protocol is now split under `agents/primitives/funding/`. It covers create meme native pool, user `CreatePool` with initial liquidity, existing add liquidity, swap, remove, claim, internal entry boundaries, application reentrancy boundaries, projection boundaries, and per-path risks and mitigations.
           The document also captures code-review deltas: `CreatePool` is current user ABI only as create-with-initial-liquidity, legacy `UserPoolCreated` choreography must be collapsed or intent-bound, Claim is target ABI/state, PoolChainCreated/PoolCreated/Active semantics are split, tracked+bouncing convergence is path-level, and transaction id gaps are not errors by themselves.
       - id: FUND-002
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-001, REV-001]
         title: Fix pool/swap async funds closure under the unified protocol
         notes: |
-          Merge previously scattered TODOs and cover all high-risk paths at once:
+          Umbrella implementation task for the funds-consistency protocol. This must be executed as progressive, independently verifiable iterations, not as one large patch validated only at the end.
+
+          High-risk paths covered by the iteration sequence:
           - AddLiquidity partial two-leg success followed by failure without refund
           - swap/remove/refund/payout paths lacking reliable downstream meme/native delivery closure
           - initial pool creation swallowing downstream failure while persisting success
           - `NewTransaction` or other follow-up message rejection still leaving funds or state side effects
 
-          The goal is not to catch host transfer panic inside contracts. The goal is that failures leave at most verifiable pending state, never incorrect finalized state, and success paths have explicit acknowledgements, idempotency keys, and state convergence.
+          Execution rules:
+          - Each child iteration must define a narrow purpose, minimal related changes, and complete validation criteria that can pass before the next iteration starts.
+          - Do not mix unrelated paths into a child iteration just because they share helpers.
+          - Do not defer all correctness checks to final end-to-end validation.
+          - Keep chain contracts as protocol truth and product data as parsed facts/projections.
 
           Constraints:
           - Prefer Linera `tracked + bouncing` for critical one-hop reject receipts and source-chain convergence.
           - Do not mistake it for full workflow atomic rollback.
           - Later-hop failures still require the business protocol state machine.
+          - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
+      - id: FUND-005
+        status: Todo
+        priority: P0
+        depends_on: [FUND-002]
+        title: "Iteration 0: Contract-path audit and executable baseline"
+        notes: |
+          Purpose: establish an executable baseline and an exact implementation delta before mutating protocol behavior.
+
+          Minimal changes:
+          - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.
+          - Map `CreatePool`, `CreateUserPool`, `UserPoolCreated`, meme native initialization, existing add liquidity, swap, remove liquidity, payout/refund, `MemeResponse::Fail`, tracked bounce handling, and public operation surfaces to files/functions/state transitions.
+          - Add focused characterization tests only where current behavior must be locked before refactor.
+
+          Validation:
+          - Current relevant contract tests compile and run under the project memory-limit rule.
+          - The audit identifies exact follow-up iterations and the current failing or unsafe behavior each one will close.
+          - No product behavior is changed except test-only characterization coverage.
+      - id: FUND-006
+        status: Todo
+        priority: P0
+        depends_on: [FUND-005]
+        title: "Iteration 1: Lock public operation surface"
+        notes: |
+          Purpose: make the current user-reachable operation surface safe before changing deeper choreography.
+
+          Minimal changes:
+          - Treat frontend wallet signing and user-authored contract `call_application` as user-reachable operation entry.
+          - Preserve the current frontend entry where Add Liquidity may submit `SwapOperation::CreatePool`.
+          - Define `CreatePool` as create-with-initial-liquidity only.
+          - Reject empty, shell-only, one-sided, and virtual user pool creation.
+          - Fail fast on token identity validation at the user-started `user -> swap` entry.
+
+          Validation:
+          - Contract tests prove invalid `CreatePool` shapes reject without opening a pool chain or writing active catalog state.
+          - Contract tests prove the currently supported valid two-sided initial-liquidity path still reaches the same externally observable success boundary as before this iteration.
+          - Tests prove `PoolChainCreated`, `PoolCreated`, and `Active` remain distinct states or facts.
+      - id: FUND-007
+        status: Todo
+        priority: P0
+        depends_on: [FUND-006]
+        title: "Iteration 2: Intent-bind user pool creation"
+        notes: |
+          Purpose: remove unsafe owner/payload reconstruction from user pool creation while keeping the validated `CreatePool` entry working.
+
+          Minimal changes:
+          - Create `PoolCreationIntent` at the user entry with verified token identities, owner account, target account, amounts, slippage, and expected pair.
+          - Collapse `CreateUserPool/UserPoolCreated` into that state machine where practical, or strictly bind every remaining message to the pending intent.
+          - Stop inferring LP owner, creator, target account, tokens, or amounts from message signer or later payloads.
+          - Track the pool-shell hop so a child-chain creation reject converges the pending intent to failed.
+
+          Validation:
+          - Tests cover duplicate shell receipts, wrong app, wrong chain, wrong pair, wrong signer, and stale intent.
+          - Tests prove invalid receipts do not activate catalog state or finalize reserve.
+          - Tests prove the happy path still produces a pending shell or initializing state ready for initial funding, not an active pool too early.
+      - id: FUND-008
+        status: Todo
+        priority: P0
+        depends_on: [FUND-007]
+        title: "Iteration 3: Existing-pool AddLiquidity two-leg pending"
+        notes: |
+          Purpose: make existing active-pool add liquidity safe before reusing the same closure for pool creation.
+
+          Minimal changes:
+          - Add explicit per-leg pending/funded state for existing-pool add liquidity.
+          - Do not mint LP share, finalize reserve, or emit settled add-liquidity facts until both token legs are funded and accepted.
+          - Convert partial success followed by reject/failure into refund-ready or claimable state instead of finalized liquidity.
+          - Keep user-created initial liquidity out of this iteration except for shared helpers that do not change its behavior.
+
+          Validation:
+          - Tests cover leg0 success + leg1 reject, leg1 success + leg0 reject, duplicate funding callbacks, and out-of-order callbacks.
+          - Tests prove partial failure leaves no finalized reserve increase and no LP share mint.
+          - Tests prove the normal existing-pool add-liquidity path remains successful.
+      - id: FUND-009
+        status: Todo
+        priority: P0
+        depends_on: [FUND-008]
+        title: "Iteration 4: Initial-liquidity convergence reuses AddLiquidity closure"
+        notes: |
+          Purpose: make create-with-initial-liquidity converge through the same two-leg funding state machine as existing add liquidity.
+
+          Minimal changes:
+          - Route user `CreatePool` initial deposits through the two-leg pending/funded/finalized closure.
+          - Activate the pool only after shell creation, both initial legs, reserve finalization, and activation acknowledgement are bound to the pending intent.
+          - Preserve meme-created native pool virtual-reference semantics separately from user two-sided deposits.
+
+          Validation:
+          - Tests prove initial pool downstream failure does not leave an active pool, finalized reserve, or LP share.
+          - Tests prove successful create-with-initial-liquidity activates the pool only after both real token legs are accepted.
+          - Tests prove user-created pools cannot create virtual liquidity.
+      - id: FUND-010
+        status: Todo
+        priority: P0
+        depends_on: [FUND-009]
+        title: "Iteration 5: Swap output claim balances"
+        notes: |
+          Purpose: make swap input/finalization safe by crediting output/refund value to aggregated claim balances.
+
+          Minimal changes:
+          - Add or reuse `SwapIntent`.
+          - Credit successful output to claim balances.
+          - Credit failed post-custody input to claim balances.
+          - Do not implement the user `Claim` operation in this iteration.
+
+          Validation:
+          - Tests cover slippage/check failure after input custody creating a claim-balance refund.
+          - Tests cover successful output credited exactly once.
+          - Tests prove duplicate finalization does not double-credit claim balances.
+      - id: FUND-011
+        status: Todo
+        priority: P0
+        depends_on: [FUND-010]
+        title: "Iteration 6: Remove, excess, protocol fee, and remote-liquidity claim balances"
+        notes: |
+          Purpose: unify every non-swap owed value into aggregated claim balances.
+
+          Minimal changes:
+          - Credit remove-liquidity owed amounts to claim balances.
+          - Credit add-liquidity excess/refunds and create-pool refunds to claim balances.
+          - Credit protocol fee and remote-liquidity withdrawals through claim balances.
+          - Do not add separate refund, retry, protocol-fee-withdraw, or remote-liquidity-withdraw user operations.
+
+          Validation:
+          - Tests prove burn/decrease cannot lose owed value.
+          - Tests prove duplicate remove/excess/refund/protocol-fee accounting does not double-credit.
+          - Tests prove all owed-value categories share the same claim-balance exit model.
+      - id: FUND-012
+        status: Todo
+        priority: P0
+        depends_on: [FUND-011]
+        title: "Iteration 7: Claim operation and delivery attempts"
+        notes: |
+          Purpose: implement the single user funds-exit operation.
+
+          Minimal changes:
+          - Add target `Claim` operation ABI.
+          - Implement native synchronous claim semantics.
+          - Implement meme pending delivery attempt state.
+          - Keep refund, retry, protocol fee, remote liquidity, and excess as claim-balance meanings, not separate user operations.
+
+          Validation:
+          - Tests prove native claim succeeds or leaves balance unchanged on abort.
+          - Tests prove meme pending delivery cannot be claimed twice.
+          - Tests prove fail/bounce restores available balance.
+          - Tests prove pending forever remains safe and observable.
+      - id: FUND-013
+        status: Todo
+        priority: P0
+        depends_on: [FUND-012]
+        title: "Iteration 8: Internal entry and application-caller hardening"
+        notes: |
+          Purpose: close unsafe public and cross-application entry points after the core state machine exists.
+
+          Minimal changes:
+          - Reject user access to internal initialization/update paths that should only be entered by trusted applications.
+          - Allow `call_application(token_app, CreatorChainId)` only on trusted user-started entry paths, not on `meme -> swap` callbacks or token-app-entered message handlers.
+          - Verify authenticated caller, source chain, expected app, expected leg, pending intent, and claim delivery attempt on every internal follow-up.
+          - Ensure user-authored contract `call_application` cannot bypass public operation constraints.
+
+          Validation:
+          - Tests cover direct user calls to internal operations/messages and reject them.
+          - Tests cover forged application caller, wrong source chain, wrong token app, wrong pending leg, and wrong attempt.
+          - Tests prove valid meme initialization, token funding callbacks, and claim callbacks still work.
+      - id: FUND-014
+        status: Todo
+        priority: P0
+        depends_on: [FUND-013]
+        title: "Iteration 9: Projection facts and product read compatibility"
+        notes: |
+          Purpose: make product data consume protocol facts without live chain inference.
+
+          Minimal changes:
+          - Emit or preserve projection-safe facts for intents, legs, claim balances, delivery attempts, pool lifecycle, positions, reserves, virtual position, `PoolChainCreated`, `PoolCreated`, and `Active`.
+          - Update observability parsing/projections only where protocol facts changed.
+          - Keep virtual liquidity distinct from deposited reserve, TVL, payable balance, and claim balance.
+
+          Validation:
+          - Projection tests derive claim lists, positions, TVL, APR inputs, transactions, claim balances, pending/stalled workflows, and candles from parsed facts only.
+          - Product smoke tests prove current frontend/API read paths remain compatible or are explicitly migrated.
+          - Tests prove no live query is required for product funds accounting truth.
       - id: FUND-003
         status: Todo
         priority: P0
@@ -977,9 +1163,11 @@ groups:
       - id: FUND-004
         status: Todo
         priority: P1
-        depends_on: [FUND-002]
-        title: Add regression tests for funds protocol and failure convergence
-        notes: Cover partial-success refund, pending not finalized, duplicate success/commit/claim idempotency, initial pool downstream failure, no residual side effects after Reject, and virtual liquidity versus real payable balance boundaries.
+        depends_on: [FUND-014, FUND-003]
+        title: Add final regression suite for funds protocol convergence
+        notes: |
+          This is not a substitute for per-iteration validation. It is the final cross-path regression suite after all iterations pass independently.
+          Cover partial-success refund, pending not finalized, duplicate success/commit/claim idempotency, initial pool downstream failure, no residual side effects after Reject, claimable retry/dedup, and virtual liquidity versus real payable balance boundaries.
   - name: WebUI
     tasks:
       - id: WEBUI-001

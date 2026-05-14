@@ -1,5 +1,9 @@
 # MicroMeme Technical Roadmap
 
+Status: Strategic technical roadmap.
+
+This document is a human-facing roadmap, not the live task source. Current execution is tracked in `agents/tasks/board.yaml`. Current funding and observability primitives under `agents/primitives/` supersede older implementation ordering in this document.
+
 ## Purpose
 
 This document translates the product target into protocol and implementation work.
@@ -216,11 +220,13 @@ Acceptance criteria:
 
 ## Immediate Technical Queue
 
+Current execution queue is governed by `agents/tasks/board.yaml`. At the time of this note, the active architectural priority is funding consistency and projection-backed product reads. Strategic follow-up items remain:
+
 1. Audit and reduce buy/sell execution asymmetry.
 2. Formalize mining-aware execution and timestamp semantics.
 3. Implement quote infrastructure.
 4. Implement route search and best-path selection.
-5. Replace hardcoded frontend fee assumptions with live pool data.
+5. Replace hardcoded frontend fee assumptions with projection-backed pool/protocol data.
 6. Add delayed-settlement-aware market data semantics.
 
 ## Exit Criteria for Core Protocol Maturity
@@ -233,4 +239,3 @@ MicroMeme reaches a strong technical baseline when:
 - routing is path-aware,
 - market data reflects real execution behavior,
 - and frontend trade UX is driven by protocol truth instead of approximation.
-

@@ -4,6 +4,25 @@ Type: Primitive
 Audience: Coding assistants
 Authority: High
 
+## Superseded
+
+This document is superseded by the funding primitive set under `agents/primitives/funding/`.
+
+Canonical references:
+
+- `agents/primitives/funding/architecture.md`
+- `agents/primitives/funding/state-machines.md`
+- `agents/primitives/funding/on-chain-data-model.md`
+- `agents/primitives/funding/claim.md`
+- `agents/primitives/funding/module-responsibilities.md`
+- `agents/primitives/funding/security-invariants.md`
+- `agents/primitives/funding/projection-and-product-reads.md`
+- `agents/primitives/funding/open-issues.md`
+- `agents/primitives/funding/current-delta.md`
+- `agents/primitives/funding/implementation-plan.md`
+
+Do not extend this legacy document. Update the funding primitive set instead.
+
 ## Purpose
 
 Define the target protocol for cross-chain AMM funds consistency before changing `pool/`, `swap/`, `meme/`, or `proxy/`.

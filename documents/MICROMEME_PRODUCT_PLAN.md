@@ -1,5 +1,9 @@
 # MicroMeme Product Plan
 
+Status: Strategic product roadmap.
+
+This document is a human-facing roadmap, not the live task source. Current execution is tracked in `agents/tasks/board.yaml`. Current architecture and funding/observability constraints may supersede older priority ordering in this document.
+
 ## Vision
 
 MicroMeme aims to become the combined product stack for Linera:
@@ -56,7 +60,7 @@ Current market behavior is not yet trustworthy enough:
 - K-lines can become structurally distorted,
 - maker behavior can become unstable.
 
-This is the highest-priority product issue.
+This remains a major product issue, but current execution prioritizes projection-backed observability and funding consistency before further quote/routing expansion.
 
 ### 2. Routing and Trading UX
 
@@ -283,4 +287,3 @@ MicroMeme becomes a strong first product candidate when:
   - how to add liquidity,
   - how to mine,
   - and why MicroMeme is better than a plain meme launcher.
-

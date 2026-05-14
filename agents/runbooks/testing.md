@@ -35,7 +35,7 @@ Default testing workflow and coverage expectations.
 - Cover happy path and duplicate or replay delivery edges
 - Cover wrong-chain execution where relevant
 - Cover async message-chain termination points, not just initiating operations
-- Cover queue boundaries such as `latestTransactions`
+- Cover projection, event, queue, and bounded diagnostic boundaries; do not add new tests that treat `latestTransactions` as product truth
 
 - For `service/kline`, cover query-path behavior, aggregation semantics, and API parameter validation
 - For frontend startup or chart changes, cover cache merge behavior, live update behavior, and stale overwrite prevention
