@@ -1024,7 +1024,7 @@ groups:
           - Track the pool-shell hop so a child-chain creation reject converges the pending intent to failed.
 
           Validation:
-          - Tests cover duplicate shell receipts, wrong app, wrong chain, wrong pair, wrong signer, and stale intent.
+          - Tests cover competing shell receipts, wrong app, wrong chain, wrong pair, wrong signer, and stale intent.
           - Tests prove invalid receipts do not activate catalog state or finalize reserve.
           - Tests prove the happy path still produces a pending shell or initializing state ready for initial funding, not an active pool too early.
       - id: FUND-008
@@ -1042,7 +1042,7 @@ groups:
           - Keep user-created initial liquidity out of this iteration except for shared helpers that do not change its behavior.
 
           Validation:
-          - Tests cover leg0 success + leg1 reject, leg1 success + leg0 reject, duplicate funding callbacks, and out-of-order callbacks.
+          - Tests cover leg0 success + leg1 reject, leg1 success + leg0 reject, wrong leg/source, and wrong workflow state.
           - Tests prove partial failure leaves no finalized reserve increase and no LP share mint.
           - Tests prove the normal existing-pool add-liquidity path remains successful.
       - id: FUND-009
@@ -1079,7 +1079,7 @@ groups:
           Validation:
           - Tests cover slippage/check failure after input custody creating a claim-balance refund.
           - Tests cover successful output credited exactly once.
-          - Tests prove duplicate finalization does not double-credit claim balances.
+          - Tests prove finalization and claim-balance crediting are only reachable from expected workflow states.
       - id: FUND-011
         status: Todo
         priority: P0
@@ -1096,7 +1096,7 @@ groups:
 
           Validation:
           - Tests prove burn/decrease cannot lose owed value.
-          - Tests prove duplicate remove/excess/refund/protocol-fee accounting does not double-credit.
+          - Tests prove remove/excess/refund/protocol-fee accounting is only reachable from expected workflow states.
           - Tests prove all owed-value categories share the same claim-balance exit model.
       - id: FUND-012
         status: Todo
@@ -1108,13 +1108,15 @@ groups:
 
           Minimal changes:
           - Add target `Claim` operation ABI.
+          - Store claim balances in a two-level map: token first, owner second.
           - Implement native synchronous claim semantics.
           - Implement meme pending delivery attempt state.
           - Keep refund, retry, protocol fee, remote liquidity, and excess as claim-balance meanings, not separate user operations.
 
           Validation:
+          - Tests prove token claim balances update without duplicating token identity per owner.
           - Tests prove native claim succeeds or leaves balance unchanged on abort.
-          - Tests prove meme pending delivery cannot be claimed twice.
+          - Tests prove meme pending delivery keeps the frozen amount unavailable for another claim.
           - Tests prove fail/bounce restores available balance.
           - Tests prove pending forever remains safe and observable.
       - id: FUND-013
@@ -1167,7 +1169,7 @@ groups:
         title: Add final regression suite for funds protocol convergence
         notes: |
           This is not a substitute for per-iteration validation. It is the final cross-path regression suite after all iterations pass independently.
-          Cover partial-success refund, pending not finalized, duplicate success/commit/claim idempotency, initial pool downstream failure, no residual side effects after Reject, claimable retry/dedup, and virtual liquidity versus real payable balance boundaries.
+          Cover partial-success refund, pending not finalized, stale follow-up rejection, initial pool downstream failure, no residual side effects after Reject, claim delivery pending/fail behavior, and virtual liquidity versus real payable balance boundaries.
   - name: WebUI
     tasks:
       - id: WEBUI-001

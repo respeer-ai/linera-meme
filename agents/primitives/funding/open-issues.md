@@ -16,13 +16,13 @@ Affected flow: user `CreatePool` with initial liquidity.
 
 Problem: swap may create `PoolCreationIntent` and send a pool-shell creation message whose target chain never executes.
 
-Current safe behavior: keep intent stalled/pending; do not activate; do not resend non-idempotent create message.
+Current safe behavior: keep intent stalled/pending; do not activate.
 
 Unsafe shortcuts:
 
 - timeout-based activation
 - opening another pool for the same pair
-- generic resume
+- generic resume or generic admin cancel
 
 ## OI-002 Shell Receipt Never Reaches Swap
 
@@ -52,7 +52,7 @@ Current safe behavior: keep funded custody value in stalled intent; do not reser
 Unsafe shortcuts:
 
 - timeout refund
-- retrying non-idempotent funding
+- generic retry or generic admin cancel
 - minting one-sided LP
 
 ## OI-004 Finalized Pool Activation Receipt Missing
@@ -91,38 +91,35 @@ Status: Deferred
 
 Problem: future operational recovery may be needed.
 
-Decision: do not design a generic `Resume`. Any recovery operation must be state-specific, idempotent, and proven not to double-pay, double-mint, double-create, or double-credit.
+Decision: do not design a generic `Resume` or generic admin cancel. Any future recovery or cancellation operation must be state-specific and justified against Linera's core once-only operation/message execution model.
 
 ## OI-007 Claim ABI Shape
 
-Status: Open
+Status: Decided
 
-Options:
+Decision:
 
 - `Claim { token_identity, amount }`
-- `Claim { claim_key, amount }`
-- `Claim { token_identity }`
 
-Decision criteria:
+Rationale:
 
-- authorization clarity
-- bucket support
-- frontend UX
-- duplicate handling
-- projection/API compatibility
+- Contract claim balances are stored as a two-level map: token first, owner second.
+- There is no per-claim queue and no claim key.
+- Product/accounting categories are maintained by the data platform.
+- User funds exit through a single operation on the pool application.
 
 ## OI-008 Claim Balance Bucket Design
 
-Status: Open
+Status: Decided
 
-Problem: protocol fee, remote liquidity, trading yield, refund, excess, swap output, and remove output may need category separation for display and accounting.
+Decision: contract claim balances do not include buckets.
 
-Constraint: bucket separation must not create separate funds-exit operations.
+Rationale: protocol fee, remote liquidity, trading yield, refund, excess, swap output, and remove output may need category separation for display and accounting, but that belongs to parsed facts and projections.
 
 ## OI-009 Terminal Intent Compaction
 
 Status: Open
 
-Problem: terminal intents should not grow without bound, but duplicate protection and audit facts may still be needed.
+Problem: terminal intents should not grow without bound, but stale follow-up rejection, diagnostics, and audit facts may still be needed.
 
 Constraint: compaction must not remove active custody or claim accounting state.

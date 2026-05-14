@@ -38,7 +38,9 @@ Long-lived economic state is aggregated:
 - claim balances
 - catalog status
 
-Workflow intents exist only while a business action is not terminal. They protect cross-chain state transitions from duplicate, forged, stale, delayed, or out-of-order effects. Once value clearly belongs to an owner, it should be credited to aggregated claim balances rather than stored as a long-lived per-event claim queue.
+Workflow intents exist only while a business action is not terminal. They protect cross-chain state transitions from forged, stale, delayed, wrong-source, or wrong-state effects. Linera core protocol provides once-only execution for accepted operations and messages; the application does not defend against exact duplicate execution of the same chain action. Once value clearly belongs to an owner, it should be credited to aggregated claim balances rather than stored as a long-lived per-event claim queue.
+
+Claim balances are stored token-first and owner-second: `claim_balances[token].balances[owner]`. This keeps each token identity stored once at the pool-contract level. Connected-owner claim lists are product reads and should be served from parsed facts/projection APIs, not by scanning contract storage at UI read time.
 
 Product data must come from parsed block facts and projections. Frontend claim lists, positions, TVL, APR inputs, transactions, candles, and pending/stalled workflow displays are projection-backed. Live query is limited to wallet identity, operation submission, and explicitly labeled live wallet balances.
 
@@ -50,7 +52,7 @@ Existing-pool Add Liquidity and user-created initial liquidity both require two-
 
 Swap outputs and failed post-custody inputs are credited to claim balances. Remove Liquidity burns/decreases position and credits owed token amounts to claim balances. Protocol fee, remote liquidity, excess, and refunds use the same claim-balance exit model.
 
-Native claim is synchronous on the pool chain. Meme token claim uses a delivery attempt: the claimed amount is frozen while the payout message is pending, and it cannot be claimed again until success or explicit fail/bounce.
+Native claim is synchronous on the pool chain. Meme token claim uses a delivery attempt: the claimed amount is frozen while the payout message is pending, and unavailable balance cannot be claimed again until success or explicit fail/bounce.
 
 ## Open Risks
 
@@ -62,7 +64,7 @@ Some states can remain in flight forever because the target chain may never exec
 - pool is finalized but activation receipt never reaches swap
 - meme claim delivery remains pending forever
 
-These are intentionally marked open. The safe first behavior is to keep them stalled, observable, and non-finalized where applicable. Do not add timeout-based refund, activation, retry, or generic resume without a state-specific idempotency proof.
+These are intentionally marked open. The safe first behavior is to keep them stalled, observable, and non-finalized where applicable. Do not add timeout-based refund, activation, retry, generic resume, or generic admin cancel without a state-specific design justified against Linera's core execution model.
 
 ## Iterative Delivery
 

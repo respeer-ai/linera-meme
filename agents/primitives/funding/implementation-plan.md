@@ -53,7 +53,7 @@ Minimal changes:
 
 Validation:
 
-- Wrong app, chain, signer, pair, stale intent, and duplicate receipt tests pass.
+- Wrong app, chain, signer, pair, stale intent, and competing receipt tests pass.
 - Pending shell does not become active.
 
 ### FUND-008 Iteration 3: Existing-pool AddLiquidity two-leg pending
@@ -69,7 +69,7 @@ Minimal changes:
 Validation:
 
 - Partial funding failure leaves no reserve update or LP mint.
-- Duplicate/out-of-order callbacks are idempotent.
+- Wrong leg/source and wrong workflow state are rejected.
 - Happy path remains successful.
 
 ### FUND-009 Iteration 4: Initial-liquidity convergence
@@ -94,13 +94,13 @@ Purpose: make swap outputs and refunds use claim balances.
 Minimal changes:
 
 - Add or reuse `SwapIntent`.
-- Credit successful output to claim balance.
-- Credit failed post-custody input to claim balance.
+- Credit successful output to the claim balance for the output token and owner.
+- Credit failed post-custody input to the claim balance for the input token and owner.
 
 Validation:
 
 - Slippage failure after input custody creates claim balance refund.
-- Success creates output claim balance exactly once.
+- Success creates output claim balance in the expected workflow state.
 
 ### FUND-011 Iteration 6: Remove, excess, protocol fee, and remote-liquidity claim balances
 
@@ -115,7 +115,7 @@ Minimal changes:
 Validation:
 
 - Burn/decrease cannot lose owed value.
-- Duplicate remove/excess/refund/protocol-fee accounting does not double-credit.
+- Remove/excess/refund/protocol-fee accounting is reachable only from expected workflow states.
 
 ### FUND-012 Iteration 7: Claim operation and delivery attempts
 
@@ -130,7 +130,7 @@ Minimal changes:
 Validation:
 
 - Native claim succeeds or leaves balance unchanged on abort.
-- Meme pending delivery cannot be claimed twice.
+- Meme pending delivery keeps the frozen amount unavailable for another claim.
 - Fail/bounce restores available balance.
 - Pending forever remains safe and observable.
 
@@ -173,7 +173,7 @@ Validation:
 - add liquidity partial failure
 - swap output/refund
 - remove owed
-- claim duplicate/pending/fail
+- claim pending/fail/frozen-balance behavior
 - activation stalled
 - virtual liquidity
 - projection consistency

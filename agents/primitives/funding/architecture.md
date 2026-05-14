@@ -10,7 +10,7 @@ Define the canonical architecture for AMM funding consistency across `swap`, `po
 
 ## Goals
 
-- Preserve funds consistency when cross-chain or cross-application effects are delayed, rejected, duplicated, reordered, or never executed.
+- Preserve funds consistency when cross-chain or cross-application effects are delayed, rejected, arrive after related state has changed, compete with another workflow, or never execute.
 - Never expose finalized reserves, LP shares, positions, claim balances, or active catalog state before the required protocol state transition is committed.
 - Keep owner funds recoverable through a single funds-exit operation, `Claim`.
 - Make every committed intermediate state observable through parsed block facts and projections.
@@ -73,7 +73,9 @@ Uniswap does not create an append-only per-event claim queue for owed value. Lon
 This protocol follows that direction:
 
 - Long-lived claimable value should be aggregated into claim balances.
-- Workflow intents exist only for cross-chain safety and idempotency.
+- Workflow intents exist for cross-chain business state, authorization, and custody safety.
+- Linera core protocol is responsible for executing a chain operation or accepted incoming message once in chain history. Application code must not add protocol-level duplicate-delivery defenses for the exact same operation or message.
+- Application state still needs business guards for distinct operations or messages that target the same business workflow, stale follow-ups, wrong source/caller, or effects that arrive after a workflow status has changed.
 - Event-level detail belongs in parsed facts and projections, not in unbounded on-chain claim queues.
 
 ## Source Of Truth

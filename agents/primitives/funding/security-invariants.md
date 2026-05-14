@@ -9,6 +9,7 @@ Authority: High
 - Only operations are user-reachable ABI.
 - User reachability includes frontend wallet signing and user-authored contracts calling via `call_application`.
 - Every public operation must validate authorization, intent identity, token identity, and funds state.
+- User-owned operations derive the owner from the authenticated operation account unless the path has an explicitly documented recipient field. `Claim` must not accept a user-supplied owner field.
 
 ## Internal Message Boundary
 
@@ -47,7 +48,8 @@ Every internal follow-up must verify the expected subset of:
 - Do not mark pool active before activation receipt is consumed by swap catalog.
 - Do not burn LP share unless owed value is credited to claim balances or otherwise proven delivered.
 - Do not mark claim delivery succeeded before success acknowledgement or successful synchronous native transfer.
-- Do not double-credit claim balances on duplicate finalization.
+- Finalization and claim-balance crediting must only be reachable from the expected workflow state.
+- Do not add application-level defenses for exact operation/message duplicate execution; Linera core protocol provides once-only chain execution for accepted operations/messages.
 
 ## Virtual Liquidity
 

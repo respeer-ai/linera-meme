@@ -11,7 +11,10 @@ Authority: High
 - `tracked + bouncing` is a one-hop reject receipt mechanism, not cross-chain atomic rollback.
 - A target chain may delay message execution indefinitely or never execute the message.
 - A permanently in-flight workflow is acceptable only if it remains safe, observable, and non-finalized.
-- Do not introduce a generic `Resume` operation. Any future recovery operation must be state-specific and proven idempotent.
+- Linera core protocol executes an operation or accepted message once in chain history. Replay/catch-up does not cause application operations or messages to happen again as new protocol behavior.
+- Application-level funding design must rely on that core reachability guarantee. If the exact same operation or message could be executed twice by the chain, application-level funds consistency would be impossible.
+- Application state guards are still required for stale follow-ups, wrong source/caller, competing user operations, and distinct messages that target the same business workflow.
+- Do not introduce a generic `Resume` operation. Any future recovery operation must be state-specific and justified against the core protocol execution model.
 
 ## User CreatePool With Initial Liquidity
 
@@ -30,7 +33,7 @@ Constraints:
 - No virtual liquidity.
 - No shell-only or empty pool creation.
 - Token identity validation happens fail-fast at this user-started trusted entry.
-- Existing pending or active pair rejects or returns an idempotent existing result.
+- Existing pending or active pair rejects or returns the existing business state.
 
 ### PoolCreationIntent
 
@@ -65,7 +68,7 @@ States:
 - `active`
 - `failed`
 
-Open issue: if the pool-shell target chain never executes the create message, the intent may remain `shell_message_sent` forever. It must not become active, must not be re-sent unless a future state-specific idempotent recovery path is designed, and must be visible as stalled.
+Open issue: if the pool-shell target chain never executes the create message, the intent may remain `shell_message_sent` forever. It must not become active and must be visible as stalled. A future recovery or cancellation path is not part of the current design.
 
 ### Pool Shell
 
@@ -79,7 +82,7 @@ Pool-local state:
 - pair identities
 - `shell_created`
 
-Open issue: if the pool shell is created but the shell receipt never reaches swap, swap catalog remains pending while the shell exists. The shell is not tradable and must not be exposed as active. A future reconciliation path must be state-specific and idempotent.
+Open issue: if the pool shell is created but the shell receipt never reaches swap, swap catalog remains pending while the shell exists. The shell is not tradable and must not be exposed as active. A future reconciliation path is not part of the current design.
 
 ### PoolInitialLiquidityIntent
 
@@ -129,7 +132,7 @@ After both legs are funded, pool finalizes:
 
 Swap consumes activation receipt and moves catalog pair to `Active`.
 
-Open issue: if pool is finalized and LP is minted but activation receipt never reaches swap, the pool has economic state while catalog is not active. Do not recreate the pool or mint again. A future activation reconciliation path must be state-specific and idempotent.
+Open issue: if pool is finalized and LP is minted but activation receipt never reaches swap, the pool has economic state while catalog is not active. Do not recreate the pool or mint again. A future activation reconciliation path is not part of the current design.
 
 ## Meme Native Pool Initialization
 
@@ -162,7 +165,7 @@ Required fields:
 Rules:
 
 - Both legs must be funded before reserve update, LP mint, or settled add-liquidity fact.
-- Duplicate and out-of-order funding callbacks must be idempotent.
+- Funding callbacks must validate source, expected leg, and current workflow state.
 - Explicit failed opposite leg moves already funded custody value to claim balances.
 - Forever-pending opposite leg remains stalled; there is no timeout refund.
 
@@ -177,7 +180,7 @@ Rules:
 - Slippage or check failure after input custody credits input back to claim balances.
 - Successful swap updates reserves and credits output to claim balances.
 - Output direct payout is not the funds-closure boundary.
-- Duplicate finalization must not double-credit claim balances.
+- Finalization must be reachable only from the expected workflow state.
 
 ## RemoveLiquidity
 

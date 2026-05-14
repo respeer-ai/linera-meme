@@ -15,28 +15,37 @@ Refund, retry, excess withdrawal, protocol-fee withdrawal, remote-liquidity with
 Long-lived owed value should be represented as aggregated claim balances:
 
 ```text
-claim_balances[(pool_app, owner_account, token_identity, bucket?)] += amount
+claim_balances[token_identity].balances[owner_account] += amount
 ```
 
-Historical details belong in parsed facts and projections.
+Historical details and category/bucket display belong in parsed facts and projections, not in contract claim-balance keys.
+
+The on-chain storage must use a two-level map:
+
+- first level: `token_identity`
+- second level: `owner_account`
+
+`token_identity` must use the pool contract's canonical token representation. If the current implementation represents native as `None` and application tokens as `Some(ApplicationId)`, keep that representation instead of introducing a parallel token enum.
+
+This keeps each token identity stored once at the outer level and avoids repeating token keys for every account. User-facing claim lists should be served from projection/API data rather than by scanning contract storage at product-read time.
 
 ## Claim Operation
 
-The exact ABI is still open. Candidate shapes:
+Target ABI:
 
 ```text
 PoolOperation::Claim { token_identity, amount }
-PoolOperation::Claim { claim_key, amount }
-PoolOperation::Claim { token_identity }
 ```
 
-The chosen ABI must preserve:
+Rules:
 
 - owner authorization
+- owner is derived from the authenticated operation account, following existing pool operation semantics; do not accept an owner payload field for `Claim`
 - token identity
-- pool/accounting context
-- optional bucket semantics when needed
-- idempotent duplicate handling
+- available claim balance check
+- `amount > 0`
+- no claim key and no per-claim queue
+- category/bucket display is a data-platform concern
 
 ## Native Claim
 
@@ -104,6 +113,6 @@ Do not introduce `Resume`, `RetryClaim`, or `Refund` as user product operations.
 Any future recovery operation must be:
 
 - scoped to one concrete state
-- idempotent
-- unable to double-pay, double-mint, double-create, or double-credit
+- justified against Linera's core once-only execution model
+- unable to violate custody or accounting safety
 - explicitly documented in the relevant state machine
