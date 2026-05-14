@@ -1,6 +1,7 @@
 import json
 from decimal import Decimal
 
+from account_codec import AccountCodec
 from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
 from storage.mysql.pool_metadata_projection_resolver import PoolMetadataProjectionResolver
 from candle_schema import CandleUpdate, apply_candle_update, build_candle_bucket_key, get_interval_bucket_ms
@@ -36,6 +37,7 @@ class SettledTradeProjectionRepository:
         )
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
         self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
+        self.account_codec = AccountCodec()
 
     def _pool_join_condition(self, alias: str) -> str:
         return f"p.pool_application = {self._pool_application_expression(alias)}"
@@ -189,6 +191,9 @@ class SettledTradeProjectionRepository:
             resolved_token_1,
             points,
         )
+
+    def load_pool_market_watermark_ms(self, pool_application: str) -> int | None:
+        return self._load_pool_market_watermark_ms(pool_application)
 
     def get_candles_information(
         self,
@@ -444,17 +449,106 @@ class SettledTradeProjectionRepository:
             return []
         points = []
         last_close = previous_close
-        now_ms = self.db.now_ms()
+        market_watermark_ms = self._load_pool_market_watermark_ms(pool_application)
         bucket_ms = start_bucket_ms
         while bucket_ms <= end_bucket_ms:
             state = bucket_states.get(bucket_ms)
             if state is not None:
-                points.append(self._build_candle_point(interval=interval, bucket_start_ms=bucket_ms, state=state, now_ms=now_ms))
+                points.append(self._build_candle_point(
+                    interval=interval,
+                    bucket_start_ms=bucket_ms,
+                    state=state,
+                    market_watermark_ms=market_watermark_ms,
+                ))
                 last_close = state.close
-            elif last_close is not None and now_ms > bucket_ms + interval_ms - 1:
-                points.append(self._build_empty_candle_point(interval=interval, bucket_start_ms=bucket_ms, close_price=last_close, now_ms=now_ms))
+            elif last_close is not None and self._bucket_final(
+                interval=interval,
+                bucket_start_ms=bucket_ms,
+                market_watermark_ms=market_watermark_ms,
+            ):
+                points.append(self._build_empty_candle_point(
+                    interval=interval,
+                    bucket_start_ms=bucket_ms,
+                    close_price=last_close,
+                    market_watermark_ms=market_watermark_ms,
+                ))
             bucket_ms += interval_ms
         return points
+
+    def _load_pool_market_watermark_ms(self, pool_application: str) -> int | None:
+        metadata = self.metadata_resolver.metadata_for_pool_application(pool_application)
+        pool_chain_id = None
+        if metadata is not None:
+            pool_chain_id = metadata.get('pool_chain_id')
+        if pool_chain_id in (None, ''):
+            try:
+                pool_chain_id = self.account_codec.chain_id_from_account(pool_application)
+            except ValueError:
+                pool_chain_id = None
+
+        cursor = self._fresh_cursor()
+        try:
+            raw_block_watermark_sql = 'NULL'
+            params: list[object] = []
+            if pool_chain_id not in (None, ''):
+                raw_block_watermark_sql = '''
+                    (
+                        SELECT MAX(rb.timestamp_ms)
+                        FROM raw_blocks rb
+                        WHERE rb.chain_id = %s
+                    )
+                '''
+                params.append(str(pool_chain_id))
+            params.append(pool_application)
+            cursor.execute(
+                f'''
+                SELECT GREATEST(
+                    COALESCE(MAX(st.trade_time_ms), 0),
+                    COALESCE({raw_block_watermark_sql}, 0)
+                ) AS market_watermark_ms
+                FROM settled_trades st
+                WHERE {self._pool_application_condition('st')}
+                ''',
+                tuple(params),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            watermark = row.get('market_watermark_ms') if isinstance(row, dict) else row[0]
+            if watermark is None:
+                return None
+            return int(watermark)
+        except Exception:
+            return self._load_pool_trade_watermark_ms(pool_application)
+        finally:
+            close = getattr(cursor, 'close', None)
+            if close is not None:
+                close()
+
+    def _load_pool_trade_watermark_ms(self, pool_application: str) -> int | None:
+        cursor = self._fresh_cursor()
+        try:
+            cursor.execute(
+                f'''
+                SELECT MAX(st.trade_time_ms) AS trade_watermark_ms
+                FROM settled_trades st
+                WHERE {self._pool_application_condition('st')}
+                ''',
+                (pool_application,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            watermark = row.get('trade_watermark_ms') if isinstance(row, dict) else row[0]
+            if watermark is None:
+                return None
+            return int(watermark)
+        except Exception:
+            return None
+        finally:
+            close = getattr(cursor, 'close', None)
+            if close is not None:
+                close()
 
     def _load_previous_close(
         self,
@@ -586,13 +680,21 @@ class SettledTradeProjectionRepository:
             return None
         return str(value)
 
-    def _build_candle_point(self, *, interval: str, bucket_start_ms: int, state, now_ms: int) -> dict:
+    def _bucket_final(self, *, interval: str, bucket_start_ms: int, market_watermark_ms: int | None) -> bool:
+        bucket_ms = get_interval_bucket_ms(interval)
+        return market_watermark_ms is not None and market_watermark_ms > bucket_start_ms + bucket_ms - 1
+
+    def _build_candle_point(self, *, interval: str, bucket_start_ms: int, state, market_watermark_ms: int | None) -> dict:
         bucket_ms = get_interval_bucket_ms(interval)
         return {
             'timestamp': bucket_start_ms,
             'bucket_start_ms': bucket_start_ms,
             'bucket_end_ms': bucket_start_ms + bucket_ms - 1,
-            'is_final': now_ms > bucket_start_ms + bucket_ms - 1,
+            'is_final': self._bucket_final(
+                interval=interval,
+                bucket_start_ms=bucket_start_ms,
+                market_watermark_ms=market_watermark_ms,
+            ),
             'open': float(state.open),
             'high': float(state.high),
             'low': float(state.low),
@@ -601,13 +703,17 @@ class SettledTradeProjectionRepository:
             'quote_volume': float(state.quote_volume),
         }
 
-    def _build_empty_candle_point(self, *, interval: str, bucket_start_ms: int, close_price: float, now_ms: int) -> dict:
+    def _build_empty_candle_point(self, *, interval: str, bucket_start_ms: int, close_price: float, market_watermark_ms: int | None) -> dict:
         bucket_ms = get_interval_bucket_ms(interval)
         return {
             'timestamp': bucket_start_ms,
             'bucket_start_ms': bucket_start_ms,
             'bucket_end_ms': bucket_start_ms + bucket_ms - 1,
-            'is_final': now_ms > bucket_start_ms + bucket_ms - 1,
+            'is_final': self._bucket_final(
+                interval=interval,
+                bucket_start_ms=bucket_start_ms,
+                market_watermark_ms=market_watermark_ms,
+            ),
             'open': float(close_price),
             'high': float(close_price),
             'low': float(close_price),

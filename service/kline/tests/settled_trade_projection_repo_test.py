@@ -98,6 +98,17 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
                 return None
             return rows[0]
 
+    class QueryAwareCursor(FakeCursor):
+        def __init__(self, responses_by_marker):
+            super().__init__()
+            self.responses_by_marker = responses_by_marker
+
+        def fetchall(self):
+            for marker, rows in self.responses_by_marker:
+                if marker in self.last_sql:
+                    return list(rows)
+            return []
+
     class FakeDb:
         def __init__(self):
             self.cursor_dict = SettledTradeProjectionRepositoryTest.FakeCursor()
@@ -141,12 +152,24 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
             self.cursor_dict = cursor
             self.created_cursors.append(cursor)
 
+    class CursorQueueDb(FakeDb):
+        def __init__(self, cursors):
+            super().__init__()
+            self.cursors = list(cursors)
+
+        def fresh_cursor(self, dictionary=True):
+            self.calls.append(('fresh_cursor', dictionary))
+            if not self.cursors:
+                return SettledTradeProjectionRepositoryTest.FakeCursor()
+            return self.cursors.pop(0)
+
     def repository(self, db, pools):
         metadata = {
             row['pool_application']: {
                 'pool_id': row['pool_id'],
                 'token_0': row['token_0'],
                 'token_1': row['token_1'],
+                'pool_chain_id': row.get('pool_chain_id'),
             }
             for row in pools
         }
@@ -332,35 +355,34 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['pool_application'], 'chain-a:0xpool-app')
 
-    def test_get_candles_builds_empty_finalized_buckets_from_previous_close(self):
-        db = self.FakeDb()
-        db.current_now_ms = 180_000
-        db.cursor_dict.responses = [
-            [],
-            [
-                {
-                    'pool_id': 7,
-                    'pool_application': 'chain-a:pool-app',
-                    'token_0': 'AAA',
-                    'token_1': 'BBB',
-                    'settled_trade_id': 'trade-prev',
-                    'transaction_id': 9,
-                    'trade_time_ms': 59_000,
-                    'side': 'buy_token_0',
-                    'from_account': 'c:o',
-                    'amount_0_in': None,
-                    'amount_0_out': '10',
-                    'amount_1_in': '20',
-                    'amount_1_out': None,
-                    'amount_in': '20',
-                    'amount_out': '10',
-                    'event_payload_json': {},
-                }
-            ],
-        ]
+    def test_get_candles_builds_empty_finalized_buckets_from_projection_watermark(self):
+        previous_trade = {
+            'pool_id': 7,
+            'pool_application': '0xabc@chain-a',
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+            'settled_trade_id': 'trade-prev',
+            'transaction_id': 9,
+            'trade_time_ms': 59_000,
+            'side': 'buy_token_0',
+            'from_account': 'c:o',
+            'amount_0_in': None,
+            'amount_0_out': '10',
+            'amount_1_in': '20',
+            'amount_1_out': None,
+            'amount_in': '20',
+            'amount_out': '10',
+            'event_payload_json': {},
+        }
+        db = self.CursorQueueDb([
+            self.QueryAwareCursor([('FROM settled_trades st', [])]),
+            self.QueryAwareCursor([('FROM settled_trades st', [previous_trade])]),
+            self.QueryAwareCursor([('market_watermark_ms', [{'market_watermark_ms': 180_000}])]),
+        ])
         repository = self.repository(db, [{
             'pool_id': 7,
-            'pool_application': 'chain-a:pool-app',
+            'pool_application': '0xabc@chain-a',
+            'pool_chain_id': 'chain-a',
             'token_0': 'AAA',
             'token_1': 'BBB',
         }])
@@ -377,7 +399,55 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(payload[4][0]['timestamp'], 60_000)
         self.assertEqual(payload[4][0]['open'], 2.0)
         self.assertEqual(payload[4][0]['base_volume'], 0.0)
+        self.assertEqual(payload[4][0]['is_final'], True)
         self.assertEqual(payload[4][1]['timestamp'], 120_000)
+        self.assertEqual(payload[4][1]['is_final'], True)
+
+    def test_get_candles_does_not_finalize_past_wall_clock_without_projection_watermark(self):
+        db = self.CursorQueueDb([
+            self.QueryAwareCursor([('FROM settled_trades st', [
+                {
+                    'pool_id': 7,
+                    'pool_application': '0xabc@chain-a',
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'settled_trade_id': 'trade-1',
+                    'transaction_id': 10,
+                    'trade_time_ms': 61_000,
+                    'side': 'buy_token_0',
+                    'from_account': 'c:o',
+                    'amount_0_in': None,
+                    'amount_0_out': '10',
+                    'amount_1_in': '20',
+                    'amount_1_out': None,
+                    'amount_in': '20',
+                    'amount_out': '10',
+                    'event_payload_json': {},
+                }
+            ])]),
+            self.QueryAwareCursor([('FROM settled_trades st', [])]),
+            self.QueryAwareCursor([('market_watermark_ms', [{'market_watermark_ms': 61_000}])]),
+        ])
+        db.current_now_ms = 180_000
+        repository = self.repository(db, [{
+            'pool_id': 7,
+            'pool_application': '0xabc@chain-a',
+            'pool_chain_id': 'chain-a',
+            'token_0': 'AAA',
+            'token_1': 'BBB',
+        }])
+
+        payload = repository.get_candles(
+            token_0='AAA',
+            token_1='BBB',
+            start_at=60_000,
+            end_at=119_999,
+            interval='1min',
+        )
+
+        self.assertEqual(len(payload[4]), 1)
+        self.assertEqual(payload[4][0]['timestamp'], 60_000)
+        self.assertEqual(payload[4][0]['is_final'], False)
 
     def test_settled_projection_returns_empty_payloads_without_falling_back_to_legacy(self):
         db = self.FakeDb()

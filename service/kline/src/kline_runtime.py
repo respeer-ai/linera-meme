@@ -284,6 +284,8 @@ class KlineRuntime:
             queue=self.build_market_data_event_queue(),
             pool_catalog_repository=self._build_projection_pool_catalog_repository_for_db(realtime_db),
             pool_catalog_repository_factory=self._build_scheduler_pool_catalog_repository_factory(realtime_db),
+            market_watermark_repository=SettledTradeProjectionRepository(realtime_db),
+            market_watermark_repository_factory=self._build_scheduler_market_watermark_repository_factory(realtime_db),
             account_codec=AccountCodec(),
         )
 
@@ -313,6 +315,26 @@ class KlineRuntime:
 
         return factory
 
+    def _build_scheduler_market_watermark_repository_factory(self, realtime_db):
+        if not hasattr(realtime_db, 'config'):
+            return None
+
+        def factory():
+            scheduler_db = Db(
+                realtime_db.host,
+                realtime_db.port,
+                realtime_db.db_name,
+                realtime_db.username,
+                realtime_db.password,
+                False,
+            )
+            return _OwnedDbMarketWatermarkRepository(
+                db=scheduler_db,
+                repository=SettledTradeProjectionRepository(scheduler_db),
+            )
+
+        return factory
+
     async def get_protocol_stats(self) -> dict:
         pools = self.projection_pool_catalog_repository().list_current_pools()
         return self.market_stats_projection_repository().get_protocol_stats(pools=pools)
@@ -329,6 +351,18 @@ class _OwnedDbProjectionPoolCatalogRepository:
 
     def list_current_pool_views(self):
         return self.repository.list_current_pool_views()
+
+    def close(self):
+        self.db.close()
+
+
+class _OwnedDbMarketWatermarkRepository:
+    def __init__(self, *, db, repository):
+        self.db = db
+        self.repository = repository
+
+    def load_pool_market_watermark_ms(self, pool_application):
+        return self.repository.load_pool_market_watermark_ms(pool_application)
 
     def close(self):
         self.db.close()

@@ -1,4 +1,5 @@
 import { type Point } from 'src/stores/kline/types'
+import { shouldOverwriteOverlappingPoint } from 'src/stores/kline/pointOverwrite'
 
 type SortReasonLike = {
   reason?: string
@@ -11,16 +12,6 @@ type MergePointsInput = {
 }
 
 const isFetchReason = (reason: SortReasonLike) => reason.reason === 'Fetch'
-
-const isFinal = (point: Point) => point.is_final === true
-
-const volumeValue = (point: Point) => point.base_volume
-
-export const shouldOverwriteOverlappingPoint = (current: Point, incoming: Point): boolean => {
-  if (isFinal(current) && !isFinal(incoming)) return false
-  if (volumeValue(current) > 0 && volumeValue(incoming) === 0) return false
-  return true
-}
 
 export const mergeKlinePoints = ({
   originPoints,

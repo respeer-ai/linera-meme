@@ -4,6 +4,7 @@ import { type Interval } from 'src/stores/kline/const'
 import { type Point } from 'src/stores/kline/types'
 import { type dbModel } from 'src/model'
 import { splitCompatibleKlinePoints } from './klineCacheCompatibility'
+import { shouldOverwriteOverlappingPoint } from 'src/stores/kline/pointOverwrite'
 
 export type KlineSelectedIdentity = {
   token0: string
@@ -17,6 +18,11 @@ export type KlineResolvedIdentity = {
 }
 
 const MAX_RESOLVED_IDENTITIES = 200
+
+export const shouldPersistIncomingKlinePoint = (
+  current: Point,
+  incoming: Point,
+): boolean => shouldOverwriteOverlappingPoint(current, incoming)
 
 export class Kline {
   static resolvedIdentity = async ({
@@ -100,6 +106,7 @@ export class Kline {
             timestamp,
           ])
           if (!point) continue
+          if (!shouldPersistIncomingKlinePoint(point, _point)) continue
           _point.id = point.id as number
           if (JSON.stringify(_point) === JSON.stringify(point)) continue
           await dbKline.klinePoints.update(_point, _point)

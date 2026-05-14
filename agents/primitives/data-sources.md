@@ -29,6 +29,15 @@ Canonical truth hierarchy and off-chain data-source rules.
 - Candle storage uses milliseconds
 - Candle key is `(pool_id, token_reversed, interval, bucket_start_ms)`
 - Replaying a trade with `transaction_id <= last_trade_id` for the bucket must be a no-op
+- Candle bucket assignment uses contract transaction time from parsed chain facts, not parser wall-clock time
+- Candle `is_final=true` means the bucket is complete relative to parsed chain facts
+- Candle finality must be derived from a projection watermark, not local wall-clock time
+- Pool market watermark is the maximum known event time for a pool market from:
+  - latest `settled_trades.trade_time_ms` for the pool application
+  - latest parsed `raw_blocks.timestamp_ms` for the pool chain
+- If no newer parsed trade or block exists, the pool market watermark does not advance
+- Empty finalized candles may only be generated up to the pool market watermark
+- Realtime candle-finalized events may only be emitted when the pool market watermark crosses a bucket boundary
 
 ## Checklist
 

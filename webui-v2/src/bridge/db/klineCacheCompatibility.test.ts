@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { Interval } from 'src/stores/kline/const'
 
 import { splitCompatibleKlinePoints, isCompatibleKlinePoint } from './klineCacheCompatibility'
+import { shouldPersistIncomingKlinePoint } from './kline'
 
 const point = {
   id: 1,
@@ -59,5 +60,56 @@ describe('splitCompatibleKlinePoints', () => {
     expect(result.compatible).toEqual([point])
     expect(result.incompatible).toHaveLength(1)
     expect(result.incompatible[0]?.timestamp).toBe(2_000)
+  })
+})
+
+describe('shouldPersistIncomingKlinePoint', () => {
+  test('keeps a persisted final candle when an incoming non-final candle has the same timestamp', () => {
+    expect(
+      shouldPersistIncomingKlinePoint(point, {
+        ...point,
+        is_final: false,
+        close: 2,
+      }),
+    ).toBe(false)
+  })
+
+  test('allows an incoming final candle to replace a persisted non-final candle', () => {
+    expect(
+      shouldPersistIncomingKlinePoint(
+        {
+          ...point,
+          is_final: false,
+        },
+        {
+          ...point,
+          is_final: true,
+          close: 2,
+        },
+      ),
+    ).toBe(true)
+  })
+
+  test('keeps a non-zero persisted candle when an incoming zero-volume placeholder has the same timestamp', () => {
+    expect(
+      shouldPersistIncomingKlinePoint(point, {
+        ...point,
+        base_volume: 0,
+        quote_volume: 0,
+      }),
+    ).toBe(false)
+  })
+
+  test('allows an incoming non-zero candle to replace a persisted zero-volume placeholder', () => {
+    expect(
+      shouldPersistIncomingKlinePoint(
+        {
+          ...point,
+          base_volume: 0,
+          quote_volume: 0,
+        },
+        point,
+      ),
+    ).toBe(true)
   })
 })

@@ -309,6 +309,26 @@ class MarketDataPayloadBuilderTest(unittest.TestCase):
         self.assertEqual(payload['kline']['1min'][0]['end_at'], 1_800_000_119_999)
         self.assertEqual(payload['kline']['1min'][0]['points'][0]['is_final'], True)
 
+    def test_ignores_finality_event_without_watermark_bucket(self):
+        db = FakeHistoryRepository()
+        pool = make_pool()
+        builder = MarketDataPayloadBuilder(
+            pool_catalog_repository=FakePoolCatalogRepository([pool]),
+            candle_reader=FakeCandleReader(db),
+            transaction_history_repository=db,
+            now_ms=lambda: 1_800_000_130_000,
+        )
+
+        payload = builder.build([
+            MarketDataEvent(
+                event_type=MarketDataEvent.TYPE_CANDLE_FINALIZED,
+                pool_application=POOL_APPLICATION,
+                interval='1min',
+            )
+        ])
+
+        self.assertEqual(payload['kline'], {})
+
 
 if __name__ == '__main__':
     unittest.main()

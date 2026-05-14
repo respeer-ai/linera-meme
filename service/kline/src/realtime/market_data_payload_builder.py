@@ -147,7 +147,6 @@ class MarketDataPayloadBuilder:
 
     def build_rollover_kline_payload(self, pool, events: list[MarketDataEvent]) -> dict:
         payload = {}
-        now_ms = self.now_ms()
         pool_application = self.pool_application(pool)
 
         for token_reversed in [False, True]:
@@ -170,17 +169,9 @@ class MarketDataPayloadBuilder:
                     for event in interval_events
                     if event.event_time_ms is not None
                 ]
-                if event_bucket_starts:
-                    last_finalized_bucket_start = max(event_bucket_starts)
-                else:
-                    current_bucket_start = build_candle_bucket_key(
-                        pool_application=pool_application,
-                        pool_id=pool.pool_id,
-                        token_reversed=token_reversed,
-                        interval=interval,
-                        created_at_ms=now_ms,
-                    ).bucket_start_ms
-                    last_finalized_bucket_start = current_bucket_start - bucket_ms
+                if not event_bucket_starts:
+                    continue
+                last_finalized_bucket_start = max(event_bucket_starts)
 
                 if (
                     last_emitted_bucket_start is not None

@@ -108,6 +108,18 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         def fetchall(self):
             if 'COUNT(*) AS trade_count' in self.sql:
                 return [self._summary_row(self._filtered_trades())]
+            if 'AS market_watermark_ms' in self.sql:
+                rows = self._filtered_trades()
+                trade_times = [int(row['trade_time_ms']) for row in rows]
+                return [{
+                    'market_watermark_ms': max(trade_times) if trade_times else 0,
+                }]
+            if 'AS trade_watermark_ms' in self.sql:
+                rows = self._filtered_trades()
+                trade_times = [int(row['trade_time_ms']) for row in rows]
+                return [{
+                    'trade_watermark_ms': max(trade_times) if trade_times else None,
+                }]
             return self._select_rows()
 
         def close(self):
@@ -154,6 +166,8 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         def _filtered_trades(self):
             rows = list(self.db.trades)
             param_index = 0
+            if 'FROM raw_blocks rb' in self.sql:
+                param_index += 1
             if 'st.pool_application_id = %s' in self.sql:
                 pool_application = self.params[param_index]
                 param_index += 1
@@ -343,7 +357,7 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             rows=self.trades,
             start_at=60_000,
             end_at=240_000,
-            now_ms=260_000,
+            market_watermark_ms=181_000,
         )
         self.assertEqual(payload['pool_application'], self.POOL_APPLICATION)
         self.assertEqual(payload['pool_id'], self.POOL_ID)
@@ -510,7 +524,7 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'price': float(Decimal('0') if base_volume == 0 else quote_volume / base_volume),
         }
 
-    def _expected_candles(self, *, rows, start_at, end_at, now_ms):
+    def _expected_candles(self, *, rows, start_at, end_at, market_watermark_ms):
         buckets = {}
         for row in rows:
             timestamp = int(row['trade_time_ms'])
@@ -545,10 +559,10 @@ class ObservabilityReconciliationTest(unittest.TestCase):
                     'close': close,
                     'base_volume': sum(trade['base_volume'] for trade in trades),
                     'quote_volume': sum(trade['quote_volume'] for trade in trades),
-                    'is_final': now_ms > bucket_start + 60_000 - 1,
+                    'is_final': market_watermark_ms > bucket_start + 60_000 - 1,
                 })
                 last_close = close
-            elif last_close is not None and now_ms > bucket_start + 60_000 - 1:
+            elif last_close is not None and market_watermark_ms > bucket_start + 60_000 - 1:
                 points.append({
                     'timestamp': bucket_start,
                     'open': last_close,

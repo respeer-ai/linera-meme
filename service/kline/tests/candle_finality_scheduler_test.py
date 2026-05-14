@@ -25,6 +25,20 @@ class FakeAccountCodec:
         return f'{owner}@{chain_id}'
 
 
+class FakeMarketWatermarkRepository:
+    def __init__(self, watermark_by_pool_application=None):
+        self.watermark_by_pool_application = dict(watermark_by_pool_application or {})
+        self.calls = []
+        self.closed = False
+
+    def load_pool_market_watermark_ms(self, pool_application):
+        self.calls.append(pool_application)
+        return self.watermark_by_pool_application.get(pool_application)
+
+    def close(self):
+        self.closed = True
+
+
 class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
     async def test_emits_interval_scoped_finality_events(self):
         pool = type('Pool', (), {
@@ -43,8 +57,11 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
         scheduler = CandleFinalityScheduler(
             queue=queue,
             pool_catalog_repository=Repository(),
+            market_watermark_repository=FakeMarketWatermarkRepository({
+                f'{POOL_OWNER}@{POOL_CHAIN}': 1_800_000_130_000,
+            }),
             account_codec=FakeAccountCodec(),
-            now_ms=lambda: 1_800_000_130_000,
+            now_ms=lambda: 1_800_000_131_000,
         )
 
         scheduler.emit_due_events()
@@ -55,6 +72,33 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(event.pool_application, f'{POOL_OWNER}@{POOL_CHAIN}')
         self.assertEqual(event.interval, '1min')
         self.assertEqual(event.event_time_ms, 1_800_000_060_000)
+
+    async def test_does_not_emit_without_projection_watermark(self):
+        pool = type('Pool', (), {
+            'pool_id': 7,
+            'pool_application': type('Application', (), {
+                'chain_id': POOL_CHAIN,
+                'owner': POOL_OWNER,
+            })(),
+        })()
+
+        class Repository:
+            def list_current_pool_views(self):
+                return [pool]
+
+        queue = asyncio.Queue()
+        scheduler = CandleFinalityScheduler(
+            queue=queue,
+            pool_catalog_repository=Repository(),
+            market_watermark_repository=FakeMarketWatermarkRepository(),
+            account_codec=FakeAccountCodec(),
+            now_ms=lambda: 1_800_000_130_000,
+        )
+
+        scheduler.emit_due_events()
+        scheduler.stop()
+
+        self.assertTrue(queue.empty())
 
     async def test_emit_runs_outside_event_loop_thread(self):
         loop_thread = threading.get_ident()
@@ -69,6 +113,7 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
         scheduler = CandleFinalityScheduler(
             queue=asyncio.Queue(),
             pool_catalog_repository=Repository(),
+            market_watermark_repository=FakeMarketWatermarkRepository(),
             account_codec=FakeAccountCodec(),
         )
 
@@ -89,6 +134,7 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
         scheduler = CandleFinalityScheduler(
             queue=asyncio.Queue(),
             pool_catalog_repository=Repository(),
+            market_watermark_repository=FakeMarketWatermarkRepository(),
             account_codec=FakeAccountCodec(),
             emit_timeout_seconds=0.01,
         )
@@ -120,7 +166,9 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
         scheduler = CandleFinalityScheduler(
             queue=asyncio.Queue(),
             pool_catalog_repository=Repository(),
+            market_watermark_repository=FakeMarketWatermarkRepository(),
             pool_catalog_repository_factory=lambda: Repository(),
+            market_watermark_repository_factory=lambda: FakeMarketWatermarkRepository(),
             account_codec=FakeAccountCodec(),
             emit_timeout_seconds=0.01,
         )
@@ -155,10 +203,14 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
 
         main_repository = Repository('main')
         worker_repository = Repository('worker')
+        main_watermark_repository = FakeMarketWatermarkRepository()
+        worker_watermark_repository = FakeMarketWatermarkRepository()
         scheduler = CandleFinalityScheduler(
             queue=asyncio.Queue(),
             pool_catalog_repository=main_repository,
             pool_catalog_repository_factory=lambda: worker_repository,
+            market_watermark_repository=main_watermark_repository,
+            market_watermark_repository_factory=lambda: worker_watermark_repository,
             account_codec=FakeAccountCodec(),
         )
 
@@ -168,6 +220,8 @@ class CandleFinalitySchedulerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(main_repository.calls, 0)
         self.assertEqual(worker_repository.calls, 1)
         self.assertTrue(worker_repository.closed)
+        self.assertFalse(main_watermark_repository.closed)
+        self.assertTrue(worker_watermark_repository.closed)
 
 
 if __name__ == '__main__':
