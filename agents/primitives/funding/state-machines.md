@@ -7,7 +7,7 @@ Authority: High
 ## Rules
 
 - A successful operation only proves the current transaction completed and outgoing messages were queued.
-- Outgoing application messages should be tracked by default.
+- Outgoing application messages must be tracked by default.
 - `tracked + bouncing` is a one-hop reject receipt mechanism, not cross-chain atomic rollback.
 - The reason to track messages is to let the sender chain observe destination-chain reject and converge sender-side workflow state safely.
 - Receiving handlers must use `message_is_bouncing()` to distinguish normal delivery from a reject bounce.
@@ -62,7 +62,8 @@ Required fields:
 - `token1_identity`
 - `amount0`
 - `amount1`
-- `min0` / `min1` when applicable
+- `min0`
+- `min1`
 - `status`
 - `expected_pool_chain`
 - `expected_pool_application`
@@ -80,6 +81,7 @@ Required fields:
 - Internal messages and receipts carry `intent_id`; handlers load the intent by id and verify expected pair, owner, source chain, pool chain, pool application, and current status.
 - The pool chain may store pool-local workflow state that references the same `intent_id`, but it does not allocate the canonical pool-creation id.
 - Cross-chain storage is not shared. Consistency comes from message-carried ids plus local validation of source chain, authenticated caller/application, expected pool chain/application, pair, and status on the receiving chain.
+- `FUND-005` must produce a handler-level transition table for these states before `FUND-007` code changes. The table is the implementation authority for allowed transitions, stale receipt handling, duplicate-safe no-op idempotency, and abort/reject behavior.
 
 States:
 
@@ -100,7 +102,7 @@ Rules:
 - Any losing intent value already in custody must be credited to claim balances.
 - A losing opened shell chain/application must not become a second active pool and must not be reusable by a later create attempt.
 - Terminal truth lives in the intent state. Do not add a separate pool-created flag that can disagree with intent status.
-- If cleanup is possible, the router/swap application may close a losing shell chain only when it is executing on that chain, the chain grants it `close_chain` permission, and shell cleanup is already complete. Linera `close_chain()` only marks the chain closed; it does not transfer remaining chain balance or application custody.
+- Shell chain close eligibility must be defined in the `FUND-010` transition table before close is implemented. The router/swap application may close a losing shell chain only when it is executing on that chain, the chain grants it `close_chain` permission, and shell cleanup is already complete. Linera `close_chain()` only marks the chain closed; it does not transfer remaining chain balance or application custody.
 
 ### Pool Shell
 
@@ -124,6 +126,7 @@ If the shell exists before original creator funding finalizes, another user may 
 - If the pool has already finalized by the time another workflow's funds arrive, that workflow is no longer initial funding. Its amounts must be handled as normal add liquidity against the current reserves.
 - For normal add liquidity, a one-side-short case does not fail the whole workflow. The accepted liquidity amount is computed from the limiting side, and excess from the other side is credited to claim balances.
 - No workflow may write reserves or mint LP shares until both required token legs are funded and the workflow is the valid finalization candidate for the current pool state.
+- Slippage/min-amount behavior must be fixed before implementing this path. Any post-custody failure must not leave funds only in an opaque intent; funded user value must either remain safely stalled when the opposite leg has no terminal evidence or be credited to claim balances when the workflow reaches a failed terminal state.
 
 Open issue: if the pool shell is created but the shell receipt never reaches the swap chain, `swap` application state remains pending while the shell exists. The shell has no finalized reserves and must not be exposed as active. A future reconciliation path is not part of the current design.
 
@@ -136,10 +139,10 @@ Consumed by: pool cleanup/finalization logic before optional chain close.
 Rules:
 
 - A failed shell is permanently non-economic: it must not become active, must not finalize reserves, and must not mint LP shares.
-- Failed-shell `AddLiquidity` should reject before requesting funds whenever possible.
+- Failed-shell `AddLiquidity` must reject before requesting funds when the failed-shell state is visible before fund requests are issued.
 - If funds are nevertheless delivered to a failed shell, they are application/protocol custody on that shell, not LP reserve and not liquidity owned by the sender.
 - User-owned value already custodied by a valid losing workflow is credited to claim balances before cleanup.
-- Close is last. The shell chain may be closed only after cleanup resolves all application-level custody. Linera `close_chain()` only sets the chain closed and causes future incoming messages to be rejected; it does not transfer or refund remaining balance.
+- Close is last. The `FUND-010` transition table must define close eligibility explicitly. The shell chain may be closed only after cleanup resolves all application-level custody. Linera `close_chain()` only sets the chain closed and causes future incoming messages to be rejected; it does not transfer or refund remaining balance.
 
 ### PoolInitialLiquidityIntent
 
@@ -156,6 +159,8 @@ Required fields:
 - `token1_identity`
 - `amount0`
 - `amount1`
+- `min0`
+- `min1`
 - `leg0_status`
 - `leg1_status`
 - `status`
@@ -174,6 +179,7 @@ Rules:
 - Do not mint LP share before both real token legs are funded.
 - A funded leg whose opposite leg has an explicit fail/bounce is credited into claim balances.
 - A funded leg whose opposite leg is only pending remains in custody and must be visible as stalled; there is no timeout refund.
+- If both legs are funded but min/slippage validation fails, reserve and LP finalization must not occur. The funded user value is credited to claim balances as part of the failed terminal workflow.
 
 Open issue: one funded leg and one forever-pending leg cannot be safely auto-refunded without a proof that the missing leg will not later execute.
 
@@ -216,6 +222,7 @@ Required fields:
 - `to_account`
 - token identities
 - expected amounts
+- min/slippage amounts
 - leg statuses
 - status
 
@@ -224,6 +231,7 @@ Rules:
 - Both legs must be funded before reserve update, LP mint, or settled add-liquidity fact.
 - Funding callbacks must validate source, expected leg, and current workflow state.
 - Explicit failed opposite leg moves already funded custody value to claim balances.
+- If both legs are funded but limiting-side/min validation fails, reserve and LP finalization must not occur. The funded user value is credited to claim balances as part of the failed terminal workflow.
 - Forever-pending opposite leg remains stalled; there is no timeout refund.
 
 ## Swap

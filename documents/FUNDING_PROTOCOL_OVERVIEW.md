@@ -26,7 +26,7 @@ The funding protocol is designed to make AMM funding safe under asynchronous cro
 
 Only operations are user-reachable ABI. This includes direct frontend wallet submissions and user-authored contracts that call applications via `call_application`. Messages are internal contract-created effects and must be bound to persisted intents or claim delivery state.
 
-Outgoing application messages should be tracked by default. Tracking is used so the sender chain can observe a destination-chain reject as a bounce and converge pending workflow state safely. It is not a cross-chain atomic commit guarantee.
+Outgoing application messages must be tracked by default. Tracking is used so the sender chain can observe a destination-chain reject as a bounce and converge pending workflow state safely. It is not a cross-chain atomic commit guarantee.
 
 Message tracking is a runtime default, not business-handler boilerplate. Handlers send through the project runtime abstraction; that abstraction attaches authentication and tracking.
 
@@ -42,11 +42,11 @@ Long-lived economic state is aggregated:
 - claim balances
 - pair state in `swap` application state
 
-Workflow intents exist only while a business action is not terminal. They protect cross-chain state transitions from forged, stale, delayed, wrong-source, or wrong-state effects. Linera core protocol provides once-only execution for accepted operations and messages; the application does not defend against exact duplicate execution of the same chain action. Once value clearly belongs to an owner, it should be credited to aggregated claim balances rather than stored as a long-lived per-event claim queue.
+Workflow intents exist only while a business action is not terminal. They protect cross-chain state transitions from forged, stale, delayed, wrong-source, or wrong-state effects. Linera core protocol provides once-only execution for accepted operations and messages; the application does not defend against exact duplicate execution of the same chain action. Once value clearly belongs to an owner, it must be credited to aggregated claim balances rather than stored as a long-lived per-event claim queue.
 
 Intent ids are allocated by the application that stores the canonical workflow intent state. For user pool creation, the canonical `PoolCreationIntent` is stored in `swap` application state on the swap chain. Persist a monotonic sequence in `swap` application state and combine it with the swap application identity. Pool-chain state may reference that same id, but it does not allocate a second canonical id for the same pool creation. Cross-chain storage is not shared; consistency comes from message-carried ids plus local source/app/status checks on each receiving chain. Do not rely on token pair, owner, timestamp, delivery order, or frontend input for uniqueness.
 
-Claim balances are stored token-first and owner-second: `claim_balances[token].balances[owner]`. Asynchronous meme-token claims move value into matching `claiming_balances[token].balances[owner]` while payout is in flight. This keeps each token identity stored once at the pool-contract level. Connected-owner claim lists are product reads and should be served from parsed facts/projection APIs, not by scanning contract storage at UI read time.
+Claim balances are stored token-first and owner-second: `claim_balances[token].balances[owner]`. Asynchronous meme-token claims move value into matching `claiming_balances[token].balances[owner]` while payout is in flight. This keeps each token identity stored once at the pool-contract level. Connected-owner claim lists are product reads and must be served from parsed facts/projection APIs, not by scanning contract storage at UI read time.
 
 Product data must come from parsed block facts and projections. Frontend claim lists, positions, TVL, APR inputs, transactions, candles, and pending/stalled workflow displays are projection-backed. Live query is limited to wallet identity, operation submission, and explicitly labeled live wallet balances.
 

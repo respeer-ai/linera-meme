@@ -970,7 +970,7 @@ groups:
           - Keep chain contracts as protocol truth and product data as parsed facts/projections.
 
           Constraints:
-          - Outgoing application messages should be tracked by default so the sender chain can observe one-hop destination rejects as bouncing messages and converge pending workflow state.
+          - Outgoing application messages must be tracked by default so the sender chain can observe one-hop destination rejects as bouncing messages and converge pending workflow state.
           - Do not mistake it for full workflow atomic rollback.
           - Later-hop failures still require the business protocol state machine.
           - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
@@ -985,6 +985,8 @@ groups:
           Minimal changes:
           - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.
           - Map `CreatePool`, `CreateUserPool`, `UserPoolCreated`, meme native initialization, existing add liquidity, swap, remove liquidity, payout/refund, `MemeResponse::Fail`, tracked bounce handling, and public operation surfaces to files/functions/state transitions.
+          - Produce a current implementation path audit table covering file, handler, operation/message, current state reads/writes, and current economic side effects.
+          - Produce a target path validation matrix covering operation/message/callback/receipt, required source/auth/app/intent/leg/token/owner/amount/state checks, allowed state transition, failure behavior, and required tests.
           - Verify whether the current meme/pool payout path can produce the success, fail, or bounce receipts required to close meme `Claim` delivery.
           - Document that current `mark_user_pool_created(pool_application)` is a late guard around `UserPoolCreated -> PoolOperation::AddLiquidity`, not the target flow design.
           - Document pending-pair first-funded-wins semantics and the current lack of terminal intent state as the implementation delta.
@@ -992,6 +994,7 @@ groups:
 
           Validation:
           - Current relevant contract tests compile and run under the project memory-limit rule.
+          - The audit table and validation matrix are committed before `FUND-006` implementation begins.
           - The audit identifies exact follow-up iterations and the current failing or unsafe behavior each one will close.
           - No product behavior is changed except test-only characterization coverage.
       - id: FUND-006
@@ -1025,13 +1028,15 @@ groups:
           Minimal changes:
           - Create `PoolCreationIntent` at the user entry with verified token identities, owner account, target account, amounts, slippage, and expected pair.
           - Attach `.with_tracking()` by default in `ContractRuntimeContext::send_message` before funding or claim workflows depend on bounce handling.
-          - Collapse `CreateUserPool/UserPoolCreated` into that state machine where practical, or strictly bind every remaining message to the pending intent.
+          - Bind every remaining `CreateUserPool`, internal `CreatePool`, and `UserPoolCreated` message to the pending intent. Removing or merging old messages is allowed only as a refactor; any message that remains must be intent-bound.
           - Stop inferring LP owner, creator, target account, tokens, or amounts from message signer or later payloads.
           - Track the pool-shell hop so a child-chain creation reject converges the pending intent to failed.
+          - Materialize a handler-level `PoolCreationIntent` transition table before code changes in this iteration.
 
           Validation:
           - Tests cover competing shell receipts, wrong app, wrong chain, wrong pair, wrong signer, and stale intent.
           - Tests prove invalid receipts do not activate pair state in `swap` application state or finalize reserve.
+          - Tests cover the transition table, including stale receipt, wrong-state receipt, and duplicate-safe idempotency cases.
           - Tests prove the happy path still produces a pending shell or initializing state ready for initial funding, not an active pool too early.
       - id: FUND-008
         status: Todo
@@ -1048,6 +1053,7 @@ groups:
           - Implement meme `claiming_balances` state for asynchronous delivery.
           - Keep refund, retry, protocol fee, remote liquidity, and excess as claim-balance meanings, not separate user operations.
           - Use test fixtures or internal test helpers to seed claim balances for `Claim` tests; do not add a production debug operation or public ABI for this.
+          - Define concrete meme claim success/fail/bounce message enum variants and payload fields before implementation.
 
           Validation:
           - Tests prove claim-balance storage uses token-first, owner-second shape.
@@ -1055,6 +1061,7 @@ groups:
           - Tests prove native claim succeeds or leaves balance unchanged on abort.
           - Tests prove meme claiming balance keeps the in-flight amount unavailable for another claim.
           - Tests prove meme claim success/fail/bounce callbacks validate source, authenticated caller, token, owner, amount, and claiming-balance state.
+          - Tests prove malformed or stale meme claim callbacks cannot decrease `claiming_balances` or increase `claim_balances`.
           - Tests prove success decreases claiming balance and fail/bounce restores available claim balance.
           - Tests prove pending forever remains safe and observable.
       - id: FUND-009
@@ -1070,6 +1077,7 @@ groups:
           - Do not mint LP share, finalize reserve, or emit settled add-liquidity facts until both token legs are funded and accepted.
           - Convert partial success followed by reject/failure into claim-balance accounting instead of finalized liquidity.
           - Preserve the limiting-side add-liquidity calculation and credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
+          - Define concrete slippage fields and failure behavior before implementation.
           - Keep user-created initial liquidity out of this iteration except for shared helpers that do not change its behavior.
 
           Validation:
@@ -1094,6 +1102,8 @@ groups:
           - Implement first-funded-wins for competing user pool creation funding. The first finalized two-leg workflow defines initial reserves; later workflows are processed as normal add liquidity against current reserves, with excess credited to claim balances.
           - If another user calls `AddLiquidity` on a pending shell, do not create a second `PoolCreationIntent`; create only a pool-local `AddLiquidityIntent`. If that workflow finalizes first, activate the single swap-side `PoolCreationIntent` for the existing shell/pair and use that workflow's owner and recipient for LP ownership.
           - Keep failed shells permanently non-economic. Only close a shell chain after all application-level custody has been resolved.
+          - Define shell close eligibility in the transition table before implementing close.
+          - Define concrete initial-liquidity slippage fields and failure behavior before implementation.
           - Preserve meme-created native pool virtual-reference semantics separately from user two-sided deposits.
 
           Validation:

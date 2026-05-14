@@ -121,6 +121,6 @@ Rationale: protocol fee, remote liquidity, trading yield, refund, excess, swap o
 
 Status: Open
 
-Problem: terminal intents should not grow without bound, but stale follow-up rejection, diagnostics, and audit facts may still be needed.
+Problem: terminal intents must not grow without bound, but stale follow-up rejection, diagnostics, and audit facts may still be needed.
 
 Constraint: compaction must not remove active custody or claim accounting state.

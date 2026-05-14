@@ -24,7 +24,7 @@ Known gaps:
 - Empty, shell-only, one-sided, and virtual user pool creation must reject.
 - The public `CreatePool` path must validate that both token identities are real before opening a pool chain.
 - The current supported token set is native plus meme tokens only. Native is built in; meme tokens are validated from safe user-started paths by calling the meme token application for creator-chain identity. Every other token kind must reject until a concrete validation rule exists.
-- Pending pair contention should use first-funded-wins semantics instead of permanent reject. Losing workflows must fail safely, credit already-custodied value to claim balances, and keep losing shell chains/applications non-tradable or cleaned up.
+- Pending pair contention must use first-funded-wins semantics instead of permanent reject. Losing workflows must fail safely, credit already-custodied value to claim balances, and keep losing shell chains/applications non-tradable or cleaned up.
 - Pool creation terminal truth must be unique and reliable in the intent state machine. A failed terminal workflow must not leave reusable old shell/application state.
 - Internal create-pool messages must be intent-bound implementation steps.
 - The current implementation does not yet implement first-funded-wins. It creates pool state on `PoolCreated` and then starts user initial liquidity through `UserPoolCreated -> PoolOperation::AddLiquidity`, without a canonical `PoolCreationIntent` terminal arbiter.
@@ -43,7 +43,7 @@ Known gaps:
 
 - Owner, recipient, token, amount, and pair must come from persisted intent, not message signer or payload reconstruction.
 - Shell receipt and user-pool-created handling must verify intent/source/app/chain.
-- `mark_user_pool_created` is only a late narrow guard against repeated `UserPoolCreated` handling for the same pool application. The target protocol should make terminal intent status the single source of truth and ensure the flow itself allows only one valid pool-created transition per intent, rather than relying on a separate created flag or final duplicate guard.
+- `mark_user_pool_created` is only a late narrow guard against repeated `UserPoolCreated` handling for the same pool application. The target protocol must make terminal intent status the single source of truth and ensure the flow itself allows only one valid pool-created transition per intent, rather than relying on a separate created flag or final duplicate guard.
 
 ## Message Tracking And Bouncing
 
@@ -57,8 +57,8 @@ Known current behavior:
 
 Known gaps:
 
-- Outgoing application messages should be tracked by default.
-- Tracking should be added centrally in the runtime adapter's `send_message` implementation, not exposed as a business-handler-level message builder.
+- Outgoing application messages must be tracked by default.
+- Tracking must be added centrally in the runtime adapter's `send_message` implementation, not exposed as a business-handler-level message builder.
 - Receiving handlers must detect bouncing messages and converge the relevant pending workflow state.
 - This default tracking change is implemented in the user-pool-creation intent iteration before later funding and claim workflows depend on bounce handling.
 - This follows the Linera SDK pattern used by `linera-protocol/examples/fungible/src/contract.rs`: send with `.with_tracking()` and inspect `message_is_bouncing()` on receive.
@@ -88,20 +88,20 @@ Known gap:
 
 Known gap:
 
-- Swap output/refund should converge into claim balances instead of relying on direct payout as the only funds closure.
+- Swap output/refund must converge into claim balances instead of relying on direct payout as the only funds closure.
 
 ## RemoveLiquidity
 
 Known gap:
 
-- Remove output should converge into claim balances after burn/decrease, not rely on cross-chain direct payout as the only closure.
+- Remove output must converge into claim balances after burn/decrease, not rely on cross-chain direct payout as the only closure.
 
 ## Claim
 
 Known gap:
 
 - Target `Claim` operation/state is not yet implemented.
-- Claim balances should be aggregated, not append-only per-event claim queues.
+- Claim balances must be aggregated, not append-only per-event claim queues.
 - Meme delivery needs aggregated `claiming_balances`, not per-claim delivery attempts.
 - The current meme/pool payout path must be audited to confirm whether it can produce the success, fail, or bounce receipts required to close meme `Claim` delivery. If it cannot, the claim iteration must add the missing protocol messages instead of only changing pool claim state.
 - Claim tests may seed balances through contract test fixtures or internal helpers. Do not add a production debug operation or public ABI solely for tests.

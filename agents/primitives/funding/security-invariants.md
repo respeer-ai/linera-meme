@@ -19,7 +19,9 @@ Authority: High
 
 ## Caller And Source Checks
 
-Every internal follow-up must verify the expected subset of:
+Every internal follow-up must verify the complete field set required by its path. `FUND-005` must produce a path validation matrix before behavior-changing iterations begin.
+
+The matrix must list, for every operation, message, callback, and receipt:
 
 - authenticated caller application
 - source chain
@@ -31,6 +33,13 @@ Every internal follow-up must verify the expected subset of:
 - token identity
 - amount
 - owner/recipient account
+- required current state
+- allowed next state
+- failure behavior, using one of the explicitly named outcomes for that path: reject, bounce-handled transition, no-op idempotency, or panic/abort
+
+The matrix must choose exactly one failure behavior for each invalid condition on each path. Later implementation must not introduce a new failure behavior without updating the matrix and tests first.
+
+Do not leave validation to implementation judgment with phrases such as "expected subset." A path may omit a field only if the matrix explicitly states that the field is not available or not meaningful for that path and explains why omitting it is safe.
 
 ## Token Validation
 

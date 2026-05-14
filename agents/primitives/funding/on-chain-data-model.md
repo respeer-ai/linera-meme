@@ -33,11 +33,11 @@ Recommended concrete model:
 - `ClaimBalancesByToken = MapView<TokenIdentity, TokenClaimBalances>`
 - `TokenClaimBalances { balances: MapView<Account, Amount> }`
 
-`TokenIdentity` means the canonical asset identity used by the current contract model. It does not require a new enum. If the pool contract represents the native asset as `None` in `Option<ApplicationId>` and meme/application assets as `Some(application_id)`, claim balances should use the same canonical representation rather than translating it into a second token model.
+`TokenIdentity` means the canonical asset identity used by the current contract model. It does not require a new enum. If the pool contract represents the native asset as `None` in `Option<ApplicationId>` and meme/application assets as `Some(application_id)`, claim balances must use the same canonical representation rather than translating it into a second token model.
 
 This must not be flattened into one global compound key such as `(owner_account, token_identity)`, and it must not be stored owner-first. Token-first storage is more economical for a pool application because each token identity appears once at the outer level, while account balances live under that token.
 
-Connected-owner claim lists are product reads and should be served from parsed facts/projection APIs. They must not require scanning contract storage at UI read time.
+Connected-owner claim lists are product reads and must be served from parsed facts/projection APIs. They must not require scanning contract storage at UI read time.
 
 The contract must not include product/accounting buckets in the claim-balance key. Category display belongs to parsed facts and projections.
 

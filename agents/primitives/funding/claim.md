@@ -12,7 +12,7 @@ Refund, retry, excess withdrawal, protocol-fee withdrawal, remote-liquidity with
 
 ## Claimable State
 
-Long-lived owed value should be represented as aggregated claim balances:
+Long-lived owed value must be represented as aggregated claim balances:
 
 ```text
 claim_balances[token_identity].balances[owner_account] += amount
@@ -30,7 +30,7 @@ The on-chain storage must use a two-level map:
 
 `claim_balances` is available-to-claim value. `claiming_balances` is aggregated in-flight claim value after a user starts an asynchronous meme-token claim. Both maps use the same token-first, owner-second shape.
 
-This keeps each token identity stored once at the outer level and avoids repeating token keys for every account. User-facing claim lists should be served from projection/API data rather than by scanning contract storage at product-read time.
+This keeps each token identity stored once at the outer level and avoids repeating token keys for every account. User-facing claim lists must be served from projection/API data rather than by scanning contract storage at product-read time.
 
 Claim-balance accounting must exist before any workflow credits owed value to claim balances. The user-facing `Claim` operation may be delivered in the same iteration as the accounting foundation or earlier than the first workflow that credits owed value, but it must not be delivered later than the first owed-value credit path.
 
@@ -83,14 +83,17 @@ Flow:
 6. Fail or bounce decreases `claiming_balances[token][owner]` by `amount` and returns it to `claim_balances[token][owner]`.
 7. While in `claiming_balances`, the amount is unavailable for another claim.
 
-The success/fail/bounce message must carry enough data to update the aggregated state:
+The success/fail/bounce message must carry these fields:
 
 - `owner_account`
 - `token_identity`
 - `amount`
-- destination metadata needed for validation
+- source pool application
+- source pool chain
+- meme token application
+- destination account
 
-The receiver validates `claiming_balances[token][owner] >= amount`. Linera core once-only execution is the duplicate-delivery boundary for the exact same message; the application does not add per-attempt ids.
+Before `FUND-008` implementation starts, the concrete message enum variants and payload struct must be written down from the audited current meme/pool protocol. The receiver validates source chain, authenticated caller, pool application, token application, owner, amount, and `claiming_balances[token][owner] >= amount`. Linera core once-only execution is the duplicate-delivery boundary for the exact same message; the application does not add per-attempt ids.
 
 `FUND-008` tests may seed claim balances through contract test fixtures or internal test helpers. Do not add a production debug operation or public ABI solely to create claim balances for tests.
 

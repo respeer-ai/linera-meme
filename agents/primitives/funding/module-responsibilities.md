@@ -40,7 +40,8 @@ Responsibilities:
 
 - Own meme token balances and transfer semantics.
 - Provide creator-chain identity where safe user-started validation calls are allowed.
-- Return success/fail semantics for payout or transfer callbacks when supported.
+- `FUND-005` must audit the current payout/transfer callback support.
+- `FUND-008` must add any missing claim delivery success/fail/bounce messages required by the `Claim` state machine before meme token `Claim` is considered implemented.
 
 Non-responsibilities:
 

@@ -82,9 +82,9 @@ Linera applications can close the current chain through `ContractRuntime::close_
 
 ## Message Delivery
 
-Outgoing application messages should be tracked by default. Tracking is not an end-to-end transaction guarantee; its purpose is to let the sender chain receive a protocol bounce when the destination chain rejects that one message hop, so the sender-side workflow can converge from `pending` to a safe failed, refund-ready, or claimable state.
+Outgoing application messages must be tracked by default. Tracking is not an end-to-end transaction guarantee; its purpose is to let the sender chain receive a protocol bounce when the destination chain rejects that one message hop, so the sender-side workflow can converge from `pending` to a safe failed, refund-ready, or claimable state.
 
-Tracking must be centralized in the runtime send-message abstraction. Business handlers should not construct or expose a separate tracked-message builder. In this repository, the relevant abstraction is `ContractRuntimeContext::send_message`; the contract runtime adapter should attach authentication and tracking there by default. This default is introduced by the user-pool-creation intent iteration before later claim and funding workflows depend on bounce handling.
+Tracking must be centralized in the runtime send-message abstraction. Business handlers must not construct or expose a separate tracked-message builder. In this repository, the relevant abstraction is `ContractRuntimeContext::send_message`; the contract runtime adapter must attach authentication and tracking there by default. This default is introduced by the user-pool-creation intent iteration before later claim and funding workflows depend on bounce handling.
 
 Receiving handlers must check whether a message is bouncing with Linera's `message_is_bouncing()` API and handle that as the reject receipt for the previously sent tracked message. A non-bounced tracked message still only means the specific hop was not rejected; it does not prove that later business workflow steps completed.
 
@@ -96,7 +96,7 @@ Uniswap alignment is rationale, not the protocol authority. Uniswap does not cre
 
 This protocol follows that direction:
 
-- Long-lived claimable value should be aggregated into claim balances.
+- Long-lived claimable value must be aggregated into claim balances.
 - Workflow intents exist for cross-chain business state, authorization, and custody safety.
 - Linera core protocol is responsible for executing a chain operation or accepted incoming message once in chain history. Application code must not add protocol-level duplicate-delivery defenses for the exact same operation or message.
 - Application state still needs business guards for distinct operations or messages that target the same business workflow, stale follow-ups, wrong source/caller, or effects that arrive after a workflow status has changed.
