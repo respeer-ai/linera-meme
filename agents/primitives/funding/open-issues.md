@@ -30,14 +30,14 @@ Status: Open
 
 Affected flow: user `CreatePool`, meme native pool initialization.
 
-Problem: pool shell may exist while swap catalog never receives the receipt.
+Problem: pool shell may exist while the swap chain never receives the receipt.
 
-Current safe behavior: shell is not active/tradable; projection may show stalled shell if facts are available.
+Current safe behavior: shell is not active in `swap` application state and has no finalized reserves. Projection may show stalled shell if facts are available.
 
 Unsafe shortcuts:
 
-- treating shell existence as active catalog truth
-- allowing users to trade directly against shell
+- treating shell existence as active pool truth
+- allowing swaps against the shell before finalized reserves exist
 
 ## OI-003 One Funding Leg Pending Forever
 
@@ -61,29 +61,29 @@ Status: Open
 
 Affected flow: create pool initial liquidity.
 
-Problem: pool may finalize reserves and mint LP while activation receipt never reaches swap catalog.
+Problem: pool may finalize reserves and mint LP while activation receipt never reaches the swap chain.
 
-Current safe behavior: do not recreate pool or mint again; do not mark swap catalog active without a valid activation transition.
+Current safe behavior: do not recreate pool or mint again; do not mark the pair active in `swap` application state without a valid activation transition.
 
 Unsafe shortcuts:
 
 - rebuild pool
 - infer active from pool finalized state without a designed reconciliation path
 
-## OI-005 Meme Claim Delivery Pending Forever
+## OI-005 Meme Claiming Balance Pending Forever
 
 Status: Open
 
 Affected flow: meme token `Claim`.
 
-Problem: pool may send meme payout message and freeze claim balance while target chain never executes the message.
+Problem: pool may send meme payout message and move value from `claim_balances` to `claiming_balances` while the target chain never executes the message.
 
-Current safe behavior: keep delivery pending; do not allow the frozen amount to be claimed again; expose pending delivery through projection.
+Current safe behavior: keep the amount in `claiming_balances`; do not allow it to be claimed again; expose pending claiming balance through projection.
 
 Unsafe shortcuts:
 
 - timeout retry
-- returning frozen amount to available balance without proof old delivery cannot execute
+- returning claiming balance to available balance without proof old delivery cannot execute
 
 ## OI-006 Recovery Operations
 
@@ -105,6 +105,7 @@ Rationale:
 
 - Contract claim balances are stored as a two-level map: token first, owner second.
 - There is no per-claim queue and no claim key.
+- There is no per-claim delivery attempt id; asynchronous meme claims use aggregated `claiming_balances`.
 - Product/accounting categories are maintained by the data platform.
 - User funds exit through a single operation on the pool application.
 

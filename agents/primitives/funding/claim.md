@@ -16,6 +16,7 @@ Long-lived owed value should be represented as aggregated claim balances:
 
 ```text
 claim_balances[token_identity].balances[owner_account] += amount
+claiming_balances[token_identity].balances[owner_account] += amount
 ```
 
 Historical details and category/bucket display belong in parsed facts and projections, not in contract claim-balance keys.
@@ -27,7 +28,11 @@ The on-chain storage must use a two-level map:
 
 `token_identity` must use the pool contract's canonical token representation. If the current implementation represents native as `None` and application tokens as `Some(ApplicationId)`, keep that representation instead of introducing a parallel token enum.
 
+`claim_balances` is available-to-claim value. `claiming_balances` is aggregated in-flight claim value after a user starts an asynchronous meme-token claim. Both maps use the same token-first, owner-second shape.
+
 This keeps each token identity stored once at the outer level and avoids repeating token keys for every account. User-facing claim lists should be served from projection/API data rather than by scanning contract storage at product-read time.
+
+Claim-balance accounting must exist before any workflow credits owed value to claim balances. The user-facing `Claim` operation may be delivered in the same iteration as the accounting foundation or earlier than the first workflow that credits owed value, but it must not be delivered later than the first owed-value credit path.
 
 ## Claim Operation
 
@@ -44,7 +49,7 @@ Rules:
 - token identity
 - available claim balance check
 - `amount > 0`
-- no claim key and no per-claim queue
+- no claim key, no per-claim queue, and no per-claim attempt id
 - category/bucket display is a data-platform concern
 
 ## Native Claim
@@ -61,48 +66,44 @@ Rules:
 
 ## Meme Token Claim
 
-Meme token claim is asynchronous and requires delivery-attempt state.
+Meme token claim is asynchronous and uses aggregated `claiming_balances`, not per-claim delivery attempts.
 
 State:
 
 - available claim balance
-- frozen/pending delivery amount
-- active `ClaimDeliveryAttempt`
+- in-flight claiming balance
 
 Flow:
 
 1. User submits `Claim`.
 2. Pool validates owner and available balance.
-3. Pool freezes or deducts the amount into pending delivery state.
-4. Pool creates `ClaimDeliveryAttempt`.
-5. Pool sends payout/transfer message to the meme application.
-6. Success acknowledgement marks attempt succeeded.
-7. Fail or bounce returns the amount to available claim balance.
-8. While pending, the frozen amount cannot be claimed again.
+3. Pool moves `amount` from `claim_balances[token][owner]` to `claiming_balances[token][owner]`.
+4. Pool sends payout/transfer message to the meme application.
+5. Success acknowledgement decreases `claiming_balances[token][owner]` by `amount`.
+6. Fail or bounce decreases `claiming_balances[token][owner]` by `amount` and returns it to `claim_balances[token][owner]`.
+7. While in `claiming_balances`, the amount is unavailable for another claim.
 
-Required attempt fields:
+The success/fail/bounce message must carry enough data to update the aggregated state:
 
-- `attempt_id`
 - `owner_account`
 - `token_identity`
 - `amount`
-- `destination_account`
-- `destination_application`
-- `destination_chain`
-- `status`
-- `outbound_message_key`
-- `failure_reason`
+- destination metadata needed for validation
 
-## Forever Pending Delivery
+The receiver validates `claiming_balances[token][owner] >= amount`. Linera core once-only execution is the duplicate-delivery boundary for the exact same message; the application does not add per-attempt ids.
+
+`FUND-008` tests may seed claim balances through contract test fixtures or internal test helpers. Do not add a production debug operation or public ABI solely to create claim balances for tests.
+
+## Forever Pending Claiming Balance
 
 The target meme chain may never execute the payout message.
 
 Rules:
 
-- Do not automatically mark the attempt failed.
-- Do not allow the same frozen amount to be claimed again.
+- Do not automatically mark the claiming balance failed.
+- Do not allow the same in-flight amount to be claimed again.
 - Do not design timeout-based retry unless a future protocol can prove old delivery cannot execute.
-- Expose pending delivery through projection and diagnostics.
+- Expose pending claiming balance through projection and diagnostics.
 
 Resolution: Open. A future cancel/expiry/retry design must be state-specific and prove no double payout.
 

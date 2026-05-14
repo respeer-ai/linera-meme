@@ -12,9 +12,9 @@ These are protocol accounting state and must not be deleted by TTL, diagnostic q
 - pool total liquidity
 - positions keyed by owner and pool
 - claim balances
-- active/pending/failed catalog state
+- claiming balances
+- active/pending/failed pair state in `swap` application state
 - open intents that hold or reference funds in custody
-- active claim delivery attempts
 
 ## Claim Balances
 
@@ -24,6 +24,7 @@ Required storage shape:
 
 ```text
 claim_balances: MapView<token_identity, TokenClaimBalances>
+claiming_balances: MapView<token_identity, TokenClaimBalances>
 TokenClaimBalances.balances: MapView<owner_account, amount>
 ```
 
@@ -53,9 +54,12 @@ Required intent classes:
 - `AddLiquidityIntent`
 - `SwapIntent`
 - `RemoveLiquidityIntent`
-- `ClaimDeliveryAttempt`
 
 Intent state must carry enough data to reject forged, stale, wrong-chain, wrong-app, wrong-token, wrong-leg, or wrong-state follow-up effects.
+
+Intent identity must be allocated by the application that stores the canonical workflow intent state. For user pool creation, the canonical `PoolCreationIntent` is stored in `swap` application state on the swap chain. Store a persistent monotonic `next_intent_seq` in `swap` application state and allocate `intent_id = (swap_application_id, intent_seq)` or an equivalent typed value. The id must be stable across all internal messages and receipts for that workflow. Frontend input, wall-clock timestamps, token pairs, and message delivery order are not valid uniqueness sources.
+
+Pool-local state may reference the same `intent_id` after receiving a swap-authored message, but it must not allocate a second canonical id for that same pool-creation workflow. Cross-chain storage is not shared. Consistency is established by carrying the id through messages and validating source chain, authenticated caller/application, expected pool chain/application, pair, and current status on the receiving chain.
 
 ## Terminal Handling
 
@@ -83,8 +87,8 @@ These may have quotas, retention windows, or compaction:
 
 - debug logs
 - diagnostic traces
-- historical delivery-attempt metadata beyond the active attempt
+- historical claim delivery metadata
 - derived stalled-workflow indexes
 - API caches
 
-Quotas must never delete protocol accounting state.
+Quotas must never delete protocol accounting state, including claim balances and claiming balances.

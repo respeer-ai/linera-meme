@@ -8,7 +8,7 @@ Authority: High
 
 Responsibilities:
 
-- Own pair catalog state.
+- Own pair/pool registry state inside `swap` application state.
 - Own `PoolCreationIntent`.
 - Accept user `SwapOperation::CreatePool` only as create-with-initial-liquidity.
 - Track pending, failed, and active pair states.
@@ -23,7 +23,7 @@ Non-responsibilities:
 
 Responsibilities:
 
-- Own reserves, LP accounting, positions, claim balances, and claim delivery attempts.
+- Own reserves, LP accounting, positions, claim balances, and claiming balances.
 - Own `PoolInitialLiquidityIntent`, `AddLiquidityIntent`, `SwapIntent`, and `RemoveLiquidityIntent`.
 - Finalize reserve and LP state only after required inputs are funded.
 - Credit claim balances for owed output, refund, excess, protocol fee, and remote liquidity.
@@ -31,7 +31,7 @@ Responsibilities:
 
 Non-responsibilities:
 
-- Do not expose pending shell pools as tradable.
+- Derive tradability from finalized pool state. Do not expose pending or failed shell pools as tradable.
 - Do not direct-payout as the only funds-closure mechanism for asynchronous paths.
 
 ## meme

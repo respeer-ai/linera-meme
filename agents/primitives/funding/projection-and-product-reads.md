@@ -22,6 +22,7 @@ These must be projection/API-backed:
 - positions
 - virtual positions
 - claim balances
+- claiming balances
 - pending workflow display
 - stalled workflow display
 - protocol yield
@@ -66,7 +67,7 @@ Projection/API must paginate:
 - transactions
 - stalled intents
 - diagnostic history
-- delivery attempts/history
+- claim delivery history
 
 Do not solve product pagination by deleting protocol accounting state.
 
@@ -74,4 +75,4 @@ Do not solve product pagination by deleting protocol accounting state.
 
 Diagnostic, debug, and monitoring persistence must be bounded by TTL, max rows, or equivalent quota.
 
-Quota may shed non-business diagnostic data only. It must not delete claim balances, positions, reserves, or open intents with funds in custody.
+Quota may shed non-business diagnostic data only. It must not delete claim balances, claiming balances, positions, reserves, or open intents with funds in custody.

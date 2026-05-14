@@ -28,7 +28,6 @@ Every internal follow-up must verify the expected subset of:
 - expected token application
 - `intent_id`
 - `leg_id`
-- `attempt_id`
 - token identity
 - amount
 - owner/recipient account
@@ -36,6 +35,8 @@ Every internal follow-up must verify the expected subset of:
 ## Token Validation
 
 - Token identity is validated fail-fast at the earliest trusted user-started entry.
+- The current protocol supports only native and meme token identities.
+- Any non-native, non-meme token kind must reject until a concrete validation rule is designed and implemented.
 - Existing active pool operations use registered pool token identities and must not rediscover token identity.
 - Meme token validation via `call_application(token_app, CreatorChainId)` is allowed only on safe user-started entry paths.
 - Do not call token app for validation from `meme -> swap InitializeLiquidity`.
@@ -45,9 +46,9 @@ Every internal follow-up must verify the expected subset of:
 
 - Do not finalize reserve before required input custody is represented.
 - Do not mint LP share before both add-liquidity legs are funded.
-- Do not mark pool active before activation receipt is consumed by swap catalog.
+- Do not mark a pair active in `swap` application state before the activation receipt is consumed.
 - Do not burn LP share unless owed value is credited to claim balances or otherwise proven delivered.
-- Do not mark claim delivery succeeded before success acknowledgement or successful synchronous native transfer.
+- Do not remove meme-token claiming balance before success acknowledgement, and do not remove native claim balance before successful synchronous native transfer.
 - Finalization and claim-balance crediting must only be reachable from the expected workflow state.
 - Do not add application-level defenses for exact operation/message duplicate execution; Linera core protocol provides once-only chain execution for accepted operations/messages.
 
