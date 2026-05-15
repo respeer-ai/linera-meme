@@ -19,6 +19,8 @@ export type KlineResolvedIdentity = {
 
 const MAX_RESOLVED_IDENTITIES = 200
 
+export type KlinePersistenceSource = 'fetch' | 'live'
+
 export const shouldPersistIncomingKlinePoint = (
   current: Point,
   incoming: Point,
@@ -78,6 +80,7 @@ export class Kline {
     poolApplication: string,
     interval: Interval,
     points: Point[],
+    source: KlinePersistenceSource = 'live',
   ) => {
     const _points = points.map((point) => {
       return { ...point, token0, token1, poolId, poolApplication, interval }
@@ -97,19 +100,15 @@ export class Kline {
         try {
           const _point = _points[parseInt(pos.toString())] as dbModel.KlinePoint
           const { timestamp } = _point
-          const point = await dbKline.klinePoints.get([
-            token0,
-            token1,
-            poolId,
-            poolApplication,
-            interval,
-            timestamp,
-          ])
+          const point = await dbKline.klinePoints
+            .where('[token0+token1+poolId+poolApplication+interval+timestamp]')
+            .equals([token0, token1, poolId, poolApplication, interval, timestamp])
+            .first()
           if (!point) continue
-          if (!shouldPersistIncomingKlinePoint(point, _point)) continue
+          if (source !== 'fetch' && !shouldPersistIncomingKlinePoint(point, _point)) continue
           _point.id = point.id as number
           if (JSON.stringify(_point) === JSON.stringify(point)) continue
-          await dbKline.klinePoints.update(_point, _point)
+          await dbKline.klinePoints.put(_point)
         } catch (e) {
           // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
           console.log(`Failed update point: ${e}`)

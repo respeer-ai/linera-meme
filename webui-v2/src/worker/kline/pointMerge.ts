@@ -1,6 +1,4 @@
 import { type Point } from 'src/stores/kline/types'
-import { shouldOverwriteOverlappingPoint } from 'src/stores/kline/pointOverwrite'
-
 type SortReasonLike = {
   reason?: string
 }
@@ -31,9 +29,7 @@ export const mergeKlinePoints = ({
     // Network fetch is authoritative for overlapping timestamps.
     // Cache load only fills gaps and must not overwrite newer in-memory points.
     if (isFetchReason(reason)) {
-      if (shouldOverwriteOverlappingPoint(merged[index] as Point, point)) {
-        merged[index] = point
-      }
+      merged[index] = point
     }
   })
 

@@ -35,7 +35,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([{ ...point(2_000, 25), base_volume: 7, quote_volume: 14 }])
+    expect(merged).toEqual([{ ...point(2_000, 25), base_volume: 0, quote_volume: 0 }])
   })
 
   test('allows non-zero fetch candles to overwrite zero-volume placeholders', () => {
@@ -55,7 +55,7 @@ describe('mergeKlinePoints', () => {
       reason: { reason: 'Fetch' },
     })
 
-    expect(merged).toEqual([finalPoint(2_000, 25)])
+    expect(merged).toEqual([{ ...point(2_000, 26), is_final: false }])
   })
 
   test('allows final fetch candles to overwrite non-final candles', () => {
@@ -100,6 +100,42 @@ describe('mergeKlinePoints', () => {
       { ...point(4_000, 12), base_volume: 7, quote_volume: 14 },
       { ...point(5_000, 12), base_volume: 0, quote_volume: 0 },
       { ...point(6_000, 12), base_volume: 0, quote_volume: 0 },
+    ])
+  })
+
+  test('treats overlapping fetch candles as authoritative server truth', () => {
+    const merged = mergeKlinePoints({
+      originPoints: [
+        {
+          ...finalPoint(2_000, 25),
+          high: 29,
+          low: 21,
+          base_volume: 9,
+          quote_volume: 18,
+        },
+      ],
+      newPoints: [
+        {
+          ...point(2_000, 24),
+          is_final: true,
+          high: 24,
+          low: 24,
+          base_volume: 0,
+          quote_volume: 0,
+        },
+      ],
+      reason: { reason: 'Fetch' },
+    })
+
+    expect(merged).toEqual([
+      {
+        ...point(2_000, 24),
+        is_final: true,
+        high: 24,
+        low: 24,
+        base_volume: 0,
+        quote_volume: 0,
+      },
     ])
   })
 })

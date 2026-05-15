@@ -45,6 +45,7 @@ import {
   resolveNextFetchTimestamp,
   resolveStartupCacheGapFetch,
   resolveStartupGapBackfillFetches,
+  resolveStartupNonFinalRepairFetch,
   resolveStartupRequestPlan,
   shouldContinueStartupFetchAfterEmptyResult,
   shouldDeferHistoryLoadUntilFirstPaint,
@@ -233,6 +234,29 @@ const startupInstrumentation = createStartupInstrumentation({
     console.info('[PriceChartStartup]', JSON.stringify(event))
   },
 })
+
+const emitKlineDebug = (stage: string, payload: Record<string, unknown>) => {
+  console.info(
+    '[KlineDebug]',
+    JSON.stringify({
+      stage,
+      selectedInterval: selectedInterval.value,
+      buyToken: buyToken.value,
+      sellToken: sellToken.value,
+      selectedPoolId: selectedPoolId.value,
+      selectedPoolApplication: selectedPoolApplication.value,
+      activePoolId: activePoolId.value,
+      activePoolApplication: activePoolApplication.value,
+      currentRequestId: currentRequestId.value,
+      firstScreenReady: firstScreenReady.value,
+      loading: loading.value,
+      loadingDirection: loadingDirection.value,
+      chartPointCount: klinePoints.value.length,
+      latestPointCount: _latestPoints.value.length,
+      ...payload,
+    }),
+  )
+}
 
 const maxPointTimestamp = computed(() =>
   klinePoints.value.length
@@ -425,6 +449,9 @@ const getStoreKline = () => {
   if (buyToken.value && sellToken.value && buyToken.value !== sellToken.value && !loading.value) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
     if (!activePoolId.value || !activePoolApplication.value) return
+    emitKlineDebug('get_store_kline_begin', {
+      snapshotKey: currentSnapshotKey(),
+    })
     kline.Kline.subscribe(
       buyToken.value,
       sellToken.value,
@@ -441,6 +468,10 @@ const getStoreKline = () => {
       token1: sellToken.value,
     })
     const restoredSnapshot = restoreCurrentMemorySnapshot()
+    emitKlineDebug('get_store_kline_snapshot', {
+      restoredSnapshot,
+      snapshotPointCount: restoredSnapshot ? klinePoints.value.length : 0,
+    })
     if (!restoredSnapshot) {
       klinePoints.value = []
     }
@@ -454,6 +485,13 @@ const getStoreKline = () => {
       poolCreatedAt: poolCreatedAt.value,
     })
     startupPlanRef.value = startupPlan
+    emitKlineDebug('get_store_kline_plan', {
+      startupLoadReverse: startupPlan.load.reverse,
+      startupLoadLimit: startupPlan.load.limit,
+      fetchLatestStartAt: startupPlan.fetchLatest.startAt,
+      fetchLatestEndAt: startupPlan.fetchLatest.endAt,
+      fetchLatestReverse: startupPlan.fetchLatest.reverse,
+    })
 
     loadKline(
       startupPlan.load.offset,
@@ -523,6 +561,15 @@ watch(
 
 const updatePoints = (_points: kline.Point[], reason: Reason, reverse: boolean) => {
   if (!activePoolId.value || !activePoolApplication.value) return
+  emitKlineDebug('update_points_enqueue_sort', {
+    incomingPointCount: _points.length,
+    incomingFirstTimestamp: _points[0]?.timestamp,
+    incomingLastTimestamp: _points[_points.length - 1]?.timestamp,
+    reverse,
+    reason: reason.reason,
+    reasonStartAt: reason.payload.startAt,
+    reasonEndAt: reason.payload.endAt,
+  })
 
   klineWorker.KlineWorker.send(klineWorker.KlineEventType.SORT_POINTS, {
     token0: buyToken.value,
@@ -558,6 +605,17 @@ const onFetchedPoints = (payload: klineWorker.FetchedPointsPayload) => {
     return
   if (requestId !== currentRequestId.value) return
   if (interval !== selectedInterval.value) return
+  emitKlineDebug('fetched_points_received', {
+    payloadPoolId: poolId,
+    payloadPoolApplication: poolApplication,
+    payloadInterval: interval,
+    payloadPointCount: _points.points.length,
+    payloadStartAt: _points.start_at,
+    payloadEndAt: _points.end_at,
+    payloadFirstTimestamp: _points.points[0]?.timestamp,
+    payloadLastTimestamp: _points.points[_points.points.length - 1]?.timestamp,
+    reverse,
+  })
   const previousActivePoolId = activePoolId.value
   resolvedPoolId.value = poolId
   resolvedPoolApplication.value = poolApplication
@@ -622,6 +680,21 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
     console.log('[PriceChartView] Interval mismatch, ignoring old data')
     return
   }
+  emitKlineDebug('loaded_points_received', {
+    payloadPoolId: poolId,
+    payloadPoolApplication: poolApplication,
+    payloadInterval: interval,
+    payloadPointCount: payload.points.length,
+    filteredPointCount: _points.length,
+    payloadFirstTimestamp: payload.points[0]?.timestamp,
+    payloadLastTimestamp: payload.points[payload.points.length - 1]?.timestamp,
+    filteredFirstTimestamp: _points[0]?.timestamp,
+    filteredLastTimestamp: _points[_points.length - 1]?.timestamp,
+    reverse,
+    timestampBegin,
+    timestampEnd,
+    isStartupCacheLoad,
+  })
 
   startupInstrumentation.markCacheLoaded({
     requestId,
@@ -629,6 +702,28 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   })
 
   if (isStartupCacheLoad && _points.length > 0) {
+    const nonFinalRepairFetch = startupPlan
+      ? resolveStartupNonFinalRepairFetch({
+          pointStates: _points.map((point) => ({
+            timestamp: point.timestamp,
+            ...(point.is_final !== undefined ? { isFinal: point.is_final } : {}),
+          })),
+          latestWindowStart: startupPlan.fetchLatest.startAt,
+          latestWindowEnd: startupPlan.fetchLatest.endAt,
+          interval: selectedInterval.value,
+          requestedKeys: startupGapFetchKeysRef.value,
+        })
+      : null
+
+    if (nonFinalRepairFetch) {
+      startupGapFetchKeysRef.value.add(nonFinalRepairFetch.key)
+      fetchKlineRange(
+        nonFinalRepairFetch.startAt,
+        nonFinalRepairFetch.endAt,
+        nonFinalRepairFetch.reverse,
+      )
+    }
+
     const cacheGapFetch = startupPlan
       ? resolveStartupCacheGapFetch({
           pointTimestamps: _points.map((point) => point.timestamp),
@@ -788,6 +883,11 @@ const scheduleStartupGapBackfills = (points: KLineData[]) => {
 }
 
 const finishLoading = (requestId: number) => {
+  emitKlineDebug('finish_loading_begin', {
+    requestId,
+    backgroundHistoryQueued: backgroundHistoryQueued.value,
+    pendingLoadDirections: [...pendingLoadDirections.value],
+  })
   loading.value = false
   loadingDirection.value = null
   void nextTick(() => {
@@ -806,6 +906,11 @@ const finishLoading = (requestId: number) => {
       })
     }
     flushPendingLoad()
+    emitKlineDebug('finish_loading_end', {
+      requestId,
+      backgroundHistoryQueued: backgroundHistoryQueued.value,
+      pendingLoadDirections: [...pendingLoadDirections.value],
+    })
   })
 }
 
@@ -832,8 +937,23 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     currentPoints: klinePoints.value,
     sortedPoints: points,
   })
+  const changed = chartStateChanged(klinePoints.value, mergedPoints)
+  emitKlineDebug('sorted_points_received', {
+    reverse,
+    reason: _reason.reason,
+    reasonStartAt: _reason.payload.startAt,
+    reasonEndAt: _reason.payload.endAt,
+    sortedPointCount: points.length,
+    sortedFirstTimestamp: points[0]?.timestamp,
+    sortedLastTimestamp: points[points.length - 1]?.timestamp,
+    previousChartPointCount: klinePoints.value.length,
+    mergedChartPointCount: mergedPoints.length,
+    changed,
+    mergedFirstTime: mergedPoints[0]?.time,
+    mergedLastTime: mergedPoints[mergedPoints.length - 1]?.time,
+  })
 
-  if (!chartStateChanged(klinePoints.value, mergedPoints)) {
+  if (!changed) {
     scheduleStartupGapBackfills(klinePoints.value)
 
     if (
@@ -858,6 +978,11 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   // 更新数据点
   klinePoints.value = mergedPoints
   saveCurrentMemorySnapshot()
+  emitKlineDebug('sorted_points_applied', {
+    appliedPointCount: klinePoints.value.length,
+    appliedFirstTime: klinePoints.value[0]?.time,
+    appliedLastTime: klinePoints.value[klinePoints.value.length - 1]?.time,
+  })
 
   startupInstrumentation.markPointsMerged({
     requestId,

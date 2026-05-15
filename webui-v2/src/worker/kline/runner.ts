@@ -171,6 +171,7 @@ export class KlineRunner {
     points: Points,
     offset: number,
     count: number,
+    source: 'fetch' | 'live',
   ) => {
     for (let currentOffset = offset; currentOffset < points.points.length; currentOffset += count) {
       await dbBridge.Kline.bulkPut(
@@ -180,6 +181,7 @@ export class KlineRunner {
         poolApplication,
         interval,
         points.points.slice(currentOffset, currentOffset + count),
+        source,
       )
 
       await yieldToEventLoop()
@@ -193,8 +195,19 @@ export class KlineRunner {
     poolApplication: string,
     interval: Interval,
     points: Points,
+    source: 'fetch' | 'live',
   ) => {
-    return KlineRunner.storePoints(token0, token1, poolId, poolApplication, interval, points, 0, 20)
+    return KlineRunner.storePoints(
+      token0,
+      token1,
+      poolId,
+      poolApplication,
+      interval,
+      points,
+      0,
+      20,
+      source,
+    )
   }
 
   static handleFetchPoints = async (payload: FetchPointsPayload) => {
@@ -254,6 +267,7 @@ export class KlineRunner {
         resolvedPoolApplication,
         interval,
         points,
+        'fetch',
       )
 
       self.postMessage({
@@ -447,6 +461,7 @@ export class KlineRunner {
           __points.pool_application ?? 'unknown',
           interval,
           __points,
+          'live',
         )
       })
     })
