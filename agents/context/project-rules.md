@@ -12,6 +12,8 @@ Authority: High
 - Human-facing plans, proposals, reports, and background belong under `documents/`
 - Chain contracts are protocol truth
 - `service/kline` is an off-chain aggregation layer, not protocol truth
+- `webui/` is obsolete legacy code and is not the current frontend
+- `webui-v2/` is the current frontend
 - Frontend should consume APIs and wallet state, not invent protocol state
 
 ## Rules
@@ -29,6 +31,10 @@ Authority: High
 - Do not treat plan documents as task sources
 - Do not introduce parallel "latest" versions of the same assistant doc
 - If a document is superseded, update or remove it instead of leaving competing copies
+- Exclude `webui/` from current frontend analysis, funding scope, frontend constraints, implementation, tests, task plans, and assistant primitives unless the user explicitly asks to inspect legacy code
+- Do not add `webui/` paths to current scope-freeze documents, task-board notes, prompt-routing state, test baselines, or implementation plans
+- If a current task or assistant primitive references `webui/` without explicitly labeling it as legacy-only inspection, correct that reference to `webui-v2/` or remove it before continuing
+- Use `webui-v2/` for current frontend analysis, funding scope, frontend constraints, implementation, and tests
 - For newly created or actively refactored Python modules, keep each file at or below 1000 lines
 - For newly created or actively refactored Python modules, define only one top-level object per file
 - Organize new Python code in an object-oriented way; do not keep expanding helper-function clusters in large legacy modules

@@ -1023,7 +1023,9 @@ groups:
 
           Progress:
           - Gate 1A audit layers are complete.
-          - Next sub-gate is Gate 1B in-scope files.
+          - Gate 1B in-scope files are accepted.
+          - Gate 1C fixed protocol paths are accepted.
+          - Current sub-gate is Gate 1D exclusions.
 
           Minimal changes:
           - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.
