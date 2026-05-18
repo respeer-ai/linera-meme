@@ -2031,7 +2031,86 @@ Gate 1C is accepted only if:
 
 ## Gate 1D Exclusions
 
-To be reviewed separately after Gate 1C acceptance.
+Gate 2 must not audit excluded implementation files, modify excluded implementation
+files, cite excluded implementation files as current implementation truth, or use
+excluded implementation files as task-scope evidence.
+
+### Gate 1D Excluded Frontend Paths
+
+1. Obsolete frontend:
+   - `webui/`
+2. Generated frontend GraphQL output:
+   - `webui-v2/src/__generated__/graphql/`
+3. Quasar framework files:
+   - `webui-v2/quasar.config.ts`
+   - `webui-v2/src/boot/axios.ts`
+   - `webui-v2/src/boot/i18n.ts`
+   - `webui-v2/src/boot/notify-defaults.ts`
+   - `webui-v2/src/boot/pinia.ts`
+4. Frontend build and dependency outputs:
+   - `webui-v2/dist/`
+   - `webui-v2/.quasar/`
+   - `webui-v2/node_modules/`
+
+### Gate 1D Excluded Build, Cache, And Tool Outputs
+
+1. Rust build output:
+   - `target/`
+2. Python cache and test cache outputs:
+   - `__pycache__/`
+   - `.pytest_cache/`
+3. Package-manager cache outputs:
+   - `.bun/`
+   - `.yarn/`
+   - `.pnpm-store/`
+
+### Gate 1D Excluded Task And Evidence Sources
+
+1. Human-facing documents as task truth:
+   - `documents/`
+2. Files absent from Gate 1B:
+   - every repository file not listed under `Gate 1B In-Scope Files` when used as Gate 2 current implementation audit evidence
+3. Directory-only audit evidence:
+   - any Gate 2 finding that cites only a directory path without a concrete Gate 1B file path
+
+### Gate 1D Excluded Semantic Objects
+
+1. Non-funding claim semantics:
+   - `AmsOperation::Claim`
+   - `AmsMessage::Claim`
+   - Linera chain claim
+2. Protocol workflows outside Gate 1C:
+   - every workflow not represented by one of the 10 accepted Gate 1C paths
+
+### Gate 1D Rules
+
+1. `webui/` is obsolete legacy code. Gate 2 must not read `webui/` as current frontend truth.
+2. `webui-v2/` is the only current frontend for Gate 2.
+3. Generated GraphQL files under `webui-v2/src/__generated__/graphql/` are build outputs. Gate 2 may mention them only as dependency facts and must not audit them as source files.
+4. Audited frontend GraphQL declarations remain limited to concrete files listed under `Gate 1B Layer 6 Product Entry And Truth Boundary Files`.
+5. Quasar framework files listed in this Gate 1D section must not be audited or modified by Gate 2.
+6. `documents/` is not a task source and is not Gate 2 current implementation audit evidence. When the user explicitly requests human-facing documentation, `documents/` may be written under project rules, but it must not become Gate 2 task truth or audited implementation evidence.
+7. Gate 2 must not merge AMS claim semantics, Linera chain claim semantics, and target funding `Claim`.
+8. Gate 2 findings must cite concrete Gate 1B file paths.
+9. Gate 2 must not audit files absent from Gate 1B.
+10. Gate 2 may update `agents/tasks/board.yaml`, `agents/tasks/prompt-state.yaml`, and this primitive under project rules for task routing, status, and scope-freeze maintenance, but those files are not current implementation audit evidence.
+11. Gate 2 must not introduce protocol paths outside the accepted Gate 1C paths.
+12. Cross-cutting observations must attach to one accepted Gate 1C path, `Unified Claim Target Gap`, `Tracked Reject / Bounce Gap`, or `Projection And Product Truth`.
+
+### Gate 1D Acceptance Criteria
+
+Gate 1D is accepted only if:
+
+1. Every exclusion has an explicit file path, directory path, object name, or semantic boundary.
+2. No exclusion uses expandable wording such as `related`, `as needed`, `etc`, or similar open-ended terms.
+3. `webui/` is fully excluded from current frontend analysis, funding scope, frontend constraints, implementation, tests, task plans, and assistant primitives.
+4. `webui-v2/` remains the only current frontend.
+5. Generated GraphQL files under `webui-v2/src/__generated__/graphql/` are excluded without weakening the audited `webui-v2/src/graphql/*.ts` declaration scope fixed by Gate 1B.
+6. Quasar framework files are excluded without weakening audited `webui-v2/` product-entry, store, wallet, protocol utility, GraphQL declaration, projection transport, and worker scope fixed by Gate 1B.
+7. AMS `Claim` and Linera chain claim remain excluded from FUND-005 funding `Claim`.
+8. Gate 2 cannot cite excluded files as audited evidence.
+9. Gate 2 cannot cite directory-only findings as audited evidence.
+10. Gate 2 cannot add protocol paths outside the accepted Gate 1C path list.
 
 ## Gate 1E Audit Dimensions And Gate 2 Format Constraints
 
