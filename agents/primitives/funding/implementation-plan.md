@@ -16,6 +16,47 @@ Each iteration that introduces or changes an operation, message, callback, or re
 
 Purpose: establish the executable baseline and exact implementation delta.
 
+Required review gates:
+
+1. Scope freeze
+   - Output:
+     - in-scope paths
+     - out-of-scope paths
+     - exact files/modules/contracts/frontend/debug surfaces included in the audit
+   - Rule:
+     - do not start the audit table before this gate is reviewed and accepted
+
+2. Current implementation audit table
+   - Output:
+     - current path audit table covering file, handler, operation/message/callback/receipt, current state reads/writes, idempotency handling, reject/failure handling, and current economic side effects
+   - Rule:
+     - describe current behavior only; do not silently rewrite current behavior into target design language
+
+3. Target validation matrix
+   - Output:
+     - target validation matrix covering source/auth/app/intent/leg/token/owner/amount/state validation, allowed transition, failure behavior, and required tests
+   - Rule:
+     - do not start implementation iterations after `FUND-005` before this gate is reviewed and accepted
+
+4. Transition tables and unresolved-risk closure
+   - Output:
+     - handler-level transition tables required for later iterations, especially `PoolCreationIntent`
+     - explicit classification of stale receipt, wrong-state receipt, duplicate-safe no-op idempotency, abort, reject, and bounce handling
+     - audited conclusion on whether current meme/pool payout can emit the success/fail/bounce receipts required for `Claim`
+     - classification of open issues into:
+       - accepted non-blocking risk
+       - must-resolve-before-implementation ambiguity
+   - Rule:
+     - no later funding iteration may rely on implicit state-machine interpretation outside these reviewed tables
+
+5. Characterization baseline and implementation handoff
+   - Output:
+     - focused characterization tests to lock current behavior where needed
+     - explicit mapping from current unsafe behavior to the follow-up funding iteration that closes it
+     - executable entry criteria for `FUND-006`
+   - Rule:
+     - `FUND-005` is complete only after this gate is reviewed and accepted
+
 Minimal changes:
 
 - Audit `pool`, `swap`, `meme`, `proxy`, frontend, and observability paths.
@@ -31,6 +72,7 @@ Validation:
 - Current happy paths are locked before behavior changes.
 - The audit table and validation matrix are committed before `FUND-006` implementation begins.
 - No protocol behavior changes except test-only characterization.
+- Execute `FUND-005` through the five review gates above. Do not batch the full iteration into one assistant delivery.
 
 ### FUND-006 Iteration 1: Lock public operation surface
 

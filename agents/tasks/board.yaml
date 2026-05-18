@@ -768,6 +768,33 @@ groups:
           - Do not keep ticker paths for compatibility or diagnostics
           - If diagnostics are needed, add diagnostics/observability metrics or debug endpoints instead of reusing ticker
           - Do not add positions or other product realtime topics to `Ticker`
+      - id: POS-063
+        status: Blocked
+        priority: P0
+        depends_on: [POS-053, OBS-E2E-001]
+        title: Record local query-service and Layer 3 stall risk under unstable upstream chain connectivity
+        notes: |
+          2026-05-15 local incident record:
+          - Symptom set:
+            - After about 09:44 CST, `/points`, `/transactions`, and websocket K-line push stopped advancing
+            - Frontend refresh and push divergence investigation was confounded by the upstream stall
+          - Proven runtime facts before restart:
+            - `query-service` tip for the active pool/proxy chains stopped at old heights
+            - `service/kline` `/debug/observability` later showed runtime `ready`, but this was not sufficient to prove business freshness
+            - `settled_trades.max_transaction_id` stopped at `38328`
+          - Proven recovery sequence:
+            - Restarting the local compose cluster advanced query-service / catch-up / listener again
+            - Layer 1 / Layer 2 resumed first
+            - Layer 3 `market_deriver` still lagged and required explicit `POST /debug/market-derivation/replay/run`
+            - After replay, `settled_trades` advanced to new transactions and `/points` / `/transactions` recovered
+          - Proven external contributing factor:
+            - Local read-chain services logged upstream validator transport failures such as `h2 protocol error`, `service is currently unavailable`, `connection termination`, and `remote refused stream reset`
+          Current decision:
+          - Do not implement automatic compensation, auto-replay, or new self-healing logic now
+          - Treat this as a recorded operational risk while official chain/validator stability is still under observation
+          Revisit only after upstream chain stability is reassessed:
+          - decide whether business-health checks must include tip freshness and Layer2/Layer3 cursor divergence
+          - decide whether Layer 3 replay should remain manual or become controlled automation
       - id: POS-059
         status: Done
         priority: P0
@@ -981,6 +1008,22 @@ groups:
         title: "Iteration 0: Contract-path audit and executable baseline"
         notes: |
           Purpose: establish an executable baseline and an exact implementation delta before mutating protocol behavior.
+
+          Required execution gates:
+          1. Scope freeze
+          2. Current implementation audit table
+          3. Target validation matrix
+          4. Transition tables and unresolved-risk closure
+          5. Characterization baseline and implementation handoff
+
+          Review rule:
+          - Execute `FUND-005` gate by gate.
+          - Each gate must be separately output and reviewed before the next gate starts.
+          - Do not batch the whole iteration into one delivery.
+
+          Progress:
+          - Gate 1A audit layers are complete.
+          - Next sub-gate is Gate 1B in-scope files.
 
           Minimal changes:
           - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.
