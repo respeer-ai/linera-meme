@@ -1026,7 +1026,8 @@ groups:
           - Gate 1B in-scope files are accepted.
           - Gate 1C fixed protocol paths are accepted.
           - Gate 1D exclusions are accepted.
-          - Current sub-gate is Gate 1E audit dimensions and Gate 2 format constraints.
+          - Gate 1E audit dimensions and Gate 2 format constraints are accepted.
+          - Current gate is Gate 2 current implementation audit table.
 
           Minimal changes:
           - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.

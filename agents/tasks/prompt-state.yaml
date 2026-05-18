@@ -40,9 +40,9 @@ active_focus:
     summary: >
       Audit current pool/swap/meme/proxy/frontend/observability funding paths,
       map exact files/functions/state transitions, and add only focused
-      characterization tests needed before protocol behavior changes. Gate 1D
-      exclusions are accepted; current sub-gate is Gate 1E audit dimensions and
-      Gate 2 format constraints.
+      characterization tests needed before protocol behavior changes. Gate 1E
+      audit dimensions and Gate 2 format constraints are accepted; current gate
+      is Gate 2 current implementation audit table.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/current-delta.md

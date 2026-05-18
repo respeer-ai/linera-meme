@@ -2114,4 +2114,137 @@ Gate 1D is accepted only if:
 
 ## Gate 1E Audit Dimensions And Gate 2 Format Constraints
 
-To be reviewed separately after Gate 1D acceptance.
+Gate 2 must use the audit dimensions and output format fixed in this section.
+Gate 2 must produce an audit table, not a prose report.
+
+### Gate 1E Audit Dimensions
+
+Each Gate 2 audit row must answer these dimensions:
+
+1. Layer
+   - must be exactly one of the seven Gate 1A layers
+2. Path
+   - must be exactly one of the 10 Gate 1C paths
+   - cross-cutting rows must attach to `Unified Claim Target Gap`, `Tracked Reject / Bounce Gap`, or `Projection And Product Truth`
+3. File
+   - must be one concrete Gate 1B file path
+   - must not be a directory path
+   - must not be a Gate 1D excluded path
+   - for rows with `status = excluded`, must be `excluded:<exact Gate 1D excluded path or object>`
+4. Symbol
+   - must be one concrete operation, message, handler, function, state method, service query, projection object, frontend entry, or frontend helper symbol
+   - must identify one primary symbol
+   - may include direct protocol entry or callee symbols from other Gate 1B files when the row needs both an ABI object and its implementation entry
+   - must annotate each additional direct protocol entry or callee symbol with its concrete Gate 1B file path
+   - must not be a generic term such as `handler`, `state`, `frontend`, or `service`
+5. Current behavior
+   - must describe what the current implementation does
+   - must be derived from the Gate 1B file named in the same row
+6. Current state reads
+   - must list current state, runtime, service query, frontend store, GraphQL declaration, or projection truth reads
+   - must use `none` when the row has no current reads
+7. Current state writes
+   - must list current state, projection, cache, outgoing message, outgoing operation, or transfer writes
+   - must use `none` when the row has no current writes
+8. Economic effect
+   - must list native transfer, meme transfer, mint, burn, LP mint, LP burn, reserve mutation, claim balance, claiming balance, refund, payout, fee-budget funding, open-chain balance, application creation, chain opening, permission change, transaction fact, or `none`
+9. Source and auth checks
+   - must list current source-chain, authenticated-signer, authenticated-caller, message-origin, application-id, owner, recipient, and runtime-context checks
+   - must use `missing` when a required check is absent
+10. Identity and amount checks
+   - must list current token identity, pool identity, application identity, intent identity, workflow identity, transfer id, leg, amount, min amount, and slippage checks
+   - must use `missing` when a required check is absent
+11. Terminal truth
+   - must identify where current success, fail, pending, stale, duplicate, bounced, and rejected truth is stored or observed
+   - must use `missing` when no current terminal truth exists
+12. Target delta
+   - must state the gap against accepted funding target design
+   - must use `none` when current behavior is aligned with target design
+13. Required tests
+   - must list current test files that already lock the behavior
+   - must list concrete missing characterization tests
+   - must use `none` only when existing tests fully cover the row
+14. Product truth
+   - must state whether product truth comes from contract state, contract service, live GraphQL query, service/kline projection, frontend cache, generated GraphQL dependency fact, or `none`
+   - must identify duplicated truth when more than one product truth source exists
+
+### Gate 1E Gate 2 Required Columns
+
+Gate 2 audit output must use exactly these columns in this order:
+
+1. `id`
+2. `layer`
+3. `path`
+4. `file`
+5. `symbol`
+6. `current_behavior`
+7. `current_state_reads`
+8. `current_state_writes`
+9. `economic_effect`
+10. `source_and_auth_checks`
+11. `identity_and_amount_checks`
+12. `terminal_truth`
+13. `target_delta`
+14. `required_tests`
+15. `product_truth`
+16. `status`
+
+### Gate 1E Status Values
+
+The `status` column must contain one or more of these values:
+
+1. `aligned`
+2. `current_gap`
+3. `target_gap`
+4. `test_gap`
+5. `excluded`
+
+`excluded` must be used alone. `excluded` must not be combined with `aligned`,
+`current_gap`, `target_gap`, or `test_gap`.
+`aligned` must be used alone. `aligned` must not be combined with `current_gap`,
+`target_gap`, `test_gap`, or `excluded`.
+Only `current_gap`, `target_gap`, and `test_gap` may be combined with each other.
+
+### Gate 1E Format Rules
+
+1. Each row must cite exactly one Gate 1A layer.
+2. Each row must cite exactly one Gate 1C path.
+3. Each non-excluded row must cite exactly one concrete Gate 1B file path.
+4. Each excluded row must set `file` to `excluded:<exact Gate 1D excluded path or object>`.
+5. Each row must cite exactly one primary symbol.
+6. Each row may include direct protocol entry or callee symbols from other Gate 1B files only when each additional symbol is annotated with its concrete Gate 1B file path.
+7. Rows with `status = excluded` may identify a Gate 1D excluded item but must not use it as current implementation evidence.
+8. Rows with `status = aligned` must not include `current_gap`, `target_gap`, `test_gap`, or `excluded`.
+9. Rows with `status = excluded` must not include `aligned`, `current_gap`, `target_gap`, or `test_gap`.
+10. Rows may combine only `current_gap`, `target_gap`, and `test_gap`.
+11. Rows must not use expandable or ambiguous wording such as `related`, `as needed`, `etc`, `maybe`, `unclear`, `basically`, or similar terms.
+12. Rows must not use `or` to express ambiguous alternative facts, alternative scopes, alternative paths, alternative files, alternative symbols, alternative checks, alternative tests, or alternative truth sources.
+13. Rows may use `or` when it appears as part of an exact identifier, field name, enum name, file name, function name, status value, quoted source symbol, or ordinary English word that does not express an unresolved alternative.
+14. Non-excluded rows must not cite directory paths as `file`.
+15. Non-excluded rows must not cite `webui/`.
+16. Non-excluded rows must not cite generated GraphQL files under `webui-v2/src/__generated__/graphql/` as audited files.
+17. Rows must not treat `AmsOperation::Claim`, `AmsMessage::Claim`, or Linera chain claim as FUND-005 funding `Claim`.
+18. Rows must not introduce protocol paths outside the accepted Gate 1C path list.
+19. If current implementation has no terminal truth, `terminal_truth` must be `missing`.
+20. If a required check is absent, the corresponding check column must include `missing`.
+21. If current implementation has no tests for the row, `required_tests` must list concrete missing tests and must not say only `add tests`.
+22. If a row depends on generated GraphQL output, `product_truth` must identify it as `generated GraphQL dependency fact`, and `file` must remain a Gate 1B GraphQL declaration file under `webui-v2/src/graphql/*.ts`.
+
+### Gate 1E Acceptance Criteria
+
+Gate 1E is accepted only if:
+
+1. Gate 2 has fixed required columns and cannot be delivered as a free-form prose report.
+2. Gate 2 rows can map directly to one Gate 1A layer, one Gate 1B file, and one Gate 1C path.
+3. Gate 2 can represent current implementation gaps, target design gaps, and test gaps.
+4. Gate 2 can represent combined current implementation, target design, and test gaps without duplicating audit rows.
+5. Gate 2 keeps `aligned` rows and `excluded` rows mutually exclusive from gap rows.
+6. Gate 2 can identify excluded items without turning excluded paths into current implementation evidence.
+7. Gate 2 can cite direct protocol entry or callee symbols from Gate 1B files without overloading the primary `file` column.
+8. Gate 2 explicitly forbids expandable or ambiguous wording.
+9. Gate 2 explicitly forbids ambiguous `or` alternatives while permitting `or` inside exact identifiers and non-alternative words.
+10. Gate 2 explicitly forbids Gate 1D excluded paths from becoming current implementation evidence.
+11. Gate 2 explicitly preserves `webui-v2/src/graphql/*.ts` as audited GraphQL declaration scope while excluding generated GraphQL output.
+12. Gate 2 explicitly requires `missing` for absent terminal truth and absent required checks.
+13. Gate 2 explicitly requires concrete missing test descriptions when tests are absent.
+14. Gate 2 can be used directly as the Gate 2 audit-table contract without adding another format explanation.
