@@ -23,6 +23,7 @@ Known gaps:
 - Public `CreatePool` must be constrained to create-with-initial-liquidity.
 - Empty, shell-only, one-sided, and virtual user pool creation must reject.
 - The public `CreatePool` path must validate that both token identities are real before opening a pool chain.
+- Public `CreatePool` should not require frontend-supplied creator-chain identity. Prefer authoritative chain facts where the executing hop can read them safely. For any actual implementation path that uses `call_application`, analyze reentrant constraints first, then decide whether that path reads chain facts directly, carries the necessary identity in internal messages, or defers the authoritative check to a later hop.
 - The current supported token set is native plus meme tokens only. Native is built in; meme tokens are validated from safe user-started paths by calling the meme token application for creator-chain identity. Every other token kind must reject until a concrete validation rule exists.
 - Pending pair contention must use first-funded-wins semantics instead of permanent reject. Losing workflows must fail safely, credit already-custodied value to claim balances, and keep losing shell chains/applications non-tradable or cleaned up.
 - Pool creation terminal truth must be unique and reliable in the intent state machine. A failed terminal workflow must not leave reusable old shell/application state.

@@ -177,9 +177,7 @@ impl TestSuite {
                 block.with_operation(
                     self.swap_application_id.unwrap(),
                     SwapOperation::CreatePool {
-                        token_0_creator_chain_id: chain.id(),
                         token_0: self.meme_application_id.unwrap().forget_abi(),
-                        token_1_creator_chain_id: None,
                         token_1: None,
                         amount_0,
                         amount_1,

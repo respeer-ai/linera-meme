@@ -1063,6 +1063,7 @@ groups:
           - Reject empty, shell-only, one-sided, and virtual user pool creation.
           - Accept only native and meme token identities; reject every other token kind until a concrete validation rule exists.
           - Fail fast on token identity validation at the user-started `user -> swap` entry.
+          - Do not treat meme creator-chain identity as frontend or user-supplied `CreatePool` input. Prefer authoritative chain-fact validation where the executing hop can read it safely; for any actual implementation path that uses `call_application`, analyze reentrant constraints first, then decide whether that path reads chain facts directly, carries the necessary identity in internal messages, or defers the authoritative check to a later hop.
 
           Validation:
           - Contract tests prove invalid `CreatePool` shapes reject without opening a pool chain or writing active pair state in `swap` application state.

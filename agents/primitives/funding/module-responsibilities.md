@@ -39,7 +39,7 @@ Non-responsibilities:
 Responsibilities:
 
 - Own meme token balances and transfer semantics.
-- Provide creator-chain identity where safe user-started validation calls are allowed.
+- Provide creator-chain identity for validation paths that can safely read authoritative chain facts. For any actual implementation path that uses `call_application`, analyze reentrant constraints first, then decide whether that path reads chain facts directly, carries the necessary identity in internal messages, or defers the authoritative check to a later hop.
 - `FUND-005` must audit the current payout/transfer callback support.
 - `FUND-008` must add any missing claim delivery success/fail/bounce messages required by the `Claim` state machine before meme token `Claim` is considered implemented.
 

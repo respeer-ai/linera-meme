@@ -31,6 +31,7 @@ Chain: user current chain.
 Application: `swap`.
 Account: user-authorized operation entry, either direct wallet signature or user contract `call_application`.
 Operation: `SwapOperation::CreatePool { token0, token1, amount0, amount1, to }`.
+Public input does not include token creator-chain identity.
 
 Constraints:
 
@@ -44,6 +45,7 @@ Constraints:
 - Supported token kinds are native and meme tokens only.
 - Native token identity is built in.
 - Meme token identity is validated by calling the meme token application for creator-chain identity from this user-started path.
+- Token creator-chain identity is never frontend-supplied input. Prefer authoritative chain facts when the executing hop can read them safely. For any actual implementation path that uses `call_application`, analyze reentrant constraints first, then decide whether that hop reads chain facts directly, carries the necessary identity in internal messages, or defers the authoritative check to a later hop.
 - Any other token kind is rejected.
 - Pending pair contention uses first-funded-wins semantics.
 - Active pair creation must not create another pool.

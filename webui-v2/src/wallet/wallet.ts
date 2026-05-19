@@ -230,18 +230,14 @@ export class Wallet {
   }
 
   static _createPool = async (
-    token0CreatorChainId: string,
     token0: string,
-    token1CreatorChainId: string | undefined,
     token1: string | undefined,
     amount0: string,
     amount1: string,
     to: account.Account,
   ) => {
     const variables = {
-      token0CreatorChainId,
       token0,
-      token1CreatorChainId,
       token1,
       amount0,
       amount1,
@@ -260,9 +256,7 @@ export class Wallet {
   }
 
   static createPool = async (
-    token0CreatorChainId: string,
     token0: string,
-    token1CreatorChainId: string | undefined,
     token1: string | undefined,
     amount0: string,
     amount1: string,
@@ -272,9 +266,7 @@ export class Wallet {
   ) => {
     try {
       await Wallet._createPool(
-        token0CreatorChainId,
         token0,
-        token1CreatorChainId,
         token1,
         amount0,
         amount1,
