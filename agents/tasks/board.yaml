@@ -1028,7 +1028,8 @@ groups:
           - Gate 1D exclusions are accepted.
           - Gate 1E audit dimensions and Gate 2 format constraints are accepted.
           - Gate 2 current implementation audit table is accepted.
-          - Current gate is Gate 3 target validation matrix.
+          - Gate 3 target validation matrix is accepted.
+          - Current gate is Gate 4 transition tables and unresolved-risk closure.
 
           Minimal changes:
           - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.

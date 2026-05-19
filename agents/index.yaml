@@ -159,6 +159,15 @@ navigation:
         - implementing funding protocol state transitions
         - auditing async funding message flows
         - reasoning about stalled cross-chain workflows
+    - path: agents/primitives/funding/fund-005-gate-4-handler-transition-table.md
+      canonical_for:
+        - fund_005_gate_4_handler_transition_tables
+        - meme_initialize_liquidity_transition_table
+        - funding_unresolved_risk_closure
+      when_to_read:
+        - implementing funding protocol state transitions
+        - reviewing meme initialize liquidity funding changes
+        - resolving FUND-005 Gate 4 handoff requirements
     - path: agents/primitives/funding/claim.md
       canonical_for:
         - single_claim_operation
