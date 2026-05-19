@@ -168,6 +168,15 @@ navigation:
         - implementing funding protocol state transitions
         - reviewing meme initialize liquidity funding changes
         - resolving FUND-005 Gate 4 handoff requirements
+    - path: agents/primitives/funding/fund-005-gate-5-characterization-handoff.md
+      canonical_for:
+        - fund_005_gate_5_characterization_baseline
+        - fund_005_implementation_handoff
+        - fund_006_entry_criteria
+      when_to_read:
+        - entering FUND-006 implementation
+        - checking which unsafe current behavior maps to which funding iteration
+        - deciding whether FUND-005 can be marked complete
     - path: agents/primitives/funding/claim.md
       canonical_for:
         - single_claim_operation

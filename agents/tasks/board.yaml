@@ -1002,7 +1002,7 @@ groups:
           - Later-hop failures still require the business protocol state machine.
           - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
       - id: FUND-005
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-002]
         title: "Iteration 0: Contract-path audit and executable baseline"
@@ -1029,7 +1029,9 @@ groups:
           - Gate 1E audit dimensions and Gate 2 format constraints are accepted.
           - Gate 2 current implementation audit table is accepted.
           - Gate 3 target validation matrix is accepted.
-          - Current gate is Gate 4 transition tables and unresolved-risk closure.
+          - Gate 4 transition tables and unresolved-risk closure are accepted.
+          - Gate 5 characterization baseline and implementation handoff is accepted.
+          - `FUND-005` is complete; `FUND-006` may start after the Gate 5 artifact is committed.
 
           Minimal changes:
           - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.
