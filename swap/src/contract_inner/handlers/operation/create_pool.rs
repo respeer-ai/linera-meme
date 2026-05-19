@@ -5,7 +5,7 @@ use abi::{
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -18,7 +18,9 @@ pub struct CreatePoolHandler<
     runtime: Rc<RefCell<R>>,
     _state: S,
 
+    token_0_creator_chain_id: ChainId,
     token_0: ApplicationId,
+    token_1_creator_chain_id: Option<ChainId>,
     token_1: Option<ApplicationId>,
     amount_0: Amount,
     amount_1: Amount,
@@ -30,7 +32,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &SwapOperation) -> Self {
         let SwapOperation::CreatePool {
+            token_0_creator_chain_id,
             token_0,
+            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
@@ -45,7 +49,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             _state: state,
             runtime,
 
+            token_0_creator_chain_id: *token_0_creator_chain_id,
             token_0: *token_0,
+            token_1_creator_chain_id: *token_1_creator_chain_id,
             token_1: *token_1,
             amount_0: *amount_0,
             amount_1: *amount_1,
@@ -109,6 +115,38 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
         assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+        assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+        assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
+
+        let token_0_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)
+            .expect("Failed: token creator chain id");
+        assert_eq!(
+            token_0_creator_chain_id, self.token_0_creator_chain_id,
+            "Invalid token_0 creator chain id"
+        );
+
+        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
+            let creator_chain_id = self
+                .runtime
+                .borrow_mut()
+                .token_creator_chain_id(token_1)
+                .expect("Failed: token creator chain id");
+            assert_eq!(
+                Some(creator_chain_id),
+                self.token_1_creator_chain_id,
+                "Invalid token_1 creator chain id"
+            );
+            Some(creator_chain_id)
+        } else {
+            assert!(
+                self.token_1_creator_chain_id.is_none(),
+                "Invalid native token creator chain id"
+            );
+            None
+        };
 
         let signer = self
             .runtime
@@ -116,22 +154,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             .authenticated_signer()
             .expect("Invalid signer");
         self.fund_swap_creator_chain(signer, AccountOwner::CHAIN, open_chain_fee_budget());
-
-        let token_0_creator_chain_id = self
-            .runtime
-            .borrow_mut()
-            .token_creator_chain_id(self.token_0)
-            .expect("Failed: token creator chain id");
-        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
-            Some(
-                self.runtime
-                    .borrow_mut()
-                    .token_creator_chain_id(token_1)
-                    .expect("Failed: token creator chain id"),
-            )
-        } else {
-            None
-        };
 
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();

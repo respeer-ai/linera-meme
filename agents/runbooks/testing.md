@@ -34,6 +34,8 @@ Default testing workflow and coverage expectations.
 
 - Cover happy path and duplicate or replay delivery edges
 - Cover wrong-chain execution where relevant
+- Every contract test that depends on protocol state truth must state or encode which chain executes each hop and which chain replica is authoritative for the asserted state
+- Do not assert creator-chain truth from a user-chain replica, and do not treat a local application call as creator-chain execution unless the hop actually runs there
 - Cover async message-chain termination points, not just initiating operations
 - Cover projection, event, queue, and bounded diagnostic boundaries; do not add new tests that treat `latestTransactions` as product truth
 

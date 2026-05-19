@@ -1049,7 +1049,7 @@ groups:
           - The audit identifies exact follow-up iterations and the current failing or unsafe behavior each one will close.
           - No product behavior is changed except test-only characterization coverage.
       - id: FUND-006
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-005]
         title: "Iteration 1: Lock public operation surface"

@@ -35,6 +35,8 @@ Operation: `SwapOperation::CreatePool { token0, token1, amount0, amount1, to }`.
 Constraints:
 
 - `amount0 > 0 && amount1 > 0`.
+- Validation at this entry may use only facts available on the user current chain or through safe user-started application calls on that same chain.
+- Active-pair truth lives on the swap creator-chain replica and must not be inferred from the user-chain `swap` replica.
 - No virtual liquidity.
 - No shell-only or empty pool creation.
 - Both tokens must be real, valid token identities before any pool chain is opened.

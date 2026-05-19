@@ -63,22 +63,13 @@ async fn operation_initialize_liquidity() {
 #[tokio::test(flavor = "multi_thread")]
 async fn operation_create_pool() {
     let mut swap = create_and_instantiate_swap();
-
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let meme_2 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
-    let chain_id =
-        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
-            .unwrap();
+    let (meme_1, meme_2, meme_chain_id) = public_create_pool_test_tokens();
 
     let response = swap
         .execute_operation(SwapOperation::CreatePool {
-            token_0_creator_chain_id: chain_id,
+            token_0_creator_chain_id: meme_chain_id,
             token_0: meme_1,
-            token_1_creator_chain_id: Some(chain_id),
+            token_1_creator_chain_id: Some(meme_chain_id),
             token_1: Some(meme_2),
             amount_0: Amount::ONE,
             amount_1: Amount::ONE,
@@ -87,6 +78,7 @@ async fn operation_create_pool() {
         .await;
 
     assert!(matches!(response, SwapResponse::Ok));
+    assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -111,7 +103,192 @@ async fn operation_create_pool_rejects_same_token_pair() {
     .catch_unwind()
     .await;
 
-    assert!(result.is_err());
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_1));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_one_sided_zero_amount_0() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2, meme_chain_id) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: meme_chain_id,
+        token_0: meme_1,
+        token_1_creator_chain_id: Some(meme_chain_id),
+        token_1: Some(meme_2),
+        amount_0: Amount::ZERO,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_one_sided_zero_amount_1() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2, meme_chain_id) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: meme_chain_id,
+        token_0: meme_1,
+        token_1_creator_chain_id: Some(meme_chain_id),
+        token_1: Some(meme_2),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ZERO,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_shell_only_zero_amounts() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2, meme_chain_id) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: meme_chain_id,
+        token_0: meme_1,
+        token_1_creator_chain_id: Some(meme_chain_id),
+        token_1: Some(meme_2),
+        amount_0: Amount::ZERO,
+        amount_1: Amount::ZERO,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_accepts_native_pair_with_two_positive_amounts() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, _, meme_chain_id) = public_create_pool_test_tokens();
+
+    let response = swap
+        .execute_operation(SwapOperation::CreatePool {
+            token_0_creator_chain_id: meme_chain_id,
+            token_0: meme_1,
+            token_1_creator_chain_id: None,
+            token_1: None,
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+            to: None,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_native_pair_with_token_1_creator_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, _, meme_chain_id) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: meme_chain_id,
+        token_0: meme_1,
+        token_1_creator_chain_id: Some(meme_chain_id),
+        token_1: None,
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_wrong_token_0_creator_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2, _) = public_create_pool_test_tokens();
+    let wrong_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
+            .unwrap();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: wrong_chain_id,
+        token_0: meme_1,
+        token_1_creator_chain_id: Some(wrong_chain_id),
+        token_1: Some(meme_2),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_non_meme_token_0() {
+    let non_meme =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb4")
+            .unwrap();
+    let (meme_1, _, meme_chain_id) = public_create_pool_test_tokens();
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        move |_authenticated, application_id, _operation| {
+            if application_id == non_meme {
+                return bcs::to_bytes(&MemeResponse::Ok).unwrap();
+            }
+
+            bcs::to_bytes(&MemeResponse::ChainId(meme_chain_id)).unwrap()
+        }
+    });
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: meme_chain_id,
+        token_0: non_meme,
+        token_1_creator_chain_id: Some(meme_chain_id),
+        token_1: Some(meme_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, non_meme, Some(meme_1));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_non_meme_token_1() {
+    let non_meme =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb4")
+            .unwrap();
+    let (meme_1, _, meme_chain_id) = public_create_pool_test_tokens();
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        move |_authenticated, application_id, _operation| {
+            if application_id == non_meme {
+                return bcs::to_bytes(&MemeResponse::Ok).unwrap();
+            }
+
+            bcs::to_bytes(&MemeResponse::ChainId(meme_chain_id)).unwrap()
+        }
+    });
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0_creator_chain_id: meme_chain_id,
+        token_0: meme_1,
+        token_1_creator_chain_id: Some(meme_chain_id),
+        token_1: Some(non_meme),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(non_meme));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -318,6 +495,96 @@ async fn message_pool_created_ignores_wrong_chain_receipt() {
         .unwrap()
         .is_none());
     assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
+    assert_eq!(swap.state.borrow().pool_chains.indices().blocking_wait().unwrap().len(), 0);
+    assert_eq!(swap.state.borrow().meme_native_pools.indices().blocking_wait().unwrap().len(), 0);
+    assert_eq!(swap.state.borrow().meme_meme_pools.indices().blocking_wait().unwrap().len(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn create_pool_operation_pool_chain_created_pool_created_and_update_pool_are_distinct_facts() {
+    let mut swap = create_and_instantiate_swap();
+    let creator = authenticated_account(&swap);
+    let (token_0, token_1, _) = public_create_pool_test_tokens();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+
+    let response = swap
+        .execute_operation(SwapOperation::CreatePool {
+            token_0_creator_chain_id: ChainId::from_str(
+                "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+            )
+            .unwrap(),
+            token_0,
+            token_1_creator_chain_id: Some(
+                ChainId::from_str(
+                    "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+                )
+                .unwrap(),
+            ),
+            token_1: Some(token_1),
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+            to: None,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+    assert!(swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .is_none());
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    assert!(swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .is_none());
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        virtual_initial_liquidity: false,
+        to: None,
+        user_pool: false,
+    })
+    .await;
+
+    let pool = swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pool.pool_application, pool_application);
+    assert_eq!(pool.reserve_0, None);
+    assert_eq!(pool.reserve_1, None);
+    assert_eq!(pool.token_0_price, None);
+    assert_eq!(pool.token_1_price, None);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -427,6 +694,40 @@ fn mock_application_call(
             .unwrap(),
     ))
     .unwrap()
+}
+
+fn assert_rejected_without_pool_side_effect<T>(
+    swap: &SwapContract,
+    result: Result<T, Box<dyn std::any::Any + Send>>,
+    token_0: ApplicationId,
+    token_1: Option<ApplicationId>,
+) {
+    assert!(result.is_err());
+    assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
+    assert_eq!(swap.state.borrow().pool_chains.indices().blocking_wait().unwrap().len(), 0);
+    assert_eq!(swap.state.borrow().meme_native_pools.indices().blocking_wait().unwrap().len(), 0);
+    assert_eq!(swap.state.borrow().meme_meme_pools.indices().blocking_wait().unwrap().len(), 0);
+    assert!(swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, token_1)
+        .blocking_wait()
+        .unwrap()
+        .is_none());
+}
+
+fn public_create_pool_test_tokens() -> (ApplicationId, ApplicationId, ChainId) {
+    let meme_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let meme_2 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    let meme_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+
+    (meme_1, meme_2, meme_chain_id)
 }
 
 fn authenticated_account(swap: &SwapContract) -> Account {

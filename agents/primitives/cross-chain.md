@@ -28,6 +28,7 @@ Canonical execution semantics for operation, message, replica, and application-c
 - Later cross-chain or same-chain messages persist in their own subsequent transactions
 - The same application on different chains has different state replicas
 - Any analysis must name the execution chain explicitly
+- Any protocol rule, validation, or safety check must be attached to the chain that actually owns the required state truth
 - An `operation` reads and writes only the current chain's replica of that application
 - A `message` reads and writes the destination chain's replica of that application, not the sender's replica
 - An `application call` executes on the caller chain against the callee application's local replica on that same chain
