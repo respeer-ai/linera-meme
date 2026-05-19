@@ -17,7 +17,7 @@ Authority: High
 - Linera core protocol executes an operation or accepted message once in chain history. Replay/catch-up does not cause application operations or messages to happen again as new protocol behavior.
 - Application-level funding design must rely on that core reachability guarantee. If the exact same operation or message could be executed twice by the chain, application-level funds consistency would be impossible.
 - Application state guards are still required for stale follow-ups, wrong source/caller, competing user operations, and distinct messages that target the same business workflow.
-- Do not introduce a generic `Resume` operation. Any future recovery operation must be state-specific and justified against the core protocol execution model.
+- Do not introduce a generic `Resume` operation. Any later recovery operation must be state-specific and justified against the core protocol execution model.
 
 ## User CreatePool With Initial Liquidity
 
@@ -93,7 +93,7 @@ States:
 - `failed`
 - `cleaned_up`
 
-Open issue: if the pool-shell target chain never executes the create message, the intent may remain `shell_message_sent` forever. It must not become active in `swap` application state and must be visible as stalled. A future recovery or cancellation path is not part of the current design.
+Open issue: if the pool-shell target chain never executes the create message, the intent may remain `shell_message_sent` forever. It must not become active in `swap` application state and must be visible as stalled. A later recovery or cancellation path is not part of the current design.
 
 Rules:
 
@@ -128,7 +128,7 @@ If the shell exists before original creator funding finalizes, another user may 
 - No workflow may write reserves or mint LP shares until both required token legs are funded and the workflow is the valid finalization candidate for the current pool state.
 - Slippage/min-amount behavior must be fixed before implementing this path. Any post-custody failure must not leave funds only in an opaque intent; funded user value must either remain safely stalled when the opposite leg has no terminal evidence or be credited to claim balances when the workflow reaches a failed terminal state.
 
-Open issue: if the pool shell is created but the shell receipt never reaches the swap chain, `swap` application state remains pending while the shell exists. The shell has no finalized reserves and must not be exposed as active. A future reconciliation path is not part of the current design.
+Open issue: if the pool shell is created but the shell receipt never reaches the swap chain, `swap` application state remains pending while the shell exists. The shell has no finalized reserves and must not be exposed as active. A later reconciliation path is not part of the current design.
 
 ### Failed Shell Cleanup
 
@@ -195,7 +195,7 @@ After both legs are funded, pool finalizes:
 
 Swap consumes activation receipt and moves the pair to active in `swap` application state.
 
-Open issue: if pool is finalized and LP is minted but activation receipt never reaches the swap chain, the pool has economic state while `swap` application state is not active. Do not recreate the pool or mint again. A future activation reconciliation path is not part of the current design.
+Open issue: if pool is finalized and LP is minted but activation receipt never reaches the swap chain, the pool has economic state while `swap` application state is not active. Do not recreate the pool or mint again. A later activation reconciliation path is not part of the current design.
 
 ## Meme Native Pool Initialization
 
@@ -205,7 +205,7 @@ Rules:
 
 - Meme existence is guaranteed by meme app creation.
 - Swap must not call back into meme for validation from the `meme -> swap` initialization path.
-- Verify authenticated caller, source chain, and initialization intent binding.
+- Verify authenticated caller, source chain, and swap-side initialization route binding.
 - Real meme initial liquidity and virtual native reference are distinct.
 - Virtual native reference is not native reserve, TVL, claimable balance, or payable balance.
 - Emit virtual position facts separately from normal add-liquidity facts.

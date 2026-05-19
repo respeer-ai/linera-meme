@@ -38,7 +38,7 @@ Define the target protocol for cross-chain AMM funds consistency before changing
   - current `SwapOperation::CreatePool` is allowed as the user-facing ABI only when it means create-with-initial-liquidity
   - `CreatePool` must never mean empty-pool or shell-only creation
   - claimable delivery requires a new pool claim operation/state surface
-  - legacy `CreateUserPool` and `UserPoolCreated` message choreography should be collapsed or strictly bound to the initial-liquidity intent
+- legacy `CreateUserPool` and `UserPoolCreated` message choreography should be collapsed or strictly bound to the pool-creation intent
 
 ## Global Rules
 
@@ -107,7 +107,7 @@ Define the target protocol for cross-chain AMM funds consistency before changing
 - Meme token validation uses `call_application(token_app, CreatorChainId)`.
 - `call_application(token_app, CreatorChainId)` can execute on any chain; the constraint is safe call-stack context, not chain location.
 - `call_application(token_app, CreatorChainId)` is allowed only on user-started `user -> swap` or equivalent trusted entry paths.
-- Do not call token app for validation from `meme -> swap InitializeLiquidity`; use authenticated caller, source chain, and initialization intent binding.
+- Do not call token app for validation from `meme -> swap InitializeLiquidity`; use authenticated caller, source chain, and swap-side initialization route binding.
 - Do not call token app from token funding callbacks, claim callbacks, or message handlers entered by token apps; use pending records and expected source/leg binding.
 - If other token classes are introduced, they need an equivalent validation operation before they can enter pool creation.
 
@@ -133,7 +133,7 @@ Target path: initialize a meme/native pool while creating a meme. Meme existence
    Action: submit meme creation operation with meme metadata, real initial token liquidity, virtual native reference, and target swap app.
    Transmission: user operation enters the `meme` contract.
    Constraint: virtual native reference is only a pricing reference; it is not native deposit, reserve, TVL, or claimable balance.
-   Risk and mitigation: treating virtual native as real reserve corrupts positions, TVL, and claimable balances. The initialization intent must explicitly distinguish real_deposit from virtual_reference.
+   Risk and mitigation: treating virtual native as real reserve corrupts positions, TVL, and claimable balances. The swap-side initialization route stores `native_amount` plus `virtual_initial_liquidity`, and implementation helper APIs must distinguish real native custody amount from virtual native reference amount before reserve, TVL, claim, and payable-balance code can read the value.
 
 2. meme operation handler
    Chain: user wallet chain or meme creation chain.
@@ -141,9 +141,9 @@ Target path: initialize a meme/native pool while creating a meme. Meme existence
    Account: user signer.
    Action:
    - Create meme app/state.
-   - Persist the initial_liquidity intent.
+   - Commit meme state, balances, mining state, metadata, and allowance facts.
    - Send initialization message to swap creator/root chain.
-   Transmission: `meme -> swap` message carrying `intent_id`, meme token app id, creator chain id, real token amount, virtual native reference, and creator/fee receiver.
+   Transmission: `meme -> swap` message carrying meme token app id, creator chain id, adjusted fungible amount, native amount, virtual native flag, and creator/fee receiver. The meme app does not enforce route uniqueness; the swap-side route enforces at most one initialization route for each meme token app.
    Constraint: swap must be able to bind the message to the meme app authenticated caller.
    Risk and mitigation: if swap trusts only payload-claimed token id, a malicious app can forge initialization. The swap handler must verify `authenticated_caller_id == token_app` and verify source chain matches token creator chain.
 
@@ -153,11 +153,12 @@ Target path: initialize a meme/native pool while creating a meme. Meme existence
    Account: not a direct user signer; the source must be meme app authenticated caller.
    Action:
    - Reject directly user-reachable `SwapOperation::InitializeLiquidity`.
+   - Allocate a swap-side `route_id` after accepting `SwapMessage::InitializeLiquidity`.
    - Verify authenticated caller, source chain, and meme creator chain.
-   - Create pool creation intent with status pending_shell, not active.
+   - Create swap-side initialization route with status `accepted`, then `pool_shell_sent`, not active.
    - Open pool child chain.
    Transmission: `swap -> pool child chain` tracked message that creates the pool app/shell.
-   Bounce handling: if child-chain creation rejects, transition pending intent -> failed; do not write active pool catalog and do not write finalized reserve.
+   Bounce handling: if child-chain creation rejects, transition initialization route to failed; do not write active pool catalog and do not write finalized reserve.
    Constraint: do not `call_application(meme, CreatorChainId)` here because the call stack is already `meme -> swap`; calling back into meme introduces application reentrancy risk.
    Risk and mitigation: if initialization failure still writes a successful catalog record, users see a non-tradable pool. Catalog may write pending only, not active.
 
@@ -169,45 +170,64 @@ Target path: initialize a meme/native pool while creating a meme. Meme existence
    - Create pool app.
    - Initialize pool state: token0/token1, registered app ids, virtual reference, and fee config.
    - Do not write finalized reserve.
-   Transmission: `pool child -> swap root` `PoolChainCreated` or equivalent shell receipt carrying pool app id, `intent_id`, and pool chain id.
+   Transmission: `pool child -> swap root` `PoolChainCreated` or equivalent shell receipt carrying pool app id, `route_id`, and pool chain id.
    Constraint: pool shell receipt only means child chain/app shell creation completed; it is not product-level `PoolCreated` and does not mean tradable.
-   Risk and mitigation: a shell receipt verified only by child chain can be forged or misbound; swap must match the pending intent's expected pool chain, expected token identity, and expected pool app.
+   Risk and mitigation: a shell receipt verified only by child chain can be forged or misbound; swap must match the route's expected pool chain, expected token identity, and expected pool app.
 
 5. swap receives pool shell receipt
    Chain: swap creator/root chain.
    Application: `swap`.
    Account: pool app authenticated caller / expected child chain.
    Action:
-   - Match pending intent.
+   - Match pending initialization route.
    - Write catalog status = shell_created or initializing, not active.
-   - Trigger real initial meme token funding into pool custody.
-   Transmission: `swap -> meme` or `pool -> meme` funding request carrying `intent_id`, expected token, expected amount, and expected pool receiver.
-   Bounce handling: if funding request rejects, transition initialization intent -> failed; do not write `PoolCreated` product fact and do not write active.
-   Constraint: meme token funding callback does not revalidate token identity; it only matches pending leg.
-   Risk and mitigation: if callback updates by transfer id only, unrelated transfers can be misrecorded as initialization funds. It must bind `intent_id + leg_id + expected token + expected source app + amount`.
+   - Allocate and persist an opaque `funding_correlation_id` for this meme funding segment.
+   - Execute `call_application(token0, MemeOperation::InitializeLiquidity { funding_correlation_id, to: expected_pool_account, amount: adjusted_fungible_amount })`.
+   - Move the route to `meme_funding_sent` only after the meme operation accepts the request and queues `MemeMessage::InitializeLiquidity`.
+   Transmission: `swap -> meme` operation call, then `meme operation -> meme creator chain` `MemeMessage::InitializeLiquidity { funding_correlation_id, caller, to, amount }`.
+   Bounce handling: if `MemeMessage::InitializeLiquidity` rejects or bounces, transition initialization route to `stalled_funding`; do not write `PoolCreated` product fact, `pool_funded`, or active.
+   Constraint: accepted `MemeOperation::InitializeLiquidity` is not custody proof. Current implementation discards the call result and has no funding success/fail receipt; target protocol must add an explicit funding receipt before swap may move the route to `pool_funded`.
+   Risk and mitigation: if swap treats the operation call as funding success, the route can become funded while meme tokens never entered pool custody. The funding path must bind `funding_correlation_id + expected token + expected source app + expected pool account + amount`. The correlation id is opaque to meme and has no meme-side business meaning.
 
-6. pool finalizes initial liquidity
+6. meme funding receipt
+   Chain: meme creator chain, then swap creator/root chain.
+   Application: `meme`, then `swap`.
+   Account: expected swap application caller / expected meme token application.
+   Action:
+   - Execute meme `transfer_from(caller, application_creation_account, expected_pool_account, adjusted_fungible_amount)`.
+   - Execute `call_application(swap, SwapOperation::InitializeLiquidityFunded { funding_correlation_id, meme_application, pool_application, token0_identity, amount })` on the meme creator chain.
+   - Swap operation on the token0 meme creator chain queues `SwapMessage::InitializeLiquidityFunded { funding_correlation_id, meme_application, pool_application, token0_identity, amount }` to the swap creator chain.
+   - Swap creator-chain message handler first requires source chain equals the token0 meme creator chain and authenticated caller application equals the swap application.
+   - Swap creator-chain message handler then resolves `funding_correlation_id` to exactly one pending route and accepts the funding receipt only after matching pool account, token identity, and amount.
+   - Move initialization route from `meme_funding_sent` to `pool_funded`.
+   Transmission: meme handler calls swap operation on the meme creator chain; swap operation sends swap funding receipt message to the swap creator chain.
+   Bounce handling: if the funding receipt rejects or bounces, swap route remains `stalled_funding`; recovery must prove custody before crediting claim or retrying receipt.
+   Constraint: `pool_funded` is only written from the accepted funding receipt or an equivalent custody proof, never from `PoolCreated` and never from accepted `MemeOperation::InitializeLiquidity` alone.
+   Risk and mitigation: without this receipt, swap cannot distinguish transferred funds from pending or failed meme funding.
+
+7. pool finalizes initial liquidity
    Chain: pool child chain.
    Application: `pool`.
    Account: pool app state.
    Action:
-   - Write real reserve only after real meme token leg is funded.
+   - Write real reserve only after real meme token leg is funded and contract route state is `pool_funded`.
    - Write virtual reference as pricing reference; do not write native reserve.
    - Emit explicit initial virtual position fact with owner = creator/protocol fee receiver.
    - Do not create native claimable.
-   - Emit `PoolCreated` product fact.
-   Transmission: `pool -> swap` `PoolCreated` / activation message carrying finalized pool state hash / version / `intent_id`.
-   Bounce handling: if activation message rejects, pool keeps finalized state but swap catalog remains non-active; recovery must replay/ack activation, not recreate pool.
-   Constraint: `PoolCreated` is still not tradable; only successful activation makes the pool Active.
+   - Emit pool-side finalized liquidity and transaction facts.
+   - Call `SwapOperation::UpdatePool` through `call_application`; if the call fails, the current pool-chain transaction aborts and does not commit the transaction fact for the failed call.
+   Transmission: pool-chain `call_application` queues `SwapMessage::UpdatePool` carrying finalized pool state hash, version, and `route_id`.
+   Bounce handling: if `SwapMessage::UpdatePool` rejects or bounces, pool keeps finalized state but swap catalog remains non-active; recovery must replay/ack update, not recreate pool.
+   Constraint: `PoolCreated` is still not tradable; only accepted `SwapMessage::UpdatePool` makes the pool Active.
    Risk and mitigation: virtual initial position must not use normal add-liquidity semantics, or it creates closed-position noise or two-sided pooled tokens. It must be an independent virtual position fact.
 
-7. swap activates pool
+8. swap accepts pool update
    Chain: swap creator/root chain.
    Application: `swap`.
    Account: expected pool app.
    Action:
-   - Match pending intent.
-   - Move catalog status from pending to active.
+   - Match pending initialization route.
+   - Accept `SwapMessage::UpdatePool`, verify custody and liquidity facts, write router pool truth, and move catalog status from pending to active.
    - Allow swap/add/remove routing only after active.
    Transmission: do not return fake user-side success; frontend/observability must decide tradability from active catalog and parsed facts.
    Risk and mitigation: if frontend allows trading on a pending pool, users route into an uninitialized pool. Product APIs must treat only active pools as tradable/economic pools.
