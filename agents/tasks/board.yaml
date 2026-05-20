@@ -1049,7 +1049,7 @@ groups:
           - The audit identifies exact follow-up iterations and the current failing or unsafe behavior each one will close.
           - No product behavior is changed except test-only characterization coverage.
       - id: FUND-006
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-005]
         title: "Iteration 1: Lock public operation surface"
@@ -1070,7 +1070,7 @@ groups:
           - Contract tests prove the currently supported valid two-sided initial-liquidity path still reaches the same externally observable success boundary as before this iteration.
           - Tests prove `PoolChainCreated`, `PoolCreated`, and `Active` remain distinct states or facts.
       - id: FUND-007
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-006]
         title: "Iteration 2: Intent-bind user pool creation"
