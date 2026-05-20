@@ -38,10 +38,11 @@ active_focus:
   - id: FUND-007
     why: active iteration for intent-binding user pool creation
     summary: >
-      Remove unsafe owner and payload reconstruction from user pool creation while keeping the
-      validated `SwapOperation::CreatePool` entry working. Create a `PoolCreationIntent` at the
-      user entry, bind `CreateUserPool`, internal `CreatePool`, and `UserPoolCreated` to that
-      intent, and keep active pool truth behind verified intent transitions.
+      Bind user pool creation to `PoolCreationIntent` while keeping the validated
+      `SwapOperation::CreatePool` entry working. Store verified token_0, token_1, amounts,
+      recipient, status, and pool-shell facts; use runtime chain facts such as
+      `message_signer_account()` when they are the exact required business fact, and document
+      every explicitly carried fact that cannot be derived at the current hop.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

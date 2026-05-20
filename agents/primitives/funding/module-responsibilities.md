@@ -17,7 +17,7 @@ Responsibilities:
 Non-responsibilities:
 
 - Do not own final pool reserve accounting.
-- Do not infer LP owner, token identity, or amount from later messages once an intent exists.
+- Do not infer LP owner, token identity, or amount from unverified later payloads once an intent exists. Runtime chain facts such as `message_signer_account()` remain authoritative when that signer is the exact business fact required by the current hop.
 
 ## pool
 

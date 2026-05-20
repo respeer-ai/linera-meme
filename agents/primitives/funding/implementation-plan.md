@@ -93,16 +93,17 @@ Validation:
 
 ### FUND-007 Iteration 2: Intent-bind user pool creation
 
-Purpose: remove unsafe owner/payload reconstruction.
+Purpose: bind user pool creation to explicit workflow state while preserving chain-fact authority.
 
 Minimal changes:
 
-- Introduce `PoolCreationIntent`.
+- Introduce `PoolCreationIntent` for the user `CreatePool` workflow. Store `intent_id`, verified `token_0`, verified `token_1`, `amount_0`, `amount_1`, `to`, status, and pool-shell facts. Do not introduce a separate pair wrapper type in this iteration.
+- Define every account fact per hop. Use runtime chain facts such as `authenticated_account()` and `message_signer_account()` when they are the exact business fact required by that hop. Store or explicitly carry an account fact only when the current hop cannot derive the required business fact from chain state.
+- Any explicitly carried fact must include a code comment explaining why the current hop cannot use chain facts, where the fact was previously verified, and how the current hop checks it against intent or chain state.
 - Attach `.with_tracking()` by default in `ContractRuntimeContext::send_message` before funding or claim workflows depend on bounce handling.
-- Bind every remaining `CreateUserPool`, internal `CreatePool`, and `UserPoolCreated` message to the pending intent. Removing or merging old messages is allowed only as a refactor; any message that remains must be intent-bound.
-- Stop deriving owner/recipient/token/amount from message signer after intent creation.
+- Bind every remaining `CreateUserPool`, internal `CreatePool`, `PoolCreated`, and `UserPoolCreated` message to the pending intent. Removing or merging old messages is allowed only as a refactor; any message that remains must be intent-bound.
 - Track the pool-shell hop so a child-chain creation reject/bounce converges the pending intent to failed.
-- Materialize a handler-level `PoolCreationIntent` transition table before code changes in this iteration. The table must specify which handler may perform each transition, which stale or wrong-state receipts are rejected, which duplicate-safe paths are no-op idempotency, and which invalid states abort.
+- Materialize a handler-level `PoolCreationIntent` transition table before code changes in this iteration. The table must specify which handler may perform each transition, which chain facts are required, which carried facts are consistency checks only, which stale or wrong-state receipts are rejected, which duplicate-safe paths are no-op idempotency, and which invalid states abort.
 
 Validation:
 

@@ -55,7 +55,7 @@ Required intent classes:
 - `SwapIntent`
 - `RemoveLiquidityIntent`
 
-Intent state must carry enough data to reject forged, stale, wrong-chain, wrong-app, wrong-token, wrong-leg, or wrong-state follow-up effects.
+Intent state must carry enough data to reject forged, stale, wrong-chain, wrong-app, wrong-token, wrong-leg, or wrong-state follow-up effects. For `PoolCreationIntent`, keep the verified pair as direct `token_0` and `token_1` fields in this iteration; do not introduce a separate pair wrapper type unless a later reviewed design changes the storage model. Account facts are not automatically intent fields: use runtime chain facts such as `authenticated_account()` or `message_signer_account()` when they are the exact business fact required by the current hop, and store or carry account facts only when the current hop cannot derive the required business fact from chain state.
 
 Intent identity must be allocated by the application that stores the canonical workflow intent state. For user pool creation, the canonical `PoolCreationIntent` is stored in `swap` application state on the swap chain. Store a persistent monotonic `next_intent_seq` in `swap` application state and allocate `intent_id = (swap_application_id, intent_seq)` or an equivalent typed value. The id must be stable across all internal messages and receipts for that workflow. Frontend input, wall-clock timestamps, token pairs, and message delivery order are not valid uniqueness sources.
 

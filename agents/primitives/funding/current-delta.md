@@ -42,7 +42,7 @@ Known current behavior:
 
 Known gaps:
 
-- Owner, recipient, token, amount, and pair must come from persisted intent, not message signer or payload reconstruction.
+- Token, amount, and pair must be validated against persisted intent instead of reconstructed from unverified later payloads. Account facts must be defined per hop: use `message_signer_account()` when the message signer is the exact required business fact, and store or explicitly carry account facts only when the current hop cannot derive the required fact from chain state.
 - Shell receipt and user-pool-created handling must verify intent/source/app/chain.
 - `mark_user_pool_created` is only a late narrow guard against repeated `UserPoolCreated` handling for the same pool application. The target protocol must make terminal intent status the single source of truth and ensure the flow itself allows only one valid pool-created transition per intent, rather than relying on a separate created flag or final duplicate guard.
 
