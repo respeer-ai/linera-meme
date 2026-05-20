@@ -39,7 +39,10 @@ pub enum SwapOperation {
         virtual_liquidity: bool,
         to: Option<Account>,
     },
-    // User can only create meme meme pair. Meme native pair is created by creator
+    // User-reachable create-pool entry for the missing-pair add-liquidity flow.
+    // This operation is create-with-initial-liquidity only.
+    // It must not be used for shell-only, one-sided, or virtual user pool creation.
+    // Meme-native initialization stays on InitializeLiquidity.
     CreatePool {
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
@@ -108,6 +111,9 @@ pub enum SwapMessage {
     },
     // Execute on swap creation chain
     CreateUserPool {
+        // Internal continuation of a validated public CreatePool request.
+        // User pool creation here is still two-sided real initial liquidity only.
+        // It must not reintroduce shell-only, one-sided, or virtual semantics.
         // TODO: use to avoid reentrant invocation before
         // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
         token_0_creator_chain_id: ChainId,

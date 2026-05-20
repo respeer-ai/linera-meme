@@ -105,6 +105,16 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        if self.user_pool {
+            // User pool creation is always backed by real two-sided initial liquidity.
+            // Virtual initial liquidity is only valid for the creator-side
+            // InitializeLiquidity flow, not for user pool creation.
+            assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+            assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+            assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
+            assert!(!self.virtual_liquidity, "Invalid virtual_initial_liquidity");
+        }
+
         let pool_bytecode_id = self.state.borrow_mut().pool_bytecode_id();
 
         let destination = self.create_child_chain(self.token_0, self.token_1)?;

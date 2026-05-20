@@ -108,6 +108,14 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        // Public CreatePool is the protocol entry used by the user-facing
+        // add-liquidity missing-pair flow. Its semantics are strictly
+        // "create pool with two-sided real initial liquidity".
+        //
+        // This entry must not be interpreted as:
+        // - shell-only pool creation
+        // - one-sided initial funding
+        // - virtual initial liquidity
         assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
         assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
         assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
@@ -138,6 +146,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
+        // CreateUserPool remains an internal choreography step only after the
+        // public CreatePool request has passed the two-sided initial-liquidity
+        // validation at this user-reachable boundary.
         outcome.with_message(
             destination,
             SwapMessage::CreateUserPool {

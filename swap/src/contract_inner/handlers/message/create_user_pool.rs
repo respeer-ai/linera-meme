@@ -60,7 +60,12 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        // CreateUserPool is not a second public surface with looser semantics.
+        // It is the internal continuation of a public CreatePool request that is
+        // already constrained to two-sided real initial liquidity.
         assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+        assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+        assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
 
         if let Some(_) = self
             .state
@@ -102,6 +107,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             self.token_1,
             self.amount_0,
             self.amount_1,
+            // User pool creation must not use virtual initial liquidity.
             false,
             self.to,
             None,
