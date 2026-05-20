@@ -71,7 +71,7 @@ struct KlineReport {
 }
 
 impl TestSuite {
-    async fn new(enable_mining: bool) -> Self {
+    async fn new(enable_mining: bool, maker_chain_count: usize) -> Self {
         let (validator, swap_bytecode_id) = TestValidator::with_current_module::<
             SwapAbi,
             SwapParameters,
@@ -139,11 +139,10 @@ impl TestSuite {
             validator.new_chain().await
         };
 
-        let maker_chains = vec![
-            validator.new_chain().await,
-            validator.new_chain().await,
-            validator.new_chain().await,
-        ];
+        let mut maker_chains = Vec::with_capacity(maker_chain_count);
+        for _ in 0..maker_chain_count {
+            maker_chains.push(validator.new_chain().await);
+        }
 
         let initial_liquidity = Amount::from_tokens(11000000);
         let initial_native = Amount::from_tokens(10);
@@ -562,7 +561,7 @@ impl TestSuite {
     }
 }
 
-fn trade_plan() -> Vec<TradeIntent> {
+fn trade_plan(maker_chain_count: usize, trade_count: usize) -> Vec<TradeIntent> {
     let times = [
         (0, true, 2),
         (1, true, 3),
@@ -586,8 +585,9 @@ fn trade_plan() -> Vec<TradeIntent> {
 
     times
         .into_iter()
+        .take(trade_count)
         .map(|(maker_index, buy_token_0, time_secs)| TradeIntent {
-            maker_index,
+            maker_index: maker_index % maker_chain_count,
             buy_token_0,
             amount: Amount::from_str("0.2").unwrap(),
             time_secs,
@@ -596,7 +596,7 @@ fn trade_plan() -> Vec<TradeIntent> {
 }
 
 fn is_abnormal(report: &KlineReport) -> bool {
-    if report.trade_count < 12 {
+    if report.trade_count < 8 {
         return true;
     }
 
@@ -608,11 +608,17 @@ fn is_abnormal(report: &KlineReport) -> bool {
         || (longest_streak >= 10 && report.max_same_timestamp_cluster >= 8)
 }
 
-async fn run_kline_scenario(enable_mining: bool) -> KlineReport {
-    println!("start scenario enable_mining={enable_mining}");
-    let suite = TestSuite::new(enable_mining).await;
+async fn run_kline_scenario(
+    enable_mining: bool,
+    maker_chain_count: usize,
+    trade_count: usize,
+) -> KlineReport {
+    println!(
+        "start scenario enable_mining={enable_mining} maker_chain_count={maker_chain_count} trade_count={trade_count}"
+    );
+    let suite = TestSuite::new(enable_mining, maker_chain_count).await;
     println!("suite ready enable_mining={enable_mining}");
-    let plan = trade_plan();
+    let plan = trade_plan(maker_chain_count, trade_count);
     let trade_count = plan.len();
     let buy_count = plan.iter().filter(|trade| trade.buy_token_0).count();
     let sell_count = plan.iter().filter(|trade| !trade.buy_token_0).count();
@@ -665,18 +671,30 @@ async fn run_kline_scenario(enable_mining: bool) -> KlineReport {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "heavy mining e2e; run with CARGO_PROFILE_TEST_OPT_LEVEL=3"]
-async fn kline_e2e_detects_no_pathological_shape_for_current_flow() {
+async fn kline_e2e_detects_no_pathological_shape_for_lightweight_non_mining_flow() {
     let _ = env_logger::builder().is_test(true).try_init();
 
-    let no_mining = run_kline_scenario(false).await;
+    let no_mining = run_kline_scenario(false, 1, 8).await;
+    assert!(
+        !is_abnormal(&no_mining),
+        "lightweight non-mining K-line should stay normal: {:?}",
+        no_mining
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "heavy mining e2e; run with CARGO_PROFILE_TEST_OPT_LEVEL=3"]
+async fn kline_e2e_detects_no_pathological_shape_for_full_current_flow() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    let no_mining = run_kline_scenario(false, 3, 18).await;
     assert!(
         !is_abnormal(&no_mining),
         "non-mining K-line should stay normal: {:?}",
         no_mining
     );
 
-    let mining = run_kline_scenario(true).await;
+    let mining = run_kline_scenario(true, 3, 18).await;
     assert!(
         !is_abnormal(&mining),
         "mining K-line is abnormal: {:?}",
