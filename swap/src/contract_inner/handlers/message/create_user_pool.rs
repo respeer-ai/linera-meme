@@ -63,6 +63,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         // CreateUserPool is not a second public surface with looser semantics.
         // It is the internal continuation of a public CreatePool request that is
         // already constrained to two-sided real initial liquidity.
+        //
+        // token_0 remains a meme application id.
+        // token_1 remains either:
+        // - Some(meme application id)
+        // - None for the native-token fact shape
         assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
         assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
         assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
@@ -80,7 +85,8 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
         let creator = self.runtime.borrow_mut().message_signer_account();
 
-        // Safe to call meme to get creator chain id here due to it's from user
+        // Safe to call meme to get creator chain id here due to it's from user.
+        // No public creator-chain identity is accepted from the caller.
         let token_0_creator_chain_id = self
             .runtime
             .borrow_mut()

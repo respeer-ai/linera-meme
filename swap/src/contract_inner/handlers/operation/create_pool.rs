@@ -5,7 +5,7 @@ use abi::{
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -51,6 +51,22 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             amount_1: *amount_1,
             to: *to,
         }
+    }
+
+    fn resolve_public_token_creator_chain_id(
+        &mut self,
+        token: Option<ApplicationId>,
+    ) -> Option<ChainId> {
+        let Some(token) = token else {
+            return None;
+        };
+
+        Some(
+            self.runtime
+                .borrow_mut()
+                .token_creator_chain_id(token)
+                .expect("Failed: token creator chain id"),
+        )
     }
 
     fn fund_swap_creator_chain(
@@ -120,21 +136,20 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
         assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
 
+        // Public CreatePool accepts only:
+        // - meme / native
+        // - meme / meme
+        //
+        // token_0 is always a meme application id here.
+        // token_1 == None is the native-token fact shape.
+        // No public creator-chain identity is accepted from the caller.
         let token_0_creator_chain_id = self
             .runtime
             .borrow_mut()
             .token_creator_chain_id(self.token_0)
             .expect("Failed: token creator chain id");
-        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
-            let creator_chain_id = self
-                .runtime
-                .borrow_mut()
-                .token_creator_chain_id(token_1)
-                .expect("Failed: token creator chain id");
-            Some(creator_chain_id)
-        } else {
-            None
-        };
+        let token_1_creator_chain_id =
+            self.resolve_public_token_creator_chain_id(self.token_1);
 
         let signer = self
             .runtime
