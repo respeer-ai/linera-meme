@@ -45,7 +45,7 @@ Constraints:
 - Supported token kinds are native and meme tokens only.
 - Native token identity is built in.
 - Meme token identity is validated by calling the meme token application for creator-chain identity from this user-started path.
-- Token creator-chain identity is never frontend-supplied input. Prefer authoritative chain facts when the executing hop can read them safely. For any actual implementation path that uses `call_application`, analyze reentrant constraints first, then decide whether that hop reads chain facts directly, carries the necessary identity in internal messages, or defers the authoritative check to a later hop.
+- Token creator-chain identity is never frontend-supplied input. User-started `CreatePool` validates meme token identity from authoritative chain facts before opening a pool chain. The only carried creator-chain-id field is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` for the synchronous `meme -> call_application(swap.InitializeLiquidity)` exception; swap messages and `PoolParameters` must not carry token creator-chain-id fields.
 - Any other token kind is rejected.
 - Pending pair contention uses first-funded-wins semantics.
 - Active pair creation must not create another pool.

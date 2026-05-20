@@ -5,7 +5,7 @@ use abi::{
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ChainId};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -51,22 +51,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             amount_1: *amount_1,
             to: *to,
         }
-    }
-
-    fn resolve_public_token_creator_chain_id(
-        &mut self,
-        token: Option<ApplicationId>,
-    ) -> Option<ChainId> {
-        let Some(token) = token else {
-            return None;
-        };
-
-        Some(
-            self.runtime
-                .borrow_mut()
-                .token_creator_chain_id(token)
-                .expect("Failed: token creator chain id"),
-        )
     }
 
     fn fund_swap_creator_chain(
@@ -143,13 +127,16 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         // token_0 is always a meme application id here.
         // token_1 == None is the native-token fact shape.
         // No public creator-chain identity is accepted from the caller.
-        let token_0_creator_chain_id = self
-            .runtime
+        self.runtime
             .borrow_mut()
             .token_creator_chain_id(self.token_0)
-            .expect("Failed: token creator chain id");
-        let token_1_creator_chain_id =
-            self.resolve_public_token_creator_chain_id(self.token_1);
+            .expect("Invalid token_0");
+        if let Some(token_1) = self.token_1 {
+            self.runtime
+                .borrow_mut()
+                .token_creator_chain_id(token_1)
+                .expect("Invalid token_1");
+        }
 
         let signer = self
             .runtime
@@ -167,9 +154,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         outcome.with_message(
             destination,
             SwapMessage::CreateUserPool {
-                token_0_creator_chain_id,
                 token_0: self.token_0,
-                token_1_creator_chain_id,
                 token_1: self.token_1,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,

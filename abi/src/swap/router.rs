@@ -29,10 +29,12 @@ pub enum SwapOperation {
     // Token 1 can only be native token when initializing
     InitializeLiquidity {
         creator: Account,
-        // TODO: use to avoid reentrant invocation before
-        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
-        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
+        // Required only for the synchronous meme -> swap call_application path.
+        // Swap cannot call back into the meme app during that call frame without
+        // Linera rejecting the nested app call as reentrant. Later messages and
+        // PoolParameters must not propagate this field.
+        token_0_creator_chain_id: ChainId,
         amount_0: Amount,
         amount_1: Amount,
         // Only for creator to initialize pool
@@ -73,9 +75,6 @@ pub enum SwapResponse {
 pub enum SwapMessage {
     InitializeLiquidity {
         creator: Account,
-        // TODO: use to avoid reentrant invocation before
-        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
-        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
@@ -86,11 +85,7 @@ pub enum SwapMessage {
     CreatePool {
         creator: Account,
         pool_bytecode_id: ModuleId,
-        // TODO: use to avoid reentrant invocation before
-        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
-        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
-        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
@@ -114,12 +109,8 @@ pub enum SwapMessage {
         // Internal continuation of a validated public CreatePool request.
         // User pool creation here is still two-sided real initial liquidity only.
         // It must not reintroduce shell-only, one-sided, or virtual semantics.
-        // TODO: use to avoid reentrant invocation before
-        // https://github.com/linera-io/linera-protocol/issues/3538 being fixed
-        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
         // It should be option for mining only meme
-        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,

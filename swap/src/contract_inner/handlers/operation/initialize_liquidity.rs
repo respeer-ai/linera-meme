@@ -102,8 +102,10 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             .authenticated_caller_id()
             .expect("Invalid caller");
         let chain_id = self.runtime.borrow_mut().chain_id();
-
-        // It's not safe to call meme application here due to initialize liquidity is called from meme
+        // The creator chain id is carried by the meme caller for this one synchronous
+        // meme -> swap operation. Querying token_0 back from meme here reenters
+        // the same app stack and Linera rejects that nested call. This value is
+        // validated here and is not propagated into later messages.
 
         assert!(self.token_0 == caller_id, "Invalid caller");
         assert!(chain_id == self.token_0_creator_chain_id, "Invalid caller");
@@ -126,7 +128,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             destination,
             SwapMessage::InitializeLiquidity {
                 creator: self.creator,
-                token_0_creator_chain_id: self.token_0_creator_chain_id,
                 token_0: self.token_0,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,

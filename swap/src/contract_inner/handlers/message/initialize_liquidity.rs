@@ -4,7 +4,7 @@ use crate::{
 use abi::swap::router::{SwapMessage, SwapResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId};
+use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -18,7 +18,6 @@ pub struct InitializeLiquidityHandler<
     state: Rc<RefCell<S>>,
 
     creator: Account,
-    token_0_creator_chain_id: ChainId,
     token_0: ApplicationId,
     amount_0: Amount,
     amount_1: Amount,
@@ -33,7 +32,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &SwapMessage) -> Self {
         let SwapMessage::InitializeLiquidity {
             creator,
-            token_0_creator_chain_id,
             token_0,
             amount_0,
             amount_1,
@@ -44,14 +42,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             panic!("Invalid message");
         };
 
-        // It's not safe here to get creator chain id from meme application so we have to pass and record it
-
         Self {
             state: Rc::new(RefCell::new(state)),
             runtime,
 
             creator: *creator,
-            token_0_creator_chain_id: *token_0_creator_chain_id,
             token_0: *token_0,
             amount_0: *amount_0,
             amount_1: *amount_1,
@@ -72,9 +67,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             self.runtime.clone(),
             self.state.clone(),
             self.creator,
-            self.token_0_creator_chain_id,
             self.token_0,
-            None,
             None,
             self.amount_0,
             self.amount_1,

@@ -504,9 +504,7 @@ fn decode_swap_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
             }),
         ),
         SwapOperation::CreatePool {
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
@@ -516,9 +514,7 @@ fn decode_swap_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
             json!({
                 "operation_type": "create_pool",
                 "application_id": application_id,
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
-                "token_1_creator_chain_id": token_1_creator_chain_id.map(|value| value.to_string()),
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
@@ -560,7 +556,6 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
     let (payload_type, decoded_payload_json) = match message {
         SwapMessage::InitializeLiquidity {
             creator,
-            token_0_creator_chain_id,
             token_0,
             amount_0,
             amount_1,
@@ -572,7 +567,6 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "message_type": "initialize_liquidity",
                 "application_id": application_id,
                 "creator": encode_account(creator),
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
@@ -583,9 +577,7 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
         SwapMessage::CreatePool {
             creator,
             pool_bytecode_id,
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
@@ -599,9 +591,7 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "application_id": application_id,
                 "creator": encode_account(creator),
                 "pool_bytecode_id": pool_bytecode_id.to_string(),
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
-                "token_1_creator_chain_id": token_1_creator_chain_id.map(|value| value.to_string()),
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
@@ -637,9 +627,7 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
             }),
         ),
         SwapMessage::CreateUserPool {
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
@@ -649,9 +637,7 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
             json!({
                 "message_type": "create_user_pool",
                 "application_id": application_id,
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
-                "token_1_creator_chain_id": token_1_creator_chain_id.map(|value| value.to_string()),
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),

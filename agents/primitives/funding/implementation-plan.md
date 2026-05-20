@@ -84,7 +84,7 @@ Minimal changes:
 - Constrain public `CreatePool` to create-with-initial-liquidity.
 - Reject empty, shell-only, one-sided, and virtual user pool creation.
 - Accept only native and meme token identities; reject every other token kind until a concrete validation rule exists.
-- Do not expose meme creator-chain identity as public `CreatePool` input. Validate it from authoritative chain facts where the executing hop can read them safely. For any actual implementation path that uses `call_application`, analyze reentrant constraints first, then decide whether that path should read chain facts directly, carry the necessary identity in internal messages, or defer the authoritative check to a later hop.
+- Do not expose meme creator-chain identity as public `CreatePool` input. Validate user-started `CreatePool` token identity from authoritative chain facts. The only carried creator-chain-id field is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` for the synchronous `meme -> call_application(swap.InitializeLiquidity)` exception; do not propagate that field into swap messages or `PoolParameters`.
 
 Validation:
 

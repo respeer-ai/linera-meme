@@ -1,9 +1,7 @@
 use async_graphql::{scalar, InputObject, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{
-        Account, Amount, ApplicationId, ChainId, ContractAbi, ServiceAbi, Timestamp,
-    },
+    linera_base_types::{Account, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
 };
 use primitive_types::U256;
 use rust_decimal::prelude::*;
@@ -126,9 +124,6 @@ pub struct PoolParameters {
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
     pub virtual_initial_liquidity: bool,
-    // TODO: work around of https://github.com/linera-io/linera-protocol/issues/3538
-    pub token_0_creator_chain_id: ChainId,
-    pub token_1_creator_chain_id: Option<ChainId>,
 }
 
 scalar!(PoolParameters);

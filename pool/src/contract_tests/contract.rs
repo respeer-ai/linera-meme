@@ -890,8 +890,6 @@ async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolCon
             token_0,
             token_1: Some(token_1),
             virtual_initial_liquidity,
-            token_0_creator_chain_id: chain_id,
-            token_1_creator_chain_id: Some(chain_id),
         })
         .with_chain_id(chain_id)
         .with_application_id(application_id)

@@ -5,9 +5,7 @@ use abi::swap::{
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{
-    Account, AccountOwner, Amount, ApplicationId, ChainId, ModuleId,
-};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, ModuleId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -22,9 +20,7 @@ pub struct CreatePoolHandler<
 
     creator: Account,
     pool_bytecode_id: ModuleId,
-    token_0_creator_chain_id: ChainId,
     token_0: ApplicationId,
-    token_1_creator_chain_id: Option<ChainId>,
     token_1: Option<ApplicationId>,
     amount_0: Amount,
     amount_1: Amount,
@@ -53,30 +49,13 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             panic!("Invalid message");
         };
 
-        let token_0_creator_chain_id = runtime
-            .borrow_mut()
-            .token_creator_chain_id(*token_0)
-            .expect("Failed: token creator chain id");
-        let token_1_creator_chain_id = if let Some(token_1) = token_1 {
-            Some(
-                runtime
-                    .borrow_mut()
-                    .token_creator_chain_id(*token_1)
-                    .expect("Failed: token creator chain id"),
-            )
-        } else {
-            None
-        };
-
         Self {
             _state: state,
             runtime,
 
             creator: *creator,
             pool_bytecode_id: *pool_bytecode_id,
-            token_0_creator_chain_id,
             token_0: *token_0,
-            token_1_creator_chain_id,
             token_1: *token_1,
             amount_0: *amount_0,
             amount_1: *amount_1,
@@ -111,8 +90,6 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                     token_0: self.token_0,
                     token_1: self.token_1,
                     virtual_initial_liquidity: self.virtual_initial_liquidity,
-                    token_0_creator_chain_id: self.token_0_creator_chain_id,
-                    token_1_creator_chain_id: self.token_1_creator_chain_id,
                 },
                 &PoolInstantiationArgument {
                     amount_0: if late_add_liquidity {

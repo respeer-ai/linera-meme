@@ -28,25 +28,26 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Next executable child is FUND-005, which establishes the
-      contract-path audit and executable baseline before protocol mutation.
+      iterations. Current executable child is FUND-006, which locks the public
+      CreatePool operation surface before deeper funding choreography changes.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-005
-    why: active iteration for contract-path audit and executable baseline
+  - id: FUND-006
+    why: active iteration for locking the public CreatePool operation surface
     summary: >
-      Audit current pool/swap/meme/proxy/frontend/observability funding paths,
-      map exact files/functions/state transitions, and add only focused
-      characterization tests needed before protocol behavior changes. Gate 2
-      current implementation audit table is accepted; current gate is Gate 3
-      target validation matrix.
+      Enforce public `SwapOperation::CreatePool` as user create-with-real-initial-liquidity only.
+      User-started token identity validation uses authoritative chain facts. The only carried
+      token creator-chain-id field is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id`
+      for the synchronous `meme -> call_application(swap.InitializeLiquidity)` exception; swap
+      messages and `PoolParameters` do not carry token creator-chain-id fields.
     canonical_refs:
       - agents/tasks/board.yaml
-      - agents/primitives/funding/current-delta.md
-      - agents/primitives/funding/state-machines.md
+      - agents/primitives/funding/architecture.md
+      - agents/primitives/funding/implementation-plan.md
+      - agents/primitives/funding/fund-005-gate-4-handler-transition-table.md
       - agents/primitives/cross-chain.md
       - agents/primitives/identity-and-origin.md
 on_demand_done:

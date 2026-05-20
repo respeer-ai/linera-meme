@@ -1334,7 +1334,6 @@ Gate 2 must audit these fixed protocol paths. Each path must be audited as a com
    - `swap/src/contract_inner/handlers/message/initialize_liquidity.rs`
 11. Swap creator-chain side effects:
    - delegates to `swap/src/contract_inner/handlers/create_pool.rs::CreatePoolHandler`
-   - passes `token_1_creator_chain_id = None`
    - passes `token_1 = None`
    - passes `user_pool = false`
 12. Pool-chain opening:
@@ -1441,8 +1440,7 @@ Gate 2 must audit these fixed protocol paths. Each path must be audited as a com
    - requires `token_0 != token_1`
    - reads authenticated signer through `authenticated_signer()`
    - funds swap creator chain open-chain fee budget through runtime `transfer`
-   - resolves `token_0_creator_chain_id` through runtime `token_creator_chain_id(token_0)`
-   - resolves `token_1_creator_chain_id` through runtime `token_creator_chain_id(token_1)` when `token_1` exists
+   - validates meme token creator chain ids through runtime `token_creator_chain_id` before sending the internal message
    - sends `SwapMessage::CreateUserPool` to `application_creator_chain_id`
 3. Swap creator-chain message:
    - `SwapMessage::CreateUserPool`
