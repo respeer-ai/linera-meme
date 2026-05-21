@@ -1073,24 +1073,29 @@ groups:
         status: Doing
         priority: P0
         depends_on: [FUND-006]
-        title: "Iteration 2: Intent-bind user pool creation"
+        title: "Iteration 2: Split pool app creation from initialization finalization"
         notes: |
-          Purpose: remove unsafe owner/payload reconstruction from user pool creation while keeping the validated `CreatePool` entry working.
+          Purpose: fix funds-consistency boundaries for meme initialization and first-funding pool creation without introducing persisted intents.
 
           Minimal changes:
-          - Create `PoolCreationIntent` for the user `CreatePool` workflow. Store `intent_id`, verified `token_0`, verified `token_1`, `amount_0`, `amount_1`, `to`, status, and pool-shell facts. Do not introduce a separate pair wrapper type in this iteration.
-          - Define account facts per hop. Use runtime chain facts such as `authenticated_account()` and `message_signer_account()` when they are the exact business fact required by that hop. Store or explicitly carry an account fact only when the current hop cannot derive the required business fact from chain state.
-          - Any explicitly carried fact must include a code comment explaining why the current hop cannot use chain facts, where the fact was previously verified, and how the current hop checks it against intent or chain state.
-          - Attach `.with_tracking()` by default in `ContractRuntimeContext::send_message` before funding or claim workflows depend on bounce handling.
-          - Bind every remaining `CreateUserPool`, internal `CreatePool`, `PoolCreated`, and `UserPoolCreated` message to the pending intent. Removing or merging old messages is allowed only as a refactor; any message that remains must be intent-bound.
-          - Track the pool-shell hop so a child-chain creation reject converges the pending intent to failed.
-          - Materialize a handler-level `PoolCreationIntent` transition table before code changes in this iteration.
+          - Remove `PoolCreationIntent` as the target design for user pool creation.
+          - Split pool lifecycle into two protocol phases:
+            - pool app creation
+            - post-funding initialization finalization
+          - Change pool instantiate semantics so instantiate creates only pool application base state and does not write final reserve, share supply, or `k_last`.
+          - Add a dedicated `FinalizeInitialization` pool-side message/callback step that writes final initial reserve/share state only after the required real funds have entered the pool application.
+          - Treat `PoolCreated` as app-created only. It must not be the activation or finalization boundary for meme initialization or user create-pool first funding.
+          - Add a pool-side `initialized` fact and use it as the gate for normal `Swap`, `RemoveLiquidity`, and ordinary existing-pool `AddLiquidity`.
+          - Route meme initialization, user `CreatePool`, and any first real funding of an uninitialized pool through the same post-funding `FinalizeInitialization` boundary.
+          - Preserve the current carried `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` exception only for the synchronous `meme -> call_application(swap.InitializeLiquidity)` frame. Do not reintroduce creator-chain-id propagation into later messages or pool parameters.
+          - Document virtual-initial-liquidity as an economic-model parameter, not a claimable or withdrawable balance. The target invariant is that virtual value can never exit through claim, swap output, or remove-liquidity payout.
 
           Validation:
-          - Tests cover competing shell receipts, wrong app, wrong chain, wrong pair, wrong signer, and stale intent.
-          - Tests prove invalid receipts do not activate pair state in `swap` application state or finalize reserve.
-          - Tests cover the transition table, including stale receipt, wrong-state receipt, and duplicate-safe idempotency cases.
-          - Tests prove the happy path still produces a pending shell or initializing state ready for initial funding, not an active pool too early.
+          - Tests prove pool instantiate no longer writes final reserve/share state.
+          - Tests prove `PoolCreated` leaves the pool uninitialized.
+          - Tests prove only `FinalizeInitialization` can set the pool initialized/finalized fact and initial economic state.
+          - Tests prove meme initialization and user create-pool first funding both converge through post-funding finalization rather than early activation at `PoolCreated`.
+          - Tests prove normal `Swap` and `RemoveLiquidity` reject while `initialized == false`.
       - id: FUND-008
         status: Todo
         priority: P0
@@ -1123,66 +1128,61 @@ groups:
         depends_on: [FUND-008]
         title: "Iteration 4: Existing-pool AddLiquidity two-leg pending"
         notes: |
-          Purpose: make existing active-pool add liquidity safe using the established claim exit.
+          Purpose: make existing initialized-pool add liquidity safe using the established claim exit.
 
           Minimal changes:
-          - Add explicit per-leg pending/funded state for existing-pool add liquidity.
-          - Do not mint LP share, finalize reserve, or emit settled add-liquidity facts until both token legs are funded and accepted.
-          - Convert partial success followed by reject/failure into claim-balance accounting instead of finalized liquidity.
-          - Preserve the limiting-side add-liquidity calculation and credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
-          - Define concrete slippage fields and failure behavior before implementation.
-          - Keep user-created initial liquidity out of this iteration except for shared helpers that do not change its behavior.
+          - Distinguish uninitialized-pool first funding from ordinary existing-pool add liquidity.
+          - When `initialized == false`, the first accepted real two-sided funding path must converge through `FinalizeInitialization` instead of ordinary reserve/share increment logic.
+          - When `initialized == true`, keep the normal existing-pool add-liquidity path.
+          - Preserve the limiting-side add-liquidity calculation for initialized pools.
+          - Credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
+          - Keep per-leg funding tracking only as an implementation detail if still needed; do not introduce or target a persisted `AddLiquidityIntent` design.
 
           Validation:
-          - Tests cover leg0 success + leg1 reject, leg1 success + leg0 reject, wrong leg/source, and wrong workflow state.
+          - Tests cover uninitialized-pool first funding converging through `FinalizeInitialization`.
+          - Tests cover initialized-pool add liquidity remaining on the ordinary path.
           - Tests prove partial failure leaves no finalized reserve increase and no LP share mint.
           - Tests prove partial failure credits already-custodied value to claim balances exactly once.
           - Tests prove accepted-liquidity excess/refund is credited to claim balances exactly once.
-          - Tests prove funding callbacks validate source, authenticated caller, token, owner, amount, leg, and pending intent before mutating custody, reserve, LP, or claim state.
-          - Tests prove credited values can exit through `Claim`.
-          - Tests prove the normal existing-pool add-liquidity path remains successful.
       - id: FUND-010
         status: Todo
         priority: P0
         depends_on: [FUND-009]
-        title: "Iteration 5: Initial-liquidity convergence reuses AddLiquidity closure"
+        title: "Iteration 5: Initialization finalization boundary and pool visibility split"
         notes: |
-          Purpose: make create-with-initial-liquidity converge through the same two-leg funding state machine as existing add liquidity.
+          Purpose: make pool usability depend on post-funding finalization instead of app creation receipts.
 
           Minimal changes:
-          - Route user `CreatePool` initial deposits through the two-leg pending/funded/finalized closure.
-          - Activate the pool only after shell creation, both initial legs, reserve finalization, and activation acknowledgement are bound to the pending intent.
-          - Implement first-funded-wins for competing user pool creation funding. The first finalized two-leg workflow defines initial reserves; later workflows are processed as normal add liquidity against current reserves, with excess credited to claim balances.
-          - If another user calls `AddLiquidity` on a pending shell, do not create a second `PoolCreationIntent`; create only a pool-local `AddLiquidityIntent`. If that workflow finalizes first, activate the single swap-side `PoolCreationIntent` for the existing shell/pair and use that workflow's owner and recipient for LP ownership.
-          - Keep failed shells permanently non-economic. Only close a shell chain after all application-level custody has been resolved.
-          - Define shell close eligibility in the transition table before implementing close.
-          - Define concrete initial-liquidity slippage fields and failure behavior before implementation.
-          - Preserve meme-created native pool virtual-reference semantics separately from user two-sided deposits.
+          - Keep `PoolCreated` as pool-app-created only for both meme initialization and user create-pool flows.
+          - Make post-funding `FinalizeInitialization` the boundary that produces an initialized/usable pool.
+          - For meme initialization, require real funds to enter the pool application before finalization; virtual initial liquidity remains an economic-model parameter only.
+          - For user `CreatePool`, require the first real funding path to finalize the pool before the pool becomes usable for ordinary paths.
+          - Product rule: pools that are not initialized are protocol-existing app facts but must not be shown in frontend pool/market/trading surfaces.
 
           Validation:
-          - Tests prove initial pool downstream failure does not leave an active pool, finalized reserve, or LP share.
-          - Tests prove successful create-with-initial-liquidity activates the pool only after both real token legs are accepted.
-          - Tests prove user-created pools cannot create virtual liquidity.
-          - Tests prove shell, funding, and activation receipts validate source, authenticated caller, expected pool chain/application, pair, intent, owner, amount, and current status before mutating pair, reserve, LP, or claim state.
-          - Tests prove losing/residual value credited by this path can exit through `Claim`.
+          - Tests prove uninitialized pools are not usable by normal `Swap` or `RemoveLiquidity`.
+          - Tests prove meme initialization becomes usable only after post-funding finalization.
+          - Tests prove user create-pool first funding becomes usable only after post-funding finalization.
+          - Tests prove non-initialized or zero-reserve pools are excluded from product-visible pool lists and trading surfaces.
       - id: FUND-011
         status: Todo
         priority: P0
         depends_on: [FUND-010]
         title: "Iteration 6: Swap output claim balances"
         notes: |
-          Purpose: make swap input/finalization safe by crediting output/refund value to aggregated claim balances.
+          Purpose: make swap settlement safe without introducing persisted swap intents.
 
           Minimal changes:
-          - Add or reuse `SwapIntent`.
-          - Credit successful output to claim balances.
-          - Credit failed post-custody input to claim balances.
+          - Remove `SwapIntent` from the target design.
+          - Require `initialized == true` before normal swap execution.
+          - Represent successful output as claim-balance credit.
+          - Represent failed post-custody input as claim-balance credit.
+          - Keep only the minimum custody facts required by the implementation; do not introduce a persisted workflow-intent layer.
 
           Validation:
           - Tests cover slippage/check failure after input custody creating a claim-balance refund.
           - Tests cover successful output credited exactly once.
-          - Tests prove finalization and claim-balance crediting are only reachable from expected workflow states.
-          - Tests prove swap funding and finalization callbacks validate source, authenticated caller, token, owner, amount, intent, and current status before mutating reserves or claim balances.
+          - Tests prove swap is rejected while `initialized == false`.
           - Tests prove credited values can exit through `Claim`.
       - id: FUND-012
         status: Todo

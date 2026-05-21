@@ -64,21 +64,45 @@ Its only allowed product meaning is user create-with-real-initial-liquidity. It 
 - one-sided user pool
 - user virtual-liquidity pool
 
-Meme-native pool initialization is a different path. It uses `SwapOperation::InitializeLiquidity` and may use virtual native reference semantics when called from the meme application on the valid creator chain. Do not use public `CreatePool` to express meme initialization or virtual liquidity.
-
-Internal create-pool messages may exist as implementation choreography, but they must be bound to a persisted intent and must not define independent product semantics.
+Meme-native pool initialization is a different path. It uses `SwapOperation::InitializeLiquidity` and may include virtual native reference semantics, but virtual value is never claimable or withdrawable. Do not use public `CreatePool` to express meme initialization or virtual liquidity.
 
 The current protocol supports only the native token and meme tokens for pool creation and liquidity funding. Native token identity is built in. Meme token identity is validated only from a safe user-started path by calling the meme token application for creator-chain identity. Public `SwapOperation::CreatePool` must not require the frontend or user to supply creator-chain identity. Authoritative chain facts are used on user-started `CreatePool` paths. The only current protocol field that carries meme creator-chain identity is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id`, and it exists only for the synchronous `meme -> call_application(swap.InitializeLiquidity)` path. Swap must validate that carried value at the operation boundary and must not propagate it into `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::CreateUserPool`, or `PoolParameters`. Any other token kind must be rejected until a concrete protocol validation rule exists for it.
 
-Pending pair contention follows first-funded-wins semantics. Multiple users may race to create the same pair, but the first workflow that reaches the required funded terminal state wins and becomes the active pool entry in `swap` application state. Losing workflows must fail safely: any already-custodied value is credited to claim balances, and any opened-but-losing shell chain/application must be cleaned up or made permanently failed. Active pair creation still must not create another pool.
+Pool application creation and pool economic finalization are distinct protocol phases:
 
-Terminal state for pool creation must be unique and reliable. Do not split terminal truth across an additional "created" flag plus an intent status. The intent state machine is the authority for whether a create-pool workflow is pending, active, failed, or cleaned up. A failed terminal workflow must not leave a reusable old shell or pool application that can later be confused with a new attempt.
+1. pool application creation
+2. real-funding entry into the pool application
+3. post-funding initialization finalization
 
-After a pool shell/application exists, a wallet may technically call the pool application directly. That is acceptable only because a shell has no finalized reserves or LP supply until a funding workflow finalizes. The safety boundary is not hiding the pool application; it is ensuring pending or losing shells are non-finalized and never exposed as active pool entries in `swap` application state before a valid funding workflow wins.
+Creating a pool application does not mean the pool is initialized, active, tradable, or ready for ordinary add-liquidity / swap / remove-liquidity paths.
 
-If a shell exists and the original creator has not injected/finalized funding yet, another user may call `AddLiquidity` on that shell. This is allowed. That later user does not create a second `PoolCreationIntent`; the operation creates only a pool-local `AddLiquidityIntent`. If that `AddLiquidityIntent` is the first two-leg funding workflow to finalize, it defines the initial reserves and wins the pool creation race. The pool activation receipt binds to the already-existing shell and pair, and the single swap-side `PoolCreationIntent` becomes active for that pool application. The winner owner and LP recipient come from the finalized funding workflow, not from the original shell creator. Later funding from the original creator, or from any other losing workflow, must be processed against the already-finalized pool using the normal add-liquidity calculation at the current reserves. The limiting side determines the accepted liquidity amount; excess from the other side is credited to claim balances. It must not be applied as a second initial reserve.
+The target design does not use persisted create-pool intents. Protocol truth for pool usability comes from pool-side finalized economic state, especially the pool-side `initialized` fact together with finalized reserve/share state.
 
-Linera applications can close the current chain through `ContractRuntime::close_chain()` if their application id is authorized by the chain's `ApplicationPermissions.close_chain`. Linera close only marks the chain closed; it does not move remaining balance or application custody. The current pool child-chain creation path already grants close permission to the router/swap application. Cleanup may close a losing shell only after all application-level cleanup has completed: no reserves/LP are finalized, owed user value has been credited to claim balances, and any remaining shell custody has been resolved according to the shell cleanup state. If cleanup is not fully completed, the shell must remain permanently failed/non-economic rather than be closed.
+User `CreatePool`, meme initialization, and any first real funding of an uninitialized pool all converge through post-funding `FinalizeInitialization`. Ordinary existing-pool add liquidity, swap, and remove liquidity are allowed only after that initialization boundary is complete.
+
+Linera applications can close the current chain through `ContractRuntime::close_chain()` if their application id is authorized by the chain's `ApplicationPermissions.close_chain`. Linera close only marks the chain closed; it does not move remaining balance or application custody. The current pool child-chain creation path already grants close permission to the router/swap application. Cleanup may close a failed pool chain only after all application-level cleanup has completed: no reserves/LP are finalized, owed user value has been credited to claim balances, and any remaining custody has been resolved according to the cleanup state. If cleanup is not fully completed, the chain must remain permanently non-economic rather than be closed.
+
+## Initialization Boundary
+
+For pool-based funding flows, the protocol must distinguish:
+
+- pool application exists
+- real funds entered the pool application
+- pool economic initialization finalized
+
+`PoolCreated` is an app-created fact only. It is not by itself the boundary for active pool truth, final reserve/share state, or normal-path usability.
+
+The boundary for ordinary pool behavior is post-funding `FinalizeInitialization`.
+
+After a pool application exists but before pool-side initialization finalization completes, the pool is an uninitialized protocol object.
+
+Rules:
+
+- Uninitialized pool applications are valid protocol objects but are not yet usable for ordinary swap or remove-liquidity flows.
+- The first accepted real-funding path for an uninitialized pool must converge through `FinalizeInitialization`.
+- Ordinary existing-pool add liquidity exists only after pool-side initialization is complete.
+- Product-visible pool, market, and trading surfaces must exclude pools that are not initialized.
+- Virtual-initial-liquidity economics, when used by meme initialization, must not create withdrawable, claimable, or removable value beyond the real assets that actually entered the pool application.
 
 ## Message Delivery
 
@@ -97,7 +121,6 @@ Uniswap alignment is rationale, not the protocol authority. Uniswap does not cre
 This protocol follows that direction:
 
 - Long-lived claimable value must be aggregated into claim balances.
-- Workflow intents exist for cross-chain business state, authorization, and custody safety.
 - Linera core protocol is responsible for executing a chain operation or accepted incoming message once in chain history. Application code must not add protocol-level duplicate-delivery defenses for the exact same operation or message.
 - Application state still needs business guards for distinct operations or messages that target the same business workflow, stale follow-ups, wrong source/caller, or effects that arrive after a workflow status has changed.
 - Event-level detail belongs in parsed facts and projections, not in unbounded on-chain claim queues.

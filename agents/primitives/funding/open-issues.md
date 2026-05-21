@@ -14,9 +14,9 @@ Status: Open
 
 Affected flow: user `CreatePool` with initial liquidity.
 
-Problem: swap may create `PoolCreationIntent` and send a pool-shell creation message whose target chain never executes.
+Problem: swap may send a pool-shell creation message whose target chain never executes before any first-funding finalization exists.
 
-Current safe behavior: keep intent stalled/pending; do not activate.
+Current safe behavior: keep protocol pair non-existent and keep the workflow non-finalized; do not activate.
 
 Unsafe shortcuts:
 
@@ -47,7 +47,7 @@ Affected flow: create pool initial liquidity, add liquidity.
 
 Problem: one leg may be funded while the opposite leg never executes and never fails.
 
-Current safe behavior: keep funded custody value in stalled intent; do not reserve, mint, refund, or claim unless explicit failure evidence exists.
+Current safe behavior: keep funded custody value in stalled per-leg funding state; do not reserve, mint, refund, or claim unless explicit failure evidence exists.
 
 Unsafe shortcuts:
 
@@ -117,10 +117,10 @@ Decision: contract claim balances do not include buckets.
 
 Rationale: protocol fee, remote liquidity, trading yield, refund, excess, swap output, and remove output may need category separation for display and accounting, but that belongs to parsed facts and projections.
 
-## OI-009 Terminal Intent Compaction
+## OI-009 Terminal Workflow-State Compaction
 
 Status: Open
 
-Problem: terminal intents must not grow without bound, but stale follow-up rejection, diagnostics, and audit facts may still be needed.
+Problem: terminal workflow records must not grow without bound, but stale follow-up rejection, diagnostics, and audit facts may still be needed.
 
 Constraint: compaction must not remove active custody or claim accounting state.

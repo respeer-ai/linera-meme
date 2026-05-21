@@ -9,22 +9,22 @@ Authority: High
 Responsibilities:
 
 - Own pair/pool registry state inside `swap` application state.
-- Own `PoolCreationIntent`.
+- Own protocol pair/pool existence truth and the authoritative create-pool receipt handling path.
 - Accept user `SwapOperation::CreatePool` only as create-with-initial-liquidity.
 - Track pending, failed, and active pair states.
-- Consume pool shell and activation receipts.
+- Consume pool shell/app-created receipts and route first-funding kickoff.
 
 Non-responsibilities:
 
 - Do not own final pool reserve accounting.
-- Do not infer LP owner, token identity, or amount from unverified later payloads once an intent exists. Runtime chain facts such as `message_signer_account()` remain authoritative when that signer is the exact business fact required by the current hop.
+- Do not infer LP owner, token identity, or amount from unverified later payloads. Runtime chain facts such as `message_signer_account()` remain authoritative when that signer is the exact business fact required by the current hop.
 
 ## pool
 
 Responsibilities:
 
 - Own reserves, LP accounting, positions, claim balances, and claiming balances.
-- Own `PoolInitialLiquidityIntent`, `AddLiquidityIntent`, `SwapIntent`, and `RemoveLiquidityIntent`.
+- Own pool-side `initialized` truth, concrete per-leg funding state, and final reserve/share accounting.
 - Finalize reserve and LP state only after required inputs are funded.
 - Credit claim balances for owed output, refund, excess, protocol fee, and remote liquidity.
 - Execute `Claim`.

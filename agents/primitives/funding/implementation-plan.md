@@ -40,7 +40,7 @@ Required review gates:
 
 4. Transition tables and unresolved-risk closure
    - Output:
-     - handler-level transition tables required for later iterations, especially `PoolCreationIntent`
+     - handler-level transition tables required for later iterations, especially the message-driven create-pool and first-funding paths
      - explicit classification of stale receipt, wrong-state receipt, duplicate-safe no-op idempotency, abort, reject, and bounce handling
      - audited conclusion on whether current meme/pool payout can emit the success/fail/bounce receipts required for `Claim`
      - classification of open issues into:
@@ -93,24 +93,25 @@ Validation:
 
 ### FUND-007 Iteration 2: Intent-bind user pool creation
 
-Purpose: bind user pool creation to explicit workflow state while preserving chain-fact authority.
+Purpose: rework user pool creation into the approved message-driven first-funding workflow while preserving chain-fact authority.
 
 Minimal changes:
 
-- Introduce `PoolCreationIntent` for the user `CreatePool` workflow. Store `intent_id`, verified `token_0`, verified `token_1`, `amount_0`, `amount_1`, `to`, status, and pool-shell facts. Do not introduce a separate pair wrapper type in this iteration.
+- The user-chain `SwapOperation::CreatePool` entry validates public input and sends the first internal continuation only; it does not create persisted create-pool workflow state.
+
 - Define every account fact per hop. Use runtime chain facts such as `authenticated_account()` and `message_signer_account()` when they are the exact business fact required by that hop. Store or explicitly carry an account fact only when the current hop cannot derive the required business fact from chain state.
+- `origin` means the initial operation account that started the workflow. Carry `origin` explicitly only on later messages that need the initial workflow starter for pool `creator`, `fee_to`, or share-owner semantics.
 - Any explicitly carried fact must include a code comment explaining why the current hop cannot use chain facts, where the fact was previously verified, and how the current hop checks it against intent or chain state.
 - Attach `.with_tracking()` by default in `ContractRuntimeContext::send_message` before funding or claim workflows depend on bounce handling.
-- Bind every remaining `CreateUserPool`, internal `CreatePool`, `PoolCreated`, and `UserPoolCreated` message to the pending intent. Removing or merging old messages is allowed only as a refactor; any message that remains must be intent-bound.
-- Track the pool-shell hop so a child-chain creation reject/bounce converges the pending intent to failed.
-- Materialize a handler-level `PoolCreationIntent` transition table before code changes in this iteration. The table must specify which handler may perform each transition, which chain facts are required, which carried facts are consistency checks only, which stale or wrong-state receipts are rejected, which duplicate-safe paths are no-op idempotency, and which invalid states abort.
+- Bind every remaining `CreateUserPool`, internal `CreatePool`, `PoolCreated`, and `UserPoolCreated` message to the approved immutable carried facts plus authoritative chain-fact checks. Removing or merging old messages is allowed only as a refactor; any message that remains must validate the reviewed facts explicitly.
+- Materialize a handler-level message transition table before code changes in this iteration. The table must specify which handler consumes each continuation, which immutable facts are checked from message payload, which chain facts are used directly at each hop, and which account facts are explicitly carried because the current hop cannot derive the required business fact from runtime chain state.
 
 Validation:
 
-- Wrong app, chain, signer, pair, stale intent, and competing receipt tests pass.
-- Pool-shell reject/bounce moves the pending intent to failed without activating pair state.
-- Tests cover the transition table, including stale receipt, wrong-state receipt, and duplicate-safe idempotency cases.
-- Pending shell does not become active.
+- Wrong app, chain, signer, pair, immutable-fact, and competing receipt tests pass for the reviewed continuations.
+- Pool-shell reject/bounce does not activate pair state.
+- Tests prove each continuation validates the carried immutable create-pool facts such as `token_0`, `token_1`, `amount_0`, `amount_1`, `to`, and `origin`.
+- Tests prove the happy path still does not activate pool state too early.
 
 ### FUND-008 Iteration 3: Claim accounting and funds-exit foundation
 
@@ -143,7 +144,7 @@ Purpose: make existing active-pool add liquidity safe using the established clai
 
 Minimal changes:
 
-- Add `AddLiquidityIntent`.
+- Do not add `AddLiquidityIntent`.
 - Track both legs before reserve update and LP mint.
 - Credit explicit failed partial funding to claim balances.
 - Preserve the limiting-side add-liquidity calculation and credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
@@ -159,26 +160,28 @@ Validation:
 - Credited values can exit through `Claim`.
 - Happy path remains successful.
 
-### FUND-010 Iteration 5: Initial-liquidity convergence
+### FUND-010 Iteration 5: Meme initialize-liquidity convergence and user-pool visibility split
 
-Purpose: route user pool creation initial liquidity through the same two-leg closure.
+Purpose: keep meme initialize-liquidity on the custody-proven activation path while treating
+user-pool post-creation liquidity as ordinary active-pool add liquidity.
 
 Minimal changes:
 
-- Add `PoolInitialLiquidityIntent`.
-- Finalize pool reserve/LP only after both real legs are funded.
-- Activate the pair in `swap` application state only after a valid activation receipt.
-- Implement first-funded-wins for user pool creation contention. The first valid two-leg funding workflow to finalize defines initial reserves; later workflows are processed as normal add liquidity against current reserves, with excess credited to claim balances.
-- If another user calls `AddLiquidity` on a pending shell, do not create a second `PoolCreationIntent`; create only a pool-local `AddLiquidityIntent`. If that workflow finalizes first, activate the single swap-side `PoolCreationIntent` for the existing shell/pair and use that workflow's owner and recipient for LP ownership.
+- Keep meme initialize-liquidity on the existing custody-proven path: `PoolCreated` does not activate meme-created pools; only accepted funding plus accepted `UpdatePool` may write active router truth.
+- For user `CreatePool`, treat `SwapMessage::PoolCreated { user_pool: true, ... }` as the protocol pair-existence boundary. Shell creation success writes protocol-level active pair truth, but the pool remains unusable until first real funding converges through `FinalizeInitialization`.
+- Do not route user-pool post-creation liquidity through a create-pool-specific two-leg activation closure. `SwapMessage::UserPoolCreated` starts one ordinary active-pool `PoolOperation::AddLiquidity` flow, and that flow is governed by the same funding-consistency rules as existing-pool add liquidity.
+- Do not introduce first-funded-wins or pending-shell competition rules for user create-pool activation. Once `user_pool == true` shell creation is accepted, the pair exists protocol-side and later liquidity is normal add liquidity.
 - Keep failed shells permanently non-economic. Close a shell chain only after cleanup has resolved all application-level custody.
 - Define shell close eligibility in the transition table before implementing close.
-- Define concrete initial-liquidity slippage fields and failure behavior before implementation. User create-with-initial-liquidity must specify mandatory min fields and how post-custody slippage failure credits funded legs to claim balances without activating the pair.
+- Define concrete post-creation add-liquidity failure behavior for the user-pool kickoff path under the shared add-liquidity rules.
+- Product/read-model rule: a protocol-existing pool with `reserve_0 == 0 && reserve_1 == 0` is not frontend-visible and is not a tradable/displayed market until reserves become non-zero.
 
 Validation:
 
-- Initial downstream failure does not active/mint/finalize incorrectly.
-- Successful path activates only after required state transitions.
-- Shell, funding, and activation receipts validate source, authenticated caller, expected pool chain/application, pair, intent, owner, amount, and current status before mutating pair, reserve, LP, or claim state.
+- Meme initialize-liquidity does not activate before accepted funding and accepted `UpdatePool`.
+- User `CreatePool` writes protocol pair truth at `PoolCreated` after immutable-fact validation, and pool usability starts only after pool-side `FinalizeInitialization`.
+- User-pool kickoff `AddLiquidity` failure does not delete protocol pair existence, but follows ordinary add-liquidity claim-credit and retry-safe rules.
+- Product-visible pool lists exclude pools whose reserves are both zero.
 
 ### FUND-011 Iteration 6: Swap output claim balances
 
@@ -186,7 +189,7 @@ Purpose: make swap outputs and refunds use claim balances.
 
 Minimal changes:
 
-- Add or reuse `SwapIntent`.
+- Do not add `SwapIntent`.
 - Credit successful output to the claim balance for the output token and owner.
 - Credit failed post-custody input to the claim balance for the input token and owner.
 

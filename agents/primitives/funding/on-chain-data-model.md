@@ -14,7 +14,7 @@ These are protocol accounting state and must not be deleted by TTL, diagnostic q
 - claim balances
 - claiming balances
 - active/pending/failed pair state in `swap` application state
-- open intents that hold or reference funds in custody
+- open workflow state that holds or references funds in custody
 
 ## Claim Balances
 
@@ -47,7 +47,17 @@ All owed-value categories exit through `Claim { token_identity, amount }`.
 
 Workflow state exists for business safety while a cross-chain action is not terminal. It does not compensate for duplicate execution of the exact same operation or message; that is a Linera core protocol guarantee.
 
-Required intent classes:
+Workflow state must carry enough data to reject forged or mismatched follow-up effects, but the approved target design now minimizes persisted workflow state to the places where chain facts and direct message choreography are not sufficient.
+
+Required target workflow state:
+
+- swap pair/pool registry state, including protocol pair existence and active/pending/failed pair facts
+- pool-side `initialized` fact
+- concrete per-leg funding state that proves custody and remaining non-terminal branches
+- claim balances and claiming balances
+- `CreateMemeIntent` and `MemeInitializeLiquidityRoute` as reviewed special cases
+
+Rejected target state classes for the current funding redesign:
 
 - `PoolCreationIntent`
 - `PoolInitialLiquidityIntent`
@@ -55,29 +65,27 @@ Required intent classes:
 - `SwapIntent`
 - `RemoveLiquidityIntent`
 
-Intent state must carry enough data to reject forged, stale, wrong-chain, wrong-app, wrong-token, wrong-leg, or wrong-state follow-up effects. For `PoolCreationIntent`, keep the verified pair as direct `token_0` and `token_1` fields in this iteration; do not introduce a separate pair wrapper type unless a later reviewed design changes the storage model. Account facts are not automatically intent fields: use runtime chain facts such as `authenticated_account()` or `message_signer_account()` when they are the exact business fact required by the current hop, and store or carry account facts only when the current hop cannot derive the required business fact from chain state.
+For user pool creation, consistency is established by carrying immutable create-pool facts such as `token_0`, `token_1`, `amount_0`, `amount_1`, `to`, and explicit `origin` through the required internal messages, and by validating those facts against authoritative chain facts at every hop that can derive them. `origin` means the initial operation account that started the workflow. It is not a generic stored base field; it is carried only on the later messages that need it for pool `creator`, `fee_to`, or share-owner semantics.
 
-Intent identity must be allocated by the application that stores the canonical workflow intent state. For user pool creation, the canonical `PoolCreationIntent` is stored in `swap` application state on the swap chain. Store a persistent monotonic `next_intent_seq` in `swap` application state and allocate `intent_id = (swap_application_id, intent_seq)` or an equivalent typed value. The id must be stable across all internal messages and receipts for that workflow. Frontend input, wall-clock timestamps, token pairs, and message delivery order are not valid uniqueness sources.
-
-Pool-local state may reference the same `intent_id` after receiving a swap-authored message, but it must not allocate a second canonical id for that same pool-creation workflow. Cross-chain storage is not shared. Consistency is established by carrying the id through messages and validating source chain, authenticated caller/application, expected pool chain/application, pair, and current status on the receiving chain.
+Do not allocate synthetic workflow ids where concrete message-carried immutable facts plus authoritative chain facts are sufficient. Frontend input, wall-clock timestamps, token pairs, and message delivery order are not valid uniqueness sources for any state that must be authoritative.
 
 ## Terminal Handling
 
 When a workflow succeeds:
 
 - move value into reserves, positions, or claim balances
-- mark the intent terminal
+- mark the workflow state terminal where such state exists
 - keep only the minimum terminal state required for stale follow-up rejection, diagnostics, and audit
 
 When a workflow fails with funds in custody:
 
 - credit the owner claim balance
-- mark the intent terminal or failed with credited status
-- do not leave funds only in an opaque intent
+- mark the workflow state terminal or failed with credited status where such state exists
+- do not leave funds only in opaque non-terminal workflow state
 
 When a workflow stalls without failure evidence:
 
-- keep the intent open
+- keep the workflow state open
 - do not finalize economic state
 - expose the stalled state through projection
 

@@ -28,21 +28,27 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-007, which intent-binds user pool creation
-      before funding finalization and claim accounting changes.
+      iterations. Current executable child is FUND-007, which splits pool app
+      creation from initialization finalization, introduces a pool-side
+      initialized gate, and moves first real funding paths to post-funding
+      finalization without persisted intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
   - id: FUND-007
-    why: active iteration for intent-binding user pool creation
+    why: active iteration for pool-app creation / post-funding finalization split
     summary: >
-      Bind user pool creation to `PoolCreationIntent` while keeping the validated
-      `SwapOperation::CreatePool` entry working. Store verified token_0, token_1, amounts,
-      recipient, status, and pool-shell facts; use runtime chain facts such as
-      `message_signer_account()` when they are the exact required business fact, and document
-      every explicitly carried fact that cannot be derived at the current hop.
+      Split pool application creation from initialization finalization. Pool
+      instantiate must create only base app state and must not write final
+      reserve/share economics. `PoolCreated` becomes app-created only. Meme
+      initialization, user create-pool first funding, and any first real funding
+      of an uninitialized pool must converge through a dedicated post-funding
+      `FinalizeInitialization` boundary. Add a pool-side `initialized` fact and
+      use it as the gate for normal `Swap`, `RemoveLiquidity`, and ordinary
+      existing-pool `AddLiquidity`. Do not introduce persisted create-pool,
+      add-liquidity, or swap intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

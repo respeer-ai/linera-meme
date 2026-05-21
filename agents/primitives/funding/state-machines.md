@@ -23,7 +23,7 @@ Authority: High
 
 Target path: user enters Add Liquidity for a missing pair. The frontend may submit `SwapOperation::CreatePool`; the product meaning is create-with-initial-liquidity.
 
-This is not the meme-native initialization path. Meme-native initialization uses `SwapOperation::InitializeLiquidity` and may create a native pool with virtual native reference semantics. Public user `CreatePool` must not create virtual liquidity.
+This is not the meme-native initialization path. Meme-native initialization uses `SwapOperation::InitializeLiquidity` and may include virtual native reference semantics. Public user `CreatePool` must not create virtual liquidity.
 
 ### Entry
 
@@ -47,224 +47,110 @@ Constraints:
 - Meme token identity is validated by calling the meme token application for creator-chain identity from this user-started path.
 - Token creator-chain identity is never frontend-supplied input. User-started `CreatePool` validates meme token identity from authoritative chain facts before opening a pool chain. The only carried creator-chain-id field is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` for the synchronous `meme -> call_application(swap.InitializeLiquidity)` exception; swap messages and `PoolParameters` must not carry token creator-chain-id fields.
 - Any other token kind is rejected.
-- Pending pair contention uses first-funded-wins semantics.
 - Active pair creation must not create another pool.
 
-### PoolCreationIntent
+### Pool Application Creation
 
-Persistent chain: swap chain.
-Created by: `swap` operation handler.
-Consumed by: `swap` shell receipt handler and activation receipt handler.
+Persistent chain: swap-controlled create path and pool child chain.
 
-Required fields:
+Purpose:
 
-- `intent_id`
-- `owner_account`
-- `to_account`
-- `pair_key`
-- `token0_identity`
-- `token1_identity`
-- `amount0`
-- `amount1`
-- `min0`
-- `min1`
-- `status`
-- `expected_pool_chain`
-- `expected_pool_application`
-- `created_at_event`
-- `last_update_event`
-- `failure_reason`
-
-`intent_id` uniqueness:
-
-- The application that stores the workflow intent state allocates the id from its own persistent local state before sending any workflow message.
-- For user pool creation, the canonical `PoolCreationIntent` is stored in `swap` application state on the swap chain, so the `swap` application allocates the id there.
-- The canonical id is `(swap_application_id, intent_seq)` or an equivalent typed value with the same uniqueness domain.
-- `intent_seq` is a monotonic counter stored in `swap` application state and incremented once per newly accepted workflow intent.
-- Do not derive uniqueness from token pair, owner, timestamp, message delivery order, or frontend-provided data.
-- Internal messages and receipts carry `intent_id`; handlers load the intent by id and verify expected pair, owner, source chain, pool chain, pool application, and current status.
-- The pool chain may store pool-local workflow state that references the same `intent_id`, but it does not allocate the canonical pool-creation id.
-- Cross-chain storage is not shared. Consistency comes from message-carried ids plus local validation of source chain, authenticated caller/application, expected pool chain/application, pair, and status on the receiving chain.
-- `FUND-005` must produce a handler-level transition table for these states before `FUND-007` code changes. The table is the implementation authority for allowed transitions, stale receipt handling, duplicate-safe no-op idempotency, and abort/reject behavior.
-
-States:
-
-- `pending_shell`
-- `shell_message_sent`
-- `funding_pending`
-- `finalizing`
-- `active`
-- `failed`
-- `cleaned_up`
-
-Open issue: if the pool-shell target chain never executes the create message, the intent may remain `shell_message_sent` forever. It must not become active in `swap` application state and must be visible as stalled. A later recovery or cancellation path is not part of the current design.
+- create the pool child chain
+- create the pool application
+- establish a protocol object that can receive real funding
 
 Rules:
 
-- If multiple pending intents target the same pair, the first intent that reaches the required funded terminal state wins.
-- Losing intents must transition to `failed` or `cleaned_up`.
-- Any losing intent value already in custody must be credited to claim balances.
-- A losing opened shell chain/application must not become a second active pool and must not be reusable by a later create attempt.
-- Terminal truth lives in the intent state. Do not add a separate pool-created flag that can disagree with intent status.
-- Shell chain close eligibility must be defined in the `FUND-010` transition table before close is implemented. The router/swap application may close a losing shell chain only when it is executing on that chain, the chain grants it `close_chain` permission, and shell cleanup is already complete. Linera `close_chain()` only marks the chain closed; it does not transfer remaining chain balance or application custody.
+- Pool application creation does not finalize reserve, LP share supply, or active-pool usability.
+- Pool application creation does not by itself make the pool usable for ordinary swap or remove-liquidity flows.
+- `PoolCreated` is an app-created receipt only.
+- The target design does not persist a create-pool intent object for this phase.
 
-### Pool Shell
-
-Persistent chain: pool child chain.
-Created by: internal message from `swap`.
-Consumed by: pool initial funding/finalization logic.
-
-Pool-local state:
-
-- `intent_id`
-- pair identities
-- `shell_created`
-- finalized/economic-ready state from which tradability is derived; do not store a second independent `tradable` truth that can diverge from pool state
-
-If the shell exists before original creator funding finalizes, another user may call `AddLiquidity` on the shell. That operation is allowed, but it must enter the same two-leg funding/finalization gate:
-
-- It does not create another `PoolCreationIntent`; it creates only a pool-local `AddLiquidityIntent`.
-- If it is the first workflow to finalize, it defines the initial reserves and wins pool creation.
-- The activation receipt binds to the existing shell/pair and the single swap-side `PoolCreationIntent`.
-- The winning owner and LP recipient are taken from the finalized funding workflow, not from the original shell creator.
-- If the pool has already finalized by the time another workflow's funds arrive, that workflow is no longer initial funding. Its amounts must be handled as normal add liquidity against the current reserves.
-- For normal add liquidity, a one-side-short case does not fail the whole workflow. The accepted liquidity amount is computed from the limiting side, and excess from the other side is credited to claim balances.
-- No workflow may write reserves or mint LP shares until both required token legs are funded and the workflow is the valid finalization candidate for the current pool state.
-- Slippage/min-amount behavior must be fixed before implementing this path. Any post-custody failure must not leave funds only in an opaque intent; funded user value must either remain safely stalled when the opposite leg has no terminal evidence or be credited to claim balances when the workflow reaches a failed terminal state.
-
-Open issue: if the pool shell is created but the shell receipt never reaches the swap chain, `swap` application state remains pending while the shell exists. The shell has no finalized reserves and must not be exposed as active. A later reconciliation path is not part of the current design.
-
-### Failed Shell Cleanup
-
-Persistent chain: pool child chain.
-Created by: losing or failed pool-creation workflow.
-Consumed by: pool cleanup/finalization logic before optional chain close.
-
-Rules:
-
-- A failed shell is permanently non-economic: it must not become active, must not finalize reserves, and must not mint LP shares.
-- Failed-shell `AddLiquidity` must reject before requesting funds when the failed-shell state is visible before fund requests are issued.
-- If funds are nevertheless delivered to a failed shell, they are application/protocol custody on that shell, not LP reserve and not liquidity owned by the sender.
-- User-owned value already custodied by a valid losing workflow is credited to claim balances before cleanup.
-- Close is last. The `FUND-010` transition table must define close eligibility explicitly. The shell chain may be closed only after cleanup resolves all application-level custody. Linera `close_chain()` only sets the chain closed and causes future incoming messages to be rejected; it does not transfer or refund remaining balance.
-
-### PoolInitialLiquidityIntent
+### FinalizeInitialization
 
 Persistent chain: pool chain.
-Created by: pool when authorized by swap intent.
-Consumed by: token funding callbacks and pool finalization logic.
 
-Required fields:
+Purpose:
 
-- `intent_id`
-- `owner_account`
-- `to_account`
-- `token0_identity`
-- `token1_identity`
-- `amount0`
-- `amount1`
-- `min0`
-- `min1`
-- `leg0_status`
-- `leg1_status`
-- `status`
-
-States:
-
-- `funding_pending`
-- `partially_funded`
-- `funded`
-- `finalized`
-- `failed`
+- finalize the first accepted real funding of an uninitialized pool
+- write the initial reserve/share economic state
+- make the pool usable for ordinary paths
 
 Rules:
 
-- Do not write reserves before both real token legs are funded.
-- Do not mint LP share before both real token legs are funded.
-- A funded leg whose opposite leg has an explicit fail/bounce is credited into claim balances.
-- A funded leg whose opposite leg is only pending remains in custody and must be visible as stalled; there is no timeout refund.
-- If both legs are funded but min/slippage validation fails, reserve and LP finalization must not occur. The funded user value is credited to claim balances as part of the failed terminal workflow.
+- Pool instantiate creates only base state and leaves the pool uninitialized.
+- `FinalizeInitialization` is the only boundary that may:
+  - write initial reserve state
+  - write initial LP/share supply
+  - update `k_last` for initialized economics
+  - set the pool-side `initialized` fact
+- If required real funding has not yet entered the pool application, `FinalizeInitialization` must reject.
+- If initialization fails before finalization, only real assets that actually entered protocol control may become claimable. Virtual value never becomes claimable.
 
-Open issue: one funded leg and one forever-pending leg cannot be safely auto-refunded without a proof that the missing leg will not later execute.
+Flow:
 
-### Activation
-
-After both legs are funded, pool finalizes:
-
-- `reserve0 += amount0`
-- `reserve1 += amount1`
-- mint LP position to `to_account`
-- mark pool-side intent `finalized`
-- emit activation receipt to swap
-
-Swap consumes activation receipt and moves the pair to active in `swap` application state.
-
-Open issue: if pool is finalized and LP is minted but activation receipt never reaches the swap chain, the pool has economic state while `swap` application state is not active. Do not recreate the pool or mint again. A later activation reconciliation path is not part of the current design.
+1. Validate public create-pool input on the user-reachable swap operation entry.
+2. Create the pool child chain and pool application.
+3. Leave the new pool uninitialized at instantiate time.
+4. Kick off the first real two-sided funding path into the pool application.
+5. When the required first funding has entered the pool application, execute `FinalizeInitialization`.
+6. Only after `FinalizeInitialization` is complete is the pool usable for ordinary swap, remove-liquidity, and existing-pool add-liquidity flows.
 
 ## Meme Native Pool Initialization
 
-Target path: create a meme token and initialize its native pool.
+Target path: create a meme token and initialize its first pool.
+
+Flow:
+
+1. Meme-side initialization prepares meme initial-liquidity allowance for swap.
+2. When virtual initial liquidity is disabled, native initial-liquidity value is also transferred into swap control before swap initialization starts.
+3. Swap creates the pool child chain and pool application.
+4. Pool instantiate leaves the pool uninitialized and does not write final reserve/share economics.
+5. Real assets are transferred from swap / meme into the pool application.
+6. `FinalizeInitialization` writes final initialized reserve/share state.
+7. Only after `FinalizeInitialization` is complete is the pool usable for ordinary paths.
 
 Rules:
 
-- Meme existence is guaranteed by meme app creation.
-- Swap must not call back into meme for validation from the `meme -> swap` initialization path.
-- Verify authenticated caller, source chain, and swap-side initialization route binding.
-- Real meme initial liquidity and virtual native reference are distinct.
-- Virtual native reference is not native reserve, TVL, claimable balance, or payable balance.
-- Emit virtual position facts separately from normal add-liquidity facts.
+- Meme-side real token value is always real funding.
+- Virtual initial liquidity is an economic-model parameter only.
+- Virtual value is never claimable, withdrawable, or removable.
+- `PoolCreated` is app-created only and is not the final initialization boundary.
 
 ## Existing AddLiquidity
 
 Persistent chain: pool chain.
-Intent: `AddLiquidityIntent`.
-
-Required fields:
-
-- `intent_id`
-- `owner_account`
-- `to_account`
-- token identities
-- expected amounts
-- min/slippage amounts
-- leg statuses
-- status
 
 Rules:
 
-- Both legs must be funded before reserve update, LP mint, or settled add-liquidity fact.
-- Funding callbacks must validate source, expected leg, and current workflow state.
-- Explicit failed opposite leg moves already funded custody value to claim balances.
-- If both legs are funded but limiting-side/min validation fails, reserve and LP finalization must not occur. The funded user value is credited to claim balances as part of the failed terminal workflow.
+- Ordinary existing-pool add liquidity requires `initialized == true`.
+- If `initialized == false`, the first accepted two-sided real funding path is not ordinary add liquidity; it must converge through `FinalizeInitialization`.
+- Both legs must be funded before reserve update, LP mint, or settled add-liquidity fact for an initialized pool.
+- Funding callbacks must validate source, expected leg, and current allowed path.
+- Explicit failed opposite leg moves already funded real value to claim balances.
+- If both legs are funded but the accepted-liquidity calculation rejects finalization, the funded real value is credited to claim balances.
 - Forever-pending opposite leg remains stalled; there is no timeout refund.
 
 ## Swap
 
 Persistent chain: pool chain.
-Intent: `SwapIntent`.
 
 Rules:
 
+- Ordinary swap requires `initialized == true`.
 - Input funding must be represented before economics finalize.
 - Slippage or check failure after input custody credits input back to claim balances.
 - Successful swap updates reserves and credits output to claim balances.
 - Output direct payout is not the funds-closure boundary.
-- Finalization must be reachable only from the expected workflow state.
+- The target design does not persist a swap intent object.
 
 ## RemoveLiquidity
 
 Persistent chain: pool chain.
-Intent: `RemoveLiquidityIntent`.
 
 Rules:
 
-- Burn/decrease position and owed amount accounting must be one safe state transition.
-- Owed token amounts are credited to claim balances.
-- Direct payout is not required for remove completion.
-- User may never claim; claim balances persist as economic state.
-
-## Claim
-
-The full claim state machine is defined in `agents/primitives/funding/claim.md`.
-
-`Claim` is a target protocol addition. The current pool contract does not yet implement `PoolOperation::Claim`, claim balances, or claiming balances.
+- Ordinary remove liquidity requires `initialized == true`.
+- Burn, reserve decrease, and owed-value calculation happen before user funds exit.
+- Owed output value is credited to claim balances instead of being treated as protocol completion only after direct remote payout.
+- The target design does not persist a remove-liquidity intent object.
