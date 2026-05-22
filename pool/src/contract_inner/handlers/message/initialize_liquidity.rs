@@ -53,13 +53,12 @@ impl<R: ContractRuntimeContext + AccessControl + ParametersInterface, S: StateIn
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
-        let bootstrap_policy = self.runtime.borrow_mut().bootstrap_policy();
-        match bootstrap_policy {
-            BootstrapPolicy::UserCreatePool => {}
-            BootstrapPolicy::MemeInitializeLiquidity {
-                virtual_initial_liquidity: _,
-            } => {}
-        }
+        let BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: _,
+        } = self.runtime.borrow_mut().bootstrap_policy()
+        else {
+            panic!("InitializeLiquidity message is only valid for meme initialization");
+        };
 
         let to = self.to.unwrap_or(self.origin);
         let timestamp = self

@@ -29,27 +29,30 @@ active_focus:
     summary: >
       Implement the funds-consistency protocol only through progressive child
       iterations. Current executable child is FUND-007, which splits pool app
-      creation from initialization finalization, removes the separate
-      initialized-gate design, and moves first real funding paths to
-      post-funding finalization without persisted intents.
+      creation from finalized reserve/share facts, removes the separate
+      initialized-gate design, and keeps the existing user CreatePool path where
+      UserPoolCreated starts the existing AddLiquidity flow without new ABI.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
   - id: FUND-007
-    why: active iteration for pool-app creation / post-funding finalization split
+    why: active iteration for pool-app creation / finalized reserve-share split
     summary: >
-      Split pool application creation from initialization finalization. Pool
+      Split pool application creation from finalized reserve/share facts. Pool
       instantiate must create only base app state and must not write final
       reserve/share economics. `PoolCreated` becomes app-created only. Meme
-      initialization, user create-pool first funding, and any first real funding
-      of a pool without finalized reserve/share facts must converge through a
-      dedicated post-funding `FinalizeInitialization` boundary. Use finalized
-      reserve/share facts as the gate for normal `Swap`, `RemoveLiquidity`, and
-      ordinary existing-pool `AddLiquidity`. Keep meme initialization as an
-      internal-only bootstrap discriminator. Do not introduce persisted
-      create-pool, add-liquidity, or swap intents.
+      initialization and user CreatePool remain distinct paths: meme
+      initialization uses internal bootstrap authority, while UserPoolCreated
+      keeps the existing PoolOperation::AddLiquidity flow to transfer both
+      user-funded legs from the user chain. Do not add user-pool-specific
+      funding ABI, do not route user CreatePool through pool-side
+      InitializeLiquidity, and do not reuse meme virtual-liquidity authority. Use
+      finalized reserve/share facts as the gate for normal `Swap`,
+      `RemoveLiquidity`, and ordinary existing-pool `AddLiquidity`.
+      Keep meme initialization as an internal-only bootstrap discriminator. Do
+      not introduce persisted create-pool, add-liquidity, or swap intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

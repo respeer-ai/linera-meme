@@ -91,13 +91,13 @@ Validation:
 - Invalid `CreatePool` forms reject without opening pool chain or active pair state in `swap` application state.
 - Current valid Add Liquidity missing-pair path remains supported.
 
-### FUND-007 Iteration 2: Intent-bind user pool creation
+### FUND-007 Iteration 2: Split pool application creation from explicit initialization
 
-Purpose: rework user pool creation into the approved message-driven first-funding workflow while preserving chain-fact authority.
+Purpose: split pool application creation from first pool economic initialization while preserving distinct meme-initialization and user-CreatePool funding paths.
 
 Minimal changes:
 
-- The user-chain `SwapOperation::CreatePool` entry validates public input and sends the first internal continuation only; it does not create persisted create-pool workflow state.
+- The user-chain `SwapOperation::CreatePool` entry validates public input and sends the first internal continuation only; it does not create persisted create-pool workflow state. User CreatePool keeps the existing `UserPoolCreated -> PoolOperation::AddLiquidity` continuation and must not reuse meme-initialization bootstrap authority. Do not route user CreatePool through pool-side `InitializeLiquidity`.
 
 - Define every account fact per hop. Use runtime chain facts such as `authenticated_account()` and `message_signer_account()` when they are the exact business fact required by that hop. Store or explicitly carry an account fact only when the current hop cannot derive the required business fact from chain state.
 - `origin` means the initial operation account that started the workflow. Carry `origin` explicitly only on later messages that need the initial workflow starter for pool `creator`, `fee_to`, or share-owner semantics.
@@ -105,7 +105,7 @@ Minimal changes:
 - Attach `.with_tracking()` by default in `ContractRuntimeContext::send_message` before funding or claim workflows depend on bounce handling.
 - Bind every remaining `CreateUserPool`, internal `CreatePool`, `PoolCreated`, and `UserPoolCreated` message to the approved immutable carried facts plus authoritative chain-fact checks. Removing or merging old messages is allowed only as a refactor; any message that remains must validate the reviewed facts explicitly.
 - Materialize a handler-level message transition table before code changes in this iteration. The table must specify which handler consumes each continuation, which immutable facts are checked from message payload, which chain facts are used directly at each hop, and which account facts are explicitly carried because the current hop cannot derive the required business fact from runtime chain state.
-- Treat meme initialization as an internal-only bootstrap discriminator. It may authorize virtual-liquidity bootstrap semantics, but it must not be user-selectable input and must not be inferred from frontend payload.
+- Treat meme initialization as an internal-only bootstrap discriminator. It may authorize virtual-liquidity bootstrap semantics, but it must not be user-selectable input and must not be inferred from frontend payload. Path selection is explicit from the prior operation/message. `UserPoolCreated` starts the existing AddLiquidity flow for user-funded first liquidity; no user-pool-specific funding ABI is added and no pool-side `InitializeLiquidity` is added to the user CreatePool path.
 
 Validation:
 
@@ -161,28 +161,19 @@ Validation:
 - Credited values can exit through `Claim`.
 - Happy path remains successful.
 
-### FUND-010 Iteration 5: Meme initialize-liquidity convergence and user-pool visibility split
+### FUND-010 Iteration 5: Pool visibility split
 
-Purpose: keep meme initialize-liquidity on the custody-proven activation path while treating
-user-pool post-creation liquidity as ordinary finalized-pool add liquidity once finalized reserve/share facts exist.
+Purpose: make product visibility depend on finalized pool-side economic facts instead of app creation receipts.
 
 Minimal changes:
 
-- Keep meme initialize-liquidity on the existing custody-proven path: `PoolCreated` does not activate meme-created pools; only accepted funding plus accepted `UpdatePool` may write active router truth.
-- For user `CreatePool`, treat `SwapMessage::PoolCreated { user_pool: true, ... }` as the protocol pair-existence boundary. Shell creation success writes protocol-level active pair truth, but the pool remains unusable until first real funding converges through `FinalizeInitialization` and writes finalized reserve/share facts.
-- Do not route user-pool post-creation liquidity through a create-pool-specific two-leg activation closure. `SwapMessage::UserPoolCreated` starts the shared pool-side funding path, and that path branches by whether finalized reserve/share facts already exist.
-- Do not introduce first-funded-wins or pending-shell competition rules for user create-pool activation. Once `user_pool == true` shell creation is accepted, the pair exists protocol-side and later liquidity is normal add liquidity.
-- Keep failed shells permanently non-economic. Close a shell chain only after cleanup has resolved all application-level custody.
-- Define shell close eligibility in the transition table before implementing close.
-- Define concrete post-creation add-liquidity failure behavior for the user-pool kickoff path under the shared add-liquidity rules.
+- Treat finalized pool-side reserve/share facts as the product visibility boundary.
 - Product/read-model rule: a protocol-existing pool without finalized reserve/share facts, including a zero-reserve shell, is not frontend-visible and is not a tradable/displayed market.
 
 Validation:
 
-- Meme initialize-liquidity does not activate before accepted funding and accepted `UpdatePool`.
-- User `CreatePool` writes protocol pair truth at `PoolCreated` after immutable-fact validation, and pool usability starts only after `FinalizeInitialization` writes finalized reserve/share facts.
-- User-pool kickoff `AddLiquidity` failure does not delete protocol pair existence, but follows ordinary add-liquidity claim-credit and retry-safe rules.
-- Product-visible pool lists exclude pools whose reserves are both zero.
+- Product-visible pool lists exclude pools without finalized reserve/share facts.
+- Zero-reserve shells are excluded from product-visible pool lists.
 
 ### FUND-011 Iteration 6: Swap output claim balances
 

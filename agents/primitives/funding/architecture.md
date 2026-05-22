@@ -68,17 +68,17 @@ Meme-native pool initialization is a different path. It uses `SwapOperation::Ini
 
 The current protocol supports only the native token and meme tokens for pool creation and liquidity funding. Native token identity is built in. Meme token identity is validated only from a safe user-started path by calling the meme token application for creator-chain identity. Public `SwapOperation::CreatePool` must not require the frontend or user to supply creator-chain identity. Authoritative chain facts are used on user-started `CreatePool` paths. The only current protocol field that carries meme creator-chain identity is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id`, and it exists only for the synchronous `meme -> call_application(swap.InitializeLiquidity)` path. Swap must validate that carried value at the operation boundary and must not propagate it into `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::CreateUserPool`, or `PoolParameters`. Any other token kind must be rejected until a concrete protocol validation rule exists for it.
 
-Pool application creation and pool economic finalization are distinct protocol phases:
+Pool application creation and pool economic state are distinct protocol phases:
 
 1. pool application creation
 2. real-funding entry into the pool application
-3. post-funding initialization finalization
+3. finalized reserve/share facts
 
 Creating a pool application does not mean the pool is initialized, active, tradable, or ready for ordinary add-liquidity / swap / remove-liquidity paths.
 
 The target design does not use persisted create-pool intents. Protocol truth for pool usability comes from finalized pool-side economic state itself: finalized reserve/share facts, not a separate lifecycle bit.
 
-User `CreatePool`, meme initialization, and any first real funding of a pool that does not yet have finalized reserve/share facts all converge through post-funding `FinalizeInitialization`. Ordinary existing-pool add liquidity, swap, and remove liquidity are allowed only after those finalized reserve/share facts exist.
+Meme initialization and user `CreatePool` are distinct paths with different funding sources and authorization boundaries. Meme initialization uses internal bootstrap authority and may use virtual-liquidity semantics. User `CreatePool` uses the existing `UserPoolCreated -> PoolOperation::AddLiquidity` flow to transfer both user-funded legs from the user chain. No user-pool-specific funding ABI is added, and user flow must not reuse meme virtual-liquidity authority. Ordinary existing-pool add liquidity, swap, and remove liquidity are allowed only after finalized reserve/share facts exist.
 
 Linera applications can close the current chain through `ContractRuntime::close_chain()` if their application id is authorized by the chain's `ApplicationPermissions.close_chain`. Linera close only marks the chain closed; it does not move remaining balance or application custody. The current pool child-chain creation path already grants close permission to the router/swap application. Cleanup may close a failed pool chain only after all application-level cleanup has completed: no reserves/LP are finalized, owed user value has been credited to claim balances, and any remaining custody has been resolved according to the cleanup state. If cleanup is not fully completed, the chain must remain permanently non-economic rather than be closed.
 
@@ -92,15 +92,17 @@ For pool-based funding flows, the protocol must distinguish:
 
 `PoolCreated` is an app-created fact only. It is not by itself the boundary for active pool truth, final reserve/share state, or normal-path usability.
 
-The boundary for ordinary pool behavior is post-funding `FinalizeInitialization`.
+The boundary for ordinary pool behavior is finalized pool-side reserve/share facts.
 
 After a pool application exists but before finalized reserve/share facts exist, the pool is a non-economic protocol object.
 
 Rules:
 
 - Pool applications without finalized reserve/share facts are valid protocol objects but are not yet usable for ordinary swap or remove-liquidity flows.
-- The first accepted real-funding path for a pool without finalized reserve/share facts must converge through `FinalizeInitialization`.
-- Ordinary existing-pool add liquidity exists only after finalized reserve/share facts exist.
+- Meme initialization writes its first finalized reserve/share facts through the explicit pool-side `InitializeLiquidity` path.
+- User `CreatePool` keeps the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path. That path is allowed on a zero-reserve user-created pool because current pool math accepts the two desired amounts as the initial reserve pair.
+- Direct ordinary add-liquidity requests before finalized reserve/share facts do not get meme initialization authority or virtual-liquidity semantics.
+- Ordinary existing-pool add liquidity exists only after finalized reserve/share facts exist; the pre-finalized AddLiquidity use is the `UserPoolCreated` user CreatePool funding continuation.
 - Product-visible pool, market, and trading surfaces must exclude pools that do not yet have finalized reserve/share facts.
 - Virtual-initial-liquidity economics, when used by meme initialization, must not create withdrawable, claimable, or removable value beyond the real assets that actually entered the pool application.
 

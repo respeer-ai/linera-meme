@@ -25,11 +25,10 @@ Known gaps:
 - The public `CreatePool` path must validate that both token identities are real before opening a pool chain.
 - Public `CreatePool` must not require frontend-supplied creator-chain identity. User-started `CreatePool` validates meme token identity from authoritative chain facts before opening a pool chain. The only carried creator-chain-id field is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` for the synchronous `meme -> call_application(swap.InitializeLiquidity)` exception; swap messages and `PoolParameters` must not carry token creator-chain-id fields.
 - The current supported token set is native plus meme tokens only. Native is built in; meme tokens are validated from safe user-started paths by calling the meme token application for creator-chain identity. Every other token kind must reject until a concrete validation rule exists.
-- Pending pair contention must use first-funded-wins semantics instead of permanent reject. Losing workflows must fail safely, credit already-custodied value to claim balances, and keep losing shell chains/applications non-tradable or cleaned up.
 - Pool creation terminal truth must be unique and reliable in the message-driven state machine. A failed terminal workflow must not leave reusable old shell/application state.
 - Internal create-pool messages must validate immutable carried facts and authoritative chain facts at each hop.
-- The current implementation does not yet implement first-funded-wins. It creates pool state on `PoolCreated` and then starts user initial liquidity through `UserPoolCreated -> PoolOperation::AddLiquidity`, without a final pool-side reserve/share finalization boundary.
-- If another user calls `AddLiquidity` on a pending shell, the target design must still allow the first successful two-sided funding path to initialize the pool. No additional persisted create-pool or add-liquidity intent is introduced for that race; the winning path is determined by pool-side first successful finalization.
+- The current implementation creates pool state on `PoolCreated` and then starts user initial liquidity through `UserPoolCreated -> PoolOperation::AddLiquidity`. That user path is retained; the first successful AddLiquidity completion writes the initial reserve/share facts for the zero-reserve user-created pool.
+- Direct ordinary `AddLiquidity` on a pool without finalized reserve/share facts must not gain meme initialization authority or virtual-liquidity semantics. No additional persisted create-pool or add-liquidity intent is introduced for user CreatePool first funding.
 
 ## CreateUserPool / UserPoolCreated
 

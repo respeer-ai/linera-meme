@@ -1040,7 +1040,7 @@ groups:
           - Produce a target path validation matrix covering operation/message/callback/receipt, required source/auth/app/intent/leg/token/owner/amount/state checks, allowed state transition, failure behavior, and required tests.
           - Verify whether the current meme/pool payout path can produce the success, fail, or bounce receipts required to close meme `Claim` delivery.
           - Document that current `mark_user_pool_created(pool_application)` is a late guard around `UserPoolCreated -> PoolOperation::AddLiquidity`, not the target flow design.
-          - Document pending-pair first-funded-wins semantics and the current lack of terminal intent state as the implementation delta.
+          - Document that user CreatePool keeps the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path; no persisted create-pool or add-liquidity intent is part of the target design.
           - Add focused characterization tests only where current behavior must be locked before refactor.
 
           Validation:
@@ -1073,21 +1073,20 @@ groups:
         status: Doing
         priority: P0
         depends_on: [FUND-006]
-        title: "Iteration 2: Split pool app creation from initialization finalization"
+        title: "Iteration 2: Split pool app creation from explicit initialization"
         notes: |
-          Purpose: fix funds-consistency boundaries for meme initialization and first-funding pool creation without introducing persisted intents.
+          Purpose: fix funds-consistency boundaries for meme initialization and user CreatePool app creation without introducing persisted intents.
 
           Minimal changes:
           - Remove `PoolCreationIntent` as the target design for user pool creation.
           - Split pool lifecycle into two protocol phases:
             - pool app creation
-            - post-funding initialization finalization
+            - finalized reserve/share facts after the path-specific required funds are in pool control
           - Change pool instantiate semantics so instantiate creates only pool application base state and does not write final reserve, share supply, or `k_last`.
-          - Add a dedicated `FinalizeInitialization` pool-side message/callback step that writes final initial reserve/share state only after the required real funds have entered the pool application.
-          - Treat `PoolCreated` as app-created only. It must not be the activation or finalization boundary for meme initialization or user create-pool first funding.
+          - Treat `PoolCreated` as app-created only. It must not be the activation boundary for meme initialization or user create-pool first funding.
           - Do not add a separate pool-side `initialized` fact.
           - Use finalized reserve/share facts as the gate for normal `Swap`, `RemoveLiquidity`, and ordinary existing-pool `AddLiquidity`.
-          - Route meme initialization, user `CreatePool`, and any first real funding of a pool that does not yet have finalized reserve/share facts through the same post-funding `FinalizeInitialization` boundary.
+          - Keep meme initialization and user `CreatePool` as distinct paths. Meme initialization funds from swap/meme-controlled custody and may use virtual bootstrap semantics. User `CreatePool` funds from the user chain through the existing `UserPoolCreated -> PoolOperation::AddLiquidity` flow. Do not add user-pool-specific funding ABI and do not reuse meme virtual-liquidity authority.
           - Keep `meme initialization` as an internal-only discriminator for bootstrap semantics such as virtual liquidity. It must not be selectable by ordinary user input.
           - Preserve the current carried `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` exception only for the synchronous `meme -> call_application(swap.InitializeLiquidity)` frame. Do not reintroduce creator-chain-id propagation into later messages or pool parameters.
           - Document virtual-initial-liquidity as an economic-model parameter, not a claimable or withdrawable balance. The target invariant is that virtual value can never exit through claim, swap output, or remove-liquidity payout.
@@ -1095,8 +1094,7 @@ groups:
           Validation:
           - Tests prove pool instantiate no longer writes final reserve/share state.
           - Tests prove `PoolCreated` leaves the pool without finalized reserve/share facts.
-          - Tests prove only `FinalizeInitialization` can write the first finalized reserve/share economic state.
-          - Tests prove meme initialization and user create-pool first funding both converge through post-funding finalization rather than early activation at `PoolCreated`.
+          - Tests prove meme initialization and user create-pool first funding remain distinct: meme initialization uses the bootstrap path, while `UserPoolCreated` starts existing `PoolOperation::AddLiquidity` and does not activate at `PoolCreated`.
           - Tests prove normal `Swap` and `RemoveLiquidity` reject before finalized reserve/share facts exist.
       - id: FUND-008
         status: Todo
@@ -1133,15 +1131,15 @@ groups:
           Purpose: make existing finalized-pool add liquidity safe using the established claim exit.
 
           Minimal changes:
-          - Distinguish first funding of a pool without finalized reserve/share facts from ordinary existing-pool add liquidity.
-          - When finalized reserve/share facts do not yet exist, the first accepted real two-sided funding path must converge through `FinalizeInitialization` instead of ordinary reserve/share increment logic.
-          - When finalized reserve/share facts already exist, keep the normal existing-pool add-liquidity path.
+          - Scope this iteration to ordinary existing-pool add liquidity after finalized reserve/share facts exist.
+          - `PoolOperation::AddLiquidity` remains the user CreatePool funding entry after `UserPoolCreated` and the ordinary finalized-pool add-liquidity entry. It must not infer meme initialization or virtual-liquidity authority from pool state.
+          - Keep the normal existing-pool add-liquidity path.
           - Preserve the limiting-side add-liquidity calculation for finalized pools.
           - Credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
           - Keep per-leg funding tracking only as an implementation detail if still needed; do not introduce or target a persisted `AddLiquidityIntent` design.
 
           Validation:
-          - Tests cover first funding of a pool without finalized reserve/share facts converging through `FinalizeInitialization`.
+          - Tests cover `UserPoolCreated -> PoolOperation::AddLiquidity` for user CreatePool funding without adding a user-pool-specific funding ABI.
           - Tests cover finalized-pool add liquidity remaining on the ordinary path.
           - Tests prove partial failure leaves no finalized reserve increase and no LP share mint.
           - Tests prove partial failure credits already-custodied value to claim balances exactly once.
@@ -1150,21 +1148,17 @@ groups:
         status: Todo
         priority: P0
         depends_on: [FUND-009]
-        title: "Iteration 5: Initialization finalization boundary and pool visibility split"
+        title: "Iteration 5: Pool visibility split"
         notes: |
-          Purpose: make pool usability depend on post-funding finalization instead of app creation receipts.
+          Purpose: make product visibility depend on finalized pool-side economic facts instead of app creation receipts.
 
           Minimal changes:
           - Keep `PoolCreated` as pool-app-created only for both meme initialization and user create-pool flows.
-          - Make post-funding `FinalizeInitialization` the boundary that produces the first usable reserve/share economic state.
-          - For meme initialization, require real funds to enter the pool application before finalization; virtual initial liquidity remains an economic-model parameter only.
-          - For user `CreatePool`, require the first real funding path to finalize the pool before the pool becomes usable for ordinary paths.
+          - Treat finalized pool-side reserve/share facts as the product visibility boundary.
           - Product rule: pools that do not yet have finalized reserve/share facts, including zero-reserve shells, are protocol-existing app facts but must not be shown in frontend pool/market/trading surfaces.
 
           Validation:
           - Tests prove pools without finalized reserve/share facts are not usable by normal `Swap` or `RemoveLiquidity`.
-          - Tests prove meme initialization becomes usable only after post-funding finalization.
-          - Tests prove user create-pool first funding becomes usable only after post-funding finalization.
           - Tests prove pools without finalized reserve/share facts, including zero-reserve shells, are excluded from product-visible pool lists and trading surfaces.
       - id: FUND-011
         status: Todo
