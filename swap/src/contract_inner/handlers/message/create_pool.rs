@@ -1,6 +1,9 @@
 use crate::interfaces::state::StateInterface;
 use abi::swap::{
-    pool::{BootstrapPolicy, InstantiationArgument as PoolInstantiationArgument, PoolAbi, PoolParameters},
+    pool::{
+        BootstrapPolicy, InstantiationArgument as PoolInstantiationArgument, PoolAbi,
+        PoolParameters,
+    },
     router::{SwapMessage, SwapResponse},
 };
 use async_trait::async_trait;

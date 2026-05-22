@@ -79,6 +79,11 @@ impl<
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
+        assert!(
+            self.state.borrow().has_finalized_reserve_share_facts(),
+            "Pool is not ready"
+        );
+
         let timestamp = self
             .block_timestamp
             .unwrap_or(self.runtime.borrow_mut().system_time());

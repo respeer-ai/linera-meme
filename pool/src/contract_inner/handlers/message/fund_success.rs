@@ -309,9 +309,9 @@ where
 
         match fund_request.fund_type {
             FundType::Swap => Ok(Some(self.swap_fund_success(&fund_request).await)),
-            FundType::InitializeLiquidity => {
-                Ok(self.initialize_liquidity_fund_success(&fund_request).await?)
-            }
+            FundType::InitializeLiquidity => Ok(self
+                .initialize_liquidity_fund_success(&fund_request)
+                .await?),
             FundType::AddLiquidity => Ok(self.add_liquidity_fund_success(&fund_request).await?),
         }
     }

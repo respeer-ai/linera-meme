@@ -246,10 +246,12 @@ impl TestSuite {
         pool_chain.handle_received_messages().await;
         swap_chain.handle_received_messages().await;
         meme_chain.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
         if enable_mining {
             pool_chain.handle_received_messages().await;
             swap_chain.handle_received_messages().await;
             meme_chain.handle_received_messages().await;
+            pool_chain.handle_received_messages().await;
         }
 
         let QueryOutcome { response, .. } = swap_chain

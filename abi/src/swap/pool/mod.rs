@@ -21,6 +21,13 @@ impl ServiceAbi for PoolAbi {
     type Query = Request;
     type QueryResponse = Response;
 }
+
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, InputObject)]
+pub struct PoolInitializeLiquidityCall {
+    pub amount_1_in: Amount,
+    pub to: Option<Account>,
+}
+
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
     SetFeeTo {

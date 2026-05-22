@@ -341,6 +341,8 @@ async fn meme_native_virtual_initial_liquidity_test() {
     pool_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    pool_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(

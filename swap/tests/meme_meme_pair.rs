@@ -489,6 +489,13 @@ async fn meme_meme_pair_test() {
 
     let pool_chain_meme_0 = &suite.pool_chain_meme_0.as_ref().unwrap().clone();
     let pool_chain_meme_1 = &suite.pool_chain_meme_1.as_ref().unwrap().clone();
+
+    meme_chain_0.handle_received_messages().await;
+    meme_chain_1.handle_received_messages().await;
+    pool_chain_meme_0.handle_received_messages().await;
+    pool_chain_meme_1.handle_received_messages().await;
+    pool_chain_meme_0.handle_received_messages().await;
+    pool_chain_meme_1.handle_received_messages().await;
     suite
         .swap(
             &user_chain,

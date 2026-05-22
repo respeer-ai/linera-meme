@@ -762,13 +762,21 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "amount": encode_amount(amount),
             }),
         ),
-        MemeOperation::InitializeLiquidity { to, amount } => (
+        MemeOperation::InitializeLiquidity {
+            pool_application,
+            amount_0,
+            pool_initialize,
+        } => (
             "initialize_liquidity",
             json!({
                 "operation_type": "initialize_liquidity",
                 "application_id": application_id,
-                "to": encode_account(to),
-                "amount": encode_amount(amount),
+                "pool_application": encode_account(pool_application),
+                "amount_0": encode_amount(amount_0),
+                "pool_initialize": {
+                    "amount_1_in": encode_amount(pool_initialize.amount_1_in),
+                    "to": encode_option_account(pool_initialize.to),
+                },
             }),
         ),
         MemeOperation::Approve { spender, amount } => (
@@ -875,14 +883,23 @@ fn decode_meme_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "amount": encode_amount(amount),
             }),
         ),
-        MemeMessage::InitializeLiquidity { caller, to, amount } => (
+        MemeMessage::InitializeLiquidity {
+            caller,
+            pool_application,
+            amount_0,
+            pool_initialize,
+        } => (
             "initialize_liquidity",
             json!({
                 "message_type": "initialize_liquidity",
                 "application_id": application_id,
                 "caller": encode_account(caller),
-                "to": encode_account(to),
-                "amount": encode_amount(amount),
+                "pool_application": encode_account(pool_application),
+                "amount_0": encode_amount(amount_0),
+                "pool_initialize": {
+                    "amount_1_in": encode_amount(pool_initialize.amount_1_in),
+                    "to": encode_option_account(pool_initialize.to),
+                },
             }),
         ),
         MemeMessage::Approve {

@@ -1,4 +1,4 @@
-use crate::store_type::StoreType;
+use crate::{store_type::StoreType, swap::pool::PoolInitializeLiquidityCall};
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
@@ -230,7 +230,6 @@ pub struct MemeParameters {
     pub virtual_initial_liquidity: bool,
     // TODO: work around for https://github.com/linera-io/linera-protocol/issues/3538
     pub swap_creator_chain_id: ChainId,
-
     pub enable_mining: bool,
     pub mining_supply: Option<Amount>,
 }
@@ -268,8 +267,9 @@ pub enum MemeOperation {
     },
     // Special operation used by swap to initialize liquidity for new pool
     InitializeLiquidity {
-        to: Account,
-        amount: Amount,
+        pool_application: Account,
+        amount_0: Amount,
+        pool_initialize: PoolInitializeLiquidityCall,
     },
     Approve {
         spender: Account,
@@ -317,8 +317,9 @@ pub enum MemeMessage {
     // Special operation used by swap to initialize liquidity for new pool
     InitializeLiquidity {
         caller: Account,
-        to: Account,
-        amount: Amount,
+        pool_application: Account,
+        amount_0: Amount,
+        pool_initialize: PoolInitializeLiquidityCall,
     },
     Approve {
         owner: Account,

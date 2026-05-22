@@ -317,7 +317,6 @@ impl TestSuite {
                             initial_liquidity,
                             virtual_initial_liquidity,
                             swap_creator_chain_id: self.swap_chain.id(),
-
                             enable_mining,
                             mining_supply,
                         },

@@ -9,6 +9,7 @@ use abi::{
     },
     proxy::ProxyResponse,
     store_type::StoreType,
+    swap::pool::{PoolInitializeLiquidityCall, PoolResponse},
 };
 use futures::FutureExt as _;
 use linera_sdk::{
@@ -591,6 +592,31 @@ async fn operation_transfer_from_application_requires_authenticated_caller() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[should_panic]
+async fn operation_initialize_liquidity_rejects_missing_caller() {
+    let mut meme = create_and_instantiate_meme_with_authenticated_caller(false, None, None).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let pool_application = Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let _ = meme
+        .execute_operation(MemeOperation::InitializeLiquidity {
+            pool_application,
+            amount_0: Amount::from_tokens(1),
+            pool_initialize: PoolInitializeLiquidityCall {
+                amount_1_in: Amount::from_tokens(1),
+                to: None,
+            },
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Invalid caller")]
 async fn message_initialize_liquidity_rejects_wrong_caller() {
     let mut meme = create_and_instantiate_meme(false, None).await;
@@ -612,8 +638,12 @@ async fn message_initialize_liquidity_rejects_wrong_caller() {
 
     meme.execute_message(MemeMessage::InitializeLiquidity {
         caller: wrong_caller,
-        to,
-        amount: Amount::from_tokens(1),
+        pool_application: to,
+        amount_0: Amount::from_tokens(1),
+        pool_initialize: PoolInitializeLiquidityCall {
+            amount_1_in: Amount::from_tokens(1),
+            to: None,
+        },
     })
     .await;
 }
@@ -644,14 +674,30 @@ async fn message_initialize_liquidity_duplicate_fails_without_double_transfer() 
         .unwrap()
         .fungible_amount;
 
-    meme.execute_message(MemeMessage::InitializeLiquidity { caller, to, amount })
-        .await;
+    meme.execute_message(MemeMessage::InitializeLiquidity {
+        caller,
+        pool_application: to,
+        amount_0: amount,
+        pool_initialize: PoolInitializeLiquidityCall {
+            amount_1_in: Amount::from_tokens(1),
+            to: None,
+        },
+    })
+    .await;
 
     assert_eq!(meme.state.borrow().balance_of(to).await, amount);
 
     let second_attempt = std::panic::AssertUnwindSafe(async {
-        meme.execute_message(MemeMessage::InitializeLiquidity { caller, to, amount })
-            .await;
+        meme.execute_message(MemeMessage::InitializeLiquidity {
+            caller,
+            pool_application: to,
+            amount_0: amount,
+            pool_initialize: PoolInitializeLiquidityCall {
+                amount_1_in: Amount::from_tokens(1),
+                to: None,
+            },
+        })
+        .await;
     })
     .catch_unwind()
     .await;
@@ -805,7 +851,11 @@ fn mock_application_call(
     _application_id: ApplicationId,
     _operation: Vec<u8>,
 ) -> Vec<u8> {
-    bcs::to_bytes(&ProxyResponse::Ok).unwrap()
+    if bcs::from_bytes::<abi::swap::pool::PoolOperation>(&_operation).is_ok() {
+        bcs::to_bytes(&PoolResponse::Ok).unwrap()
+    } else {
+        bcs::to_bytes(&ProxyResponse::Ok).unwrap()
+    }
 }
 
 async fn create_and_instantiate_meme(

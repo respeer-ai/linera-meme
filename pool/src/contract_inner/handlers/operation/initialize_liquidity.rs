@@ -1,28 +1,23 @@
-use crate::{
-    contract_inner::handlers::request_meme_fund::RequestMemeFundHandler,
-    interfaces::{parameters::ParametersInterface, state::StateInterface},
-    FundRequest, FundStatus, FundType,
-};
-use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
+use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
+use abi::swap::pool::{BootstrapPolicy, PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 pub struct InitializeLiquidityHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: Rc<RefCell<S>>,
-
     amount_0_in: Amount,
     amount_1_in: Amount,
     to: Option<Account>,
     block_timestamp: Option<Timestamp>,
+    _state: PhantomData<S>,
 }
 
 impl<
@@ -30,7 +25,7 @@ impl<
         S: StateInterface,
     > InitializeLiquidityHandler<R, S>
 {
-    pub fn new(runtime: Rc<RefCell<R>>, state: S, op: &PoolOperation) -> Self {
+    pub fn new(runtime: Rc<RefCell<R>>, _state: S, op: &PoolOperation) -> Self {
         let PoolOperation::InitializeLiquidity {
             amount_0_in,
             amount_1_in,
@@ -42,13 +37,13 @@ impl<
         };
 
         Self {
-            state: Rc::new(RefCell::new(state)),
             runtime,
 
             amount_0_in: *amount_0_in,
             amount_1_in: *amount_1_in,
             to: *to,
             block_timestamp: *block_timestamp,
+            _state: PhantomData,
         }
     }
 }
@@ -67,63 +62,39 @@ impl<
             "Invalid amount"
         );
 
-        let origin = self.runtime.borrow_mut().authenticated_account();
         let token_0 = self.runtime.borrow_mut().token_0();
-        let token_1 = self.runtime.borrow_mut().token_1();
-
-        // 1: Transfer funds of token_0
-        let mut fund_request_0 = FundRequest {
-            from: origin,
-            token: Some(token_0),
-            amount_in: self.amount_0_in,
-            pair_token_amount_out_min: None,
-            to: self.to,
-            block_timestamp: self.block_timestamp,
-            fund_type: FundType::InitializeLiquidity,
-            status: FundStatus::InFlight,
-            error: None,
-            prev_request: None,
-            next_request: None,
+        let BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: _,
+        } = self.runtime.borrow_mut().bootstrap_policy()
+        else {
+            panic!("InitializeLiquidity operation is only valid for meme initialization");
         };
-        let transfer_id_0 = self
-            .state
-            .borrow_mut()
-            .create_fund_request(fund_request_0.clone())
-            .map_err(Into::into)?;
-
-        let fund_request_1 = FundRequest {
-            from: origin,
-            token: token_1,
-            amount_in: self.amount_1_in,
-            pair_token_amount_out_min: None,
-            to: self.to,
-            block_timestamp: self.block_timestamp,
-            fund_type: FundType::InitializeLiquidity,
-            status: FundStatus::Created,
-            error: None,
-            prev_request: Some(transfer_id_0),
-            next_request: None,
-        };
-        let transfer_id_1 = self
-            .state
-            .borrow_mut()
-            .create_fund_request(fund_request_1)
-            .map_err(Into::into)?;
-
-        fund_request_0.next_request = Some(transfer_id_1);
-        self.state
-            .borrow_mut()
-            .update_fund_request(transfer_id_0, fund_request_0)
-            .await
-            .map_err(Into::into)?;
-
-        let mut handler = RequestMemeFundHandler::new(
-            self.runtime.clone(),
-            self.state.clone(),
-            token_0,
-            self.amount_0_in,
-            transfer_id_0,
+        assert!(
+            self.runtime.borrow_mut().token_1().is_none(),
+            "Invalid initialization pair"
         );
-        handler.handle().await
+        assert!(
+            self.runtime
+                .borrow_mut()
+                .authenticated_caller_id()
+                .expect("Invalid initialization caller")
+                == token_0,
+            "Invalid initialization caller"
+        );
+        let destination = self.runtime.borrow_mut().application_creator_chain_id();
+        let origin = self.runtime.borrow_mut().creator();
+        let mut outcome = HandlerOutcome::new();
+        outcome.with_message(
+            destination,
+            PoolMessage::InitializeLiquidity {
+                origin,
+                amount_0_in: self.amount_0_in,
+                amount_1_in: self.amount_1_in,
+                to: self.to,
+                block_timestamp: self.block_timestamp,
+            },
+        );
+
+        Ok(Some(outcome))
     }
 }

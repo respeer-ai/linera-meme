@@ -312,6 +312,11 @@ impl<
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
+        assert!(
+            self.state.borrow().has_finalized_reserve_share_facts(),
+            "Pool is not ready"
+        );
+
         // We just return OK to refund the failed balance here
         match self
             .do_swap(

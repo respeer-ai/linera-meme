@@ -68,6 +68,55 @@ async fn message_initialize_liquidity_writes_first_reserve_share_facts() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn operation_initialize_liquidity_requires_token0_caller_and_queues_finalize_message() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+
+    let response = pool
+        .execute_operation(PoolOperation::InitializeLiquidity {
+            amount_0_in: Amount::from_tokens(1000),
+            amount_1_in: Amount::from_tokens(10),
+            to: None,
+            block_timestamp: None,
+        })
+        .await;
+
+    assert!(matches!(response, PoolResponse::Ok));
+    assert_eq!(pool.state.borrow().reserve_0(), Amount::ZERO);
+    assert_eq!(pool.state.borrow().reserve_1(), Amount::ZERO);
+
+    let runtime = pool.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|request| matches!(request.message, PoolMessage::InitializeLiquidity { .. }))
+            .count(),
+        1
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_initialize_liquidity_rejects_non_token0_caller() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+
+    let result =
+        std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::InitializeLiquidity {
+            amount_0_in: Amount::from_tokens(1000),
+            amount_1_in: Amount::from_tokens(10),
+            to: None,
+            block_timestamp: None,
+        }))
+        .catch_unwind()
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn operation_swap() {
     let mut pool = create_and_initialize_pool(true).await;
 
@@ -87,10 +136,12 @@ async fn operation_swap() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_swap_rejects_without_finalized_reserve_share_facts() {
+async fn message_swap_rejects_without_finalized_reserve_share_facts() {
     let mut pool = create_and_instantiate_pool_with_amounts(false).await;
+    let origin = authenticated_account(&pool);
 
-    let result = std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::Swap {
+    let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::Swap {
+        origin,
         amount_0_in: Some(Amount::ONE),
         amount_1_in: None,
         amount_0_out_min: None,
@@ -124,19 +175,20 @@ async fn operation_add_liquidity() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_remove_liquidity_rejects_without_finalized_reserve_share_facts() {
+async fn message_remove_liquidity_rejects_without_finalized_reserve_share_facts() {
     let mut pool = create_and_instantiate_pool_with_amounts(false).await;
+    let origin = authenticated_account(&pool);
 
-    let result =
-        std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::RemoveLiquidity {
-            liquidity: Amount::ONE,
-            amount_0_out_min: None,
-            amount_1_out_min: None,
-            to: None,
-            block_timestamp: None,
-        }))
-        .catch_unwind()
-        .await;
+    let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::RemoveLiquidity {
+        origin,
+        liquidity: Amount::ONE,
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    }))
+    .catch_unwind()
+    .await;
 
     assert!(result.is_err());
 }
@@ -916,6 +968,16 @@ fn total_supply(pool: &PoolContract) -> Amount {
 
 async fn create_and_instantiate_pool(virtual_initial_liquidity: bool) -> PoolContract {
     create_and_instantiate_pool_with_amounts(virtual_initial_liquidity).await
+}
+
+async fn create_and_instantiate_native_pool(virtual_initial_liquidity: bool) -> PoolContract {
+    let pool = create_and_instantiate_pool_with_amounts(virtual_initial_liquidity).await;
+    let mut parameters = pool.runtime.borrow_mut().application_parameters();
+    parameters.token_1 = None;
+    pool.runtime
+        .borrow_mut()
+        .set_application_parameters(parameters);
+    pool
 }
 
 async fn create_and_initialize_pool(virtual_initial_liquidity: bool) -> PoolContract {

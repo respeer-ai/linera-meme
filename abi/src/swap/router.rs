@@ -1,6 +1,7 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::swap::pool::BootstrapPolicy;
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
@@ -9,7 +10,6 @@ use linera_sdk::{
     },
 };
 use serde::{Deserialize, Serialize};
-use crate::swap::pool::BootstrapPolicy;
 
 use crate::swap::transaction::Transaction;
 

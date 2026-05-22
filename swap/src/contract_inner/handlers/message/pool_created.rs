@@ -1,7 +1,10 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation},
-    swap::{pool::BootstrapPolicy, router::{SwapMessage, SwapResponse}},
+    swap::{
+        pool::{BootstrapPolicy, PoolInitializeLiquidityCall},
+        router::{SwapMessage, SwapResponse},
+    },
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -62,6 +65,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
+        to: Option<Account>,
     ) {
         let BootstrapPolicy::MemeInitializeLiquidity {
             virtual_initial_liquidity,
@@ -81,8 +85,12 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
 
         // TODO: only call from InitializeLiquidity could transfer from application
         let call = MemeOperation::InitializeLiquidity {
-            to: pool_application,
-            amount: amount_0,
+            pool_application,
+            amount_0,
+            pool_initialize: PoolInitializeLiquidityCall {
+                amount_1_in: amount_1,
+                to,
+            },
         };
         let _ = self
             .runtime
@@ -168,6 +176,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                     self.token_0,
                     self.amount_0,
                     self.amount_1,
+                    self.to,
                 );
                 None
             }
