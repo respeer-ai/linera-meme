@@ -33,6 +33,7 @@ pub enum PoolError {
 #[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
 pub enum FundType {
     Swap,
+    InitializeLiquidity,
     AddLiquidity,
 }
 

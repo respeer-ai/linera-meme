@@ -50,6 +50,10 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
+        assert!(
+            self._state.has_finalized_reserve_share_facts(),
+            "Pool is not ready"
+        );
         assert!(self.liquidity > Amount::ZERO, "Invalid amount");
 
         let origin = self.runtime.borrow_mut().authenticated_account();

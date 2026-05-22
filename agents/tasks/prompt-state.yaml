@@ -29,9 +29,9 @@ active_focus:
     summary: >
       Implement the funds-consistency protocol only through progressive child
       iterations. Current executable child is FUND-007, which splits pool app
-      creation from initialization finalization, introduces a pool-side
-      initialized gate, and moves first real funding paths to post-funding
-      finalization without persisted intents.
+      creation from initialization finalization, removes the separate
+      initialized-gate design, and moves first real funding paths to
+      post-funding finalization without persisted intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
@@ -44,11 +44,12 @@ active_focus:
       instantiate must create only base app state and must not write final
       reserve/share economics. `PoolCreated` becomes app-created only. Meme
       initialization, user create-pool first funding, and any first real funding
-      of an uninitialized pool must converge through a dedicated post-funding
-      `FinalizeInitialization` boundary. Add a pool-side `initialized` fact and
-      use it as the gate for normal `Swap`, `RemoveLiquidity`, and ordinary
-      existing-pool `AddLiquidity`. Do not introduce persisted create-pool,
-      add-liquidity, or swap intents.
+      of a pool without finalized reserve/share facts must converge through a
+      dedicated post-funding `FinalizeInitialization` boundary. Use finalized
+      reserve/share facts as the gate for normal `Swap`, `RemoveLiquidity`, and
+      ordinary existing-pool `AddLiquidity`. Keep meme initialization as an
+      internal-only bootstrap discriminator. Do not introduce persisted
+      create-pool, add-liquidity, or swap intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

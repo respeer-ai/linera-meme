@@ -20,7 +20,7 @@ impl StateInterface for PoolState {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<Amount, Self::Error> {
+    ) -> Result<(), Self::Error> {
         self.pool.set(Some(Pool::create(
             parameters.token_0,
             parameters.token_1,
@@ -29,34 +29,12 @@ impl StateInterface for PoolState {
             block_timestamp,
         )));
 
-        let mut pool = self.pool();
-
         self.router_application_id
             .set(Some(argument.router_application_id));
         self.transfer_id.set(1000);
-
-        let mut liquidity = Amount::ZERO;
-
-        if argument.amount_0 > Amount::ZERO && argument.amount_1 > Amount::ZERO {
-            if !parameters.virtual_initial_liquidity {
-                liquidity = self
-                    .mint_shares(argument.amount_0, argument.amount_1, owner)
-                    .await?;
-            } else {
-                self.total_supply.set(pool.calculate_liquidity(
-                    Amount::ZERO,
-                    argument.amount_0,
-                    argument.amount_1,
-                ));
-            }
-            pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
-            pool.update_k_last();
-        }
-
-        self.pool.set(Some(pool));
         self.transaction_id.set(1000);
 
-        Ok(liquidity)
+        Ok(())
     }
 
     fn pool(&self) -> Pool {
@@ -77,6 +55,12 @@ impl StateInterface for PoolState {
 
     fn total_supply(&self) -> Amount {
         *self.total_supply.get()
+    }
+
+    fn has_finalized_reserve_share_facts(&self) -> bool {
+        self.reserve_0() > Amount::ZERO
+            && self.reserve_1() > Amount::ZERO
+            && self.total_supply() > Amount::ZERO
     }
 
     fn consume_transfer_id(&mut self) -> u64 {
@@ -174,6 +158,30 @@ impl StateInterface for PoolState {
         );
         pool.update_k_last();
         self.pool.set(Some(pool));
+        Ok(liquidity)
+    }
+
+    async fn initialize_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) -> Result<Amount, Self::Error> {
+        assert!(
+            !self.has_finalized_reserve_share_facts(),
+            "Pool already initialized"
+        );
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+
+        let liquidity = self.mint_shares(amount_0, amount_1, to).await?;
+
+        let mut pool = self.pool();
+        pool.liquid(amount_0, amount_1, block_timestamp);
+        pool.update_k_last();
+        self.pool.set(Some(pool));
+
         Ok(liquidity)
     }
 

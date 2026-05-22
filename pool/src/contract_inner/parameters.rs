@@ -1,5 +1,5 @@
 use crate::interfaces::parameters::ParametersInterface;
-use abi::swap::pool::PoolParameters;
+use abi::swap::pool::{BootstrapPolicy, PoolParameters};
 use linera_sdk::{
     linera_base_types::{Account, ApplicationId},
     Contract,
@@ -18,6 +18,10 @@ impl ParametersInterface for PoolParameters {
     fn token_1(&mut self) -> Option<ApplicationId> {
         self.token_1
     }
+
+    fn bootstrap_policy(&mut self) -> BootstrapPolicy {
+        self.bootstrap_policy.clone()
+    }
 }
 
 impl<T, M> ParametersInterface for ContractRuntimeAdapter<T, M>
@@ -35,5 +39,9 @@ where
 
     fn token_1(&mut self) -> Option<ApplicationId> {
         self.application_parameters().token_1()
+    }
+
+    fn bootstrap_policy(&mut self) -> BootstrapPolicy {
+        self.application_parameters().bootstrap_policy()
     }
 }

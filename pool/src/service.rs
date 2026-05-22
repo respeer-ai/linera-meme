@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use abi::swap::pool::{Pool, PoolAbi, PoolOperation, PoolParameters};
+use abi::swap::pool::{BootstrapPolicy, Pool, PoolAbi, PoolOperation, PoolParameters};
 use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
     linera_base_types::{Account, Amount, Timestamp, WithServiceAbi},
@@ -59,9 +59,12 @@ impl Service for PoolService {
 
 impl PoolService {
     fn virtual_initial_liquidity(&self) -> bool {
-        self.runtime
-            .application_parameters()
-            .virtual_initial_liquidity
+        match self.runtime.application_parameters().bootstrap_policy {
+            BootstrapPolicy::UserCreatePool => false,
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity,
+            } => virtual_initial_liquidity,
+        }
     }
 }
 

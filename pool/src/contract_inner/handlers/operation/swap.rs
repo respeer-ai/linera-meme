@@ -82,6 +82,11 @@ impl<
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         assert!(
+            self.state.borrow().has_finalized_reserve_share_facts(),
+            "Pool is not ready"
+        );
+
+        assert!(
             !(self.amount_0_in.is_some() && self.amount_1_in.is_some())
                 && (self.amount_0_in.is_some() || self.amount_1_in.is_some()),
             "Invalid amount"

@@ -32,12 +32,12 @@ Affected flow: user `CreatePool`, meme native pool initialization.
 
 Problem: pool shell may exist while the swap chain never receives the receipt.
 
-Current safe behavior: shell is not active in `swap` application state and has no finalized reserves. Projection may show stalled shell if facts are available.
+Current safe behavior: shell is not active in `swap` application state and has no finalized reserve/share facts. Projection may show stalled shell if facts are available.
 
 Unsafe shortcuts:
 
 - treating shell existence as active pool truth
-- allowing swaps against the shell before finalized reserves exist
+- allowing swaps against the shell before finalized reserve/share facts exist
 
 ## OI-003 One Funding Leg Pending Forever
 

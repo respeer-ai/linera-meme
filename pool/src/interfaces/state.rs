@@ -17,7 +17,7 @@ pub trait StateInterface {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<Amount, Self::Error>;
+    ) -> Result<(), Self::Error>;
 
     fn pool(&self) -> Pool;
 
@@ -26,6 +26,7 @@ pub trait StateInterface {
     fn reserve_0(&self) -> Amount;
     fn reserve_1(&self) -> Amount;
     fn total_supply(&self) -> Amount;
+    fn has_finalized_reserve_share_facts(&self) -> bool;
 
     fn consume_transfer_id(&mut self) -> u64;
 
@@ -62,6 +63,14 @@ pub trait StateInterface {
     fn liquid(&mut self, balance_0: Amount, balance_1: Amount, block_timestamp: Timestamp);
 
     async fn add_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) -> Result<Amount, Self::Error>;
+
+    async fn initialize_liquidity(
         &mut self,
         amount_0: Amount,
         amount_1: Amount,

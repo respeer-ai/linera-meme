@@ -28,7 +28,7 @@ Known gaps:
 - Pending pair contention must use first-funded-wins semantics instead of permanent reject. Losing workflows must fail safely, credit already-custodied value to claim balances, and keep losing shell chains/applications non-tradable or cleaned up.
 - Pool creation terminal truth must be unique and reliable in the message-driven state machine. A failed terminal workflow must not leave reusable old shell/application state.
 - Internal create-pool messages must validate immutable carried facts and authoritative chain facts at each hop.
-- The current implementation does not yet implement first-funded-wins. It creates pool state on `PoolCreated` and then starts user initial liquidity through `UserPoolCreated -> PoolOperation::AddLiquidity`, without a final pool-side initialization boundary.
+- The current implementation does not yet implement first-funded-wins. It creates pool state on `PoolCreated` and then starts user initial liquidity through `UserPoolCreated -> PoolOperation::AddLiquidity`, without a final pool-side reserve/share finalization boundary.
 - If another user calls `AddLiquidity` on a pending shell, the target design must still allow the first successful two-sided funding path to initialize the pool. No additional persisted create-pool or add-liquidity intent is introduced for that race; the winning path is determined by pool-side first successful finalization.
 
 ## CreateUserPool / UserPoolCreated
@@ -37,14 +37,12 @@ Known current behavior:
 
 - `CreateUserPoolHandler` uses `message_signer_account()` to infer creator.
 - `UserPoolCreatedHandler` directly calls pool `AddLiquidity`.
-- `UserPoolCreatedHandler` calls `mark_user_pool_created(pool_application)` before calling pool `AddLiquidity`.
-- `mark_user_pool_created` stores `processed_user_pool_creations[pool_application] = true` and skips later `UserPoolCreated` handling for the same pool application.
 
 Known gaps:
 
 - Token, amount, pair, recipient, and origin must be validated from authoritative chain facts plus immutable carried message facts. Account facts must be defined per hop: use `message_signer_account()` when the message signer is the exact required business fact, and carry account facts only when the current hop cannot derive the required fact from chain state.
 - Shell receipt and user-pool-created handling must verify immutable carried facts plus source/app/chain.
-- `mark_user_pool_created` is only a late narrow guard against repeated `UserPoolCreated` handling for the same pool application. The target protocol must remove this auxiliary marker and rely on message legality plus pool-side `initialized` and funding facts instead.
+- `mark_user_pool_created` was only a late narrow guard against repeated `UserPoolCreated` handling for the same pool application. The target protocol removes this auxiliary marker and relies on message legality plus pool-side funding facts instead.
 
 ## Message Tracking And Bouncing
 

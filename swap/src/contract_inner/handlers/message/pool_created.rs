@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     meme::{MemeAbi, MemeOperation},
-    swap::router::{SwapMessage, SwapResponse},
+    swap::{pool::BootstrapPolicy, router::{SwapMessage, SwapResponse}},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -19,9 +19,8 @@ pub struct PoolCreatedHandler<R: ContractRuntimeContext + AccessControl, S: Stat
     token_1: Option<ApplicationId>,
     amount_0: Amount,
     amount_1: Amount,
-    virtual_initial_liquidity: bool,
+    bootstrap_policy: BootstrapPolicy,
     to: Option<Account>,
-    user_pool: bool,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHandler<R, S> {
@@ -33,9 +32,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
             token_1,
             amount_0,
             amount_1,
-            virtual_initial_liquidity,
+            bootstrap_policy,
             to,
-            user_pool,
         } = msg
         else {
             panic!("Invalid message");
@@ -51,9 +49,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
             token_1: *token_1,
             amount_0: *amount_0,
             amount_1: *amount_1,
-            virtual_initial_liquidity: *virtual_initial_liquidity,
+            bootstrap_policy: bootstrap_policy.clone(),
             to: *to,
-            user_pool: *user_pool,
         }
     }
 }
@@ -65,8 +62,13 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> PoolCreatedHa
         token_0: ApplicationId,
         amount_0: Amount,
         amount_1: Amount,
-        virtual_initial_liquidity: bool,
     ) {
+        let BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity,
+        } = &self.bootstrap_policy
+        else {
+            panic!("Invalid bootstrap policy for initial pool creation");
+        };
         if !virtual_initial_liquidity {
             // This message may be authenticated by other user who is not the owner of swap
             // creation chain
@@ -149,24 +151,26 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
             panic!("Pool exists");
         }
 
-        let outcome_message = if self.user_pool {
-            Some(self.user_pool_created(
+        let outcome_message = match &self.bootstrap_policy {
+            BootstrapPolicy::UserCreatePool => Some(self.user_pool_created(
                 self.pool_application,
                 self.token_0,
                 self.token_1,
                 self.amount_0,
                 self.amount_1,
                 self.to,
-            ))
-        } else {
-            self.initial_pool_created(
-                self.pool_application,
-                self.token_0,
-                self.amount_0,
-                self.amount_1,
-                self.virtual_initial_liquidity,
-            );
-            None
+            )),
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity: _,
+            } => {
+                self.initial_pool_created(
+                    self.pool_application,
+                    self.token_0,
+                    self.amount_0,
+                    self.amount_1,
+                );
+                None
+            }
         };
 
         let timestamp = self.runtime.borrow_mut().system_time();

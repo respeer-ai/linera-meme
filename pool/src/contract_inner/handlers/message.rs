@@ -1,6 +1,7 @@
 pub mod add_liquidity;
 pub mod fund_fail;
 pub mod fund_success;
+pub mod initialize_liquidity;
 pub mod new_transaction;
 pub mod remove_liquidity;
 pub mod request_fund;

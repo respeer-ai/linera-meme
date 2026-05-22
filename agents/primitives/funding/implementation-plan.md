@@ -105,6 +105,7 @@ Minimal changes:
 - Attach `.with_tracking()` by default in `ContractRuntimeContext::send_message` before funding or claim workflows depend on bounce handling.
 - Bind every remaining `CreateUserPool`, internal `CreatePool`, `PoolCreated`, and `UserPoolCreated` message to the approved immutable carried facts plus authoritative chain-fact checks. Removing or merging old messages is allowed only as a refactor; any message that remains must validate the reviewed facts explicitly.
 - Materialize a handler-level message transition table before code changes in this iteration. The table must specify which handler consumes each continuation, which immutable facts are checked from message payload, which chain facts are used directly at each hop, and which account facts are explicitly carried because the current hop cannot derive the required business fact from runtime chain state.
+- Treat meme initialization as an internal-only bootstrap discriminator. It may authorize virtual-liquidity bootstrap semantics, but it must not be user-selectable input and must not be inferred from frontend payload.
 
 Validation:
 
@@ -140,7 +141,7 @@ Validation:
 
 ### FUND-009 Iteration 4: Existing-pool AddLiquidity two-leg pending
 
-Purpose: make existing active-pool add liquidity safe using the established claim exit.
+Purpose: make existing finalized-pool add liquidity safe using the established claim exit.
 
 Minimal changes:
 
@@ -163,23 +164,23 @@ Validation:
 ### FUND-010 Iteration 5: Meme initialize-liquidity convergence and user-pool visibility split
 
 Purpose: keep meme initialize-liquidity on the custody-proven activation path while treating
-user-pool post-creation liquidity as ordinary active-pool add liquidity.
+user-pool post-creation liquidity as ordinary finalized-pool add liquidity once finalized reserve/share facts exist.
 
 Minimal changes:
 
 - Keep meme initialize-liquidity on the existing custody-proven path: `PoolCreated` does not activate meme-created pools; only accepted funding plus accepted `UpdatePool` may write active router truth.
-- For user `CreatePool`, treat `SwapMessage::PoolCreated { user_pool: true, ... }` as the protocol pair-existence boundary. Shell creation success writes protocol-level active pair truth, but the pool remains unusable until first real funding converges through `FinalizeInitialization`.
-- Do not route user-pool post-creation liquidity through a create-pool-specific two-leg activation closure. `SwapMessage::UserPoolCreated` starts one ordinary active-pool `PoolOperation::AddLiquidity` flow, and that flow is governed by the same funding-consistency rules as existing-pool add liquidity.
+- For user `CreatePool`, treat `SwapMessage::PoolCreated { user_pool: true, ... }` as the protocol pair-existence boundary. Shell creation success writes protocol-level active pair truth, but the pool remains unusable until first real funding converges through `FinalizeInitialization` and writes finalized reserve/share facts.
+- Do not route user-pool post-creation liquidity through a create-pool-specific two-leg activation closure. `SwapMessage::UserPoolCreated` starts the shared pool-side funding path, and that path branches by whether finalized reserve/share facts already exist.
 - Do not introduce first-funded-wins or pending-shell competition rules for user create-pool activation. Once `user_pool == true` shell creation is accepted, the pair exists protocol-side and later liquidity is normal add liquidity.
 - Keep failed shells permanently non-economic. Close a shell chain only after cleanup has resolved all application-level custody.
 - Define shell close eligibility in the transition table before implementing close.
 - Define concrete post-creation add-liquidity failure behavior for the user-pool kickoff path under the shared add-liquidity rules.
-- Product/read-model rule: a protocol-existing pool with `reserve_0 == 0 && reserve_1 == 0` is not frontend-visible and is not a tradable/displayed market until reserves become non-zero.
+- Product/read-model rule: a protocol-existing pool without finalized reserve/share facts, including a zero-reserve shell, is not frontend-visible and is not a tradable/displayed market.
 
 Validation:
 
 - Meme initialize-liquidity does not activate before accepted funding and accepted `UpdatePool`.
-- User `CreatePool` writes protocol pair truth at `PoolCreated` after immutable-fact validation, and pool usability starts only after pool-side `FinalizeInitialization`.
+- User `CreatePool` writes protocol pair truth at `PoolCreated` after immutable-fact validation, and pool usability starts only after `FinalizeInitialization` writes finalized reserve/share facts.
 - User-pool kickoff `AddLiquidity` failure does not delete protocol pair existence, but follows ordinary add-liquidity claim-credit and retry-safe rules.
 - Product-visible pool lists exclude pools whose reserves are both zero.
 

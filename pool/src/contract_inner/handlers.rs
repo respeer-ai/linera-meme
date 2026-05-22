@@ -12,6 +12,7 @@ use message::{
     add_liquidity::AddLiquidityHandler as MessageAddLiquidityHandler,
     fund_fail::FundFailHandler as MessageFundFailHandler,
     fund_success::FundSuccessHandler as MessageFundSuccessHandler,
+    initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
     new_transaction::NewTransactionHandler as MessageNewTransactionHandler,
     remove_liquidity::RemoveLiquidityHandler as MessageRemoveLiquidityHandler,
     request_fund::RequestFundHandler as MessageRequestFundHandler,
@@ -21,6 +22,7 @@ use message::{
 };
 use operation::{
     add_liquidity::AddLiquidityHandler as OperationAddLiquidityHandler,
+    initialize_liquidity::InitializeLiquidityHandler as OperationInitializeLiquidityHandler,
     remove_liquidity::RemoveLiquidityHandler as OperationRemoveLiquidityHandler,
     set_fee_to::SetFeeToHandler as OperationSetFeeToHandler,
     set_fee_to_setter::SetFeeToSetterHandler as OperationSetFeeToSetterHandler,
@@ -53,6 +55,9 @@ impl HandlerFactory {
             }
             PoolOperation::SetFeeToSetter { .. } => {
                 Box::new(OperationSetFeeToSetterHandler::new(runtime, state, op))
+            }
+            PoolOperation::InitializeLiquidity { .. } => {
+                Box::new(OperationInitializeLiquidityHandler::new(runtime, state, op))
             }
             PoolOperation::AddLiquidity { .. } => {
                 Box::new(OperationAddLiquidityHandler::new(runtime, state, op))
@@ -90,6 +95,9 @@ impl HandlerFactory {
             PoolMessage::Swap { .. } => Box::new(MessageSwapHandler::new(runtime, state, msg)),
             PoolMessage::AddLiquidity { .. } => {
                 Box::new(MessageAddLiquidityHandler::new(runtime, state, msg))
+            }
+            PoolMessage::InitializeLiquidity { .. } => {
+                Box::new(MessageInitializeLiquidityHandler::new(runtime, state, msg))
             }
             PoolMessage::RemoveLiquidity { .. } => {
                 Box::new(MessageRemoveLiquidityHandler::new(runtime, state, msg))

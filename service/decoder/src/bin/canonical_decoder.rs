@@ -2,7 +2,7 @@ use abi::ams::{AmsMessage, AmsOperation};
 use abi::blob_gateway::{BlobGatewayMessage, BlobGatewayOperation};
 use abi::meme::{MemeMessage, MemeOperation};
 use abi::proxy::{ProxyMessage, ProxyOperation};
-use abi::swap::pool::{PoolMessage, PoolOperation};
+use abi::swap::pool::{BootstrapPolicy, PoolMessage, PoolOperation};
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, Timestamp};
@@ -121,6 +121,22 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "operation_type": "set_fee_to_setter",
                 "application_id": application_id,
                 "account": encode_account(account),
+            }),
+        ),
+        PoolOperation::InitializeLiquidity {
+            amount_0_in,
+            amount_1_in,
+            to,
+            block_timestamp,
+        } => (
+            "initialize_liquidity",
+            json!({
+                "operation_type": "initialize_liquidity",
+                "application_id": application_id,
+                "amount_0_in": encode_amount(amount_0_in),
+                "amount_1_in": encode_amount(amount_1_in),
+                "to": encode_option_account(to),
+                "block_timestamp_micros": encode_option_timestamp(block_timestamp),
             }),
         ),
         PoolOperation::AddLiquidity {
@@ -263,6 +279,24 @@ fn decode_pool_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "amount_1_in": encode_amount(amount_1_in),
                 "amount_0_out_min": encode_option_amount(amount_0_out_min),
                 "amount_1_out_min": encode_option_amount(amount_1_out_min),
+                "to": encode_option_account(to),
+                "block_timestamp_micros": encode_option_timestamp(block_timestamp),
+            }),
+        ),
+        PoolMessage::InitializeLiquidity {
+            origin,
+            amount_0_in,
+            amount_1_in,
+            to,
+            block_timestamp,
+        } => (
+            "initialize_liquidity",
+            json!({
+                "message_type": "initialize_liquidity",
+                "application_id": application_id,
+                "origin": encode_account(origin),
+                "amount_0_in": encode_amount(amount_0_in),
+                "amount_1_in": encode_amount(amount_1_in),
                 "to": encode_option_account(to),
                 "block_timestamp_micros": encode_option_timestamp(block_timestamp),
             }),
@@ -581,9 +615,8 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
             token_1,
             amount_0,
             amount_1,
-            virtual_initial_liquidity,
+            bootstrap_policy,
             to,
-            user_pool,
         } => (
             "create_pool",
             json!({
@@ -595,9 +628,8 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
-                "virtual_initial_liquidity": virtual_initial_liquidity,
+                "bootstrap_policy": encode_bootstrap_policy(&bootstrap_policy),
                 "to": encode_option_account(to),
-                "user_pool": user_pool,
             }),
         ),
         SwapMessage::PoolCreated {
@@ -607,9 +639,8 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
             token_1,
             amount_0,
             amount_1,
-            virtual_initial_liquidity,
+            bootstrap_policy,
             to,
-            user_pool,
         } => (
             "pool_created",
             json!({
@@ -621,9 +652,8 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
-                "virtual_initial_liquidity": virtual_initial_liquidity,
+                "bootstrap_policy": encode_bootstrap_policy(&bootstrap_policy),
                 "to": encode_option_account(to),
-                "user_pool": user_pool,
             }),
         ),
         SwapMessage::CreateUserPool {
@@ -1069,6 +1099,20 @@ fn encode_transaction_type(transaction_type: TransactionType) -> &'static str {
 
 fn encode_option_timestamp(value: Option<Timestamp>) -> Option<u64> {
     value.map(|timestamp| timestamp.micros())
+}
+
+fn encode_bootstrap_policy(policy: &BootstrapPolicy) -> Value {
+    match policy {
+        BootstrapPolicy::UserCreatePool => json!({
+            "kind": "user_create_pool"
+        }),
+        BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity,
+        } => json!({
+            "kind": "meme_initialize_liquidity",
+            "virtual_initial_liquidity": virtual_initial_liquidity,
+        }),
+    }
 }
 
 fn encode_option_amount(value: Option<Amount>) -> Option<String> {

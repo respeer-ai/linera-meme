@@ -1,7 +1,7 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     policy::open_chain_fee_budget,
-    swap::router::{SwapMessage, SwapResponse},
+    swap::{pool::BootstrapPolicy, router::{SwapMessage, SwapResponse}},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -25,10 +25,9 @@ pub struct CreatePoolHandler<
     token_1: Option<ApplicationId>,
     amount_0: Amount,
     amount_1: Amount,
-    virtual_liquidity: bool,
+    bootstrap_policy: BootstrapPolicy,
     to: Option<Account>,
     _deadline: Option<Timestamp>,
-    user_pool: bool,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
@@ -42,10 +41,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
-        virtual_liquidity: bool,
+        bootstrap_policy: BootstrapPolicy,
         to: Option<Account>,
         _deadline: Option<Timestamp>,
-        user_pool: bool,
     ) -> Self {
         Self {
             state,
@@ -56,10 +54,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             token_1,
             amount_0,
             amount_1,
-            virtual_liquidity,
+            bootstrap_policy,
             to,
             _deadline,
-            user_pool,
         }
     }
 
@@ -99,14 +96,15 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
-        if self.user_pool {
-            // User pool creation is always backed by real two-sided initial liquidity.
-            // Virtual initial liquidity is only valid for the creator-side
-            // InitializeLiquidity flow, not for user pool creation.
-            assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
-            assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
-            assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
-            assert!(!self.virtual_liquidity, "Invalid virtual_initial_liquidity");
+        match &self.bootstrap_policy {
+            BootstrapPolicy::UserCreatePool => {
+                assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+                assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+                assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
+            }
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity: _,
+            } => {}
         }
 
         let pool_bytecode_id = self.state.borrow_mut().pool_bytecode_id();
@@ -129,9 +127,8 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 token_1: self.token_1,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,
-                virtual_initial_liquidity: self.virtual_liquidity,
+                bootstrap_policy: self.bootstrap_policy.clone(),
                 to: self.to,
-                user_pool: self.user_pool,
             },
         );
 

@@ -109,23 +109,6 @@ impl StateInterface for SwapState {
         Ok(self.pool_chains.get(&chain_id).await?.unwrap_or(false))
     }
 
-    async fn mark_user_pool_created(
-        &mut self,
-        pool_application: Account,
-    ) -> Result<bool, Self::Error> {
-        let already_processed = self
-            .processed_user_pool_creations
-            .get(&pool_application)
-            .await?
-            .unwrap_or(false);
-        if already_processed {
-            return Ok(false);
-        }
-        self.processed_user_pool_creations
-            .insert(&pool_application, true)?;
-        Ok(true)
-    }
-
     async fn update_pool(
         &mut self,
         token_0: ApplicationId,

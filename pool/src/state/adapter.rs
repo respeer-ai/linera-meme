@@ -30,7 +30,7 @@ impl StateInterface for StateAdapter {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<Amount, Self::Error> {
+    ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
             .instantiate(argument, parameters, owner, block_timestamp)
@@ -55,6 +55,10 @@ impl StateInterface for StateAdapter {
 
     fn total_supply(&self) -> Amount {
         self.state.borrow().total_supply()
+    }
+
+    fn has_finalized_reserve_share_facts(&self) -> bool {
+        self.state.borrow().has_finalized_reserve_share_facts()
     }
 
     fn consume_transfer_id(&mut self) -> u64 {
@@ -136,6 +140,19 @@ impl StateInterface for StateAdapter {
         self.state
             .borrow_mut()
             .add_liquidity(amount_0, amount_1, to, block_timestamp)
+            .await
+    }
+
+    async fn initialize_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) -> Result<Amount, Self::Error> {
+        self.state
+            .borrow_mut()
+            .initialize_liquidity(amount_0, amount_1, to, block_timestamp)
             .await
     }
 

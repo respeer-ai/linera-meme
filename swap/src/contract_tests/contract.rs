@@ -3,6 +3,7 @@ use super::super::{SwapContract, SwapState};
 use abi::{
     meme::MemeResponse,
     swap::{
+        pool::{BootstrapPolicy, PoolOperation},
         router::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
             SwapResponse,
@@ -175,7 +176,7 @@ async fn operation_create_pool_rejects_missing_signer_before_creator_chain_fundi
     let mut swap = create_and_instantiate_swap();
     let (meme_1, meme_2) = public_create_pool_test_tokens();
 
-    swap.runtime.set_authenticated_signer(None);
+    swap.runtime.borrow_mut().set_authenticated_signer(None);
 
     let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
         token_0: meme_1,
@@ -452,9 +453,10 @@ async fn message_pool_created_ignores_wrong_chain_receipt() {
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
-        virtual_initial_liquidity: false,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: false,
+        },
         to: None,
-        user_pool: false,
     })
     .await;
 
@@ -556,9 +558,10 @@ async fn create_pool_operation_pool_chain_created_pool_created_and_update_pool_a
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
-        virtual_initial_liquidity: false,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: false,
+        },
         to: None,
-        user_pool: false,
     })
     .await;
 
@@ -610,9 +613,10 @@ async fn message_pool_created_ignores_duplicate_receipt() {
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
-        virtual_initial_liquidity: false,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: false,
+        },
         to: None,
-        user_pool: false,
     };
 
     swap.execute_message(message.clone()).await;
@@ -628,6 +632,105 @@ async fn message_pool_created_ignores_duplicate_receipt() {
         .unwrap();
     assert_eq!(pool.pool_application, pool_application);
     assert_eq!(*swap.state.borrow().pool_id.get(), 1001);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_pool_created_user_bootstrap_branch_does_not_call_meme_initialize_liquidity() {
+    let call_count = Rc::new(RefCell::new(0usize));
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        let call_count = call_count.clone();
+        move |_authenticated, _application_id, _operation| {
+            *call_count.borrow_mut() += 1;
+            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        }
+    });
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::UserCreatePool,
+        to: None,
+    })
+    .await;
+
+    assert_eq!(*call_count.borrow(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_pool_created_meme_bootstrap_branch_calls_meme_initialize_liquidity() {
+    let call_count = Rc::new(RefCell::new(0usize));
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        let call_count = call_count.clone();
+        move |_authenticated, _application_id, _operation| {
+            *call_count.borrow_mut() += 1;
+            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        }
+    });
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb4",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: None,
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: true,
+        },
+        to: None,
+    })
+    .await;
+
+    assert_eq!(*call_count.borrow(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -672,9 +775,8 @@ async fn message_user_pool_created_receipt_is_app_created_only() {
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
-        virtual_initial_liquidity: false,
+        bootstrap_policy: BootstrapPolicy::UserCreatePool,
         to: None,
-        user_pool: true,
     })
     .await;
 
@@ -694,12 +796,14 @@ async fn message_user_pool_created_receipt_is_app_created_only() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_user_pool_created_is_idempotent() {
-    let call_count = Rc::new(RefCell::new(0usize));
+async fn message_user_pool_created_calls_pool_add_liquidity() {
+    let observed_calls = Rc::new(RefCell::new(Vec::<(ApplicationId, Vec<u8>)>::new()));
     let mut swap = create_and_instantiate_swap_with_call_handler({
-        let call_count = call_count.clone();
-        move |_authenticated, _application_id, _operation| {
-            *call_count.borrow_mut() += 1;
+        let observed_calls = observed_calls.clone();
+        move |_authenticated, application_id, operation| {
+            observed_calls
+                .borrow_mut()
+                .push((application_id, operation.clone()));
             bcs::to_bytes(&MemeResponse::Ok).unwrap()
         }
     });
@@ -721,19 +825,44 @@ async fn message_user_pool_created_is_idempotent() {
     let token_1 =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
             .unwrap();
-    let message = SwapMessage::UserPoolCreated {
+
+    swap.execute_message(SwapMessage::UserPoolCreated {
         pool_application,
         token_0,
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
         to: None,
+    })
+    .await;
+
+    let calls = observed_calls.borrow();
+    assert_eq!(calls.len(), 1);
+
+    let AccountOwner::Address32(application_description_hash) = pool_application.owner else {
+        panic!("Invalid owner");
     };
+    let expected_application_id = ApplicationId::new(application_description_hash);
+    assert_eq!(calls[0].0, expected_application_id.forget_abi());
 
-    swap.execute_message(message.clone()).await;
-    swap.execute_message(message).await;
-
-    assert_eq!(*call_count.borrow(), 1);
+    let operation = bcs::from_bytes::<PoolOperation>(&calls[0].1).unwrap();
+    let PoolOperation::AddLiquidity {
+        amount_0_in,
+        amount_1_in,
+        amount_0_out_min,
+        amount_1_out_min,
+        to,
+        block_timestamp,
+    } = operation
+    else {
+        panic!("Expected AddLiquidity");
+    };
+    assert_eq!(amount_0_in, Amount::ONE);
+    assert_eq!(amount_1_in, Amount::ONE);
+    assert_eq!(amount_0_out_min, None);
+    assert_eq!(amount_1_out_min, None);
+    assert_eq!(to, None);
+    assert_eq!(block_timestamp, None);
 }
 
 fn mock_application_call(

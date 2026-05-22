@@ -56,6 +56,7 @@ Do not leave validation to implementation judgment with phrases such as "expecte
 - Do not finalize reserve before required input custody is represented.
 - Do not mint LP share before both add-liquidity legs are funded.
 - Do not mark a pair active in `swap` application state before the app-created receipt is consumed.
+- Do not treat a pool as tradable, removable, or ordinary-add-liquidity-eligible before finalized reserve/share facts exist.
 - Do not burn LP share unless owed value is credited to claim balances or otherwise proven delivered.
 - Do not remove meme-token claiming balance before success acknowledgement, and do not remove native claim balance before successful synchronous native transfer.
 - Finalization and claim-balance crediting must only be reachable from the expected workflow state.
@@ -69,6 +70,7 @@ Do not leave validation to implementation judgment with phrases such as "expecte
 - It is not claimable balance.
 - It is not payable native balance.
 - It must be emitted and projected as virtual position state, not normal add-liquidity state.
+- Any protocol branch that permits virtual-liquidity bootstrap semantics must be entered only through a reviewed internal discriminator. Ordinary user input must not be able to choose that branch.
 
 ## Stalled Workflows
 

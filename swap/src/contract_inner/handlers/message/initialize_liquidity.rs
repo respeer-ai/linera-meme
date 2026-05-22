@@ -1,7 +1,7 @@
 use crate::{
     contract_inner::handlers::create_pool::CreatePoolHandler, interfaces::state::StateInterface,
 };
-use abi::swap::router::{SwapMessage, SwapResponse};
+use abi::swap::{pool::BootstrapPolicy, router::{SwapMessage, SwapResponse}};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
@@ -71,10 +71,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             None,
             self.amount_0,
             self.amount_1,
-            self.virtual_liquidity,
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity: self.virtual_liquidity,
+            },
             self.to,
             None,
-            false,
         );
 
         handler.handle().await

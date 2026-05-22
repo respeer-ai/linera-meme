@@ -72,18 +72,17 @@ Persistent chain: pool chain.
 
 Purpose:
 
-- finalize the first accepted real funding of an uninitialized pool
+- finalize the first accepted real funding of a pool that does not yet have finalized reserve/share facts
 - write the initial reserve/share economic state
 - make the pool usable for ordinary paths
 
 Rules:
 
-- Pool instantiate creates only base state and leaves the pool uninitialized.
+- Pool instantiate creates only base state and does not write finalized reserve/share economics.
 - `FinalizeInitialization` is the only boundary that may:
   - write initial reserve state
   - write initial LP/share supply
   - update `k_last` for initialized economics
-  - set the pool-side `initialized` fact
 - If required real funding has not yet entered the pool application, `FinalizeInitialization` must reject.
 - If initialization fails before finalization, only real assets that actually entered protocol control may become claimable. Virtual value never becomes claimable.
 
@@ -91,7 +90,7 @@ Flow:
 
 1. Validate public create-pool input on the user-reachable swap operation entry.
 2. Create the pool child chain and pool application.
-3. Leave the new pool uninitialized at instantiate time.
+3. Leave the new pool without finalized reserve/share facts at instantiate time.
 4. Kick off the first real two-sided funding path into the pool application.
 5. When the required first funding has entered the pool application, execute `FinalizeInitialization`.
 6. Only after `FinalizeInitialization` is complete is the pool usable for ordinary swap, remove-liquidity, and existing-pool add-liquidity flows.
@@ -105,7 +104,7 @@ Flow:
 1. Meme-side initialization prepares meme initial-liquidity allowance for swap.
 2. When virtual initial liquidity is disabled, native initial-liquidity value is also transferred into swap control before swap initialization starts.
 3. Swap creates the pool child chain and pool application.
-4. Pool instantiate leaves the pool uninitialized and does not write final reserve/share economics.
+4. Pool instantiate leaves the pool without finalized reserve/share facts and does not write final reserve/share economics.
 5. Real assets are transferred from swap / meme into the pool application.
 6. `FinalizeInitialization` writes final initialized reserve/share state.
 7. Only after `FinalizeInitialization` is complete is the pool usable for ordinary paths.
@@ -123,8 +122,8 @@ Persistent chain: pool chain.
 
 Rules:
 
-- Ordinary existing-pool add liquidity requires `initialized == true`.
-- If `initialized == false`, the first accepted two-sided real funding path is not ordinary add liquidity; it must converge through `FinalizeInitialization`.
+- Ordinary existing-pool add liquidity requires existing finalized reserve/share facts.
+- If finalized reserve/share facts do not yet exist, the first accepted two-sided real funding path is not ordinary add liquidity; it must converge through `FinalizeInitialization`.
 - Both legs must be funded before reserve update, LP mint, or settled add-liquidity fact for an initialized pool.
 - Funding callbacks must validate source, expected leg, and current allowed path.
 - Explicit failed opposite leg moves already funded real value to claim balances.
@@ -137,7 +136,7 @@ Persistent chain: pool chain.
 
 Rules:
 
-- Ordinary swap requires `initialized == true`.
+- Ordinary swap requires existing finalized reserve/share facts.
 - Input funding must be represented before economics finalize.
 - Slippage or check failure after input custody credits input back to claim balances.
 - Successful swap updates reserves and credits output to claim balances.
@@ -150,7 +149,7 @@ Persistent chain: pool chain.
 
 Rules:
 
-- Ordinary remove liquidity requires `initialized == true`.
+- Ordinary remove liquidity requires existing finalized reserve/share facts.
 - Burn, reserve decrease, and owed-value calculation happen before user funds exit.
 - Owed output value is credited to claim balances instead of being treated as protocol completion only after direct remote payout.
 - The target design does not persist a remove-liquidity intent object.

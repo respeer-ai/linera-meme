@@ -24,10 +24,12 @@ Non-responsibilities:
 Responsibilities:
 
 - Own reserves, LP accounting, positions, claim balances, and claiming balances.
-- Own pool-side `initialized` truth, concrete per-leg funding state, and final reserve/share accounting.
+- Own concrete per-leg funding state and final reserve/share accounting.
 - Finalize reserve and LP state only after required inputs are funded.
 - Credit claim balances for owed output, refund, excess, protocol fee, and remote liquidity.
 - Execute `Claim`.
+- Use finalized reserve/share facts as the only tradability and ordinary-path readiness boundary.
+- Distinguish bootstrap-only branches such as meme initialization through reviewed internal facts, not user-selectable input.
 
 Non-responsibilities:
 

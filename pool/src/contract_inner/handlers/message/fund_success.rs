@@ -122,6 +122,9 @@ where
         .await;
     }
 
+    // TODO(funding): revisit whether initialize_liquidity_fund_success and
+    // add_liquidity_fund_success should share an extracted helper once the
+    // initialize path and failure semantics are finalized.
     async fn add_liquidity_fund_success(
         &mut self,
         fund_request: &FundRequest,
@@ -202,6 +205,83 @@ where
 
         Ok(Some(outcome))
     }
+
+    async fn initialize_liquidity_fund_success(
+        &mut self,
+        fund_request: &FundRequest,
+    ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
+        if let Some(transfer_id) = fund_request.next_request {
+            let fund_request = self
+                .state
+                .borrow()
+                .fund_request(transfer_id)
+                .await
+                .map_err(Into::into)?;
+            if let Some(token_1) = fund_request.token {
+                let mut handler = RequestMemeFundHandler::new(
+                    self.runtime.clone(),
+                    self.state.clone(),
+                    token_1,
+                    fund_request.amount_in,
+                    transfer_id,
+                );
+                return handler.handle().await;
+            }
+
+            let fund_request = self
+                .state
+                .borrow()
+                .fund_request(transfer_id)
+                .await
+                .map_err(Into::into)?;
+            self.fund_pool_application_creation_chain(fund_request.amount_in)
+                .await;
+        }
+
+        let fund_request_0 = if let Some(transfer_id) = fund_request.prev_request {
+            &self
+                .state
+                .borrow()
+                .fund_request(transfer_id)
+                .await
+                .map_err(Into::into)?
+        } else {
+            fund_request
+        };
+        let fund_request_1 = if let Some(transfer_id) = fund_request.next_request {
+            &self
+                .state
+                .borrow()
+                .fund_request(transfer_id)
+                .await
+                .map_err(Into::into)?
+        } else {
+            fund_request
+        };
+
+        self.transfer_meme_to_creation_chain_application(fund_request_0)
+            .await;
+        if fund_request_1.token.is_some() {
+            self.transfer_meme_to_creation_chain_application(fund_request_1)
+                .await;
+        }
+
+        let destination = self.runtime.borrow_mut().application_creator_chain_id();
+        let mut outcome = HandlerOutcome::new();
+
+        outcome.with_message(
+            destination,
+            PoolMessage::InitializeLiquidity {
+                origin: fund_request_0.from,
+                amount_0_in: fund_request_0.amount_in,
+                amount_1_in: fund_request_1.amount_in,
+                to: fund_request_0.to,
+                block_timestamp: fund_request_0.block_timestamp,
+            },
+        );
+
+        Ok(Some(outcome))
+    }
 }
 
 #[async_trait(?Send)]
@@ -229,6 +309,9 @@ where
 
         match fund_request.fund_type {
             FundType::Swap => Ok(Some(self.swap_fund_success(&fund_request).await)),
+            FundType::InitializeLiquidity => {
+                Ok(self.initialize_liquidity_fund_success(&fund_request).await?)
+            }
             FundType::AddLiquidity => Ok(self.add_liquidity_fund_success(&fund_request).await?),
         }
     }

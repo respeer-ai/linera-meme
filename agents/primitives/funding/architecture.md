@@ -76,9 +76,9 @@ Pool application creation and pool economic finalization are distinct protocol p
 
 Creating a pool application does not mean the pool is initialized, active, tradable, or ready for ordinary add-liquidity / swap / remove-liquidity paths.
 
-The target design does not use persisted create-pool intents. Protocol truth for pool usability comes from pool-side finalized economic state, especially the pool-side `initialized` fact together with finalized reserve/share state.
+The target design does not use persisted create-pool intents. Protocol truth for pool usability comes from finalized pool-side economic state itself: finalized reserve/share facts, not a separate lifecycle bit.
 
-User `CreatePool`, meme initialization, and any first real funding of an uninitialized pool all converge through post-funding `FinalizeInitialization`. Ordinary existing-pool add liquidity, swap, and remove liquidity are allowed only after that initialization boundary is complete.
+User `CreatePool`, meme initialization, and any first real funding of a pool that does not yet have finalized reserve/share facts all converge through post-funding `FinalizeInitialization`. Ordinary existing-pool add liquidity, swap, and remove liquidity are allowed only after those finalized reserve/share facts exist.
 
 Linera applications can close the current chain through `ContractRuntime::close_chain()` if their application id is authorized by the chain's `ApplicationPermissions.close_chain`. Linera close only marks the chain closed; it does not move remaining balance or application custody. The current pool child-chain creation path already grants close permission to the router/swap application. Cleanup may close a failed pool chain only after all application-level cleanup has completed: no reserves/LP are finalized, owed user value has been credited to claim balances, and any remaining custody has been resolved according to the cleanup state. If cleanup is not fully completed, the chain must remain permanently non-economic rather than be closed.
 
@@ -88,21 +88,23 @@ For pool-based funding flows, the protocol must distinguish:
 
 - pool application exists
 - real funds entered the pool application
-- pool economic initialization finalized
+- first finalized pool economic facts written
 
 `PoolCreated` is an app-created fact only. It is not by itself the boundary for active pool truth, final reserve/share state, or normal-path usability.
 
 The boundary for ordinary pool behavior is post-funding `FinalizeInitialization`.
 
-After a pool application exists but before pool-side initialization finalization completes, the pool is an uninitialized protocol object.
+After a pool application exists but before finalized reserve/share facts exist, the pool is a non-economic protocol object.
 
 Rules:
 
-- Uninitialized pool applications are valid protocol objects but are not yet usable for ordinary swap or remove-liquidity flows.
-- The first accepted real-funding path for an uninitialized pool must converge through `FinalizeInitialization`.
-- Ordinary existing-pool add liquidity exists only after pool-side initialization is complete.
-- Product-visible pool, market, and trading surfaces must exclude pools that are not initialized.
+- Pool applications without finalized reserve/share facts are valid protocol objects but are not yet usable for ordinary swap or remove-liquidity flows.
+- The first accepted real-funding path for a pool without finalized reserve/share facts must converge through `FinalizeInitialization`.
+- Ordinary existing-pool add liquidity exists only after finalized reserve/share facts exist.
+- Product-visible pool, market, and trading surfaces must exclude pools that do not yet have finalized reserve/share facts.
 - Virtual-initial-liquidity economics, when used by meme initialization, must not create withdrawable, claimable, or removable value beyond the real assets that actually entered the pool application.
+
+`meme initialization` is an internal protocol-path discriminator only. It exists to authorize virtual-liquidity bootstrap semantics and related create-pool choreography. It must not be selectable by ordinary user input.
 
 ## Message Delivery
 

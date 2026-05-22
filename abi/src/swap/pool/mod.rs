@@ -29,6 +29,12 @@ pub enum PoolOperation {
     SetFeeToSetter {
         account: Account,
     },
+    InitializeLiquidity {
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
     AddLiquidity {
         amount_0_in: Amount,
         amount_1_in: Amount,
@@ -96,6 +102,17 @@ pub enum PoolMessage {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
+    // Unified first economic initialization entry.
+    // This is valid only before finalized reserve/share facts exist.
+    // Whether virtual-liquidity semantics are allowed is determined only by the
+    // immutable pool BootstrapPolicy set at application creation time.
+    InitializeLiquidity {
+        origin: Account,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
     RemoveLiquidity {
         // Used to refund
         origin: Account,
@@ -118,20 +135,24 @@ pub enum PoolMessage {
     },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum BootstrapPolicy {
+    UserCreatePool,
+    MemeInitializeLiquidity { virtual_initial_liquidity: bool },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PoolParameters {
     pub creator: Account,
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
-    pub virtual_initial_liquidity: bool,
+    pub bootstrap_policy: BootstrapPolicy,
 }
 
 scalar!(PoolParameters);
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
-    pub amount_0: Amount,
-    pub amount_1: Amount,
     pub pool_fee_percent_mul_100: u16,
     pub router_application_id: ApplicationId,
 }

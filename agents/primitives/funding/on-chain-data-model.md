@@ -52,7 +52,6 @@ Workflow state must carry enough data to reject forged or mismatched follow-up e
 Required target workflow state:
 
 - swap pair/pool registry state, including protocol pair existence and active/pending/failed pair facts
-- pool-side `initialized` fact
 - concrete per-leg funding state that proves custody and remaining non-terminal branches
 - claim balances and claiming balances
 - `CreateMemeIntent` and `MemeInitializeLiquidityRoute` as reviewed special cases
@@ -66,6 +65,8 @@ Rejected target state classes for the current funding redesign:
 - `RemoveLiquidityIntent`
 
 For user pool creation, consistency is established by carrying immutable create-pool facts such as `token_0`, `token_1`, `amount_0`, `amount_1`, `to`, and explicit `origin` through the required internal messages, and by validating those facts against authoritative chain facts at every hop that can derive them. `origin` means the initial operation account that started the workflow. It is not a generic stored base field; it is carried only on the later messages that need it for pool `creator`, `fee_to`, or share-owner semantics.
+
+Pool usability must not rely on a separate persisted `initialized` bit. The authoritative readiness fact is the presence of finalized reserve/share economics in the pool state itself. A pool application may exist before those facts exist.
 
 Do not allocate synthetic workflow ids where concrete message-carried immutable facts plus authoritative chain facts are sufficient. Frontend input, wall-clock timestamps, token pairs, and message delivery order are not valid uniqueness sources for any state that must be authoritative.
 

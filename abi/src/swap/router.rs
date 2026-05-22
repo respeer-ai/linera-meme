@@ -9,6 +9,7 @@ use linera_sdk::{
     },
 };
 use serde::{Deserialize, Serialize};
+use crate::swap::pool::BootstrapPolicy;
 
 use crate::swap::transaction::Transaction;
 
@@ -89,9 +90,8 @@ pub enum SwapMessage {
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
-        virtual_initial_liquidity: bool,
+        bootstrap_policy: BootstrapPolicy,
         to: Option<Account>,
-        user_pool: bool,
     },
     PoolCreated {
         creator: Account,
@@ -100,9 +100,8 @@ pub enum SwapMessage {
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
-        virtual_initial_liquidity: bool,
+        bootstrap_policy: BootstrapPolicy,
         to: Option<Account>,
-        user_pool: bool,
     },
     // Execute on swap creation chain
     CreateUserPool {
