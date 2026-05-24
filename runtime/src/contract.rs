@@ -139,7 +139,12 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .borrow_mut()
             .prepare_message(message)
             .with_authentication()
+            .with_tracking()
             .send_to(destination);
+    }
+
+    fn message_is_bouncing(&mut self) -> Option<bool> {
+        self.runtime.borrow_mut().message_is_bouncing()
     }
 
     fn message_origin_chain_id(&mut self) -> Option<ChainId> {

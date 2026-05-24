@@ -20,6 +20,7 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
     fn owner_accounts(&mut self) -> Vec<Account>;
 
     fn send_message(&mut self, destionation: ChainId, message: Self::Message);
+    fn message_is_bouncing(&mut self) -> Option<bool>;
 
     fn message_origin_chain_id(&mut self) -> Option<ChainId>;
     fn require_message_origin_chain_id(&mut self) -> Result<ChainId, Self::Error>;

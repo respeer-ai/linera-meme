@@ -112,6 +112,9 @@ async fn operation_initialize_liquidity_requires_token0_caller_and_queues_finali
 
     let runtime = pool.runtime.borrow();
     let requests = runtime.created_send_message_requests();
+    assert!(requests
+        .iter()
+        .all(|request| request.authenticated && request.is_tracked));
     assert_eq!(
         requests
             .iter()
@@ -852,6 +855,9 @@ async fn add_liquidity_fund_second_leg_fail_does_not_close_flow() {
 
     let runtime = pool.runtime.borrow();
     let requests = runtime.created_send_message_requests();
+    assert!(requests
+        .iter()
+        .all(|request| request.authenticated && request.is_tracked));
     let request_fund_transfer_ids: Vec<_> = requests
         .iter()
         .filter_map(|request| match request.message {
@@ -903,6 +909,9 @@ async fn add_liquidity_fund_success_only_queues_follow_up_message() {
 
     let runtime = pool.runtime.borrow();
     let requests = runtime.created_send_message_requests();
+    assert!(requests
+        .iter()
+        .all(|request| request.authenticated && request.is_tracked));
     let request_fund_transfer_ids: Vec<_> = requests
         .iter()
         .filter_map(|request| match request.message {
