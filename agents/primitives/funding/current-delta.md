@@ -50,15 +50,12 @@ Known current behavior:
 - `base::HandlerOutcome` only stores destination and message.
 - Contract adapters send ordinary messages from `HandlerOutcome`.
 - `ContractRuntimeContext::send_message` is the central project abstraction used by handler outcome dispatch.
-- The current Linera contract adapter attaches `.with_authentication()` there, but not `.with_tracking()`.
+- The current Linera contract adapter attaches `.with_authentication().with_tracking()` there.
 - No funding path currently handles `message_is_bouncing()` as a reject receipt.
 
 Known gaps:
 
-- Outgoing application messages must be tracked by default.
-- Tracking must be added centrally in the runtime adapter's `send_message` implementation, not exposed as a business-handler-level message builder.
 - Receiving handlers must detect bouncing messages and converge the relevant pending workflow state.
-- This default tracking change is implemented in the user-pool-creation architecture iteration before later funding and claim workflows depend on bounce handling.
 - This follows the Linera SDK pattern used by `linera-protocol/examples/fungible/src/contract.rs`: send with `.with_tracking()` and inspect `message_is_bouncing()` on receive.
 
 ## Child Chain Cleanup
@@ -115,7 +112,7 @@ Known gap:
 
 - `FUND-005`: verify and expand this delta through code audit and characterization tests.
 - `FUND-006`: lock public operation surface.
-- `FUND-007`: intent-bind user pool creation.
+- `FUND-007`: split pool app creation from finalized reserve/share facts.
 - `FUND-008`: claim accounting and funds-exit foundation.
 - `FUND-009`: add existing-pool two-leg liquidity state.
 - `FUND-010`: converge initial liquidity through the two-leg closure.

@@ -1070,7 +1070,7 @@ groups:
           - Contract tests prove the currently supported valid two-sided initial-liquidity path still reaches the same externally observable success boundary as before this iteration.
           - Tests prove `PoolChainCreated`, `PoolCreated`, and `Active` remain distinct states or facts.
       - id: FUND-007
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-006]
         title: "Iteration 2: Split pool app creation from explicit initialization"
@@ -1096,8 +1096,16 @@ groups:
           - Tests prove `PoolCreated` leaves the pool without finalized reserve/share facts.
           - Tests prove meme initialization and user create-pool first funding remain distinct: meme initialization uses the bootstrap path, while `UserPoolCreated` starts existing `PoolOperation::AddLiquidity` and does not activate at `PoolCreated`.
           - Tests prove normal `Swap` and `RemoveLiquidity` reject before finalized reserve/share facts exist.
+
+          Completed:
+          - Pool instantiate creates base state only.
+          - Meme initialization writes first reserve/share facts through pool-side `InitializeLiquidity`.
+          - User `CreatePool` keeps `UserPoolCreated -> PoolOperation::AddLiquidity`.
+          - Runtime outgoing messages are authenticated and tracked by default.
+          - Tracked self-messages in E2E tests are explicitly accepted, not skipped.
+          - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
       - id: FUND-008
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-007]
         title: "Iteration 3: Claim accounting and funds-exit foundation"

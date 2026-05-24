@@ -17,6 +17,7 @@ Authority: High
 - Linera core protocol executes an operation or accepted message once in chain history. Replay/catch-up does not cause application operations or messages to happen again as new protocol behavior.
 - Application-level funding design must rely on that core reachability guarantee. If the exact same operation or message could be executed twice by the chain, application-level funds consistency would be impossible.
 - Application state guards are still required for stale follow-ups, wrong source/caller, competing user operations, and distinct messages that target the same business workflow.
+- Tracked messages must be explicitly accepted or explicitly rejected in tests and protocol choreography. Successful tracked messages must be accepted. Only explicitly expected failure paths should be rejected.
 - Do not introduce a generic `Resume` operation. Any later recovery operation must be state-specific and justified against the core protocol execution model.
 
 ## User CreatePool With Initial Liquidity
