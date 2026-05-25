@@ -65,6 +65,10 @@ pub enum PoolOperation {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
+    Claim {
+        token: Option<ApplicationId>,
+        amount: Amount,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

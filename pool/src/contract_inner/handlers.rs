@@ -22,6 +22,7 @@ use message::{
 };
 use operation::{
     add_liquidity::AddLiquidityHandler as OperationAddLiquidityHandler,
+    claim::ClaimHandler as OperationClaimHandler,
     initialize_liquidity::InitializeLiquidityHandler as OperationInitializeLiquidityHandler,
     remove_liquidity::RemoveLiquidityHandler as OperationRemoveLiquidityHandler,
     set_fee_to::SetFeeToHandler as OperationSetFeeToHandler,
@@ -66,6 +67,7 @@ impl HandlerFactory {
                 Box::new(OperationRemoveLiquidityHandler::new(runtime, state, op))
             }
             PoolOperation::Swap { .. } => Box::new(OperationSwapHandler::new(runtime, state, op)),
+            PoolOperation::Claim { .. } => Box::new(OperationClaimHandler::new(runtime, state, op)),
         }
     }
 

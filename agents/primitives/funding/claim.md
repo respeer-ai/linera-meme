@@ -39,8 +39,10 @@ Claim-balance accounting must exist before any workflow credits owed value to cl
 Target ABI:
 
 ```text
-PoolOperation::Claim { token_identity, amount }
+PoolOperation::Claim { token: Option<ApplicationId>, amount }
 ```
+
+`token = None` means the native asset. `token = Some(application_id)` means a meme/application token and must match one of the current pool tokens.
 
 Rules:
 
@@ -78,22 +80,42 @@ Flow:
 1. User submits `Claim`.
 2. Pool validates owner and available balance.
 3. Pool moves `amount` from `claim_balances[token][owner]` to `claiming_balances[token][owner]`.
-4. Pool sends payout/transfer message to the meme application.
+4. Pool calls `MemeOperation::TransferFromApplicationWithReceipt` on the meme application.
 5. Success acknowledgement decreases `claiming_balances[token][owner]` by `amount`.
 6. Fail or bounce decreases `claiming_balances[token][owner]` by `amount` and returns it to `claim_balances[token][owner]`.
 7. While in `claiming_balances`, the amount is unavailable for another claim.
 
-The success/fail/bounce message must carry these fields:
+The meme transfer receipt ABI for `FUND-008` is:
 
-- `owner_account`
-- `token_identity`
-- `amount`
-- source pool application
-- source pool chain
-- meme token application
-- destination account
+```text
+MemeOperation::TransferFromApplicationWithReceipt {
+    to: Account,
+    amount: Amount,
+    receipt: TransferFromApplicationReceipt,
+}
 
-Before `FUND-008` implementation starts, the concrete message enum variants and payload struct must be written down from the audited current meme/pool protocol. The receiver validates source chain, authenticated caller, pool application, token application, owner, amount, and `claiming_balances[token][owner] >= amount`. Linera core once-only execution is the duplicate-delivery boundary for the exact same message; the application does not add per-attempt ids.
+MemeMessage::TransferFromApplicationWithReceipt {
+    caller: Account,
+    to: Account,
+    amount: Amount,
+    receipt: TransferFromApplicationReceipt,
+}
+
+TransferFromApplicationReceipt {
+    pool_chain: ChainId,
+    pool_application: ApplicationId,
+    payload: TransferFromApplicationReceiptPayload,
+}
+
+TransferFromApplicationReceiptPayload::PoolClaim {
+    owner: Account,
+    token: ApplicationId,
+    amount: Amount,
+    destination: Account,
+}
+```
+
+The existing receipt-free `TransferFromApplication` remains available for paths not migrated in `FUND-008`. After all protocol funds paths are migrated to receipt-first application transfer, the receipt-free variant can be removed and the default `TransferFromApplication` can carry a receipt. Pool claim receipt handlers validate source chain, authenticated caller, pool application, token application, owner, amount, and `claiming_balances[token][owner] >= amount`. Linera core once-only execution is the duplicate-delivery boundary for the exact same message; the application does not add per-attempt ids.
 
 `FUND-008` tests may seed claim balances through contract test fixtures or internal test helpers. Do not add a production debug operation or public ABI solely to create claim balances for tests.
 

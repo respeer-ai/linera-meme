@@ -1121,6 +1121,16 @@ groups:
           - Use test fixtures or internal test helpers to seed claim balances for `Claim` tests; do not add a production debug operation or public ABI for this.
           - Define concrete meme claim success/fail/bounce message enum variants and payload fields before implementation.
 
+          Atomic steps:
+          - 008-A1: Add `PoolOperation::Claim { token: Option<ApplicationId>, amount: Amount }`; owner is always derived from `authenticated_account()`.
+          - 008-A2: Add receipt-first meme application-transfer ABI while keeping the existing receipt-free `TransferFromApplication` for unmigrated paths.
+          - 008-A3: Implement meme `TransferFromApplicationWithReceipt` execution, success receipt emission, failure receipt emission, and bounce handling with `message_is_bouncing()`.
+          - 008-A4: Add pool claim and claiming storage with token-first, owner-second helpers.
+          - 008-A5: Implement pool `Claim` operation for native synchronous claim and meme asynchronous claim start.
+          - 008-A6: Implement pool claim receipt handlers; meme transfer bounce is converted to failed receipt by the meme app, not detected directly by pool.
+          - 008-A7: Add pool claim-balance and claiming-balance query support for tests and projection integration.
+          - 008-A8: Add tests for storage shape, native claim, meme claim success, meme claim fail, meme transfer bounce, malformed receipts, stale receipts, pending claiming balances, and unchanged legacy receipt-free transfer paths.
+
           Validation:
           - Tests prove claim-balance storage uses token-first, owner-second shape.
           - Tests prove token claim balances update without duplicating token identity per owner.

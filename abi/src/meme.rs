@@ -248,6 +248,13 @@ impl ServiceAbi for MemeAbi {
     type QueryResponse = Response;
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, InputObject)]
+pub struct TransferFromApplicationReceipt {
+    pub owner: Account,
+    pub token: ApplicationId,
+    pub amount: Amount,
+}
+
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
     CreatorChainId,
@@ -264,6 +271,11 @@ pub enum MemeOperation {
     TransferFromApplication {
         to: Account,
         amount: Amount,
+    },
+    TransferFromApplicationWithReceipt {
+        to: Account,
+        amount: Amount,
+        receipt: TransferFromApplicationReceipt,
     },
     // Special operation used by swap to initialize liquidity for new pool
     InitializeLiquidity {
@@ -313,6 +325,12 @@ pub enum MemeMessage {
         caller: Account,
         to: Account,
         amount: Amount,
+    },
+    TransferFromApplicationWithReceipt {
+        caller: Account,
+        to: Account,
+        amount: Amount,
+        receipt: TransferFromApplicationReceipt,
     },
     // Special operation used by swap to initialize liquidity for new pool
     InitializeLiquidity {
