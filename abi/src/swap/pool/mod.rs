@@ -28,7 +28,17 @@ pub struct PoolInitializeLiquidityCall {
     pub to: Option<Account>,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ClaimTransferReceipt {
+    pub owner: Account,
+    pub token: ApplicationId,
+    pub amount: Amount,
+    pub result: Result<(), String>,
+}
+
+scalar!(ClaimTransferReceipt);
+
+#[derive(Debug, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
     SetFeeTo {
         account: Account,
@@ -68,6 +78,9 @@ pub enum PoolOperation {
     Claim {
         token: Option<ApplicationId>,
         amount: Amount,
+    },
+    ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt,
     },
 }
 

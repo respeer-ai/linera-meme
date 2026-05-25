@@ -2,7 +2,7 @@ use crate::interfaces::state::StateInterface;
 use abi::meme::{MemeMessage, MemeOperation, MemeResponse, TransferFromApplicationReceipt};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -12,12 +12,12 @@ pub struct TransferFromApplicationWithReceiptHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
     S: StateInterface,
 > {
-    _runtime: Rc<RefCell<R>>,
+    runtime: Rc<RefCell<R>>,
     _state: Rc<RefCell<S>>,
 
-    _to: Account,
-    _amount: Amount,
-    _receipt: TransferFromApplicationReceipt,
+    to: Account,
+    amount: Amount,
+    receipt: TransferFromApplicationReceipt,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
@@ -34,12 +34,11 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         };
 
         Self {
-            _runtime: runtime,
+            runtime,
             _state: state,
-
-            _to: *to,
-            _amount: *amount,
-            _receipt: *receipt,
+            to: *to,
+            amount: *amount,
+            receipt: receipt.clone(),
         }
     }
 }
@@ -51,6 +50,28 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
-        panic!("TransferFromApplicationWithReceipt operation is not implemented yet")
+        assert!(self.receipt.result.is_none(), "Invalid receipt result");
+        assert!(self.receipt.amount == self.amount, "Invalid receipt amount");
+
+        let destination = self.runtime.borrow_mut().application_creator_chain_id();
+        let caller_id = self.runtime.borrow_mut().authenticated_caller_id().unwrap();
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let caller = Account {
+            chain_id,
+            owner: AccountOwner::from(caller_id),
+        };
+
+        let mut outcome = HandlerOutcome::new();
+        outcome.with_message(
+            destination,
+            MemeMessage::TransferFromApplicationWithReceipt {
+                caller,
+                to: self.to,
+                amount: self.amount,
+                receipt: self.receipt.clone(),
+            },
+        );
+
+        Ok(Some(outcome))
     }
 }

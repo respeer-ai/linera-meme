@@ -10,13 +10,13 @@ pub struct TransferFromApplicationWithReceiptHandler<
     R: ContractRuntimeContext + AccessControl,
     S: StateInterface,
 > {
-    _runtime: Rc<RefCell<R>>,
-    _state: Rc<RefCell<S>>,
+    runtime: Rc<RefCell<R>>,
+    state: Rc<RefCell<S>>,
 
-    _caller: Account,
-    _to: Account,
-    _amount: Amount,
-    _receipt: TransferFromApplicationReceipt,
+    caller: Account,
+    to: Account,
+    amount: Amount,
+    receipt: TransferFromApplicationReceipt,
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
@@ -34,13 +34,19 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
         };
 
         Self {
-            _runtime: runtime,
-            _state: state,
+            runtime,
+            state,
+            caller: *caller,
+            to: *to,
+            amount: *amount,
+            receipt: receipt.clone(),
+        }
+    }
 
-            _caller: *caller,
-            _to: *to,
-            _amount: *amount,
-            _receipt: *receipt,
+    fn completed_receipt(&self, result: Result<(), String>) -> TransferFromApplicationReceipt {
+        TransferFromApplicationReceipt {
+            result: Some(result),
+            ..self.receipt.clone()
         }
     }
 }
@@ -52,6 +58,43 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<MemeMessage, MemeResponse>>, HandlerError> {
-        panic!("TransferFromApplicationWithReceipt message is not implemented yet")
+        assert!(self.receipt.result.is_none(), "Invalid receipt result");
+        assert!(self.receipt.amount == self.amount, "Invalid receipt amount");
+
+        let mut outcome = HandlerOutcome::new();
+        if self
+            .runtime
+            .borrow_mut()
+            .message_is_bouncing()
+            .unwrap_or(false)
+        {
+            outcome.with_message(
+                self.caller.chain_id,
+                MemeMessage::TransferFromApplicationReceipt {
+                    caller: self.caller,
+                    receipt: self.completed_receipt(Err(
+                        "TransferFromApplicationWithReceipt bounced".to_string(),
+                    )),
+                },
+            );
+            return Ok(Some(outcome));
+        }
+
+        let result = self
+            .state
+            .borrow_mut()
+            .transfer_ensure(self.caller, self.to, self.amount)
+            .await
+            .map_err(|err| err.to_string());
+
+        outcome.with_message(
+            self.caller.chain_id,
+            MemeMessage::TransferFromApplicationReceipt {
+                caller: self.caller,
+                receipt: self.completed_receipt(result),
+            },
+        );
+
+        Ok(Some(outcome))
     }
 }

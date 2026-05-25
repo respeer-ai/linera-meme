@@ -1,8 +1,8 @@
 use abi::ams::{AmsMessage, AmsOperation};
 use abi::blob_gateway::{BlobGatewayMessage, BlobGatewayOperation};
-use abi::meme::{MemeMessage, MemeOperation};
+use abi::meme::{MemeMessage, MemeOperation, TransferFromApplicationReceipt};
 use abi::proxy::{ProxyMessage, ProxyOperation};
-use abi::swap::pool::{BootstrapPolicy, PoolMessage, PoolOperation};
+use abi::swap::pool::{BootstrapPolicy, ClaimTransferReceipt, PoolMessage, PoolOperation};
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, Timestamp};
@@ -195,6 +195,23 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "amount_1_out_min": encode_option_amount(amount_1_out_min),
                 "to": encode_option_account(to),
                 "block_timestamp_micros": encode_option_timestamp(block_timestamp),
+            }),
+        ),
+        PoolOperation::Claim { token, amount } => (
+            "claim",
+            json!({
+                "operation_type": "claim",
+                "application_id": application_id,
+                "token": token.map(|value| value.to_string()),
+                "amount": encode_amount(amount),
+            }),
+        ),
+        PoolOperation::ClaimTransferReceipt { receipt } => (
+            "claim_transfer_receipt",
+            json!({
+                "operation_type": "claim_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_claim_transfer_receipt(receipt),
             }),
         ),
     };
@@ -762,6 +779,20 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "amount": encode_amount(amount),
             }),
         ),
+        MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount,
+            receipt,
+        } => (
+            "transfer_from_application_with_receipt",
+            json!({
+                "operation_type": "transfer_from_application_with_receipt",
+                "application_id": application_id,
+                "to": encode_account(to),
+                "amount": encode_amount(amount),
+                "receipt": encode_transfer_from_application_receipt(receipt),
+            }),
+        ),
         MemeOperation::InitializeLiquidity {
             pool_application,
             amount_0,
@@ -881,6 +912,31 @@ fn decode_meme_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "caller": encode_account(caller),
                 "to": encode_account(to),
                 "amount": encode_amount(amount),
+            }),
+        ),
+        MemeMessage::TransferFromApplicationWithReceipt {
+            caller,
+            to,
+            amount,
+            receipt,
+        } => (
+            "transfer_from_application_with_receipt",
+            json!({
+                "message_type": "transfer_from_application_with_receipt",
+                "application_id": application_id,
+                "caller": encode_account(caller),
+                "to": encode_account(to),
+                "amount": encode_amount(amount),
+                "receipt": encode_transfer_from_application_receipt(receipt),
+            }),
+        ),
+        MemeMessage::TransferFromApplicationReceipt { caller, receipt } => (
+            "transfer_from_application_receipt",
+            json!({
+                "message_type": "transfer_from_application_receipt",
+                "application_id": application_id,
+                "caller": encode_account(caller),
+                "receipt": encode_transfer_from_application_receipt(receipt),
             }),
         ),
         MemeMessage::InitializeLiquidity {
@@ -1134,6 +1190,32 @@ fn encode_bootstrap_policy(policy: &BootstrapPolicy) -> Value {
 
 fn encode_option_amount(value: Option<Amount>) -> Option<String> {
     value.map(encode_amount)
+}
+
+fn encode_claim_transfer_receipt(value: ClaimTransferReceipt) -> Value {
+    json!({
+        "owner": encode_account(value.owner),
+        "token": value.token.to_string(),
+        "amount": encode_amount(value.amount),
+        "result": encode_unit_result(value.result),
+    })
+}
+
+fn encode_transfer_from_application_receipt(value: TransferFromApplicationReceipt) -> Value {
+    json!({
+        "purpose": format!("{:?}", value.purpose),
+        "owner": encode_account(value.owner),
+        "token": value.token.to_string(),
+        "amount": encode_amount(value.amount),
+        "result": value.result.map(encode_unit_result),
+    })
+}
+
+fn encode_unit_result(value: Result<(), String>) -> Value {
+    match value {
+        Ok(()) => json!({ "ok": true }),
+        Err(error) => json!({ "ok": false, "error": error }),
+    }
 }
 
 fn encode_amount(value: Amount) -> String {

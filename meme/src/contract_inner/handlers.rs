@@ -14,6 +14,7 @@ use message::{
     transfer::TransferHandler as MessageTransferHandler,
     transfer_from::TransferFromHandler as MessageTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as MessageTransferFromApplicationHandler,
+    transfer_from_application_receipt::TransferFromApplicationReceiptHandler as MessageTransferFromApplicationReceiptHandler,
     transfer_from_application_with_receipt::TransferFromApplicationWithReceiptHandler as MessageTransferFromApplicationWithReceiptHandler,
     transfer_ownership::TransferOwnershipHandler as MessageTransferOwnershipHandler,
 };
@@ -122,6 +123,9 @@ impl HandlerFactory {
             ),
             MemeMessage::TransferFromApplicationWithReceipt { .. } => Box::new(
                 MessageTransferFromApplicationWithReceiptHandler::new(runtime, state, msg),
+            ),
+            MemeMessage::TransferFromApplicationReceipt { .. } => Box::new(
+                MessageTransferFromApplicationReceiptHandler::new(runtime, state, msg),
             ),
             MemeMessage::TransferOwnership { .. } => {
                 Box::new(MessageTransferOwnershipHandler::new(runtime, state, msg))
