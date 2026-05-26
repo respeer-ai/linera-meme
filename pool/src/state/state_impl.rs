@@ -3,6 +3,7 @@ use crate::{
     state::{errors::StateError, PoolState},
     FundRequest,
 };
+use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
     transaction::{Transaction, TransactionType},
@@ -216,6 +217,116 @@ impl StateInterface for PoolState {
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error> {
         Ok(self.shares.get(&account).await?.unwrap_or(Amount::ZERO))
+    }
+
+    async fn claim_balance(&self, token: MemeToken, owner: Account) -> Result<Amount, Self::Error> {
+        Ok(self
+            .claim_balances
+            .get(&token)
+            .await?
+            .and_then(|balances| balances.get(&owner).copied())
+            .unwrap_or(Amount::ZERO))
+    }
+
+    async fn claiming_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        Ok(self
+            .claiming_balances
+            .get(&token)
+            .await?
+            .and_then(|balances| balances.get(&owner).copied())
+            .unwrap_or(Amount::ZERO))
+    }
+
+    async fn credit_claim_balance(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let mut balances = self.claim_balances.get(&token).await?.unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        balances.insert(owner, current.try_add(amount)?);
+        Ok(self.claim_balances.insert(&token, balances)?)
+    }
+
+    async fn debit_claim_balance(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let mut balances = self.claim_balances.get(&token).await?.unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        assert!(current >= amount, "Insufficient claim balance");
+
+        let next = current.try_sub(amount)?;
+        if next == Amount::ZERO {
+            balances.remove(&owner);
+        } else {
+            balances.insert(owner, next);
+        }
+        Ok(self.claim_balances.insert(&token, balances)?)
+    }
+
+    async fn move_claim_to_claiming(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.debit_claim_balance(token, owner, amount).await?;
+
+        let mut balances = self
+            .claiming_balances
+            .get(&token)
+            .await?
+            .unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        balances.insert(owner, current.try_add(amount)?);
+        Ok(self.claiming_balances.insert(&token, balances)?)
+    }
+
+    async fn complete_claiming_success(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let mut balances = self
+            .claiming_balances
+            .get(&token)
+            .await?
+            .unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        assert!(current >= amount, "Insufficient claiming balance");
+
+        let next = current.try_sub(amount)?;
+        if next == Amount::ZERO {
+            balances.remove(&owner);
+        } else {
+            balances.insert(owner, next);
+        }
+        Ok(self.claiming_balances.insert(&token, balances)?)
+    }
+
+    async fn complete_claiming_fail(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.complete_claiming_success(token, owner, amount).await?;
+        self.credit_claim_balance(token, owner, amount).await
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error> {

@@ -1,4 +1,5 @@
 use crate::FundRequest;
+use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
     transaction::Transaction,
@@ -88,6 +89,49 @@ pub trait StateInterface {
     ) -> Result<(Amount, Amount), Self::Error>;
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error>;
+
+    async fn claim_balance(&self, token: MemeToken, owner: Account) -> Result<Amount, Self::Error>;
+
+    async fn claiming_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error>;
+
+    async fn credit_claim_balance(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn debit_claim_balance(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn move_claim_to_claiming(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn complete_claiming_success(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn complete_claiming_fail(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error>;
 

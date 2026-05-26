@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
 use crate::{interfaces::state::StateInterface, state::PoolState, FundRequest};
+use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
     transaction::Transaction,
@@ -172,6 +173,78 @@ impl StateInterface for StateAdapter {
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error> {
         self.state.borrow().liquidity(account).await
+    }
+
+    async fn claim_balance(&self, token: MemeToken, owner: Account) -> Result<Amount, Self::Error> {
+        self.state.borrow().claim_balance(token, owner).await
+    }
+
+    async fn claiming_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        self.state.borrow().claiming_balance(token, owner).await
+    }
+
+    async fn credit_claim_balance(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .credit_claim_balance(token, owner, amount)
+            .await
+    }
+
+    async fn debit_claim_balance(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .debit_claim_balance(token, owner, amount)
+            .await
+    }
+
+    async fn move_claim_to_claiming(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .move_claim_to_claiming(token, owner, amount)
+            .await
+    }
+
+    async fn complete_claiming_success(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .complete_claiming_success(token, owner, amount)
+            .await
+    }
+
+    async fn complete_claiming_fail(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .complete_claiming_fail(token, owner, amount)
+            .await
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error> {

@@ -4,6 +4,7 @@ pub mod blob_gateway;
 pub mod deposit;
 pub mod hash;
 pub mod meme;
+pub mod meme_token;
 pub mod policy;
 pub mod proxy;
 pub mod store_type;

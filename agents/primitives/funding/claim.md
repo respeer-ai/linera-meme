@@ -26,7 +26,9 @@ The on-chain storage must use a two-level map:
 - first level: `token_identity`
 - second level: `owner_account`
 
-`token_identity` must use the pool contract's canonical token representation. If the current implementation represents native as `None` and application tokens as `Some(ApplicationId)`, keep that representation instead of introducing a parallel token enum.
+`token_identity` must use an explicit token identity enum. Use `MemeToken::Native` for the native asset and `MemeToken::Fungible(ApplicationId)` for meme/fungible tokens. Do not use a claim-specific name such as `ClaimToken`: native is a token identity, not a claim-only concept.
+
+Existing protocol surfaces still use `Option<ApplicationId>` in several places. `FUND-008` must not refactor unrelated pool catalog, proxy, frontend, or observability token representations. Convert those boundary values into `MemeToken` at the claim-accounting boundary. Record a separate follow-up before any project-wide token-identity unification.
 
 `claim_balances` is available-to-claim value. `claiming_balances` is aggregated in-flight claim value after a user starts an asynchronous meme-token claim. Both maps use the same token-first, owner-second shape.
 
