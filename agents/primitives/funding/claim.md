@@ -103,17 +103,30 @@ MemeMessage::TransferFromApplicationWithReceipt {
     receipt: TransferFromApplicationReceipt,
 }
 
-TransferFromApplicationReceipt {
-    pool_chain: ChainId,
-    pool_application: ApplicationId,
-    payload: TransferFromApplicationReceiptPayload,
+MemeMessage::TransferFromApplicationReceipt {
+    caller: Account,
+    receipt: TransferFromApplicationReceipt,
 }
 
-TransferFromApplicationReceiptPayload::PoolClaim {
+TransferFromApplicationReceiptPurpose::PoolClaim
+
+TransferFromApplicationReceipt {
+    purpose: TransferFromApplicationReceiptPurpose,
     owner: Account,
     token: ApplicationId,
     amount: Amount,
-    destination: Account,
+    result: Option<Result<(), String>>,
+}
+
+PoolOperation::ClaimTransferReceipt {
+    receipt: ClaimTransferReceipt,
+}
+
+ClaimTransferReceipt {
+    owner: Account,
+    token: ApplicationId,
+    amount: Amount,
+    result: Result<(), String>,
 }
 ```
 

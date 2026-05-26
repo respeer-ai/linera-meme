@@ -1,7 +1,7 @@
 use super::super::{PoolContract, PoolState};
 
 use abi::{
-    meme::{MemeOperation, MemeResponse},
+    meme::{MemeOperation, MemeResponse, TransferFromApplicationReceiptPurpose},
     meme_token::MemeToken,
     swap::pool::{
         BootstrapPolicy, InstantiationArgument, PoolAbi, PoolMessage, PoolOperation,
@@ -1018,6 +1018,15 @@ async fn operation_claim_fungible_moves_to_claiming() {
         .await
         .unwrap();
 
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    pool.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        },
+    );
+
     let response = pool
         .execute_operation(PoolOperation::Claim {
             token: Some(token_0),
@@ -1026,6 +1035,22 @@ async fn operation_claim_fungible_moves_to_claiming() {
         .await;
 
     assert!(matches!(response, PoolResponse::Ok));
+    let (application_id, operation) = captured.borrow().clone().unwrap();
+    assert_eq!(application_id, token_0);
+    assert!(matches!(
+        bcs::from_bytes::<MemeOperation>(&operation).unwrap(),
+        MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount: call_amount,
+            receipt,
+        } if to == owner
+            && call_amount == amount
+            && receipt.purpose == TransferFromApplicationReceiptPurpose::PoolClaim
+            && receipt.owner == owner
+            && receipt.token == token_0
+            && receipt.amount == amount
+            && receipt.result.is_none()
+    ));
     assert_eq!(
         pool.state
             .borrow()
