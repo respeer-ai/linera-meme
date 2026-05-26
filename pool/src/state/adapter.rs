@@ -175,8 +175,12 @@ impl StateInterface for StateAdapter {
         self.state.borrow().liquidity(account).await
     }
 
-    async fn claim_balance(&self, token: MemeToken, owner: Account) -> Result<Amount, Self::Error> {
-        self.state.borrow().claim_balance(token, owner).await
+    async fn claimable_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        self.state.borrow().claimable_balance(token, owner).await
     }
 
     async fn claiming_balance(
@@ -187,7 +191,34 @@ impl StateInterface for StateAdapter {
         self.state.borrow().claiming_balance(token, owner).await
     }
 
-    async fn credit_claim_balance(
+    async fn credit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state.borrow_mut().credit(token, owner, amount).await
+    }
+
+    async fn debit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state.borrow_mut().debit(token, owner, amount).await
+    }
+
+    async fn claim(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state.borrow_mut().claim(token, owner, amount).await
+    }
+
+    async fn claim_success(
         &mut self,
         token: MemeToken,
         owner: Account,
@@ -195,11 +226,11 @@ impl StateInterface for StateAdapter {
     ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
-            .credit_claim_balance(token, owner, amount)
+            .claim_success(token, owner, amount)
             .await
     }
 
-    async fn debit_claim_balance(
+    async fn claim_fail(
         &mut self,
         token: MemeToken,
         owner: Account,
@@ -207,43 +238,7 @@ impl StateInterface for StateAdapter {
     ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
-            .debit_claim_balance(token, owner, amount)
-            .await
-    }
-
-    async fn move_claim_to_claiming(
-        &mut self,
-        token: MemeToken,
-        owner: Account,
-        amount: Amount,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .move_claim_to_claiming(token, owner, amount)
-            .await
-    }
-
-    async fn complete_claiming_success(
-        &mut self,
-        token: MemeToken,
-        owner: Account,
-        amount: Amount,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .complete_claiming_success(token, owner, amount)
-            .await
-    }
-
-    async fn complete_claiming_fail(
-        &mut self,
-        token: MemeToken,
-        owner: Account,
-        amount: Amount,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .complete_claiming_fail(token, owner, amount)
+            .claim_fail(token, owner, amount)
             .await
     }
 

@@ -23,7 +23,7 @@ pub struct PoolState {
     pub total_supply: RegisterView<Amount>,
     pub shares: MapView<Account, Amount>,
 
-    pub claim_balances: MapView<MemeToken, HashMap<Account, Amount>>,
+    pub claimable_balances: MapView<MemeToken, HashMap<Account, Amount>>,
     pub claiming_balances: MapView<MemeToken, HashMap<Account, Amount>>,
 
     pub transaction_id: RegisterView<u32>,

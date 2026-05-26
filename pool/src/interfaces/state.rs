@@ -90,7 +90,11 @@ pub trait StateInterface {
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error>;
 
-    async fn claim_balance(&self, token: MemeToken, owner: Account) -> Result<Amount, Self::Error>;
+    async fn claimable_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error>;
 
     async fn claiming_balance(
         &self,
@@ -98,35 +102,35 @@ pub trait StateInterface {
         owner: Account,
     ) -> Result<Amount, Self::Error>;
 
-    async fn credit_claim_balance(
+    async fn credit(
         &mut self,
         token: MemeToken,
         owner: Account,
         amount: Amount,
     ) -> Result<(), Self::Error>;
 
-    async fn debit_claim_balance(
+    async fn debit(
         &mut self,
         token: MemeToken,
         owner: Account,
         amount: Amount,
     ) -> Result<(), Self::Error>;
 
-    async fn move_claim_to_claiming(
+    async fn claim(
         &mut self,
         token: MemeToken,
         owner: Account,
         amount: Amount,
     ) -> Result<(), Self::Error>;
 
-    async fn complete_claiming_success(
+    async fn claim_success(
         &mut self,
         token: MemeToken,
         owner: Account,
         amount: Amount,
     ) -> Result<(), Self::Error>;
 
-    async fn complete_claiming_fail(
+    async fn claim_fail(
         &mut self,
         token: MemeToken,
         owner: Account,

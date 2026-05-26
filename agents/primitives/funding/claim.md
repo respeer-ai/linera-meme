@@ -15,7 +15,7 @@ Refund, retry, excess withdrawal, protocol-fee withdrawal, remote-liquidity with
 Long-lived owed value must be represented as aggregated claim balances:
 
 ```text
-claim_balances[token_identity].balances[owner_account] += amount
+claimable_balances[token_identity].balances[owner_account] += amount
 claiming_balances[token_identity].balances[owner_account] += amount
 ```
 
@@ -30,7 +30,7 @@ The on-chain storage must use a two-level map:
 
 Existing protocol surfaces still use `Option<ApplicationId>` in several places. `FUND-008` must not refactor unrelated pool catalog, proxy, frontend, or observability token representations. Convert those boundary values into `MemeToken` at the claim-accounting boundary. Record a separate follow-up before any project-wide token-identity unification.
 
-`claim_balances` is available-to-claim value. `claiming_balances` is aggregated in-flight claim value after a user starts an asynchronous meme-token claim. Both maps use the same token-first, owner-second shape.
+`claimable_balances` is available-to-claim value. `claiming_balances` is aggregated in-flight claim value after a user starts an asynchronous meme-token claim. Both maps use the same token-first, owner-second shape.
 
 This keeps each token identity stored once at the outer level and avoids repeating token keys for every account. User-facing claim lists must be served from projection/API data rather than by scanning contract storage at product-read time.
 
@@ -81,10 +81,10 @@ Flow:
 
 1. User submits `Claim`.
 2. Pool validates owner and available balance.
-3. Pool moves `amount` from `claim_balances[token][owner]` to `claiming_balances[token][owner]`.
+3. Pool moves `amount` from `claimable_balances[token][owner]` to `claiming_balances[token][owner]`.
 4. Pool calls `MemeOperation::TransferFromApplicationWithReceipt` on the meme application.
 5. Success acknowledgement decreases `claiming_balances[token][owner]` by `amount`.
-6. Fail or bounce decreases `claiming_balances[token][owner]` by `amount` and returns it to `claim_balances[token][owner]`.
+6. Fail or bounce decreases `claiming_balances[token][owner]` by `amount` and returns it to `claimable_balances[token][owner]`.
 7. While in `claiming_balances`, the amount is unavailable for another claim.
 
 The meme transfer receipt ABI for `FUND-008` is:
