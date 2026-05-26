@@ -2,6 +2,7 @@ use super::super::{PoolContract, PoolState};
 
 use abi::{
     meme::{MemeOperation, MemeResponse},
+    meme_token::MemeToken,
     swap::pool::{
         BootstrapPolicy, InstantiationArgument, PoolAbi, PoolMessage, PoolOperation,
         PoolParameters, PoolResponse,
@@ -956,6 +957,130 @@ async fn message_new_transaction_forwards_catalog_update_without_history_storage
     assert_eq!(transaction.transaction_id, Some(1001));
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_claim_native_transfers_and_completes_claiming() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let amount = Amount::from_tokens(5);
+    let application_owner =
+        AccountOwner::from(pool.runtime.borrow_mut().application_id().forget_abi());
+
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(application_owner, amount);
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(owner.owner, Amount::ZERO);
+    pool.state
+        .borrow_mut()
+        .credit(MemeToken::Native, owner, amount)
+        .await
+        .unwrap();
+
+    let response = pool
+        .execute_operation(PoolOperation::Claim {
+            token: None,
+            amount,
+        })
+        .await;
+
+    assert!(matches!(response, PoolResponse::Ok));
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Native, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(MemeToken::Native, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(pool.runtime.borrow_mut().owner_balance(owner.owner), amount);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_claim_fungible_moves_to_claiming() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token = MemeToken::Fungible(token_0);
+    let amount = Amount::from_tokens(5);
+
+    pool.state
+        .borrow_mut()
+        .credit(token, owner, amount)
+        .await
+        .unwrap();
+
+    let response = pool
+        .execute_operation(PoolOperation::Claim {
+            token: Some(token_0),
+            amount,
+        })
+        .await;
+
+    assert!(matches!(response, PoolResponse::Ok));
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(token, owner)
+            .await
+            .unwrap(),
+        amount
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_claim_native_rejects_meme_meme_pool() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let amount = Amount::from_tokens(5);
+    pool.state
+        .borrow_mut()
+        .credit(MemeToken::Native, owner, amount)
+        .await
+        .unwrap();
+
+    let result = std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::Claim {
+        token: None,
+        amount,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Native, owner)
+            .await
+            .unwrap(),
+        amount
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(MemeToken::Native, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+}
+
 #[test]
 fn cross_application_call() {}
 
@@ -1008,6 +1133,11 @@ async fn create_and_instantiate_native_pool(virtual_initial_liquidity: bool) -> 
     pool.runtime
         .borrow_mut()
         .set_application_parameters(parameters);
+
+    let mut state_pool = pool.state.borrow().pool();
+    state_pool.token_1 = None;
+    pool.state.borrow_mut().pool.set(Some(state_pool));
+
     pool
 }
 

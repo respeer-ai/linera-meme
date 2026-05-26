@@ -239,6 +239,16 @@ impl Pool {
         }
     }
 
+    pub fn validate_token(&self, token: Option<ApplicationId>) {
+        match token {
+            Some(token) => assert!(
+                token == self.token_0 || Some(token) == self.token_1,
+                "Invalid token"
+            ),
+            None => assert!(self.token_1.is_none(), "Invalid token"),
+        }
+    }
+
     pub fn calculate_liquidity(
         &self,
         total_supply: Amount,
