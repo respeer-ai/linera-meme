@@ -52,6 +52,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 owner,
                 new_owner: self.new_owner,
             },
+            false,
         );
 
         Ok(Some(outcome))

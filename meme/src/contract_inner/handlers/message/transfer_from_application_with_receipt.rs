@@ -76,6 +76,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                         "TransferFromApplicationWithReceipt bounced".to_string(),
                     )),
                 },
+                false,
             );
             return Ok(Some(outcome));
         }
@@ -93,6 +94,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                 caller: self.caller,
                 receipt: self.completed_receipt(result),
             },
+            false,
         );
 
         Ok(Some(outcome))

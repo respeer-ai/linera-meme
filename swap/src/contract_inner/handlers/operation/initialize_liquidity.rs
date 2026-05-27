@@ -134,6 +134,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 virtual_liquidity,
                 to: self.to,
             },
+            false,
         );
 
         Ok(Some(outcome))

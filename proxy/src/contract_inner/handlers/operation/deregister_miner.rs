@@ -41,7 +41,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         let mut outcome = HandlerOutcome::new();
 
         let owner = self.runtime.borrow_mut().authenticated_account();
-        outcome.with_message(destination, ProxyMessage::DeregisterMiner { owner });
+        outcome.with_message(destination, ProxyMessage::DeregisterMiner { owner }, false);
 
         Ok(Some(outcome))
     }

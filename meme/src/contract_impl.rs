@@ -29,9 +29,11 @@ impl MemeContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG OP:MEME: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
     }
 
@@ -60,9 +62,11 @@ impl MemeContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG OP:MEME: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream
@@ -94,9 +98,11 @@ impl MemeContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG MSG:MEME: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream

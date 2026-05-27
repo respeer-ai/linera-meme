@@ -145,7 +145,11 @@ impl<
         let destination = self.runtime.borrow_mut().chain_id();
         let mut outcome = HandlerOutcome::new();
 
-        outcome.with_message(destination, PoolMessage::NewTransaction { transaction });
+        outcome.with_message(
+            destination,
+            PoolMessage::NewTransaction { transaction },
+            false,
+        );
 
         Ok(Some(outcome))
     }

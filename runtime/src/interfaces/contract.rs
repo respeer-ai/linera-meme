@@ -19,7 +19,7 @@ pub trait ContractRuntimeContext: BaseRuntimeContext {
     fn require_authenticated_caller_id(&mut self) -> Result<ApplicationId, Self::Error>;
     fn owner_accounts(&mut self) -> Vec<Account>;
 
-    fn send_message(&mut self, destionation: ChainId, message: Self::Message);
+    fn send_message(&mut self, destination: ChainId, message: Self::Message, tracking: bool);
     fn message_is_bouncing(&mut self) -> Option<bool>;
 
     fn message_origin_chain_id(&mut self) -> Option<ChainId>;

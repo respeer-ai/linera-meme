@@ -70,6 +70,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 amount: self.amount,
                 receipt: self.receipt.clone(),
             },
+            true,
         );
 
         Ok(Some(outcome))

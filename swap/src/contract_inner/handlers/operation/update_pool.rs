@@ -73,6 +73,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                 reserve_0: self.reserve_0,
                 reserve_1: self.reserve_1,
             },
+            false,
         );
 
         Ok(Some(outcome))

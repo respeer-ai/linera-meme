@@ -52,9 +52,11 @@ impl PoolContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG OP:POOL: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream
@@ -86,9 +88,11 @@ impl PoolContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG MSG:POOL: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream

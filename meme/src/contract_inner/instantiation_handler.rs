@@ -154,7 +154,7 @@ impl<
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
-        outcome.with_message(destination, MemeMessage::LiquidityFunded);
+        outcome.with_message(destination, MemeMessage::LiquidityFunded, false);
 
         Some(outcome)
     }

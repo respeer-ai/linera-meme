@@ -201,7 +201,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
         let destination = self.creator.chain_id;
         let mut outcome = HandlerOutcome::new();
 
-        outcome.with_message(destination, outcome_message.unwrap());
+        outcome.with_message(destination, outcome_message.unwrap(), false);
 
         Ok(Some(outcome))
     }

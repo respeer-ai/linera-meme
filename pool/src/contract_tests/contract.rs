@@ -115,7 +115,7 @@ async fn operation_initialize_liquidity_requires_token0_caller_and_queues_finali
     let requests = runtime.created_send_message_requests();
     assert!(requests
         .iter()
-        .all(|request| request.authenticated && request.is_tracked));
+        .all(|request| request.authenticated && !request.is_tracked));
     assert_eq!(
         requests
             .iter()
@@ -858,7 +858,7 @@ async fn add_liquidity_fund_second_leg_fail_does_not_close_flow() {
     let requests = runtime.created_send_message_requests();
     assert!(requests
         .iter()
-        .all(|request| request.authenticated && request.is_tracked));
+        .all(|request| request.authenticated && !request.is_tracked));
     let request_fund_transfer_ids: Vec<_> = requests
         .iter()
         .filter_map(|request| match request.message {
@@ -912,7 +912,7 @@ async fn add_liquidity_fund_success_only_queues_follow_up_message() {
     let requests = runtime.created_send_message_requests();
     assert!(requests
         .iter()
-        .all(|request| request.authenticated && request.is_tracked));
+        .all(|request| request.authenticated && !request.is_tracked));
     let request_fund_transfer_ids: Vec<_> = requests
         .iter()
         .filter_map(|request| match request.message {
@@ -958,7 +958,84 @@ async fn message_new_transaction_forwards_catalog_update_without_history_storage
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_claim_native_transfers_and_completes_claiming() {
+async fn operation_claim_forwards_to_pool_creator_chain_without_state_change() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let user_chain_id =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+    let creator_chain_id = pool.runtime.borrow_mut().application_creator_chain_id();
+    let amount = Amount::from_tokens(5);
+
+    pool.runtime.borrow_mut().set_chain_id(user_chain_id);
+    pool.state
+        .borrow_mut()
+        .credit(
+            MemeToken::Native,
+            Account {
+                chain_id: creator_chain_id,
+                owner: owner.owner,
+            },
+            amount,
+        )
+        .await
+        .unwrap();
+
+    let response = pool
+        .execute_operation(PoolOperation::Claim {
+            token: None,
+            amount,
+        })
+        .await;
+
+    assert!(matches!(response, PoolResponse::Ok));
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(
+                MemeToken::Native,
+                Account {
+                    chain_id: creator_chain_id,
+                    owner: owner.owner
+                }
+            )
+            .await
+            .unwrap(),
+        amount
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(
+                MemeToken::Native,
+                Account {
+                    chain_id: creator_chain_id,
+                    owner: owner.owner
+                }
+            )
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+
+    let runtime = pool.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, creator_chain_id);
+    assert!(request.authenticated);
+    assert!(!request.is_tracked);
+    assert!(matches!(
+        &request.message,
+        PoolMessage::Claim { origin, token, amount: claim_amount }
+            if origin.chain_id == user_chain_id
+                && origin.owner == owner.owner
+                && token.is_none()
+                && *claim_amount == amount
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_claim_native_transfers_and_completes_claiming() {
     let mut pool = create_and_instantiate_native_pool(false).await;
     let owner = authenticated_account(&pool);
     let amount = Amount::from_tokens(5);
@@ -977,14 +1054,13 @@ async fn operation_claim_native_transfers_and_completes_claiming() {
         .await
         .unwrap();
 
-    let response = pool
-        .execute_operation(PoolOperation::Claim {
-            token: None,
-            amount,
-        })
-        .await;
+    pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: None,
+        amount,
+    })
+    .await;
 
-    assert!(matches!(response, PoolResponse::Ok));
     assert_eq!(
         pool.state
             .borrow()
@@ -1005,7 +1081,7 @@ async fn operation_claim_native_transfers_and_completes_claiming() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_claim_fungible_moves_to_claiming() {
+async fn message_claim_fungible_moves_to_claiming() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
     let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
@@ -1027,14 +1103,13 @@ async fn operation_claim_fungible_moves_to_claiming() {
         },
     );
 
-    let response = pool
-        .execute_operation(PoolOperation::Claim {
-            token: Some(token_0),
-            amount,
-        })
-        .await;
+    pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: Some(token_0),
+        amount,
+    })
+    .await;
 
-    assert!(matches!(response, PoolResponse::Ok));
     let (application_id, operation) = captured.borrow().clone().unwrap();
     assert_eq!(application_id, token_0);
     assert!(matches!(
@@ -1070,7 +1145,7 @@ async fn operation_claim_fungible_moves_to_claiming() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_claim_native_rejects_meme_meme_pool() {
+async fn message_claim_native_rejects_meme_meme_pool() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
     let amount = Amount::from_tokens(5);
@@ -1080,7 +1155,8 @@ async fn operation_claim_native_rejects_meme_meme_pool() {
         .await
         .unwrap();
 
-    let result = std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::Claim {
+    let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::Claim {
+        origin: owner,
         token: None,
         amount,
     }))
@@ -1155,7 +1231,7 @@ async fn operation_claim_transfer_receipt_sends_pool_chain_message_without_state
     let request = requests.last().unwrap();
     assert_eq!(request.destination, expected_destination);
     assert!(request.authenticated);
-    assert!(request.is_tracked);
+    assert!(!request.is_tracked);
     assert!(matches!(
         &request.message,
         PoolMessage::ClaimTransferReceipt { receipt }

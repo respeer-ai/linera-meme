@@ -1250,7 +1250,7 @@ fn assert_transfer_from_application_receipt(
     let request = requests.last().unwrap();
     assert_eq!(request.destination, caller.chain_id);
     assert!(request.authenticated);
-    assert!(request.is_tracked);
+    assert!(!request.is_tracked);
     assert!(matches!(
         &request.message,
         MemeMessage::TransferFromApplicationReceipt {
@@ -1267,7 +1267,7 @@ fn assert_transfer_from_application_receipt_err(meme: &MemeContract, caller: Acc
     let request = requests.last().unwrap();
     assert_eq!(request.destination, caller.chain_id);
     assert!(request.authenticated);
-    assert!(request.is_tracked);
+    assert!(!request.is_tracked);
     assert!(matches!(
         &request.message,
         MemeMessage::TransferFromApplicationReceipt {

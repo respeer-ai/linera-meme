@@ -50,13 +50,13 @@ Known current behavior:
 - `base::HandlerOutcome` only stores destination and message.
 - Contract adapters send ordinary messages from `HandlerOutcome`.
 - `ContractRuntimeContext::send_message` is the central project abstraction used by handler outcome dispatch.
-- The current Linera contract adapter attaches `.with_authentication().with_tracking()` there.
+- The current Linera contract adapter attaches `.with_authentication()` there and attaches `.with_tracking()` only when the explicit `tracking` flag is true.
 - No funding path currently handles `message_is_bouncing()` as a reject receipt.
 
 Known gaps:
 
 - Receiving handlers must detect bouncing messages and converge the relevant pending workflow state.
-- This follows the Linera SDK pattern used by `linera-protocol/examples/fungible/src/contract.rs`: send with `.with_tracking()` and inspect `message_is_bouncing()` on receive.
+- Tracked paths follow the Linera SDK pattern used by `linera-protocol/examples/fungible/src/contract.rs`: send with `.with_tracking()` and inspect `message_is_bouncing()` on receive.
 
 ## Child Chain Cleanup
 

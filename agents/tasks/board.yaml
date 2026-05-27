@@ -997,7 +997,7 @@ groups:
           - Keep chain contracts as protocol truth and product data as parsed facts/projections.
 
           Constraints:
-          - Outgoing application messages must be tracked by default so the sender chain can observe one-hop destination rejects as bouncing messages and converge pending workflow state.
+          - Outgoing application messages must be authenticated by default. Tracking is explicit per message and is enabled only after the owning handler defines a `message_is_bouncing()` branch for that path.
           - Do not mistake it for full workflow atomic rollback.
           - Later-hop failures still require the business protocol state machine.
           - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
@@ -1101,7 +1101,7 @@ groups:
           - Pool instantiate creates base state only.
           - Meme initialization writes first reserve/share facts through pool-side `InitializeLiquidity`.
           - User `CreatePool` keeps `UserPoolCreated -> PoolOperation::AddLiquidity`.
-          - Runtime outgoing messages are authenticated and tracked by default.
+          - Runtime outgoing messages are authenticated by default and opt into tracking explicitly.
           - Tracked self-messages in E2E tests are explicitly accepted, not skipped.
           - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
       - id: FUND-008
@@ -1128,6 +1128,8 @@ groups:
           - 008-A4: Add pool claim and claiming storage with token-first, owner-second helpers. Claim accounting uses explicit `MemeToken` token identity; existing unrelated `Option<ApplicationId>` token surfaces are not refactored in A4.
           - 008-A5: Implement pool `Claim` operation for native synchronous claim and meme asynchronous claim start.
           - 008-A6: Implement pool claim receipt handlers; meme transfer bounce is converted to failed receipt by the meme app, not detected directly by pool.
+          - 008-A6.4: Make message tracking explicit. Runtime message sending must authenticate by default but must not track by default. Add a `tracking: bool` parameter to `HandlerMessage::new`, `HandlerOutcome::with_message`, and `ContractRuntimeContext::send_message`; do not introduce separate tracked-message APIs. Each outgoing message call site must pass `tracking` explicitly. In A6.4, only `MemeMessage::TransferFromApplicationWithReceipt` is `tracking: true`, because its handler already converts bounced delivery into a failed receipt. Other messages remain `tracking: false` until their owning funding iteration implements a handler-local `message_is_bouncing()` branch and tests. Future tracking candidates are `PoolMessage::RequestFund`, `MemeMessage::LiquidityFunded`, `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::PoolCreated`, `SwapMessage::CreateUserPool`, `SwapMessage::UserPoolCreated`, `PoolMessage::FundSuccess`, `PoolMessage::FundFail`, `PoolMessage::AddLiquidity`, `PoolMessage::InitializeLiquidity`, `PoolMessage::Swap`, and `PoolMessage::RemoveLiquidity`.
+          - 008-A6.5: Add claim-path bounced-message handling inside the owning handlers. `PoolMessage::Claim`, `MemeMessage::TransferFromApplicationReceipt`, and `PoolMessage::ClaimTransferReceipt` must inspect `message_is_bouncing()` and take the path-specific action before normal handling. No-op bounce branches are used only when the sender-side hop made no funds or authoritative-state change that requires restoration.
           - 008-A7: Add pool claim-balance and claiming-balance query support for tests and projection integration.
           - 008-A8: Add tests for storage shape, native claim, meme claim success, meme claim fail, meme transfer bounce, malformed receipts, stale receipts, pending claiming balances, and unchanged legacy receipt-free transfer paths.
 
@@ -1139,6 +1141,8 @@ groups:
           - Tests prove meme claim success/fail/bounce callbacks validate source, authenticated caller, token, owner, amount, and claiming-balance state.
           - Tests prove malformed or stale meme claim callbacks cannot decrease `claiming_balances` or increase `claim_balances`.
           - Tests prove success decreases claiming balance and fail/bounce restores available claim balance.
+          - Tests prove untracked messages are sent without tracking and tracked messages opt in explicitly.
+          - Tests prove claim-path bounced messages do not execute normal settlement or dispatch on the wrong chain.
           - Tests prove pending forever remains safe and observable.
       - id: FUND-009
         status: Todo

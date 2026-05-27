@@ -57,6 +57,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             PoolMessage::ClaimTransferReceipt {
                 receipt: self.receipt.clone(),
             },
+            false,
         );
 
         Ok(Some(outcome))

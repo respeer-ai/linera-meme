@@ -67,6 +67,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                 to: self.to,
                 block_timestamp: self.block_timestamp,
             },
+            false,
         );
 
         Ok(Some(outcome))

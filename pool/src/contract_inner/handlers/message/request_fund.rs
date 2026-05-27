@@ -77,6 +77,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                     PoolMessage::FundSuccess {
                         transfer_id: self.transfer_id,
                     },
+                    false,
                 );
             }
             MemeResponse::Fail(error) => {
@@ -86,6 +87,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                         transfer_id: self.transfer_id,
                         error,
                     },
+                    false,
                 );
             }
             _ => panic!("Invalid response"),

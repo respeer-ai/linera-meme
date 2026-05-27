@@ -282,7 +282,11 @@ impl<
             amount_1_out
         );
 
-        outcome.with_message(destination, PoolMessage::NewTransaction { transaction });
+        outcome.with_message(
+            destination,
+            PoolMessage::NewTransaction { transaction },
+            false,
+        );
 
         // 5: Dispatch outputs after the transaction has been fixed.
         if amount_1_out > Amount::ZERO {

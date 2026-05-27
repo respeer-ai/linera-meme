@@ -114,6 +114,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 instantiation_argument: self.meme_instantiation_argument.clone(),
                 parameters: self.meme_parameters.clone(),
             },
+            false,
         );
 
         Ok(Some(outcome))

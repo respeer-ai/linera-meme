@@ -134,13 +134,18 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .collect()
     }
 
-    fn send_message(&mut self, destination: ChainId, message: M) {
-        self.runtime
+    fn send_message(&mut self, destination: ChainId, message: M, tracking: bool) {
+        let mut builder = self
+            .runtime
             .borrow_mut()
             .prepare_message(message)
-            .with_authentication()
-            .with_tracking()
-            .send_to(destination);
+            .with_authentication();
+
+        if tracking {
+            builder = builder.with_tracking();
+        }
+
+        builder.send_to(destination);
     }
 
     fn message_is_bouncing(&mut self) -> Option<bool> {

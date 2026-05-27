@@ -149,6 +149,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeHan
                 instantiation_argument,
                 parameters,
             },
+            false,
         );
 
         self.state

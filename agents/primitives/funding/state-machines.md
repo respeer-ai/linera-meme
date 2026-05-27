@@ -7,9 +7,9 @@ Authority: High
 ## Rules
 
 - A successful operation only proves the current transaction completed and outgoing messages were queued.
-- Outgoing application messages must be tracked by default.
+- Outgoing application messages are authenticated by default. Tracking is explicit per message and is enabled only after the owning handler defines a `message_is_bouncing()` branch for that path.
 - `tracked + bouncing` is a one-hop reject receipt mechanism, not cross-chain atomic rollback.
-- The reason to track messages is to let the sender chain observe destination-chain reject and converge sender-side workflow state safely.
+- The reason to opt into tracking is to let the sender chain observe destination-chain reject and converge sender-side workflow state safely.
 - Receiving handlers must use `message_is_bouncing()` to distinguish normal delivery from a reject bounce.
 - A non-bounced tracked message is not whole-workflow success.
 - A target chain may delay message execution indefinitely or never execute the message.

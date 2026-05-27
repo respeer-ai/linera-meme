@@ -157,6 +157,11 @@ pub enum PoolMessage {
     NewTransaction {
         transaction: Transaction,
     },
+    Claim {
+        origin: Account,
+        token: Option<ApplicationId>,
+        amount: Amount,
+    },
     ClaimTransferReceipt {
         receipt: ClaimTransferReceipt,
     },

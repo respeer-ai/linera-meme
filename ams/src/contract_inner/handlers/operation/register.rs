@@ -45,6 +45,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
             AmsMessage::Register {
                 metadata: self.metadata.clone(),
             },
+            false,
         );
 
         Ok(Some(outcome))
