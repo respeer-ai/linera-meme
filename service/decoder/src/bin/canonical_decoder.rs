@@ -364,6 +364,14 @@ fn decode_pool_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "transaction": encode_transaction(transaction),
             }),
         ),
+        PoolMessage::ClaimTransferReceipt { receipt } => (
+            "claim_transfer_receipt",
+            json!({
+                "message_type": "claim_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_claim_transfer_receipt(receipt),
+            }),
+        ),
     };
     Ok(json!({
         "payload_type": payload_type,

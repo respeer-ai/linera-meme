@@ -157,6 +157,9 @@ pub enum PoolMessage {
     NewTransaction {
         transaction: Transaction,
     },
+    ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

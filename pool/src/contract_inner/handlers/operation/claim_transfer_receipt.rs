@@ -2,6 +2,7 @@ use crate::interfaces::state::StateInterface;
 use abi::swap::pool::{ClaimTransferReceipt, PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
+use linera_sdk::linera_base_types::Amount;
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -11,9 +12,9 @@ pub struct ClaimTransferReceiptHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
     S: StateInterface,
 > {
-    _runtime: Rc<RefCell<R>>,
-    _state: S,
-    _receipt: ClaimTransferReceipt,
+    runtime: Rc<RefCell<R>>,
+    state: S,
+    receipt: ClaimTransferReceipt,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
@@ -24,9 +25,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             panic!("Invalid operation");
         };
         Self {
-            _runtime: runtime,
-            _state: state,
-            _receipt: receipt.clone(),
+            runtime,
+            state,
+            receipt: receipt.clone(),
         }
     }
 }
@@ -38,6 +39,26 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
-        panic!("Claim transfer receipt is not implemented yet")
+        assert!(self.receipt.amount > Amount::ZERO, "Invalid amount");
+        self.state.pool().validate_token(Some(self.receipt.token));
+        assert!(
+            self.runtime
+                .borrow_mut()
+                .authenticated_caller_id()
+                .expect("Invalid claim transfer receipt caller")
+                == self.receipt.token,
+            "Invalid claim transfer receipt caller"
+        );
+
+        let destination = self.runtime.borrow_mut().application_creator_chain_id();
+        let mut outcome = HandlerOutcome::new();
+        outcome.with_message(
+            destination,
+            PoolMessage::ClaimTransferReceipt {
+                receipt: self.receipt.clone(),
+            },
+        );
+
+        Ok(Some(outcome))
     }
 }
