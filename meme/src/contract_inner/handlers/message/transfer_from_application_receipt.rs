@@ -82,15 +82,20 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
             // Rejects caused by implementation, deployment, or operator failure:
             // - handler bug or assertion bug;
             // - ABI mismatch between meme and pool;
-            // - legal receipt exceeds configured execution resource limits;
-            // - execution fee funding is insufficient;
+            // - the receipt message alone exceeds an execution limit;
             // - node policy explicitly rejects the message.
+            //
+            // Pool-chain gas shortage or per-block resource limits do not reject this
+            // message in current Linera behavior; the message remains pending until it
+            // can be executed. Therefore a bounced completed receipt is not protocol
+            // recovery. It is an abnormal settlement-reject diagnostic.
             //
             // No recovery is performed in this bounced branch. For a success receipt, the
             // user has already received the meme token and the pool amount remains locked in
-            // claiming_balances, so it cannot be claimed again. A bounced failure receipt is
-            // outside the normal protocol path and remains locked for operator/projection
-            // diagnosis.
+            // claiming_balances, so it cannot be claimed again. Observability must report
+            // this as paid out with claiming settlement rejected. A bounced failure receipt
+            // is outside the normal protocol path and remains locked for
+            // operator/projection diagnosis.
             return Ok(None);
         }
 

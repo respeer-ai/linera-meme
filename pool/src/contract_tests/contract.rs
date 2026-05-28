@@ -1145,6 +1145,53 @@ async fn message_claim_fungible_moves_to_claiming() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn message_claim_fungible_pending_amount_cannot_be_claimed_again() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token = MemeToken::Fungible(token_0);
+    let amount = Amount::from_tokens(5);
+
+    pool.state
+        .borrow_mut()
+        .credit(token, owner, amount)
+        .await
+        .unwrap();
+    pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: Some(token_0),
+        amount,
+    })
+    .await;
+
+    let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: Some(token_0),
+        amount,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(token, owner)
+            .await
+            .unwrap(),
+        amount
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn message_claim_native_rejects_meme_meme_pool() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
@@ -1235,6 +1282,69 @@ async fn operation_claim_transfer_receipt_success_consumes_claiming() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn operation_claim_transfer_receipt_rejects_duplicate_success_receipt() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token = MemeToken::Fungible(token_0);
+    let amount = Amount::from_tokens(5);
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+    pool.state
+        .borrow_mut()
+        .credit(token, owner, amount)
+        .await
+        .unwrap();
+    pool.state
+        .borrow_mut()
+        .claim(token, owner, amount)
+        .await
+        .unwrap();
+
+    pool.execute_operation(PoolOperation::ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt {
+            owner,
+            token: token_0,
+            amount,
+            result: Ok(()),
+        },
+    })
+    .await;
+
+    let result =
+        std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::ClaimTransferReceipt {
+            receipt: ClaimTransferReceipt {
+                owner,
+                token: token_0,
+                amount,
+                result: Ok(()),
+            },
+        }))
+        .catch_unwind()
+        .await;
+
+    assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn operation_claim_transfer_receipt_rejects_invalid_caller() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
@@ -1275,6 +1385,14 @@ async fn operation_claim_transfer_receipt_rejects_invalid_caller() {
         .await;
 
     assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
     assert_eq!(
         pool.state
             .borrow()
@@ -1324,6 +1442,14 @@ async fn operation_claim_transfer_receipt_rejects_non_creator_chain() {
         .await;
 
     assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
     assert_eq!(
         pool.state
             .borrow()

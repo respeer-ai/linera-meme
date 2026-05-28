@@ -86,7 +86,7 @@ Flow:
 3. Pool moves `amount` from `claimable_balances[token][owner]` to `claiming_balances[token][owner]`.
 4. Pool calls `MemeOperation::TransferFromApplicationWithReceipt` on the meme application.
 5. Success acknowledgement decreases `claiming_balances[token][owner]` by `amount`.
-6. Fail or bounce decreases `claiming_balances[token][owner]` by `amount` and returns it to `claimable_balances[token][owner]`.
+6. Transfer failure before payout, or bounced `TransferFromApplicationWithReceipt` before payout, decreases `claiming_balances[token][owner]` by `amount` and returns it to `claimable_balances[token][owner]`.
 7. While in `claiming_balances`, the amount is unavailable for another claim.
 
 The meme transfer receipt ABI for `FUND-008` is:
@@ -135,6 +135,20 @@ ClaimTransferReceipt {
 The existing receipt-free `TransferFromApplication` remains available for paths not migrated in `FUND-008`. After all protocol funds paths are migrated to receipt-first application transfer, the receipt-free variant can be removed and the default `TransferFromApplication` can carry a receipt. Pool claim receipt handlers validate source chain, authenticated caller, pool application, token application, owner, amount, and `claiming_balances[token][owner] >= amount`. Linera core once-only execution is the duplicate-delivery boundary for the exact same message; the application does not add per-attempt ids.
 
 `FUND-008` tests may seed claim balances through contract test fixtures or internal test helpers. Do not add a production debug operation or public ABI solely to create claim balances for tests.
+
+## Claim Settlement Rejected
+
+`MemeMessage::TransferFromApplicationReceipt` is a settlement notification after the meme application has already completed `TransferFromApplicationWithReceipt`.
+
+Current Linera behavior does not reject a message solely because adding it to a block would exceed per-block gas or block limits; the message remains pending for later execution. A bounced completed receipt therefore means explicit execution rejection, explicit node reject policy, ABI/deployment mismatch, implementation failure, or the receipt message alone exceeding an execution limit.
+
+Rules:
+
+- The legal completed receipt path must not reject through application-controlled validation.
+- Do not restore `claimable_balances` for a rejected completed success receipt.
+- Do not retry or resend a rejected completed receipt.
+- For a rejected completed success receipt, the user already received the meme token and the amount remains locked in `claiming_balances`, so it cannot be claimed again.
+- Observability must expose this state as paid out with claiming settlement rejected.
 
 ## Forever Pending Claiming Balance
 

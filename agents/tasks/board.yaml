@@ -1131,7 +1131,8 @@ groups:
           - 008-A6.4: Make message tracking explicit. Runtime message sending must authenticate by default but must not track by default. Add a `tracking: bool` parameter to `HandlerMessage::new`, `HandlerOutcome::with_message`, and `ContractRuntimeContext::send_message`; do not introduce separate tracked-message APIs. Each outgoing message call site must pass `tracking` explicitly. In A6.4, only `MemeMessage::TransferFromApplicationWithReceipt` is `tracking: true`, because its handler already converts bounced delivery into a failed receipt. Other messages remain `tracking: false` until their owning funding iteration implements a handler-local `message_is_bouncing()` branch and tests. Future tracking candidates are `PoolMessage::RequestFund`, `MemeMessage::LiquidityFunded`, `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::PoolCreated`, `SwapMessage::CreateUserPool`, `SwapMessage::UserPoolCreated`, `PoolMessage::FundSuccess`, `PoolMessage::FundFail`, `PoolMessage::AddLiquidity`, `PoolMessage::InitializeLiquidity`, `PoolMessage::Swap`, and `PoolMessage::RemoveLiquidity`.
           - 008-A6.5: Finalize claim receipt settlement. `PoolMessage::Claim` stays untracked and has no bounce branch because no state or funds change before it executes. `MemeMessage::TransferFromApplicationReceipt` inspects `message_is_bouncing()`; the bounced branch is documented no-op because legal receipt rejection is outside the normal protocol path and already leaves successful payouts locked in `claiming_balances`. `PoolOperation::ClaimTransferReceipt` directly settles `claim_success` or `claim_fail` on the pool chain. `PoolMessage::ClaimTransferReceipt` is removed to avoid an extra message hop.
           - 008-A7: Add pool claim-balance and claiming-balance query support for tests and projection integration. This is a single-pool chain fact query only. It is not a frontend batch-read interface. Frontend claim and claiming balance reads must use observability projection/API data maintained from parsed blocks across pools.
-          - 008-A8: Add tests for storage shape, native claim, meme claim success, meme claim fail, meme transfer bounce, malformed receipts, stale receipts, pending claiming balances, and unchanged legacy receipt-free transfer paths.
+          - 008-A7.5: Lock claim settlement rejected semantics. Current Linera behavior leaves messages pending when per-block gas or block limits prevent inclusion; those limits are not receipt-reject causes. `TransferFromApplicationReceipt` bounce is defensive no-op only for explicit execution rejection, explicit node reject policy, ABI/deployment mismatch, implementation failure, or a receipt message that alone exceeds an execution limit. A rejected completed success receipt does not restore claimable balance, does not retry, and must be exposed by observability as paid out with claiming settlement rejected.
+          - 008-A8: Add tests for storage shape, native claim, meme claim success, meme claim fail, meme transfer bounce before payout, malformed receipts, stale receipts, pending claiming balances, rejected completed receipt no-op semantics, and unchanged legacy receipt-free transfer paths.
 
           Validation:
           - Tests prove claim-balance storage uses token-first, owner-second shape.
@@ -1140,7 +1141,8 @@ groups:
           - Tests prove meme claiming balance keeps the in-flight amount unavailable for another claim.
           - Tests prove meme claim success/fail receipt settlement validates authenticated caller, token, owner, amount, and claiming-balance state.
           - Tests prove malformed or stale meme claim callbacks cannot decrease `claiming_balances` or increase `claim_balances`.
-          - Tests prove success decreases claiming balance and fail restores available claim balance; bounced `TransferFromApplicationReceipt` is documented no-op and does not dispatch settlement.
+          - Tests prove success decreases claiming balance and transfer failure before payout restores available claim balance.
+          - Tests prove rejected completed `TransferFromApplicationReceipt` is documented no-op, does not dispatch settlement, does not restore claimable balance, and leaves claiming balance locked for observability.
           - Tests prove untracked messages are sent without tracking and tracked messages opt in explicitly.
           - Tests prove claim-path bounced messages do not execute normal settlement or dispatch on the wrong chain.
           - Tests prove pending forever remains safe and observable.
@@ -1254,7 +1256,7 @@ groups:
           - Keep virtual liquidity distinct from deposited reserve, TVL, payable balance, and claim balance.
 
           Validation:
-          - Projection tests derive claim lists, positions, TVL, APR inputs, transactions, claim balances, pending/stalled workflows, and candles from parsed facts only.
+          - Projection tests derive claim lists, positions, TVL, APR inputs, transactions, claim balances, pending/stalled workflows, claim settlement rejected diagnostics, and candles from parsed facts only.
           - Product smoke tests prove current frontend/API read paths remain compatible or are explicitly migrated.
           - Tests prove no live query is required for product funds accounting truth.
       - id: FUND-003
@@ -1263,7 +1265,7 @@ groups:
         depends_on: [FUND-001]
         title: Define gas/funder coverage and operational visibility
         notes: |
-          Gas/funder availability is an operational progress concern, not a funds-safety prerequisite, once the protocol safely covers both insufficient-gas outcomes: message rejection and message non-execution/stall.
+          Gas/funder availability is an operational progress concern, not a funds-safety prerequisite. Current Linera behavior does not reject a message solely because adding it would exceed per-block gas or block limits; the message remains pending/stalled for later execution. Reject handling still covers explicit execution failure, explicit node reject policy, ABI/deployment mismatch, implementation failure, and messages that alone exceed execution limits.
           Define the set of chains that should stay funded and their funding source, including pre-created chains and runtime-created chains. Implement funder resources, chain discovery, monitoring alerts, and manual diagnostics so exhausted chain balance with non-empty application balance is visible as an operational stall rather than being mistaken for protocol accounting loss.
       - id: FUND-004
         status: Todo

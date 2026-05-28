@@ -54,6 +54,7 @@ Protocol changes must emit or preserve facts sufficient to derive:
 - claim delivery pending
 - claim delivery succeeded
 - claim delivery failed
+- claim payout completed with claiming settlement rejected
 - position changed
 - reserve changed
 - virtual position created
@@ -68,6 +69,7 @@ Projection/API must paginate:
 - stalled intents
 - diagnostic history
 - claim delivery history
+- claim settlement rejected diagnostics
 
 Do not solve product pagination by deleting protocol accounting state.
 

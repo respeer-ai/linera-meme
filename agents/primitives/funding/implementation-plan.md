@@ -136,7 +136,9 @@ Validation:
 - Meme claiming balance keeps the in-flight amount unavailable for another claim.
 - Meme claim success/fail/bounce callbacks validate source, authenticated caller, token, owner, amount, and claiming-balance state.
 - Tests prove malformed or stale meme claim callbacks cannot decrease `claiming_balances` or increase `claim_balances`.
-- Success decreases claiming balance; fail/bounce moves the amount back to available claim balance.
+- Success decreases claiming balance.
+- Transfer failure before payout, or bounced `TransferFromApplicationWithReceipt` before payout, restores available claim balance.
+- A rejected completed `TransferFromApplicationReceipt` is an observability-only abnormal settlement state: it does not restore claimable balance, does not retry, and leaves the amount locked in claiming balance.
 - Pending forever remains safe and observable.
 
 ### FUND-009 Iteration 4: Existing-pool AddLiquidity two-leg pending

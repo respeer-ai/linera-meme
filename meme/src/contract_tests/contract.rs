@@ -1115,6 +1115,30 @@ async fn message_transfer_from_application_receipt_bounce_is_noop() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_bounce_does_not_dispatch_pool_settlement() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(true);
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: pool_claim_receipt(Some(Ok(()))),
+    })
+    .await;
+
+    assert!(captured.borrow().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn message_redeem_none_redeems_full_balance_to_owner_account() {
     let mut meme = create_and_instantiate_meme(false, None).await;
     let creator_chain_id = meme.runtime.borrow_mut().chain_id();
