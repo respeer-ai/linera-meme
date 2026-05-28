@@ -162,9 +162,6 @@ pub enum PoolMessage {
         token: Option<ApplicationId>,
         amount: Amount,
     },
-    ClaimTransferReceipt {
-        receipt: ClaimTransferReceipt,
-    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

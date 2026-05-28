@@ -1183,13 +1183,12 @@ async fn message_claim_native_rejects_meme_meme_pool() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_claim_transfer_receipt_sends_pool_chain_message_without_state_change() {
+async fn operation_claim_transfer_receipt_success_consumes_claiming() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
     let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
     let token = MemeToken::Fungible(token_0);
     let amount = Amount::from_tokens(5);
-    let expected_destination = pool.runtime.borrow_mut().application_creator_chain_id();
 
     pool.runtime
         .borrow_mut()
@@ -1220,26 +1219,19 @@ async fn operation_claim_transfer_receipt_sends_pool_chain_message_without_state
     assert_eq!(
         pool.state
             .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
             .claiming_balance(token, owner)
             .await
             .unwrap(),
-        amount
+        Amount::ZERO
     );
-
-    let runtime = pool.runtime.borrow();
-    let requests = runtime.created_send_message_requests();
-    let request = requests.last().unwrap();
-    assert_eq!(request.destination, expected_destination);
-    assert!(request.authenticated);
-    assert!(!request.is_tracked);
-    assert!(matches!(
-        &request.message,
-        PoolMessage::ClaimTransferReceipt { receipt }
-            if receipt.owner == owner
-                && receipt.token == token_0
-                && receipt.amount == amount
-                && receipt.result == Ok(())
-    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1294,13 +1286,19 @@ async fn operation_claim_transfer_receipt_rejects_invalid_caller() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_claim_transfer_receipt_success_consumes_claiming() {
+async fn operation_claim_transfer_receipt_rejects_non_creator_chain() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
     let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
     let token = MemeToken::Fungible(token_0);
     let amount = Amount::from_tokens(5);
+    let user_chain_id =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
 
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
     pool.state
         .borrow_mut()
         .credit(token, owner, amount)
@@ -1311,42 +1309,42 @@ async fn message_claim_transfer_receipt_success_consumes_claiming() {
         .claim(token, owner, amount)
         .await
         .unwrap();
+    pool.runtime.borrow_mut().set_chain_id(user_chain_id);
 
-    pool.execute_message(PoolMessage::ClaimTransferReceipt {
-        receipt: ClaimTransferReceipt {
-            owner,
-            token: token_0,
-            amount,
-            result: Ok(()),
-        },
-    })
-    .await;
+    let result =
+        std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::ClaimTransferReceipt {
+            receipt: ClaimTransferReceipt {
+                owner,
+                token: token_0,
+                amount,
+                result: Ok(()),
+            },
+        }))
+        .catch_unwind()
+        .await;
 
-    assert_eq!(
-        pool.state
-            .borrow()
-            .claimable_balance(token, owner)
-            .await
-            .unwrap(),
-        Amount::ZERO
-    );
+    assert!(result.is_err());
     assert_eq!(
         pool.state
             .borrow()
             .claiming_balance(token, owner)
             .await
             .unwrap(),
-        Amount::ZERO
+        amount
     );
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_claim_transfer_receipt_fail_returns_to_claimable() {
+async fn operation_claim_transfer_receipt_fail_returns_to_claimable() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
     let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
     let token = MemeToken::Fungible(token_0);
     let amount = Amount::from_tokens(5);
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
 
     pool.state
         .borrow_mut()
@@ -1359,7 +1357,7 @@ async fn message_claim_transfer_receipt_fail_returns_to_claimable() {
         .await
         .unwrap();
 
-    pool.execute_message(PoolMessage::ClaimTransferReceipt {
+    pool.execute_operation(PoolOperation::ClaimTransferReceipt {
         receipt: ClaimTransferReceipt {
             owner,
             token: token_0,
@@ -1388,15 +1386,19 @@ async fn message_claim_transfer_receipt_fail_returns_to_claimable() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_claim_transfer_receipt_rejects_insufficient_claiming() {
+async fn operation_claim_transfer_receipt_rejects_insufficient_claiming() {
     let mut pool = create_and_instantiate_pool(false).await;
     let owner = authenticated_account(&pool);
     let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
     let token = MemeToken::Fungible(token_0);
     let amount = Amount::from_tokens(5);
 
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+
     let result =
-        std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::ClaimTransferReceipt {
+        std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::ClaimTransferReceipt {
             receipt: ClaimTransferReceipt {
                 owner,
                 token: token_0,
@@ -1419,7 +1421,7 @@ async fn message_claim_transfer_receipt_rejects_insufficient_claiming() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_claim_transfer_receipt_rejects_invalid_token() {
+async fn operation_claim_transfer_receipt_rejects_invalid_token() {
     let mut pool = create_and_instantiate_native_pool(false).await;
     let owner = authenticated_account(&pool);
     let invalid_token =
@@ -1427,8 +1429,12 @@ async fn message_claim_transfer_receipt_rejects_invalid_token() {
             .unwrap();
     let amount = Amount::from_tokens(5);
 
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(invalid_token);
+
     let result =
-        std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::ClaimTransferReceipt {
+        std::panic::AssertUnwindSafe(pool.execute_operation(PoolOperation::ClaimTransferReceipt {
             receipt: ClaimTransferReceipt {
                 owner,
                 token: invalid_token,

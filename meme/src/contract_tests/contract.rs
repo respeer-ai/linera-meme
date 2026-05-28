@@ -986,6 +986,8 @@ async fn message_transfer_from_application_receipt_rejects_incomplete_receipt() 
     let mut meme = create_and_instantiate_meme(false, None).await;
     let caller = pool_application_account();
 
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
     meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
         caller,
         receipt: pool_claim_receipt(None),
@@ -1003,6 +1005,8 @@ async fn message_transfer_from_application_receipt_dispatches_pool_claim_success
         result: Some(Ok(())),
         ..pool_claim_receipt(None)
     };
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
 
     let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
     let captured_for_handler = captured.clone();
@@ -1051,6 +1055,8 @@ async fn message_transfer_from_application_receipt_dispatches_pool_claim_fail() 
         ..pool_claim_receipt(None)
     };
 
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
     let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
     let captured_for_handler = captured.clone();
     meme.runtime.borrow_mut().set_call_application_handler(
@@ -1086,6 +1092,21 @@ async fn message_transfer_from_application_receipt_rejects_invalid_caller_owner(
         owner: AccountOwner::CHAIN,
     };
 
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: pool_claim_receipt(Some(Ok(()))),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_bounce_is_noop() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(true);
     meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
         caller,
         receipt: pool_claim_receipt(Some(Ok(()))),

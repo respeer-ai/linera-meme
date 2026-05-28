@@ -11,7 +11,6 @@ use base::handler::{Handler, HandlerError};
 use message::{
     add_liquidity::AddLiquidityHandler as MessageAddLiquidityHandler,
     claim::ClaimHandler as MessageClaimHandler,
-    claim_transfer_receipt::ClaimTransferReceiptHandler as MessageClaimTransferReceiptHandler,
     fund_fail::FundFailHandler as MessageFundFailHandler,
     fund_success::FundSuccessHandler as MessageFundSuccessHandler,
     initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
@@ -120,9 +119,6 @@ impl HandlerFactory {
                 Box::new(MessageNewTransactionHandler::new(runtime, state, msg))
             }
             PoolMessage::Claim { .. } => Box::new(MessageClaimHandler::new(runtime, state, msg)),
-            PoolMessage::ClaimTransferReceipt { .. } => {
-                Box::new(MessageClaimTransferReceiptHandler::new(runtime, state, msg))
-            }
         }
     }
 

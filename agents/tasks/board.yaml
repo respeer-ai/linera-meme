@@ -1129,7 +1129,7 @@ groups:
           - 008-A5: Implement pool `Claim` operation for native synchronous claim and meme asynchronous claim start.
           - 008-A6: Implement pool claim receipt handlers; meme transfer bounce is converted to failed receipt by the meme app, not detected directly by pool.
           - 008-A6.4: Make message tracking explicit. Runtime message sending must authenticate by default but must not track by default. Add a `tracking: bool` parameter to `HandlerMessage::new`, `HandlerOutcome::with_message`, and `ContractRuntimeContext::send_message`; do not introduce separate tracked-message APIs. Each outgoing message call site must pass `tracking` explicitly. In A6.4, only `MemeMessage::TransferFromApplicationWithReceipt` is `tracking: true`, because its handler already converts bounced delivery into a failed receipt. Other messages remain `tracking: false` until their owning funding iteration implements a handler-local `message_is_bouncing()` branch and tests. Future tracking candidates are `PoolMessage::RequestFund`, `MemeMessage::LiquidityFunded`, `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::PoolCreated`, `SwapMessage::CreateUserPool`, `SwapMessage::UserPoolCreated`, `PoolMessage::FundSuccess`, `PoolMessage::FundFail`, `PoolMessage::AddLiquidity`, `PoolMessage::InitializeLiquidity`, `PoolMessage::Swap`, and `PoolMessage::RemoveLiquidity`.
-          - 008-A6.5: Add claim-path bounced-message handling inside the owning handlers. `PoolMessage::Claim`, `MemeMessage::TransferFromApplicationReceipt`, and `PoolMessage::ClaimTransferReceipt` must inspect `message_is_bouncing()` and take the path-specific action before normal handling. No-op bounce branches are used only when the sender-side hop made no funds or authoritative-state change that requires restoration.
+          - 008-A6.5: Finalize claim receipt settlement. `PoolMessage::Claim` stays untracked and has no bounce branch because no state or funds change before it executes. `MemeMessage::TransferFromApplicationReceipt` inspects `message_is_bouncing()`; the bounced branch is documented no-op because legal receipt rejection is outside the normal protocol path and already leaves successful payouts locked in `claiming_balances`. `PoolOperation::ClaimTransferReceipt` directly settles `claim_success` or `claim_fail` on the pool chain. `PoolMessage::ClaimTransferReceipt` is removed to avoid an extra message hop.
           - 008-A7: Add pool claim-balance and claiming-balance query support for tests and projection integration.
           - 008-A8: Add tests for storage shape, native claim, meme claim success, meme claim fail, meme transfer bounce, malformed receipts, stale receipts, pending claiming balances, and unchanged legacy receipt-free transfer paths.
 
@@ -1138,9 +1138,9 @@ groups:
           - Tests prove token claim balances update without duplicating token identity per owner.
           - Tests prove native claim succeeds or leaves balance unchanged on abort.
           - Tests prove meme claiming balance keeps the in-flight amount unavailable for another claim.
-          - Tests prove meme claim success/fail/bounce callbacks validate source, authenticated caller, token, owner, amount, and claiming-balance state.
+          - Tests prove meme claim success/fail receipt settlement validates authenticated caller, token, owner, amount, and claiming-balance state.
           - Tests prove malformed or stale meme claim callbacks cannot decrease `claiming_balances` or increase `claim_balances`.
-          - Tests prove success decreases claiming balance and fail/bounce restores available claim balance.
+          - Tests prove success decreases claiming balance and fail restores available claim balance; bounced `TransferFromApplicationReceipt` is documented no-op and does not dispatch settlement.
           - Tests prove untracked messages are sent without tracking and tracked messages opt in explicitly.
           - Tests prove claim-path bounced messages do not execute normal settlement or dispatch on the wrong chain.
           - Tests prove pending forever remains safe and observable.
