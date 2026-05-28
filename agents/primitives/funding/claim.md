@@ -34,6 +34,8 @@ Existing protocol surfaces still use `Option<ApplicationId>` in several places. 
 
 This keeps each token identity stored once at the outer level and avoids repeating token keys for every account. User-facing claim lists must be served from projection/API data rather than by scanning contract storage at product-read time.
 
+Pool service claim-balance queries are single-pool chain facts for tests, diagnostics, and observability projection reconciliation. They are not a product batch-read interface. The frontend must not query many pool applications directly to reconstruct claim balances. Observability must maintain cross-pool claimable and claiming balance changes by parsing blocks, then expose a batch API for frontend reads.
+
 Claim-balance accounting must exist before any workflow credits owed value to claim balances. The user-facing `Claim` operation may be delivered in the same iteration as the accounting foundation or earlier than the first workflow that credits owed value, but it must not be delivered later than the first owed-value credit path.
 
 ## Claim Operation
