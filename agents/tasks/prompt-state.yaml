@@ -28,23 +28,21 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-008, which introduces claim
-      accounting and the funds-exit foundation before later funding paths credit
-      owed value to it.
+      iterations. Current executable child is FUND-009, which makes existing finalized-pool
+      add liquidity safe using the established claim exit.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-008
-    why: active iteration for claim accounting and funds-exit foundation
+  - id: FUND-009
+    why: active iteration for existing-pool AddLiquidity two-leg pending
     summary: >
-      Introduce the single claim-balance funds-exit model. Add claim-balance
-      storage and target `Claim` operation ABI, implement native synchronous
-      claim semantics, and implement meme `claiming_balances` for asynchronous
-      delivery. Refund, retry, protocol fee, remote liquidity, and excess are
-      claim-balance meanings, not separate user operations. Define concrete meme
-      claim success, fail, and bounce message variants before implementation.
+      Make ordinary finalized-pool add liquidity safe using the established claim
+      exit. Keep the normal AddLiquidity path, preserve the limiting-side
+      calculation, credit partial-funding failures and accepted-liquidity
+      excess/refunds to claim balances, and do not introduce a persisted
+      AddLiquidityIntent design.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

@@ -1105,7 +1105,7 @@ groups:
           - Tracked self-messages in E2E tests are explicitly accepted, not skipped.
           - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
       - id: FUND-008
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-007]
         title: "Iteration 3: Claim accounting and funds-exit foundation"
@@ -1146,6 +1146,10 @@ groups:
           - Tests prove untracked messages are sent without tracking and tracked messages opt in explicitly.
           - Tests prove claim-path bounced messages do not execute normal settlement or dispatch on the wrong chain.
           - Tests prove pending forever remains safe and observable.
+
+          Completed:
+          - Claim-balance storage, target `Claim` operation, native claim, meme asynchronous claiming, receipt settlement, explicit tracking, claim queries, and product workflow E2E entrypoint are implemented.
+          - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
       - id: FUND-009
         status: Todo
         priority: P0
