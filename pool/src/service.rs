@@ -234,6 +234,70 @@ impl MutationRoot {
             });
         []
     }
+
+    async fn claim(&self, token: Option<ApplicationId>, amount: Amount) -> [u8; 0] {
+        assert!(
+            self.service.runtime.application_creator_chain_id() != self.service.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.service
+            .runtime
+            .schedule_operation(&PoolOperation::Claim { token, amount });
+        []
+    }
+
+    async fn add_liquidity(
+        &self,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> [u8; 0] {
+        assert!(
+            self.service.runtime.application_creator_chain_id() != self.service.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.service
+            .runtime
+            .schedule_operation(&PoolOperation::AddLiquidity {
+                amount_0_in,
+                amount_1_in,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            });
+        []
+    }
+
+    async fn remove_liquidity(
+        &self,
+        liquidity: Amount,
+        amount_0_out_min: Option<Amount>,
+        amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    ) -> [u8; 0] {
+        assert!(
+            self.service.runtime.application_creator_chain_id() != self.service.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.service
+            .runtime
+            .schedule_operation(&PoolOperation::RemoveLiquidity {
+                liquidity,
+                amount_0_out_min,
+                amount_1_out_min,
+                to,
+                block_timestamp,
+            });
+        []
+    }
 }
 
 #[cfg(test)]
@@ -248,7 +312,11 @@ mod tests {
     };
     use pool::state::PoolState;
     use serde_json::{json, Value};
-    use std::{collections::HashMap, str::FromStr, sync::Arc};
+    use std::{
+        collections::{BTreeSet, HashMap},
+        str::FromStr,
+        sync::Arc,
+    };
 
     fn sample_pool_after_swap_growth() -> (Pool, Amount) {
         let token_0 = ApplicationId::from_str(
@@ -277,6 +345,48 @@ mod tests {
 
     #[test]
     fn query() {}
+
+    #[tokio::test]
+    async fn mutation_schema_exposes_frontend_liquidity_entrypoints() {
+        let runtime = Arc::new(ServiceRuntime::<PoolService>::new());
+        let state = PoolState::load(runtime.root_view_storage_context())
+            .await
+            .expect("Failed to read from mock key value store");
+        let service = PoolService {
+            state: Arc::new(state),
+            runtime,
+        };
+
+        let response = service
+            .handle_query(Request::new(
+                r#"
+                query MutationFields {
+                    __schema {
+                        mutationType {
+                            fields {
+                                name
+                            }
+                        }
+                    }
+                }
+                "#,
+            ))
+            .await;
+        assert!(response.errors.is_empty(), "{:?}", response.errors);
+
+        let data = response.data.into_json().unwrap();
+        let names = data["__schema"]["mutationType"]["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|field| field["name"].as_str().unwrap())
+            .collect::<BTreeSet<_>>();
+
+        assert!(names.contains("swap"));
+        assert!(names.contains("claim"));
+        assert!(names.contains("addLiquidity"));
+        assert!(names.contains("removeLiquidity"));
+    }
 
     #[tokio::test]
     async fn claim_balance_queries_return_single_pool_aggregate_state() {
