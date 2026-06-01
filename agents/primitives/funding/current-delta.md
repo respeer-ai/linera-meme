@@ -74,10 +74,22 @@ Known gaps:
 
 ## AddLiquidity
 
+Known current behavior:
+
+- AddLiquidity currently creates two linked `FundRequest` records and uses `FundSuccess`/`FundFail` with `transfer_id` to advance the two funding legs.
+- Current settled add-liquidity calculation accepts liquidity based on the limiting side and directly transfers excess back.
+
 Known gap:
 
-- Add liquidity needs explicit two-leg pending/funded/finalized state before reserve update or LP mint.
-- Current settled add-liquidity calculation already accepts liquidity based on the limiting side and directly transfers excess back. Target funding semantics keep the limiting-side calculation but route all excess/refund value through claim balances.
+- `FUND-009` must migrate AddLiquidity away from persisted `FundRequest`; AddLiquidity must carry funding-request facts through messages as `FundRequestExt`.
+- `FundRequestExt` is the non-persistent replacement for the facts previously reached through `transfer_id -> FundRequest`.
+- AddLiquidity funding uses `RequestFundExt { prev, request, next }` and `FundResultExt { prev, request, next, result }`; it does not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible `Token0` / `Token1` names.
+- `counterparty_amount_out_min` replaces the current `pair_token_amount_out_min` wording for the message-carried request.
+- `counterparty_amount_in` is optional so the same request shape can later represent single-input Swap funding without another ABI change.
+- `FundResultExt` must prove its source through Linera authenticated message facts: the origin chain is the request token creator chain, the caller is the current pool application replica on that chain, and the signer is the request owner.
+- AddLiquidity needs explicit two-leg pending/funded/finalized behavior before reserve update or LP mint, without adding `AddLiquidityIntent`.
+- Target funding semantics keep the limiting-side calculation but route all excess/refund value through claim balances.
+- Persisted `FundRequest` remains only as a temporary legacy structure for paths not migrated in `FUND-009`, currently Swap. InitializeLiquidity main path already uses direct parameter passing and is not a reason to retain persisted `FundRequest` for AddLiquidity.
 
 ## Swap
 
@@ -93,13 +105,14 @@ Known gap:
 
 ## Claim
 
+Implemented foundation:
+
+- `FUND-008` added aggregated claim balances, aggregated meme `claiming_balances`, target `Claim` operation, native synchronous claim semantics, meme asynchronous claim delivery, success/fail receipts, and bounce handling for the claim transfer request.
+
 Known gap:
 
-- Target `Claim` operation/state is not yet implemented.
-- Claim balances must be aggregated, not append-only per-event claim queues.
-- Meme delivery needs aggregated `claiming_balances`, not per-claim delivery attempts.
-- The current meme/pool payout path must be audited to confirm whether it can produce the success, fail, or bounce receipts required to close meme `Claim` delivery. If it cannot, the claim iteration must add the missing protocol messages instead of only changing pool claim state.
-- Claim tests may seed balances through contract test fixtures or internal helpers. Do not add a production debug operation or public ABI solely for tests.
+- Funding paths after `FUND-008` must start crediting owed value into claim balances.
+- Projection must expose claimable, claiming, and abnormal rejected-settlement facts for product reads.
 
 ## Observability
 
@@ -114,8 +127,8 @@ Known gap:
 - `FUND-006`: lock public operation surface.
 - `FUND-007`: split pool app creation from finalized reserve/share facts.
 - `FUND-008`: claim accounting and funds-exit foundation.
-- `FUND-009`: add existing-pool two-leg liquidity state.
-- `FUND-010`: converge initial liquidity through the two-leg closure.
+- `FUND-009`: migrate AddLiquidity away from `FundRequest` and add existing-pool two-leg liquidity claim closure.
+- `FUND-010`: pool visibility split.
 - `FUND-011`: swap output to claim balances.
 - `FUND-012`: remove/protocol-fee/remote-liquidity/create-pool-residual claim balances.
 - `FUND-013`: internal boundary hardening.

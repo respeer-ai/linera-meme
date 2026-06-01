@@ -1,4 +1,7 @@
-use crate::{store_type::StoreType, swap::pool::PoolInitializeLiquidityCall};
+use crate::{
+    store_type::StoreType,
+    swap::pool::{AddLiquidityTransferReceiptPayload, PoolInitializeLiquidityCall},
+};
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
@@ -251,6 +254,12 @@ impl ServiceAbi for MemeAbi {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub enum TransferFromApplicationReceiptPurpose {
     PoolClaim,
+    PoolAddLiquidity,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum TransferFromApplicationReceiptPayload {
+    PoolAddLiquidity(AddLiquidityTransferReceiptPayload),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -260,6 +269,7 @@ pub struct TransferFromApplicationReceipt {
     pub token: ApplicationId,
     pub amount: Amount,
     pub result: Option<Result<(), String>>,
+    pub payload: Option<TransferFromApplicationReceiptPayload>,
 }
 
 scalar!(TransferFromApplicationReceipt);

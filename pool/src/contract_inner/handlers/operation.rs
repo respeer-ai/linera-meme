@@ -1,4 +1,5 @@
 pub mod add_liquidity;
+pub mod add_liquidity_transfer_receipt;
 pub mod claim;
 pub mod claim_transfer_receipt;
 pub mod initialize_liquidity;

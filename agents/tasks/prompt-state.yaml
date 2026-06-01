@@ -39,10 +39,12 @@ active_focus:
     why: active iteration for existing-pool AddLiquidity two-leg pending
     summary: >
       Make ordinary finalized-pool add liquidity safe using the established claim
-      exit. Keep the normal AddLiquidity path, preserve the limiting-side
-      calculation, credit partial-funding failures and accepted-liquidity
-      excess/refunds to claim balances, and do not introduce a persisted
-      AddLiquidityIntent design.
+      exit. Migrate AddLiquidity away from persisted `FundRequest` by using
+      message-carried `FundRequestExt` with authenticated `FundResultExt`
+      source validation. Keep the normal AddLiquidity path, preserve the
+      limiting-side calculation, credit partial-funding failures and
+      accepted-liquidity excess/refunds to claim balances, and do not introduce
+      a persisted AddLiquidityIntent design.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

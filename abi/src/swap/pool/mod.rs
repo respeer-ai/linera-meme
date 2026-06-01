@@ -1,4 +1,4 @@
-use async_graphql::{scalar, InputObject, Request, Response};
+use async_graphql::{scalar, Enum, InputObject, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
     linera_base_types::{Account, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
@@ -37,6 +37,46 @@ pub struct ClaimTransferReceipt {
 }
 
 scalar!(ClaimTransferReceipt);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AddLiquidityTransferReceiptPayload {
+    pub prev: Option<FundRequestExt>,
+    pub request: FundRequestExt,
+    pub next: Option<FundRequestExt>,
+}
+
+scalar!(AddLiquidityTransferReceiptPayload);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AddLiquidityTransferReceipt {
+    pub result: Result<(), String>,
+    pub prev: Option<FundRequestExt>,
+    pub request: FundRequestExt,
+    pub next: Option<FundRequestExt>,
+}
+
+scalar!(AddLiquidityTransferReceipt);
+
+#[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
+pub enum FundType {
+    Swap,
+    InitializeLiquidity,
+    AddLiquidity,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FundRequestExt {
+    pub from: Account,
+    pub token: Option<ApplicationId>,
+    pub amount_in: Amount,
+    pub amount_out_min: Option<Amount>,
+    pub counterparty_token: Option<ApplicationId>,
+    pub counterparty_amount_in: Option<Amount>,
+    pub counterparty_amount_out_min: Option<Amount>,
+    pub to: Option<Account>,
+    pub block_timestamp: Option<Timestamp>,
+    pub fund_type: FundType,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
@@ -82,6 +122,9 @@ pub enum PoolOperation {
     ClaimTransferReceipt {
         receipt: ClaimTransferReceipt,
     },
+    AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -105,6 +148,20 @@ pub enum PoolMessage {
     FundFail {
         transfer_id: u64,
         error: String,
+    },
+    RequestFundExt {
+        prev: Option<FundRequestExt>,
+        request: FundRequestExt,
+        next: Option<FundRequestExt>,
+    },
+    FundResultExt {
+        prev: Option<FundRequestExt>,
+        request: FundRequestExt,
+        next: Option<FundRequestExt>,
+        result: Result<(), String>,
+    },
+    AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt,
     },
     Swap {
         // Used to refund

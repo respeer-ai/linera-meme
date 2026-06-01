@@ -1,8 +1,14 @@
 use abi::ams::{AmsMessage, AmsOperation};
 use abi::blob_gateway::{BlobGatewayMessage, BlobGatewayOperation};
-use abi::meme::{MemeMessage, MemeOperation, TransferFromApplicationReceipt};
+use abi::meme::{
+    MemeMessage, MemeOperation, TransferFromApplicationReceipt,
+    TransferFromApplicationReceiptPayload,
+};
 use abi::proxy::{ProxyMessage, ProxyOperation};
-use abi::swap::pool::{BootstrapPolicy, ClaimTransferReceipt, PoolMessage, PoolOperation};
+use abi::swap::pool::{
+    AddLiquidityTransferReceipt, AddLiquidityTransferReceiptPayload, BootstrapPolicy,
+    ClaimTransferReceipt, FundRequestExt, PoolMessage, PoolOperation,
+};
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, Timestamp};
@@ -214,6 +220,14 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "receipt": encode_claim_transfer_receipt(receipt),
             }),
         ),
+        PoolOperation::AddLiquidityTransferReceipt { receipt } => (
+            "add_liquidity_transfer_receipt",
+            json!({
+                "operation_type": "add_liquidity_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_add_liquidity_transfer_receipt(receipt),
+            }),
+        ),
     };
     Ok(json!({
         "payload_type": payload_type,
@@ -254,6 +268,44 @@ fn decode_pool_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "application_id": application_id,
                 "transfer_id": transfer_id,
                 "error": error,
+            }),
+        ),
+        PoolMessage::RequestFundExt {
+            prev,
+            request,
+            next,
+        } => (
+            "request_fund_ext",
+            json!({
+                "message_type": "request_fund_ext",
+                "application_id": application_id,
+                "prev": prev.map(encode_fund_request_ext),
+                "request": encode_fund_request_ext(request),
+                "next": next.map(encode_fund_request_ext),
+            }),
+        ),
+        PoolMessage::FundResultExt {
+            prev,
+            request,
+            next,
+            result,
+        } => (
+            "fund_result_ext",
+            json!({
+                "message_type": "fund_result_ext",
+                "application_id": application_id,
+                "prev": prev.map(encode_fund_request_ext),
+                "request": encode_fund_request_ext(request),
+                "next": next.map(encode_fund_request_ext),
+                "result": encode_unit_result(result),
+            }),
+        ),
+        PoolMessage::AddLiquidityTransferReceipt { receipt } => (
+            "add_liquidity_transfer_receipt",
+            json!({
+                "message_type": "add_liquidity_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_add_liquidity_transfer_receipt(receipt),
             }),
         ),
         PoolMessage::Swap {
@@ -1215,6 +1267,40 @@ fn encode_claim_transfer_receipt(value: ClaimTransferReceipt) -> Value {
     })
 }
 
+fn encode_add_liquidity_transfer_receipt(value: AddLiquidityTransferReceipt) -> Value {
+    json!({
+        "result": encode_unit_result(value.result),
+        "prev": value.prev.map(encode_fund_request_ext),
+        "request": encode_fund_request_ext(value.request),
+        "next": value.next.map(encode_fund_request_ext),
+    })
+}
+
+fn encode_add_liquidity_transfer_receipt_payload(
+    value: AddLiquidityTransferReceiptPayload,
+) -> Value {
+    json!({
+        "prev": value.prev.map(encode_fund_request_ext),
+        "request": encode_fund_request_ext(value.request),
+        "next": value.next.map(encode_fund_request_ext),
+    })
+}
+
+fn encode_fund_request_ext(value: FundRequestExt) -> Value {
+    json!({
+        "from": encode_account(value.from),
+        "token": value.token.map(|token| token.to_string()),
+        "amount_in": encode_amount(value.amount_in),
+        "amount_out_min": encode_option_amount(value.amount_out_min),
+        "counterparty_token": value.counterparty_token.map(|token| token.to_string()),
+        "counterparty_amount_in": encode_option_amount(value.counterparty_amount_in),
+        "counterparty_amount_out_min": encode_option_amount(value.counterparty_amount_out_min),
+        "to": encode_option_account(value.to),
+        "block_timestamp_micros": encode_option_timestamp(value.block_timestamp),
+        "fund_type": format!("{:?}", value.fund_type),
+    })
+}
+
 fn encode_transfer_from_application_receipt(value: TransferFromApplicationReceipt) -> Value {
     json!({
         "purpose": format!("{:?}", value.purpose),
@@ -1222,7 +1308,19 @@ fn encode_transfer_from_application_receipt(value: TransferFromApplicationReceip
         "token": value.token.to_string(),
         "amount": encode_amount(value.amount),
         "result": value.result.map(encode_unit_result),
+        "payload": value.payload.map(encode_transfer_from_application_receipt_payload),
     })
+}
+
+fn encode_transfer_from_application_receipt_payload(
+    value: TransferFromApplicationReceiptPayload,
+) -> Value {
+    match value {
+        TransferFromApplicationReceiptPayload::PoolAddLiquidity(receipt) => json!({
+            "kind": "pool_add_liquidity",
+            "receipt": encode_add_liquidity_transfer_receipt_payload(receipt),
+        }),
+    }
 }
 
 fn encode_unit_result(value: Result<(), String>) -> Value {

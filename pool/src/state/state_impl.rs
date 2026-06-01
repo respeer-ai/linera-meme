@@ -149,14 +149,14 @@ impl StateInterface for PoolState {
         to: Account,
         block_timestamp: Timestamp,
     ) -> Result<Amount, Self::Error> {
+        let pool: Pool = self.pool();
+        let reserve_0 = pool.reserve_0.try_add(amount_0)?;
+        let reserve_1 = pool.reserve_1.try_add(amount_1)?;
+
         let liquidity = self.mint_shares(amount_0, amount_1, to).await?;
 
         let mut pool: Pool = self.pool();
-        pool.liquid(
-            pool.reserve_0.try_add(amount_0)?,
-            pool.reserve_1.try_add(amount_1)?,
-            block_timestamp,
-        );
+        pool.liquid(reserve_0, reserve_1, block_timestamp);
         pool.update_k_last();
         self.pool.set(Some(pool));
         Ok(liquidity)

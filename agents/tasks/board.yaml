@@ -1151,7 +1151,7 @@ groups:
           - Claim-balance storage, target `Claim` operation, native claim, meme asynchronous claiming, receipt settlement, explicit tracking, claim queries, and product workflow E2E entrypoint are implemented.
           - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
       - id: FUND-009
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-008]
         title: "Iteration 4: Existing-pool AddLiquidity two-leg pending"
@@ -1164,7 +1164,28 @@ groups:
           - Keep the normal existing-pool add-liquidity path.
           - Preserve the limiting-side add-liquidity calculation for finalized pools.
           - Credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
-          - Keep per-leg funding tracking only as an implementation detail if still needed; do not introduce or target a persisted `AddLiquidityIntent` design.
+          - Migrate AddLiquidity away from persisted `FundRequest`: AddLiquidity must not create, read, or update persistent `FundRequest` state.
+          - Use message-carried `FundRequestExt` as the non-persistent funding request fact. The request carries current-token input/min fields and optional counterparty input/min fields; `counterparty_amount_in` is optional for later single-input Swap migration. The first migration shape is `RequestFundExt { prev, request, next }` and `FundResultExt { prev, request, next, result }`.
+          - Do not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible pool-internal token-position names such as `Token0` or `Token1`.
+          - `FundResultExt` must validate authenticated source facts: request token creator chain, current pool application replica as message caller, and request owner as message signer.
+          - Keep persisted `FundRequest` only as a temporary legacy structure for paths that are not migrated in this iteration, currently Swap. InitializeLiquidity already uses direct parameter passing on its main path and is not a reason to keep persisted `FundRequest` for AddLiquidity.
+          - Do not introduce or target a persisted `AddLiquidityIntent` design.
+
+          Atomic implementation steps:
+          - A1: Update funding docs and task routing with the `FundRequestExt` design.
+          - A2: Add ABI types and messages: `FundType`, `FundRequestExt`, `RequestFundExt`, and `FundResultExt`; keep legacy `RequestFund`, `FundSuccess`, and `FundFail`.
+          - A3: Add handler skeletons for `RequestFundExt` and `FundResultExt` and register them in `HandlerFactory` without changing AddLiquidity behavior.
+          - A4: Move `PoolOperation::AddLiquidity` to the `FundRequestExt` happy path, including `TransferToCaller`, source validation, successor continuation, and final `PoolMessage::AddLiquidity`; do not add claim credit in this step.
+          - A5: Remove AddLiquidity handling from the legacy persisted-`FundRequest` result path while leaving that path for Swap and other unmigrated workflows.
+          - A6.0: Change the message envelope from successor-only to `prev/request/next`.
+          - A6.1: Credit `prev` on failed `FundResultExt` for AddLiquidity.
+          - A6.2: Credit both legs on final AddLiquidity calculation failure after custody.
+          - A6.3: Credit accepted-liquidity excess/refund to claim balances instead of direct payout.
+          - A6.4: Refactor AddLiquidity settlement handler and reduce known reject paths.
+          - A6.5: Move successful fungible custody from the origin-chain pool app replica to the pool creator-chain pool app using `TransferFromApplicationWithReceipt`; do not finalize AddLiquidity before custody receipts complete.
+          - A6.6: Add the pool-side custody receipt continuation that either credits failed custody or triggers final `PoolMessage::AddLiquidity` only after all required custody transfers complete.
+          - A7: Add and run focused tests, then run the full memory-limited `cargo test -j 1`.
+
 
           Validation:
           - Tests cover `UserPoolCreated -> PoolOperation::AddLiquidity` for user CreatePool funding without adding a user-pool-specific funding ABI.

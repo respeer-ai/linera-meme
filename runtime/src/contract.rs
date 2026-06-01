@@ -310,6 +310,17 @@ impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M>
                 "Only allow application creator".to_string(),
             ))
     }
+
+    fn not_application_creator(&mut self) -> Result<(), RuntimeError> {
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let creator_chain_id = self.runtime.borrow_mut().application_creator_chain_id();
+
+        (chain_id != creator_chain_id)
+            .then_some(())
+            .ok_or(RuntimeError::PermissionDenied(
+                "Do not allow application creator".to_string(),
+            ))
+    }
 }
 
 impl<T: Contract<Message = M>, M> MemeRuntimeContext for ContractRuntimeAdapter<T, M> {

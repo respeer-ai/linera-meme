@@ -1,11 +1,15 @@
 use super::super::{PoolContract, PoolState};
 
 use abi::{
-    meme::{MemeOperation, MemeResponse, TransferFromApplicationReceiptPurpose},
+    meme::{
+        MemeOperation, MemeResponse, TransferFromApplicationReceiptPayload,
+        TransferFromApplicationReceiptPurpose,
+    },
     meme_token::MemeToken,
     swap::pool::{
-        BootstrapPolicy, ClaimTransferReceipt, InstantiationArgument, PoolAbi, PoolMessage,
-        PoolOperation, PoolParameters, PoolResponse,
+        AddLiquidityTransferReceipt, BootstrapPolicy, ClaimTransferReceipt, FundRequestExt,
+        FundType as FundRequestExtType, InstantiationArgument, PoolAbi, PoolMessage, PoolOperation,
+        PoolParameters, PoolResponse,
     },
 };
 use futures::FutureExt as _;
@@ -556,19 +560,33 @@ async fn message_add_liquidity_min_amount_boundary() {
 
     let mut pool = create_and_initialize_pool(true).await;
     let owner = authenticated_account(&pool);
-    let failing_result =
-        std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::AddLiquidity {
-            origin: owner,
-            amount_0_in,
-            amount_1_in,
-            amount_0_out_min: None,
-            amount_1_out_min: Some(exact_amount_1.try_add(Amount::from_attos(1)).unwrap()),
-            to: None,
-            block_timestamp: None,
-        }))
-        .catch_unwind()
-        .await;
-    assert!(failing_result.is_err());
+    pool.execute_message(PoolMessage::AddLiquidity {
+        origin: owner,
+        amount_0_in,
+        amount_1_in,
+        amount_0_out_min: None,
+        amount_1_out_min: Some(exact_amount_1.try_add(Amount::from_attos(1)).unwrap()),
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+    let parameters = pool.runtime.borrow_mut().application_parameters();
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Fungible(parameters.token_0), owner)
+            .await
+            .unwrap(),
+        amount_0_in
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_1), owner)
+            .await
+            .unwrap(),
+        amount_1_in
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -815,127 +833,6 @@ async fn message_remove_liquidity_conserves_total_supply_after_fee_mint() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn add_liquidity_fund_second_leg_fail_does_not_close_flow() {
-    let mut pool = create_and_instantiate_pool(true).await;
-    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
-    let owner = Account {
-        chain_id: runtime_context.chain_id(),
-        owner: runtime_context.authenticated_signer().unwrap(),
-    };
-
-    let response = pool
-        .execute_operation(PoolOperation::AddLiquidity {
-            amount_0_in: Amount::ONE,
-            amount_1_in: Amount::from_tokens(10),
-            amount_0_out_min: None,
-            amount_1_out_min: None,
-            to: None,
-            block_timestamp: None,
-        })
-        .now_or_never()
-        .expect("Execution of meme operation should not await anything");
-    assert!(matches!(response, PoolResponse::Ok));
-
-    pool.execute_message(PoolMessage::FundSuccess { transfer_id: 1000 })
-        .await;
-    pool.execute_message(PoolMessage::FundFail {
-        transfer_id: 1001,
-        error: "second leg failed".to_string(),
-    })
-    .await;
-
-    let fund_request_0 = pool.state.borrow().fund_request(1000).await.unwrap();
-    let fund_request_1 = pool.state.borrow().fund_request(1001).await.unwrap();
-    assert_eq!(fund_request_0.status, FundStatus::Success);
-    assert_eq!(fund_request_1.status, FundStatus::Fail);
-    assert_eq!(fund_request_1.error, Some("second leg failed".to_string()));
-    assert_eq!(
-        pool.state.borrow().liquidity(owner).await.unwrap(),
-        Amount::ZERO
-    );
-
-    let runtime = pool.runtime.borrow();
-    let requests = runtime.created_send_message_requests();
-    assert!(requests
-        .iter()
-        .all(|request| request.authenticated && !request.is_tracked));
-    let request_fund_transfer_ids: Vec<_> = requests
-        .iter()
-        .filter_map(|request| match request.message {
-            PoolMessage::RequestFund { transfer_id, .. } => Some(transfer_id),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(request_fund_transfer_ids, vec![1000, 1001]);
-    assert!(!requests
-        .iter()
-        .any(|request| matches!(request.message, PoolMessage::AddLiquidity { .. })));
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn add_liquidity_fund_success_only_queues_follow_up_message() {
-    let mut pool = create_and_instantiate_pool(true).await;
-    let mut runtime_context = ContractRuntimeAdapter::new(pool.runtime.clone());
-    let owner = Account {
-        chain_id: runtime_context.chain_id(),
-        owner: runtime_context.authenticated_signer().unwrap(),
-    };
-
-    let response = pool
-        .execute_operation(PoolOperation::AddLiquidity {
-            amount_0_in: Amount::ONE,
-            amount_1_in: Amount::from_tokens(10),
-            amount_0_out_min: None,
-            amount_1_out_min: None,
-            to: None,
-            block_timestamp: None,
-        })
-        .now_or_never()
-        .expect("Execution of meme operation should not await anything");
-    assert!(matches!(response, PoolResponse::Ok));
-
-    pool.execute_message(PoolMessage::FundSuccess { transfer_id: 1000 })
-        .await;
-    pool.execute_message(PoolMessage::FundSuccess { transfer_id: 1001 })
-        .await;
-
-    let fund_request_0 = pool.state.borrow().fund_request(1000).await.unwrap();
-    let fund_request_1 = pool.state.borrow().fund_request(1001).await.unwrap();
-    assert_eq!(fund_request_0.status, FundStatus::Success);
-    assert_eq!(fund_request_1.status, FundStatus::Success);
-    assert_eq!(
-        pool.state.borrow().liquidity(owner).await.unwrap(),
-        Amount::ZERO
-    );
-
-    let runtime = pool.runtime.borrow();
-    let requests = runtime.created_send_message_requests();
-    assert!(requests
-        .iter()
-        .all(|request| request.authenticated && !request.is_tracked));
-    let request_fund_transfer_ids: Vec<_> = requests
-        .iter()
-        .filter_map(|request| match request.message {
-            PoolMessage::RequestFund { transfer_id, .. } => Some(transfer_id),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(request_fund_transfer_ids, vec![1000, 1001]);
-    let add_liquidity_messages: Vec<_> = requests
-        .iter()
-        .filter(|request| matches!(request.message, PoolMessage::AddLiquidity { origin, .. } if origin == owner))
-        .collect();
-    assert_eq!(add_liquidity_messages.len(), 1);
-    assert_eq!(
-        requests
-            .iter()
-            .filter(|request| matches!(request.message, PoolMessage::NewTransaction { .. }))
-            .count(),
-        0
-    );
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn message_new_transaction_forwards_catalog_update_without_history_storage() {
     let mut pool = create_and_initialize_pool(true).await;
     let owner = authenticated_account(&pool);
@@ -1097,9 +994,16 @@ async fn message_claim_fungible_moves_to_claiming() {
     let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
     let captured_for_handler = captured.clone();
     pool.runtime.borrow_mut().set_call_application_handler(
-        move |_authenticated, application_id, operation| {
-            *captured_for_handler.borrow_mut() = Some((application_id, operation));
-            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
+            &operation,
+        ) {
+            Ok(MemeOperation::CreatorChainId) => {
+                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
+            }
+            _ => {
+                *captured_for_handler.borrow_mut() = Some((application_id, operation));
+                bcs::to_bytes(&MemeResponse::Ok).unwrap()
+            }
         },
     );
 
@@ -1574,6 +1478,613 @@ async fn operation_claim_transfer_receipt_rejects_invalid_token() {
     assert!(result.is_err());
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn message_fund_result_ext_success_funds_pool_chain_with_receipt() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let token_chain = mock_token_creator_chain_id();
+    let owner_chain = pool.runtime.borrow_mut().chain_id();
+    let owner = Account {
+        chain_id: owner_chain,
+        owner: pool.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let next = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    configure_fund_result_ext_source(&mut pool, token_chain, token_0, owner);
+
+    let captured = Rc::new(RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    pool.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
+            &operation,
+        ) {
+            Ok(MemeOperation::CreatorChainId) => {
+                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
+            }
+            _ => {
+                *captured_for_handler.borrow_mut() = Some((application_id, operation));
+                bcs::to_bytes(&MemeResponse::Ok).unwrap()
+            }
+        },
+    );
+
+    pool.execute_message(PoolMessage::FundResultExt {
+        prev: None,
+        request: request.clone(),
+        next: Some(next.clone()),
+        result: Ok(()),
+    })
+    .await;
+
+    let (application_id, operation) = captured.borrow().clone().unwrap();
+    assert_eq!(application_id, token_0);
+
+    let pool_chain_id = pool.runtime.borrow_mut().application_creator_chain_id();
+    let pool_application_id = pool.runtime.borrow_mut().application_id().forget_abi();
+    let pool_account = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(pool_application_id),
+    };
+
+    assert!(matches!(
+        bcs::from_bytes::<MemeOperation>(&operation).unwrap(),
+        MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount,
+            receipt,
+        } if to == pool_account
+            && amount == request.amount_in
+            && receipt.purpose == TransferFromApplicationReceiptPurpose::PoolAddLiquidity
+            && receipt.owner == owner
+            && receipt.token == token_0
+            && receipt.amount == request.amount_in
+            && receipt.result.is_none()
+            && matches!(
+                &receipt.payload,
+                Some(TransferFromApplicationReceiptPayload::PoolAddLiquidity(payload))
+                    if payload.prev.is_none()
+                        && payload.request.amount_in == request.amount_in
+                        && payload.next.as_ref().map(|value| value.amount_in) == Some(next.amount_in)
+            )
+    ));
+
+    assert!(!pool
+        .runtime
+        .borrow()
+        .created_send_message_requests()
+        .iter()
+        .any(|request| matches!(request.message, PoolMessage::AddLiquidity { .. })));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_fund_result_ext_fail_credits_prev_without_funding_pool_chain() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let token_chain = mock_token_creator_chain_id();
+    let owner_chain = pool.runtime.borrow_mut().chain_id();
+    let owner = Account {
+        chain_id: owner_chain,
+        owner: pool.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+    let prev = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    configure_fund_result_ext_source(&mut pool, token_chain, token_1, owner);
+
+    let captured = Rc::new(RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    pool.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
+            &operation,
+        ) {
+            Ok(MemeOperation::CreatorChainId) => {
+                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
+            }
+            _ => {
+                *captured_for_handler.borrow_mut() = Some((application_id, operation));
+                bcs::to_bytes(&MemeResponse::Ok).unwrap()
+            }
+        },
+    );
+
+    pool.execute_message(PoolMessage::FundResultExt {
+        prev: Some(prev.clone()),
+        request,
+        next: None,
+        result: Err("fund failed".to_string()),
+    })
+    .await;
+
+    assert!(captured.borrow().is_none());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Fungible(token_0), owner)
+            .await
+            .unwrap(),
+        prev.amount_in
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_add_liquidity_transfer_receipt_success_continues_next_fungible_leg() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let owner = authenticated_account(&pool);
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let next = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+
+    pool.execute_operation(PoolOperation::AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt {
+            result: Ok(()),
+            prev: None,
+            request: request.clone(),
+            next: Some(next.clone()),
+        },
+    })
+    .await;
+
+    let runtime = pool.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request_message = requests
+        .iter()
+        .find(|request| matches!(request.message, PoolMessage::RequestFundExt { .. }))
+        .unwrap();
+    assert!(request_message.authenticated);
+    assert!(!request_message.is_tracked);
+    assert!(matches!(
+        &request_message.message,
+        PoolMessage::RequestFundExt {
+            prev,
+            request: current,
+            next: following,
+        } if prev.as_ref().map(|value| value.amount_in) == Some(request.amount_in)
+            && current.amount_in == next.amount_in
+            && following.is_none()
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_add_liquidity_transfer_receipt_success_forwards_last_leg_to_pool_creator_chain()
+{
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let owner = authenticated_account(&pool);
+    let prev = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_1);
+
+    pool.execute_operation(PoolOperation::AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt {
+            result: Ok(()),
+            prev: Some(prev),
+            request: request.clone(),
+            next: None,
+        },
+    })
+    .await;
+
+    let destination = pool.runtime.borrow_mut().application_creator_chain_id();
+    let runtime = pool.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request_message = requests
+        .iter()
+        .find(|request| {
+            matches!(
+                request.message,
+                PoolMessage::AddLiquidityTransferReceipt { .. }
+            )
+        })
+        .unwrap();
+    assert_eq!(request_message.destination, destination);
+    assert!(request_message.authenticated);
+    assert!(!request_message.is_tracked);
+    assert!(matches!(
+        &request_message.message,
+        PoolMessage::AddLiquidityTransferReceipt { receipt }
+            if receipt.result.is_ok()
+                && receipt.request.amount_in == request.amount_in
+                && receipt.next.is_none()
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_add_liquidity_transfer_receipt_success_funds_native_next_leg() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let owner = authenticated_account(&pool);
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        None,
+        Some(Amount::from_tokens(10)),
+    );
+    let next = add_liquidity_fund_request(
+        owner,
+        None,
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+    let application_owner = AccountOwner::from(pool.runtime.borrow_mut().application_id());
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+    pool.runtime
+        .borrow_mut()
+        .set_chain_balance(Amount::from_tokens(10));
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(owner.owner, Amount::from_tokens(10));
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(application_owner, Amount::ZERO);
+
+    pool.execute_operation(PoolOperation::AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt {
+            result: Ok(()),
+            prev: None,
+            request,
+            next: Some(next),
+        },
+    })
+    .await;
+
+    assert_eq!(
+        pool.runtime.borrow_mut().owner_balance(application_owner),
+        Amount::from_tokens(10)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_add_liquidity_transfer_receipt_success_finalizes_after_last_leg() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let owner = authenticated_account(&pool);
+    let prev = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    pool.execute_message(PoolMessage::AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt {
+            result: Ok(()),
+            prev: Some(prev),
+            request,
+            next: None,
+        },
+    })
+    .await;
+
+    let destination = pool.runtime.borrow_mut().application_creator_chain_id();
+    let runtime = pool.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request_message = requests.last().unwrap();
+    assert_eq!(request_message.destination, destination);
+    assert!(request_message.authenticated);
+    assert!(!request_message.is_tracked);
+    assert!(matches!(
+        request_message.message,
+        PoolMessage::AddLiquidity {
+            origin,
+            amount_0_in,
+            amount_1_in,
+            ..
+        } if origin == owner
+            && amount_0_in == Amount::ONE
+            && amount_1_in == Amount::from_tokens(10)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_add_liquidity_transfer_receipt_fail_credits_only_prev() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let owner = authenticated_account(&pool);
+    let prev = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    pool.execute_message(PoolMessage::AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt {
+            result: Err("transfer failed".to_string()),
+            prev: Some(prev.clone()),
+            request: request.clone(),
+            next: None,
+        },
+    })
+    .await;
+
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Fungible(token_0), owner)
+            .await
+            .unwrap(),
+        prev.amount_in
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Fungible(token_1), owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_add_liquidity_transfer_receipt_rejects_wrong_caller_app() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let owner = authenticated_account(&pool);
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_1);
+
+    let result = std::panic::AssertUnwindSafe(pool.execute_operation(
+        PoolOperation::AddLiquidityTransferReceipt {
+            receipt: AddLiquidityTransferReceipt {
+                result: Ok(()),
+                prev: None,
+                request,
+                next: None,
+            },
+        },
+    ))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+    assert!(pool
+        .runtime
+        .borrow()
+        .created_send_message_requests()
+        .iter()
+        .all(|request| !matches!(request.message, PoolMessage::AddLiquidity { .. })));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_add_liquidity_transfer_receipt_rejects_wrong_chain_without_credit() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let owner = authenticated_account(&pool);
+    let user_chain_id =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+    let prev = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_1),
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+
+    pool.runtime.borrow_mut().set_chain_id(user_chain_id);
+
+    let result = std::panic::AssertUnwindSafe(pool.execute_message(
+        PoolMessage::AddLiquidityTransferReceipt {
+            receipt: AddLiquidityTransferReceipt {
+                result: Err("transfer failed".to_string()),
+                prev: Some(prev),
+                request,
+                next: None,
+            },
+        },
+    ))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Fungible(token_0), owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_fund_result_ext_rejects_forged_signer_without_calling_token_app() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token_1 = pool
+        .runtime
+        .borrow_mut()
+        .application_parameters()
+        .token_1
+        .unwrap();
+    let token_chain = mock_token_creator_chain_id();
+    let owner = Account {
+        chain_id: token_chain,
+        owner: pool.runtime.borrow_mut().authenticated_signer().unwrap(),
+    };
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        Some(token_1),
+        Some(Amount::from_tokens(10)),
+    );
+
+    configure_fund_result_ext_source(&mut pool, token_chain, token_0, owner);
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_signer(Some(alternate_account(token_chain).owner));
+
+    let captured = Rc::new(RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    pool.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| match bcs::from_bytes::<MemeOperation>(
+            &operation,
+        ) {
+            Ok(MemeOperation::CreatorChainId) => {
+                bcs::to_bytes(&MemeResponse::ChainId(mock_token_creator_chain_id())).unwrap()
+            }
+            _ => {
+                *captured_for_handler.borrow_mut() = Some((application_id, operation));
+                bcs::to_bytes(&MemeResponse::Ok).unwrap()
+            }
+        },
+    );
+
+    let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::FundResultExt {
+        prev: None,
+        request,
+        next: None,
+        result: Ok(()),
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+    assert!(captured.borrow().is_none());
+}
+
 #[test]
 fn cross_application_call() {}
 
@@ -1609,6 +2120,62 @@ fn alternate_account(chain_id: ChainId) -> Account {
         )
         .unwrap(),
     }
+}
+
+fn mock_token_creator_chain_id() -> ChainId {
+    ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9").unwrap()
+}
+
+fn add_liquidity_fund_request(
+    from: Account,
+    token: Option<ApplicationId>,
+    amount_in: Amount,
+    counterparty_token: Option<ApplicationId>,
+    counterparty_amount_in: Option<Amount>,
+) -> FundRequestExt {
+    FundRequestExt {
+        from,
+        token,
+        amount_in,
+        amount_out_min: None,
+        counterparty_token,
+        counterparty_amount_in,
+        counterparty_amount_out_min: None,
+        to: None,
+        block_timestamp: None,
+        fund_type: FundRequestExtType::AddLiquidity,
+    }
+}
+
+fn configure_fund_result_ext_source(
+    pool: &mut PoolContract,
+    token_chain: ChainId,
+    _token: ApplicationId,
+    signer: Account,
+) {
+    let pool_application_id = pool.runtime.borrow_mut().application_id().forget_abi();
+    pool.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(token_chain);
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(pool_application_id);
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_signer(Some(signer.owner));
+
+    assert_eq!(
+        pool.runtime.borrow_mut().message_origin_chain_id(),
+        Some(token_chain)
+    );
+    assert_eq!(
+        pool.runtime.borrow_mut().authenticated_signer(),
+        Some(signer.owner)
+    );
+    assert_eq!(
+        pool.runtime.borrow_mut().authenticated_caller_id(),
+        Some(pool_application_id)
+    );
 }
 
 fn total_supply(pool: &PoolContract) -> Amount {

@@ -2,6 +2,7 @@ pub mod contract_inner;
 pub mod interfaces;
 pub mod state;
 
+pub use abi::swap::pool::FundType;
 use abi::swap::pool::PoolError as _PoolError;
 use async_graphql::{Enum, SimpleObject};
 use linera_sdk::{
@@ -28,13 +29,6 @@ pub enum PoolError {
 
     #[error("Insufficient funds")]
     InsufficientFunds,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
-pub enum FundType {
-    Swap,
-    InitializeLiquidity,
-    AddLiquidity,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]

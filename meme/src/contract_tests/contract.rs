@@ -1249,6 +1249,7 @@ fn pool_claim_receipt(result: Option<Result<(), String>>) -> TransferFromApplica
         .unwrap(),
         amount: Amount::from_tokens(5),
         result,
+        payload: None,
     }
 }
 

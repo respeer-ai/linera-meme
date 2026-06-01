@@ -148,18 +148,41 @@ Purpose: make existing finalized-pool add liquidity safe using the established c
 Minimal changes:
 
 - Do not add `AddLiquidityIntent`.
-- Track both legs before reserve update and LP mint.
+- Migrate AddLiquidity away from persisted `FundRequest`: AddLiquidity must not create, read, or update persistent `FundRequest` state.
+- Keep the funding-request concept as message-carried `FundRequestExt`, not as pool state. `FundRequestExt` carries `from`, `token`, `amount_in`, `amount_out_min`, `counterparty_token`, `counterparty_amount_in`, `counterparty_amount_out_min`, `to`, `block_timestamp`, and `fund_type`.
+- AddLiquidity uses `RequestFundExt { prev, request, next }` and `FundResultExt { prev, request, next, result }` as the non-persistent replacement for `RequestFund/FundSuccess/FundFail { transfer_id }`.
+- `prev` is the already-custodied previous funding request, `request` is the current leg, and `next` is the next funding request to start after the current request succeeds. A failed current result credits `prev` when present and does not continue `next`.
+- Do not add `AddLiquidityContext`, `AddLiquidityLeg`, or ABI fields named after pool-internal token positions such as `Token0` or `Token1`.
+- `FundResultExt` must be accepted only when it is authenticated from the expected token creator chain and from the current pool application replica on that chain. The handler must validate `message_origin_chain_id`, `message_caller_account`, and `message_signer_account` before using the result.
+- Keep `FundRequest` only as a temporary legacy structure for paths outside this iteration, currently Swap. InitializeLiquidity already uses direct parameter passing on its main path and is not a reason to keep `FundRequest` for AddLiquidity.
+- Track both AddLiquidity funding requests with message-carried facts before reserve update and LP mint.
 - Credit explicit failed partial funding to claim balances.
 - Preserve the limiting-side add-liquidity calculation and credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
 - Define concrete slippage fields and failure behavior before implementation. Existing-pool add liquidity must specify which min-amount fields are mandatory, how limiting-side accepted amounts are checked, and whether a post-custody slippage failure credits already-custodied funds to claim balances.
+
+Atomic implementation steps:
+
+- A1: Update funding docs and task routing with the `FundRequestExt` design.
+- A2: Add ABI types and messages: `FundType`, `FundRequestExt`, `RequestFundExt`, and `FundResultExt`; keep legacy `RequestFund`, `FundSuccess`, and `FundFail`.
+- A3: Add handler skeletons for `RequestFundExt` and `FundResultExt` and register them in `HandlerFactory` without changing AddLiquidity behavior.
+- A4: Move `PoolOperation::AddLiquidity` to the `FundRequestExt` happy path, including `TransferToCaller`, source validation, successor continuation, and final `PoolMessage::AddLiquidity`; do not add claim credit in this step.
+- A5: Remove AddLiquidity handling from the legacy persisted-`FundRequest` result path while leaving that path for Swap and other unmigrated workflows.
+- A6.0: Change the message envelope from successor-only to `prev/request/next`.
+- A6.1: Credit `prev` on failed `FundResultExt` for AddLiquidity.
+- A6.2: Credit both legs on final AddLiquidity calculation failure after custody.
+- A6.3: Credit accepted-liquidity excess/refund to claim balances instead of direct payout.
+- A6.4: Refactor AddLiquidity settlement handler and reduce known reject paths.
+- A6.5: Move successful fungible custody from the origin-chain pool app replica to the pool creator-chain pool app using `TransferFromApplicationWithReceipt`; do not finalize AddLiquidity before custody receipts complete.
+- A6.6: Add the pool-side custody receipt continuation that either credits failed custody or triggers final `PoolMessage::AddLiquidity` only after all required custody transfers complete.
+- A7: Add and run focused tests, then run the full memory-limited `cargo test -j 1`.
 
 Validation:
 
 - Partial funding failure leaves no reserve update or LP mint.
 - Partial funding failure credits the already-custodied value to claim balances exactly once.
 - Accepted-liquidity excess/refund is credited to claim balances exactly once.
-- Wrong leg/source and wrong workflow state are rejected.
-- Funding callbacks validate source, authenticated caller, token, owner, amount, leg, and pending intent before mutating custody, reserve, LP, or claim state.
+- Wrong source, wrong token, wrong request facts, wrong successor facts, and wrong workflow state are rejected.
+- Funding result handlers validate source chain, authenticated caller application, message signer, token, owner, amount, request facts, and successor facts before mutating custody, reserve, LP, or claim state.
 - Credited values can exit through `Claim`.
 - Happy path remains successful.
 

@@ -250,7 +250,7 @@ impl TestSuite {
             .await;
         self.meme_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
-        chain.handle_received_messages().await;
+        self.meme_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         self.pool_chain
             .clone()
@@ -262,7 +262,11 @@ impl TestSuite {
             .unwrap()
             .handle_received_messages()
             .await;
-        chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
     }
 
     async fn remove_liquidity(&self, chain: &ActiveChain, liquidity: Amount) {
@@ -523,7 +527,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
             balance.try_sub(budget).unwrap(),
         )
         .await;
-    let liquidity_fund_amount = Amount::from_attos(9803863743830562123);
+    let liquidity_fund_amount = Amount::from_str("20.1").unwrap();
     assert_eq!(
         liquidity_fund_amount,
         pool_chain
@@ -531,9 +535,26 @@ async fn meme_native_virtual_initial_liquidity_test() {
             .await
             .unwrap()
     );
+
+    let claim_query = Request::new(
+        r#"
+        query Claimable($owner: Account!) {
+            claimableBalance(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), claim_query)
+        .await;
     assert_eq!(
-        balance.try_sub(liquidity_fund_amount).unwrap(),
-        user_chain.owner_balance(&user_account.owner).await.unwrap()
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
+        Amount::from_str("10.296136256169437877").unwrap(),
     );
 
     let query = Request::new(
@@ -555,7 +576,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(5563816980769425308286041),
+        Amount::from_attos(5564902696099416451856693),
     );
 
     let QueryOutcome { response, .. } = pool_chain

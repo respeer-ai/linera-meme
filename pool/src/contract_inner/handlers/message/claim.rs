@@ -89,6 +89,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 token,
                 amount: self.amount,
                 result: None,
+                payload: None,
             },
         };
 

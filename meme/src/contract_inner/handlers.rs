@@ -211,10 +211,15 @@ impl HandlerFactory {
             return Ok(HandlerFactory::new_operation_handler(runtime, state, op));
         }
         if let Some(msg) = msg {
-            // All messages must be run on user chain side
-            if runtime.borrow_mut().only_application_creator().is_err()
-                || !HandlerFactory::is_valid_mining_height(runtime.clone(), state.clone())
-            {
+            let executable = match msg {
+                MemeMessage::TransferFromApplicationReceipt { .. } => true,
+                _ => {
+                    runtime.borrow_mut().only_application_creator().is_ok()
+                        && HandlerFactory::is_valid_mining_height(runtime.clone(), state.clone())
+                }
+            };
+
+            if !executable {
                 return Err(HandlerError::NotAllowed);
             }
 
