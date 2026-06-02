@@ -82,7 +82,10 @@ class ProductWorkflowE2E:
         self.execute_remove_liquidity_and_wait(pool, liquidity)
         print("[product-e2e] remove liquidity completed")
 
-        self.check_claim_capability(pool, token)
+        self.execute_oversupplied_add_liquidity_claim_path(pool)
+        self.execute_failed_add_liquidity_claim_path(pool)
+
+        self.check_claim_capability(pool)
         self.check_observability(pool)
         print("[product-e2e] completed")
 
@@ -189,19 +192,37 @@ class ProductWorkflowE2E:
 
         return self.wait_for("user liquidity increase after add liquidity", increased_liquidity)
 
-    def execute_add_liquidity(self, pool: Pool) -> None:
+    def execute_add_liquidity(
+        self,
+        pool: Pool,
+        *,
+        amount_0_in: str = "1",
+        amount_1_in: str = "1",
+        amount_0_out_min: str | None = None,
+        amount_1_out_min: str | None = None,
+    ) -> None:
         self.application_graphql(
             self.user_wallet_url,
             self.user_chain_id,
             pool.application_id,
             """
-            mutation AddLiquidity($amount0In: Amount!, $amount1In: Amount!, $to: Account) {
-              addLiquidity(amount0In: $amount0In, amount1In: $amount1In, to: $to)
+            mutation AddLiquidity(
+              $amount0In: Amount!, $amount1In: Amount!,
+              $amount0OutMin: Amount, $amount1OutMin: Amount,
+              $to: Account
+            ) {
+              addLiquidity(
+                amount0In: $amount0In, amount1In: $amount1In,
+                amount0OutMin: $amount0OutMin, amount1OutMin: $amount1OutMin,
+                to: $to
+              )
             }
             """,
             {
-                "amount0In": "1",
-                "amount1In": "1",
+                "amount0In": amount_0_in,
+                "amount1In": amount_1_in,
+                "amount0OutMin": amount_0_out_min,
+                "amount1OutMin": amount_1_out_min,
                 "to": self.account(self.user_chain_id, self.user_owner),
             },
         )
@@ -254,7 +275,58 @@ class ProductWorkflowE2E:
             },
         )
 
-    def check_claim_capability(self, pool: Pool, token: str) -> None:
+    def execute_oversupplied_add_liquidity_claim_path(self, pool: Pool) -> None:
+        before_claims = self.claim_balances_by_token(pool)
+        before_liquidity = self.owner_liquidity_amount(pool)
+
+        self.execute_add_liquidity(pool, amount_0_in="1", amount_1_in="1")
+
+        def settled_oversupply() -> dict[str | None, tuple[Decimal, Decimal]] | None:
+            current_claims = self.claim_balances_by_token(pool)
+            current_liquidity = self.owner_liquidity_amount(pool)
+            if current_liquidity > before_liquidity and self.claimable_increased(
+                before_claims,
+                current_claims,
+                require_all=False,
+            ):
+                return current_claims
+            return None
+
+        claims = self.wait_for("oversupplied add liquidity claimable excess", settled_oversupply)
+        self.claim_balances_and_wait(pool, claims, "oversupplied add liquidity")
+        print("[product-e2e] oversupplied add liquidity claim completed")
+
+    def execute_failed_add_liquidity_claim_path(self, pool: Pool) -> None:
+        before_claims = self.claim_balances_by_token(pool)
+        before_liquidity = self.owner_liquidity_amount(pool)
+
+        self.execute_add_liquidity(
+            pool,
+            amount_0_in="0.1",
+            amount_1_in="0.1",
+            amount_0_out_min="1000000000",
+            amount_1_out_min="1000000000",
+        )
+
+        def settled_failure() -> dict[str | None, tuple[Decimal, Decimal]] | None:
+            current_claims = self.claim_balances_by_token(pool)
+            current_liquidity = self.owner_liquidity_amount(pool)
+            if current_liquidity == before_liquidity and self.claimable_increased(
+                before_claims,
+                current_claims,
+                require_all=True,
+            ):
+                return current_claims
+            return None
+
+        claims = self.wait_for("failed add liquidity claimable refund", settled_failure)
+        self.claim_balances_and_wait(pool, claims, "failed add liquidity")
+        print("[product-e2e] failed add liquidity claim completed")
+
+    def claim_balances_by_token(self, pool: Pool) -> dict[str | None, tuple[Decimal, Decimal]]:
+        return {token: self.claim_balances(pool, token) for token in self.pool_claim_tokens(pool)}
+
+    def claim_balances(self, pool: Pool, token: str | None) -> tuple[Decimal, Decimal]:
         balances = self.application_graphql(
             self.query_url,
             pool.pool_application_chain,
@@ -267,12 +339,36 @@ class ProductWorkflowE2E:
             """,
             {"token": token, "owner": self.account(self.user_chain_id, self.user_owner)},
         )
-        claimable = Decimal(str(balances["claimableBalance"]))
-        claiming = Decimal(str(balances["claimingBalance"]))
-        print(f"[product-e2e] claim balances token={token}: claimable={claimable} claiming={claiming}")
-        if self.strict_claim and claimable <= 0:
-            raise E2EError("strict claim requested, but current workflow produced no claimable balance")
-        if claimable > 0:
+        return Decimal(str(balances["claimableBalance"])), Decimal(str(balances["claimingBalance"]))
+
+    def claimable_increased(
+        self,
+        before: dict[str | None, tuple[Decimal, Decimal]],
+        current: dict[str | None, tuple[Decimal, Decimal]],
+        *,
+        require_all: bool,
+    ) -> bool:
+        deltas = [
+            current[token][0] - before[token][0]
+            for token in self.pool_claim_tokens_from_balances(before)
+        ]
+        if require_all:
+            return all(delta > 0 for delta in deltas)
+        return any(delta > 0 for delta in deltas)
+
+    def claim_balances_and_wait(
+        self,
+        pool: Pool,
+        balances: dict[str | None, tuple[Decimal, Decimal]],
+        label: str,
+    ) -> None:
+        claimed = False
+        for token, (claimable, _) in balances.items():
+            if claimable <= 0:
+                continue
+            print(
+                f"[product-e2e] claiming {label} token={self.token_label(token)} amount={claimable}"
+            )
             self.application_graphql(
                 self.user_wallet_url,
                 self.user_chain_id,
@@ -284,6 +380,31 @@ class ProductWorkflowE2E:
                 """,
                 {"token": token, "amount": str(claimable)},
             )
+            claimed = True
+
+        if not claimed:
+            raise E2EError(f"{label} produced no claimable balance")
+
+        def settled_claims() -> bool | None:
+            current = self.claim_balances_by_token(pool)
+            for claimable, claiming in current.values():
+                if claimable > 0 or claiming > 0:
+                    return None
+            return True
+
+        self.wait_for(f"{label} claim settlement", settled_claims)
+
+    def check_claim_capability(self, pool: Pool) -> None:
+        balances = self.claim_balances_by_token(pool)
+        for token, (claimable, claiming) in balances.items():
+            print(
+                f"[product-e2e] claim balances token={self.token_label(token)}: "
+                f"claimable={claimable} claiming={claiming}"
+            )
+        if self.strict_claim and any(
+            claimable > 0 or claiming > 0 for claimable, claiming in balances.values()
+        ):
+            raise E2EError("strict claim requested, but claim balances did not settle")
 
     def check_observability(self, pool: Pool) -> None:
         stats = self.http_json(f"{self.kline_url}/protocol/stats")
@@ -544,6 +665,20 @@ class ProductWorkflowE2E:
         if value is None:
             return Decimal("0")
         return Decimal(str(value))
+
+    @staticmethod
+    def pool_claim_tokens(pool: Pool) -> list[str | None]:
+        return [pool.token_0, pool.token_1]
+
+    @staticmethod
+    def pool_claim_tokens_from_balances(
+        balances: dict[str | None, tuple[Decimal, Decimal]]
+    ) -> list[str | None]:
+        return list(balances)
+
+    @staticmethod
+    def token_label(token: str | None) -> str:
+        return "native" if token is None else token
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
