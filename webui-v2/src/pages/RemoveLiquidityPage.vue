@@ -163,7 +163,7 @@ const selectedPair = computed(() => {
 })
 const selectedPool = computed(() => {
   if (!routePair.value) return undefined
-  return swap.Swap.getPool(routePair.value.token0, routePair.value.token1)
+  return swap.Swap.getVisiblePool(routePair.value.token0, routePair.value.token1)
 })
 const hasLiquidity = computed(() => Number(removeAmountMax.value) > 0)
 const removeAmountMax = computed(() => Number.parseFloat(currentLiquidity.value.liquidity || '0'))

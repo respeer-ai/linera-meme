@@ -81,6 +81,97 @@ impl QueryRoot {
 
 #[cfg(test)]
 mod tests {
+    use super::SwapService;
+    use abi::swap::router::Pool;
+    use async_graphql::Request;
+    use linera_sdk::{
+        linera_base_types::{Account, AccountOwner, ApplicationId, ChainId},
+        views::View,
+        Service, ServiceRuntime,
+    };
+    use serde_json::json;
+    use std::{collections::HashMap, str::FromStr, sync::Arc};
+    use swap::state::SwapState;
+
     #[test]
     fn query() {}
+
+    #[tokio::test]
+    async fn pools_query_exposes_protocol_catalog_entries_before_finalized_reserves() {
+        let runtime = Arc::new(ServiceRuntime::<SwapService>::new());
+        let mut state = SwapState::load(runtime.root_view_storage_context())
+            .await
+            .expect("Failed to load swap state");
+        let token_0 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap();
+        let token_1 = ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae",
+        )
+        .unwrap();
+        let creator = Account {
+            chain_id: ChainId::from_str(
+                "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+            )
+            .unwrap(),
+            owner: AccountOwner::from_str(
+                "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc7f",
+            )
+            .unwrap(),
+        };
+        let pool_application = Account {
+            chain_id: ChainId::from_str(
+                "bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+            )
+            .unwrap(),
+            owner: AccountOwner::from(
+                ApplicationId::from_str(
+                    "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb0",
+                )
+                .unwrap(),
+            ),
+        };
+
+        state
+            .meme_meme_pools
+            .insert(
+                &token_0,
+                HashMap::from([(
+                    token_1,
+                    Pool {
+                        creator,
+                        pool_id: 1000,
+                        token_0,
+                        token_1: Some(token_1),
+                        pool_application,
+                        token_0_price: None,
+                        token_1_price: None,
+                        reserve_0: None,
+                        reserve_1: None,
+                        created_at: 1.into(),
+                    },
+                )]),
+            )
+            .unwrap();
+
+        let service = SwapService {
+            state: Arc::new(state),
+            runtime,
+        };
+        let response = service
+            .handle_query(Request::new(
+                "query { pools { poolId token0 token1 poolApplication token0Price token1Price reserve0 reserve1 } }",
+            ))
+            .await;
+
+        assert!(response.errors.is_empty(), "{:?}", response.errors);
+        let data = response.data.into_json().unwrap();
+        assert_eq!(data["pools"].as_array().unwrap().len(), 1);
+        assert_eq!(data["pools"][0]["poolId"], json!(1000));
+        assert_eq!(data["pools"][0]["reserve0"], json!(null));
+        assert_eq!(data["pools"][0]["reserve1"], json!(null));
+        assert_eq!(data["pools"][0]["token0Price"], json!(null));
+        assert_eq!(data["pools"][0]["token1Price"], json!(null));
+    }
 }

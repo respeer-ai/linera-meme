@@ -169,7 +169,7 @@ const getMaxPoints = (interval: kline.Interval): number => {
 
 const buyToken = computed(() => swap.Swap.buyToken())
 const sellToken = computed(() => swap.Swap.sellToken())
-const selectedPool = computed(() => swap.Swap.selectedPool())
+const selectedPool = computed(() => swap.Swap.selectedVisiblePool())
 const poolCreatedAt = computed(() => Math.floor(selectedPool.value?.createdAt / 1000) || 0)
 
 // 创建默认的Application对象用于显示placeholder

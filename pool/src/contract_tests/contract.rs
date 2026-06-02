@@ -169,6 +169,10 @@ async fn operation_swap() {
 async fn message_swap_rejects_without_finalized_reserve_share_facts() {
     let mut pool = create_and_instantiate_pool_with_amounts(false).await;
     let origin = authenticated_account(&pool);
+    let reserve_0_before = pool.state.borrow().reserve_0();
+    let reserve_1_before = pool.state.borrow().reserve_1();
+    let total_supply_before = total_supply(&pool);
+    let request_count_before = pool.runtime.borrow().created_send_message_requests().len();
 
     let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::Swap {
         origin,
@@ -183,6 +187,13 @@ async fn message_swap_rejects_without_finalized_reserve_share_facts() {
     .await;
 
     assert!(result.is_err());
+    assert_eq!(pool.state.borrow().reserve_0(), reserve_0_before);
+    assert_eq!(pool.state.borrow().reserve_1(), reserve_1_before);
+    assert_eq!(total_supply(&pool), total_supply_before);
+    assert_eq!(
+        pool.runtime.borrow().created_send_message_requests().len(),
+        request_count_before
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -208,6 +219,10 @@ async fn operation_add_liquidity() {
 async fn message_remove_liquidity_rejects_without_finalized_reserve_share_facts() {
     let mut pool = create_and_instantiate_pool_with_amounts(false).await;
     let origin = authenticated_account(&pool);
+    let reserve_0_before = pool.state.borrow().reserve_0();
+    let reserve_1_before = pool.state.borrow().reserve_1();
+    let total_supply_before = total_supply(&pool);
+    let request_count_before = pool.runtime.borrow().created_send_message_requests().len();
 
     let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::RemoveLiquidity {
         origin,
@@ -221,6 +236,13 @@ async fn message_remove_liquidity_rejects_without_finalized_reserve_share_facts(
     .await;
 
     assert!(result.is_err());
+    assert_eq!(pool.state.borrow().reserve_0(), reserve_0_before);
+    assert_eq!(pool.state.borrow().reserve_1(), reserve_1_before);
+    assert_eq!(total_supply(&pool), total_supply_before);
+    assert_eq!(
+        pool.runtime.borrow().created_send_message_requests().len(),
+        request_count_before
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -77,7 +77,7 @@ export class Wallet {
     amountIn: string,
     amountOutMin: string,
   ) => {
-    const pools = swap.Swap.pools()
+    const pools = swap.Swap.visiblePools()
     const sellTokenId = sellToken?.applicationId || constants.LINERA_NATIVE_ID
     const buyTokenId = buyToken?.applicationId || constants.LINERA_NATIVE_ID
 
@@ -173,7 +173,7 @@ export class Wallet {
     amountIn: string,
     amountOutMin: string,
   ) => {
-    const pools = swap.Swap.pools()
+    const pools = swap.Swap.visiblePools()
     const sellTokenId = sellToken?.applicationId || constants.LINERA_NATIVE_ID
     const buyTokenId = buyToken?.applicationId || constants.LINERA_NATIVE_ID
 

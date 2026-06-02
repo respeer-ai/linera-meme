@@ -192,13 +192,20 @@ Purpose: make product visibility depend on finalized pool-side economic facts in
 
 Minimal changes:
 
+- Do not change `swap.pools` service query into an observability or product-visible-only API. It remains the swap contract service view over protocol pool catalog state.
+- A pool may exist in protocol catalog after pool application creation and before finalized reserve/share facts exist.
 - Treat finalized pool-side reserve/share facts as the product visibility boundary.
 - Product/read-model rule: a protocol-existing pool without finalized reserve/share facts, including a zero-reserve shell, is not frontend-visible and is not a tradable/displayed market.
+- Keep `AddLiquidity` available for user CreatePool first funding; do not reject it merely because the pool is not finalized.
+- Keep normal `Swap` and `RemoveLiquidity` rejected by pool-side finalized-facts guards.
 
 Validation:
 
 - Product-visible pool lists exclude pools without finalized reserve/share facts.
 - Zero-reserve shells are excluded from product-visible pool lists.
+- `swap.pools` remains protocol catalog and can expose unfinalized pool entries with null reserves.
+- Normal `Swap` and `RemoveLiquidity` reject on unfinalized pools.
+- User CreatePool first funding through `UserPoolCreated -> PoolOperation::AddLiquidity` remains supported.
 
 ### FUND-011 Iteration 6: Swap output claim balances
 

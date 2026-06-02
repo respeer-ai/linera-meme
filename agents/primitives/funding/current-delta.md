@@ -90,6 +90,21 @@ Remaining legacy scope:
 
 - Persisted `FundRequest` remains only for paths not migrated in `FUND-009`, currently Swap. InitializeLiquidity main path already uses direct parameter passing and is not a reason to retain persisted `FundRequest` for AddLiquidity.
 
+## Pool Visibility
+
+Current semantics:
+
+- `swap.pools` is the swap contract service view over protocol pool catalog state. It is not a kline/observability API and it is not by itself a product-visible-only list.
+- Pool application creation can create a protocol catalog entry before finalized pool-side reserve/share facts exist. In that state `reserve_0` and `reserve_1` are `None` in swap state.
+- `Swap` and `RemoveLiquidity` on the pool side already require finalized reserve/share facts.
+- `AddLiquidity` must remain available for the reviewed user CreatePool first-funding path and must not be rejected merely because the pool is not finalized.
+
+Target for `FUND-010`:
+
+- Keep `swap.pools` as protocol catalog.
+- Product-visible and normal trading surfaces filter to pools with finalized positive reserve facts.
+- Frontend product visibility uses `reserve0` and `reserve1` returned by contract service as display eligibility facts; it must not invent independent protocol state.
+
 ## Swap
 
 Known gap:

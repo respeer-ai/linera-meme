@@ -28,25 +28,25 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-010, which splits product-visible pools
-      from protocol-existing pool applications until finalized reserve/share facts exist.
+      iterations. Current executable child is FUND-011, which moves swap output and
+      post-custody swap failure settlement into claim balances without persisted swap intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-010
-    why: active iteration for pool visibility split
+  - id: FUND-011
+    why: active iteration for swap output claim balances
     summary: >
-      Make product visibility depend on finalized pool-side economic facts, not
-      pool application creation receipts. Protocol-existing zero-reserve shells
-      must stay hidden from frontend pool, market, and trading surfaces until
-      finalized reserve/share facts exist.
+      Make swap settlement safe without persisted swap intents by crediting
+      successful output and post-custody failure refunds into claim balances.
+      Normal swap remains gated by finalized reserve/share facts.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/current-delta.md
+      - agents/primitives/funding/claim.md
       - agents/primitives/cross-chain.md
       - agents/primitives/identity-and-origin.md
 on_demand_done:

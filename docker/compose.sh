@@ -21,8 +21,7 @@ if [ -z "$LAN_IP" ]; then
     echo "Failed to resolve LAN_IP" >&2
     exit 1
 fi
-FAUCET_URL=https://faucet.testnet-conway.linera.net
-CHAIN_FAUCET_URL=${CHAIN_FAUCET_URL:-https://faucet.testnet-conway.linera.net}
+FAUCET_URL=${FAUCET_URL:-https://faucet.testnet-conway.linera.net}
 CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 COMPILE=0
@@ -81,8 +80,6 @@ mkdir -p $BIN_DIR
 
 DOCKER_DIR="${OUTPUT_DIR}/docker"
 mkdir -p $DOCKER_DIR
-
-WALLET_IMAGE_NAME=linera-respeer
 
 IMAGE_NAME=linera-respeer
 REPO_NAME=linera-protocol-respeer
@@ -274,7 +271,7 @@ function create_wallet() {
            --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
            --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
            wallet init \
-           --faucet $CHAIN_FAUCET_URL || return 1
+           --faucet $FAUCET_URL || return 1
 
     # Init wallet from faucet
     if [ "x$new_chain" = "x1" ]; then
@@ -283,7 +280,7 @@ function create_wallet() {
                --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
                --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
                wallet request-chain \
-               --faucet $CHAIN_FAUCET_URL) || return 1
+               --faucet $FAUCET_URL) || return 1
         requested_chain_id=$(printf '%s\n' "$request_output" | awk 'NR == 1 { print $1; exit }')
         if [ -n "${requested_chain_id:-}" ]; then
             run_linera "wallet_set_default ${wallet_name}/${wallet_index} ${requested_chain_id}" \
@@ -719,9 +716,9 @@ fi
 rm -rf $WALLET_DIR/query/0
 mkdir -p $WALLET_DIR/query/0
 run_linera_retry "wallet_init query/0" "$LINERA_RETRY_ATTEMPTS" \
-  --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet init --faucet $CHAIN_FAUCET_URL
+  --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet init --faucet $FAUCET_URL
 run_linera_retry "wallet_request_chain query/0" "$LINERA_RETRY_ATTEMPTS" \
-  --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet request-chain --faucet $CHAIN_FAUCET_URL
+  --wallet $WALLET_DIR/query/0/wallet.json --keystore $WALLET_DIR/query/0/keystore.json --storage rocksdb://$WALLET_DIR/query/0/client.db wallet request-chain --faucet $FAUCET_URL
 
 cp -v $ROOT_DIR/docker/docker-compose-query.yml $DOCKER_DIR
 SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-query.yml up --wait
@@ -785,14 +782,14 @@ SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PRO
 rm -rf $WALLET_DIR/maker/0
 mkdir -p $WALLET_DIR/maker/0
 run_linera_retry "wallet_init maker/0" "$LINERA_RETRY_ATTEMPTS" \
-  --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb://$WALLET_DIR/maker/0/client.db wallet init --faucet $CHAIN_FAUCET_URL
+  --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb://$WALLET_DIR/maker/0/client.db wallet init --faucet $FAUCET_URL
 run_linera_retry "wallet_request_chain maker/0" "$LINERA_RETRY_ATTEMPTS" \
-  --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb://$WALLET_DIR/maker/0/client.db wallet request-chain --faucet $CHAIN_FAUCET_URL
+  --wallet $WALLET_DIR/maker/0/wallet.json --keystore $WALLET_DIR/maker/0/keystore.json --storage rocksdb://$WALLET_DIR/maker/0/client.db wallet request-chain --faucet $FAUCET_URL
 MAKER_OWNER=$(wallet_owner maker 0)
 MAKER_CHAIN_ID=$(wallet_chain_id maker 0)
 
 cp -v $ROOT_DIR/docker/docker-compose-wallet.yml $DOCKER_DIR
-SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" LINERA_IMAGE=$WALLET_IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
+SUB_DOMAIN=$CLUSTER. LAN_IP=$LAN_IP NO_PROXY="$NO_PROXY_VALUE" no_proxy="$NO_PROXY_VALUE" LINERA_IMAGE=$IMAGE_NAME docker compose -f docker/docker-compose-wallet.yml up --wait
 
 DATABASE_NAME=linera_swap_kline
 DATABASE_USER=linera-swap

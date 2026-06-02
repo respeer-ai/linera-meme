@@ -110,7 +110,7 @@ const token1InputOptions = computed(() => {
 
 const selectedPool = computed(() => {
   if (!selectedToken0.value?.applicationId || !selectedToken1.value?.applicationId) return undefined
-  return findPoolByPair(swap.Swap.pools(), {
+  return findPoolByPair(swap.Swap.visiblePools(), {
     token0: selectedToken0.value.applicationId,
     token1: selectedToken1.value.applicationId,
   })
@@ -193,7 +193,7 @@ const onAddLiquidity = async () => {
 
   submitting.value = true
   const account = await user.User.account()
-  const submissionMode = resolveLiquiditySubmissionMode(swap.Swap.pools(), {
+  const submissionMode = resolveLiquiditySubmissionMode(swap.Swap.visiblePools(), {
     token0: selectedToken0.value.applicationId,
     token1: selectedToken1.value.applicationId,
   })

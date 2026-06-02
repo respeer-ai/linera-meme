@@ -1200,7 +1200,7 @@ groups:
           - User CreatePool first funding remains on the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path without user-pool-specific funding ABI.
           - Focused tests, full memory-limited `cargo test -j 1`, and full product E2E with oversupplied and failed AddLiquidity claim paths passed.
       - id: FUND-010
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-009]
         title: "Iteration 5: Pool visibility split"
@@ -1208,15 +1208,35 @@ groups:
           Purpose: make product visibility depend on finalized pool-side economic facts instead of app creation receipts.
 
           Minimal changes:
-          - Keep `PoolCreated` as pool-app-created only for both meme initialization and user create-pool flows.
+          - Do not change `swap.pools` service query into an observability or product-visible-only API. It remains the swap contract service view over protocol pool catalog state.
+          - Keep `PoolCreated` as pool-app-created only for both meme initialization and user create-pool flows. A pool may exist in protocol catalog before finalized reserve/share facts exist.
           - Treat finalized pool-side reserve/share facts as the product visibility boundary.
           - Product rule: pools that do not yet have finalized reserve/share facts, including zero-reserve shells, are protocol-existing app facts but must not be shown in frontend pool/market/trading surfaces.
+          - Keep `AddLiquidity` available for the reviewed user CreatePool first-funding path; do not reject it merely because the pool is not finalized.
+          - Keep normal `Swap` and `RemoveLiquidity` rejected by the existing pool-side finalized-facts guard.
+
+          Atomic implementation steps:
+          - A1: Update funding docs with the protocol-catalog versus product-visible pool distinction.
+          - A2: Add or tighten pool-side tests proving unfinalized pools reject normal `Swap` and `RemoveLiquidity` without reserve, LP-share, transaction, or funds side effects.
+          - A3: Add swap catalog tests proving `swap.pools` can still expose protocol-existing unfinalized pool catalog entries with `reserve0/reserve1 = null`.
+          - A4: Add a frontend product-visible pool helper that filters to pools with positive `reserve0` and `reserve1`.
+          - A5: Route frontend product display and normal trading pool selection through the visible-pool helper while preserving missing-pair create-pool behavior.
+          - A6: Add frontend tests for null-reserve, zero-reserve, and finalized pools, including add-liquidity submission-mode resolution.
+          - A7: Run targeted tests, full memory-limited `cargo test -j 1`, frontend tests, and full product E2E.
 
           Validation:
           - Tests prove pools without finalized reserve/share facts are not usable by normal `Swap` or `RemoveLiquidity`.
-          - Tests prove pools without finalized reserve/share facts, including zero-reserve shells, are excluded from product-visible pool lists and trading surfaces.
+          - Tests prove `swap.pools` remains protocol catalog and can expose unfinalized pool entries with null reserves.
+          - Tests prove pools without finalized reserve/share facts, including zero-reserve shells, are excluded from product-visible frontend pool lists and normal trading surfaces.
+          - Tests prove user CreatePool first funding through `UserPoolCreated -> PoolOperation::AddLiquidity` is not broken.
+
+          Completed:
+          - Added pool-side reject/no-side-effect coverage for normal `Swap` and `RemoveLiquidity` before finalized reserve/share facts.
+          - Added swap service coverage proving `swap.pools` remains a protocol catalog and can expose unfinalized entries with null reserves.
+          - Added frontend visible-pool helper and routed normal product/trading surfaces through finalized positive reserve facts without changing raw store catalog semantics.
+          - Validation passed: targeted Rust tests, full memory-limited `cargo test -j 1`, `bun test`, `bun run build`, and full product E2E.
       - id: FUND-011
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-010]
         title: "Iteration 6: Swap output claim balances"

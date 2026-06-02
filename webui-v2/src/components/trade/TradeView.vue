@@ -138,7 +138,7 @@ const tokens = computed(() => ams.Ams.applications().map((el) => {
     meme: JSON.parse(el.spec) as meme.Meme
   }
 }))
-const pools = computed(() => swap.Swap.pools())
+const pools = computed(() => swap.Swap.visiblePools())
 
 const buyToken = ref(undefined as unknown as Token)
 const buyTokenId = computed(() => buyToken.value?.applicationId || constants.LINERA_NATIVE_ID)
@@ -185,7 +185,7 @@ watch(sellTokenId, () => {
   immediate: true
 })
 
-const pool = computed(() => swap.Swap.selectedPool())
+const pool = computed(() => swap.Swap.selectedVisiblePool())
 const fullPrecisionSellPrice = computed(() => (Number(sellTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0))
 const sellPrice = computed(() => fullPrecisionSellPrice.value.toFixed(6))
 const priceImpact = computed(() => swap.Swap.calculatePriceImpact(buyTokenId.value, sellTokenId.value, sellAmount.value))
