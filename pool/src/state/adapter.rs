@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
-use crate::{interfaces::state::StateInterface, state::PoolState, FundRequest};
+use crate::{interfaces::state::StateInterface, state::PoolState};
 use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
@@ -60,33 +60,6 @@ impl StateInterface for StateAdapter {
 
     fn has_finalized_reserve_share_facts(&self) -> bool {
         self.state.borrow().has_finalized_reserve_share_facts()
-    }
-
-    fn consume_transfer_id(&mut self) -> u64 {
-        self.state.borrow_mut().consume_transfer_id()
-    }
-
-    fn create_fund_request(&mut self, fund_request: FundRequest) -> Result<u64, Self::Error> {
-        self.state.borrow_mut().create_fund_request(fund_request)
-    }
-
-    async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, Self::Error> {
-        self.state.borrow().fund_request(transfer_id).await
-    }
-
-    async fn _fund_requests(&self) -> Result<Vec<FundRequest>, Self::Error> {
-        self.state.borrow()._fund_requests().await
-    }
-
-    async fn update_fund_request(
-        &mut self,
-        transfer_id: u64,
-        fund_request: FundRequest,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .update_fund_request(transfer_id, fund_request)
-            .await
     }
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error> {

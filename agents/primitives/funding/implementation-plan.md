@@ -207,22 +207,63 @@ Validation:
 - Normal `Swap` and `RemoveLiquidity` reject on unfinalized pools.
 - User CreatePool first funding through `UserPoolCreated -> PoolOperation::AddLiquidity` remains supported.
 
-### FUND-011 Iteration 6: Swap output claim balances
+### FUND-011 Iteration 6: Swap message-carried funding and claim settlement
 
-Purpose: make swap outputs and refunds use claim balances.
+Purpose: migrate Swap away from persisted funding state, make swap output/refund settlement use claim balances, and promote the message-carried funding ABI to the canonical funding protocol.
 
 Minimal changes:
 
 - Do not add `SwapIntent`.
-- Credit successful output to the claim balance for the output token and owner.
-- Credit failed post-custody input to the claim balance for the input token and owner.
+- Migrate meme-input Swap from persisted `FundRequest` state to message-carried funding facts.
+- Keep native-input Swap direct funding to the pool creator-chain pool application account, then settle through `PoolMessage::Swap`.
+- Remove the legacy persisted funding protocol after Swap no longer uses it: old `FundRequest`, `FundStatus`, `RequestFund`, `FundSuccess`, `FundFail`, `fund_requests` state/query/interface methods, and legacy handlers.
+- Rename the temporary message-carried `Ext` protocol to canonical names after the legacy protocol is removed:
+  - `FundRequestExt` -> `FundRequest`
+  - `RequestFundExt` -> `RequestFund`
+  - `FundResultExt` -> `FundResult`
+- The final canonical `FundRequest` is a message-carried fact only. It must not include persisted-state fields such as `id`, `status`, `error`, `prev_request`, or `next_request`.
+- Credit successful swap output to the claim balance for the output token and owner.
+- Credit failed post-custody swap input to the claim balance for the input token and owner.
+- Do not use `RefundHandler` as the final swap refund path after custody. Swap refund closure uses claim balances.
+
+Swap flow:
+
+- Meme input:
+  - `PoolOperation::Swap`
+  - `PoolMessage::RequestFund { prev: None, request, next: None }`
+  - token creator-chain `TransferToCaller`
+  - `PoolMessage::FundResult { result }`
+  - on success, move meme custody from the origin-chain pool application replica to the pool creator-chain pool application
+  - pool creator-chain `PoolMessage::Swap`
+  - reserve/transaction update
+  - output claim-balance credit
+- Native input:
+  - `PoolOperation::Swap`
+  - native transfer into the pool creator-chain pool application
+  - pool creator-chain `PoolMessage::Swap`
+  - reserve/transaction update
+  - output claim-balance credit
 
 Validation:
 
-- Slippage failure after input custody creates claim balance refund.
-- Success creates output claim balance in the expected workflow state.
-- Swap funding and finalization callbacks validate source, authenticated caller, token, owner, amount, intent, and current status before mutating reserves or claim balances.
-- Credited values can exit through `Claim`.
+- Tests prove meme-input Swap does not create, read, or update persisted `FundRequest` state.
+- Tests prove failed meme funding does not update reserves and does not credit an input refund when no custody was acquired.
+- Tests prove slippage/check failure after input custody credits the input claim-balance refund.
+- Tests prove successful output is credited exactly once.
+- Tests prove swap remains rejected before finalized reserve/share facts exist.
+- Funding request and result handlers validate source chain, authenticated caller application, message signer, token, owner, amount, request facts, and successor facts before mutating custody, reserve, transaction, or claim state.
+- Tests prove credited values can exit through `Claim`.
+
+Atomic implementation steps:
+
+- A1 (done): Update funding docs and task routing with the Swap migration, legacy persisted funding removal, and `Ext` canonicalization plan.
+- A2 (done): Move meme-input `PoolOperation::Swap` to message-carried funding while keeping temporary `Ext` names.
+- A3 (done): Extend the funding result handler to support `FundType::Swap`; successful meme custody continues to pool creator-chain swap settlement, and failed meme funding terminates without reserve or claim mutation.
+- A4 (done): Change `PoolMessage::Swap` settlement so successful outputs are credited to claim balances and post-custody settlement failures credit input refunds to claim balances.
+- A5 (done): Add focused Swap tests for no persisted request creation, funding failure, successful settlement, output claim credit, post-custody refund claim credit, and wrong source/signer/token rejection.
+- A6 (done): Remove the legacy persisted funding implementation: old state, query, interface methods, ABI messages, handlers, and obsolete tests.
+- A7: Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
+- A8: Run targeted tests and the full memory-limited `cargo test -j 1`.
 
 ### FUND-012 Iteration 7: Remove, protocol fee, remote-liquidity, and create-pool residual claim balances
 

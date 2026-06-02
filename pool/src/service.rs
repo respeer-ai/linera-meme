@@ -16,7 +16,7 @@ use linera_sdk::{
     Service, ServiceRuntime,
 };
 
-use pool::{state::PoolState, FundRequest, LiquidityAmount};
+use pool::{state::PoolState, LiquidityAmount};
 
 #[derive(Clone)]
 pub struct PoolService {
@@ -93,18 +93,6 @@ struct QueryRoot {
 impl QueryRoot {
     async fn pool(&self) -> Pool {
         self.service.state.pool.get().as_ref().unwrap().clone()
-    }
-
-    async fn fund_requests(&self) -> Vec<FundRequest> {
-        self.service
-            .state
-            .fund_requests
-            .index_values()
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|(_, v)| v)
-            .collect()
     }
 
     async fn liquidity(&self, owner: Account) -> LiquidityAmount {

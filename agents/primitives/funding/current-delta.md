@@ -88,7 +88,8 @@ Implemented in `FUND-009`:
 
 Remaining legacy scope:
 
-- Persisted `FundRequest` remains only for paths not migrated in `FUND-009`, currently Swap. InitializeLiquidity main path already uses direct parameter passing and is not a reason to retain persisted `FundRequest` for AddLiquidity.
+- AddLiquidity and Swap both use message-carried funding facts.
+- The legacy persisted funding implementation has been removed in `FUND-011`; the remaining funding cleanup is canonicalizing the temporary `Ext` names.
 
 ## Pool Visibility
 
@@ -107,8 +108,16 @@ Target for `FUND-010`:
 
 ## Swap
 
-Known gap:
+Known current behavior:
 
+- Meme-input Swap uses message-carried `FundRequestExt` facts and no longer creates persisted funding state.
+- Native-input Swap does not create persisted `FundRequest`; settlement now credits successful output and post-custody failure refunds through claim balances.
+
+Target for `FUND-011`:
+
+- Meme-input Swap uses message-carried funding facts only.
+- The legacy persisted funding implementation has been removed: old `FundRequest`, `FundStatus`, `RequestFund`, `FundSuccess`, `FundFail`, `fund_requests` state/query/interface methods, and legacy handlers are gone.
+- Temporary `FundRequestExt/RequestFundExt/FundResultExt` names still need to be renamed to canonical `FundRequest/RequestFund/FundResult` in the next FUND-011 step.
 - Swap output/refund must converge into claim balances instead of relying on direct payout as the only funds closure.
 
 ## RemoveLiquidity
@@ -143,7 +152,7 @@ Known gap:
 - `FUND-008`: claim accounting and funds-exit foundation.
 - `FUND-009`: migrate AddLiquidity away from `FundRequest` and add existing-pool two-leg liquidity claim closure.
 - `FUND-010`: pool visibility split.
-- `FUND-011`: swap output to claim balances.
+- `FUND-011`: migrate Swap away from persisted `FundRequest`, remove the legacy funding protocol, rename message-carried funding to canonical names, and move swap output/refund settlement to claim balances.
 - `FUND-012`: remove/protocol-fee/remote-liquidity/create-pool-residual claim balances.
 - `FUND-013`: internal boundary hardening.
 - `FUND-014`: projection and product compatibility.

@@ -1,7 +1,6 @@
 // Copyright (c) Zefchain Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::FundRequest;
 use abi::meme_token::MemeToken;
 use abi::swap::pool::Pool;
 use linera_sdk::{
@@ -16,9 +15,6 @@ use std::collections::HashMap;
 pub struct PoolState {
     pub pool: RegisterView<Option<Pool>>,
     pub router_application_id: RegisterView<Option<ApplicationId>>,
-
-    pub transfer_id: RegisterView<u64>,
-    pub fund_requests: MapView<u64, FundRequest>,
 
     pub total_supply: RegisterView<Amount>,
     pub shares: MapView<Account, Amount>,

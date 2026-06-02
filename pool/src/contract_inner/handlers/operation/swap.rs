@@ -1,12 +1,11 @@
 use crate::{
     contract_inner::handlers::{
         fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
-        request_meme_fund::RequestMemeFundHandler,
+        request_meme_fund_ext::RequestMemeFundExtHandler,
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
-    FundRequest, FundStatus, FundType,
 };
-use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
+use abi::swap::pool::{FundRequestExt, FundType, PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
@@ -101,31 +100,20 @@ impl<
         if let Some(amount_0_in) = self.amount_0_in {
             assert!(amount_0_in > Amount::ZERO, "Invalid amount");
 
-            let fund_request = FundRequest {
-                from: origin,
-                token: Some(token_0),
-                amount_in: amount_0_in,
-                pair_token_amount_out_min: self.amount_1_out_min,
-                to: self.to,
-                block_timestamp: self.block_timestamp,
-                fund_type: FundType::Swap,
-                status: FundStatus::InFlight,
-                error: None,
-                prev_request: None,
-                next_request: None,
-            };
+            let fund_request =
+                FundRequestExt::builder(origin, Some(token_0), amount_0_in, FundType::Swap)
+                    .counterparty_token(self.runtime.borrow_mut().token_1())
+                    .counterparty_amount_out_min(self.amount_1_out_min)
+                    .to(self.to)
+                    .block_timestamp(self.block_timestamp)
+                    .build();
 
-            let transfer_id = match self.state.borrow_mut().create_fund_request(fund_request) {
-                Ok(id) => id,
-                Err(err) => return Err(HandlerError::ProcessError(Box::new(err))),
-            };
-
-            let mut handler = RequestMemeFundHandler::new(
+            let mut handler = RequestMemeFundExtHandler::new(
                 self.runtime.clone(),
                 self.state.clone(),
-                token_0,
-                amount_0_in,
-                transfer_id,
+                None,
+                fund_request,
+                None,
             );
             return handler.handle().await;
         }
@@ -138,31 +126,20 @@ impl<
         let token_1 = self.runtime.borrow_mut().token_1();
 
         if let Some(token_1) = token_1 {
-            let fund_request = FundRequest {
-                from: origin,
-                token: Some(token_1),
-                amount_in: amount,
-                pair_token_amount_out_min: self.amount_0_out_min,
-                to: self.to,
-                block_timestamp: self.block_timestamp,
-                fund_type: FundType::Swap,
-                status: FundStatus::InFlight,
-                error: None,
-                prev_request: None,
-                next_request: None,
-            };
+            let fund_request =
+                FundRequestExt::builder(origin, Some(token_1), amount, FundType::Swap)
+                    .counterparty_token(Some(token_0))
+                    .counterparty_amount_out_min(self.amount_0_out_min)
+                    .to(self.to)
+                    .block_timestamp(self.block_timestamp)
+                    .build();
 
-            let transfer_id = match self.state.borrow_mut().create_fund_request(fund_request) {
-                Ok(id) => id,
-                Err(err) => return Err(HandlerError::ProcessError(Box::new(err))),
-            };
-
-            let mut handler = RequestMemeFundHandler::new(
+            let mut handler = RequestMemeFundExtHandler::new(
                 self.runtime.clone(),
                 self.state.clone(),
-                token_1,
-                amount,
-                transfer_id,
+                None,
+                fund_request,
+                None,
             );
             return handler.handle().await;
         }

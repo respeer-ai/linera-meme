@@ -1,4 +1,3 @@
-use crate::FundRequest;
 use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
@@ -28,20 +27,6 @@ pub trait StateInterface {
     fn reserve_1(&self) -> Amount;
     fn total_supply(&self) -> Amount;
     fn has_finalized_reserve_share_facts(&self) -> bool;
-
-    fn consume_transfer_id(&mut self) -> u64;
-
-    fn create_fund_request(&mut self, fund_request: FundRequest) -> Result<u64, Self::Error>;
-
-    async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, Self::Error>;
-
-    async fn _fund_requests(&self) -> Result<Vec<FundRequest>, Self::Error>;
-
-    async fn update_fund_request(
-        &mut self,
-        transfer_id: u64,
-        fund_request: FundRequest,
-    ) -> Result<(), Self::Error>;
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error>;
     fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, Self::Error>;

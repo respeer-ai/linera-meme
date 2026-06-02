@@ -1,7 +1,6 @@
 use crate::{
     interfaces::state::StateInterface,
     state::{errors::StateError, PoolState},
-    FundRequest,
 };
 use abi::meme_token::MemeToken;
 use abi::swap::{
@@ -32,7 +31,6 @@ impl StateInterface for PoolState {
 
         self.router_application_id
             .set(Some(argument.router_application_id));
-        self.transfer_id.set(1000);
         self.transaction_id.set(1000);
 
         Ok(())
@@ -62,41 +60,6 @@ impl StateInterface for PoolState {
         self.reserve_0() > Amount::ZERO
             && self.reserve_1() > Amount::ZERO
             && self.total_supply() > Amount::ZERO
-    }
-
-    fn consume_transfer_id(&mut self) -> u64 {
-        let transfer_id = *self.transfer_id.get();
-        self.transfer_id.set(transfer_id + 1);
-        transfer_id
-    }
-
-    fn create_fund_request(&mut self, fund_request: FundRequest) -> Result<u64, Self::Error> {
-        let transfer_id = self.consume_transfer_id();
-        self.fund_requests.insert(&transfer_id, fund_request)?;
-        Ok(transfer_id)
-    }
-
-    async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, Self::Error> {
-        Ok(self.fund_requests.get(&transfer_id).await?.unwrap())
-    }
-
-    async fn _fund_requests(&self) -> Result<Vec<FundRequest>, Self::Error> {
-        Ok(self
-            .fund_requests
-            .index_values()
-            .await?
-            .into_iter()
-            .map(|(_, v)| v)
-            .collect())
-    }
-
-    async fn update_fund_request(
-        &mut self,
-        transfer_id: u64,
-        fund_request: FundRequest,
-    ) -> Result<(), Self::Error> {
-        let _ = self.fund_requests.get(&transfer_id).await?.unwrap();
-        Ok(self.fund_requests.insert(&transfer_id, fund_request)?)
     }
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error> {

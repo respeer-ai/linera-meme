@@ -4,9 +4,9 @@ pub mod state;
 
 pub use abi::swap::pool::FundType;
 use abi::swap::pool::PoolError as _PoolError;
-use async_graphql::{Enum, SimpleObject};
+use async_graphql::SimpleObject;
 use linera_sdk::{
-    linera_base_types::{Account, Amount, ApplicationId, ArithmeticError, Timestamp},
+    linera_base_types::{Amount, ArithmeticError},
     views::ViewError,
 };
 use serde::{Deserialize, Serialize};
@@ -29,33 +29,6 @@ pub enum PoolError {
 
     #[error("Insufficient funds")]
     InsufficientFunds,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
-pub enum FundStatus {
-    // Fund request is created but not sent
-    Created,
-    // Fund request is sent but not respond
-    InFlight,
-    Success,
-    Fail,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, SimpleObject)]
-pub struct FundRequest {
-    pub from: Account,
-    pub token: Option<ApplicationId>,
-    pub amount_in: Amount,
-    // Swap pair token min out amount
-    pub pair_token_amount_out_min: Option<Amount>,
-    pub to: Option<Account>,
-    pub block_timestamp: Option<Timestamp>,
-    pub fund_type: FundType,
-    pub status: FundStatus,
-    pub error: Option<String>,
-    // When add liquidity, we need to transfer two assets
-    pub prev_request: Option<u64>,
-    pub next_request: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, SimpleObject)]

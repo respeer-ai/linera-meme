@@ -1,14 +1,12 @@
 pub mod add_liquidity;
 pub mod add_liquidity_transfer_receipt;
 pub mod claim;
-pub mod fund_fail;
 pub mod fund_result_ext;
-pub mod fund_success;
 pub mod initialize_liquidity;
 pub mod new_transaction;
 pub mod remove_liquidity;
-pub mod request_fund;
 pub mod request_fund_ext;
 pub mod set_fee_to;
 pub mod set_fee_to_setter;
 pub mod swap;
+pub mod swap_transfer_receipt;

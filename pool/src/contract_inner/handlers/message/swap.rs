@@ -1,13 +1,11 @@
-use crate::{
-    contract_inner::handlers::{
-        refund::RefundHandler, transfer_meme_from_application::TransferMemeFromApplicationHandler,
-    },
-    interfaces::{parameters::ParametersInterface, state::StateInterface},
+use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
+use abi::{
+    meme_token::MemeToken,
+    swap::pool::{PoolError, PoolMessage, PoolResponse},
 };
-use abi::swap::pool::{PoolError, PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, Timestamp};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -62,33 +60,59 @@ impl<
         }
     }
 
-    async fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
-        let _ = TransferMemeFromApplicationHandler::new(
-            self.runtime.clone(),
-            self.state.clone(),
-            token,
-            to,
-            amount,
-        )
-        .handle()
-        .await;
+    async fn credit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), HandlerError> {
+        if amount == Amount::ZERO {
+            return Ok(());
+        }
+
+        self.state
+            .borrow_mut()
+            .credit(token, owner, amount)
+            .await
+            .map_err(Into::into)
     }
 
-    async fn refund_amount_in(
+    async fn credit_amount_in(
         &mut self,
         origin: Account,
         amount_0_in: Option<Amount>,
         amount_1_in: Option<Amount>,
-    ) {
-        let _ = RefundHandler::new(
-            self.runtime.clone(),
-            self.state.clone(),
+    ) -> Result<(), HandlerError> {
+        let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
+
+        self.credit(
+            MemeToken::from(token_0),
             origin,
-            amount_0_in,
-            amount_1_in,
+            amount_0_in.unwrap_or(Amount::ZERO),
         )
-        .handle()
-        .await;
+        .await?;
+        self.credit(
+            MemeToken::from(token_1),
+            origin,
+            amount_1_in.unwrap_or(Amount::ZERO),
+        )
+        .await
+    }
+
+    async fn credit_amount_out(
+        &mut self,
+        owner: Account,
+        amount_0_out: Amount,
+        amount_1_out: Amount,
+    ) -> Result<(), HandlerError> {
+        let token_0 = self.runtime.borrow_mut().token_0();
+        let token_1 = self.runtime.borrow_mut().token_1();
+
+        self.credit(MemeToken::from(token_0), owner, amount_0_out)
+            .await?;
+        self.credit(MemeToken::from(token_1), owner, amount_1_out)
+            .await
     }
 
     // Always be run on creation chain
@@ -105,17 +129,22 @@ impl<
         // Here we already funded
         // 1: Calculate pair token amount
         let amount_0_out = if let Some(amount_1_in) = amount_1_in {
-            self.state
-                .borrow()
-                .calculate_swap_amount_0(amount_1_in)
-                .map_err(Into::into)?
+            let calculated = { self.state.borrow().calculate_swap_amount_0(amount_1_in) };
+            match calculated {
+                Ok(amount) => amount,
+                Err(err) => {
+                    self.credit_amount_in(origin, amount_0_in, Some(amount_1_in))
+                        .await?;
+                    return Err(err.into());
+                }
+            }
         } else {
             Amount::ZERO
         };
         if let Some(amount_0_out_min) = amount_0_out_min {
             if amount_0_out < amount_0_out_min {
-                self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                    .await;
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
                 log::warn!(
                     "DEBUG POOL: Amount 0 out {} less than minimum {}",
                     amount_0_out,
@@ -126,17 +155,22 @@ impl<
         }
 
         let amount_1_out = if let Some(amount_0_in) = amount_0_in {
-            self.state
-                .borrow()
-                .calculate_swap_amount_1(amount_0_in)
-                .map_err(Into::into)?
+            let calculated = { self.state.borrow().calculate_swap_amount_1(amount_0_in) };
+            match calculated {
+                Ok(amount) => amount,
+                Err(err) => {
+                    self.credit_amount_in(origin, Some(amount_0_in), amount_1_in)
+                        .await?;
+                    return Err(err.into());
+                }
+            }
         } else {
             Amount::ZERO
         };
         if let Some(amount_1_out_min) = amount_1_out_min {
             if amount_1_out < amount_1_out_min {
-                self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                    .await;
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
                 log::warn!(
                     "DEBUG POOL: Amount 1 out {} less than minimum {}",
                     amount_1_out,
@@ -147,8 +181,8 @@ impl<
         }
 
         if amount_0_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_1_out == Amount::ZERO {
-            self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                .await;
+            self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                .await?;
             log::warn!(
                 "DEBUG POOL: Amount 0 in {:?} > 0 but amount 1 out {} is ZERO",
                 amount_0_in,
@@ -157,8 +191,8 @@ impl<
             return Err(HandlerError::InvalidAmount);
         }
         if amount_1_in.unwrap_or(Amount::ZERO) > Amount::ZERO && amount_0_out == Amount::ZERO {
-            self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                .await;
+            self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                .await?;
             log::warn!(
                 "DEBUG POOL: Amount 1 in {:?} > 0 but amount 0 out {} is ZERO",
                 amount_1_in,
@@ -167,8 +201,8 @@ impl<
             return Err(HandlerError::InvalidAmount);
         }
         if amount_0_out == Amount::ZERO && amount_1_out == Amount::ZERO {
-            self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                .await;
+            self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                .await?;
             log::warn!("Both amount 0 and 1 out are ZERO");
             return Err(HandlerError::InvalidAmount);
         }
@@ -183,8 +217,8 @@ impl<
         match invariant_check {
             Ok(_) => {}
             Err(err) => {
-                self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                    .await;
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
                 log::warn!(
                     "Failed caculate adjusted amount pair amount 0 out {}, amount 1 out {}",
                     amount_0_out,
@@ -210,8 +244,8 @@ impl<
             if token_1.is_none() {
                 let balance = self.runtime.borrow_mut().owner_balance(application);
                 if balance < amount_1_out {
-                    self.refund_amount_in(origin, amount_0_in, amount_1_in)
-                        .await;
+                    self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                        .await?;
                     log::warn!(
                         "Application balance {} less than amount 1 out {}",
                         balance,
@@ -226,9 +260,8 @@ impl<
         //
         // This gives BuyToken0 and SellToken0 the same transaction semantics:
         // the input asset has already been locked to the pool, the output amounts
-        // are final, and the reserves have been updated. Output delivery may still
-        // happen via a follow-up message for meme assets, but the transaction itself
-        // is already economically settled at this point.
+        // are final, and the reserves have been updated. Output delivery is
+        // represented as claimable balance after the transaction is fixed.
         let balance_0 = self
             .state
             .borrow()
@@ -288,20 +321,11 @@ impl<
             false,
         );
 
-        // 5: Dispatch outputs after the transaction has been fixed.
-        if amount_1_out > Amount::ZERO {
-            let token_1 = self.runtime.borrow_mut().token_1();
-            if let Some(token_1) = token_1 {
-                self.transfer_meme(token_1, to, amount_1_out).await;
-            } else {
-                self.runtime
-                    .borrow_mut()
-                    .transfer(application, to, amount_1_out);
-            }
-        }
-        if amount_0_out > Amount::ZERO {
-            self.transfer_meme(token_0, to, amount_0_out).await;
-        }
+        // 5: Output delivery is represented as claimable balance. This keeps
+        // swap settlement local to the pool creator chain; the user exits funds
+        // through the unified Claim path.
+        self.credit_amount_out(to, amount_0_out, amount_1_out)
+            .await?;
 
         Ok(outcome)
     }

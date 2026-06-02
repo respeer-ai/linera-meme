@@ -28,19 +28,24 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-011, which moves swap output and
-      post-custody swap failure settlement into claim balances without persisted swap intents.
+      iterations. Current executable child is FUND-011, which migrates Swap away
+      from persisted funding state, removes the legacy funding protocol, promotes
+      message-carried funding names to canonical names, and moves swap output and
+      post-custody swap failure settlement into claim balances without persisted
+      swap intents.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
   - id: FUND-011
-    why: active iteration for swap output claim balances
+    why: active iteration for swap message-carried funding and claim settlement
     summary: >
-      Make swap settlement safe without persisted swap intents by crediting
-      successful output and post-custody failure refunds into claim balances.
-      Normal swap remains gated by finalized reserve/share facts.
+      Migrate meme-input Swap from persisted FundRequest state to message-carried
+      funding facts, remove old RequestFund/FundSuccess/FundFail stateful funding,
+      rename temporary Ext funding names to canonical names,
+      and credit successful output plus post-custody failure refunds into claim
+      balances. Normal swap remains gated by finalized reserve/share facts.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

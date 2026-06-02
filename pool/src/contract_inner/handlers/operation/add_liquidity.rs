@@ -76,31 +76,29 @@ impl<
         let token_0 = self.runtime.borrow_mut().token_0();
         let token_1 = self.runtime.borrow_mut().token_1();
 
-        let fund_request_0 = FundRequestExt {
-            from: origin,
-            token: Some(token_0),
-            amount_in: self.amount_0_in,
-            amount_out_min: self.amount_0_out_min,
-            counterparty_token: token_1,
-            counterparty_amount_in: Some(self.amount_1_in),
-            counterparty_amount_out_min: self.amount_1_out_min,
-            to: self.to,
-            block_timestamp: self.block_timestamp,
-            fund_type: FundType::AddLiquidity,
-        };
+        let fund_request_0 = FundRequestExt::builder(
+            origin,
+            Some(token_0),
+            self.amount_0_in,
+            FundType::AddLiquidity,
+        )
+        .amount_out_min(self.amount_0_out_min)
+        .counterparty_token(token_1)
+        .counterparty_amount_in(Some(self.amount_1_in))
+        .counterparty_amount_out_min(self.amount_1_out_min)
+        .to(self.to)
+        .block_timestamp(self.block_timestamp)
+        .build();
 
-        let fund_request_1 = FundRequestExt {
-            from: origin,
-            token: token_1,
-            amount_in: self.amount_1_in,
-            amount_out_min: self.amount_1_out_min,
-            counterparty_token: Some(token_0),
-            counterparty_amount_in: Some(self.amount_0_in),
-            counterparty_amount_out_min: self.amount_0_out_min,
-            to: self.to,
-            block_timestamp: self.block_timestamp,
-            fund_type: FundType::AddLiquidity,
-        };
+        let fund_request_1 =
+            FundRequestExt::builder(origin, token_1, self.amount_1_in, FundType::AddLiquidity)
+                .amount_out_min(self.amount_1_out_min)
+                .counterparty_token(Some(token_0))
+                .counterparty_amount_in(Some(self.amount_0_in))
+                .counterparty_amount_out_min(self.amount_0_out_min)
+                .to(self.to)
+                .block_timestamp(self.block_timestamp)
+                .build();
 
         let mut handler = RequestMemeFundExtHandler::new(
             self.runtime.clone(),

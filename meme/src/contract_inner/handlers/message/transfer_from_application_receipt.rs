@@ -6,6 +6,7 @@ use abi::{
     },
     swap::pool::{
         AddLiquidityTransferReceipt, ClaimTransferReceipt, FundType, PoolAbi, PoolOperation,
+        SwapTransferReceipt,
     },
 };
 use async_trait::async_trait;
@@ -172,6 +173,49 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
                         prev: payload.prev,
                         request: payload.request,
                         next: payload.next,
+                    },
+                };
+                let _ = self
+                    .runtime
+                    .borrow_mut()
+                    .call_application(pool_application.with_abi::<PoolAbi>(), &operation);
+            }
+            TransferFromApplicationReceiptPurpose::PoolSwap => {
+                let Some(TransferFromApplicationReceiptPayload::PoolSwap(payload)) =
+                    self.receipt.payload.clone()
+                else {
+                    panic!("Invalid receipt payload");
+                };
+
+                assert_eq!(
+                    self.receipt.owner, payload.request.from,
+                    "Invalid receipt owner"
+                );
+                assert_eq!(
+                    Some(self.receipt.token),
+                    payload.request.token,
+                    "Invalid receipt token"
+                );
+                assert_eq!(
+                    self.receipt.amount, payload.request.amount_in,
+                    "Invalid receipt amount"
+                );
+                assert_eq!(
+                    payload.request.fund_type,
+                    FundType::Swap,
+                    "Invalid fund type"
+                );
+
+                let AccountOwner::Address32(application_description_hash) = self.caller.owner
+                else {
+                    panic!("Invalid receipt caller");
+                };
+                let pool_application: ApplicationId =
+                    ApplicationId::new(application_description_hash);
+                let operation = PoolOperation::SwapTransferReceipt {
+                    receipt: SwapTransferReceipt {
+                        result,
+                        request: payload.request,
                     },
                 };
                 let _ = self

@@ -57,6 +57,21 @@ pub struct AddLiquidityTransferReceipt {
 
 scalar!(AddLiquidityTransferReceipt);
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SwapTransferReceiptPayload {
+    pub request: FundRequestExt,
+}
+
+scalar!(SwapTransferReceiptPayload);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SwapTransferReceipt {
+    pub result: Result<(), String>,
+    pub request: FundRequestExt,
+}
+
+scalar!(SwapTransferReceipt);
+
 #[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
 pub enum FundType {
     Swap,
@@ -76,6 +91,73 @@ pub struct FundRequestExt {
     pub to: Option<Account>,
     pub block_timestamp: Option<Timestamp>,
     pub fund_type: FundType,
+}
+
+pub struct FundRequestExtBuilder {
+    request: FundRequestExt,
+}
+
+impl FundRequestExt {
+    pub fn builder(
+        from: Account,
+        token: Option<ApplicationId>,
+        amount_in: Amount,
+        fund_type: FundType,
+    ) -> FundRequestExtBuilder {
+        FundRequestExtBuilder {
+            request: Self {
+                from,
+                token,
+                amount_in,
+                amount_out_min: None,
+                counterparty_token: None,
+                counterparty_amount_in: None,
+                counterparty_amount_out_min: None,
+                to: None,
+                block_timestamp: None,
+                fund_type,
+            },
+        }
+    }
+}
+
+impl FundRequestExtBuilder {
+    pub fn amount_out_min(mut self, amount_out_min: Option<Amount>) -> Self {
+        self.request.amount_out_min = amount_out_min;
+        self
+    }
+
+    pub fn counterparty_token(mut self, counterparty_token: Option<ApplicationId>) -> Self {
+        self.request.counterparty_token = counterparty_token;
+        self
+    }
+
+    pub fn counterparty_amount_in(mut self, counterparty_amount_in: Option<Amount>) -> Self {
+        self.request.counterparty_amount_in = counterparty_amount_in;
+        self
+    }
+
+    pub fn counterparty_amount_out_min(
+        mut self,
+        counterparty_amount_out_min: Option<Amount>,
+    ) -> Self {
+        self.request.counterparty_amount_out_min = counterparty_amount_out_min;
+        self
+    }
+
+    pub fn to(mut self, to: Option<Account>) -> Self {
+        self.request.to = to;
+        self
+    }
+
+    pub fn block_timestamp(mut self, block_timestamp: Option<Timestamp>) -> Self {
+        self.request.block_timestamp = block_timestamp;
+        self
+    }
+
+    pub fn build(self) -> FundRequestExt {
+        self.request
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
@@ -125,6 +207,9 @@ pub enum PoolOperation {
     AddLiquidityTransferReceipt {
         receipt: AddLiquidityTransferReceipt,
     },
+    SwapTransferReceipt {
+        receipt: SwapTransferReceipt,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -135,20 +220,6 @@ pub enum PoolResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
-    // Sent from user chain to meme chain
-    RequestFund {
-        token: ApplicationId,
-        transfer_id: u64,
-        amount: Amount,
-    },
-    // Sent from meme chain to user chain
-    FundSuccess {
-        transfer_id: u64,
-    },
-    FundFail {
-        transfer_id: u64,
-        error: String,
-    },
     RequestFundExt {
         prev: Option<FundRequestExt>,
         request: FundRequestExt,
@@ -162,6 +233,9 @@ pub enum PoolMessage {
     },
     AddLiquidityTransferReceipt {
         receipt: AddLiquidityTransferReceipt,
+    },
+    SwapTransferReceipt {
+        receipt: SwapTransferReceipt,
     },
     Swap {
         // Used to refund

@@ -5,7 +5,10 @@ use abi::{
         TransferFromApplicationReceiptPayload, TransferFromApplicationReceiptPurpose,
     },
     meme_token::MemeToken,
-    swap::pool::{AddLiquidityTransferReceiptPayload, FundRequestExt, PoolMessage, PoolResponse},
+    swap::pool::{
+        AddLiquidityTransferReceiptPayload, FundRequestExt, FundType, PoolMessage, PoolResponse,
+        SwapTransferReceiptPayload,
+    },
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -107,7 +110,7 @@ where
         Ok(())
     }
 
-    fn fund_pool_chain(&mut self) {
+    fn fund_pool_chain_for_add_liquidity(&mut self) {
         let token = self.request.token.expect("Invalid fund token");
         let chain_id = self.runtime.borrow_mut().application_creator_chain_id();
         let application_id = self.runtime.borrow_mut().application_id();
@@ -140,6 +143,38 @@ where
             .borrow_mut()
             .call_application(token.with_abi::<MemeAbi>(), &call);
     }
+
+    fn fund_pool_chain_for_swap(&mut self) {
+        let token = self.request.token.expect("Invalid fund token");
+        let chain_id = self.runtime.borrow_mut().application_creator_chain_id();
+        let application_id = self.runtime.borrow_mut().application_id();
+        let to = Account {
+            chain_id,
+            owner: AccountOwner::from(application_id),
+        };
+
+        let call = MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount: self.request.amount_in,
+            receipt: TransferFromApplicationReceipt {
+                purpose: TransferFromApplicationReceiptPurpose::PoolSwap,
+                owner: self.request.from,
+                token,
+                amount: self.request.amount_in,
+                result: None,
+                payload: Some(TransferFromApplicationReceiptPayload::PoolSwap(
+                    SwapTransferReceiptPayload {
+                        request: self.request.clone(),
+                    },
+                )),
+            },
+        };
+
+        let _ = self
+            .runtime
+            .borrow_mut()
+            .call_application(token.with_abi::<MemeAbi>(), &call);
+    }
 }
 
 #[async_trait(?Send)]
@@ -154,11 +189,20 @@ where
         self.validate();
 
         if self.result.is_err() {
-            self.settle_failed_transfer().await?;
+            if self.request.fund_type == FundType::AddLiquidity {
+                self.settle_failed_transfer().await?;
+            }
             return Ok(None);
         }
 
-        self.fund_pool_chain();
+        match self.request.fund_type {
+            FundType::AddLiquidity => self.fund_pool_chain_for_add_liquidity(),
+            FundType::Swap => self.fund_pool_chain_for_swap(),
+            FundType::InitializeLiquidity => {
+                panic!("FundRequestExt is not enabled for InitializeLiquidity")
+            }
+        }
+
         Ok(None)
     }
 }
