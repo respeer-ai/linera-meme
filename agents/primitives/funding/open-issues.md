@@ -124,3 +124,13 @@ Status: Open
 Problem: terminal workflow records must not grow without bound, but stale follow-up rejection, diagnostics, and audit facts may still be needed.
 
 Constraint: compaction must not remove active custody or claim accounting state.
+
+## OI-010 NewIncomingBundle Download Timeout Recovery
+
+Status: Open
+
+Problem: when a client receives a `NewIncomingBundle` notification and times out while downloading the sender certificate, application description, contract bytecode, service bytecode, or related blobs, Linera's current notification path logs the failure but does not retry that same notification in-place. The validator/proxy notification stream does not maintain a per-client acknowledgement and replay queue for failed notification handling.
+
+Current safe behavior: rely on explicit resynchronization paths such as listener restart, subscription setup synchronization, background received-certificate sync, or explicit inbox processing to rediscover the pending bundle.
+
+Required improvement: add a client-side retry or resynchronization trigger for `NewIncomingBundle` download failures so a long-running service can recover without container restart.
