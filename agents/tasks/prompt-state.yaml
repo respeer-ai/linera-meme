@@ -28,23 +28,20 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-009, which makes existing finalized-pool
-      add liquidity safe using the established claim exit.
+      iterations. Current executable child is FUND-010, which splits product-visible pools
+      from protocol-existing pool applications until finalized reserve/share facts exist.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-009
-    why: active iteration for existing-pool AddLiquidity two-leg pending
+  - id: FUND-010
+    why: active iteration for pool visibility split
     summary: >
-      Make ordinary finalized-pool add liquidity safe using the established claim
-      exit. Migrate AddLiquidity away from persisted `FundRequest` by using
-      message-carried `FundRequestExt` with authenticated `FundResultExt`
-      source validation. Keep the normal AddLiquidity path, preserve the
-      limiting-side calculation, credit partial-funding failures and
-      accepted-liquidity excess/refunds to claim balances, and do not introduce
-      a persisted AddLiquidityIntent design.
+      Make product visibility depend on finalized pool-side economic facts, not
+      pool application creation receipts. Protocol-existing zero-reserve shells
+      must stay hidden from frontend pool, market, and trading surfaces until
+      finalized reserve/share facts exist.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

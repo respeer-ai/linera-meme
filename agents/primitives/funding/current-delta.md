@@ -74,22 +74,21 @@ Known gaps:
 
 ## AddLiquidity
 
-Known current behavior:
+Implemented in `FUND-009`:
 
-- AddLiquidity currently creates two linked `FundRequest` records and uses `FundSuccess`/`FundFail` with `transfer_id` to advance the two funding legs.
-- Current settled add-liquidity calculation accepts liquidity based on the limiting side and directly transfers excess back.
-
-Known gap:
-
-- `FUND-009` must migrate AddLiquidity away from persisted `FundRequest`; AddLiquidity must carry funding-request facts through messages as `FundRequestExt`.
-- `FundRequestExt` is the non-persistent replacement for the facts previously reached through `transfer_id -> FundRequest`.
+- AddLiquidity no longer creates, reads, or updates persisted `FundRequest` state.
+- AddLiquidity carries funding-request facts through `FundRequestExt`.
 - AddLiquidity funding uses `RequestFundExt { prev, request, next }` and `FundResultExt { prev, request, next, result }`; it does not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible `Token0` / `Token1` names.
-- `counterparty_amount_out_min` replaces the current `pair_token_amount_out_min` wording for the message-carried request.
+- `counterparty_amount_out_min` is the message-carried counterpart min field.
 - `counterparty_amount_in` is optional so the same request shape can later represent single-input Swap funding without another ABI change.
-- `FundResultExt` must prove its source through Linera authenticated message facts: the origin chain is the request token creator chain, the caller is the current pool application replica on that chain, and the signer is the request owner.
-- AddLiquidity needs explicit two-leg pending/funded/finalized behavior before reserve update or LP mint, without adding `AddLiquidityIntent`.
-- Target funding semantics keep the limiting-side calculation but route all excess/refund value through claim balances.
-- Persisted `FundRequest` remains only as a temporary legacy structure for paths not migrated in `FUND-009`, currently Swap. InitializeLiquidity main path already uses direct parameter passing and is not a reason to retain persisted `FundRequest` for AddLiquidity.
+- `FundResultExt` proves source through Linera authenticated message facts: the origin chain is the request token creator chain, the caller is the current pool application replica on that chain, and the signer is the request owner.
+- AddLiquidity tracks two-leg funding with message-carried `prev/request/next` facts before reserve update or LP mint, without adding `AddLiquidityIntent`.
+- Partial funding failures, final AddLiquidity calculation failures after custody, and accepted-liquidity excess/refunds credit claim balances.
+- Successful fungible custody is moved from the origin-chain pool app replica to the pool creator-chain pool app with `TransferFromApplicationWithReceipt` before final AddLiquidity settlement.
+
+Remaining legacy scope:
+
+- Persisted `FundRequest` remains only for paths not migrated in `FUND-009`, currently Swap. InitializeLiquidity main path already uses direct parameter passing and is not a reason to retain persisted `FundRequest` for AddLiquidity.
 
 ## Swap
 

@@ -1151,7 +1151,7 @@ groups:
           - Claim-balance storage, target `Claim` operation, native claim, meme asynchronous claiming, receipt settlement, explicit tracking, claim queries, and product workflow E2E entrypoint are implemented.
           - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
       - id: FUND-009
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-008]
         title: "Iteration 4: Existing-pool AddLiquidity two-leg pending"
@@ -1193,8 +1193,14 @@ groups:
           - Tests prove partial failure leaves no finalized reserve increase and no LP share mint.
           - Tests prove partial failure credits already-custodied value to claim balances exactly once.
           - Tests prove accepted-liquidity excess/refund is credited to claim balances exactly once.
+
+          Completed:
+          - AddLiquidity now uses message-carried `FundRequestExt` instead of persisted `FundRequest` state.
+          - Partial funding failure, final settlement failure, and accepted-liquidity excess/refund credit claim balances.
+          - User CreatePool first funding remains on the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path without user-pool-specific funding ABI.
+          - Focused tests, full memory-limited `cargo test -j 1`, and full product E2E with oversupplied and failed AddLiquidity claim paths passed.
       - id: FUND-010
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-009]
         title: "Iteration 5: Pool visibility split"
