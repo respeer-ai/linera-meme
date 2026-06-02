@@ -1,7 +1,7 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
     meme::{MemeAbi, MemeOperation, MemeResponse},
-    swap::pool::{FundRequestExt, PoolMessage, PoolResponse},
+    swap::pool::{FundRequest, PoolMessage, PoolResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -11,24 +11,24 @@ use runtime::interfaces::{
 };
 use std::{cell::RefCell, rc::Rc};
 
-pub struct RequestFundExtHandler<
+pub struct RequestFundHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
     _state: S,
-    prev: Option<FundRequestExt>,
-    request: FundRequestExt,
-    next: Option<FundRequestExt>,
+    prev: Option<FundRequest>,
+    request: FundRequest,
+    next: Option<FundRequest>,
 }
 
 impl<
         R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
         S: StateInterface,
-    > RequestFundExtHandler<R, S>
+    > RequestFundHandler<R, S>
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &PoolMessage) -> Self {
-        let PoolMessage::RequestFundExt {
+        let PoolMessage::RequestFund {
             prev,
             request,
             next,
@@ -102,7 +102,7 @@ impl<
 impl<
         R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
         S: StateInterface,
-    > Handler<PoolMessage, PoolResponse> for RequestFundExtHandler<R, S>
+    > Handler<PoolMessage, PoolResponse> for RequestFundHandler<R, S>
 {
     async fn handle(
         &mut self,
@@ -119,7 +119,7 @@ impl<
         let mut outcome = HandlerOutcome::new();
         outcome.with_message(
             destination,
-            PoolMessage::FundResultExt {
+            PoolMessage::FundResult {
                 prev: self.prev.clone(),
                 request: self.request.clone(),
                 next: self.next.clone(),

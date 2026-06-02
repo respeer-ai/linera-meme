@@ -1,5 +1,5 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
-use abi::swap::pool::{FundRequestExt, FundType, PoolMessage, PoolResponse, SwapTransferReceipt};
+use abi::swap::pool::{FundRequest, FundType, PoolMessage, PoolResponse, SwapTransferReceipt};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::Amount;
@@ -45,13 +45,9 @@ where
             Some(self.receipt.request.from.chain_id),
             "Invalid receipt origin"
         );
-
-        let caller_id = self.runtime.borrow_mut().authenticated_caller_id();
-        let application_id = self.runtime.borrow_mut().application_id();
-        assert_eq!(caller_id, Some(application_id), "Invalid receipt caller");
     }
 
-    fn validate_request(&self, request: &FundRequestExt) {
+    fn validate_request(&self, request: &FundRequest) {
         assert!(request.amount_in > Amount::ZERO, "Invalid amount");
         assert_eq!(request.fund_type, FundType::Swap, "Invalid fund type");
 
@@ -59,7 +55,7 @@ where
         self.state.borrow().pool().validate_token(Some(token));
     }
 
-    fn request_2_message(&mut self, request: &FundRequestExt) -> PoolMessage {
+    fn request_2_message(&mut self, request: &FundRequest) -> PoolMessage {
         let token = request.token.expect("Invalid fund token");
         let token_0 = self.runtime.borrow_mut().token_0();
 

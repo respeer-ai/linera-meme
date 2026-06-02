@@ -6,7 +6,7 @@ use abi::{
     },
     meme_token::MemeToken,
     swap::pool::{
-        AddLiquidityTransferReceiptPayload, FundRequestExt, FundType, PoolMessage, PoolResponse,
+        AddLiquidityTransferReceiptPayload, FundRequest, FundType, PoolMessage, PoolResponse,
         SwapTransferReceiptPayload,
     },
 };
@@ -18,25 +18,25 @@ use runtime::interfaces::{
 };
 use std::{cell::RefCell, rc::Rc};
 
-pub struct FundResultExtHandler<
+pub struct FundResultHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
     state: Rc<RefCell<S>>,
-    prev: Option<FundRequestExt>,
-    request: FundRequestExt,
-    next: Option<FundRequestExt>,
+    prev: Option<FundRequest>,
+    request: FundRequest,
+    next: Option<FundRequest>,
     result: Result<(), String>,
 }
 
-impl<R, S> FundResultExtHandler<R, S>
+impl<R, S> FundResultHandler<R, S>
 where
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
 {
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &PoolMessage) -> Self {
-        let PoolMessage::FundResultExt {
+        let PoolMessage::FundResult {
             prev,
             request,
             next,
@@ -90,7 +90,7 @@ where
         );
     }
 
-    async fn credit_request(&mut self, request: &FundRequestExt) -> Result<(), HandlerError> {
+    async fn credit_request(&mut self, request: &FundRequest) -> Result<(), HandlerError> {
         self.state
             .borrow_mut()
             .credit(
@@ -178,7 +178,7 @@ where
 }
 
 #[async_trait(?Send)]
-impl<R, S> Handler<PoolMessage, PoolResponse> for FundResultExtHandler<R, S>
+impl<R, S> Handler<PoolMessage, PoolResponse> for FundResultHandler<R, S>
 where
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext + ParametersInterface,
     S: StateInterface,
@@ -199,7 +199,7 @@ where
             FundType::AddLiquidity => self.fund_pool_chain_for_add_liquidity(),
             FundType::Swap => self.fund_pool_chain_for_swap(),
             FundType::InitializeLiquidity => {
-                panic!("FundRequestExt is not enabled for InitializeLiquidity")
+                panic!("FundRequest is not enabled for InitializeLiquidity")
             }
         }
 

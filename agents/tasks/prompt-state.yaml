@@ -43,7 +43,7 @@ active_focus:
     summary: >
       Migrate meme-input Swap from persisted FundRequest state to message-carried
       funding facts, remove old RequestFund/FundSuccess/FundFail stateful funding,
-      rename temporary Ext funding names to canonical names,
+      use canonical message-carried funding names,
       and credit successful output plus post-custody failure refunds into claim
       balances. Normal swap remains gated by finalized reserve/share facts.
     canonical_refs:

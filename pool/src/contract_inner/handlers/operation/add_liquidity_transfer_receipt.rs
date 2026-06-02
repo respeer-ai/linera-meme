@@ -1,12 +1,12 @@
 use crate::{
     contract_inner::handlers::{
         fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
-        request_meme_fund_ext::RequestMemeFundExtHandler,
+        request_meme_fund::RequestMemeFundExtHandler,
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
 use abi::swap::pool::{
-    AddLiquidityTransferReceipt, FundRequestExt, FundType, PoolMessage, PoolOperation, PoolResponse,
+    AddLiquidityTransferReceipt, FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -56,7 +56,7 @@ where
         );
     }
 
-    fn validate_request(&self, request: &FundRequestExt) {
+    fn validate_request(&self, request: &FundRequest) {
         assert!(request.amount_in > Amount::ZERO, "Invalid amount");
         assert_eq!(
             request.fund_type,

@@ -40,9 +40,9 @@ scalar!(ClaimTransferReceipt);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddLiquidityTransferReceiptPayload {
-    pub prev: Option<FundRequestExt>,
-    pub request: FundRequestExt,
-    pub next: Option<FundRequestExt>,
+    pub prev: Option<FundRequest>,
+    pub request: FundRequest,
+    pub next: Option<FundRequest>,
 }
 
 scalar!(AddLiquidityTransferReceiptPayload);
@@ -50,16 +50,16 @@ scalar!(AddLiquidityTransferReceiptPayload);
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AddLiquidityTransferReceipt {
     pub result: Result<(), String>,
-    pub prev: Option<FundRequestExt>,
-    pub request: FundRequestExt,
-    pub next: Option<FundRequestExt>,
+    pub prev: Option<FundRequest>,
+    pub request: FundRequest,
+    pub next: Option<FundRequest>,
 }
 
 scalar!(AddLiquidityTransferReceipt);
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SwapTransferReceiptPayload {
-    pub request: FundRequestExt,
+    pub request: FundRequest,
 }
 
 scalar!(SwapTransferReceiptPayload);
@@ -67,7 +67,7 @@ scalar!(SwapTransferReceiptPayload);
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SwapTransferReceipt {
     pub result: Result<(), String>,
-    pub request: FundRequestExt,
+    pub request: FundRequest,
 }
 
 scalar!(SwapTransferReceipt);
@@ -80,7 +80,7 @@ pub enum FundType {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FundRequestExt {
+pub struct FundRequest {
     pub from: Account,
     pub token: Option<ApplicationId>,
     pub amount_in: Amount,
@@ -93,18 +93,18 @@ pub struct FundRequestExt {
     pub fund_type: FundType,
 }
 
-pub struct FundRequestExtBuilder {
-    request: FundRequestExt,
+pub struct FundRequestBuilder {
+    request: FundRequest,
 }
 
-impl FundRequestExt {
+impl FundRequest {
     pub fn builder(
         from: Account,
         token: Option<ApplicationId>,
         amount_in: Amount,
         fund_type: FundType,
-    ) -> FundRequestExtBuilder {
-        FundRequestExtBuilder {
+    ) -> FundRequestBuilder {
+        FundRequestBuilder {
             request: Self {
                 from,
                 token,
@@ -121,7 +121,7 @@ impl FundRequestExt {
     }
 }
 
-impl FundRequestExtBuilder {
+impl FundRequestBuilder {
     pub fn amount_out_min(mut self, amount_out_min: Option<Amount>) -> Self {
         self.request.amount_out_min = amount_out_min;
         self
@@ -155,7 +155,7 @@ impl FundRequestExtBuilder {
         self
     }
 
-    pub fn build(self) -> FundRequestExt {
+    pub fn build(self) -> FundRequest {
         self.request
     }
 }
@@ -220,15 +220,18 @@ pub enum PoolResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
-    RequestFundExt {
-        prev: Option<FundRequestExt>,
-        request: FundRequestExt,
-        next: Option<FundRequestExt>,
+    ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt,
     },
-    FundResultExt {
-        prev: Option<FundRequestExt>,
-        request: FundRequestExt,
-        next: Option<FundRequestExt>,
+    RequestFund {
+        prev: Option<FundRequest>,
+        request: FundRequest,
+        next: Option<FundRequest>,
+    },
+    FundResult {
+        prev: Option<FundRequest>,
+        request: FundRequest,
+        next: Option<FundRequest>,
         result: Result<(), String>,
     },
     AddLiquidityTransferReceipt {

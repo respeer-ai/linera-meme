@@ -1,5 +1,5 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::pool::{FundRequestExt, PoolMessage, PoolResponse};
+use abi::swap::pool::{FundRequest, PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use runtime::interfaces::{
@@ -14,9 +14,9 @@ pub struct RequestMemeFundExtHandler<
     runtime: Rc<RefCell<R>>,
     _state: Rc<RefCell<S>>,
 
-    prev: Option<FundRequestExt>,
-    request: FundRequestExt,
-    next: Option<FundRequestExt>,
+    prev: Option<FundRequest>,
+    request: FundRequest,
+    next: Option<FundRequest>,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
@@ -25,9 +25,9 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     pub fn new(
         runtime: Rc<RefCell<R>>,
         state: Rc<RefCell<S>>,
-        prev: Option<FundRequestExt>,
-        request: FundRequestExt,
-        next: Option<FundRequestExt>,
+        prev: Option<FundRequest>,
+        request: FundRequest,
+        next: Option<FundRequest>,
     ) -> Self {
         Self {
             runtime,
@@ -56,7 +56,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         let mut outcome = HandlerOutcome::new();
         outcome.with_message(
             destination,
-            PoolMessage::RequestFundExt {
+            PoolMessage::RequestFund {
                 prev: self.prev.clone(),
                 request: self.request.clone(),
                 next: self.next.clone(),

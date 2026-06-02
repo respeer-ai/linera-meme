@@ -1,11 +1,11 @@
 use crate::{
     contract_inner::handlers::{
         fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
-        request_meme_fund_ext::RequestMemeFundExtHandler,
+        request_meme_fund::RequestMemeFundExtHandler,
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::{FundRequestExt, FundType, PoolMessage, PoolOperation, PoolResponse};
+use abi::swap::pool::{FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
@@ -101,7 +101,7 @@ impl<
             assert!(amount_0_in > Amount::ZERO, "Invalid amount");
 
             let fund_request =
-                FundRequestExt::builder(origin, Some(token_0), amount_0_in, FundType::Swap)
+                FundRequest::builder(origin, Some(token_0), amount_0_in, FundType::Swap)
                     .counterparty_token(self.runtime.borrow_mut().token_1())
                     .counterparty_amount_out_min(self.amount_1_out_min)
                     .to(self.to)
@@ -126,13 +126,12 @@ impl<
         let token_1 = self.runtime.borrow_mut().token_1();
 
         if let Some(token_1) = token_1 {
-            let fund_request =
-                FundRequestExt::builder(origin, Some(token_1), amount, FundType::Swap)
-                    .counterparty_token(Some(token_0))
-                    .counterparty_amount_out_min(self.amount_0_out_min)
-                    .to(self.to)
-                    .block_timestamp(self.block_timestamp)
-                    .build();
+            let fund_request = FundRequest::builder(origin, Some(token_1), amount, FundType::Swap)
+                .counterparty_token(Some(token_0))
+                .counterparty_amount_out_min(self.amount_0_out_min)
+                .to(self.to)
+                .block_timestamp(self.block_timestamp)
+                .build();
 
             let mut handler = RequestMemeFundExtHandler::new(
                 self.runtime.clone(),

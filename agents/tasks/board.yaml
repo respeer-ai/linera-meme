@@ -1165,20 +1165,20 @@ groups:
           - Preserve the limiting-side add-liquidity calculation for finalized pools.
           - Credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
           - Migrate AddLiquidity away from persisted `FundRequest`: AddLiquidity must not create, read, or update persistent `FundRequest` state.
-          - Use message-carried `FundRequestExt` as the non-persistent funding request fact. The request carries current-token input/min fields and optional counterparty input/min fields; `counterparty_amount_in` is optional for later single-input Swap migration. The first migration shape is `RequestFundExt { prev, request, next }` and `FundResultExt { prev, request, next, result }`.
+          - Use message-carried `FundRequest` as the non-persistent funding request fact. The request carries current-token input/min fields and optional counterparty input/min fields; `counterparty_amount_in` is optional for later single-input Swap migration. The first migration shape is `RequestFund { prev, request, next }` and `FundResult { prev, request, next, result }`.
           - Do not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible pool-internal token-position names such as `Token0` or `Token1`.
-          - `FundResultExt` must validate authenticated source facts: request token creator chain, current pool application replica as message caller, and request owner as message signer.
+          - `FundResult` must validate authenticated source facts: request token creator chain, current pool application replica as message caller, and request owner as message signer.
           - Keep persisted `FundRequest` only as a temporary legacy structure for paths that are not migrated in this iteration, currently Swap. InitializeLiquidity already uses direct parameter passing on its main path and is not a reason to keep persisted `FundRequest` for AddLiquidity.
           - Do not introduce or target a persisted `AddLiquidityIntent` design.
 
           Atomic implementation steps:
-          - A1: Update funding docs and task routing with the `FundRequestExt` design.
-          - A2: Add ABI types and messages: `FundType`, `FundRequestExt`, `RequestFundExt`, and `FundResultExt`; keep legacy `RequestFund`, `FundSuccess`, and `FundFail`.
-          - A3: Add handler skeletons for `RequestFundExt` and `FundResultExt` and register them in `HandlerFactory` without changing AddLiquidity behavior.
-          - A4: Move `PoolOperation::AddLiquidity` to the `FundRequestExt` happy path, including `TransferToCaller`, source validation, successor continuation, and final `PoolMessage::AddLiquidity`; do not add claim credit in this step.
+          - A1: Update funding docs and task routing with the `FundRequest` design.
+          - A2: Add ABI types and messages: `FundType`, `FundRequest`, `RequestFund`, and `FundResult`; keep legacy `RequestFund`, `FundSuccess`, and `FundFail`.
+          - A3: Add handler skeletons for `RequestFund` and `FundResult` and register them in `HandlerFactory` without changing AddLiquidity behavior.
+          - A4: Move `PoolOperation::AddLiquidity` to the `FundRequest` happy path, including `TransferToCaller`, source validation, successor continuation, and final `PoolMessage::AddLiquidity`; do not add claim credit in this step.
           - A5: Remove AddLiquidity handling from the legacy persisted-`FundRequest` result path while leaving that path for Swap and other unmigrated workflows.
           - A6.0: Change the message envelope from successor-only to `prev/request/next`.
-          - A6.1: Credit `prev` on failed `FundResultExt` for AddLiquidity.
+          - A6.1: Credit `prev` on failed `FundResult` for AddLiquidity.
           - A6.2: Credit both legs on final AddLiquidity calculation failure after custody.
           - A6.3: Credit accepted-liquidity excess/refund to claim balances instead of direct payout.
           - A6.4: Refactor AddLiquidity settlement handler and reduce known reject paths.
@@ -1195,7 +1195,7 @@ groups:
           - Tests prove accepted-liquidity excess/refund is credited to claim balances exactly once.
 
           Completed:
-          - AddLiquidity now uses message-carried `FundRequestExt` instead of persisted `FundRequest` state.
+          - AddLiquidity now uses message-carried `FundRequest` instead of persisted `FundRequest` state.
           - Partial funding failure, final settlement failure, and accepted-liquidity excess/refund credit claim balances.
           - User CreatePool first funding remains on the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path without user-pool-specific funding ABI.
           - Focused tests, full memory-limited `cargo test -j 1`, and full product E2E with oversupplied and failed AddLiquidity claim paths passed.
@@ -1248,7 +1248,7 @@ groups:
           - Migrate meme-input Swap from persisted `FundRequest` state to message-carried funding facts.
           - Keep native-input Swap direct funding to the pool creator-chain pool application account, then settle through `PoolMessage::Swap`.
           - Remove the legacy persisted funding protocol after Swap no longer uses it: old `FundRequest`, `FundStatus`, `RequestFund`, `FundSuccess`, `FundFail`, `fund_requests` state/query/interface methods, and legacy handlers.
-          - Rename the temporary message-carried `Ext` protocol to canonical names after the legacy protocol is removed: `FundRequestExt` -> `FundRequest`, `RequestFundExt` -> `RequestFund`, and `FundResultExt` -> `FundResult`.
+          - The message-carried funding protocol uses canonical names: `FundRequest`, `RequestFund`, and `FundResult`.
           - The final canonical `FundRequest` is a message-carried fact only. It must not include persisted-state fields such as `id`, `status`, `error`, `prev_request`, or `next_request`.
           - Require finalized reserve/share facts before normal swap execution.
           - Credit successful output to the claim balance for the output token and owner.
@@ -1262,7 +1262,7 @@ groups:
           - A4 (done): Change `PoolMessage::Swap` settlement so successful outputs are credited to claim balances and post-custody settlement failures credit input refunds to claim balances.
           - A5 (done): Add focused Swap tests for no persisted request creation, funding failure, successful settlement, output claim credit, post-custody refund claim credit, and wrong source/signer/token rejection.
           - A6 (done): Remove the legacy persisted funding implementation: old state, query, interface methods, ABI messages, handlers, and obsolete tests.
-          - A7: Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
+          - A7 (done): Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
           - A8: Run targeted tests and the full memory-limited `cargo test -j 1`.
 
           Validation:

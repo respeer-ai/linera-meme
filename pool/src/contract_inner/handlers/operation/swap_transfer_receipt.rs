@@ -1,6 +1,6 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::swap::pool::{
-    FundRequestExt, FundType, PoolMessage, PoolOperation, PoolResponse, SwapTransferReceipt,
+    FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse, SwapTransferReceipt,
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -15,7 +15,7 @@ pub struct SwapTransferReceiptHandler<
     S: StateInterface,
 > {
     runtime: Rc<RefCell<R>>,
-    state: Rc<RefCell<S>>,
+    _state: Rc<RefCell<S>>,
     receipt: SwapTransferReceipt,
 }
 
@@ -31,7 +31,7 @@ where
 
         Self {
             runtime,
-            state: Rc::new(RefCell::new(state)),
+            _state: Rc::new(RefCell::new(state)),
             receipt: receipt.clone(),
         }
     }
@@ -50,12 +50,9 @@ where
         );
     }
 
-    fn validate_request(&self, request: &FundRequestExt) {
+    fn validate_request(&self, request: &FundRequest) {
         assert!(request.amount_in > Amount::ZERO, "Invalid amount");
         assert_eq!(request.fund_type, FundType::Swap, "Invalid fund type");
-
-        let token = request.token.expect("Invalid fund token");
-        self.state.borrow().pool().validate_token(Some(token));
     }
 }
 

@@ -77,11 +77,11 @@ Known gaps:
 Implemented in `FUND-009`:
 
 - AddLiquidity no longer creates, reads, or updates persisted `FundRequest` state.
-- AddLiquidity carries funding-request facts through `FundRequestExt`.
-- AddLiquidity funding uses `RequestFundExt { prev, request, next }` and `FundResultExt { prev, request, next, result }`; it does not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible `Token0` / `Token1` names.
+- AddLiquidity carries funding-request facts through `FundRequest`.
+- AddLiquidity funding uses `RequestFund { prev, request, next }` and `FundResult { prev, request, next, result }`; it does not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible `Token0` / `Token1` names.
 - `counterparty_amount_out_min` is the message-carried counterpart min field.
 - `counterparty_amount_in` is optional so the same request shape can later represent single-input Swap funding without another ABI change.
-- `FundResultExt` proves source through Linera authenticated message facts: the origin chain is the request token creator chain, the caller is the current pool application replica on that chain, and the signer is the request owner.
+- `FundResult` proves source through Linera authenticated message facts: the origin chain is the request token creator chain, the caller is the current pool application replica on that chain, and the signer is the request owner.
 - AddLiquidity tracks two-leg funding with message-carried `prev/request/next` facts before reserve update or LP mint, without adding `AddLiquidityIntent`.
 - Partial funding failures, final AddLiquidity calculation failures after custody, and accepted-liquidity excess/refunds credit claim balances.
 - Successful fungible custody is moved from the origin-chain pool app replica to the pool creator-chain pool app with `TransferFromApplicationWithReceipt` before final AddLiquidity settlement.
@@ -89,7 +89,7 @@ Implemented in `FUND-009`:
 Remaining legacy scope:
 
 - AddLiquidity and Swap both use message-carried funding facts.
-- The legacy persisted funding implementation has been removed in `FUND-011`; the remaining funding cleanup is canonicalizing the temporary `Ext` names.
+- The legacy persisted funding implementation has been removed in `FUND-011`, and the message-carried funding protocol now uses canonical names.
 
 ## Pool Visibility
 
@@ -110,14 +110,14 @@ Target for `FUND-010`:
 
 Known current behavior:
 
-- Meme-input Swap uses message-carried `FundRequestExt` facts and no longer creates persisted funding state.
+- Meme-input Swap uses message-carried `FundRequest` facts and no longer creates persisted funding state.
 - Native-input Swap does not create persisted `FundRequest`; settlement now credits successful output and post-custody failure refunds through claim balances.
 
 Target for `FUND-011`:
 
 - Meme-input Swap uses message-carried funding facts only.
 - The legacy persisted funding implementation has been removed: old `FundRequest`, `FundStatus`, `RequestFund`, `FundSuccess`, `FundFail`, `fund_requests` state/query/interface methods, and legacy handlers are gone.
-- Temporary `FundRequestExt/RequestFundExt/FundResultExt` names still need to be renamed to canonical `FundRequest/RequestFund/FundResult` in the next FUND-011 step.
+- The message-carried funding protocol now uses canonical `FundRequest`, `RequestFund`, and `FundResult` names.
 - Swap output/refund must converge into claim balances instead of relying on direct payout as the only funds closure.
 
 ## RemoveLiquidity

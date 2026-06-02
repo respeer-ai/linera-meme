@@ -1,9 +1,7 @@
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
 use abi::{
     meme_token::MemeToken,
-    swap::pool::{
-        AddLiquidityTransferReceipt, FundRequestExt, FundType, PoolMessage, PoolResponse,
-    },
+    swap::pool::{AddLiquidityTransferReceipt, FundRequest, FundType, PoolMessage, PoolResponse},
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -45,7 +43,7 @@ where
         assert_eq!(chain_id, creator_chain_id, "Invalid receipt chain");
     }
 
-    fn validate_request(&self, request: &FundRequestExt) {
+    fn validate_request(&self, request: &FundRequest) {
         assert!(request.amount_in > Amount::ZERO, "Invalid amount");
         assert_eq!(
             request.fund_type,
@@ -57,7 +55,7 @@ where
         self.state.borrow().pool().validate_token(Some(token));
     }
 
-    fn request_2_message(&mut self, request: &FundRequestExt) -> PoolMessage {
+    fn request_2_message(&mut self, request: &FundRequest) -> PoolMessage {
         let token_0 = self.runtime.borrow_mut().token_0();
         let counterparty_amount_in = request
             .counterparty_amount_in
@@ -86,7 +84,7 @@ where
         }
     }
 
-    async fn credit_request(&mut self, request: &FundRequestExt) -> Result<(), HandlerError> {
+    async fn credit_request(&mut self, request: &FundRequest) -> Result<(), HandlerError> {
         self.state
             .borrow_mut()
             .credit(

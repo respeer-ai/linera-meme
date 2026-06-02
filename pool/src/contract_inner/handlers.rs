@@ -2,7 +2,7 @@ pub mod fund_pool_application_creation_chain;
 pub mod message;
 pub mod operation;
 pub mod refund;
-pub mod request_meme_fund_ext;
+pub mod request_meme_fund;
 pub mod transfer_meme_from_application;
 
 use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
@@ -12,11 +12,12 @@ use message::{
     add_liquidity::AddLiquidityHandler as MessageAddLiquidityHandler,
     add_liquidity_transfer_receipt::AddLiquidityTransferReceiptHandler as MessageAddLiquidityTransferReceiptHandler,
     claim::ClaimHandler as MessageClaimHandler,
-    fund_result_ext::FundResultExtHandler as MessageFundResultExtHandler,
+    claim_transfer_receipt::ClaimTransferReceiptHandler as MessageClaimTransferReceiptHandler,
+    fund_result::FundResultHandler as MessageFundResultHandler,
     initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
     new_transaction::NewTransactionHandler as MessageNewTransactionHandler,
     remove_liquidity::RemoveLiquidityHandler as MessageRemoveLiquidityHandler,
-    request_fund_ext::RequestFundExtHandler as MessageRequestFundExtHandler,
+    request_fund::RequestFundHandler as MessageRequestFundHandler,
     set_fee_to::SetFeeToHandler as MessageSetFeeToHandler,
     set_fee_to_setter::SetFeeToSetterHandler as MessageSetFeeToSetterHandler,
     swap::SwapHandler as MessageSwapHandler,
@@ -99,11 +100,14 @@ impl HandlerFactory {
         msg: &PoolMessage,
     ) -> Box<dyn Handler<PoolMessage, PoolResponse>> {
         match &msg {
-            PoolMessage::RequestFundExt { .. } => {
-                Box::new(MessageRequestFundExtHandler::new(runtime, state, msg))
+            PoolMessage::RequestFund { .. } => {
+                Box::new(MessageRequestFundHandler::new(runtime, state, msg))
             }
-            PoolMessage::FundResultExt { .. } => {
-                Box::new(MessageFundResultExtHandler::new(runtime, state, msg))
+            PoolMessage::FundResult { .. } => {
+                Box::new(MessageFundResultHandler::new(runtime, state, msg))
+            }
+            PoolMessage::ClaimTransferReceipt { .. } => {
+                Box::new(MessageClaimTransferReceiptHandler::new(runtime, state, msg))
             }
             PoolMessage::AddLiquidityTransferReceipt { .. } => Box::new(
                 MessageAddLiquidityTransferReceiptHandler::new(runtime, state, msg),

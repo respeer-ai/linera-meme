@@ -1,8 +1,8 @@
 use crate::{
-    contract_inner::handlers::request_meme_fund_ext::RequestMemeFundExtHandler,
+    contract_inner::handlers::request_meme_fund::RequestMemeFundExtHandler,
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
-use abi::swap::pool::{FundRequestExt, FundType, PoolMessage, PoolOperation, PoolResponse};
+use abi::swap::pool::{FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
 use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
@@ -76,7 +76,7 @@ impl<
         let token_0 = self.runtime.borrow_mut().token_0();
         let token_1 = self.runtime.borrow_mut().token_1();
 
-        let fund_request_0 = FundRequestExt::builder(
+        let fund_request_0 = FundRequest::builder(
             origin,
             Some(token_0),
             self.amount_0_in,
@@ -91,7 +91,7 @@ impl<
         .build();
 
         let fund_request_1 =
-            FundRequestExt::builder(origin, token_1, self.amount_1_in, FundType::AddLiquidity)
+            FundRequest::builder(origin, token_1, self.amount_1_in, FundType::AddLiquidity)
                 .amount_out_min(self.amount_1_out_min)
                 .counterparty_token(Some(token_0))
                 .counterparty_amount_in(Some(self.amount_0_in))
