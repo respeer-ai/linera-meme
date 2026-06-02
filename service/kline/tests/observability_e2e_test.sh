@@ -73,8 +73,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-pass() { echo "  ✅ PASS: $1"; ((PASS++)); }
-fail() { echo "  ❌ FAIL: $1"; ((FAIL++)); }
+pass() { echo "  ✅ PASS: $1"; ((++PASS)); }
+fail() { echo "  ❌ FAIL: $1"; ((++FAIL)); }
 
 # ─── Parse CLI ─────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -125,6 +125,7 @@ VENV_DIR="$TMPDIR/venv"
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
 "$VENV_DIR/bin/pip" install --quiet -r "$KLINE_DIR/requirements.txt"
+"$VENV_DIR/bin/pip" install --quiet pytest
 "$VENV_DIR/bin/pip" install --quiet -e "$KLINE_DIR"
 "$VENV_DIR/bin/pip" install --quiet websocket-client
 pass "Python environment ready"
