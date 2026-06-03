@@ -306,19 +306,67 @@ Atomic implementation steps:
 - A9: Sweep proxy chain-boundary exceptions.
 - A10: Run targeted tests and full memory-limited `cargo test -j 1`.
 
-### FUND-014 Iteration 9: Projection facts and product compatibility
+### FUND-014 Iteration 9: Block-derived product read compatibility
 
-Purpose: align product reads with protocol facts.
+Purpose: make product and observability reads parse existing block facts from finalized funding flows without live pool-state inference.
 
-Minimal changes:
+Scope:
 
-- Emit or preserve facts for intents, legs, claim balances, claiming balances, pool lifecycle, positions, reserves, and virtual positions.
-- Update observability projections and product APIs.
+- Business projections only.
+- Pool catalog, pool visibility, transactions, candles, positions, reserves, derivable claim views, and claim settlement diagnostics.
+- No operational cluster, chain-health, gas, or funder visibility. That belongs to `FUND-003`.
+- No funding protocol redesign and no persisted intent.
+- No ABI, operation, message, event, or contract-state additions for observability. Projection facts are off-chain facts derived from existing blocks.
+
+Existing block carriers:
+
+- `PoolMessage::NewTransaction` remains the settled market execution carrier for trades and liquidity changes.
+- `PoolMessage::{RequestFund, FundResult, AddLiquidityTransferReceipt, SwapTransferReceipt, Claim, ClaimTransferReceipt}` are message-carried funding and claim facts.
+- `claimable_balances` and `claiming_balances` are pool creator-chain protocol state.
+- Some claim-balance mutations are not fully reconstructable from existing message payloads alone:
+  - successful swap output can be inferred from the settled swap transaction plus recipient facts;
+  - successful remove-liquidity output can be inferred from the settled remove transaction plus recipient facts;
+  - add-liquidity excess can be inferred only by correlating final add-liquidity input with accepted amounts;
+  - add-liquidity calculation failure, add-liquidity custody failure, and post-custody swap refund may have no `NewTransaction` carrier;
+  - claim start and claim receipt settlement are carried by `Claim` and `ClaimTransferReceipt`.
+
+Target rules:
+
+- Do not infer claim balances from live `pool` service queries.
+- Do not derive incomplete claim balances from only `NewTransaction`.
+- Preserve `NewTransaction` as the market-data carrier; do not mix failed or pending funding events into candles.
+- Do not add ABI, operation, message, event, or contract-state changes for observability. Projection must parse existing block facts only.
+- Keep virtual liquidity distinct from deposited reserve, TVL, payable balance, claimable balance, and claiming balance.
+- Keep `FUND-003` operational stalled-message visibility out of this iteration.
+
+Atomic implementation steps:
+
+- A1: Align Layer 2 pool message family mappings with the current funding ABI:
+  - `request_fund`
+  - `fund_result`
+  - `add_liquidity_transfer_receipt`
+  - `swap_transfer_receipt`
+  - `claim`
+  - `claim_transfer_receipt`
+  - remove obsolete `fund_success` / `fund_fail` assumptions from normalizer tests.
+- A2: Add focused decoder and normalizer tests for the current funding and claim message payload types.
+- A3: Produce the existing-block-fact derivation matrix for claimable and claiming balances. For each claim mutation, identify the exact existing operation/message/NewTransaction/raw-context carrier or mark it not derivable from current blocks. Do not add protocol facts.
+- A4: Add Layer 3 projection storage for values derivable from existing block facts only. The projector must store derivation source and derivation confidence so product reads do not confuse exact balances with partial diagnostics.
+- A5: Implement exact projections for facts already carried by existing messages: claim start, claim transfer receipt success/fail, settled swap output, settled remove-liquidity output, and add-liquidity excess when both request and settled accepted amounts are correlated.
+- A6: Add diagnostics for non-derivable or partial claim-balance cases: add-liquidity calculation failure, add-liquidity custody failure, and post-custody swap refund when the existing block facts are insufficient to compute an exact balance delta.
+- A7: Add projection tests for exact derivable cases and explicit partial/unknown diagnostics for non-derivable cases.
+- A8: Add or update product/API smoke tests proving claim-balance and market reads are projection-backed and do not live-query pool state for accounting truth.
+- A9: Run targeted service tests, targeted contract tests, full memory-limited `cargo test -j 1`, and product smoke tests.
 
 Validation:
 
-- Claim lists, positions, TVL, APR inputs, transactions, and diagnostics come from projection.
-- No live query is required for product accounting truth.
+- Layer 2 classifies all current funding and claim messages by current ABI names.
+- `NewTransaction` remains the only candle/trade/liquidity market derivation input.
+- Claimable and claiming projections use only parsed existing block facts and explicitly mark any non-derivable balance delta as partial or unknown.
+- Failed or pending funding paths do not create settled market outputs.
+- Replaying the same normalized events is idempotent.
+- Product claim-balance reads do not require live pool queries.
+- Operational gas/funder stalled-message visibility remains deferred to `FUND-003`.
 
 ### FUND-004 Final regression suite
 

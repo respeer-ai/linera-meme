@@ -3,6 +3,7 @@ use abi::blob_gateway::{BlobData, BlobDataType, BlobGatewayMessage};
 use abi::meme::{MemeMessage, MemeOperation};
 use abi::proxy::ProxyMessage;
 use abi::store_type::StoreType;
+use abi::swap::pool::{ClaimTransferReceipt, FundRequest, FundType, PoolMessage, PoolOperation};
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{
@@ -15,6 +16,14 @@ fn main() {
     let bytes = match fixture.as_str() {
         "swap_update_pool_operation" => bcs::to_bytes(&build_swap_update_pool_operation()).unwrap(),
         "swap_update_pool_message" => bcs::to_bytes(&build_swap_update_pool_message()).unwrap(),
+        "pool_swap_operation" => bcs::to_bytes(&build_pool_swap_operation()).unwrap(),
+        "pool_fund_result_message" => bcs::to_bytes(&build_pool_fund_result_message()).unwrap(),
+        "pool_claim_transfer_receipt_message" => {
+            bcs::to_bytes(&build_pool_claim_transfer_receipt_message()).unwrap()
+        }
+        "pool_new_transaction_message" => {
+            bcs::to_bytes(&build_pool_new_transaction_message()).unwrap()
+        }
         "meme_transfer_operation" => bcs::to_bytes(&build_meme_transfer_operation()).unwrap(),
         "meme_transfer_message" => bcs::to_bytes(&build_meme_transfer_message()).unwrap(),
         "proxy_register_miner_message" => {
@@ -32,6 +41,59 @@ fn main() {
         }
     };
     println!("{}", json!({ "raw_bytes_hex": encode_bytes(&bytes) }));
+}
+
+fn build_pool_swap_operation() -> PoolOperation {
+    PoolOperation::Swap {
+        amount_0_in: Some(Amount::from_attos(5)),
+        amount_1_in: None,
+        amount_0_out_min: None,
+        amount_1_out_min: Some(Amount::from_attos(7)),
+        to: None,
+        block_timestamp: None,
+    }
+}
+
+fn build_pool_fund_result_message() -> PoolMessage {
+    let request = sample_fund_request();
+    PoolMessage::FundResult {
+        prev: None,
+        request,
+        next: None,
+        result: Ok(()),
+    }
+}
+
+fn build_pool_claim_transfer_receipt_message() -> PoolMessage {
+    PoolMessage::ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt {
+            owner: sample_account(0x33, 0x44),
+            token: sample_application_id(0x11),
+            amount: Amount::from_attos(13),
+            result: Ok(()),
+        },
+    }
+}
+
+fn build_pool_new_transaction_message() -> PoolMessage {
+    PoolMessage::NewTransaction {
+        transaction: sample_transaction(),
+    }
+}
+
+fn sample_fund_request() -> FundRequest {
+    FundRequest {
+        from: sample_account(0x33, 0x44),
+        token: Some(sample_application_id(0x11)),
+        amount_in: Amount::from_attos(13),
+        amount_out_min: Some(Amount::from_attos(7)),
+        counterparty_token: None,
+        counterparty_amount_in: None,
+        counterparty_amount_out_min: Some(Amount::from_attos(5)),
+        to: Some(sample_account(0x55, 0x66)),
+        block_timestamp: Some(Timestamp::from(99)),
+        fund_type: FundType::Swap,
+    }
 }
 
 fn build_swap_update_pool_operation() -> SwapOperation {
@@ -96,6 +158,13 @@ fn build_blob_gateway_register_message() -> BlobGatewayMessage {
             created_at: Timestamp::from(99),
         },
     }
+}
+
+fn sample_account(chain_seed: u8, owner_seed: u8) -> Account {
+    Account::new(
+        sample_chain_id(chain_seed),
+        AccountOwner::from([owner_seed; 32]),
+    )
 }
 
 fn sample_transaction() -> Transaction {

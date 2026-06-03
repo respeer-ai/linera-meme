@@ -1319,30 +1319,46 @@ groups:
           - Tests cover forged application caller, wrong source chain, wrong token app, wrong pending leg, and invalid claiming-balance transition.
           - Tests prove valid meme initialization, token funding callbacks, and claim callbacks still work.
       - id: FUND-014
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-013]
-        title: "Iteration 9: Projection facts and product read compatibility"
+        title: "Iteration 9: Block-derived product read compatibility"
         notes: |
-          Purpose: make product data consume protocol facts without live chain inference.
+          Purpose: make product and observability reads parse existing block facts from finalized funding flows without live pool-state inference.
 
-          Minimal changes:
-          - Emit or preserve projection-safe facts for intents, legs, claim balances, claiming balances, pool lifecycle, positions, reserves, virtual position, `PoolChainCreated`, `PoolCreated`, and `Active`.
-          - Update observability parsing/projections only where protocol facts changed.
-          - Keep virtual liquidity distinct from deposited reserve, TVL, payable balance, and claim balance.
+          Scope:
+          - Business projections only: pool catalog, pool visibility, transactions, candles, positions, reserves, claimable balances, claiming balances, and claim settlement diagnostics.
+          - No operational cluster, chain-health, gas, or funder visibility; that belongs to FUND-003.
+          - No funding protocol redesign and no persisted intent.
+          - No ABI, operation, message, event, or contract-state additions for observability. Projection facts are off-chain facts derived from existing blocks.
+
+          Atomic implementation steps:
+          - A1: Align Layer 2 pool message family mappings with the current funding ABI: request_fund, fund_result, add_liquidity_transfer_receipt, swap_transfer_receipt, claim, and claim_transfer_receipt; remove obsolete fund_success/fund_fail assumptions.
+          - A2: Add focused decoder and normalizer tests for the current funding and claim message payload types.
+          - A3: Produce the existing-block-fact derivation matrix for claimable and claiming balances. For each mutation, identify the exact existing operation/message/NewTransaction/raw-context carrier or mark it not derivable from current blocks. Do not add protocol facts.
+          - A4: Add Layer 3 projection storage for values derivable from existing block facts only, including derivation source and derivation confidence.
+          - A5: Implement exact projections for existing carried facts: claim start, claim transfer receipt success/fail, settled swap output, settled remove-liquidity output, and add-liquidity excess when request and accepted amounts can be correlated.
+          - A6: Add diagnostics for non-derivable or partial claim-balance cases: add-liquidity calculation failure, add-liquidity custody failure, and post-custody swap refund when existing block facts are insufficient.
+          - A7: Add projection tests for exact derivable cases and explicit partial/unknown diagnostics for non-derivable cases.
+          - A8: Add or update product/API smoke tests proving claim-balance and market reads are projection-backed and do not live-query pool state for accounting truth.
+          - A9: Run targeted service tests, targeted contract tests, full memory-limited cargo test -j 1, and product smoke tests.
 
           Validation:
-          - Projection tests derive claim lists, positions, TVL, APR inputs, transactions, claim balances, pending/stalled workflows, claim settlement rejected diagnostics, and candles from parsed facts only.
-          - Product smoke tests prove current frontend/API read paths remain compatible or are explicitly migrated.
-          - Tests prove no live query is required for product funds accounting truth.
+          - Layer 2 classifies all current funding and claim messages by current ABI names.
+          - NewTransaction remains the only candle/trade/liquidity market derivation input.
+          - Claimable and claiming projections use only parsed existing block facts and explicitly mark any non-derivable balance delta as partial or unknown.
+          - Failed or pending funding paths do not create settled market outputs.
+          - Replaying the same normalized events is idempotent.
+          - Product claim-balance reads do not require live pool queries.
+          - Operational gas/funder stalled-message visibility remains deferred to FUND-003.
       - id: FUND-003
         status: Todo
-        priority: P1
-        depends_on: [FUND-001]
-        title: Define gas/funder coverage and operational visibility
+        priority: P2
+        depends_on: []
+        title: Define operational cluster, chain, and funder visibility
         notes: |
-          Gas/funder availability is an operational progress concern, not a funds-safety prerequisite. Current Linera behavior does not reject a message solely because adding it would exceed per-block gas or block limits; the message remains pending/stalled for later execution. Reject handling still covers explicit execution failure, explicit node reject policy, ABI/deployment mismatch, implementation failure, and messages that alone exceed execution limits.
-          Define the set of chains that should stay funded and their funding source, including pre-created chains and runtime-created chains. Implement funder resources, chain discovery, monitoring alerts, and manual diagnostics so exhausted chain balance with non-empty application balance is visible as an operational stall rather than being mistaken for protocol accounting loss.
+          Future standalone operations-system stage, not part of the business funding-protocol closure path. Do not mix this work into product business systems, contract funding semantics, observability projections used for product accounting, or FUND-014/FUND-004.
+          Scope: cluster state, chain state, funder/gas coverage, pending/stalled workflow visibility, operational alerts, and manual diagnostics. Gas/funder availability is an operational progress concern, not a funds-safety prerequisite. Current Linera behavior does not reject a message solely because adding it would exceed per-block gas or block limits; the message remains pending/stalled for later execution. Reject handling still covers explicit execution failure, explicit node reject policy, ABI/deployment mismatch, implementation failure, and messages that alone exceed execution limits.
       - id: FUND-004
         status: Todo
         priority: P1

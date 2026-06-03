@@ -58,14 +58,37 @@ class ApplicationEventFamilyResolver:
                 'remove_liquidity': NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_REQUESTED,
                 'set_fee_to': NormalizedEventResult.FAMILY_POOL_SET_FEE_TO_REQUESTED,
                 'set_fee_to_setter': NormalizedEventResult.FAMILY_POOL_SET_FEE_TO_SETTER_REQUESTED,
+                'claim': NormalizedEventResult.FAMILY_POOL_CLAIM_REQUESTED,
             }.get(payload_type)
         if payload_kind == 'message':
             if payload_type == 'request_fund':
                 return NormalizedEventResult.FAMILY_POOL_FUND_REQUEST_RECORDED
-            if payload_type == 'fund_success':
-                return NormalizedEventResult.FAMILY_POOL_FUND_SUCCESS_RECORDED
-            if payload_type == 'fund_fail':
-                return NormalizedEventResult.FAMILY_POOL_FUND_FAIL_RECORDED
+            if payload_type == 'fund_result':
+                return NormalizedEventResult.FAMILY_POOL_FUND_RESULT_RECORDED
+            if payload_type == 'add_liquidity_transfer_receipt':
+                return (
+                    NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_TRANSFER_RECEIPT_REJECTED
+                    if rejected
+                    else NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_TRANSFER_RECEIPT_RECORDED
+                )
+            if payload_type == 'swap_transfer_receipt':
+                return (
+                    NormalizedEventResult.FAMILY_POOL_SWAP_TRANSFER_RECEIPT_REJECTED
+                    if rejected
+                    else NormalizedEventResult.FAMILY_POOL_SWAP_TRANSFER_RECEIPT_RECORDED
+                )
+            if payload_type == 'claim':
+                return (
+                    NormalizedEventResult.FAMILY_POOL_CLAIM_REJECTED
+                    if rejected
+                    else NormalizedEventResult.FAMILY_POOL_CLAIM_RECORDED
+                )
+            if payload_type == 'claim_transfer_receipt':
+                return (
+                    NormalizedEventResult.FAMILY_POOL_CLAIM_TRANSFER_RECEIPT_REJECTED
+                    if rejected
+                    else NormalizedEventResult.FAMILY_POOL_CLAIM_TRANSFER_RECEIPT_RECORDED
+                )
             if payload_type == 'new_transaction':
                 return NormalizedEventResult.FAMILY_POOL_NEW_TRANSACTION_RECORDED
             if payload_type == 'swap':

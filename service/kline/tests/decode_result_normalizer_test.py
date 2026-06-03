@@ -303,7 +303,7 @@ class DecodeResultNormalizerTest(unittest.TestCase):
         self.assertEqual(event['event_family'], 'pool_swap_requested')
         self.assertEqual(event['event_type'], 'swap')
 
-    def test_normalize_item_maps_pool_fund_success_message_to_pool_family(self):
+    def test_normalize_item_maps_pool_fund_result_message_to_pool_family(self):
         normalizer = DecodeResultNormalizer()
 
         normalized = normalizer.normalize_item(
@@ -321,8 +321,8 @@ class DecodeResultNormalizerTest(unittest.TestCase):
                     'application_id': 'app-pool',
                     'payload_kind': 'message',
                     'app_type': 'pool',
-                    'payload_type': 'fund_success',
-                    'decoded_payload_json': {'message_type': 'fund_success'},
+                    'payload_type': 'fund_result',
+                    'decoded_payload_json': {'message_type': 'fund_result'},
                     'decode_error': None,
                     'metadata_json': None,
                     'decoder_version': 'pool-message-v1',
@@ -331,7 +331,7 @@ class DecodeResultNormalizerTest(unittest.TestCase):
         )
 
         event = normalized['normalized_events'][0]
-        self.assertEqual(event['event_family'], 'pool_fund_success_recorded')
+        self.assertEqual(event['event_family'], 'pool_fund_result_recorded')
 
     def test_normalize_item_maps_pool_new_transaction_message_to_execution_fact_family(self):
         normalizer = DecodeResultNormalizer()
@@ -980,7 +980,15 @@ class DecodeResultNormalizerTest(unittest.TestCase):
         cases = [
             ('operation', 'set_fee_to_setter', 'pool_set_fee_to_setter_requested', 'observed', False),
             ('message', 'request_fund', 'pool_fund_request_recorded', 'observed', False),
-            ('message', 'fund_fail', 'pool_fund_fail_recorded', 'observed', False),
+            ('message', 'fund_result', 'pool_fund_result_recorded', 'observed', False),
+            ('message', 'add_liquidity_transfer_receipt', 'pool_add_liquidity_transfer_receipt_recorded', 'observed', False),
+            ('message', 'swap_transfer_receipt', 'pool_swap_transfer_receipt_recorded', 'observed', False),
+            ('message', 'claim', 'pool_claim_recorded', 'observed', False),
+            ('message', 'claim_transfer_receipt', 'pool_claim_transfer_receipt_recorded', 'observed', False),
+            ('message', 'add_liquidity_transfer_receipt', 'pool_add_liquidity_transfer_receipt_rejected', 'rejected', True),
+            ('message', 'swap_transfer_receipt', 'pool_swap_transfer_receipt_rejected', 'rejected', True),
+            ('message', 'claim', 'pool_claim_rejected', 'rejected', True),
+            ('message', 'claim_transfer_receipt', 'pool_claim_transfer_receipt_rejected', 'rejected', True),
             ('message', 'add_liquidity', 'pool_add_liquidity_message_observed', 'observed', False),
             ('message', 'remove_liquidity', 'pool_remove_liquidity_message_observed', 'observed', False),
             ('message', 'set_fee_to', 'pool_set_fee_to_message_observed', 'observed', False),

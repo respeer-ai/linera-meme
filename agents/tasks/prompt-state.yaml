@@ -28,12 +28,23 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current completed child is FUND-013; next queued child is FUND-014 for projection facts and product read compatibility.
+      iterations. Current executable child is FUND-014 for block-derived product read compatibility.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
+  - id: FUND-014
+    why: active iteration for block-derived product read compatibility
+    summary: >
+      Align product and observability reads with existing block facts from completed funding paths.
+      Keep operations-system funder/gas visibility out of this business projection stage.
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/funding/implementation-plan.md
+      - agents/context/observability-architecture.md
+      - agents/primitives/derived-market-state.md
+      - agents/primitives/kline-api-read-models.md
 on_demand_done:
   - id: OBS-E2E-001
     why: shell-level observability E2E entrypoint and projection-fact reconciliation completion history
