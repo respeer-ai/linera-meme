@@ -203,7 +203,7 @@ impl StateInterface for MemeState {
         ensure!(amount > Amount::ZERO, StateError::InvalidAmount);
         ensure!(from != to, StateError::SelfTransfer);
 
-        let from_balance = self.balances.get(&from).await?.unwrap();
+        let from_balance = self.balances.get(&from).await?.unwrap_or(Amount::ZERO);
 
         log::debug!(
             "Transfer {} tokens from {} balance {} to {}",

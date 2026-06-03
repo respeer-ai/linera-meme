@@ -152,17 +152,26 @@ impl<
 
         let to = self.to.unwrap_or(self.origin);
         let timestamp = self.runtime.borrow_mut().system_time();
-        let liquidity = self
-            .state
-            .borrow_mut()
-            .add_liquidity(
-                amount_0,
-                amount_1,
-                to,
-                self.block_timestamp.unwrap_or(timestamp),
-            )
-            .await
-            .map_err(Into::into)?;
+        let liquidity_result = {
+            self.state
+                .borrow_mut()
+                .add_liquidity(
+                    amount_0,
+                    amount_1,
+                    to,
+                    self.block_timestamp.unwrap_or(timestamp),
+                )
+                .await
+        };
+        let liquidity = match liquidity_result {
+            Ok(liquidity) => liquidity,
+            Err(err) => {
+                self.credit_amount_pair(self.amount_0_in, self.amount_1_in)
+                    .await?;
+                log::warn!("Failed add liquidity after custody: {}", err);
+                return Ok(None);
+            }
+        };
 
         self.credit_excess(amount_0, amount_1).await?;
 

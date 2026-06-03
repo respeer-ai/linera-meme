@@ -262,22 +262,36 @@ impl<
         // the input asset has already been locked to the pool, the output amounts
         // are final, and the reserves have been updated. Output delivery is
         // represented as claimable balance after the transaction is fixed.
-        let balance_0 = self
-            .state
-            .borrow()
-            .reserve_0()
-            .try_sub(amount_0_out)
-            .unwrap()
-            .try_add(amount_0_in.unwrap_or(Amount::ZERO))
-            .unwrap();
-        let balance_1 = self
-            .state
-            .borrow()
-            .reserve_1()
-            .try_sub(amount_1_out)
-            .unwrap()
-            .try_add(amount_1_in.unwrap_or(Amount::ZERO))
-            .unwrap();
+        let balance_0_result = {
+            self.state
+                .borrow()
+                .reserve_0()
+                .try_sub(amount_0_out)
+                .and_then(|amount| amount.try_add(amount_0_in.unwrap_or(Amount::ZERO)))
+        };
+        let balance_0 = match balance_0_result {
+            Ok(balance) => balance,
+            Err(err) => {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                return Err(err.into());
+            }
+        };
+        let balance_1_result = {
+            self.state
+                .borrow()
+                .reserve_1()
+                .try_sub(amount_1_out)
+                .and_then(|amount| amount.try_add(amount_1_in.unwrap_or(Amount::ZERO)))
+        };
+        let balance_1 = match balance_1_result {
+            Ok(balance) => balance,
+            Err(err) => {
+                self.credit_amount_in(origin, amount_0_in, amount_1_in)
+                    .await?;
+                return Err(err.into());
+            }
+        };
         let timestamp = self.runtime.borrow_mut().system_time();
 
         self.state
@@ -340,10 +354,11 @@ impl<
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
-        assert!(
-            self.state.borrow().has_finalized_reserve_share_facts(),
-            "Pool is not ready"
-        );
+        if !self.state.borrow().has_finalized_reserve_share_facts() {
+            self.credit_amount_in(self.origin, self.amount_0_in, self.amount_1_in)
+                .await?;
+            return Ok(None);
+        }
 
         // We just return OK to refund the failed balance here
         match self

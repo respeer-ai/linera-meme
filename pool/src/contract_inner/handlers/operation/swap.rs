@@ -1,7 +1,7 @@
 use crate::{
     contract_inner::handlers::{
         fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
-        request_meme_fund::RequestMemeFundExtHandler,
+        request_meme_fund::RequestMemeFundHandler,
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
@@ -108,7 +108,7 @@ impl<
                     .block_timestamp(self.block_timestamp)
                     .build();
 
-            let mut handler = RequestMemeFundExtHandler::new(
+            let mut handler = RequestMemeFundHandler::new(
                 self.runtime.clone(),
                 self.state.clone(),
                 None,
@@ -133,7 +133,7 @@ impl<
                 .block_timestamp(self.block_timestamp)
                 .build();
 
-            let mut handler = RequestMemeFundExtHandler::new(
+            let mut handler = RequestMemeFundHandler::new(
                 self.runtime.clone(),
                 self.state.clone(),
                 None,

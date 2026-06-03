@@ -211,7 +211,7 @@ async fn message_swap_rejects_without_finalized_reserve_share_facts() {
     let total_supply_before = total_supply(&pool);
     let request_count_before = pool.runtime.borrow().created_send_message_requests().len();
 
-    let result = std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::Swap {
+    pool.execute_message(PoolMessage::Swap {
         origin,
         amount_0_in: Some(Amount::ONE),
         amount_1_in: None,
@@ -219,11 +219,20 @@ async fn message_swap_rejects_without_finalized_reserve_share_facts() {
         amount_1_out_min: None,
         to: None,
         block_timestamp: None,
-    }))
-    .catch_unwind()
+    })
     .await;
 
-    assert!(result.is_err());
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(
+                MemeToken::Fungible(pool.runtime.borrow_mut().application_parameters().token_0),
+                origin
+            )
+            .await
+            .unwrap(),
+        Amount::ONE
+    );
     assert_eq!(pool.state.borrow().reserve_0(), reserve_0_before);
     assert_eq!(pool.state.borrow().reserve_1(), reserve_1_before);
     assert_eq!(total_supply(&pool), total_supply_before);
@@ -1675,6 +1684,88 @@ async fn operation_add_liquidity_transfer_receipt_success_continues_next_fungibl
         } if prev.as_ref().map(|value| value.amount_in) == Some(request.amount_in)
             && current.amount_in == next.amount_in
             && following.is_none()
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_add_liquidity_transfer_receipt_fail_forwards_without_successor() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let owner = authenticated_account(&pool);
+    let prev = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        None,
+        Some(Amount::from_tokens(10)),
+    );
+    let request = add_liquidity_fund_request(
+        owner,
+        Some(token_0),
+        Amount::ONE,
+        None,
+        Some(Amount::from_tokens(10)),
+    );
+    let next = add_liquidity_fund_request(
+        owner,
+        None,
+        Amount::from_tokens(10),
+        Some(token_0),
+        Some(Amount::ONE),
+    );
+    let application_owner = AccountOwner::from(pool.runtime.borrow_mut().application_id());
+    let destination = pool.runtime.borrow_mut().application_creator_chain_id();
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+    pool.runtime
+        .borrow_mut()
+        .set_chain_balance(Amount::from_tokens(10));
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(owner.owner, Amount::from_tokens(10));
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(application_owner, Amount::ZERO);
+
+    pool.execute_operation(PoolOperation::AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt {
+            result: Err("transfer failed".to_string()),
+            prev: Some(prev.clone()),
+            request: request.clone(),
+            next: Some(next),
+        },
+    })
+    .await;
+
+    assert_eq!(
+        pool.runtime.borrow_mut().owner_balance(application_owner),
+        Amount::ZERO
+    );
+
+    let runtime = pool.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    assert!(!requests
+        .iter()
+        .any(|request| matches!(request.message, PoolMessage::RequestFund { .. })));
+    let forwarded = requests
+        .iter()
+        .find(|request| {
+            matches!(
+                request.message,
+                PoolMessage::AddLiquidityTransferReceipt { .. }
+            )
+        })
+        .unwrap();
+    assert_eq!(forwarded.destination, destination);
+    assert!(matches!(
+        &forwarded.message,
+        PoolMessage::AddLiquidityTransferReceipt { receipt }
+            if receipt.result.is_err()
+                && receipt.prev.as_ref().map(|value| value.amount_in) == Some(prev.amount_in)
+                && receipt.request.amount_in == request.amount_in
+                && receipt.next.is_some()
     ));
 }
 

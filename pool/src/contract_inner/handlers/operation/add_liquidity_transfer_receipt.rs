@@ -1,7 +1,7 @@
 use crate::{
     contract_inner::handlers::{
         fund_pool_application_creation_chain::FundPoolApplicationCreationChainHandler,
-        request_meme_fund::RequestMemeFundExtHandler,
+        request_meme_fund::RequestMemeFundHandler,
     },
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
@@ -103,7 +103,7 @@ where
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         if let Some(next) = self.receipt.next.clone() {
             if next.token.is_some() {
-                let mut handler = RequestMemeFundExtHandler::new(
+                let mut handler = RequestMemeFundHandler::new(
                     self.runtime.clone(),
                     self.state.clone(),
                     Some(self.receipt.request.clone()),
@@ -132,6 +132,11 @@ where
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
         self.validate_source();
         self.validate_request(&self.receipt.request);
+
+        if self.receipt.result.is_err() {
+            return Ok(self.forward_final_settlement(self.receipt.clone()));
+        }
+
         self.exec_successor().await
     }
 }

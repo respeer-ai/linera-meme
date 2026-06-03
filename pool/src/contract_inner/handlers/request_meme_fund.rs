@@ -7,7 +7,7 @@ use runtime::interfaces::{
 };
 use std::{cell::RefCell, rc::Rc};
 
-pub struct RequestMemeFundExtHandler<
+pub struct RequestMemeFundHandler<
     R: ContractRuntimeContext + AccessControl + MemeRuntimeContext,
     S: StateInterface,
 > {
@@ -20,7 +20,7 @@ pub struct RequestMemeFundExtHandler<
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    RequestMemeFundExtHandler<R, S>
+    RequestMemeFundHandler<R, S>
 {
     pub fn new(
         runtime: Rc<RefCell<R>>,
@@ -41,7 +41,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
 
 #[async_trait(?Send)]
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
-    Handler<PoolMessage, PoolResponse> for RequestMemeFundExtHandler<R, S>
+    Handler<PoolMessage, PoolResponse> for RequestMemeFundHandler<R, S>
 {
     async fn handle(
         &mut self,

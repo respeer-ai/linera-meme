@@ -1,5 +1,5 @@
 use crate::{
-    contract_inner::handlers::request_meme_fund::RequestMemeFundExtHandler,
+    contract_inner::handlers::request_meme_fund::RequestMemeFundHandler,
     interfaces::{parameters::ParametersInterface, state::StateInterface},
 };
 use abi::swap::pool::{FundRequest, FundType, PoolMessage, PoolOperation, PoolResponse};
@@ -100,7 +100,7 @@ impl<
                 .block_timestamp(self.block_timestamp)
                 .build();
 
-        let mut handler = RequestMemeFundExtHandler::new(
+        let mut handler = RequestMemeFundHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             None,
