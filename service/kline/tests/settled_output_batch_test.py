@@ -19,6 +19,8 @@ class SettledOutputBatchTest(unittest.TestCase):
             outputs=[
                 {'settled_output_type': 'settled_trade', 'settled_trade_id': 'trade-1'},
                 {'settled_output_type': 'settled_liquidity_change', 'settled_liquidity_change_id': 'liq-1'},
+                {'settled_output_type': 'claim_balance_delta', 'claim_balance_delta_id': 'claim-1'},
+                {'settled_output_type': 'claim_balance_diagnostic', 'claim_balance_diagnostic_id': 'diag-1'},
                 {'settled_output_type': 'unknown', 'id': 'ignored'},
             ]
         )
@@ -30,6 +32,14 @@ class SettledOutputBatchTest(unittest.TestCase):
         self.assertEqual(
             batch.liquidity_changes(),
             [{'settled_output_type': 'settled_liquidity_change', 'settled_liquidity_change_id': 'liq-1'}],
+        )
+        self.assertEqual(
+            batch.claim_balance_deltas(),
+            [{'settled_output_type': 'claim_balance_delta', 'claim_balance_delta_id': 'claim-1'}],
+        )
+        self.assertEqual(
+            batch.claim_balance_diagnostics(),
+            [{'settled_output_type': 'claim_balance_diagnostic', 'claim_balance_diagnostic_id': 'diag-1'}],
         )
 
     def test_reports_affected_pools_and_positions(self):

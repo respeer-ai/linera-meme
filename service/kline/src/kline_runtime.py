@@ -5,13 +5,16 @@ from app.observability_supervisor import ObservabilitySupervisor
 from position_metrics_bootstrap import PositionMetricsBootstrap
 from query.handlers.kline import KlineHandler
 from query.handlers.position_metrics_noop_diagnostic_recorder import PositionMetricsNoopDiagnosticRecorder
+from query.handlers.claim_balances import ClaimBalancesHandler
 from query.handlers.positions import PositionsHandler
 from query.handlers.transactions import TransactionsHandler
 from query.read_models.candles import CandlesReadModel
+from query.read_models.claim_balances import ClaimBalancesReadModel
 from query.read_models.position_metrics_protocol_fee_split_semantics import PositionMetricsProtocolFeeSplitSemantics
 from query.read_models.positions import PositionsReadModel
 from query.read_models.virtual_positions import VirtualPositionsReadModel
 from query.read_models.transactions import TransactionsReadModel
+from query.serializers.claim_balances import ClaimBalancesSerializer
 from query.serializers.kline import KlineSerializer
 from query.serializers.positions import PositionsSerializer
 from query.serializers.transactions import TransactionsSerializer
@@ -77,7 +80,7 @@ class KlineRuntime:
 
     def claim_balance_projection_repository(self):
         self.require_db()
-        return ClaimBalanceProjectionRepository(self._db)
+        return ClaimBalanceProjectionRepository(self._db.connection)
 
     def settled_pool_history_projection_repository(self):
         self.require_db()
@@ -179,6 +182,12 @@ class KlineRuntime:
                 virtual_positions_read_model=self.virtual_positions_read_model(),
             ),
             PositionsSerializer(),
+        )
+
+    def claim_balances_handler(self) -> ClaimBalancesHandler:
+        return ClaimBalancesHandler(
+            ClaimBalancesReadModel(self.claim_balance_projection_repository()),
+            ClaimBalancesSerializer(),
         )
 
     def virtual_positions_read_model(self) -> VirtualPositionsReadModel | None:

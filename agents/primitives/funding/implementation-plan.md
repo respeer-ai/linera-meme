@@ -374,6 +374,7 @@ A3 existing-block-fact derivation matrix:
   - Exact claim delta: none from handler execution. Record diagnostic only.
 - Unknown or partial cases:
   - If the block parser cannot correlate an accepted funding message with its emitted `NewTransaction` or absence of that emission in the same execution flow, store a partial diagnostic instead of changing projected balances.
+  - If multiple funding messages and multiple `NewTransaction` records in the same source block are indistinguishable by existing facts (same pool application, origin, direction, amount, and liquidity fields), record `ambiguous_new_transaction_correlation` and do not emit an exact delta. TODO: resolve only with an existing-block disambiguation key; do not add protocol ABI or chain-side observability facts for this.
   - Do not add chain-side carriers to make these projections easier.
 
 Target rules:
@@ -398,10 +399,11 @@ Atomic implementation steps:
 - A2: Add focused decoder and normalizer tests for the current funding and claim message payload types.
 - A3: Produce the existing-block-fact derivation matrix for claimable and claiming balances. For each claim mutation, identify the exact existing operation/message/NewTransaction/raw-context carrier or mark it not derivable from current blocks. Do not add protocol facts.
 - A4: Add Layer 3 projection storage for values derivable from existing block facts only. The projector must store derivation source and derivation confidence so product reads do not confuse exact balances with partial diagnostics.
-- A5: Implement exact projections for facts already carried by existing messages: claim start, claim transfer receipt success/fail, settled swap output, settled remove-liquidity output, and add-liquidity excess when both request and settled accepted amounts are correlated.
-- A6: Add diagnostics for non-derivable or partial claim-balance cases: add-liquidity calculation failure, add-liquidity custody failure, and post-custody swap refund when the existing block facts are insufficient to compute an exact balance delta.
-- A7: Add projection tests for exact derivable cases and explicit partial/unknown diagnostics for non-derivable cases.
-- A8: Add or update product/API smoke tests proving claim-balance and market reads are projection-backed and do not live-query pool state for accounting truth.
+- A5: Implement exact projections for direct message-carried facts: claim start, claim transfer receipt success/fail, failed add-liquidity custody receipts, and failed add-liquidity fund results with previous custody facts.
+- A6: Add diagnostics for non-derivable or partial claim-balance cases: rejected claim/funding messages and swap/add-liquidity/remove-liquidity messages that require NewTransaction correlation before an exact claim delta can be formed.
+- A7: Add projection tests for exact direct cases and explicit partial/rejected diagnostics. Cross-event exact correlation remains a separate follow-up inside FUND-014 before final close.
+- A8: Add projection-backed claim-balance product/API read tests and keep market reads on NewTransaction-derived projections, without live-querying pool state for accounting truth.
+- A8.5: Implement batch and cross-batch correlation between funding messages and NewTransaction records for settled swap output, settled remove-liquidity output, and add-liquidity excess exact deltas.
 - A9: Run targeted service tests, targeted contract tests, full memory-limited `cargo test -j 1`, and product smoke tests.
 
 Validation:

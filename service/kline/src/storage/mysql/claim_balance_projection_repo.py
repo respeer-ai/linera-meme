@@ -38,7 +38,7 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
                     PRIMARY KEY (claim_balance_delta_id),
-                    KEY idx_claim_balance_delta_owner (owner, pool_application_id, execution_chain_id, token),
+                    KEY idx_claim_balance_delta_owner (owner(128), pool_application_id(128), execution_chain_id, token(128)),
                     KEY idx_claim_balance_delta_source_event (source_event_key),
                     KEY idx_claim_balance_delta_confidence (derivation_confidence)
                 )
@@ -64,7 +64,7 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
                     PRIMARY KEY (claim_balance_diagnostic_id),
-                    KEY idx_claim_balance_diagnostic_pool (pool_application_id, execution_chain_id),
+                    KEY idx_claim_balance_diagnostic_pool (pool_application_id(128), execution_chain_id),
                     KEY idx_claim_balance_diagnostic_source_event (source_event_key),
                     KEY idx_claim_balance_diagnostic_confidence (derivation_confidence)
                 )
@@ -207,7 +207,7 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
             cursor.close()
 
     def list_claim_balance_deltas(self, *, pool_application_id: str | None = None) -> list[dict[str, object]]:
-        cursor = self.dict_cursor()
+        cursor = self.cursor(dictionary=True)
         try:
             params = []
             where = ''
@@ -246,7 +246,7 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
             cursor.close()
 
     def list_claim_balance_diagnostics(self, *, pool_application_id: str | None = None) -> list[dict[str, object]]:
-        cursor = self.dict_cursor()
+        cursor = self.cursor(dictionary=True)
         try:
             params = []
             where = ''
@@ -279,6 +279,47 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
             return [self._decode_json(row) for row in cursor.fetchall()]
         finally:
             cursor.close()
+
+    def get_claim_balances(self, *, owner: str) -> list[dict[str, object]]:
+        cursor = self.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                f"""
+                SELECT
+                    pool_application_id,
+                    execution_chain_id,
+                    token,
+                    owner,
+                    COALESCE(SUM(CASE
+                        WHEN balance_kind = 'claimable' AND delta_direction = 'credit' THEN CAST(delta_amount AS DECIMAL(65, 18))
+                        WHEN balance_kind = 'claimable' AND delta_direction = 'debit' THEN -CAST(delta_amount AS DECIMAL(65, 18))
+                        ELSE 0
+                    END), 0) AS claimable_amount,
+                    COALESCE(SUM(CASE
+                        WHEN balance_kind = 'claiming' AND delta_direction = 'credit' THEN CAST(delta_amount AS DECIMAL(65, 18))
+                        WHEN balance_kind = 'claiming' AND delta_direction = 'debit' THEN -CAST(delta_amount AS DECIMAL(65, 18))
+                        ELSE 0
+                    END), 0) AS claiming_amount,
+                    MAX(block_height) AS latest_block_height,
+                    MAX(transaction_index) AS latest_transaction_index,
+                    MAX(message_index) AS latest_message_index
+                FROM {self.claim_balance_deltas_table}
+                WHERE owner = %s
+                GROUP BY pool_application_id, execution_chain_id, token, owner
+                HAVING claimable_amount <> 0 OR claiming_amount <> 0
+                ORDER BY pool_application_id ASC, execution_chain_id ASC, token ASC
+                """,
+                (owner,),
+            )
+            return [self._decode_claim_balance_row(row) for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    def _decode_claim_balance_row(self, row: dict[str, object]) -> dict[str, object]:
+        decoded = dict(row)
+        decoded['claimable_amount'] = str(decoded.get('claimable_amount', '0'))
+        decoded['claiming_amount'] = str(decoded.get('claiming_amount', '0'))
+        return decoded
 
     def _decode_json(self, row: dict[str, object]) -> dict[str, object]:
         decoded = dict(row)

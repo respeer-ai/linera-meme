@@ -47,6 +47,8 @@ class ClaimBalanceProjectionRepositoryTest(unittest.TestCase):
         self.assertIn('derivation_source VARCHAR(64) NOT NULL', sql)
         self.assertIn('derivation_confidence VARCHAR(32) NOT NULL', sql)
         self.assertIn('execution_chain_id VARCHAR(64) NOT NULL', sql)
+        self.assertIn('KEY idx_claim_balance_delta_owner (owner(128), pool_application_id(128), execution_chain_id, token(128))', sql)
+        self.assertIn('KEY idx_claim_balance_diagnostic_pool (pool_application_id(128), execution_chain_id)', sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_upsert_claim_balance_deltas_preserves_derivation_fields(self):
@@ -116,6 +118,33 @@ class ClaimBalanceProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(params[6], 'partial')
         self.assertIn('"message_type":"swap"', params[13])
         self.assertEqual(connection.commit_count, 1)
+
+
+    def test_get_claim_balances_aggregates_projection_deltas(self):
+        connection = self.FakeConnection()
+        connection.cursor_obj.rows = [{
+            'pool_application_id': 'pool-app',
+            'execution_chain_id': 'pool-chain',
+            'token': 'native',
+            'owner': 'owner-account',
+            'claimable_amount': 7,
+            'claiming_amount': 3,
+            'latest_block_height': 11,
+            'latest_transaction_index': 2,
+            'latest_message_index': 1,
+        }]
+        repository = ClaimBalanceProjectionRepository(connection)
+
+        rows = repository.get_claim_balances(owner='owner-account')
+
+        sql, params = connection.cursor_obj.executed[0]
+        self.assertIn('FROM claim_balance_deltas', sql)
+        self.assertIn('WHERE owner = %s', sql)
+        self.assertIn('GROUP BY pool_application_id, execution_chain_id, token, owner', sql)
+        self.assertEqual(params, ('owner-account',))
+        self.assertEqual(rows[0]['claimable_amount'], '7')
+        self.assertEqual(rows[0]['claiming_amount'], '3')
+
 
 
 if __name__ == '__main__':

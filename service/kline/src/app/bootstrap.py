@@ -133,6 +133,7 @@ class AppBootstrap:
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
+            claim_balance_projection_repository=claim_balance_projection_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
             settled_market_deriver=settled_market_deriver,
             market_data_event_sink=self.market_data_event_sink,
@@ -265,6 +266,7 @@ class AppBootstrap:
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
+            claim_balance_projection_repository=claim_balance_projection_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
             settled_market_deriver=SettledMarketDeriver(),
             market_data_event_sink=self.market_data_event_sink,
@@ -284,6 +286,7 @@ class AppBootstrap:
         normalized_event_repository,
         settled_trade_repository,
         settled_liquidity_change_repository,
+        claim_balance_projection_repository,
         position_metrics_snapshot_materializer,
         settled_market_deriver,
         market_data_event_sink,
@@ -320,6 +323,9 @@ class AppBootstrap:
             settled_market_deriver=settled_market_deriver,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
+            claim_balance_projection_repository=claim_balance_projection_repository,
+            pool_catalog_repository=pool_catalog_projection_repository,
+            normalized_event_repository=normalized_event_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
         )
         market_derivation_worker = MarketDerivationWorker(

@@ -144,7 +144,7 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
 
         self.assertEqual(rows[0]['event_payload_json']['decoded_payload_json']['transaction']['transaction_type'], 'BuyToken0')
 
-    def test_list_market_derivation_candidates_filters_to_pool_new_transaction_family(self):
+    def test_list_market_derivation_candidates_filters_to_market_and_claim_projection_families(self):
         connection = FakeConnection()
         repository = NormalizedEventRepository(connection)
         cursor = FakeCursor(connection)
@@ -159,15 +159,65 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
 
         executed_sql, params = cursor.executed[0]
         self.assertIn('raw_table = %s', executed_sql)
-        self.assertIn('event_family IN (%s)', executed_sql)
+        expected_families = NormalizedEventRepository.MARKET_DERIVATION_EVENT_FAMILIES
+        self.assertIn(
+            f'event_family IN ({", ".join(["%s"] * len(expected_families))})',
+            executed_sql,
+        )
         self.assertIn('normalization_status = %s', executed_sql)
         self.assertEqual(
             params,
             (
                 'raw_posted_messages',
-                'pool_new_transaction_recorded',
+                *expected_families,
                 'observed',
                 10,
                 5,
             ),
         )
+
+    def test_list_pool_new_transactions_for_source_block_filters_by_source_cert_hash(self):
+        connection = FakeConnection()
+        repository = NormalizedEventRepository(connection)
+        cursor = FakeCursor(connection)
+        connection.cursor_instances.append(cursor)
+        connection.cursor = lambda **_kwargs: connection.cursor_instances.pop(0)
+
+        repository.list_pool_new_transactions_for_source_block(
+            application_id="pool-app",
+            source_cert_hash="source-block",
+        )
+
+        executed_sql, params = cursor.executed[0]
+        self.assertIn("application_id = %s", executed_sql)
+        self.assertIn("source_cert_hash = %s", executed_sql)
+        self.assertEqual(
+            params,
+            (
+                "pool-app",
+                "pool_new_transaction_recorded",
+                "observed",
+                "source-block",
+            ),
+        )
+
+    def test_list_correlatable_pool_messages_filters_by_target_block_hash(self):
+        connection = FakeConnection()
+        repository = NormalizedEventRepository(connection)
+        cursor = FakeCursor(connection)
+        connection.cursor_instances.append(cursor)
+        connection.cursor = lambda **_kwargs: connection.cursor_instances.pop(0)
+
+        repository.list_correlatable_pool_messages(
+            application_id="pool-app",
+            target_block_hash="source-block",
+        )
+
+        executed_sql, params = cursor.executed[0]
+        self.assertIn("application_id = %s", executed_sql)
+        self.assertIn("target_block_hash = %s", executed_sql)
+        self.assertIn("pool_swap_message_observed", params)
+        self.assertIn("pool_add_liquidity_message_observed", params)
+        self.assertIn("pool_remove_liquidity_message_observed", params)
+        self.assertEqual(params[0], "pool-app")
+        self.assertEqual(params[-1], "source-block")
