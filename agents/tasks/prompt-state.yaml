@@ -23,28 +23,20 @@ defaults:
     - active_semantic_dependency
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
-active_focus:
+active_focus: []
+on_demand_done:
   - id: FUND-002
-    why: umbrella task for progressive funds-consistency protocol implementation
-    summary: >
-      Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-004 for the final funds-protocol convergence regression suite.
+    why: completed umbrella for business funds-consistency protocol iterations
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
   - id: FUND-004
-    why: active iteration for the final funds-protocol convergence regression suite
-    summary: >
-      Add final cross-path regression coverage after per-iteration funding protocol changes: partial-success refund, pending convergence, stale follow-up rejection, initial pool downstream failure, reject side-effect absence, claim delivery pending/fail behavior, and virtual liquidity boundaries.
+    why: final funds-protocol convergence regression suite completion history
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/implementation-plan.md
-      - agents/context/observability-architecture.md
-      - agents/primitives/derived-market-state.md
-      - agents/primitives/kline-api-read-models.md
-on_demand_done:
   - id: FUND-014
     why: block-derived product read compatibility completion history and claim-balance projection semantics
     canonical_refs:

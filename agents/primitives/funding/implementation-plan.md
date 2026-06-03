@@ -437,6 +437,19 @@ Atomic implementation steps:
 - A6: Add projection consistency smoke tests only for existing block-derived facts: claimable/claiming reads reflect the contract regression facts and ambiguous correlations remain diagnostic-only.
 - A7: Run targeted contract and service tests, then run the full memory-limited Rust suite with `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`. Product E2E is required only in an environment whose user wallet supports `publishDataBlob`; otherwise record the environment blocker explicitly.
 
+A1 regression matrix:
+
+- AddLiquidity fund-result partial failure: already covered by `message_fund_result_fail_credits_prev_without_funding_pool_chain`; A2 should add one aggregate no-reserve/no-transaction regression.
+- AddLiquidity custody receipt failure: already covered by `message_add_liquidity_transfer_receipt_fail_credits_only_prev`; A2 should add aggregate no-finalization regression.
+- AddLiquidity calculation failure and accepted excess: partially covered by `message_add_liquidity_min_amount_boundary` and integration claimable-balance checks; A2 should add explicit reserve/supply/liquidity/transaction side-effect assertions.
+- Swap post-custody failure and unfinalized guard: already covered by `message_swap_slippage_after_custody_credits_input_claim_without_reserve_update` and `message_swap_rejects_without_finalized_reserve_share_facts`; A2 should add transaction side-effect assertion where missing.
+- RemoveLiquidity slippage and unfinalized guard: already covered by `message_remove_liquidity_min_amount_boundary` and `message_remove_liquidity_rejects_without_finalized_reserve_share_facts`; A2 should add claim-balance no-mutation assertion for unfinalized guard if missing.
+- Claim pending, success, fail, duplicate, wrong chain, wrong caller, wrong token, and native invalidity: already covered by focused claim tests; A3 should add one aggregate invariant regression proving claimable + claiming transitions stay exclusive.
+- Initialization split: already covered by instantiate/initialize tests and integration create-pool tests; A4 should add virtual-liquidity non-claimable regression.
+- Real message path integration: partially covered by meme/native, meme/meme, create-pool, swap, add-liquidity, remove-liquidity, and claim tests; A5 should add a single explicit full-flow regression that performs swap output claim, over-add-liquidity excess claim, remove-liquidity owed claim, and verifies final balances.
+- Projection consistency: partially covered by FUND-014 service tests; A6 should add smoke tests only if a contract regression produces a new projection fixture need.
+- Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to FUND-003 or environment runbook, not FUND-004.
+
 Validation:
 
 - No regression test creates, reads, or depends on persisted funding intent.

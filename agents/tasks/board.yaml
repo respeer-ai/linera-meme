@@ -976,7 +976,7 @@ groups:
           The complete protocol is now split under `agents/primitives/funding/`. It covers create meme native pool, user `CreatePool` with initial liquidity, existing add liquidity, swap, remove, claim, internal entry boundaries, application reentrancy boundaries, projection boundaries, and per-path risks and mitigations.
           The document also captures code-review deltas: `CreatePool` is current user ABI only as create-with-initial-liquidity, legacy `UserPoolCreated` choreography must be collapsed or intent-bound, Claim is target ABI/state, PoolChainCreated/PoolCreated/Active semantics are split, tracked+bouncing convergence is path-level, and transaction id gaps are not errors by themselves.
       - id: FUND-002
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-001, REV-001]
         title: Fix pool/swap async funds closure under the unified protocol
@@ -1001,6 +1001,11 @@ groups:
           - Do not mistake it for full workflow atomic rollback.
           - Later-hop failures still require the business protocol state machine.
           - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
+
+          Closure:
+          - Business funds-consistency protocol iterations are complete: FUND-005 through FUND-014 and final regression FUND-004 are Done.
+          - Final validation passed with the full memory-limited Rust suite: `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
+          - FUND-003 remains a standalone operations-system task for cluster, chain, gas, funder, and stalled-workflow visibility; it is not part of business funds protocol closure.
       - id: FUND-005
         status: Done
         priority: P0
@@ -1368,7 +1373,7 @@ groups:
           Future standalone operations-system stage, not part of the business funding-protocol closure path. Do not mix this work into product business systems, contract funding semantics, observability projections used for product accounting, or FUND-014/FUND-004.
           Scope: cluster state, chain state, funder/gas coverage, pending/stalled workflow visibility, operational alerts, and manual diagnostics. Gas/funder availability is an operational progress concern, not a funds-safety prerequisite. Current Linera behavior does not reject a message solely because adding it would exceed per-block gas or block limits; the message remains pending/stalled for later execution. Reject handling still covers explicit execution failure, explicit node reject policy, ABI/deployment mismatch, implementation failure, and messages that alone exceed execution limits.
       - id: FUND-004
-        status: Doing
+        status: Done
         priority: P1
         depends_on: [FUND-014]
         title: Add final regression suite for funds protocol convergence
@@ -1384,6 +1389,18 @@ groups:
           - A6: Add projection consistency smoke tests only for existing block-derived facts: claimable/claiming reads reflect the contract regression facts and ambiguous correlations remain diagnostic-only.
           - A7: Run targeted contract and service tests, then run the full memory-limited Rust suite with `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`. Product E2E is required only in an environment whose user wallet supports `publishDataBlob`; otherwise record the environment blocker explicitly.
 
+          A1 regression matrix:
+          - AddLiquidity fund-result partial failure: already covered by `message_fund_result_fail_credits_prev_without_funding_pool_chain`; A2 should add one aggregate no-reserve/no-transaction regression.
+          - AddLiquidity custody receipt failure: already covered by `message_add_liquidity_transfer_receipt_fail_credits_only_prev`; A2 should add aggregate no-finalization regression.
+          - AddLiquidity calculation failure and accepted excess: partially covered by `message_add_liquidity_min_amount_boundary` and integration claimable-balance checks; A2 should add explicit reserve/supply/liquidity/transaction side-effect assertions.
+          - Swap post-custody failure and unfinalized guard: already covered by `message_swap_slippage_after_custody_credits_input_claim_without_reserve_update` and `message_swap_rejects_without_finalized_reserve_share_facts`; A2 should add transaction side-effect assertion where missing.
+          - RemoveLiquidity slippage and unfinalized guard: already covered by `message_remove_liquidity_min_amount_boundary` and `message_remove_liquidity_rejects_without_finalized_reserve_share_facts`; A2 should add claim-balance no-mutation assertion for unfinalized guard if missing.
+          - Claim pending, success, fail, duplicate, wrong chain, wrong caller, wrong token, and native invalidity: already covered by focused claim tests; A3 should add one aggregate invariant regression proving claimable + claiming transitions stay exclusive.
+          - Initialization split: already covered by instantiate/initialize tests and integration create-pool tests; A4 should add virtual-liquidity non-claimable regression.
+          - Real message path integration: partially covered by meme/native, meme/meme, create-pool, swap, add-liquidity, remove-liquidity, and claim tests; A5 should add a single explicit full-flow regression that performs swap output claim, over-add-liquidity excess claim, remove-liquidity owed claim, and verifies final balances.
+          - Projection consistency: partially covered by FUND-014 service tests; A6 should add smoke tests only if a contract regression produces a new projection fixture need.
+          - Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to FUND-003 or environment runbook, not FUND-004.
+
           Validation:
           - No regression test creates, reads, or depends on persisted funding intent.
           - Failed or rejected post-custody paths leave no reserve, total-supply, liquidity, transaction, or duplicate-claim side effects unless the reviewed protocol path explicitly credits claim balance.
@@ -1391,6 +1408,12 @@ groups:
           - User CreatePool and meme initialization remain separate paths.
           - Virtual liquidity contributes to pricing/shares only through reviewed initialization semantics and is never directly claimable.
           - Projection assertions are derived from existing block facts only.
+
+          Closure validation:
+          - Targeted pool contract regression suite passed: `cargo test -p pool contract_tests -- --test-threads=1` with memory limit.
+          - Targeted meme-native full-flow integration regression passed: `cargo test -p pool meme_native_virtual_initial_liquidity_test -- --test-threads=1` with memory limit.
+          - Full Rust suite passed: `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
+          - No ABI or contract implementation changes were made in this iteration; changes are task docs and tests only.
   - name: WebUI
     tasks:
       - id: WEBUI-001

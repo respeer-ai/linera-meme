@@ -70,6 +70,50 @@ async fn message_initialize_liquidity_writes_first_reserve_share_facts() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn virtual_initial_liquidity_does_not_create_claimable_balance() {
+    let mut pool = create_and_instantiate_pool(true).await;
+    let owner = authenticated_account(&pool);
+
+    pool.execute_message(PoolMessage::InitializeLiquidity {
+        origin: owner,
+        amount_0_in: Amount::from_str("1000").unwrap(),
+        amount_1_in: Amount::from_str("10").unwrap(),
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let parameters = pool.runtime.borrow_mut().application_parameters();
+    let other = alternate_account(owner.chain_id);
+    for account in [owner, other] {
+        assert_eq!(
+            pool.state
+                .borrow()
+                .claimable_balance(MemeToken::from(parameters.token_0), account)
+                .await
+                .unwrap(),
+            Amount::ZERO
+        );
+        assert_eq!(
+            pool.state
+                .borrow()
+                .claimable_balance(MemeToken::from(parameters.token_1), account)
+                .await
+                .unwrap(),
+            Amount::ZERO
+        );
+        assert_eq!(
+            pool.state
+                .borrow()
+                .claimable_balance(MemeToken::Native, account)
+                .await
+                .unwrap(),
+            Amount::ZERO
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn message_initialize_liquidity_rejects_user_create_pool_policy() {
     let mut pool = create_and_instantiate_user_pool().await;
     let origin = authenticated_account(&pool);
@@ -731,6 +775,8 @@ async fn message_remove_liquidity_min_amount_boundary() {
     let reserve_0_before = pool.state.borrow().reserve_0();
     let reserve_1_before = pool.state.borrow().reserve_1();
     let liquidity_before = pool.state.borrow().liquidity(owner).await.unwrap();
+    let total_supply_before = total_supply(&pool);
+    let message_count_before = pool.runtime.borrow().created_send_message_requests().len();
     let claimable_0_before = pool
         .state
         .borrow()
@@ -776,6 +822,13 @@ async fn message_remove_liquidity_min_amount_boundary() {
             .await
             .unwrap(),
         claimable_1_before
+    );
+    assert_eq!(total_supply(&pool), total_supply_before);
+    let runtime = pool.runtime.borrow();
+    assert!(
+        runtime.created_send_message_requests()[message_count_before..]
+            .iter()
+            .all(|message| !matches!(message.message, PoolMessage::NewTransaction { .. }))
     );
 }
 
@@ -1263,6 +1316,105 @@ async fn message_claim_fungible_pending_amount_cannot_be_claimed_again() {
             .await
             .unwrap(),
         amount
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_claim_fungible_keeps_claimable_and_claiming_exclusive() {
+    let mut pool = create_and_instantiate_pool(false).await;
+    let owner = authenticated_account(&pool);
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    let token = MemeToken::Fungible(token_0);
+    let amount = Amount::from_tokens(5);
+
+    pool.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(token_0);
+    pool.state
+        .borrow_mut()
+        .credit(token, owner, amount)
+        .await
+        .unwrap();
+
+    pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: Some(token_0),
+        amount,
+    })
+    .await;
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(token, owner)
+            .await
+            .unwrap(),
+        amount
+    );
+
+    pool.execute_message(PoolMessage::ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt {
+            owner,
+            token: token_0,
+            amount,
+            result: Err("transfer failed".to_string()),
+        },
+    })
+    .await;
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        amount
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+
+    pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: Some(token_0),
+        amount,
+    })
+    .await;
+    pool.execute_message(PoolMessage::ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt {
+            owner,
+            token: token_0,
+            amount,
+            result: Ok(()),
+        },
+    })
+    .await;
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claiming_balance(token, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
     );
 }
 
@@ -2149,6 +2301,11 @@ async fn message_add_liquidity_transfer_receipt_fail_credits_only_prev() {
         Some(token_0),
         Some(Amount::ONE),
     );
+    let reserve_0_before = pool.state.borrow().reserve_0();
+    let reserve_1_before = pool.state.borrow().reserve_1();
+    let total_supply_before = total_supply(&pool);
+    let liquidity_before = pool.state.borrow().liquidity(owner).await.unwrap();
+    let message_count_before = pool.runtime.borrow().created_send_message_requests().len();
 
     pool.execute_message(PoolMessage::AddLiquidityTransferReceipt {
         receipt: AddLiquidityTransferReceipt {
@@ -2175,6 +2332,24 @@ async fn message_add_liquidity_transfer_receipt_fail_credits_only_prev() {
             .await
             .unwrap(),
         Amount::ZERO
+    );
+    assert_eq!(pool.state.borrow().reserve_0(), reserve_0_before);
+    assert_eq!(pool.state.borrow().reserve_1(), reserve_1_before);
+    assert_eq!(total_supply(&pool), total_supply_before);
+    assert_eq!(
+        pool.state.borrow().liquidity(owner).await.unwrap(),
+        liquidity_before
+    );
+    let runtime = pool.runtime.borrow();
+    assert!(
+        runtime.created_send_message_requests()[message_count_before..]
+            .iter()
+            .all(|message| {
+                !matches!(
+                    message.message,
+                    PoolMessage::AddLiquidity { .. } | PoolMessage::NewTransaction { .. }
+                )
+            })
     );
 }
 
@@ -2724,6 +2899,8 @@ async fn message_swap_slippage_after_custody_credits_input_claim_without_reserve
     let reserve_0 = pool.state.borrow().reserve_0();
     let reserve_1 = pool.state.borrow().reserve_1();
     let amount_1_in = Amount::ONE;
+    let total_supply_before = total_supply(&pool);
+    let liquidity_before = pool.state.borrow().liquidity(owner).await.unwrap();
     let exact_amount_0_out = pool
         .state
         .borrow()
@@ -2754,6 +2931,11 @@ async fn message_swap_slippage_after_custody_credits_input_claim_without_reserve
             .await
             .unwrap(),
         amount_1_in
+    );
+    assert_eq!(total_supply(&pool), total_supply_before);
+    assert_eq!(
+        pool.state.borrow().liquidity(owner).await.unwrap(),
+        liquidity_before
     );
     let runtime = pool.runtime.borrow();
     assert!(

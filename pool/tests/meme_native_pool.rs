@@ -727,6 +727,81 @@ async fn meme_native_virtual_initial_liquidity_test() {
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
     assert!(pool.reserve_0 > Amount::ZERO);
     assert!(pool.reserve_1 > Amount::ZERO);
+
+    let removed_claim_query = Request::new(
+        r#"
+        query Claimable($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id.unwrap().forget_abi().to_string(),
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), removed_claim_query)
+        .await;
+    let removed_claimable =
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap();
+    assert!(removed_claimable > Amount::ZERO);
+
+    let user_balance_before_removed_claim = Amount::from_attos(5435097303900583548143307);
+    suite
+        .claim(
+            &user_chain,
+            suite.meme_application_id.unwrap().forget_abi(),
+            removed_claimable,
+        )
+        .await;
+
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        user_balance_before_removed_claim
+            .try_add(removed_claimable)
+            .unwrap(),
+    );
+
+    let removed_claim_query = Request::new(
+        r#"
+        query Claimable($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id.unwrap().forget_abi().to_string(),
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), removed_claim_query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
+        Amount::ZERO
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
