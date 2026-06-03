@@ -183,7 +183,7 @@ Validation:
 - Accepted-liquidity excess/refund is credited to claim balances exactly once.
 - Wrong source, wrong token, wrong request facts, wrong successor facts, and wrong workflow state are rejected.
 - Funding result handlers validate source chain, authenticated caller application, message signer, token, owner, amount, request facts, and successor facts before mutating custody, reserve, LP, or claim state.
-- Credited values can exit through `Claim`.
+- Remove and protocol-fee credited values can exit through `Claim`; duplicate CreatePool open-chain budget exits by direct native refund in the duplicate handler.
 - Happy path remains successful.
 
 ### FUND-010 Iteration 5: Pool visibility split
@@ -262,21 +262,21 @@ Atomic implementation steps:
 - A7 (done): Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
 - A8 (done): Run targeted tests and the full memory-limited `cargo test -j 1`.
 
-### FUND-012 Iteration 7: Remove, protocol fee, remote-liquidity, and create-pool residual claim balances
+### FUND-012 Iteration 7: Remove/protocol-fee claim balances and duplicate create-pool direct refund
 
-Purpose: unify non-swap owed value into claim balances.
+Purpose: settle remove-liquidity and protocol-fee owed value through claim balances, and handle duplicate user CreatePool open-chain budget with a direct native refund on the swap creator chain.
 
 Minimal changes:
 
 - Credit remove owed amounts to claim balances.
-- Credit create-pool losing/residual refunds not already handled by AddLiquidity closure to claim balances.
-- Credit protocol fee and remote-liquidity withdrawals through claim balances.
+- If user CreatePool loses because the canonical pool already exists, refund the open-chain fee budget directly from the swap creator-chain balance to the message signer account. This is intentionally not modeled as pool claimable value.
+- Credit protocol-fee value through claim balances when the fee receiver removes liquidity.
 
 Validation:
 
 - Burn/decrease cannot lose owed value.
-- Remove/create-pool-residual/protocol-fee accounting is reachable only from expected workflow states.
-- Remove, protocol-fee, remote-liquidity, and residual-refund callbacks validate source, authenticated caller, owner, token, amount, intent, and current status before mutating positions or claim balances.
+- Remove/protocol-fee claim accounting and duplicate CreatePool refund accounting are reachable only from expected workflow states.
+- Remove and protocol-fee claim paths validate owner, token, amount, and current state before mutating claim balances. Duplicate CreatePool refund stays on the swap creator chain and does not mutate pool claim balances.
 - Credited values can exit through `Claim`.
 
 ### FUND-013 Iteration 8: Internal entry and application-caller hardening sweep

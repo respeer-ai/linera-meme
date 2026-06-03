@@ -1275,27 +1275,27 @@ groups:
           - Tests prove credited values can exit through `Claim`.
           - Validation passed: targeted swap/add-liquidity tests and full memory-limited `cargo test -j 1`.
       - id: FUND-012
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-011]
-        title: "Iteration 7: Remove, protocol fee, remote-liquidity, and create-pool residual claim balances"
+        title: "Iteration 7: Remove/protocol-fee claim balances and duplicate create-pool direct refund"
         notes: |
-          Purpose: unify every non-swap owed value into aggregated claim balances.
+          Purpose: settle remove-liquidity and protocol-fee owed value through aggregated claim balances, and refund duplicate user CreatePool open-chain budget directly on the swap creator chain.
 
           Minimal changes:
           - Credit remove-liquidity owed amounts to claim balances.
-          - Credit create-pool losing/residual refunds not already handled by AddLiquidity closure to claim balances.
-          - Credit protocol fee and remote-liquidity withdrawals through claim balances.
-          - Do not add separate refund, retry, protocol-fee-withdraw, or remote-liquidity-withdraw user operations.
+          - If user CreatePool loses because the canonical pool already exists, refund the open-chain fee budget directly from the swap creator-chain balance to the message signer account. This is intentionally not modeled as pool claimable value.
+          - Credit protocol-fee value through claim balances when the fee receiver removes liquidity.
+          - Do not add separate refund, retry, claim, or protocol-fee-withdraw user operations for this duplicate CreatePool refund.
 
           Validation:
           - Tests prove burn/decrease cannot lose owed value.
-          - Tests prove remove/create-pool-residual/protocol-fee accounting is only reachable from expected workflow states.
-          - Tests prove all owed-value categories share the same claim-balance exit model.
-          - Tests prove remove, protocol-fee, remote-liquidity, and residual-refund callbacks validate source, authenticated caller, owner, token, amount, intent, and current status before mutating positions or claim balances.
+          - Tests prove remove/protocol-fee claim accounting and duplicate CreatePool refund accounting are only reachable from expected workflow states.
+          - Tests prove remove-liquidity and protocol-fee value share the claim-balance exit model, while duplicate CreatePool open-chain budget exits through direct native refund.
+          - Tests prove remove and protocol-fee paths validate owner, token, amount, and current state before mutating positions or claim balances, and duplicate CreatePool refund does not mutate pool claim balances.
           - Tests prove credited values can exit through `Claim`.
       - id: FUND-013
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-012]
         title: "Iteration 8: Internal entry and application-caller hardening sweep"

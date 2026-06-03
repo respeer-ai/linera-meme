@@ -1,11 +1,9 @@
-use crate::{
-    contract_inner::handlers::transfer_meme_from_application::TransferMemeFromApplicationHandler,
-    interfaces::{parameters::ParametersInterface, state::StateInterface},
-};
+use crate::interfaces::{parameters::ParametersInterface, state::StateInterface};
+use abi::meme_token::MemeToken;
 use abi::swap::pool::{PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId, Timestamp};
+use linera_sdk::linera_base_types::{Account, Amount, Timestamp};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -57,16 +55,21 @@ impl<
         }
     }
 
-    async fn transfer_meme(&mut self, token: ApplicationId, to: Account, amount: Amount) {
-        let _ = TransferMemeFromApplicationHandler::new(
-            self.runtime.clone(),
-            self.state.clone(),
-            token,
-            to,
-            amount,
-        )
-        .handle()
-        .await;
+    async fn credit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), HandlerError> {
+        if amount == Amount::ZERO {
+            return Ok(());
+        }
+
+        self.state
+            .borrow_mut()
+            .credit(token, owner, amount)
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -100,22 +103,11 @@ impl<
             .await
             .map_err(Into::into)?;
 
-        // 2: Transfer tokens
         let to = self.to.unwrap_or(self.origin);
         let token_0 = self.runtime.borrow_mut().token_0();
         let token_1 = self.runtime.borrow_mut().token_1();
-
-        self.transfer_meme(token_0, to, amount_0).await;
-
-        let application =
-            AccountOwner::from(self.runtime.borrow_mut().application_id().forget_abi());
-        match token_1 {
-            Some(token_1) => self.transfer_meme(token_1, to, amount_1).await,
-            None => self
-                .runtime
-                .borrow_mut()
-                .transfer(application, to, amount_1),
-        };
+        self.credit(MemeToken::from(token_0), to, amount_0).await?;
+        self.credit(MemeToken::from(token_1), to, amount_1).await?;
 
         let transaction = self.state.borrow_mut().build_transaction(
             self.origin,

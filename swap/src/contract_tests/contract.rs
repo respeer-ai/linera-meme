@@ -2,6 +2,7 @@ use super::super::{SwapContract, SwapState};
 
 use abi::{
     meme::MemeResponse,
+    policy::open_chain_fee_budget,
     swap::{
         pool::{BootstrapPolicy, PoolOperation},
         router::{
@@ -406,21 +407,55 @@ async fn message_update_pool_newer_transaction_advances_state() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_create_user_pool_rejects_duplicate_existing_pool() {
+async fn message_create_user_pool_refunds_open_chain_budget_for_duplicate_existing_pool() {
     let mut swap = create_and_instantiate_swap();
     let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let existing_pool = swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, token_1)
+        .await
+        .unwrap()
+        .unwrap();
+    let signer = swap.runtime.borrow_mut().authenticated_signer().unwrap();
+    let user_chain_id = swap.runtime.borrow_mut().chain_id();
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(user_chain_id);
+    let owner_balance_before = swap.runtime.borrow_mut().owner_balance(signer);
+    let chain_balance_before = swap.runtime.borrow_mut().chain_balance();
 
-    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
+    swap.execute_message(SwapMessage::CreateUserPool {
         token_0,
         token_1,
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
         to: None,
-    }))
-    .catch_unwind()
+    })
     .await;
 
-    assert!(result.is_err());
+    assert_eq!(
+        swap.runtime.borrow_mut().owner_balance(signer),
+        owner_balance_before
+            .try_add(open_chain_fee_budget())
+            .unwrap()
+    );
+    assert_eq!(
+        swap.runtime.borrow_mut().chain_balance(),
+        chain_balance_before
+            .try_sub(open_chain_fee_budget())
+            .unwrap()
+    );
+    assert_eq!(
+        swap.state
+            .borrow()
+            .get_pool_exchangable(token_0, token_1)
+            .await
+            .unwrap()
+            .unwrap()
+            .pool_application,
+        existing_pool.pool_application
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

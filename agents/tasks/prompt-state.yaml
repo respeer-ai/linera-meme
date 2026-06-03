@@ -28,27 +28,24 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-012, which moves remaining non-swap owed values
-      such as remove-liquidity outputs, protocol fee, remote liquidity, and
-      create-pool residual refunds into claim balances.
+      iterations. Current executable child is FUND-013, which audits and hardens residual internal entry and application-caller boundaries after the funding-path iterations.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-012
-    why: active iteration for remaining non-swap owed-value claim settlement
+  - id: FUND-013
+    why: active iteration for internal entry and application-caller hardening
     summary: >
-      Move remove-liquidity owed amounts, protocol-fee withdrawals, remote-liquidity
-      withdrawals, and create-pool residual refunds into the unified claim-balance
-      exit model. Do not add separate refund, retry, protocol-fee-withdraw, or
-      remote-liquidity-withdraw user operations.
+      Audit and close residual unsafe public and cross-application entry points after
+      every earlier funding path has implemented its own validation. Reject user access
+      to internal initialization and update paths, and verify authenticated caller,
+      source chain, expected app, expected leg, and state before internal follow-up
+      mutations.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
-      - agents/primitives/funding/current-delta.md
-      - agents/primitives/funding/claim.md
       - agents/primitives/cross-chain.md
       - agents/primitives/identity-and-origin.md
 on_demand_done:

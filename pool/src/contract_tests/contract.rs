@@ -502,6 +502,19 @@ async fn message_add_liquidity() {
         .borrow()
         .try_calculate_liquidity_amount_pair(Amount::from_str("100.05").unwrap(), None, None)
         .unwrap();
+    let parameters = pool.runtime.borrow_mut().application_parameters();
+    let claimable_0_before = pool
+        .state
+        .borrow()
+        .claimable_balance(MemeToken::from(parameters.token_0), owner)
+        .await
+        .unwrap();
+    let claimable_1_before = pool
+        .state
+        .borrow()
+        .claimable_balance(MemeToken::from(parameters.token_1), owner)
+        .await
+        .unwrap();
 
     pool.execute_message(PoolMessage::RemoveLiquidity {
         origin: owner,
@@ -520,6 +533,100 @@ async fn message_add_liquidity() {
 
     assert!(amount_0_out > Amount::ZERO);
     assert!(amount_1_out > Amount::ZERO);
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_0), owner)
+            .await
+            .unwrap(),
+        claimable_0_before.try_add(amount_0_out).unwrap()
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_1), owner)
+            .await
+            .unwrap(),
+        claimable_1_before.try_add(amount_1_out).unwrap()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_remove_liquidity_native_output_claims_through_claim_path() {
+    let mut pool = create_and_instantiate_native_pool(false).await;
+    let owner = authenticated_account(&pool);
+    pool.execute_message(PoolMessage::InitializeLiquidity {
+        origin: owner,
+        amount_0_in: Amount::from_str("1000").unwrap(),
+        amount_1_in: Amount::from_str("10").unwrap(),
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let liquidity = Amount::from_str("10").unwrap();
+    let (amount_0_out, amount_1_out) = pool
+        .state
+        .borrow()
+        .try_calculate_liquidity_amount_pair(liquidity, None, None)
+        .unwrap();
+    let application_owner =
+        AccountOwner::from(pool.runtime.borrow_mut().application_id().forget_abi());
+
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(application_owner, amount_1_out);
+    pool.runtime
+        .borrow_mut()
+        .set_owner_balance(owner.owner, Amount::ZERO);
+
+    pool.execute_message(PoolMessage::RemoveLiquidity {
+        origin: owner,
+        liquidity,
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let token_0 = pool.runtime.borrow_mut().application_parameters().token_0;
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(token_0), owner)
+            .await
+            .unwrap(),
+        amount_0_out
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Native, owner)
+            .await
+            .unwrap(),
+        amount_1_out
+    );
+
+    pool.execute_message(PoolMessage::Claim {
+        origin: owner,
+        token: None,
+        amount: amount_1_out,
+    })
+    .await;
+
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::Native, owner)
+            .await
+            .unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.runtime.borrow_mut().owner_balance(owner.owner),
+        amount_1_out
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -620,6 +727,22 @@ async fn message_remove_liquidity_min_amount_boundary() {
         block_timestamp: None,
     })
     .await;
+    let parameters = pool.runtime.borrow_mut().application_parameters();
+    let reserve_0_before = pool.state.borrow().reserve_0();
+    let reserve_1_before = pool.state.borrow().reserve_1();
+    let liquidity_before = pool.state.borrow().liquidity(owner).await.unwrap();
+    let claimable_0_before = pool
+        .state
+        .borrow()
+        .claimable_balance(MemeToken::from(parameters.token_0), owner)
+        .await
+        .unwrap();
+    let claimable_1_before = pool
+        .state
+        .borrow()
+        .claimable_balance(MemeToken::from(parameters.token_1), owner)
+        .await
+        .unwrap();
     let failing_result =
         std::panic::AssertUnwindSafe(pool.execute_message(PoolMessage::RemoveLiquidity {
             origin: owner,
@@ -632,6 +755,28 @@ async fn message_remove_liquidity_min_amount_boundary() {
         .catch_unwind()
         .await;
     assert!(failing_result.is_err());
+    assert_eq!(pool.state.borrow().reserve_0(), reserve_0_before);
+    assert_eq!(pool.state.borrow().reserve_1(), reserve_1_before);
+    assert_eq!(
+        pool.state.borrow().liquidity(owner).await.unwrap(),
+        liquidity_before
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_0), owner)
+            .await
+            .unwrap(),
+        claimable_0_before
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_1), owner)
+            .await
+            .unwrap(),
+        claimable_1_before
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -712,9 +857,48 @@ async fn message_remove_liquidity_mints_fee_to_and_updates_reserves_after_swap_g
     })
     .await;
 
-    assert!(pool.state.borrow().liquidity(fee_to).await.unwrap() > Amount::ZERO);
+    let fee_to_share = pool.state.borrow().liquidity(fee_to).await.unwrap();
+    assert!(fee_to_share > Amount::ZERO);
     assert!(pool.state.borrow().reserve_0() < reserve_0_before);
     assert!(pool.state.borrow().reserve_1() < reserve_1_before);
+
+    let (fee_to_amount_0, fee_to_amount_1) = pool
+        .state
+        .borrow()
+        .try_calculate_liquidity_amount_pair(fee_to_share, None, None)
+        .unwrap();
+
+    pool.execute_message(PoolMessage::RemoveLiquidity {
+        origin: fee_to,
+        liquidity: fee_to_share,
+        amount_0_out_min: None,
+        amount_1_out_min: None,
+        to: None,
+        block_timestamp: None,
+    })
+    .await;
+
+    let parameters = pool.runtime.borrow_mut().application_parameters();
+    assert_eq!(
+        pool.state.borrow().liquidity(fee_to).await.unwrap(),
+        Amount::ZERO
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_0), fee_to)
+            .await
+            .unwrap(),
+        fee_to_amount_0
+    );
+    assert_eq!(
+        pool.state
+            .borrow()
+            .claimable_balance(MemeToken::from(parameters.token_1), fee_to)
+            .await
+            .unwrap(),
+        fee_to_amount_1
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

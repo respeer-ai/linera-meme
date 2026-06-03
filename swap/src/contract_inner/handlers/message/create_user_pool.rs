@@ -1,13 +1,16 @@
 use crate::{
     contract_inner::handlers::create_pool::CreatePoolHandler, interfaces::state::StateInterface,
 };
-use abi::swap::{
-    pool::BootstrapPolicy,
-    router::{SwapMessage, SwapResponse},
+use abi::{
+    policy::open_chain_fee_budget,
+    swap::{
+        pool::BootstrapPolicy,
+        router::{SwapMessage, SwapResponse},
+    },
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -75,15 +78,21 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
         assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
 
-        if let Some(_) = self
+        if self
             .state
             .borrow()
             .get_pool_exchangable(self.token_0, self.token_1)
             .await
             .expect("Failed: get pool exchangable")
+            .is_some()
         {
-            // TODO: refund fee budget
-            panic!("Pool exists");
+            let creator = self.runtime.borrow_mut().message_signer_account();
+            self.runtime.borrow_mut().transfer(
+                AccountOwner::CHAIN,
+                creator,
+                open_chain_fee_budget(),
+            );
+            return Ok(None);
         }
 
         let creator = self.runtime.borrow_mut().message_signer_account();
