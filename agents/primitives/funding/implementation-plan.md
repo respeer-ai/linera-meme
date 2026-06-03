@@ -418,15 +418,31 @@ Validation:
 
 ### FUND-004 Final regression suite
 
-Purpose: cross-path regression after independent iterations pass.
+Purpose: add final cross-path regressions after all funding iterations pass independently. This iteration is test-only unless a regression exposes a concrete protocol bug. Do not add ABI, persisted intents, or observability-only chain facts here.
+
+Scope:
+
+- Contract-level regression tests for pool funding convergence.
+- Integration-level regression tests for complete product paths where existing fixtures can execute the real message flow.
+- Off-chain projection smoke coverage only when it validates existing block-derived facts from FUND-014.
+- No operations-system visibility work; gas, funder, stalled-chain, and cluster-health views remain FUND-003.
+
+Atomic implementation steps:
+
+- A1: Freeze the regression matrix in task docs before adding tests. Classify each row as already covered, needs a new focused contract test, needs an integration test, or deferred to operations visibility.
+- A2: Add focused pool contract regressions for partial-success and reject side effects: add-liquidity fund failure, add-liquidity custody failure, add-liquidity calculation failure, accepted-liquidity excess, swap post-custody failure, remove-liquidity slippage reject, and no finalized-pool swap/remove guards.
+- A3: Add focused claim regressions: fungible claim pending cannot be reclaimed, failed receipt restores claimable, success consumes claiming, stale/duplicate receipt rejects without balance mutation, wrong chain/caller/token rejects without balance mutation, and native claim remains invalid for meme/meme pools.
+- A4: Add initialization and visibility regressions: pool app creation does not imply product-ready reserves/shares, user CreatePool first funding still uses AddLiquidity, meme initialization remains distinct from user CreatePool, user policy cannot call InitializeLiquidity, and virtual liquidity cannot become payable claim balance.
+- A5: Add integration regressions for real message paths: meme/native initialize -> swap -> claim output -> over-add-liquidity -> claim excess -> remove-liquidity -> claim owed; user CreatePool first funding; meme/meme swap/add/claim path.
+- A6: Add projection consistency smoke tests only for existing block-derived facts: claimable/claiming reads reflect the contract regression facts and ambiguous correlations remain diagnostic-only.
+- A7: Run targeted contract and service tests, then run the full memory-limited Rust suite with `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`. Product E2E is required only in an environment whose user wallet supports `publishDataBlob`; otherwise record the environment blocker explicitly.
 
 Validation:
 
-- create pool partial failure
-- add liquidity partial failure
-- swap output/refund
-- remove owed
-- claim pending/fail/claiming-balance behavior
-- activation stalled
-- virtual liquidity
-- projection consistency
+- No regression test creates, reads, or depends on persisted funding intent.
+- Failed or rejected post-custody paths leave no reserve, total-supply, liquidity, transaction, or duplicate-claim side effects unless the reviewed protocol path explicitly credits claim balance.
+- Every credited amount is either claimable, claiming, or already settled; no amount is both claimable and settled.
+- User CreatePool and meme initialization remain separate paths.
+- Virtual liquidity contributes to pricing/shares only through reviewed initialization semantics and is never directly claimable.
+- Projection assertions are derived from existing block facts only.
+
