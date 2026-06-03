@@ -327,8 +327,54 @@ Existing block carriers:
   - successful swap output can be inferred from the settled swap transaction plus recipient facts;
   - successful remove-liquidity output can be inferred from the settled remove transaction plus recipient facts;
   - add-liquidity excess can be inferred only by correlating final add-liquidity input with accepted amounts;
-  - add-liquidity calculation failure, add-liquidity custody failure, and post-custody swap refund may have no `NewTransaction` carrier;
+  - add-liquidity calculation failure, add-liquidity final settlement failure, and post-custody swap refund may have no `NewTransaction` carrier;
   - claim start and claim receipt settlement are carried by `Claim` and `ClaimTransferReceipt`.
+
+A3 existing-block-fact derivation matrix:
+
+- Projection keys must include pool application id, execution chain id, token, owner, amount, block height, transaction index, message index, rejected status, and derivation confidence. Do not collapse deltas from different pool replicas into one balance.
+- `PoolMessage::Claim`:
+  - Carrier: decoded message payload plus execution-chain block context.
+  - Exact delta: `claimable -= amount`.
+  - Exact delta for fungible token: `claiming += amount`; settlement waits for `ClaimTransferReceipt`.
+  - Exact delta for native token: handler immediately settles native payout in the same execution; net `claiming` delta is zero.
+- `PoolMessage::ClaimTransferReceipt`:
+  - Carrier: decoded receipt payload plus execution-chain block context.
+  - Exact success delta: `claiming -= amount`.
+  - Exact failure delta: `claiming -= amount` and `claimable += amount`.
+  - Rejected receipt: no handler delta; record diagnostic only.
+- `PoolMessage::AddLiquidityTransferReceipt` with `result = Err`:
+  - Carrier: decoded receipt payload.
+  - Exact delta when `prev` exists: `claimable += prev.amount_in` for `prev.from` and `prev.token` on the execution chain.
+  - No delta when `prev` is absent.
+- `PoolMessage::FundResult` with `result = Err` and `request.fund_type = AddLiquidity`:
+  - Carrier: decoded message payload.
+  - Exact delta when `prev` exists: `claimable += prev.amount_in` for `prev.from` and `prev.token` on the execution chain.
+  - No delta when `prev` is absent.
+- `PoolMessage::SwapTransferReceipt` with `result = Err`:
+  - Carrier: decoded receipt payload.
+  - Exact claim delta: none in current handler. Record diagnostic only.
+- Successful `PoolMessage::Swap`:
+  - Carrier: decoded `Swap` message correlated with the later accepted `NewTransaction` self-message.
+  - Exact delta: output amount becomes `claimable += amount_out` for `to.unwrap_or(origin)`. The `NewTransaction` alone is insufficient because it records `from`, not the optional `to`.
+- Failed accepted `PoolMessage::Swap` after custody:
+  - Carrier: decoded `Swap` message plus block output context showing no accepted `NewTransaction` self-message and no reject.
+  - Exact delta: input amount becomes `claimable += amount_in` for `origin`.
+- Successful `PoolMessage::AddLiquidity`:
+  - Carrier: decoded `AddLiquidity` message correlated with the later accepted `NewTransaction` self-message.
+  - Exact delta: excess input becomes claimable: `amount_0_in - accepted_0` and `amount_1_in - accepted_1`, when each difference is positive.
+- Failed accepted `PoolMessage::AddLiquidity` after custody:
+  - Carrier: decoded `AddLiquidity` message plus block output context showing no accepted `NewTransaction` self-message and no reject.
+  - Exact delta: both inputs become claimable for `origin`.
+- Successful `PoolMessage::RemoveLiquidity`:
+  - Carrier: decoded `RemoveLiquidity` message correlated with the later accepted `NewTransaction` self-message.
+  - Exact delta: both output amounts become claimable for `to.unwrap_or(origin)`.
+- Rejected swap, add-liquidity, remove-liquidity, claim, and receipt messages:
+  - Carrier: raw block rejected status.
+  - Exact claim delta: none from handler execution. Record diagnostic only.
+- Unknown or partial cases:
+  - If the block parser cannot correlate an accepted funding message with its emitted `NewTransaction` or absence of that emission in the same execution flow, store a partial diagnostic instead of changing projected balances.
+  - Do not add chain-side carriers to make these projections easier.
 
 Target rules:
 
