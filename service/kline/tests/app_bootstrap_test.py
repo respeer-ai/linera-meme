@@ -104,6 +104,14 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         def ensure_schema(self):
             self.ensure_schema_called = True
 
+    class FakeClaimBalanceProjectionRepository:
+        def __init__(self, connection):
+            self.connection = connection
+            self.ensure_schema_called = False
+
+        def ensure_schema(self):
+            self.ensure_schema_called = True
+
     class FakePositionStateSnapshotRepository:
         def __init__(self, connection):
             self.connection = connection
@@ -174,6 +182,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
             pool_catalog_projection_repository = AppBootstrapTest.FakePoolCatalogProjectionRepository(connection)
             settled_trade_repository = AppBootstrapTest.FakeSettledTradeRepository(connection)
             settled_liquidity_change_repository = AppBootstrapTest.FakeSettledLiquidityChangeRepository(connection)
+            claim_balance_projection_repository = AppBootstrapTest.FakeClaimBalanceProjectionRepository(connection)
             position_state_snapshot_repository = AppBootstrapTest.FakePositionStateSnapshotRepository(connection)
             pool_state_snapshot_repository = AppBootstrapTest.FakePoolStateSnapshotRepository(connection)
             processing_cursor_repository = AppBootstrapTest.FakeProcessingCursorRepository(connection)
@@ -266,6 +275,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 'pool_catalog_projection_repository': pool_catalog_projection_repository,
                 'settled_trade_repository': settled_trade_repository,
                 'settled_liquidity_change_repository': settled_liquidity_change_repository,
+                'claim_balance_projection_repository': claim_balance_projection_repository,
                 'position_state_snapshot_repository': position_state_snapshot_repository,
                 'pool_state_snapshot_repository': pool_state_snapshot_repository,
                 'processing_cursor_repository': processing_cursor_repository,
@@ -335,6 +345,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(container['pool_catalog_projection_repository'].ensure_schema_called)
         self.assertTrue(container['settled_trade_repository'].ensure_schema_called)
         self.assertTrue(container['settled_liquidity_change_repository'].ensure_schema_called)
+        self.assertTrue(container['claim_balance_projection_repository'].ensure_schema_called)
         self.assertTrue(container['position_state_snapshot_repository'].ensure_schema_called)
         self.assertTrue(container['pool_state_snapshot_repository'].ensure_schema_called)
         self.assertTrue(connection.closed)

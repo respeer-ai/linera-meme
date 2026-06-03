@@ -24,6 +24,7 @@ from realtime.market_data_payload_builder import MarketDataPayloadBuilder
 from realtime.realtime_diagnostic_recorder import RealtimeDiagnosticRecorder
 from storage.mysql.debug_traces_query_repo import DebugTracesQueryRepository
 from storage.mysql.diagnostic_events_query_repo import DiagnosticEventsQueryRepository
+from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRepository
 from storage.mysql.market_stats_projection_repo import MarketStatsProjectionRepository
 from storage.mysql.position_metrics_diagnostic_recorder import PositionMetricsDiagnosticRecorder
 from storage.mysql.position_metrics_positions_projection_repo import PositionMetricsPositionsProjectionRepository
@@ -73,6 +74,10 @@ class KlineRuntime:
     def settled_liquidity_projection_repository(self):
         self.require_db()
         return SettledLiquidityProjectionRepository(self._db)
+
+    def claim_balance_projection_repository(self):
+        self.require_db()
+        return ClaimBalanceProjectionRepository(self._db)
 
     def settled_pool_history_projection_repository(self):
         self.require_db()
