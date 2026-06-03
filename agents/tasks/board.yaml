@@ -1295,18 +1295,24 @@ groups:
           - Tests prove remove and protocol-fee paths validate owner, token, amount, and current state before mutating positions or claim balances, and duplicate CreatePool refund does not mutate pool claim balances.
           - Tests prove credited values can exit through `Claim`.
       - id: FUND-013
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-012]
         title: "Iteration 8: Internal entry and application-caller hardening sweep"
         notes: |
           Purpose: audit and close residual unsafe public and cross-application entry points after every earlier path has implemented its own required validation.
 
-          Minimal changes:
-          - Reject user access to internal initialization/update paths that should only be entered by trusted applications.
-          - Allow `call_application(token_app, CreatorChainId)` only on trusted user-started entry paths, not on `meme -> swap` callbacks or token-app-entered message handlers.
-          - Verify authenticated caller, source chain, expected app, expected leg, pending intent, and claiming-balance state on every internal follow-up.
-          - Ensure user-authored contract `call_application` cannot bypass public operation constraints.
+          Atomic implementation steps:
+          - A1: Write the entry matrix and executable atomic steps.
+          - A2: Harden `SwapOperation::UpdatePool` as a pool-chain application-caller forwarding entry and move canonical pool-chain validation to `SwapMessage::UpdatePool`.
+          - A3: Add `SwapOperation::UpdatePool` tests for missing caller reject, creator-chain reject, and pool-chain application-caller forward success; add `SwapMessage::UpdatePool` tests for missing catalog and wrong message-origin chain reject.
+          - A4: Review and test `SwapMessage::UpdatePool` creator-chain settlement facts: message origin chain must equal the registered pool application chain, and valid operation forwarding sends to `application_creator_chain_id()`.
+          - A5: Review and test `SwapMessage::PoolCreated` boundaries.
+          - A6: Review and test user create-pool continuation boundaries for `CreateUserPool` and `UserPoolCreated`.
+          - A7: Sweep pool receipt operation/message boundaries.
+          - A8: Sweep meme transfer receipt boundaries.
+          - A9: Sweep proxy chain-boundary exceptions.
+          - A10: Run targeted tests and full memory-limited `cargo test -j 1`.
 
           Validation:
           - Tests cover direct user calls to internal operations/messages and reject them.

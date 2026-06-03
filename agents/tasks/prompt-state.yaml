@@ -28,26 +28,12 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-013, which audits and hardens residual internal entry and application-caller boundaries after the funding-path iterations.
+      iterations. Current completed child is FUND-013; next queued child is FUND-014 for projection facts and product read compatibility.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-013
-    why: active iteration for internal entry and application-caller hardening
-    summary: >
-      Audit and close residual unsafe public and cross-application entry points after
-      every earlier funding path has implemented its own validation. Reject user access
-      to internal initialization and update paths, and verify authenticated caller,
-      source chain, expected app, expected leg, and state before internal follow-up
-      mutations.
-    canonical_refs:
-      - agents/tasks/board.yaml
-      - agents/primitives/funding/architecture.md
-      - agents/primitives/funding/implementation-plan.md
-      - agents/primitives/cross-chain.md
-      - agents/primitives/identity-and-origin.md
 on_demand_done:
   - id: OBS-E2E-001
     why: shell-level observability E2E entrypoint and projection-fact reconciliation completion history

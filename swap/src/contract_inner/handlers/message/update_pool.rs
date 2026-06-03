@@ -10,7 +10,7 @@ use runtime::interfaces::{access_control::AccessControl, contract::ContractRunti
 use std::{cell::RefCell, rc::Rc};
 
 pub struct UpdatePoolHandler<R: ContractRuntimeContext + AccessControl, S: StateInterface> {
-    _runtime: Rc<RefCell<R>>,
+    runtime: Rc<RefCell<R>>,
     state: S,
 
     token_0: ApplicationId,
@@ -23,6 +23,25 @@ pub struct UpdatePoolHandler<R: ContractRuntimeContext + AccessControl, S: State
 }
 
 impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdatePoolHandler<R, S> {
+    async fn validate_pool_origin_chain(&mut self) {
+        let origin = self
+            .runtime
+            .borrow_mut()
+            .require_message_origin_chain_id()
+            .expect("Invalid message origin chain");
+        let pool = self
+            .state
+            .get_pool_exchangable(self.token_0, self.token_1)
+            .await
+            .expect("Failed: get pool exchangable")
+            .expect("Invalid pool");
+
+        assert_eq!(
+            origin, pool.pool_application.chain_id,
+            "Invalid pool origin chain"
+        );
+    }
+
     pub fn new(runtime: Rc<RefCell<R>>, state: S, msg: &SwapMessage) -> Self {
         let SwapMessage::UpdatePool {
             token_0,
@@ -38,8 +57,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdatePoolHan
         };
 
         Self {
+            runtime,
             state,
-            _runtime: runtime,
 
             token_0: *token_0,
             token_1: *token_1,
@@ -59,6 +78,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        self.validate_pool_origin_chain().await;
+
         self.state
             .update_pool(
                 self.token_0,

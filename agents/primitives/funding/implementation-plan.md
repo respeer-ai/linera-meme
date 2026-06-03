@@ -281,18 +281,30 @@ Validation:
 
 ### FUND-013 Iteration 8: Internal entry and application-caller hardening sweep
 
-Purpose: audit and close residual unsafe internal/public boundaries after every earlier path has implemented its own required validation.
+Purpose: close residual public-operation, internal-message, and cross-application caller bypass boundaries after the funding-path iterations. User-authored contracts can call public operations through `call_application`, so every operation handler must enforce the same actor, chain, and workflow constraints as a frontend-submitted operation.
 
-Minimal changes:
+Entry matrix:
 
-- Reject direct user access to internal operations.
-- Validate authenticated caller, source chain, expected app, expected leg, and pending intent.
-- Ensure user-contract `call_application` cannot bypass operation constraints.
+- `SwapOperation::UpdatePool`: public operation that currently forwards caller-supplied transaction, reserve, and price facts to `SwapMessage::UpdatePool`. Target constraint: authenticated caller must exist and `Account { chain_id: runtime.chain_id(), owner: AccountOwner::from(caller) }` must equal the canonical pool application account from `swap.get_pool_exchangable(token_0, token_1)`. Pool must already be registered by `PoolCreated`; first update has no exception.
+- `SwapMessage::UpdatePool`: catalog mutation message emitted by the validated `SwapOperation::UpdatePool` path. No duplicate message-side creator-chain guard is required; the required facts are that the operation caller is the canonical pool application on the pool chain and the emitted message destination is `application_creator_chain_id()`.
+- `SwapMessage::PoolCreated`: pool registration receipt. Existing constraints must remain: source pool chain is tracked, same-pool duplicate is idempotent, different pool for existing pair rejects, and catalog registration precedes later updates.
+- `SwapMessage::{CreatePool, CreateUserPool, InitializeLiquidity, UserPoolCreated}`: create-pool choreography messages. Target review: each message has one legal execution chain and cannot be forged to bypass public `CreatePool` or meme initialization constraints.
+- Pool receipt operations/messages: `AddLiquidityTransferReceipt`, `SwapTransferReceipt`, and `ClaimTransferReceipt` must reject wrong caller, wrong chain, wrong token, wrong fund type, and invalid state transitions.
+- Meme transfer receipt paths: `TransferFromApplication`, `TransferFromApplicationWithReceipt`, and `TransferFromApplicationReceipt` must reject forged caller/source/purpose/pool targets while preserving valid claim, swap, and add-liquidity callbacks.
+- Proxy message boundaries: `CreateMemeExt` remains the user-chain exception; other proxy messages remain creator-chain only.
 
-Validation:
+Atomic implementation steps:
 
-- Forged callbacks and direct internal calls reject.
-- Valid meme initialization, funding callbacks, and claim callbacks still work.
+- A1: Write the entry matrix and executable atomic steps.
+- A2: Harden `SwapOperation::UpdatePool` as a pool-chain application-caller forwarding entry and move canonical pool-chain validation to `SwapMessage::UpdatePool`.
+- A3: Add `SwapOperation::UpdatePool` tests for missing caller reject, creator-chain reject, and pool-chain application-caller forward success; add `SwapMessage::UpdatePool` tests for missing catalog and wrong message-origin chain reject.
+- A4: Review and test `SwapMessage::UpdatePool` creator-chain settlement facts: message origin chain must equal the registered pool application chain, and valid operation forwarding sends to `application_creator_chain_id()`.
+- A5: Review and test `SwapMessage::PoolCreated` boundaries.
+- A6: Review and test user create-pool continuation boundaries for `CreateUserPool` and `UserPoolCreated`.
+- A7: Sweep pool receipt operation/message boundaries.
+- A8: Sweep meme transfer receipt boundaries.
+- A9: Sweep proxy chain-boundary exceptions.
+- A10: Run targeted tests and full memory-limited `cargo test -j 1`.
 
 ### FUND-014 Iteration 9: Projection facts and product compatibility
 

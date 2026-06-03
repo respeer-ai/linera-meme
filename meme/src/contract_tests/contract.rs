@@ -6,11 +6,14 @@ use abi::{
     meme::{
         InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
         MemeParameters, MemeResponse, Metadata, TransferFromApplicationReceipt,
-        TransferFromApplicationReceiptPurpose,
+        TransferFromApplicationReceiptPayload, TransferFromApplicationReceiptPurpose,
     },
     proxy::ProxyResponse,
     store_type::StoreType,
-    swap::pool::{ClaimTransferReceipt, PoolInitializeLiquidityCall, PoolOperation, PoolResponse},
+    swap::pool::{
+        AddLiquidityTransferReceiptPayload, ClaimTransferReceipt, FundRequest, FundType,
+        PoolInitializeLiquidityCall, PoolOperation, PoolResponse, SwapTransferReceiptPayload,
+    },
 };
 use futures::FutureExt as _;
 use linera_sdk::{
@@ -1084,6 +1087,126 @@ async fn message_transfer_from_application_receipt_dispatches_pool_claim_fail() 
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_dispatches_pool_add_liquidity_success() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_add_liquidity_receipt(Some(Ok(())), FundType::AddLiquidity);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: receipt.clone(),
+    })
+    .await;
+
+    let (_application_id, operation) = captured.borrow().clone().unwrap();
+    assert!(matches!(
+        bcs::from_bytes::<PoolOperation>(&operation).unwrap(),
+        PoolOperation::AddLiquidityTransferReceipt { receipt: transfer_receipt }
+            if transfer_receipt.result == Ok(())
+                && transfer_receipt.request.amount_in == receipt.amount
+                && transfer_receipt.request.fund_type == FundType::AddLiquidity
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_dispatches_pool_swap_success() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_swap_receipt(Some(Ok(())), FundType::Swap);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: receipt.clone(),
+    })
+    .await;
+
+    let (_application_id, operation) = captured.borrow().clone().unwrap();
+    assert!(matches!(
+        bcs::from_bytes::<PoolOperation>(&operation).unwrap(),
+        PoolOperation::SwapTransferReceipt { receipt: transfer_receipt }
+            if transfer_receipt.result == Ok(())
+                && transfer_receipt.request.amount_in == receipt.amount
+                && transfer_receipt.request.fund_type == FundType::Swap
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt payload")]
+async fn message_transfer_from_application_receipt_rejects_pool_add_liquidity_payload_mismatch() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let mut receipt = pool_add_liquidity_receipt(Some(Ok(())), FundType::AddLiquidity);
+    receipt.payload = pool_swap_receipt(Some(Ok(())), FundType::Swap).payload;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt payload")]
+async fn message_transfer_from_application_receipt_rejects_pool_swap_payload_mismatch() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let mut receipt = pool_swap_receipt(Some(Ok(())), FundType::Swap);
+    receipt.payload = pool_add_liquidity_receipt(Some(Ok(())), FundType::AddLiquidity).payload;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid fund type")]
+async fn message_transfer_from_application_receipt_rejects_pool_add_liquidity_wrong_fund_type() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_add_liquidity_receipt(Some(Ok(())), FundType::Swap);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid fund type")]
+async fn message_transfer_from_application_receipt_rejects_pool_swap_wrong_fund_type() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_swap_receipt(Some(Ok(())), FundType::AddLiquidity);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Invalid receipt caller")]
 async fn message_transfer_from_application_receipt_rejects_invalid_caller_owner() {
     let mut meme = create_and_instantiate_meme(false, None).await;
@@ -1250,6 +1373,49 @@ fn pool_claim_receipt(result: Option<Result<(), String>>) -> TransferFromApplica
         amount: Amount::from_tokens(5),
         result,
         payload: None,
+    }
+}
+
+fn pool_add_liquidity_receipt(
+    result: Option<Result<(), String>>,
+    fund_type: FundType,
+) -> TransferFromApplicationReceipt {
+    let base = pool_claim_receipt(result);
+    let request = FundRequest::builder(base.owner, Some(base.token), base.amount, fund_type)
+        .counterparty_token(None)
+        .counterparty_amount_in(Some(Amount::from_tokens(10)))
+        .counterparty_amount_out_min(Some(Amount::ONE))
+        .build();
+
+    TransferFromApplicationReceipt {
+        purpose: TransferFromApplicationReceiptPurpose::PoolAddLiquidity,
+        payload: Some(TransferFromApplicationReceiptPayload::PoolAddLiquidity(
+            AddLiquidityTransferReceiptPayload {
+                prev: None,
+                request,
+                next: None,
+            },
+        )),
+        ..base
+    }
+}
+
+fn pool_swap_receipt(
+    result: Option<Result<(), String>>,
+    fund_type: FundType,
+) -> TransferFromApplicationReceipt {
+    let base = pool_claim_receipt(result);
+    let request = FundRequest::builder(base.owner, Some(base.token), base.amount, fund_type)
+        .counterparty_token(None)
+        .counterparty_amount_out_min(Some(Amount::ONE))
+        .build();
+
+    TransferFromApplicationReceipt {
+        purpose: TransferFromApplicationReceiptPurpose::PoolSwap,
+        payload: Some(TransferFromApplicationReceiptPayload::PoolSwap(
+            SwapTransferReceiptPayload { request },
+        )),
+        ..base
     }
 }
 

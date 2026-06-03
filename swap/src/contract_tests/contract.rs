@@ -277,9 +277,165 @@ async fn operation_create_pool_rejects_non_meme_token_1() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn operation_update_pool_rejects_missing_authenticated_caller() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, pool_application) =
+        create_pool_for_update_tests_with_application(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    swap.runtime
+        .borrow_mut()
+        .set_chain_id(pool_application.chain_id);
+    swap.runtime.borrow_mut().set_authenticated_caller_id(None);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::UpdatePool {
+        token_0,
+        token_1,
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_update_pool_rejects_creator_chain_execution() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, pool_application) =
+        create_pool_for_update_tests_with_application(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    let creator_chain_id = swap.runtime.borrow_mut().application_creator_chain_id();
+    let AccountOwner::Address32(pool_application_hash) = pool_application.owner else {
+        panic!("Invalid pool application owner");
+    };
+
+    swap.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(ApplicationId::new(pool_application_hash));
+    swap.runtime.borrow_mut().set_chain_id(creator_chain_id);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::UpdatePool {
+        token_0,
+        token_1,
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_update_pool_accepts_application_caller_on_pool_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, pool_application) =
+        create_pool_for_update_tests_with_application(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    let AccountOwner::Address32(pool_application_hash) = pool_application.owner else {
+        panic!("Invalid pool application owner");
+    };
+
+    swap.runtime
+        .borrow_mut()
+        .set_chain_id(pool_application.chain_id);
+    swap.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(ApplicationId::new(pool_application_hash));
+
+    let response = swap
+        .execute_operation(SwapOperation::UpdatePool {
+            token_0,
+            token_1,
+            transaction: pool_transaction(100, owner, 10),
+            token_0_price: Amount::ONE,
+            token_1_price: Amount::ONE,
+            reserve_0: Amount::ONE,
+            reserve_1: Amount::ONE,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+    let expected_destination = swap.runtime.borrow_mut().application_creator_chain_id();
+    let runtime = swap.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, expected_destination);
+    assert!(request.authenticated);
+    assert!(!request.is_tracked);
+    assert!(matches!(request.message, SwapMessage::UpdatePool { .. }));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_update_pool_rejects_missing_pool_catalog_entry() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1) = public_create_pool_test_tokens();
+    let owner = authenticated_account(&swap);
+    let pool_chain =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_chain);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::UpdatePool {
+        token_0,
+        token_1: Some(token_1),
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_update_pool_rejects_wrong_origin_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, _pool_application) = create_pool_for_update_tests(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    let wrong_chain =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(wrong_chain);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::UpdatePool {
+        token_0,
+        token_1,
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn message_update_pool_applies_each_valid_update() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, pool_application) = create_pool_for_update_tests(&mut swap).await;
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_application.chain_id);
     let owner = authenticated_account(&swap);
 
     let transaction = pool_transaction(100, owner, 10);
@@ -321,7 +477,10 @@ async fn message_update_pool_applies_each_valid_update() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_update_pool_applies_received_order() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, pool_application) = create_pool_for_update_tests(&mut swap).await;
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_application.chain_id);
     let owner = authenticated_account(&swap);
 
     let older = pool_transaction(100, owner, 10);
@@ -365,7 +524,10 @@ async fn message_update_pool_applies_received_order() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_update_pool_newer_transaction_advances_state() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, pool_application) = create_pool_for_update_tests(&mut swap).await;
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_application.chain_id);
     let owner = authenticated_account(&swap);
 
     let older = pool_transaction(100, owner, 10);
@@ -407,9 +569,103 @@ async fn message_update_pool_newer_transaction_advances_state() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn message_create_user_pool_rejects_same_token_pair() {
+    let mut swap = create_and_instantiate_swap();
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1: Some(token_0),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_create_user_pool_rejects_zero_amount() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ZERO,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_create_user_pool_emits_create_pool_to_new_pool_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 = None;
+    let user_chain_id = swap.runtime.borrow_mut().chain_id();
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(user_chain_id);
+    let pool_chain_id = swap.runtime.borrow_mut().application_creator_chain_id();
+
+    swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1,
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    })
+    .await;
+
+    assert!(swap
+        .state
+        .borrow()
+        .is_pool_chain(pool_chain_id)
+        .await
+        .unwrap());
+    let runtime = swap.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, pool_chain_id);
+    assert!(!request.is_tracked);
+    let SwapMessage::CreatePool {
+        creator: message_creator,
+        token_0: message_token_0,
+        token_1: message_token_1,
+        amount_0,
+        amount_1,
+        bootstrap_policy,
+        to,
+        ..
+    } = &request.message
+    else {
+        panic!("Expected CreatePool");
+    };
+    assert_eq!(*message_creator, creator);
+    assert_eq!(*message_token_0, token_0);
+    assert_eq!(*message_token_1, token_1);
+    assert_eq!(*amount_0, Amount::ONE);
+    assert_eq!(*amount_1, Amount::ONE);
+    assert!(matches!(bootstrap_policy, BootstrapPolicy::UserCreatePool));
+    assert_eq!(*to, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn message_create_user_pool_refunds_open_chain_budget_for_duplicate_existing_pool() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, _pool_application) = create_pool_for_update_tests(&mut swap).await;
     let existing_pool = swap
         .state
         .borrow()
@@ -670,6 +926,77 @@ async fn message_pool_created_ignores_duplicate_receipt() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn message_pool_created_rejects_different_pool_for_existing_pair() {
+    let mut swap = create_and_instantiate_swap();
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let other_pool_chain_id =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let existing_pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+    let other_pool_application = Account {
+        chain_id: other_pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb3",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(other_pool_chain_id)
+        .unwrap();
+    swap.state
+        .borrow_mut()
+        .create_pool(
+            creator,
+            token_0,
+            Some(token_1),
+            existing_pool_application,
+            1.into(),
+        )
+        .await
+        .unwrap();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application: other_pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::UserCreatePool,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn message_pool_created_user_bootstrap_branch_does_not_call_meme_initialize_liquidity() {
     let call_count = Rc::new(RefCell::new(0usize));
     let mut swap = create_and_instantiate_swap_with_call_handler({
@@ -717,6 +1044,15 @@ async fn message_pool_created_user_bootstrap_branch_does_not_call_meme_initializ
     .await;
 
     assert_eq!(*call_count.borrow(), 0);
+    let runtime = swap.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, creator.chain_id);
+    assert!(!request.is_tracked);
+    assert!(matches!(
+        request.message,
+        SwapMessage::UserPoolCreated { .. }
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -828,6 +1164,32 @@ async fn message_user_pool_created_receipt_is_app_created_only() {
     assert_eq!(pool.token_0_price, None);
     assert_eq!(pool.token_1_price, None);
     assert_eq!(*call_count.borrow(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_user_pool_created_rejects_non_application_pool_owner() {
+    let mut swap = create_and_instantiate_swap();
+    let pool_application = Account {
+        chain_id: ChainId::from_str(
+            "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea",
+        )
+        .unwrap(),
+        owner: AccountOwner::CHAIN,
+    };
+    let (token_0, token_1) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::UserPoolCreated {
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -994,7 +1356,13 @@ fn pool_transaction(transaction_id: u32, from: Account, created_at: u64) -> Tran
 
 async fn create_pool_for_update_tests(
     swap: &mut SwapContract,
-) -> (ApplicationId, Option<ApplicationId>) {
+) -> (ApplicationId, Option<ApplicationId>, Account) {
+    create_pool_for_update_tests_with_application(swap).await
+}
+
+async fn create_pool_for_update_tests_with_application(
+    swap: &mut SwapContract,
+) -> (ApplicationId, Option<ApplicationId>, Account) {
     let token_0 =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
             .unwrap();
@@ -1018,7 +1386,7 @@ async fn create_pool_for_update_tests(
         .await
         .unwrap();
 
-    (token_0, Some(token_1))
+    (token_0, Some(token_1), pool_application)
 }
 
 fn create_and_instantiate_swap() -> SwapContract {

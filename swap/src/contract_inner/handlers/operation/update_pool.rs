@@ -50,6 +50,17 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> UpdatePoolHan
             reserve_1: *reserve_1,
         }
     }
+
+    fn validate_application_caller(&mut self) {
+        self.runtime
+            .borrow_mut()
+            .not_application_creator()
+            .expect("Invalid update pool chain");
+        self.runtime
+            .borrow_mut()
+            .authenticated_caller_id()
+            .expect("Invalid caller");
+    }
 }
 
 #[async_trait(?Send)]
@@ -59,6 +70,8 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        self.validate_application_caller();
+
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
