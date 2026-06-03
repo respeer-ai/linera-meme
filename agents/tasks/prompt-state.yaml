@@ -28,24 +28,21 @@ active_focus:
     why: umbrella task for progressive funds-consistency protocol implementation
     summary: >
       Implement the funds-consistency protocol only through progressive child
-      iterations. Current executable child is FUND-011, which migrates Swap away
-      from persisted funding state, removes the legacy funding protocol, promotes
-      message-carried funding names to canonical names, and moves swap output and
-      post-custody swap failure settlement into claim balances without persisted
-      swap intents.
+      iterations. Current executable child is FUND-012, which moves remaining non-swap owed values
+      such as remove-liquidity outputs, protocol fee, remote liquidity, and
+      create-pool residual refunds into claim balances.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md
       - agents/primitives/funding/implementation-plan.md
       - agents/primitives/funding/open-issues.md
-  - id: FUND-011
-    why: active iteration for swap message-carried funding and claim settlement
+  - id: FUND-012
+    why: active iteration for remaining non-swap owed-value claim settlement
     summary: >
-      Migrate meme-input Swap from persisted FundRequest state to message-carried
-      funding facts, remove old RequestFund/FundSuccess/FundFail stateful funding,
-      use canonical message-carried funding names,
-      and credit successful output plus post-custody failure refunds into claim
-      balances. Normal swap remains gated by finalized reserve/share facts.
+      Move remove-liquidity owed amounts, protocol-fee withdrawals, remote-liquidity
+      withdrawals, and create-pool residual refunds into the unified claim-balance
+      exit model. Do not add separate refund, retry, protocol-fee-withdraw, or
+      remote-liquidity-withdraw user operations.
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/primitives/funding/architecture.md

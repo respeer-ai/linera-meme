@@ -1236,7 +1236,7 @@ groups:
           - Added frontend visible-pool helper and routed normal product/trading surfaces through finalized positive reserve facts without changing raw store catalog semantics.
           - Validation passed: targeted Rust tests, full memory-limited `cargo test -j 1`, `bun test`, `bun run build`, and full product E2E.
       - id: FUND-011
-        status: Doing
+        status: Done
         priority: P0
         depends_on: [FUND-010]
         title: "Iteration 6: Swap message-carried funding and claim settlement"
@@ -1263,7 +1263,7 @@ groups:
           - A5 (done): Add focused Swap tests for no persisted request creation, funding failure, successful settlement, output claim credit, post-custody refund claim credit, and wrong source/signer/token rejection.
           - A6 (done): Remove the legacy persisted funding implementation: old state, query, interface methods, ABI messages, handlers, and obsolete tests.
           - A7 (done): Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
-          - A8: Run targeted tests and the full memory-limited `cargo test -j 1`.
+          - A8 (done): Run targeted tests and the full memory-limited `cargo test -j 1`.
 
           Validation:
           - Tests prove meme-input Swap does not create, read, or update persisted `FundRequest` state.
@@ -1273,8 +1273,9 @@ groups:
           - Tests prove swap is rejected before finalized reserve/share facts exist.
           - Tests prove funding request and result handlers validate source chain, authenticated caller application, message signer, token, owner, amount, request facts, and successor facts before mutating custody, reserve, transaction, or claim state.
           - Tests prove credited values can exit through `Claim`.
+          - Validation passed: targeted swap/add-liquidity tests and full memory-limited `cargo test -j 1`.
       - id: FUND-012
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [FUND-011]
         title: "Iteration 7: Remove, protocol fee, remote-liquidity, and create-pool residual claim balances"

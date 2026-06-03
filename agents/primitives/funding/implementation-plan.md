@@ -260,7 +260,7 @@ Atomic implementation steps:
 - A5 (done): Add focused Swap tests for no persisted request creation, funding failure, successful settlement, output claim credit, post-custody refund claim credit, and wrong source/signer/token rejection.
 - A6 (done): Remove the legacy persisted funding implementation: old state, query, interface methods, ABI messages, handlers, and obsolete tests.
 - A7 (done): Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
-- A8: Run targeted tests and the full memory-limited `cargo test -j 1`.
+- A8 (done): Run targeted tests and the full memory-limited `cargo test -j 1`.
 
 ### FUND-012 Iteration 7: Remove, protocol fee, remote-liquidity, and create-pool residual claim balances
 
