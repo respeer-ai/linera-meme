@@ -4,6 +4,8 @@ from market.settled_output_batch_factory import SettledOutputBatchFactory
 
 
 class SettledMarketMaterializer:
+    VIRTUAL_INITIAL_LIQUIDITY = 'virtual_initial_liquidity'
+
     def __init__(
         self,
         *,
@@ -43,6 +45,7 @@ class SettledMarketMaterializer:
 
     def materialize_batch(self, events: list[dict[str, object]]) -> list[dict[str, object]]:
         correlation = self.claim_balance_correlation_deriver.derive_batch(events)
+        virtual_initial_transaction_ids = self._virtual_initial_transaction_ids(events)
         derived_batch = [
             self._derive_item(
                 event,
@@ -51,6 +54,11 @@ class SettledMarketMaterializer:
                     [],
                 ),
                 resolved_event_ids=correlation['resolved_event_ids'],
+                liquidity_semantics=(
+                    self.VIRTUAL_INITIAL_LIQUIDITY
+                    if str(event.get('normalized_event_id')) in virtual_initial_transaction_ids
+                    else None
+                ),
             )
             for event in events
         ]
@@ -67,8 +75,12 @@ class SettledMarketMaterializer:
         *,
         correlated_outputs: list[dict[str, object]] | None = None,
         resolved_event_ids: set[str] | None = None,
+        liquidity_semantics: str | None = None,
     ) -> dict[str, object]:
-        market_derived = self.settled_market_deriver.derive_item(event)
+        market_derived = self.settled_market_deriver.derive_item(
+            event,
+            liquidity_semantics=liquidity_semantics,
+        )
         claim_derived = self.claim_balance_deriver.derive_item(event)
         claim_outputs = self.claim_balance_correlation_deriver.filter_resolved_diagnostics(
             list(claim_derived['settled_outputs']),
@@ -79,6 +91,86 @@ class SettledMarketMaterializer:
             **market_derived,
             'settled_outputs': list(market_derived['settled_outputs']) + claim_outputs,
         }
+
+    def _virtual_initial_transaction_ids(self, events: list[dict[str, object]]) -> set[str]:
+        initialize_messages = self._pool_initialize_messages(events)
+        if not initialize_messages:
+            return set()
+        initialize_blocks = {
+            (str(message.get('application_id')), str(message.get('target_block_hash') or message.get('source_block_hash')))
+            for message in initialize_messages
+            if message.get('application_id') not in (None, '')
+            and (message.get('target_block_hash') or message.get('source_block_hash')) not in (None, '')
+        }
+        if not initialize_blocks:
+            return set()
+        transaction_ids = set()
+        for event in self._pool_new_transactions(events):
+            key = (str(event.get('application_id')), str(event.get('source_cert_hash')))
+            if key in initialize_blocks and self._pool_new_transaction_type(event) == 'AddLiquidity':
+                transaction_ids.add(str(event['normalized_event_id']))
+        return transaction_ids
+
+    def _pool_initialize_messages(self, events: list[dict[str, object]]) -> list[dict[str, object]]:
+        messages = [
+            event
+            for event in events
+            if event.get('normalization_status') == 'observed'
+            and event.get('event_family') == 'pool_initialize_liquidity_message_observed'
+        ]
+        messages.extend(self._repository_initialize_messages_for_new_transactions(events))
+        return self._unique_events(messages)
+
+    def _repository_initialize_messages_for_new_transactions(self, events: list[dict[str, object]]) -> list[dict[str, object]]:
+        normalized_event_repository = getattr(
+            self.claim_balance_correlation_deriver,
+            'normalized_event_repository',
+            None,
+        )
+        if normalized_event_repository is None:
+            return []
+        list_messages = getattr(
+            normalized_event_repository,
+            'list_pool_initialize_liquidity_messages',
+            None,
+        )
+        if list_messages is None:
+            return []
+        messages = []
+        for event in self._pool_new_transactions(events):
+            source_cert_hash = event.get('source_cert_hash')
+            if source_cert_hash in (None, ''):
+                continue
+            messages.extend(
+                list_messages(
+                    application_id=str(event['application_id']),
+                    target_block_hash=str(source_cert_hash),
+                )
+            )
+        return messages
+
+    def _pool_new_transaction_type(self, event: dict[str, object]) -> str | None:
+        transaction = (event.get('event_payload_json') or {}).get('decoded_payload_json', {}).get('transaction')
+        if not isinstance(transaction, dict):
+            return None
+        value = transaction.get('transaction_type')
+        return None if value is None else str(value)
+
+    def _pool_new_transactions(self, events: list[dict[str, object]]) -> list[dict[str, object]]:
+        return [
+            event
+            for event in events
+            if event.get('normalization_status') == 'observed'
+            and event.get('event_family') == 'pool_new_transaction_recorded'
+        ]
+
+    def _unique_events(self, events: list[dict[str, object]]) -> list[dict[str, object]]:
+        unique = {}
+        for event in events:
+            event_id = event.get('normalized_event_id')
+            if event_id is not None:
+                unique[str(event_id)] = event
+        return list(unique.values())
 
     def _persist_outputs(self, outputs: list[dict[str, object]]) -> None:
         output_batch = self.settled_output_batch_factory.build(outputs)

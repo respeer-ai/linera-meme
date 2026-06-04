@@ -14,6 +14,8 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
         NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_REJECTED,
         NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_MESSAGE_OBSERVED,
         NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_MESSAGE_OBSERVED,
+        NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_REJECTED,
         NormalizedEventResult.FAMILY_POOL_CLAIM_RECORDED,
         NormalizedEventResult.FAMILY_POOL_CLAIM_REJECTED,
         NormalizedEventResult.FAMILY_POOL_CLAIM_TRANSFER_RECEIPT_RECORDED,
@@ -237,6 +239,20 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 NormalizedEventResult.FAMILY_POOL_SWAP_MESSAGE_OBSERVED,
                 NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_MESSAGE_OBSERVED,
                 NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_MESSAGE_OBSERVED,
+            ),
+            target_block_hash=target_block_hash,
+        )
+
+    def list_pool_initialize_liquidity_messages(
+        self,
+        *,
+        application_id: str,
+        target_block_hash: str,
+    ) -> list[dict]:
+        return self._list_pool_events(
+            application_id=application_id,
+            event_families=(
+                NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_MESSAGE_OBSERVED,
             ),
             target_block_hash=target_block_hash,
         )

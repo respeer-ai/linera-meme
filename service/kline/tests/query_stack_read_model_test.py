@@ -426,10 +426,11 @@ class ReadModelBridgeTest(
             'token_0': 'AAA',
             'token_1': 'BBB',
             'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
-            'status': 'active',
+            'status': 'virtual',
             'current_liquidity': '0',
-            'position_kind': 'virtual_initial_protocol_fee_receiver',
+            'position_kind': 'virtual_initial_liquidity',
             'is_virtual_position': True,
+            'protocol_fee_receiver_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
             'protocol_fee_reference_amount0': '25',
             'protocol_fee_reference_amount1': '0',
         }]
@@ -451,7 +452,7 @@ class ReadModelBridgeTest(
                     'token_0': 'AAA',
                     'token_1': 'BBB',
                     'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
-                    'status': 'active',
+                    'status': 'virtual',
                     'current_liquidity': '0',
                     'position_liquidity': '0',
                     'total_supply': None,
@@ -465,7 +466,7 @@ class ReadModelBridgeTest(
                     'fee_amount1': '0',
                     'protocol_fee_amount0': '25',
                     'protocol_fee_amount1': '0',
-                    'value_warning_codes': ['virtual_initial_protocol_fee_receiver_position'],
+                    'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
                     'value_warning_message': (
                         'Virtual initial liquidity is pool-level, not owner-held LP. '
                         'This synthetic position marks the protocol fee receiver and uses the '
@@ -479,7 +480,7 @@ class ReadModelBridgeTest(
         self.assertEqual(payload.metric_diagnostics[0]['fetch_stage'], 'synthetic_virtual_position')
         self.assertEqual(
             payload.metric_diagnostics[0]['fetch_reason_code'],
-            'virtual_initial_protocol_fee_receiver',
+            'virtual_initial_liquidity',
         )
 
     def test_position_metrics_read_model_projects_virtual_initial_protocol_yield_from_pool_state(self):
@@ -550,7 +551,7 @@ class ReadModelBridgeTest(
         self.assertEqual(payload.metric_diagnostics[0]['fetch_stage'], 'synthetic_virtual_position')
         self.assertEqual(
             payload.metric_diagnostics[0]['fetch_reason_code'],
-            'virtual_initial_protocol_fee_receiver',
+            'virtual_initial_liquidity',
         )
 
     def test_position_metrics_handler_records_only_inexact_rows(self):

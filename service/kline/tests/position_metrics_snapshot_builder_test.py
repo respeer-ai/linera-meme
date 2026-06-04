@@ -58,7 +58,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_0_out': None,
                 'amount_1_in': '9',
                 'amount_1_out': None,
-                'liquidity': '0',
+                'liquidity': '6',
                 'created_at': 1000,
                 'from_account': owner,
             },
@@ -66,10 +66,10 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'transaction_id': 11,
                 'transaction_type': 'RemoveLiquidity',
                 'amount_0_in': None,
-                'amount_0_out': '2',
+                'amount_0_out': '4',
                 'amount_1_in': None,
-                'amount_1_out': '4',
-                'liquidity': '3',
+                'amount_1_out': '9',
+                'liquidity': '6',
                 'created_at': 2000,
                 'from_account': owner,
             },
@@ -105,15 +105,16 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         self.assertEqual(len(plan['position_replacements']), 1)
         pool_state = plan['pool_states'][0]
         self.assertEqual(pool_state['pool_state_id'], pool_application_id)
-        self.assertEqual(pool_state['current_reserve_0'], '2')
-        self.assertEqual(pool_state['current_reserve_1'], '5')
-        self.assertEqual(pool_state['current_total_supply'], '3')
+        self.assertEqual(pool_state['current_reserve_0'], '0')
+        self.assertEqual(pool_state['current_reserve_1'], '0')
+        self.assertEqual(pool_state['current_total_supply'], '0')
         self.assertEqual(pool_state['fee_free_basis_transaction_id'], 11)
         self.assertEqual(pool_state['fee_free_basis_time_ms'], 2000)
-        self.assertEqual(pool_state['fee_free_reserve_0'], '2')
-        self.assertEqual(pool_state['fee_free_reserve_1'], '5')
-        self.assertEqual(pool_state['fee_free_total_supply'], '3')
+        self.assertEqual(pool_state['fee_free_reserve_0'], '0')
+        self.assertEqual(pool_state['fee_free_reserve_1'], '0')
+        self.assertEqual(pool_state['fee_free_total_supply'], '0')
         self.assertEqual(pool_state['last_liquidity_event_time_ms'], 2000)
+        self.assertFalse(pool_state['state_payload_json']['virtual_initial_liquidity'])
         self.assertIsNone(pool_state['state_payload_json']['pool_created_metadata'])
         replacement = plan['position_replacements'][0]
         self.assertEqual(replacement['owner'], owner)
@@ -123,12 +124,52 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         self.assertEqual(position_state['status'], 'closed')
         self.assertEqual(position_state['current_liquidity'], '0')
         self.assertEqual(position_state['basis_type'], 'remove_liquidity')
-        self.assertEqual(position_state['basis_amount_0'], '2')
-        self.assertEqual(position_state['basis_amount_1'], '4')
-        self.assertEqual(position_state['state_payload_json']['prior_liquidity_before_basis'], '0')
-        self.assertEqual(position_state['state_payload_json']['current_round_liquidity_event_count'], 1)
-        self.assertEqual(position_state['state_payload_json']['current_round_started_at'], 2000)
-        self.assertEqual(position_state['state_payload_json']['current_round_started_transaction_id'], 11)
+        self.assertEqual(position_state['basis_amount_0'], '4')
+        self.assertEqual(position_state['basis_amount_1'], '9')
+        self.assertEqual(position_state['state_payload_json']['prior_liquidity_before_basis'], '6')
+        self.assertEqual(position_state['state_payload_json']['current_round_liquidity_event_count'], 2)
+        self.assertEqual(position_state['state_payload_json']['current_round_started_at'], 1000)
+        self.assertEqual(position_state['state_payload_json']['current_round_started_transaction_id'], 10)
+
+    def test_build_materialization_plan_marks_pool_virtual_only_from_liquidity_semantics(self):
+        source_repository = self.FakeSnapshotSourceRepository()
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-user'
+        source_repository.pool_transaction_history[pool_application_id] = [
+            {
+                'transaction_id': 10,
+                'transaction_type': 'AddLiquidity',
+                'amount_0_in': '4',
+                'amount_0_out': None,
+                'amount_1_in': '9',
+                'amount_1_out': None,
+                'liquidity': '0',
+                'liquidity_semantics': 'virtual_initial_liquidity',
+                'created_at': 1000,
+                'from_account': owner,
+            },
+        ]
+        builder = PositionMetricsSnapshotBuilder(
+            snapshot_materialization_inputs_repository=source_repository,
+            settled_output_batch_factory=SettledOutputBatchFactory(),
+        )
+
+        plan = builder.build_materialization_plan(
+            self._build_output_batch(
+                [
+                    {
+                        'settled_output_type': 'settled_liquidity_change',
+                        'pool_application_id': pool_application_id,
+                        'pool_chain_id': 'chain-a',
+                        'owner': owner,
+                    }
+                ]
+            )
+        )
+
+        pool_state = plan['pool_states'][0]
+        self.assertTrue(pool_state['state_payload_json']['virtual_initial_liquidity'])
+        self.assertEqual(pool_state['current_total_supply'], '6')
 
     def test_build_materialization_plan_ignores_trade_only_position_rebuilds(self):
         source_repository = self.FakeSnapshotSourceRepository()
@@ -167,6 +208,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_in': '1000',
                 'amount_1_out': None,
                 'liquidity': '0',
+                'liquidity_semantics': 'virtual_initial_liquidity',
                 'created_at': 1000,
                 'from_account': owner,
             },
@@ -297,6 +339,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_in': '9',
                 'amount_1_out': None,
                 'liquidity': '0',
+                'liquidity_semantics': 'virtual_initial_liquidity',
                 'created_at': 1000,
                 'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
             },
@@ -497,6 +540,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_in': '9',
                 'amount_1_out': None,
                 'liquidity': '0',
+                'liquidity_semantics': 'virtual_initial_liquidity',
                 'created_at': 1000,
                 'from_account': owner,
             },
@@ -954,6 +998,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 'amount_1_in': '9',
                 'amount_1_out': None,
                 'liquidity': '0',
+                'liquidity_semantics': 'virtual_initial_liquidity',
                 'created_at': 1000,
                 'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user',
             }

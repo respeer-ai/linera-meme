@@ -22,6 +22,8 @@ class NormalizedEventResult:
     FAMILY_POOL_REMOVE_LIQUIDITY_REQUESTED = 'pool_remove_liquidity_requested'
     FAMILY_POOL_REMOVE_LIQUIDITY_MESSAGE_OBSERVED = 'pool_remove_liquidity_message_observed'
     FAMILY_POOL_REMOVE_LIQUIDITY_REJECTED = 'pool_remove_liquidity_message_rejected'
+    FAMILY_POOL_INITIALIZE_LIQUIDITY_MESSAGE_OBSERVED = 'pool_initialize_liquidity_message_observed'
+    FAMILY_POOL_INITIALIZE_LIQUIDITY_REJECTED = 'pool_initialize_liquidity_message_rejected'
     FAMILY_POOL_FUND_REQUEST_RECORDED = 'pool_fund_request_recorded'
     FAMILY_POOL_FUND_RESULT_RECORDED = 'pool_fund_result_recorded'
     FAMILY_POOL_ADD_LIQUIDITY_TRANSFER_RECEIPT_RECORDED = 'pool_add_liquidity_transfer_receipt_recorded'

@@ -43,6 +43,8 @@ class ClaimBalanceProjectionRepositoryTest(unittest.TestCase):
 
         sql = '\n'.join(statement for statement, _ in connection.cursor_obj.executed)
         self.assertIn('CREATE TABLE IF NOT EXISTS claim_balance_deltas', sql)
+        self.assertIn('claim_balance_delta_id VARCHAR(512) NOT NULL', sql)
+        self.assertIn('MODIFY COLUMN claim_balance_delta_id VARCHAR(512) NOT NULL', sql)
         self.assertIn('CREATE TABLE IF NOT EXISTS claim_balance_diagnostics', sql)
         self.assertIn('derivation_source VARCHAR(64) NOT NULL', sql)
         self.assertIn('derivation_confidence VARCHAR(32) NOT NULL', sql)

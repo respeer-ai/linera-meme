@@ -10,12 +10,13 @@ Run the complete local product E2E for `linera-meme` using the repository bootst
 
 ## Facts
 
-- Environment bootstrap is driven by `scripts/run_local.sh`.
+- For a disposable full local E2E, environment bootstrap is driven by `scripts/run_local.sh`.
 - Product workflow validation is driven by `scripts/product_workflow_e2e.py`.
 - Use the official faucet unless the user explicitly asks for another faucet.
 - `run_local.sh` is a foreground long-running process; run product E2E from another shell/session.
 - `run_local.sh` writes runtime chain/application constants to `webui-v2/src/constant/domain.ts`.
 - Product workflow covers meme/native and meme/meme pool paths. It creates meme tokens, discovers pools, creates the meme/meme pool, executes swap, add liquidity, remove liquidity, claim-producing add-liquidity excess/failure paths, claim settlement, and observability checks.
+- Do not use `docker/compose.sh` for an existing deployed debugging environment; it rebuilds the local compose environment. Use the scoped restart/build scripts for the affected service, or inspect the already-running services.
 
 ## Rules
 
@@ -29,13 +30,13 @@ Run the complete local product E2E for `linera-meme` using the repository bootst
 
 ## Flow
 
-1. Start local environment from the repository root:
+1. For a disposable E2E run, start local environment from the repository root:
 
    ```bash
    ./scripts/run_local.sh -C 0 -z testnet-conway
    ```
 
-2. Wait until the script has created applications, updated `webui-v2/src/constant/domain.ts`, and started services.
+2. Wait until the script has created applications, updated `webui-v2/src/constant/domain.ts`, and started services. For an already-running docker deployment, skip this bootstrap step and use the existing `webui-v2/src/constant/domain.ts` values.
 
 3. In a separate shell/session, extract constants:
 

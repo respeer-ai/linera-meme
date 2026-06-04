@@ -16,6 +16,7 @@ class PoolMetadataProjectionResolver:
                 'pool_id': int(row['pool_id']),
                 'token_0': row.get('token_0'),
                 'token_1': row.get('token_1'),
+                'creator_account': row.get('creator_account'),
             }
 
         for row in state_rows:
@@ -31,6 +32,8 @@ class PoolMetadataProjectionResolver:
                 'pool_id': self._int_or_none(current.get('pool_id')),
                 'token_0': token_0,
                 'token_1': token_1,
+                'creator_account': current.get('creator_account'),
+                'fee_to_account_latest_known': (row.get('state_payload_json') or {}).get('fee_to_account_latest_known'),
             }
 
         return metadata

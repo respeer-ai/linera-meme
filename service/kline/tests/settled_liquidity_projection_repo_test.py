@@ -31,6 +31,8 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
             self.executed.append((sql, params))
 
         def fetchall(self):
+            if hasattr(self, 'row_batches') and self.row_batches:
+                return list(self.row_batches.pop(0))
             return list(self.rows)
 
         def close(self):
@@ -68,35 +70,40 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                 'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'change_type': 'add_liquidity',
-                'liquidity_delta': '10',
+                'liquidity_delta': '10000000000000000000',
                 'event_time_ms': 1000,
             },
             {
                 'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'change_type': 'remove_liquidity',
-                'liquidity_delta': '4',
+                'liquidity_delta': '4000000000000000000',
                 'event_time_ms': 2000,
             },
             {
                 'pool_application': '0x2222222222222222222222222222222222222222222222222222222222222222@chain-b',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'change_type': 'add_liquidity',
-                'liquidity_delta': '5',
+                'liquidity_delta': '5000000000000000000',
                 'event_time_ms': 1100,
             },
             {
                 'pool_application': '0x2222222222222222222222222222222222222222222222222222222222222222@chain-b',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'change_type': 'remove_liquidity',
-                'liquidity_delta': '5',
+                'liquidity_delta': '5000000000000000000',
                 'event_time_ms': 2100,
             },
         ]
         repository = SettledLiquidityProjectionRepository(
             db,
             metadata_resolver=self.FakeMetadataResolver({
-                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'creator_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                },
                 '0x2222222222222222222222222222222222222222222222222222222222222222@chain-b': {'pool_id': 8, 'token_0': 'CCC', 'token_1': 'TLINERA'},
             }),
         )
@@ -172,7 +179,12 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         repository = SettledLiquidityProjectionRepository(
             db,
             metadata_resolver=self.FakeMetadataResolver({
-                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'creator_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                },
             }),
         )
 
@@ -182,6 +194,26 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         )
 
         executed_sql, _params = db.cursor_dict.executed[0]
+        self.assertIn('is_position_liquidity', executed_sql)
+
+    def test_get_positions_does_not_use_pool_state_to_infer_virtual_initial_liquidity(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = []
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+            }),
+        )
+
+        rows = repository.get_positions(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+            status='all',
+        )
+
+        self.assertEqual(rows, [])
+        executed_sql, _params = db.cursor_dict.executed[0]
+        self.assertNotIn('pool_state_v2', executed_sql)
         self.assertIn('is_position_liquidity', executed_sql)
 
     def test_pool_liquidity_history_keeps_virtual_initial_liquidity_for_pool_snapshots(self):
@@ -220,15 +252,61 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
 
     def test_owner_candidate_histories_keep_virtual_initial_liquidity_for_virtual_positions(self):
         db = self.FakeDb()
+        db.cursor_dict.row_batches = [
+            [],
+            [
+                {
+                    'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                    'owner': '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee@pool-chain',
+                    'transaction_id': 10,
+                    'change_type': 'add_liquidity',
+                    'liquidity_delta': '0',
+                    'is_position_liquidity': False,
+                    'liquidity_semantics': 'virtual_initial_liquidity',
+                    'amount_0_delta': '1000000000000000000',
+                    'amount_1_delta': '2000000000000000000',
+                    'event_time_ms': 1000,
+                },
+            ],
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'creator_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                },
+            }),
+        )
+
+        rows = repository.get_owner_candidate_histories(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['pool_id'], 7)
+        self.assertEqual(rows[0]['add_tx_count'], 1)
+        self.assertEqual(rows[0]['protocol_fee_receiver_account'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a')
+        position_sql, _position_params = db.cursor_dict.executed[0]
+        virtual_sql, virtual_params = db.cursor_dict.executed[1]
+        self.assertIn('is_position_liquidity', position_sql.split('WHERE')[-1])
+        self.assertNotIn('is_position_liquidity', virtual_sql.split('WHERE')[-1])
+        self.assertEqual(virtual_params, ('virtual_initial_liquidity',))
+
+
+    def test_owner_candidate_histories_do_not_mark_regular_add_liquidity_as_virtual(self):
+        db = self.FakeDb()
         db.cursor_dict.rows = [
             {
                 'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'transaction_id': 10,
                 'change_type': 'add_liquidity',
-                'liquidity_delta': '0',
-                'is_position_liquidity': False,
-                'liquidity_semantics': 'virtual_initial_liquidity',
+                'liquidity_delta': '5000000000000000000',
+                'is_position_liquidity': True,
+                'liquidity_semantics': 'position_liquidity',
                 'amount_0_delta': '1000000000000000000',
                 'amount_1_delta': '2000000000000000000',
                 'event_time_ms': 1000,
@@ -246,10 +324,9 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         )
 
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]['pool_id'], 7)
-        self.assertEqual(rows[0]['add_tx_count'], 1)
-        executed_sql, _params = db.cursor_dict.executed[0]
-        self.assertNotIn('is_position_liquidity', executed_sql.split('WHERE')[-1])
+        self.assertIsNone(rows[0]['virtual_initial_amount0'])
+        self.assertIsNone(rows[0]['virtual_initial_amount1'])
+        self.assertIsNone(rows[0]['virtual_initial_liquidity'])
 
     def test_pool_transaction_history_projection_combines_trade_and_liquidity_history(self):
         class FakeTradeProjectionRepository:
@@ -360,6 +437,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                     'amount_1_in': '22',
                     'amount_1_out': None,
                     'liquidity': '5',
+                    'liquidity_semantics': None,
                     'created_at': 1234,
                     'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 },
@@ -371,6 +449,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                     'amount_1_in': None,
                     'amount_1_out': '4',
                     'liquidity': '2',
+                    'liquidity_semantics': None,
                     'created_at': 2234,
                     'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 },
@@ -390,7 +469,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                 'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'change_type': 'add_liquidity',
-                'liquidity_delta': '10',
+                'liquidity_delta': '10000000000000000000',
                 'amount_0_delta': '1000000000000000000',
                 'amount_1_delta': '2000000000000000000',
                 'event_time_ms': 1000,
@@ -425,7 +504,7 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
                 'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
                 'change_type': 'add_liquidity',
-                'liquidity_delta': '10',
+                'liquidity_delta': '10000000000000000000',
                 'event_time_ms': 1000,
             },
         ]

@@ -101,7 +101,7 @@ class SettledMarketDeriverTest(unittest.TestCase):
         self.assertEqual(change['amount_1_delta'], '55')
         self.assertEqual(change['event_time_ms'], 555)
 
-    def test_derives_zero_liquidity_add_as_virtual_initial_liquidity_not_position_liquidity(self):
+    def test_derives_zero_liquidity_add_as_position_liquidity_without_initialize_context(self):
         deriver = SettledMarketDeriver()
 
         derived = deriver.derive_item(
@@ -135,8 +135,44 @@ class SettledMarketDeriverTest(unittest.TestCase):
         self.assertEqual(change['settled_output_type'], 'settled_liquidity_change')
         self.assertEqual(change['change_type'], 'add_liquidity')
         self.assertEqual(change['liquidity_delta'], '0')
+        self.assertTrue(change['is_position_liquidity'])
+        self.assertEqual(change['liquidity_semantics'], 'position_liquidity')
+
+
+    def test_derives_explicit_virtual_initial_liquidity_semantics_from_initialize_context(self):
+        deriver = SettledMarketDeriver()
+
+        derived = deriver.derive_item(
+            {
+                'normalized_event_id': 'event-2-virtual-context',
+                'raw_fact_id': '12',
+                'application_id': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                'event_family': 'pool_new_transaction_recorded',
+                'normalization_status': 'observed',
+                'target_chain_id': 'pool-chain',
+                'target_block_hash': 'block-2',
+                'transaction_index': 8,
+                'event_payload_json': {
+                    'decoded_payload_json': {
+                        'transaction': {
+                            'transaction_id': 20,
+                            'transaction_type': 'AddLiquidity',
+                            'from': {'chain_id': 'user-chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'},
+                            'amount_0_in': '1000',
+                            'amount_1_in': '55',
+                            'liquidity': '888',
+                            'created_at_micros': 555000,
+                        }
+                    }
+                },
+            },
+            liquidity_semantics='virtual_initial_liquidity',
+        )
+
+        change = derived['settled_outputs'][0]
         self.assertFalse(change['is_position_liquidity'])
         self.assertEqual(change['liquidity_semantics'], 'virtual_initial_liquidity')
+        self.assertEqual(change['liquidity_delta'], '888')
 
     def test_blocks_liquidity_change_when_owner_identity_is_invalid(self):
         deriver = SettledMarketDeriver()

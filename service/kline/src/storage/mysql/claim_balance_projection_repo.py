@@ -17,7 +17,7 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
             cursor.execute(
                 f'''
                 CREATE TABLE IF NOT EXISTS {self.claim_balance_deltas_table} (
-                    claim_balance_delta_id VARCHAR(255) NOT NULL,
+                    claim_balance_delta_id VARCHAR(512) NOT NULL,
                     normalized_event_id VARCHAR(255) NOT NULL,
                     pool_application_id VARCHAR(256) NOT NULL,
                     execution_chain_id VARCHAR(64) NOT NULL,
@@ -70,6 +70,13 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
                 )
                 '''
             )
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.claim_balance_deltas_table}
+                MODIFY COLUMN claim_balance_delta_id VARCHAR(512) NOT NULL
+                '''
+            )
+
             self.connection.commit()
         finally:
             cursor.close()

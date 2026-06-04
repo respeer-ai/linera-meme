@@ -15,20 +15,24 @@ from market.settled_market_materializer import SettledMarketMaterializer  # noqa
 
 class SettledMarketMaterializerTest(unittest.TestCase):
     class FakeMarketDeriver:
-        def derive_item(self, event):
-            return self.derive_batch([event])[0]
+        def __init__(self):
+            self.calls = []
+
+        def derive_item(self, event, *, liquidity_semantics=None):
+            self.calls.append((event, liquidity_semantics))
+            output = {
+                'settled_output_type': 'settled_liquidity_change',
+                'settled_liquidity_change_id': f"liq-{event['normalized_event_id']}",
+            }
+            if liquidity_semantics is not None:
+                output['liquidity_semantics'] = liquidity_semantics
+            return {
+                'normalized_event_id': event['normalized_event_id'],
+                'settled_outputs': [output],
+            }
 
         def derive_batch(self, events):
-            return [
-                {
-                    'normalized_event_id': 'event-1',
-                    'settled_outputs': [
-                        {'settled_output_type': 'settled_trade', 'settled_trade_id': 'trade-1'},
-                        {'settled_output_type': 'settled_liquidity_change', 'settled_liquidity_change_id': 'liq-1'},
-                    ],
-                }
-                for _event in events
-            ]
+            return [self.derive_item(event) for event in events]
 
     class FakeClaimDeriver:
         def derive_item(self, event):
@@ -102,8 +106,8 @@ class SettledMarketMaterializerTest(unittest.TestCase):
 
         materializer.materialize_batch([{'normalized_event_id': 'event-1'}])
 
-        self.assertEqual(trade_repository.trades, [{'settled_output_type': 'settled_trade', 'settled_trade_id': 'trade-1'}])
-        self.assertEqual(liquidity_repository.changes, [{'settled_output_type': 'settled_liquidity_change', 'settled_liquidity_change_id': 'liq-1'}])
+        self.assertEqual(trade_repository.trades, [])
+        self.assertEqual(liquidity_repository.changes, [{'settled_output_type': 'settled_liquidity_change', 'settled_liquidity_change_id': 'liq-event-1'}])
         self.assertEqual(
             claim_repository.deltas,
             [
@@ -112,6 +116,93 @@ class SettledMarketMaterializerTest(unittest.TestCase):
             ],
         )
         self.assertEqual(claim_repository.diagnostics, [])
+
+
+    def test_materialize_batch_marks_initialize_liquidity_new_transaction_as_virtual(self):
+        market_deriver = self.FakeMarketDeriver()
+        trade_repository = self.FakeTradeRepository()
+        liquidity_repository = self.FakeLiquidityRepository()
+        materializer = SettledMarketMaterializer(
+            settled_market_deriver=market_deriver,
+            claim_balance_deriver=self.FakeClaimDeriver(),
+            claim_balance_correlation_deriver=self.FakeCorrelationDeriver(),
+            settled_trade_repository=trade_repository,
+            settled_liquidity_change_repository=liquidity_repository,
+        )
+        initialize = {
+            'normalized_event_id': 'event-initialize',
+            'application_id': 'pool-app',
+            'event_family': 'pool_initialize_liquidity_message_observed',
+            'normalization_status': 'observed',
+            'target_block_hash': 'initialize-block',
+        }
+        new_transaction = {
+            'normalized_event_id': 'event-new-transaction',
+            'application_id': 'pool-app',
+            'event_family': 'pool_new_transaction_recorded',
+            'normalization_status': 'observed',
+            'source_cert_hash': 'initialize-block',
+            'event_payload_json': {
+                'decoded_payload_json': {
+                    'transaction': {'transaction_type': 'AddLiquidity'},
+                },
+            },
+        }
+
+        materializer.materialize_batch([initialize, new_transaction])
+
+        calls = {
+            event['normalized_event_id']: semantics
+            for event, semantics in market_deriver.calls
+        }
+        self.assertIsNone(calls['event-initialize'])
+        self.assertEqual(calls['event-new-transaction'], 'virtual_initial_liquidity')
+        self.assertIn(
+            {
+                'settled_output_type': 'settled_liquidity_change',
+                'settled_liquidity_change_id': 'liq-event-new-transaction',
+                'liquidity_semantics': 'virtual_initial_liquidity',
+            },
+            liquidity_repository.changes,
+        )
+
+
+    def test_materialize_batch_does_not_mark_non_add_liquidity_transaction_as_virtual(self):
+        market_deriver = self.FakeMarketDeriver()
+        materializer = SettledMarketMaterializer(
+            settled_market_deriver=market_deriver,
+            claim_balance_deriver=self.FakeClaimDeriver(),
+            claim_balance_correlation_deriver=self.FakeCorrelationDeriver(),
+            settled_trade_repository=self.FakeTradeRepository(),
+            settled_liquidity_change_repository=self.FakeLiquidityRepository(),
+        )
+        initialize = {
+            'normalized_event_id': 'event-initialize',
+            'application_id': 'pool-app',
+            'event_family': 'pool_initialize_liquidity_message_observed',
+            'normalization_status': 'observed',
+            'target_block_hash': 'initialize-block',
+        }
+        swap_transaction = {
+            'normalized_event_id': 'event-swap-transaction',
+            'application_id': 'pool-app',
+            'event_family': 'pool_new_transaction_recorded',
+            'normalization_status': 'observed',
+            'source_cert_hash': 'initialize-block',
+            'event_payload_json': {
+                'decoded_payload_json': {
+                    'transaction': {'transaction_type': 'BuyToken0'},
+                },
+            },
+        }
+
+        materializer.materialize_batch([initialize, swap_transaction])
+
+        calls = {
+            event['normalized_event_id']: semantics
+            for event, semantics in market_deriver.calls
+        }
+        self.assertIsNone(calls['event-swap-transaction'])
 
 
 if __name__ == '__main__':

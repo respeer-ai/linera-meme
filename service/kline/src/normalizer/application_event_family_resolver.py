@@ -91,6 +91,12 @@ class ApplicationEventFamilyResolver:
                 )
             if payload_type == 'new_transaction':
                 return NormalizedEventResult.FAMILY_POOL_NEW_TRANSACTION_RECORDED
+            if payload_type == 'initialize_liquidity':
+                return (
+                    NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_REJECTED
+                    if rejected
+                    else NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_MESSAGE_OBSERVED
+                )
             if payload_type == 'swap':
                 return (
                     NormalizedEventResult.FAMILY_POOL_SWAP_REJECTED

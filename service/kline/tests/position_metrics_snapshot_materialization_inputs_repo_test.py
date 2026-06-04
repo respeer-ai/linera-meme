@@ -48,6 +48,24 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
             }],
         )
 
+
+    def test_fresh_cursor_returns_dictionary_cursor(self):
+        class FakeConnection:
+            def __init__(self):
+                self.requests = []
+
+            def cursor(self, dictionary=False):
+                self.requests.append(dictionary)
+                return {'dictionary': dictionary}
+
+        connection = FakeConnection()
+        repository = PositionMetricsSnapshotMaterializationInputsRepository(connection=connection)
+
+        cursor = repository.fresh_cursor(dictionary=True)
+
+        self.assertEqual(cursor, {'dictionary': True})
+        self.assertEqual(connection.requests, [True, True])
+
     def test_build_fee_to_history_row_accepts_public_account_string(self):
         repository = PositionMetricsSnapshotMaterializationInputsRepository(connection=None)
 

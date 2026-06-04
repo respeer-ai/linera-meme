@@ -1,4 +1,5 @@
 from decimal import Decimal
+import warnings
 
 from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
 from storage.mysql.pool_metadata_projection_resolver import PoolMetadataProjectionResolver
@@ -55,11 +56,12 @@ class SettledLiquidityProjectionRepository:
         *,
         owner: str,
     ) -> list[dict] | None:
-        rows = self._load_liquidity_rows(owner=owner)
-        if rows is None:
+        position_rows = self._load_liquidity_rows(owner=owner, position_liquidity_only=True)
+        virtual_rows = self._load_virtual_initial_liquidity_rows(owner=owner)
+        if position_rows is None or virtual_rows is None:
             return None
         grouped: dict[tuple[str, int], dict] = {}
-        for row in rows:
+        for row in position_rows + virtual_rows:
             key = (str(row['pool_application']), int(row['pool_id']))
             current = grouped.get(key)
             if current is None:
@@ -72,6 +74,10 @@ class SettledLiquidityProjectionRepository:
                     'opened_at': None,
                     'updated_at': None,
                     'add_tx_count': 0,
+                    'virtual_initial_amount0': None,
+                    'virtual_initial_amount1': None,
+                    'virtual_initial_liquidity': None,
+                    'protocol_fee_receiver_account': row.get('protocol_fee_receiver_account'),
                 }
                 grouped[key] = current
             event_time_ms = int(row['event_time_ms']) if row['event_time_ms'] is not None else None
@@ -79,9 +85,33 @@ class SettledLiquidityProjectionRepository:
                 current['add_tx_count'] += 1
                 if current['opened_at'] is None or (event_time_ms is not None and event_time_ms < current['opened_at']):
                     current['opened_at'] = event_time_ms
+                if row.get('liquidity_semantics') == 'virtual_initial_liquidity':
+                    current['virtual_initial_amount0'] = self._display_decimal(Decimal(str(row['amount_0_delta'])))
+                    current['virtual_initial_amount1'] = self._display_decimal(Decimal(str(row['amount_1_delta'])))
+                    current['virtual_initial_liquidity'] = self._display_decimal(Decimal(str(row['liquidity_delta'])))
+                    current['protocol_fee_receiver_account'] = row.get('protocol_fee_receiver_account')
             if event_time_ms is not None and (current['updated_at'] is None or event_time_ms > current['updated_at']):
                 current['updated_at'] = event_time_ms
         return list(grouped.values())
+
+    def _load_virtual_initial_liquidity_rows(self, *, owner: str) -> list[dict] | None:
+        rows = self._load_liquidity_rows(
+            owner=None,
+            liquidity_semantics='virtual_initial_liquidity',
+        )
+        if rows is None:
+            return None
+        matched = []
+        for row in rows:
+            protocol_fee_receiver_account = self._protocol_fee_receiver_account(row)
+            creator_account = row.get('creator_account')
+            if protocol_fee_receiver_account != owner and creator_account != owner:
+                continue
+            enriched = dict(row)
+            enriched['owner'] = self.transaction_adapter.settled_owner_from_public_owner(owner)
+            enriched['protocol_fee_receiver_account'] = protocol_fee_receiver_account or creator_account
+            matched.append(enriched)
+        return matched
 
     def get_pool_liquidity_history(
         self,
@@ -105,6 +135,7 @@ class SettledLiquidityProjectionRepository:
         pool_application: str | None = None,
         pool_id: int | None = None,
         position_liquidity_only: bool = False,
+        liquidity_semantics: str | None = None,
     ) -> list[dict] | None:
         if not hasattr(self.db, 'ensure_fresh_read_connection'):
             return None
@@ -118,6 +149,9 @@ class SettledLiquidityProjectionRepository:
             params.append(self.transaction_adapter.settled_owner_from_public_owner(owner))
         if position_liquidity_only:
             where_clauses.append(self._position_liquidity_condition('slc'))
+        if liquidity_semantics is not None:
+            where_clauses.append('slc.liquidity_semantics = %s')
+            params.append(liquidity_semantics)
         if pool_application is not None:
             where_clauses.append(self._pool_application_condition('slc'))
             params.append(pool_application)
@@ -155,7 +189,15 @@ class SettledLiquidityProjectionRepository:
             )
             rows = list(cursor.fetchall() or [])
             return self._attach_pool_metadata(rows)
-        except Exception:
+        except Exception as exc:
+            error_message = str(exc)
+            if len(error_message) > 500:
+                error_message = error_message[:497] + '...'
+            warnings.warn(
+                f'SettledLiquidityProjectionRepository failed to load liquidity rows: {error_message}',
+                RuntimeWarning,
+                stacklevel=2,
+            )
             return None
         finally:
             cursor.close()
@@ -186,7 +228,7 @@ class SettledLiquidityProjectionRepository:
                     'updated_at': None,
                 }
                 grouped[key] = current
-            liquidity_delta = Decimal(str(row['liquidity_delta']))
+            liquidity_delta = self._display_decimal(Decimal(str(row['liquidity_delta'])))
             event_time_ms = int(row['event_time_ms']) if row['event_time_ms'] is not None else None
             if row['change_type'] == 'add_liquidity':
                 current['added_liquidity'] += liquidity_delta
@@ -253,8 +295,16 @@ class SettledLiquidityProjectionRepository:
             enriched_row['pool_id'] = int(metadata['pool_id'])
             enriched_row['token_0'] = metadata.get('token_0')
             enriched_row['token_1'] = metadata.get('token_1')
+            enriched_row['creator_account'] = metadata.get('creator_account')
+            enriched_row['fee_to_account_latest_known'] = metadata.get('fee_to_account_latest_known')
             enriched.append(enriched_row)
         return enriched
+
+    def _protocol_fee_receiver_account(self, row: dict) -> str | None:
+        value = row.get('fee_to_account_latest_known') or row.get('creator_account')
+        if value in (None, ''):
+            return None
+        return str(value)
 
     def _pool_application_expression(self, alias: str) -> str:
         return f"{alias}.pool_application_id"
@@ -263,11 +313,7 @@ class SettledLiquidityProjectionRepository:
         return f"{self._pool_application_expression(alias)} = %s"
 
     def _position_liquidity_condition(self, alias: str) -> str:
-        return (
-            f"COALESCE({alias}.is_position_liquidity, "
-            f"NOT ({alias}.change_type = 'add_liquidity' "
-            f"AND {alias}.liquidity_delta IN ('0', '0.0', '0.000000000000000000'))) = TRUE"
-        )
+        return f"{alias}.is_position_liquidity = TRUE"
 
     def _serialize_decimal(self, value: Decimal) -> str:
         normalized = format(value.normalize(), 'f')
@@ -276,3 +322,6 @@ class SettledLiquidityProjectionRepository:
         if normalized in {'', '-0'}:
             return '0'
         return normalized
+
+    def _display_decimal(self, value: Decimal) -> Decimal:
+        return value / SettledProductTransactionAdapter.DISPLAY_AMOUNT_SCALE

@@ -54,6 +54,10 @@ class PositionMetricsSnapshotMaterializationInputsRepository:
                 pass
         self.cursor_dict = self.connection.cursor(dictionary=True)
 
+    def fresh_cursor(self, *, dictionary: bool = False):
+        self.ensure_fresh_read_connection()
+        return self.connection.cursor(dictionary=dictionary)
+
     def list_pool_transaction_history(
         self,
         *,
