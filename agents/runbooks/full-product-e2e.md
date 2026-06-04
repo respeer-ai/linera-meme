@@ -25,6 +25,7 @@ Run the complete local product E2E for `linera-meme` using the repository bootst
 - Do not report E2E complete unless `scripts/product_workflow_e2e.py` prints `[product-e2e] completed`.
 - If strict claim is disabled, report that claim capability was checked but claimable production was not required.
 - If a command fails because of sandbox or network restrictions, rerun with approval instead of changing the workflow.
+- Always clean up the local E2E environment before reporting completion: stop the foreground `run_local.sh` session or kill its child services, and verify product E2E ports such as `24080`, `25080`, `40082`, and `40092` are released unless the user explicitly asks to keep them running.
 
 ## Flow
 
@@ -61,6 +62,8 @@ Run the complete local product E2E for `linera-meme` using the repository bootst
 
 5. Add `--strict-claim` only when the current implementation and selected path are expected to produce `claimable > 0`.
 
+6. After the product workflow finishes, stop the local E2E environment and verify the run-local service ports are no longer occupied. At minimum, check that query service `24080`, kline `25080`, maker API `25081`, user wallet `40092`, maker wallet `40082`, and app wallet ports `20080` through `23082` are released unless the user explicitly requested a persistent environment.
+
 ## Readiness
 
 - User wallet: `http://localhost:40092`
@@ -92,4 +95,5 @@ Report complete only when:
 - `scripts/product_workflow_e2e.py` prints `[product-e2e] completed`.
 - The run includes meme/native and meme/meme pool paths with create meme, create meme/meme pool, swap, add liquidity, remove liquidity, claim-producing paths, claim settlement, and observability checks.
 - Any disabled strict-claim behavior is stated.
+- The local run-local E2E services have been stopped or explicitly kept alive at the user's request; default completion requires no lingering `run_local.sh` child services on product ports.
 
