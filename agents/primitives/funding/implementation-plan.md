@@ -314,7 +314,7 @@ Scope:
 
 - Business projections only.
 - Pool catalog, pool visibility, transactions, candles, positions, reserves, derivable claim views, and claim settlement diagnostics.
-- No operational cluster, chain-health, gas, or funder visibility. That belongs to `FUND-003`.
+- No operational cluster, chain-health, gas, or funder visibility. That belongs to the operations backlog.
 - No funding protocol redesign and no persisted intent.
 - No ABI, operation, message, event, or contract-state additions for observability. Projection facts are off-chain facts derived from existing blocks.
 
@@ -384,7 +384,7 @@ Target rules:
 - Preserve `NewTransaction` as the market-data carrier; do not mix failed or pending funding events into candles.
 - Do not add ABI, operation, message, event, or contract-state changes for observability. Projection must parse existing block facts only.
 - Keep virtual liquidity distinct from deposited reserve, TVL, payable balance, claimable balance, and claiming balance.
-- Keep `FUND-003` operational stalled-message visibility out of this iteration.
+- Keep operational stalled-message visibility out of this iteration; it belongs to the operations backlog.
 
 Atomic implementation steps:
 
@@ -414,7 +414,7 @@ Validation:
 - Failed or pending funding paths do not create settled market outputs.
 - Replaying the same normalized events is idempotent.
 - Product claim-balance reads do not require live pool queries.
-- Operational gas/funder stalled-message visibility remains deferred to `FUND-003`.
+- Operational gas/funder stalled-message visibility remains deferred to the operations backlog.
 
 ### FUND-004 Final regression suite
 
@@ -425,7 +425,7 @@ Scope:
 - Contract-level regression tests for pool funding convergence.
 - Integration-level regression tests for complete product paths where existing fixtures can execute the real message flow.
 - Off-chain projection smoke coverage only when it validates existing block-derived facts from FUND-014.
-- No operations-system visibility work; gas, funder, stalled-chain, and cluster-health views remain FUND-003.
+- No operations-system visibility work; gas, funder, stalled-chain, and cluster-health views remain in the operations backlog.
 
 Atomic implementation steps:
 
@@ -448,7 +448,7 @@ A1 regression matrix:
 - Initialization split: already covered by instantiate/initialize tests and integration create-pool tests; A4 should add virtual-liquidity non-claimable regression.
 - Real message path integration: partially covered by meme/native, meme/meme, create-pool, swap, add-liquidity, remove-liquidity, and claim tests; A5 should add a single explicit full-flow regression that performs swap output claim, over-add-liquidity excess claim, remove-liquidity owed claim, and verifies final balances.
 - Projection consistency: partially covered by FUND-014 service tests; A6 should add smoke tests only if a contract regression produces a new projection fixture need.
-- Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to FUND-003 or environment runbook, not FUND-004.
+- Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to the operations backlog or environment runbook, not FUND-004.
 
 Validation:
 

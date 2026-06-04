@@ -15,7 +15,7 @@ Run the complete local product E2E for `linera-meme` using the repository bootst
 - Use the official faucet unless the user explicitly asks for another faucet.
 - `run_local.sh` is a foreground long-running process; run product E2E from another shell/session.
 - `run_local.sh` writes runtime chain/application constants to `webui-v2/src/constant/domain.ts`.
-- Product workflow covers create meme token, pool discovery, swap, add liquidity, remove liquidity, claim capability, and observability checks.
+- Product workflow covers meme/native and meme/meme pool paths. It creates meme tokens, discovers pools, creates the meme/meme pool, executes swap, add liquidity, remove liquidity, claim-producing add-liquidity excess/failure paths, claim settlement, and observability checks.
 
 ## Rules
 
@@ -90,6 +90,6 @@ Report complete only when:
 
 - `scripts/run_local.sh` boots successfully and remains alive.
 - `scripts/product_workflow_e2e.py` prints `[product-e2e] completed`.
-- The run includes create meme, swap, add liquidity, remove liquidity, claim capability, and observability checks.
+- The run includes meme/native and meme/meme pool paths with create meme, create meme/meme pool, swap, add liquidity, remove liquidity, claim-producing paths, claim settlement, and observability checks.
 - Any disabled strict-claim behavior is stated.
 

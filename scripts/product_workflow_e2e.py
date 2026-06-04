@@ -56,7 +56,7 @@ class ProductWorkflowE2E:
 
         self.user_chain_id = ""
         self.user_owner = ""
-        self.meme_chain_id = ""
+        self.meme_chains: dict[str, str] = {}
         self.pool_chain_id = ""
 
     def run(self) -> None:
@@ -66,38 +66,48 @@ class ProductWorkflowE2E:
         print(f"[product-e2e] user owner: {self.user_owner}")
 
         before_tokens = self.proxy_meme_tokens()
-        token = self.create_meme_and_wait(before_tokens)
-        self.created_token = token
-        print(f"[product-e2e] meme token: {token}")
+        token_0 = self.create_meme_and_wait(before_tokens, suffix="A")
+        print(f"[product-e2e] meme/native token: {token_0}")
 
-        pool = self.wait_for_pool(token_0=token, token_1=NATIVE_TOKEN)
-        print(f"[product-e2e] pool: {pool.pool_id} {pool.application_id}@{pool.pool_application_chain}")
+        native_pool = self.wait_for_pool(token_0=token_0, token_1=NATIVE_TOKEN)
+        self.run_pool_funds_workflow(native_pool, "meme/native")
+
+        before_tokens = self.proxy_meme_tokens()
+        token_1 = self.create_meme_and_wait(before_tokens, suffix="B")
+        print(f"[product-e2e] meme/meme token: {token_1}")
+
+        self.create_meme_meme_pool(token_0, token_1)
+        meme_meme_pool = self.wait_for_pool(token_0=token_0, token_1=token_1)
+        self.run_pool_funds_workflow(meme_meme_pool, "meme/meme")
+
+        self.check_observability(meme_meme_pool)
+        print("[product-e2e] completed")
+
+    def run_pool_funds_workflow(self, pool: Pool, label: str) -> None:
+        print(f"[product-e2e] {label} pool: {pool.pool_id} {pool.application_id}")
 
         pool = self.execute_swap_and_wait(pool)
-        print("[product-e2e] swap completed")
+        print(f"[product-e2e] {label} swap completed")
 
         liquidity = self.execute_add_liquidity_and_wait(pool)
-        print(f"[product-e2e] add liquidity completed: {liquidity}")
+        print(f"[product-e2e] {label} add liquidity completed: {liquidity}")
 
         self.execute_remove_liquidity_and_wait(pool, liquidity)
-        print("[product-e2e] remove liquidity completed")
+        print(f"[product-e2e] {label} remove liquidity completed")
 
         self.execute_oversupplied_add_liquidity_claim_path(pool)
         self.execute_failed_add_liquidity_claim_path(pool)
-
         self.check_claim_capability(pool)
-        self.check_observability(pool)
-        print("[product-e2e] completed")
 
-    def create_meme_and_wait(self, before_tokens: set[str]) -> str:
+    def create_meme_and_wait(self, before_tokens: set[str], *, suffix: str) -> str:
         logo_hash = self.publish_logo_blob()
-        ticker = f"E2E{self.run_id[-8:]}".upper()
+        ticker = f"E2E{self.run_id[-7:]}{suffix}".upper()
         variables = {
             "memeInstantiationArgument": {
                 "meme": {
                     "initialSupply": "21000000",
                     "totalSupply": "21000000",
-                    "name": f"Product E2E {self.run_id}",
+                    "name": f"Product E2E {self.run_id} {suffix}",
                     "ticker": ticker,
                     "decimals": 6,
                     "metadata": {
@@ -145,11 +155,38 @@ class ProductWorkflowE2E:
             new_tokens = sorted(set(applications) - before_tokens)
             if new_tokens:
                 token = new_tokens[-1]
-                self.meme_chain_id = applications[token]
+                self.meme_chains[token] = applications[token]
                 return token
             return None
 
         return self.wait_for("meme token creation", created_token)
+
+    def create_meme_meme_pool(self, token_0: str, token_1: str) -> None:
+        self.application_graphql(
+            self.user_wallet_url,
+            self.user_chain_id,
+            self.swap_application_id,
+            """
+            mutation CreatePool(
+              $token0: ApplicationId!, $token1: ApplicationId,
+              $amount0: Amount!, $amount1: Amount!,
+              $to: Account
+            ) {
+              createPool(
+                token0: $token0, token1: $token1,
+                amount0: $amount0, amount1: $amount1,
+                to: $to
+              )
+            }
+            """,
+            {
+                "token0": token_0,
+                "token1": token_1,
+                "amount0": "1",
+                "amount1": "1",
+                "to": self.account(self.user_chain_id, self.user_owner),
+            },
+        )
 
     def execute_swap_and_wait(self, pool: Pool) -> Pool:
         before = self.pool_state(pool)
@@ -231,31 +268,24 @@ class ProductWorkflowE2E:
         if liquidity <= 0:
             raise E2EError("remove liquidity cannot run because user liquidity is zero")
         remove_amount = Decimal("0.1") if liquidity >= Decimal("0.1") else liquidity
-        owner = self.account(self.user_chain_id, self.user_owner)
-        before_token_0 = self.meme_balance(pool.token_0, owner)
-        before_token_1 = self.meme_balance(pool.token_1, owner) if pool.token_1 else None
-        before_native = self.native_owner_balance(self.user_chain_id, self.user_owner) if pool.token_1 is None else None
+        before_claims = self.claim_balances_by_token(pool)
 
         self.execute_remove_liquidity(pool, str(remove_amount))
 
-        def settled_remote_liquidity() -> Decimal | None:
+        def settled_remove_liquidity() -> dict[str | None, tuple[Decimal, Decimal]] | None:
             current_liquidity = self.owner_liquidity_amount(pool)
-            current_token_0 = self.meme_balance(pool.token_0, owner)
-            token_0_received = current_token_0 > before_token_0
-
-            token_1_received = True
-            if pool.token_1:
-                token_1_received = self.meme_balance(pool.token_1, owner) > before_token_1
-
-            native_received = True
-            if before_native is not None:
-                native_received = self.native_owner_balance(self.user_chain_id, self.user_owner) > before_native
-
-            if current_liquidity < liquidity and token_0_received and token_1_received and native_received:
-                return current_liquidity
+            current_claims = self.claim_balances_by_token(pool)
+            if current_liquidity < liquidity and self.claimable_increased(
+                before_claims,
+                current_claims,
+                require_all=True,
+            ):
+                return current_claims
             return None
 
-        return self.wait_for("remote liquidity payout after remove liquidity", settled_remote_liquidity)
+        claims = self.wait_for("remove liquidity claimable output", settled_remove_liquidity)
+        self.claim_balances_and_wait(pool, claims, "remove liquidity")
+        return self.owner_liquidity_amount(pool)
 
     def execute_remove_liquidity(self, pool: Pool, remove_amount: str) -> None:
         self.application_graphql(
@@ -484,12 +514,14 @@ class ProductWorkflowE2E:
         return Decimal(str(owner_balances.get(owner, "0")))
 
     def meme_chain_for_token(self, token: str) -> str:
-        if token == getattr(self, "created_token", "") and self.meme_chain_id:
-            return self.meme_chain_id
+        chain_id = self.meme_chains.get(token)
+        if chain_id:
+            return chain_id
         applications = self.proxy_meme_applications()
         chain_id = applications.get(token)
         if not chain_id:
             raise E2EError(f"cannot resolve meme chain for token {token}")
+        self.meme_chains[token] = chain_id
         return chain_id
 
     def pool_liquidity(self, pool: Pool) -> dict:
@@ -590,9 +622,9 @@ class ProductWorkflowE2E:
             (self.user_wallet_url, self.user_chain_id),
             (self.proxy_wallet_url, self.proxy_chain_id),
             (self.swap_wallet_url, self.swap_chain_id),
-            (self.proxy_wallet_url, self.meme_chain_id),
             (self.swap_wallet_url, self.pool_chain_id),
         ]
+        routes.extend((self.proxy_wallet_url, chain_id) for chain_id in self.meme_chains.values())
         for wallet_url, chain_id in dict.fromkeys(routes):
             if chain_id:
                 self.process_inbox(wallet_url, chain_id)

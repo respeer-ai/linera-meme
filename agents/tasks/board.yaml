@@ -6,6 +6,7 @@ status_legend:
   Doing: in progress
   Done: completed
   Blocked: waiting on dependency or confirmation
+  Cancelled: cancelled or moved out of the active task sequence
 groups:
   - name: Positions
     tasks:
@@ -957,6 +958,23 @@ groups:
         title: Review current funds closure and refund consistency risks
         notes: |
           Confirmed three high-risk gaps: AddLiquidity partial two-leg success followed by failure without refund, pool payout/refund swallowing MemeResponse::Fail, and initial pool creation persisting success while swallowing downstream failure.
+      - id: REV-002
+        status: Todo
+        priority: P0
+        depends_on: [FUND-004]
+        title: Review funding reliability under controlled and uncontrolled reject paths
+        notes: |
+          Backlog review task. Do not record prior conversational conclusions as task facts.
+          Review requirements:
+          - Treat internal message order and authenticated application behavior as deterministic when the deployed contract code is correct.
+          - Do not assume attackers can upgrade contracts or forge internal messages.
+          - Separately classify controlled rejects from uncontrolled rejects.
+          - For controlled rejects, verify the preceding code path cannot construct rejecting inputs in normal execution, and verify any reachable controlled reject leaves funds reliable.
+          - For uncontrolled rejects, identify the exact point where funds are located before the reject, whether the user has received funds, whether the funds are claimable or claiming, whether funds can be used again, and whether double settlement is possible.
+          - Review every funding path: claim success, claim fail, AddLiquidity, Swap, RemoveLiquidity, meme initialization, user CreatePool first funding, duplicate user CreatePool refund, and protocol-fee/remove-liquidity claim credit.
+          - For each path, state whether funds are safe, available, stuck but observable, or incorrectly mutable.
+          - Review public-operation and user-authored-contract call surfaces for ways to construct invalid funding facts or bypass the intended predecessor path.
+          - Do not propose retry-based recovery unless the task explicitly changes the no-retry protocol constraint.
   - name: Funds Consistency
     tasks:
       - id: FUND-001
@@ -1005,7 +1023,7 @@ groups:
           Closure:
           - Business funds-consistency protocol iterations are complete: FUND-005 through FUND-014 and final regression FUND-004 are Done.
           - Final validation passed with the full memory-limited Rust suite: `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
-          - FUND-003 remains a standalone operations-system task for cluster, chain, gas, funder, and stalled-workflow visibility; it is not part of business funds protocol closure.
+          - An operations-system backlog task remains for cluster, chain, gas, funder, and stalled-workflow visibility; it is not part of business funds protocol closure.
       - id: FUND-005
         status: Done
         priority: P0
@@ -1333,7 +1351,7 @@ groups:
 
           Scope:
           - Business projections only: pool catalog, pool visibility, transactions, candles, positions, reserves, claimable balances, claiming balances, and claim settlement diagnostics.
-          - No operational cluster, chain-health, gas, or funder visibility; that belongs to FUND-003.
+          - No operational cluster, chain-health, gas, or funder visibility; that belongs to the operations backlog.
           - No funding protocol redesign and no persisted intent.
           - No ABI, operation, message, event, or contract-state additions for observability. Projection facts are off-chain facts derived from existing blocks.
 
@@ -1357,7 +1375,7 @@ groups:
           - Failed or pending funding paths do not create settled market outputs.
           - Replaying the same normalized events is idempotent.
           - Product claim-balance reads do not require live pool queries.
-          - Operational gas/funder stalled-message visibility remains deferred to FUND-003.
+          - Operational gas/funder stalled-message visibility remains deferred to the operations backlog.
 
           Closure validation:
           - service/kline tests passed: 714 tests and 78 subtests.
@@ -1365,12 +1383,12 @@ groups:
           - Full memory-limited Rust test suite passed with `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
           - Product E2E against the current docker compose environment is blocked by wallet capability mismatch: maker-wallet on port 40082 does not support `publishDataBlob`; this is an environment precondition, not a FUND-014 protocol or projection failure.
       - id: FUND-003
-        status: Todo
+        status: Cancelled
         priority: P2
         depends_on: []
         title: Define operational cluster, chain, and funder visibility
         notes: |
-          Future standalone operations-system stage, not part of the business funding-protocol closure path. Do not mix this work into product business systems, contract funding semantics, observability projections used for product accounting, or FUND-014/FUND-004.
+          Cancelled from the current funding task sequence. Move this scope to backlog and create a newly numbered operations task when work resumes. Do not mix this work into product business systems, contract funding semantics, observability projections used for product accounting, or FUND-014/FUND-004.
           Scope: cluster state, chain state, funder/gas coverage, pending/stalled workflow visibility, operational alerts, and manual diagnostics. Gas/funder availability is an operational progress concern, not a funds-safety prerequisite. Current Linera behavior does not reject a message solely because adding it would exceed per-block gas or block limits; the message remains pending/stalled for later execution. Reject handling still covers explicit execution failure, explicit node reject policy, ABI/deployment mismatch, implementation failure, and messages that alone exceed execution limits.
       - id: FUND-004
         status: Done
@@ -1399,7 +1417,7 @@ groups:
           - Initialization split: already covered by instantiate/initialize tests and integration create-pool tests; A4 should add virtual-liquidity non-claimable regression.
           - Real message path integration: partially covered by meme/native, meme/meme, create-pool, swap, add-liquidity, remove-liquidity, and claim tests; A5 should add a single explicit full-flow regression that performs swap output claim, over-add-liquidity excess claim, remove-liquidity owed claim, and verifies final balances.
           - Projection consistency: partially covered by FUND-014 service tests; A6 should add smoke tests only if a contract regression produces a new projection fixture need.
-          - Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to FUND-003 or environment runbook, not FUND-004.
+          - Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to the operations backlog or environment runbook, not FUND-004.
 
           Validation:
           - No regression test creates, reads, or depends on persisted funding intent.

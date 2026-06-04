@@ -184,8 +184,17 @@ function log_step() {
     echo "$message" >&2
 }
 
+function external_proxy_env_args() {
+    local proxy="${HTTPS_PROXY:-${https_proxy:-${ALL_PROXY:-${all_proxy:-}}}}"
+    if [ -n "$proxy" ]; then
+        printf 'all_proxy=%s\nhttp_proxy=%s\nhttps_proxy=%s\nALL_PROXY=%s\nHTTP_PROXY=%s\nHTTPS_PROXY=%s\n' \
+            "$proxy" "$proxy" "$proxy" \
+            "$proxy" "$proxy" "$proxy"
+    fi
+}
+
 function linera_env_args() {
-    :
+    external_proxy_env_args
 }
 
 function run_linera() {

@@ -1,10 +1,12 @@
 #![cfg_attr(target_arch = "wasm32", no_main)]
 
-use abi::swap::router::{Pool, SwapAbi};
-use async_graphql::{EmptyMutation, EmptySubscription, Object, Request, Response, Schema};
+use abi::swap::router::{Pool, SwapAbi, SwapOperation};
+use async_graphql::{EmptySubscription, Object, Request, Response, Schema};
 use linera_sdk::{
-    linera_base_types::ChainId, linera_base_types::WithServiceAbi, views::View, Service,
-    ServiceRuntime,
+    linera_base_types::WithServiceAbi,
+    linera_base_types::{Account, Amount, ApplicationId, ChainId},
+    views::View,
+    Service, ServiceRuntime,
 };
 use std::sync::Arc;
 use swap::state::SwapState;
@@ -39,7 +41,9 @@ impl Service for SwapService {
                 state: self.state.clone(),
                 runtime: self.runtime.clone(),
             },
-            EmptyMutation,
+            MutationRoot {
+                runtime: self.runtime.clone(),
+            },
             EmptySubscription,
         )
         .finish();
@@ -76,6 +80,36 @@ impl QueryRoot {
 
     async fn creator_chain_id(&self) -> ChainId {
         self.runtime.application_creator_chain_id()
+    }
+}
+
+struct MutationRoot {
+    runtime: Arc<ServiceRuntime<SwapService>>,
+}
+
+#[Object]
+impl MutationRoot {
+    async fn create_pool(
+        &self,
+        token_0: ApplicationId,
+        token_1: Option<ApplicationId>,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Option<Account>,
+    ) -> [u8; 0] {
+        assert!(
+            self.runtime.application_creator_chain_id() != self.runtime.chain_id(),
+            "Permission denied"
+        );
+
+        self.runtime.schedule_operation(&SwapOperation::CreatePool {
+            token_0,
+            token_1,
+            amount_0,
+            amount_1,
+            to,
+        });
+        []
     }
 }
 
