@@ -5,6 +5,7 @@ import asyncio
 import math
 import os
 import json
+from decimal import Decimal, InvalidOperation
 
 from maker_execution_policy import MakerExecutionPolicy
 from maker_inventory_controller import InventoryController
@@ -72,6 +73,8 @@ class Trader:
             long_term_bias_decay=self.long_term_bias_decay,
             max_reverse_window_fraction=self.max_reverse_window_fraction,
         )
+        self.claim_retry_secs = float(os.getenv("CLAIM_RETRY_SECS", "30"))
+        self.pending_claims = {}
         self.window_started_at = time.monotonic()
 
     def _pool_price(self, pool):
@@ -238,6 +241,58 @@ class Trader:
             },
         )
 
+
+    def _pool_claim_tokens(self, pool):
+        tokens = [pool.token_0]
+        tokens.append(pool.token_1 if pool.token_1 is not None else None)
+        return tokens
+
+    def _claim_key(self, pool, token):
+        return (pool.pool_id, token if token is not None else 'TLINERA')
+
+    def _decimal_amount(self, value):
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            return Decimal('0')
+
+    async def claim_pool_outputs(self, pool):
+        for token in self._pool_claim_tokens(pool):
+            key = self._claim_key(pool, token)
+            last_claimed_at = self.pending_claims.get(key)
+            if last_claimed_at is not None and time.monotonic() - last_claimed_at < self.claim_retry_secs:
+                continue
+
+            claimable, claiming = await pool.claim_balances(token)
+            claimable_amount = self._decimal_amount(claimable)
+            claiming_amount = self._decimal_amount(claiming)
+            if claimable_amount <= 0 or claiming_amount > 0:
+                continue
+
+            claimed = await pool.claim(token, claimable)
+            if claimed is not True:
+                self.persist_maker_event(
+                    event_type='failed',
+                    pool=pool,
+                    details={
+                        'stage': 'claim_pool_output',
+                        'token': token if token is not None else 'TLINERA',
+                        'claimable': str(claimable),
+                        'claiming': str(claiming),
+                    },
+                )
+                continue
+
+            self.pending_claims[key] = time.monotonic()
+            self.persist_maker_event(
+                event_type='claim_requested',
+                pool=pool,
+                details={
+                    'token': token if token is not None else 'TLINERA',
+                    'amount': str(claimable),
+                },
+            )
+
     async def plan_trade_in_pool(self, pool):
         wallet_chain = self._require_value(self.wallet._chain(), 'wallet_chain')
         account = self.wallet.account()
@@ -354,6 +409,7 @@ class Trader:
     async def _trade_in_pool(self, pool):
         async with self.semaphore:
             try:
+                await self.claim_pool_outputs(pool)
                 await self.plan_trade_in_pool(pool)
             except Exception as e:
                 self.persist_pool_failure(pool, 'plan_trade', e)
@@ -363,6 +419,7 @@ class Trader:
     async def _flush_pool(self, pool, quote_notional):
         async with self.semaphore:
             try:
+                await self.claim_pool_outputs(pool)
                 return await self.execute_pending_in_pool(pool, quote_notional)
             except Exception as e:
                 self.persist_pool_failure(pool, 'execute_pending', e)
