@@ -51,7 +51,20 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
             'owner': f'0x{owner}',
         }
 
-    def pool_event(self, message_type, payload, *, event_id=None, block_hash='source-block'):
+    def pool_event(
+        self,
+        message_type,
+        payload,
+        *,
+        event_id=None,
+        block_hash='source-block',
+        transaction_index=2,
+        message_index=3,
+        target_transaction_index=None,
+    ):
+        raw_context = {}
+        if target_transaction_index is not None:
+            raw_context['target_transaction_index'] = target_transaction_index
         decoded_payload = dict(payload)
         decoded_payload['message_type'] = message_type
         return {
@@ -66,19 +79,30 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
             'normalization_status': 'observed',
             'target_chain_id': 'pool-chain',
             'target_block_hash': block_hash,
-            'transaction_index': 2,
-            'message_index': 3,
+            'transaction_index': transaction_index,
+            'message_index': message_index,
             'event_payload_json': {
                 'decoded_payload_json': decoded_payload,
+                'raw_context': raw_context,
             },
         }
 
-    def new_transaction(self, transaction, *, source_cert_hash='source-block', event_id='event-new-transaction'):
+    def new_transaction(
+        self,
+        transaction,
+        *,
+        source_cert_hash='source-block',
+        event_id='event-new-transaction',
+        transaction_index=2,
+        message_index=3,
+    ):
         return self.pool_event(
             'new_transaction',
             {'transaction': transaction},
             event_id=event_id,
             block_hash='target-block',
+            transaction_index=transaction_index,
+            message_index=message_index,
         ) | {
             'event_family': 'pool_new_transaction_recorded',
             'source_cert_hash': source_cert_hash,
@@ -267,6 +291,144 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
         self.assertEqual(len(outputs), 1)
         self.assertEqual(outputs[0]['settled_output_type'], 'claim_balance_diagnostic')
         self.assertEqual(outputs[0]['diagnostic_type'], 'ambiguous_new_transaction_correlation')
+
+
+    def test_disambiguates_repeated_swap_amounts_by_execution_position(self):
+        swap = self.pool_event(
+            'swap',
+            {
+                'origin': self.account(),
+                'amount_0_in': '50',
+                'amount_1_in': None,
+                'to': None,
+            },
+            transaction_index=0,
+            message_index=1,
+            target_transaction_index=7,
+        )
+        wrong_position = self.new_transaction(
+            {
+                'transaction_type': 'SellToken0',
+                'from': self.account(),
+                'amount_0_in': '50',
+                'amount_1_out': '10',
+            },
+            event_id='new-wrong-position',
+            transaction_index=6,
+            message_index=6,
+        )
+        right_position = self.new_transaction(
+            {
+                'transaction_type': 'SellToken0',
+                'from': self.account(),
+                'amount_0_in': '50',
+                'amount_1_out': '11',
+            },
+            event_id='new-right-position',
+            transaction_index=7,
+            message_index=7,
+        )
+
+        result = ClaimBalanceCorrelationDeriver(
+            pool_catalog_repository=self.FakePoolCatalogRepository(),
+        ).derive_batch([swap, wrong_position, right_position])
+
+        outputs = result['outputs_by_event_id']['event-swap']
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(outputs[0]['settled_output_type'], 'claim_balance_delta')
+        self.assertEqual(outputs[0]['token'], 'native')
+        self.assertEqual(outputs[0]['delta_amount'], '11')
+
+    def test_disambiguates_by_transaction_index_when_message_index_differs(self):
+        swap = self.pool_event(
+            'swap',
+            {
+                'origin': self.account(),
+                'amount_0_in': None,
+                'amount_1_in': '50',
+                'to': None,
+            },
+            transaction_index=3,
+            message_index=1,
+        )
+        wrong = self.new_transaction(
+            {
+                'transaction_type': 'BuyToken0',
+                'from': self.account(),
+                'amount_0_out': '11',
+                'amount_1_in': '50',
+            },
+            transaction_index=2,
+            message_index=0,
+            event_id='wrong-new-transaction',
+        )
+        right = self.new_transaction(
+            {
+                'transaction_type': 'BuyToken0',
+                'from': self.account(),
+                'amount_0_out': '12',
+                'amount_1_in': '50',
+            },
+            transaction_index=3,
+            message_index=2,
+            event_id='right-new-transaction',
+        )
+
+        result = ClaimBalanceCorrelationDeriver(
+            pool_catalog_repository=self.FakePoolCatalogRepository(),
+        ).derive_batch([swap, wrong, right])
+
+        outputs = result['outputs_by_event_id']['event-swap']
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(outputs[0]['delta_amount'], '12')
+        self.assertEqual(outputs[0]['derivation_confidence'], 'exact')
+
+    def test_disambiguates_same_chain_message_by_target_transaction_index(self):
+        swap = self.pool_event(
+            'swap',
+            {
+                'origin': self.account(),
+                'amount_0_in': '50',
+                'amount_1_in': None,
+                'to': None,
+            },
+            transaction_index=7,
+            message_index=7,
+            target_transaction_index=7,
+        )
+        swap['source_chain_id'] = 'pool-chain'
+        swap['target_chain_id'] = 'pool-chain'
+        right = self.new_transaction(
+            {
+                'transaction_type': 'SellToken0',
+                'from': self.account(),
+                'amount_0_in': '50',
+                'amount_1_out': '10',
+            },
+            transaction_index=7,
+            message_index=6,
+            event_id='right-new-transaction',
+        )
+        wrong_message_index = self.new_transaction(
+            {
+                'transaction_type': 'SellToken0',
+                'from': self.account(),
+                'amount_0_in': '50',
+                'amount_1_out': '11',
+            },
+            transaction_index=8,
+            message_index=7,
+            event_id='wrong-message-index-new-transaction',
+        )
+
+        result = ClaimBalanceCorrelationDeriver(
+            pool_catalog_repository=self.FakePoolCatalogRepository(),
+        ).derive_batch([swap, right, wrong_message_index])
+
+        outputs = result['outputs_by_event_id']['event-swap']
+        self.assertEqual(len(outputs), 1)
+        self.assertEqual(outputs[0]['token'], 'native')
+        self.assertEqual(outputs[0]['delta_amount'], '10')
 
 
 if __name__ == '__main__':

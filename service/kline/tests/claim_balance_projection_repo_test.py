@@ -14,6 +14,7 @@ class ClaimBalanceProjectionRepositoryTest(unittest.TestCase):
         def __init__(self):
             self.executed = []
             self.rows = []
+            self.rowcount = 0
 
         def execute(self, sql, params=None):
             self.executed.append((sql, params))
@@ -122,18 +123,65 @@ class ClaimBalanceProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(connection.commit_count, 1)
 
 
-    def test_get_claim_balances_aggregates_projection_deltas(self):
+    def test_delete_claim_balance_diagnostics_for_events_deletes_selected_types(self):
+        connection = self.FakeConnection()
+        connection.cursor_obj.rowcount = 2
+        repository = ClaimBalanceProjectionRepository(connection)
+
+        count = repository.delete_claim_balance_diagnostics_for_events(
+            normalized_event_ids={'event-b', 'event-a'},
+            diagnostic_types={'ambiguous_new_transaction_correlation', 'missing_pool_token_metadata'},
+        )
+
+        sql, params = connection.cursor_obj.executed[0]
+        self.assertIn('DELETE FROM claim_balance_diagnostics', sql)
+        self.assertIn('normalized_event_id IN (%s, %s)', sql)
+        self.assertIn('diagnostic_type IN (%s, %s)', sql)
+        self.assertEqual(
+            params,
+            (
+                'event-a',
+                'event-b',
+                'ambiguous_new_transaction_correlation',
+                'missing_pool_token_metadata',
+            ),
+        )
+        self.assertEqual(count, 2)
+        self.assertEqual(connection.commit_count, 1)
+
+
+    def test_delete_correlated_claim_balance_deltas_for_events_only_deletes_correlated_sources(self):
+        connection = self.FakeConnection()
+        connection.cursor_obj.rowcount = 3
+        repository = ClaimBalanceProjectionRepository(connection)
+
+        count = repository.delete_correlated_claim_balance_deltas_for_events(
+            normalized_event_ids={'event-b', 'event-a'},
+        )
+
+        sql, params = connection.cursor_obj.executed[0]
+        self.assertIn('DELETE FROM claim_balance_deltas', sql)
+        self.assertIn('normalized_event_id IN (%s, %s)', sql)
+        self.assertIn("derivation_source LIKE 'correlated\\_%'", sql)
+        self.assertEqual(params, ('event-a', 'event-b'))
+        self.assertEqual(count, 3)
+        self.assertEqual(connection.commit_count, 1)
+
+
+    def test_get_claim_balances_aggregates_projection_deltas_as_display_amounts(self):
         connection = self.FakeConnection()
         connection.cursor_obj.rows = [{
             'pool_application_id': 'pool-app',
             'execution_chain_id': 'pool-chain',
             'token': 'native',
             'owner': 'owner-account',
-            'claimable_amount': 7,
-            'claiming_amount': 3,
+            'claimable_amount': '7.5',
+            'claiming_amount': '3.25',
             'latest_block_height': 11,
             'latest_transaction_index': 2,
             'latest_message_index': 1,
+            'projection_status': 'complete',
+            'incomplete_diagnostic_count': 0,
         }]
         repository = ClaimBalanceProjectionRepository(connection)
 
@@ -141,12 +189,42 @@ class ClaimBalanceProjectionRepositoryTest(unittest.TestCase):
 
         sql, params = connection.cursor_obj.executed[0]
         self.assertIn('FROM claim_balance_deltas', sql)
-        self.assertIn('WHERE owner = %s', sql)
-        self.assertIn('GROUP BY pool_application_id, execution_chain_id, token, owner', sql)
+        self.assertIn('CAST(deltas.delta_amount AS DECIMAL(65, 0))', sql)
+        self.assertIn('/ 1000000000000000000 AS claimable_amount', sql)
+        self.assertIn('/ 1000000000000000000 AS claiming_amount', sql)
+        self.assertIn('WHERE deltas.owner = %s', sql)
+        self.assertIn('GROUP BY deltas.pool_application_id, deltas.execution_chain_id, deltas.token, deltas.owner', sql)
         self.assertEqual(params, ('owner-account',))
-        self.assertEqual(rows[0]['claimable_amount'], '7')
-        self.assertEqual(rows[0]['claiming_amount'], '3')
+        self.assertEqual(rows[0]['claimable_amount'], '7.5')
+        self.assertEqual(rows[0]['claiming_amount'], '3.25')
+        self.assertEqual(rows[0]['projection_status'], 'complete')
+        self.assertEqual(rows[0]['diagnostics'], {'incomplete_count': 0})
 
+    def test_get_claim_balances_marks_incomplete_projection(self):
+        connection = self.FakeConnection()
+        connection.cursor_obj.rows = [{
+            'pool_application_id': 'pool-app',
+            'execution_chain_id': 'pool-chain',
+            'token': 'native',
+            'owner': 'owner-account',
+            'claimable_amount': '-5',
+            'claiming_amount': '0',
+            'latest_block_height': 11,
+            'latest_transaction_index': 2,
+            'latest_message_index': 1,
+            'projection_status': 'incomplete',
+            'incomplete_diagnostic_count': 3,
+        }]
+        repository = ClaimBalanceProjectionRepository(connection)
+
+        rows = repository.get_claim_balances(owner='owner-account')
+
+        sql, _params = connection.cursor_obj.executed[0]
+        self.assertIn('claim_delta_requires_new_transaction_correlation', sql)
+        self.assertIn('ambiguous_new_transaction_correlation', sql)
+        self.assertEqual(rows[0]['claimable_amount'], '-5')
+        self.assertEqual(rows[0]['projection_status'], 'incomplete')
+        self.assertEqual(rows[0]['diagnostics'], {'incomplete_count': 3})
 
 
 if __name__ == '__main__':

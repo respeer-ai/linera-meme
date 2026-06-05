@@ -5,6 +5,8 @@ from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionM
 
 
 class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
+    DISPLAY_AMOUNT_SCALE = '1000000000000000000'
+
     def __init__(self, connection):
         self.connection = connection
         self.fingerprint = CanonicalFingerprint()
@@ -78,6 +80,29 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
             )
 
             self.connection.commit()
+        finally:
+            cursor.close()
+
+    def delete_correlated_claim_balance_deltas_for_events(
+        self,
+        *,
+        normalized_event_ids: set[str],
+    ) -> int:
+        if not normalized_event_ids:
+            return 0
+        cursor = self.cursor()
+        try:
+            event_placeholders = ', '.join(['%s'] * len(normalized_event_ids))
+            cursor.execute(
+                f'''
+                DELETE FROM {self.claim_balance_deltas_table}
+                WHERE normalized_event_id IN ({event_placeholders})
+                  AND derivation_source LIKE 'correlated\\_%'
+                ''',
+                tuple(sorted(normalized_event_ids)),
+            )
+            self.connection.commit()
+            return getattr(cursor, 'rowcount', 0)
         finally:
             cursor.close()
 
@@ -213,6 +238,31 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
         finally:
             cursor.close()
 
+    def delete_claim_balance_diagnostics_for_events(
+        self,
+        *,
+        normalized_event_ids: set[str],
+        diagnostic_types: set[str],
+    ) -> int:
+        if not normalized_event_ids or not diagnostic_types:
+            return 0
+        cursor = self.cursor()
+        try:
+            event_placeholders = ', '.join(['%s'] * len(normalized_event_ids))
+            type_placeholders = ', '.join(['%s'] * len(diagnostic_types))
+            cursor.execute(
+                f'''
+                DELETE FROM {self.claim_balance_diagnostics_table}
+                WHERE normalized_event_id IN ({event_placeholders})
+                  AND diagnostic_type IN ({type_placeholders})
+                ''',
+                tuple(sorted(normalized_event_ids)) + tuple(sorted(diagnostic_types)),
+            )
+            self.connection.commit()
+            return getattr(cursor, 'rowcount', 0)
+        finally:
+            cursor.close()
+
     def list_claim_balance_deltas(self, *, pool_application_id: str | None = None) -> list[dict[str, object]]:
         cursor = self.cursor(dictionary=True)
         try:
@@ -293,28 +343,48 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
             cursor.execute(
                 f"""
                 SELECT
-                    pool_application_id,
-                    execution_chain_id,
-                    token,
-                    owner,
+                    deltas.pool_application_id,
+                    deltas.execution_chain_id,
+                    deltas.token,
+                    deltas.owner,
                     COALESCE(SUM(CASE
-                        WHEN balance_kind = 'claimable' AND delta_direction = 'credit' THEN CAST(delta_amount AS DECIMAL(65, 18))
-                        WHEN balance_kind = 'claimable' AND delta_direction = 'debit' THEN -CAST(delta_amount AS DECIMAL(65, 18))
+                        WHEN deltas.balance_kind = 'claimable' AND deltas.delta_direction = 'credit' THEN CAST(deltas.delta_amount AS DECIMAL(65, 0))
+                        WHEN deltas.balance_kind = 'claimable' AND deltas.delta_direction = 'debit' THEN -CAST(deltas.delta_amount AS DECIMAL(65, 0))
                         ELSE 0
-                    END), 0) AS claimable_amount,
+                    END), 0) / {self.DISPLAY_AMOUNT_SCALE} AS claimable_amount,
                     COALESCE(SUM(CASE
-                        WHEN balance_kind = 'claiming' AND delta_direction = 'credit' THEN CAST(delta_amount AS DECIMAL(65, 18))
-                        WHEN balance_kind = 'claiming' AND delta_direction = 'debit' THEN -CAST(delta_amount AS DECIMAL(65, 18))
+                        WHEN deltas.balance_kind = 'claiming' AND deltas.delta_direction = 'credit' THEN CAST(deltas.delta_amount AS DECIMAL(65, 0))
+                        WHEN deltas.balance_kind = 'claiming' AND deltas.delta_direction = 'debit' THEN -CAST(deltas.delta_amount AS DECIMAL(65, 0))
                         ELSE 0
-                    END), 0) AS claiming_amount,
-                    MAX(block_height) AS latest_block_height,
-                    MAX(transaction_index) AS latest_transaction_index,
-                    MAX(message_index) AS latest_message_index
-                FROM {self.claim_balance_deltas_table}
-                WHERE owner = %s
-                GROUP BY pool_application_id, execution_chain_id, token, owner
+                    END), 0) / {self.DISPLAY_AMOUNT_SCALE} AS claiming_amount,
+                    MAX(deltas.block_height) AS latest_block_height,
+                    MAX(deltas.transaction_index) AS latest_transaction_index,
+                    MAX(deltas.message_index) AS latest_message_index,
+                    CASE
+                        WHEN COALESCE(MAX(incomplete_diagnostics.incomplete_count), 0) > 0 THEN 'incomplete'
+                        ELSE 'complete'
+                    END AS projection_status,
+                    COALESCE(MAX(incomplete_diagnostics.incomplete_count), 0) AS incomplete_diagnostic_count
+                FROM {self.claim_balance_deltas_table} deltas
+                LEFT JOIN (
+                    SELECT
+                        pool_application_id,
+                        execution_chain_id,
+                        COUNT(*) AS incomplete_count
+                    FROM {self.claim_balance_diagnostics_table}
+                    WHERE diagnostic_type IN (
+                        'claim_delta_requires_new_transaction_correlation',
+                        'ambiguous_new_transaction_correlation',
+                        'missing_pool_token_metadata'
+                    )
+                    GROUP BY pool_application_id, execution_chain_id
+                ) incomplete_diagnostics
+                  ON incomplete_diagnostics.pool_application_id = deltas.pool_application_id
+                 AND incomplete_diagnostics.execution_chain_id = deltas.execution_chain_id
+                WHERE deltas.owner = %s
+                GROUP BY deltas.pool_application_id, deltas.execution_chain_id, deltas.token, deltas.owner
                 HAVING claimable_amount <> 0 OR claiming_amount <> 0
-                ORDER BY pool_application_id ASC, execution_chain_id ASC, token ASC
+                ORDER BY deltas.pool_application_id ASC, deltas.execution_chain_id ASC, deltas.token ASC
                 """,
                 (owner,),
             )
@@ -326,6 +396,10 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
         decoded = dict(row)
         decoded['claimable_amount'] = str(decoded.get('claimable_amount', '0'))
         decoded['claiming_amount'] = str(decoded.get('claiming_amount', '0'))
+        decoded['projection_status'] = str(decoded.get('projection_status') or 'complete')
+        decoded['diagnostics'] = {
+            'incomplete_count': int(decoded.pop('incomplete_diagnostic_count') or 0),
+        }
         return decoded
 
     def _decode_json(self, row: dict[str, object]) -> dict[str, object]:

@@ -51,6 +51,7 @@ class ClaimBalanceCorrelationDeriver:
                 for new_transaction in new_transactions
                 if self._matches(original, new_transaction)
             ]
+            matches = self._disambiguate_by_execution_position(original, matches)
             if not matches:
                 continue
             if len(matches) != 1:
@@ -250,6 +251,32 @@ class ClaimBalanceCorrelationDeriver:
                 )
             )
         return False
+
+    def _disambiguate_by_execution_position(self, original, matches):
+        if len(matches) <= 1:
+            return matches
+        positioned = [
+            new_transaction
+            for new_transaction in matches
+            if self._same_execution_position(original, new_transaction)
+        ]
+        if len(positioned) == 1:
+            return positioned
+        return matches
+
+    def _same_execution_position(self, original, new_transaction):
+        original_transaction_index = self._target_execution_transaction_index(original)
+        new_transaction_index = new_transaction.get('transaction_index')
+        if original_transaction_index is None or new_transaction_index is None:
+            return False
+        return int(original_transaction_index) == int(new_transaction_index)
+
+    def _target_execution_transaction_index(self, event):
+        payload = event.get('event_payload_json') or {}
+        raw_context = payload.get('raw_context') or {}
+        if raw_context.get('target_transaction_index') is not None:
+            return raw_context.get('target_transaction_index')
+        return event.get('transaction_index')
 
     def _swap_matches_transaction(self, original, new_transaction, transaction_type):
         payload = self._decoded_payload(original)

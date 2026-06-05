@@ -177,12 +177,32 @@ class SettledMarketMaterializer:
         trades = output_batch.trades()
         liquidity_changes = output_batch.liquidity_changes()
         claim_balance_deltas = output_batch.claim_balance_deltas()
-        claim_balance_diagnostics = output_batch.claim_balance_diagnostics()
+        correlated_event_ids = {
+            str(output['normalized_event_id'])
+            for output in claim_balance_deltas
+            if str(output.get('derivation_source') or '').startswith('correlated_')
+        }
+        claim_balance_diagnostics = [
+            output
+            for output in output_batch.claim_balance_diagnostics()
+            if str(output.get('normalized_event_id')) not in correlated_event_ids
+        ]
         self.settled_trade_repository.upsert_settled_trades(trades)
         self.settled_liquidity_change_repository.upsert_settled_liquidity_changes(
             liquidity_changes
         )
         if self.claim_balance_projection_repository is not None:
+            self.claim_balance_projection_repository.delete_claim_balance_diagnostics_for_events(
+                normalized_event_ids=correlated_event_ids,
+                diagnostic_types={
+                    self.claim_balance_correlation_deriver.CORRELATION_DIAGNOSTIC,
+                    'ambiguous_new_transaction_correlation',
+                    'missing_pool_token_metadata',
+                },
+            )
+            self.claim_balance_projection_repository.delete_correlated_claim_balance_deltas_for_events(
+                normalized_event_ids=correlated_event_ids,
+            )
             self.claim_balance_projection_repository.upsert_claim_balance_deltas(
                 claim_balance_deltas
             )

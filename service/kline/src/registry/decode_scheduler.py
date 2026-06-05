@@ -12,6 +12,7 @@ class DecodeScheduler:
         'target_block_hash',
         'source_cert_hash',
         'transaction_index',
+        'target_transaction_index',
         'message_index',
         'authenticated_owner',
         'execution_status',

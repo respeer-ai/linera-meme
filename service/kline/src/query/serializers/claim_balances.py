@@ -6,6 +6,8 @@ class ClaimBalancesSerializer:
         'owner',
         'claimable_amount',
         'claiming_amount',
+        'projection_status',
+        'diagnostics',
         'latest_block_height',
         'latest_transaction_index',
         'latest_message_index',

@@ -853,6 +853,37 @@ groups:
           - Public responses continue hiding `owner_receives_protocol_fees`, `metrics_status`, and `fee_calculation_complete`
           - `status=active` no longer triggers virtual position enrichment; virtual belongs only to `all/virtual`
           - Validation: `python3 -m unittest service/kline/tests/query_stack_read_model_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`, `bun run lint`, `bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+      - id: POS-064
+        status: Doing
+        priority: P0
+        depends_on: [POS-035, POS-052, FUND-014]
+        title: Correct projection-backed claim balances, TVL, and fee valuation
+        notes: |
+          Scope: product read-model corrections only. Do not change ABI, contract state, operations, messages, or frontend display semantics to hide projection bugs.
+
+          Findings to fix:
+          - `/claim-balances` currently returns atto-scale aggregate amounts instead of display amounts.
+          - Claim-balance projection can return negative balances because claim debits are projected while corresponding swap/remove/add-liquidity claimable credits are missing or ambiguous.
+          - Native swap and remove-liquidity outputs are claimable-balance credits, not direct payouts. Native claimable may be non-zero.
+          - Runtime QQQ check showed chain truth `native claimableBalance = 28.042304317709314409`, while projection returned a negative native amount.
+          - `/protocol/stats` currently values TVL with latest trade prices instead of current reserve-derived prices.
+          - Protocol fees are currently approximated as `volume * 0.003`; fee token amounts must be accumulated per trade input leg.
+
+          Atomic implementation steps:
+          - A1: Fix `/claim-balances` unit conversion from atto to display amount, with repository/API tests.
+          - A2: Audit and repair claimable credit projection for swap outputs, remove-liquidity outputs, add-liquidity excess, add-liquidity failures, and native legs.
+          - A3: Tighten `swap/add_liquidity/remove_liquidity -> NewTransaction` correlation using existing block facts. Ambiguous same-block cases remain diagnostic-only unless a unique existing-block ordering key is proven.
+          - A4: Add incomplete-projection semantics for claim-balance reads so partial data is not returned as authoritative balance. Do not clamp negative balances.
+          - A5: Change protocol TVL to use current reserve-derived native price graph. For native pairs, TVL is `2 * native_reserve`; meme/meme pools are valued only when current reserve graph reaches native.
+          - A6: Change protocol fees to accumulate exact fee token amounts per trade input leg, then value those token amounts using the current reserve-derived native price graph.
+          - A7: Add focused service tests for units, negative/incomplete protection, native claimable credits, TVL, fees, and meme/meme valuation.
+          - A8: Validate against the running docker environment by comparing projection `/claim-balances` with pool-chain GraphQL claim balances for the active QQQ pool.
+
+          Validation:
+          - Product read APIs must use projection/block-derived facts; no live pool query is added as the normal product accounting path.
+          - Negative claim-balance projections are treated as projection incompleteness or correlation failure, not hidden by frontend formatting or clamping.
+          - Fee token amount is exact; native fee value is current-price valuation.
+          - Native swap/remove-liquidity outputs are represented through claimable balances.
       - id: POS-024
         status: Done
         priority: P0

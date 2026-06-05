@@ -40,11 +40,17 @@ class SettledMarketMaterializerTest(unittest.TestCase):
                 'normalized_event_id': event['normalized_event_id'],
                 'settled_outputs': [
                     {'settled_output_type': 'claim_balance_delta', 'claim_balance_delta_id': 'claim-1'},
-                    {'settled_output_type': 'claim_balance_diagnostic', 'claim_balance_diagnostic_id': 'diag-1'},
+                    {
+                        'settled_output_type': 'claim_balance_diagnostic',
+                        'claim_balance_diagnostic_id': 'diag-1',
+                        'normalized_event_id': event['normalized_event_id'],
+                    },
                 ],
             }
 
     class FakeCorrelationDeriver:
+        CORRELATION_DIAGNOSTIC = 'claim_delta_requires_new_transaction_correlation'
+
         def derive_batch(self, events):
             return {
                 'outputs_by_event_id': {
@@ -52,6 +58,8 @@ class SettledMarketMaterializerTest(unittest.TestCase):
                         {
                             'settled_output_type': 'claim_balance_delta',
                             'claim_balance_delta_id': 'claim-correlated',
+                            'normalized_event_id': 'event-1',
+                            'derivation_source': 'correlated_swap_new_transaction',
                         }
                     ],
                 },
@@ -84,6 +92,14 @@ class SettledMarketMaterializerTest(unittest.TestCase):
         def __init__(self):
             self.deltas = None
             self.diagnostics = None
+            self.deleted_diagnostics = None
+            self.deleted_correlated_deltas = None
+
+        def delete_claim_balance_diagnostics_for_events(self, *, normalized_event_ids, diagnostic_types):
+            self.deleted_diagnostics = (set(normalized_event_ids), set(diagnostic_types))
+
+        def delete_correlated_claim_balance_deltas_for_events(self, *, normalized_event_ids):
+            self.deleted_correlated_deltas = set(normalized_event_ids)
 
         def upsert_claim_balance_deltas(self, deltas):
             self.deltas = list(deltas)
@@ -112,9 +128,26 @@ class SettledMarketMaterializerTest(unittest.TestCase):
             claim_repository.deltas,
             [
                 {'settled_output_type': 'claim_balance_delta', 'claim_balance_delta_id': 'claim-1'},
-                {'settled_output_type': 'claim_balance_delta', 'claim_balance_delta_id': 'claim-correlated'},
+                {
+                    'settled_output_type': 'claim_balance_delta',
+                    'claim_balance_delta_id': 'claim-correlated',
+                    'normalized_event_id': 'event-1',
+                    'derivation_source': 'correlated_swap_new_transaction',
+                },
             ],
         )
+        self.assertEqual(
+            claim_repository.deleted_diagnostics,
+            (
+                {'event-1'},
+                {
+                    'claim_delta_requires_new_transaction_correlation',
+                    'ambiguous_new_transaction_correlation',
+                    'missing_pool_token_metadata',
+                },
+            ),
+        )
+        self.assertEqual(claim_repository.deleted_correlated_deltas, {'event-1'})
         self.assertEqual(claim_repository.diagnostics, [])
 
 

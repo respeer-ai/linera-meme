@@ -386,6 +386,7 @@ class RawRepositoryTest(unittest.TestCase):
                 m.raw_message_bytes,
                 b.target_chain_id,
                 b.target_block_hash,
+                b.bundle_index AS target_transaction_index,
                 b.action
             FROM raw_posted_messages AS m
             INNER JOIN raw_incoming_bundles AS b
@@ -407,6 +408,7 @@ class RawRepositoryTest(unittest.TestCase):
                     'raw_message_bytes': b'msg',
                     'target_chain_id': 'chain-pool',
                     'target_block_hash': 'block-6',
+                    'target_transaction_index': 7,
                     'action': 'Reject',
                 },
             ],
@@ -429,6 +431,7 @@ class RawRepositoryTest(unittest.TestCase):
                 'source_chain_id': 'chain-user',
                 'target_chain_id': 'chain-pool',
                 'target_block_hash': 'block-6',
+                'target_transaction_index': 7,
                 'source_cert_hash': 'cert-6',
                 'transaction_index': 4,
                 'message_index': 1,

@@ -158,6 +158,7 @@ class DecodeSchedulerTest(unittest.TestCase):
                 'target_block_hash': 'target-block',
                 'source_cert_hash': 'cert-1',
                 'transaction_index': 11,
+                'target_transaction_index': 13,
                 'message_index': 7,
                 'authenticated_owner': 'owner-1',
                 'execution_status': 'observed',
@@ -170,6 +171,7 @@ class DecodeSchedulerTest(unittest.TestCase):
         self.assertEqual(decoded['target_block_hash'], 'target-block')
         self.assertEqual(decoded['source_cert_hash'], 'cert-1')
         self.assertEqual(decoded['transaction_index'], 11)
+        self.assertEqual(decoded['target_transaction_index'], 13)
         self.assertEqual(decoded['message_index'], 7)
         self.assertEqual(decoded['authenticated_owner'], 'owner-1')
         self.assertEqual(decoded['execution_status'], 'observed')

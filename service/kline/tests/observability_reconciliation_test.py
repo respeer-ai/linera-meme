@@ -387,8 +387,13 @@ class ObservabilityReconciliationTest(unittest.TestCase):
 
         expected_volume = sum((self._quote_volume(row) for row in self.trades), Decimal('0'))
         expected_prices = [self._price(row) for row in self.trades]
-        latest_meme_price = self._price(self.trades[-1])
-        expected_tvl = Decimal('21') * latest_meme_price + Decimal('72')
+        expected_tvl = Decimal('72') * Decimal('2')
+        meme_native_price = Decimal('72') / Decimal('21')
+        expected_fees = (
+            Decimal('20') * Decimal('0.003')
+            + Decimal('5') * Decimal('0.003') * meme_native_price
+            + Decimal('30') * Decimal('0.003')
+        )
 
         self.assertEqual(len(pool_stats), 1)
         self.assertEqual(pool_stats[0]['pool_application'], self.POOL_APPLICATION)
@@ -398,7 +403,7 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         self.assertAlmostEqual(pool_stats[0]['low'], float(min(expected_prices)))
         self.assertAlmostEqual(protocol_stats['volume'], float(expected_volume))
         self.assertEqual(protocol_stats['tx_count'], len(self.trades))
-        self.assertAlmostEqual(protocol_stats['fees'], float(expected_volume * Decimal('0.003')))
+        self.assertAlmostEqual(protocol_stats['fees'], float(expected_fees))
         self.assertAlmostEqual(protocol_stats['tvl'], float(expected_tvl))
 
     def _assert_virtual_positions_and_protocol_fee_metrics_match_projection_facts(self):
@@ -441,6 +446,8 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'opened_at': None,
             'updated_at': 50_000,
             'add_tx_count': 0,
+            'virtual_initial_amount0': '105',
+            'virtual_initial_amount1': '0',
         }])
         snapshot_repository = self.FakeSnapshotInputsProjectionRepository({
             'pool_application': self.POOL_APPLICATION,
