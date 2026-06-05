@@ -297,6 +297,9 @@ const swapGasAmount = ref('0')
 const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
 
 onMounted(async () => {
+  ams.Ams.getApplications()
+  await swap.Swap.getPools()
+
   buyToken.value = tokens.value[0] as Token
   sellToken.value = undefined as unknown as Token
 

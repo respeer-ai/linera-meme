@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang='ts'>
-import { computed, onMounted, onUnmounted, ref, toRef, watch, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { TokenAction } from './TokenAction'
 import { Token } from './Token'
 import { ams, meme, proxy, user } from 'src/stores/export'
@@ -126,27 +126,50 @@ watch(nativeBalance, () => {
 
 const walletConnected = computed(() => user.User.walletConnected())
 const updatingBalance = ref(false)
+const balanceRequestId = ref(0)
 
-const getBalance = async () =>{
-  if (!walletConnected.value) return
+const subscription = ref(undefined as unknown as Subscription)
+
+const unsubscribeBalanceUpdates = () => {
+  if (!subscription.value) return
+  subscription.value.unsubscribe()
+  subscription.value = undefined as unknown as Subscription
+}
+
+const refreshBalance = async () =>{
+  const requestId = balanceRequestId.value + 1
+  balanceRequestId.value = requestId
+
+  if (!walletConnected.value) {
+    balance.value = '0'
+    updatingBalance.value = false
+    return
+  }
 
   if (tokenApplicationId.value !== constants.LINERA_NATIVE_ID) {
+    if (!tokenChain.value?.chainId || !tokenApplication.value.owner) {
+      balance.value = '0'
+      updatingBalance.value = true
+      return
+    }
+
     updatingBalance.value = true
     await meme.MemeWrapper.balanceOfMeme(tokenApplication.value, (_balance: string) => {
+      if (requestId !== balanceRequestId.value) return
       balance.value = Number(_balance).toFixed(4)
       updatingBalance.value = false
     }, () => {
+      if (requestId !== balanceRequestId.value) return
       updatingBalance.value = false
     })
   } else {
     balance.value = nativeBalance.value
+    updatingBalance.value = false
   }
 }
 
-const subscription = ref(undefined as unknown as Subscription)
-
 const getBalanceThrottle = throttle(async () => {
-  await getBalance()
+  await refreshBalance()
 }, 10000, {
   leading: true, 
   trailing: true
@@ -156,14 +179,11 @@ watch(proxyBlockHash, async () => {
   getBalanceThrottle()
 })
 
-watchEffect(() => {
-  if (!walletConnected.value) return
+watch([walletConnected, tokenApplicationId, tokenChain], () => {
+  getBalanceThrottle.cancel()
+  unsubscribeBalanceUpdates()
 
-  getBalanceThrottle()
-
-  if (subscription.value) {
-    subscription.value.unsubscribe()
-  }
+  void refreshBalance()
 
   if (tokenApplication.value && tokenChain.value && tokenApplicationId.value && walletConnected.value) {
     subscription.value = new Subscription(
@@ -176,7 +196,7 @@ watchEffect(() => {
       }
     )
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
   if (token.value === undefined) {
@@ -188,10 +208,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (subscription.value) {
-    subscription.value.unsubscribe()
-    subscription.value = undefined as unknown as Subscription
-  }
+  getBalanceThrottle.cancel()
+  unsubscribeBalanceUpdates()
 })
 
 </script>

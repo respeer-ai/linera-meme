@@ -116,6 +116,64 @@ describe('mergeLatestPointMaps', () => {
       createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [2000], 2, 'chain:b'),
     ])
   })
+
+  test('overwrites final zero-volume websocket candle with final non-zero candle', () => {
+    const current = new Map([
+      [
+        Interval.FIVE_MINUTE,
+        [
+          {
+            ...createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000]),
+            points: [
+              {
+                timestamp: 1000,
+                bucket_start_ms: 1000,
+                bucket_end_ms: 1000 + 299_999,
+                is_final: true,
+                open: 1,
+                high: 1,
+                low: 1,
+                close: 1,
+                base_volume: 0,
+                quote_volume: 0,
+              },
+            ],
+          },
+        ],
+      ],
+    ])
+    const incoming = new Map([
+      [
+        Interval.FIVE_MINUTE,
+        [
+          {
+            ...createPoints('AAA', 'BBB', Interval.FIVE_MINUTE, [1000]),
+            points: [
+              {
+                timestamp: 1000,
+                bucket_start_ms: 1000,
+                bucket_end_ms: 1000 + 299_999,
+                is_final: true,
+                open: 2,
+                high: 3,
+                low: 1,
+                close: 2,
+                base_volume: 10,
+                quote_volume: 20,
+              },
+            ],
+          },
+        ],
+      ],
+    ])
+
+    const merged = mergeLatestPointMaps(current, incoming)
+    const point = merged.get(Interval.FIVE_MINUTE)?.[0]?.points[0]
+
+    expect(point?.base_volume).toBe(10)
+    expect(point?.quote_volume).toBe(20)
+    expect(point?.close).toBe(2)
+  })
 })
 
 describe('buildKlineSubscriptionMessage', () => {
