@@ -15,6 +15,7 @@ import {
   resolveStartupGapBackfillFetches,
   resolveStartupNonFinalRepairFetch,
   resolveStartupRequestPlan,
+  shouldContinueFetchAfterNoChange,
   shouldContinueStartupFetchAfterEmptyResult,
   shouldRestartKlineOnSelectedPoolChange,
   shouldDeferHistoryLoadUntilFirstPaint,
@@ -494,6 +495,20 @@ describe('resolveNextFetchTimestamp', () => {
         latestWindowStart: 3_000,
       }),
     ).toBe(false)
+  })
+
+  test('does not continue network fetches after an unchanged cache load', () => {
+    expect(
+      shouldContinueFetchAfterNoChange({
+        reason: SortReason.LOAD,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldContinueFetchAfterNoChange({
+        reason: SortReason.FETCH,
+      }),
+    ).toBe(true)
   })
 
   test('does not continue reverse history fetches before the first screen is ready', () => {

@@ -140,6 +140,7 @@ const tokens = computed(() => ams.Ams.applications().map((el) => {
 }))
 const pools = computed(() => swap.Swap.visiblePools())
 
+const tradePairInitialized = ref(false)
 const buyToken = ref(undefined as unknown as Token)
 const buyTokenId = computed(() => buyToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const buyTokenTicker = computed(() => buyToken.value?.meme?.ticker || constants.LINERA_TICKER)
@@ -152,9 +153,8 @@ const buyTokens = computed(() => tokens.value.filter((el) => {
 }))
 
 watch(buyTokenId, () => {
+  if (!tradePairInitialized.value) return
   swap.Swap.setBuyToken(buyTokenId.value)
-}, {
-  immediate: true
 })
 
 const reviewing = ref(false)
@@ -162,15 +162,13 @@ const settingSlippage = ref(false)
 const slippage = ref(defaultSlippage)
 const showingTradeInfo = ref(false)
 
-watch(tokens, () => {
-  if (buyToken.value === undefined && sellToken.value === undefined) {
-    buyToken.value = tokens.value[0] as Token
-  }
-})
-
 const sellToken = ref(undefined as unknown as Token)
 const sellTokenId = computed(() => sellToken.value?.applicationId || constants.LINERA_NATIVE_ID)
 const sellTokenTicker = computed(() => sellToken.value?.meme?.ticker || constants.LINERA_TICKER)
+const syncTradePairToStore = () => {
+  swap.Swap.setBuyToken(buyTokenId.value)
+  swap.Swap.setSellToken(sellTokenId.value)
+}
 const sellAmount = ref('0.01')
 const sellTokens = computed(() => tokens.value.filter((el) => {
   return pools.value.findIndex((_el) => {
@@ -179,10 +177,49 @@ const sellTokens = computed(() => tokens.value.filter((el) => {
   }) >= 0
 }))
 
+const tokenById = (tokenId: string) =>
+  tokenId === constants.LINERA_NATIVE_ID
+    ? (undefined as unknown as Token)
+    : tokens.value.find((token) => token.applicationId === tokenId)
+
+const firstMemeTokenForNativePool = () =>
+  tokens.value.find((token) =>
+    pools.value.some(
+      (pool) =>
+        (pool.token0 === token.applicationId && pool.token1 === constants.LINERA_NATIVE_ID) ||
+        (pool.token1 === token.applicationId && pool.token0 === constants.LINERA_NATIVE_ID),
+    ),
+  )
+
+const restoreStoredTradePair = () => {
+  const storedBuyTokenId = swap.Swap.buyToken()
+  const storedSellTokenId = swap.Swap.sellToken()
+  if (storedBuyTokenId === storedSellTokenId) return false
+  if (!swap.Swap.getVisiblePool(storedBuyTokenId, storedSellTokenId)) return false
+
+  const storedBuyToken = tokenById(storedBuyTokenId)
+  const storedSellToken = tokenById(storedSellTokenId)
+  if (storedBuyTokenId !== constants.LINERA_NATIVE_ID && !storedBuyToken) return false
+  if (storedSellTokenId !== constants.LINERA_NATIVE_ID && !storedSellToken) return false
+
+  buyToken.value = storedBuyToken || (undefined as unknown as Token)
+  sellToken.value = storedSellToken || (undefined as unknown as Token)
+  return true
+}
+
+const normalizeTradePair = () => {
+  if (buyTokenId.value !== sellTokenId.value && swap.Swap.selectedVisiblePool()) return
+  if (restoreStoredTradePair()) return
+
+  sellToken.value = undefined as unknown as Token
+  buyToken.value = firstMemeTokenForNativePool() || (tokens.value[0] as Token)
+}
+
+watch([tokens, pools], () => normalizeTradePair())
+
 watch(sellTokenId, () => {
+  if (!tradePairInitialized.value) return
   swap.Swap.setSellToken(sellTokenId.value)
-}, {
-  immediate: true
 })
 
 const pool = computed(() => swap.Swap.selectedVisiblePool())
@@ -297,11 +334,15 @@ const swapGasAmount = ref('0')
 const buyAmountMin = computed(() => (Number(buyAmount.value) * (1 - slippage.value)).toFixed(6))
 
 onMounted(async () => {
-  ams.Ams.getApplications()
+  tradePairInitialized.value = false
+  ams.Ams.getApplications(undefined, () => {
+    normalizeTradePair()
+    if (tradePairInitialized.value) syncTradePairToStore()
+  })
   await swap.Swap.getPools()
-
-  buyToken.value = tokens.value[0] as Token
-  sellToken.value = undefined as unknown as Token
+  normalizeTradePair()
+  tradePairInitialized.value = true
+  syncTradePairToStore()
 
   await Wallet.estimateSwapGas(sellToken.value, buyToken.value, sellAmount.value, buyAmountMin.value, (gasAmount: string) => {
     swapGasAmount.value = gasAmount || '0'

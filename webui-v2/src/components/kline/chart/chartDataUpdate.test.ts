@@ -349,6 +349,34 @@ describe('shouldFitContentOnFirstRender', () => {
       }),
     ).toBe(true)
   })
+
+  test('anchors latest when startup expands from an old partial cache render to fuller cached history', () => {
+    expect(
+      shouldAnchorLatestAfterBootstrapExpansion({
+        previousData: Array.from({ length: 40 }, (_, index) =>
+          point((index + 1) * 60, index + 1, index + 2, index + 0.5, index + 1.5, index + 10),
+        ),
+        nextData: Array.from({ length: 80 }, (_, index) =>
+          point((index + 1) * 60, index + 1, index + 2, index + 0.5, index + 1.5, index + 10),
+        ),
+        minimumDataPointsToAnchor: 4,
+      }),
+    ).toBe(true)
+  })
+
+  test('does not anchor latest when data length does not expand', () => {
+    const data = Array.from({ length: 40 }, (_, index) =>
+      point((index + 1) * 60, index + 1, index + 2, index + 0.5, index + 1.5, index + 10),
+    )
+
+    expect(
+      shouldAnchorLatestAfterBootstrapExpansion({
+        previousData: data,
+        nextData: data,
+        minimumDataPointsToAnchor: 4,
+      }),
+    ).toBe(false)
+  })
 })
 
 describe('resolveSparseFirstRenderLogicalRange', () => {

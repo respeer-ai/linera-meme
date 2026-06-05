@@ -43,10 +43,9 @@ import {
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
-  resolveStartupCacheGapFetch,
-  resolveStartupGapBackfillFetches,
   resolveStartupNonFinalRepairFetch,
   resolveStartupRequestPlan,
+  shouldContinueFetchAfterNoChange,
   shouldContinueStartupFetchAfterEmptyResult,
   shouldDeferHistoryLoadUntilFirstPaint,
   shouldRefreshCachedRangeFromNetwork,
@@ -69,8 +68,8 @@ import { buildKlineSnapshotKey, cloneKlineSnapshot } from './priceChartMemorySna
 import { dbBridge } from 'src/bridge'
 
 const STORAGE_KEY = 'kline_chart_settings'
-const STARTUP_GAP_BACKFILL_BATCH_SIZE = 8
 const MAX_MEMORY_SNAPSHOTS = 12
+const startupRepairRequestKeys = new Set<string>()
 
 const props = defineProps({
   height: { type: String, default: '550px' },
@@ -391,6 +390,26 @@ const fetchKlineRange = (startAt: number, endAt: number, reverse: boolean) => {
   })
 
   return true
+}
+
+const startupRepairRequestKey = (startAt: number, endAt: number) => {
+  const snapshotKey = buildKlineSnapshotKey({
+    token0: klineToken0.value,
+    token1: klineToken1.value,
+    poolId: activePoolId.value,
+    poolApplication: activePoolApplication.value,
+    interval: selectedInterval.value,
+  })
+  if (!snapshotKey) return null
+  return `${snapshotKey}|${startAt}|${endAt}`
+}
+
+const fetchStartupRepairRange = (startAt: number, endAt: number, reverse: boolean) => {
+  const key = startupRepairRequestKey(startAt, endAt)
+  if (!key) return false
+  if (startupRepairRequestKeys.has(key)) return false
+  startupRepairRequestKeys.add(key)
+  return fetchKlineRange(startAt, endAt, reverse)
 }
 
 const loadKline = (
@@ -719,27 +738,13 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
 
     if (nonFinalRepairFetch) {
       startupGapFetchKeysRef.value.add(nonFinalRepairFetch.key)
-      fetchKlineRange(
+      fetchStartupRepairRange(
         nonFinalRepairFetch.startAt,
         nonFinalRepairFetch.endAt,
         nonFinalRepairFetch.reverse,
       )
     }
 
-    const cacheGapFetch = startupPlan
-      ? resolveStartupCacheGapFetch({
-          pointTimestamps: _points.map((point) => point.timestamp),
-          latestWindowStart: startupPlan.fetchLatest.startAt,
-          latestWindowEnd: startupPlan.fetchLatest.endAt,
-          interval: selectedInterval.value,
-          requestedKeys: startupGapFetchKeysRef.value,
-        })
-      : null
-
-    if (cacheGapFetch) {
-      startupGapFetchKeysRef.value.add(cacheGapFetch.key)
-      fetchKlineRange(cacheGapFetch.startAt, cacheGapFetch.endAt, cacheGapFetch.reverse)
-    }
   }
 
   if (isStartupCacheLoad && _points.length === 0 && startupPlan) {
@@ -863,27 +868,6 @@ const queueBackgroundHistoryBackfill = () => {
   pendingLoadDirections.value = enqueueLoadDirection(pendingLoadDirections.value, 'old')
 }
 
-const scheduleStartupGapBackfills = (points: KLineData[]) => {
-  const startupPlan = startupPlanRef.value
-  if (!startupPlan) return
-
-  const gapBackfills = resolveStartupGapBackfillFetches({
-    pointTimestamps: points.map((point) => point.time * 1000),
-    latestWindowStart: startupPlan.fetchLatest.startAt,
-    latestWindowEnd: startupPlan.fetchLatest.endAt,
-    interval: selectedInterval.value,
-    requestedKeys: startupGapFetchKeysRef.value,
-    maxRequests: STARTUP_GAP_BACKFILL_BATCH_SIZE,
-  })
-
-  if (!gapBackfills.length) return
-
-  gapBackfills.forEach((gapBackfill) => {
-    startupGapFetchKeysRef.value.add(gapBackfill.key)
-    fetchKlineRange(gapBackfill.startAt, gapBackfill.endAt, gapBackfill.reverse)
-  })
-}
-
 const finishLoading = (requestId: number) => {
   emitKlineDebug('finish_loading_begin', {
     requestId,
@@ -956,7 +940,9 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
   })
 
   if (!changed) {
-    scheduleStartupGapBackfills(klinePoints.value)
+    if (!shouldContinueFetchAfterNoChange({ reason: _reason.reason })) {
+      return finishLoading(requestId)
+    }
 
     if (
       !shouldContinueStartupFetchAfterEmptyResult({
@@ -991,8 +977,6 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     pointCount: points.length,
     source: _reason.reason === SortReason.LOAD ? 'cache' : 'network',
   })
-
-  scheduleStartupGapBackfills(klinePoints.value)
 
   // 内存管理：如果数据点过多，只保留最近的数据在内存中
   const maxMemoryPoints = getMaxPoints(selectedInterval.value)

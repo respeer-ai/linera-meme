@@ -199,9 +199,6 @@ watch([walletConnected, tokenApplicationId, tokenChain], () => {
 }, { immediate: true })
 
 onMounted(() => {
-  if (token.value === undefined) {
-    token.value = tokens.value[0]
-  }
   proxy.Proxy.getMemeApplications(() => {
     getBalanceThrottle()
   })

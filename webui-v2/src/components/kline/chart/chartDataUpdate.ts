@@ -265,7 +265,7 @@ export const shouldAnchorLatestAfterBootstrapExpansion = ({
   minimumDataPointsToAnchor?: number
 }) =>
   previousData.length > 0 &&
-  previousData.length < minimumDataPointsToAnchor &&
+  nextData.length > previousData.length &&
   nextData.length >= minimumDataPointsToAnchor
 
 export const resolveVisibleLogicalRangeAfterPrimaryRender = ({

@@ -540,6 +540,7 @@ let resizeObserver: ResizeObserver | null = null
 let pendingScrollToLatestFrame: number | null = null
 let pendingFitContentFrame: number | null = null
 let pendingSparseRangeFrame: number | null = null
+let resizeAnchorSynced = false
 let lastRenderedPrimarySeriesData: KLineData[] = []
 const indicatorRenderScheduler = createIndicatorRenderScheduler({
   schedule: (run) => window.setTimeout(run, 0),
@@ -785,6 +786,21 @@ const syncChartSize = () => {
   })
 }
 
+const visibleRangeIsAnchoredToLatest = () => {
+  const range = getVisibleLogicalRange()
+  if (!range || !props.data.length) return false
+  return Math.ceil(range.to) >= props.data.length - 1
+}
+
+const syncChartSizeAndLatestAnchor = () => {
+  syncChartSize()
+  if (resizeAnchorSynced) return
+  if (!props.data.length) return
+  resizeAnchorSynced = true
+  if (visibleRangeIsAnchoredToLatest()) return
+  scheduleScrollToLatest()
+}
+
 const resetHoverToLatest = () => {
   isHovering.value = false
   const latestData = props.data[props.data.length - 1]
@@ -935,7 +951,7 @@ const initChart = () => {
   chartContainer.value.addEventListener('mouseleave', handleMouseLeave)
 
   resizeObserver = new ResizeObserver(() => {
-    syncChartSize()
+    syncChartSizeAndLatestAnchor()
   })
   resizeObserver.observe(chartContainer.value)
 

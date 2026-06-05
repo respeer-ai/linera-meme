@@ -239,6 +239,10 @@ type StartupEmptyResultContinuationInput = {
   reverse: boolean
 }
 
+type NoChangeFetchContinuationInput = {
+  reason: SortReason
+}
+
 export const resolveNextFetchTimestamp = ({
   reverse,
   reason,
@@ -256,6 +260,10 @@ export const shouldContinueStartupFetchAfterEmptyResult = ({
   firstScreenReady,
   reverse,
 }: StartupEmptyResultContinuationInput): boolean => firstScreenReady || reverse === false
+
+export const shouldContinueFetchAfterNoChange = ({
+  reason,
+}: NoChangeFetchContinuationInput): boolean => reason !== SortReason.LOAD
 
 export const shouldRefreshCachedRangeFromNetwork = ({
   isStartupCacheLoad,
