@@ -90,16 +90,10 @@ class SettledLiquidityChangeRepository(MysqlRepositoryConnectionMixin):
                 f'''
                 UPDATE {self.settled_liquidity_changes_table}
                 SET
-                    is_position_liquidity = CASE
-                        WHEN change_type = 'add_liquidity' AND liquidity_delta IN ('0', '0.0', '0.000000000000000000')
-                        THEN FALSE
-                        ELSE TRUE
-                    END,
-                    liquidity_semantics = CASE
-                        WHEN change_type = 'add_liquidity' AND liquidity_delta IN ('0', '0.0', '0.000000000000000000')
-                        THEN 'virtual_initial_liquidity'
-                        ELSE 'position_liquidity'
-                    END
+                    is_position_liquidity = TRUE,
+                    liquidity_semantics = 'position_liquidity'
+                WHERE liquidity_semantics IS NULL
+                   OR liquidity_semantics = ''
                 '''
             )
             self.connection.commit()

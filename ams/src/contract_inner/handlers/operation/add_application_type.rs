@@ -45,6 +45,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
                 owner,
                 application_type: self.application_type.clone(),
             },
+            false,
         );
 
         Ok(Some(outcome))

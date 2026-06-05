@@ -1,8 +1,7 @@
 import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { NotifyType } from '../notify'
 import { useSwapStore } from './store'
-import { type Account } from '../account'
-import { protocol } from 'src/utils'
+import { poolVisibility, protocol } from 'src/utils'
 
 const swap = useSwapStore()
 
@@ -23,41 +22,19 @@ export class Swap {
     )
   }
 
-  static createPool = (
-    token0: string,
-    token1: string | undefined,
-    amount0: string,
-    amount1: string,
-    to: Account | undefined, // TODO: should be a string ?
-    done?: (error: boolean) => void,
-  ) => {
-    swap.createPool(
-      {
-        token0,
-        token1: token1 as string,
-        amount0,
-        amount1,
-        to: to as Account,
-        Message: {
-          Error: {
-            Title: 'Create pool',
-            Message: 'Failed create pool',
-            Popup: true,
-            Type: NotifyType.Error,
-          },
-        },
-      },
-      done,
-    )
-  }
-
   static pools = () => swap.pools
+  static visiblePools = () => poolVisibility.visiblePools(swap.pools)
   static blockHash = () => swap.blockHash
 
   static initialize = () => swap.initializeSwap()
 
   static getPool = (buyToken: string, sellToken: string) => swap.getPool(buyToken, sellToken)
+  static getVisiblePool = (buyToken: string, sellToken: string) => {
+    const pool = swap.getPool(buyToken, sellToken)
+    return pool && poolVisibility.isFinalizedPool(pool) ? pool : undefined
+  }
   static selectedPool = () => swap.getPool(swap.buyToken, swap.sellToken)
+  static selectedVisiblePool = () => Swap.getVisiblePool(swap.buyToken, swap.sellToken)
   static buyToken = () => swap.buyToken
   static sellToken = () => swap.sellToken
 
@@ -77,12 +54,12 @@ export class Swap {
   }
 
   static tokenPrice = (token: string) => {
-    const nativePriceMap = protocol.buildNativePriceMap(swap.pools)
+    const nativePriceMap = protocol.buildNativePriceMap(Swap.visiblePools())
     return (nativePriceMap.get(token) || 0).toFixed(8)
   }
 
   static poolTvl = (pool: Pool) => {
-    const nativePriceMap = protocol.buildNativePriceMap(swap.pools)
+    const nativePriceMap = protocol.buildNativePriceMap(Swap.visiblePools())
     const tvl = protocol.calculatePoolTvlInNative(pool, nativePriceMap)
     return tvl === undefined ? undefined : tvl.toFixed(8)
   }

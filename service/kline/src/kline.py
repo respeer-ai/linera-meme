@@ -96,6 +96,9 @@ def _build_transactions_handler():
 def _build_positions_handler():
     return _runtime().positions_handler()
 
+def _build_claim_balances_handler():
+    return _runtime().claim_balances_handler()
+
 
 def _build_position_metrics_handler():
     dependencies = _position_metrics_dependencies()
@@ -318,6 +321,18 @@ async def on_get_positions(
         )
     except Exception as e:
         print(f'Failed get positions: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/claim-balances')
+async def on_get_claim_balances(owner: str = Query(...)):
+    try:
+        return _build_claim_balances_handler().get_claim_balances(owner=owner)
+    except Exception as e:
+        print(f'Failed get claim balances: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

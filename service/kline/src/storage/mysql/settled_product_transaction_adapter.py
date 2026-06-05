@@ -37,6 +37,7 @@ class SettledProductTransactionAdapter:
             'amount_1_in': self._display_string_or_none(amount_1_delta) if is_add else None,
             'amount_1_out': None if is_add else self._display_string_or_none(amount_1_delta),
             'liquidity': self._display_string_or_none(row.get('liquidity_delta')),
+            'liquidity_semantics': self._string_or_none(row.get('liquidity_semantics')),
             'created_at': self._int_or_none(row.get('event_time_ms')),
             'from_account': self.public_owner_from_settled_owner(row.get('owner')),
         }

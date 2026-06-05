@@ -148,12 +148,6 @@ class MarketStatsProjectionRepository:
             start_at=previous_start_at,
             end_at=current_start_at - 1,
         )
-        latest_native_prices = self._load_native_price_map()
-        previous_native_prices = self._load_native_price_map(
-            start_at=previous_start_at,
-            end_at=current_start_at - 1,
-        )
-
         current_volume = sum((self._quote_volume(trade) for trade in current_trades), Decimal('0'))
         previous_volume = sum((self._quote_volume(trade) for trade in previous_trades), Decimal('0'))
 
@@ -162,31 +156,10 @@ class MarketStatsProjectionRepository:
         else:
             volume_change = Decimal('0')
 
-        tvl_now = Decimal('0')
-        tvl_prev = Decimal('0')
-        for pool in pools:
-            reserve_0 = Decimal(str(pool.get('current_reserve_0') or '0'))
-            reserve_1 = Decimal(str(pool.get('current_reserve_1') or '0'))
-            token_0 = str(pool.get('token_0'))
-            token_1 = str(pool.get('token_1'))
-            price_0_now = latest_native_prices.get(token_0, Decimal('0'))
-            price_1_now = latest_native_prices.get(token_1, Decimal('0'))
-            price_0_prev = previous_native_prices.get(token_0, Decimal('0'))
-            price_1_prev = previous_native_prices.get(token_1, Decimal('0'))
-
-            if price_0_now > 0:
-                tvl_now += reserve_0 * price_0_now
-            if price_1_now > 0:
-                tvl_now += reserve_1 * price_1_now
-            if price_0_prev > 0:
-                tvl_prev += reserve_0 * price_0_prev
-            if price_1_prev > 0:
-                tvl_prev += reserve_1 * price_1_prev
-
-        if tvl_prev > 0:
-            tvl_change = (tvl_now - tvl_prev) / tvl_prev
-        else:
-            tvl_change = Decimal('0')
+        native_prices = self._reserve_native_price_map(pools)
+        tvl_now = self._pools_tvl_native(pools, native_prices)
+        tvl_change = Decimal('0')
+        fees = self._fees_native(current_trades, native_prices)
 
         return {
             'tvl': float(tvl_now),
@@ -194,7 +167,7 @@ class MarketStatsProjectionRepository:
             'volume': float(current_volume),
             'volume_change': float(volume_change),
             'tx_count': len(current_trades),
-            'fees': float(current_volume * Decimal('0.003')),
+            'fees': float(fees),
             'pool_count': len(pools),
         }
 
@@ -274,6 +247,75 @@ class MarketStatsProjectionRepository:
             enriched_row['token_1'] = metadata.get('token_1')
             enriched.append(enriched_row)
         return enriched
+
+    def _reserve_native_price_map(self, pools: list[dict]) -> dict[str, Decimal]:
+        native_prices = {
+            'TLINERA': Decimal('1'),
+        }
+        edges = []
+        for pool in pools:
+            token_0 = str(pool.get('token_0'))
+            token_1 = str(pool.get('token_1'))
+            reserve_0 = self._pool_amount(pool.get('current_reserve_0'))
+            reserve_1 = self._pool_amount(pool.get('current_reserve_1'))
+            if not token_0 or not token_1 or reserve_0 <= 0 or reserve_1 <= 0:
+                continue
+            edges.append((token_0, token_1, reserve_1 / reserve_0))
+            edges.append((token_1, token_0, reserve_0 / reserve_1))
+
+        changed = True
+        while changed:
+            changed = False
+            for from_token, to_token, price_in_to_token in edges:
+                if from_token in native_prices or to_token not in native_prices:
+                    continue
+                native_prices[from_token] = price_in_to_token * native_prices[to_token]
+                changed = True
+
+        return native_prices
+
+    def _fees_native(
+        self,
+        trades: list[dict],
+        native_prices: dict[str, Decimal],
+    ) -> Decimal:
+        fees = Decimal('0')
+        for trade in trades:
+            token, amount = self._trade_input_token_and_amount(trade)
+            price = native_prices.get(token)
+            if price is None:
+                continue
+            fees += amount * Decimal('0.003') * price
+        return fees
+
+    def _trade_input_token_and_amount(self, trade: dict) -> tuple[str, Decimal]:
+        if str(trade['side']) == 'buy_token_0':
+            return str(trade['token_1']), self._display_amount(trade['amount_in'])
+        return str(trade['token_0']), self._display_amount(trade['amount_in'])
+
+    def _pools_tvl_native(
+        self,
+        pools: list[dict],
+        native_prices: dict[str, Decimal],
+    ) -> Decimal:
+        tvl = Decimal('0')
+        for pool in pools:
+            token_0 = str(pool.get('token_0'))
+            token_1 = str(pool.get('token_1'))
+            reserve_0 = self._pool_amount(pool.get('current_reserve_0'))
+            reserve_1 = self._pool_amount(pool.get('current_reserve_1'))
+            price_0 = native_prices.get(token_0)
+            price_1 = native_prices.get(token_1)
+
+            if price_0 is not None:
+                tvl += reserve_0 * price_0
+            if price_1 is not None:
+                tvl += reserve_1 * price_1
+
+        return tvl
+
+    def _pool_amount(self, value: object) -> Decimal:
+        return Decimal(str(value or '0'))
 
     def _load_native_price_map(
         self,

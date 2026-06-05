@@ -6,6 +6,7 @@ status_legend:
   Doing: in progress
   Done: completed
   Blocked: waiting on dependency or confirmation
+  Cancelled: cancelled or moved out of the active task sequence
 groups:
   - name: Positions
     tasks:
@@ -14,263 +15,262 @@ groups:
         priority: P2
         depends_on: []
         title: Positions tab / route
-        notes: 页面入口已存在
+        notes: Page entry already exists.
       - id: POS-002
         status: Done
         priority: P2
         depends_on: [POS-001]
-        title: Positions 原型页
-        notes: 当前为静态原型页
+        title: Positions prototype page
+        notes: Currently a static prototype page.
       - id: POS-003
         status: Done
         priority: P2
         depends_on: [POS-002]
-        title: V2 文案语义校正
+        title: Correct V2 copy semantics
         notes: |
-          已去掉 V3 风格 `in range / rewards / incentives`
+          Removed V3-style `in range / rewards / incentives` wording.
       - id: POS-004
         status: Done
         priority: P2
         depends_on: [POS-002]
-        title: Status UI 改成 All / Active / Closed
-        notes: 当前仅 UI 尚未接真实数据
+        title: Change Status UI to All / Active / Closed
+        notes: UI only; real data is not wired yet.
       - id: POS-005
         status: Todo
         priority: P2
         depends_on: []
-        title: 明确 opened_at 定义
-        notes: 取首次 add 还是最近一轮 reopen 时间
+        title: Define opened_at semantics
+        notes: Decide whether it means the first add time or the latest reopen time.
       - id: POS-006
         status: Todo
         priority: P2
         depends_on: [POS-005]
-        title: 明确 current_liquidity 与 LMM 展示关系
-        notes: 是否直接用作顶部 share 数值
+        title: Define current_liquidity relationship with LMM display
+        notes: Decide whether it is used directly as the top-level share value.
       - id: POS-007
         status: Done
         priority: P1
         depends_on: []
-        title: service/kline 实现 get_positions(owner status)
-        notes: 已完成 owner 维度 positions 聚合查询
+        title: Implement service/kline get_positions(owner status)
+        notes: Owner-scoped positions aggregation query is complete.
       - id: POS-008
         status: Done
         priority: P1
         depends_on: [POS-007]
-        title: service/kline 暴露 GET /positions
-        notes: 已完成统一查询接口
+        title: Expose service/kline GET /positions
+        notes: Unified query endpoint is complete.
       - id: POS-009
         status: Done
         priority: P1
         depends_on: [POS-007]
-        title: 为 positions 聚合补 DB 单测
-        notes: 已覆盖 active closed 多池 多用户 非法状态
+        title: Add DB unit tests for positions aggregation
+        notes: Covers active, closed, multiple pools, multiple users, and invalid status.
       - id: POS-010
         status: Done
         priority: P1
         depends_on: [POS-008]
-        title: 为 /positions 补接口测试
-        notes: 已覆盖 owner status 非法参数
+        title: Add API tests for /positions
+        notes: Covers owner, status, and invalid parameters.
       - id: POS-011
         status: Done
         priority: P1
         depends_on: [POS-008]
-        title: 前端新增 positions store/types/wrapper
-        notes: 已新增独立 positions 数据层
+        title: Add frontend positions store/types/wrapper
+        notes: Independent positions data layer is complete.
       - id: POS-012
         status: Done
         priority: P1
         depends_on: [POS-011]
-        title: Positions 页接钱包 owner
-        notes: 已按当前钱包 owner 拉取 positions
+        title: Wire wallet owner into Positions page
+        notes: Positions are fetched by the current wallet owner.
       - id: POS-013
         status: Done
         priority: P1
         depends_on: [POS-008, POS-011, POS-012]
-        title: Positions 页接 /positions
-        notes: 已拉取真实 active / closed 数据
+        title: Wire Positions page to /positions
+        notes: Real active / closed data is fetched.
       - id: POS-014
         status: Done
         priority: P1
         depends_on: [POS-013]
-        title: 实现 Status 筛选联动接口
-        notes: 已支持 all active closed 查询切换
+        title: Wire Status filter to API queries
+        notes: all / active / closed query switching is supported.
       - id: POS-015
         status: Done
         priority: P1
         depends_on: [POS-013]
-        title: 实现真实列表渲染
-        notes: 已用真实 position card 替换纯空态原型
+        title: Render the real positions list
+        notes: Real position cards replace the empty-state-only prototype.
       - id: POS-016
         status: Done
         priority: P2
         depends_on: [POS-015]
-        title: 空态区分未连接钱包与无持仓
-        notes: 已区分钱包未连接 无 active 无 closed
+        title: Split empty states for disconnected wallet and no positions
+        notes: Distinguishes disconnected wallet, no active positions, and no closed positions.
       - id: POS-017
         status: Done
         priority: P2
         depends_on: [POS-015]
-        title: 设计 active position card
-        notes: 已展示 pool token share opened activity 信息
+        title: Design active position card
+        notes: Displays pool, token, share, opened time, and activity information.
       - id: POS-018
         status: Done
         priority: P1
         depends_on: [POS-015]
-        title: 接 Manage / Remove liquidity 入口
-        notes: 已支持从 active position 进入 remove/manage 页面
+        title: Wire Manage / Remove liquidity entry points
+        notes: Active positions can navigate to remove/manage pages.
       - id: POS-019
         status: Blocked
         priority: P0
         depends_on: []
-        title: 核验 from_account 是否稳定代表 LP owner
-        notes: 依赖后端交易写库语义确认
+        title: Verify whether from_account stably represents LP owner
+        notes: Depends on confirming backend transaction persistence semantics.
       - id: POS-020
         status: Blocked
         priority: P0
         depends_on: []
-        title: 核验 liquidity 字段是否可直接净额相减
-        notes: 依赖后端字段单位和精度确认
+        title: Verify whether liquidity can be netted directly
+        notes: Depends on confirming backend field units and precision.
       - id: POS-021
         status: Done
         priority: P0
         depends_on: [POS-013]
-        title: 保持 /positions 为轻量列表接口
-        notes: 已实现 ALLOWED_FIELDS frozenset 白名单，serializer 过滤非 Position 上下文字段
+        title: Keep /positions as a lightweight list endpoint
+        notes: Implemented the ALLOWED_FIELDS frozenset allowlist; the serializer filters non-position context fields.
       - id: POS-022
         status: Done
         priority: P0
         depends_on: [POS-021]
-        title: service/kline 新增 position metrics 接口
+        title: Add service/kline position metrics endpoint
         notes: |
-          已新增 `/position-metrics`，active query path 已切到 projection-backed snapshot/replay inputs。
-          Identity PositionMetricsSerializer 已删除（内联到 handler）。
-          8 个 legacy facade/support 文件已删除，compatibility 目录已清理。
+          Added `/position-metrics`; the active query path now uses projection-backed snapshot/replay inputs.
+          Identity PositionMetricsSerializer was removed and inlined into the handler.
+          Eight legacy facade/support files were removed, and the compatibility directory was cleaned up.
       - id: POS-023
         status: Done
         priority: P0
         depends_on: [POS-022]
-        title: 前端接入真实 position fee 展示
-        notes: 已过期。Layer 3 可靠交易数据下 fee 不存在 exact 问题，被新观测系统覆盖。
+        title: Wire frontend to real position fee display
+        notes: Obsolete. With reliable Layer 3 transaction data, fee exactness is no longer a separate issue and is covered by the new observability system.
       - id: POS-025
         status: Done
         priority: P0
         depends_on: [POS-022]
-        title: position-metrics 改为与池历史长度无关的物化查询
-        notes: 已过期。Layer 3 可靠数据下不再需要此区分，被新观测系统覆盖。
+        title: Change position-metrics to a materialized query independent of pool history length
+        notes: Obsolete. With reliable Layer 3 data, this distinction is no longer needed and is covered by the new observability system.
       - id: POS-043
         status: Done
         priority: P0
         depends_on: [POS-034, POS-035]
-        title: 删除 position-metrics 对 latestTransactions 的所有依赖
+        title: Remove all position-metrics dependencies on latestTransactions
         notes: |
-          Python 测已全部清除 latestTransactions 引用。
-          active runtime `/position-metrics` 已确认只走 projection-backed snapshot/replay inputs，不再引用 `latestTransactions`。
+          All Python tests have been cleared of latestTransactions references.
+          The active `/position-metrics` runtime is confirmed to use only projection-backed snapshot/replay inputs and no longer references `latestTransactions`.
       - id: POS-026
         status: Done
         priority: P0
         depends_on: []
-        title: 设计基于链区块的可靠观测与事件同步系统
+        title: Design reliable block-based observability and event synchronization system
         notes: |
-          架构设计已完成。三层架构（Layer 1 raw → Layer 2 normalized → Layer 3 market-data）已落地。
-          当前所有 observability tests 通过。499/548 测试通过，49 个 ERROR 均为环境依赖（MySQL/network）。
+          Architecture design is complete. The three-layer architecture (Layer 1 raw -> Layer 2 normalized -> Layer 3 market-data) is implemented.
+          All current observability tests pass. 499/548 tests pass, and the 49 ERROR cases are environment dependencies (MySQL/network).
       - id: POS-031
         status: Done
         priority: P0
         depends_on: [POS-026]
-        title: 设计 Layer 1 raw schema 与主键
+        title: Design Layer 1 raw schema and primary keys
         notes: |
-          DDL 已落地 raw_repo.py。Operational tables（chain_cursors, processing_cursors, ingestion_anomalies, raw_block_ingest_runs）已定义。Raw root/child tables 已定义。
-          RawRepository 14 tests pass。下一步连接 bootstrap 见 POS-032。
+          DDL is implemented in raw_repo.py. Operational tables (chain_cursors, processing_cursors, ingestion_anomalies, raw_block_ingest_runs) are defined. Raw root/child tables are defined.
+          RawRepository 14 tests pass. See POS-032 for the next bootstrap wiring step.
       - id: POS-032
         status: Done
         priority: P0
         depends_on: [POS-031]
-        title: 实现 Layer 1 block ingestion 与 cursor
+        title: Implement Layer 1 block ingestion and cursor
         notes: |
-          已完成。E2E 验证见 OBS-E2E-001。
+          Complete. See OBS-E2E-001 for E2E validation.
           - `IngestionCoordinator`: mark_attempt → fetch → parse → ingest → mark_failure
           - `CatchUpRunner` / `CatchUpDriver` / `ChainEventProcessor` / `LineraGraphqlNotificationListener`
-          - `PostIngestPipeline` 连接 ingestion → normalization → market derivation
-          - `ObservabilityRuntime` 编排 schema/registry/catch-up/listener 各阶段
-          - `ObservabilitySupervisor` 提供 fail-open 生命周期
+          - `PostIngestPipeline` connects ingestion -> normalization -> market derivation
+          - `ObservabilityRuntime` orchestrates schema/registry/catch-up/listener phases
+          - `ObservabilitySupervisor` provides a fail-open lifecycle
           - Unit tests: ingestion_coordinator / catch_up_runner / catch_up_driver / post_ingest_pipeline / app_bootstrap
-          - 验证：所有 ingestion tests 通过
+          - Validation: all ingestion tests pass
       - id: POS-042
         status: Done
         priority: P0
         depends_on: [POS-032, POS-036]
-        title: 重构 observability 为单进程内 fail-open 子生命周期
+        title: Refactor observability into an in-process fail-open sub-lifecycle
         notes: |
-          已完成。ObservabilitySupervisor 提供 start_in_background() / recover() / shutdown() 与 fail-open 语义。
-          KlineServiceLifecycle.startup() 对 observability 异常做 fail-open 吞吐。
-          fail-open lifecycle test 已覆盖 "后台启动同步抛错时 kline startup 仍成功" 场景。
+          Complete. ObservabilitySupervisor provides start_in_background() / recover() / shutdown() with fail-open semantics.
+          KlineServiceLifecycle.startup() tolerates observability exceptions with fail-open behavior.
+          The fail-open lifecycle test covers the case where synchronous background startup raises while kline startup still succeeds.
       - id: POS-033
         status: Done
         priority: P0
         depends_on: [POS-042]
-        title: 设计 application registry 与 decoder registry
+        title: Design application registry and decoder registry
         notes: |
-          为 `pool`、`swap`、`meme`、`proxy`、`ams`、`blob-gateway` 建立 app 类型注册与 decoder 选择规则。
-          当前已完成：
-          - 持久化 `application_registry` 与 MySQL repo
+          Establish app type registration and decoder selection rules for `pool`, `swap`, `meme`, `proxy`, `ams`, and `blob-gateway`.
+          Complete:
+          - Persistent `application_registry` and MySQL repo
           - `ApplicationRegistry`、`DecoderRegistry`、`DecoderDispatcher`
           - `SwapCatalogClient`、`ProxyCatalogClient`、`ApplicationDiscoveryService`
-          - Rust canonical decoder 路径接线
+          - Rust canonical decoder path wiring
           - `DecodeScheduler`
-          - `proxy/ams/blob-gateway` message decoder 接线补齐，已不再把这些已声明 pair 落为 `unimplemented_decoder`
-          当前硬约束：
-          - 复杂 ABI/BCS payload 不再用 Python 手写 field-level BCS
-          - decode 失败不阻断 ingestion
+          - `proxy/ams/blob-gateway` message decoder wiring is complete; declared pairs no longer fall into `unimplemented_decoder`
+          Hard constraints:
+          - Do not hand-code complex ABI/BCS payload field-level BCS in Python
+          - Decode failures must not block ingestion
       - id: POS-046
         status: Done
         priority: P0
         depends_on: [POS-042]
-        title: Rust decoder crate 迁移与 batch 子进程优化
+        title: Migrate Rust decoder crate and optimize batch subprocess execution
         notes: |
-          Rust canonical decoder 从 `abi/src/bin/` 迁移到独立 `service/decoder/` crate，
-          并实现 batch 子进程接口替代逐条启动。
-          已完成：
-          - 创建 `service/decoder/` crate，移入所有 decoder（pool/swap/meme/proxy/ams/blob-gateway）
-          - Rust 端接收 JSON 数组，返回每项独立 `{"status": "ok/error", ...}`
-          - `RustDecoderRunner.decode_batch()` 一次子进程处理整 block
-          - `DecodeScheduler.decode_batch()` 接入管线，不再逐条启动子进程
-          - Docker/脚本/测试路径同步更新
-          - 工作空间成员注册：`Cargo.toml` 加入 `"service/decoder"`
+          The Rust canonical decoder was migrated from `abi/src/bin/` into the standalone `service/decoder/` crate, with a batch subprocess interface replacing per-item subprocess startup.
+          Complete:
+          - Created `service/decoder/` crate and moved all decoders (pool/swap/meme/proxy/ams/blob-gateway)
+          - Rust receives a JSON array and returns independent `{"status": "ok/error", ...}` results per item
+          - `RustDecoderRunner.decode_batch()` processes a whole block in one subprocess
+          - `DecodeScheduler.decode_batch()` is wired into the pipeline and no longer starts subprocesses per item
+          - Docker/script/test paths were updated
+          - Workspace member registration: `Cargo.toml` includes `"service/decoder"`
       - id: POS-034
         status: Done
         priority: P0
         depends_on: [POS-033]
-        title: 定义 Layer 2 normalized events 与关联键
+        title: Define Layer 2 normalized events and correlation keys
         notes: |
-          统一定义业务事件字典、source/target 关联键、decode failure 记录，以及 `Reject` 到业务事件的映射。
-          已完成：
+          Uniformly define the business event dictionary, source/target correlation keys, decode failure records, and `Reject` to business-event mappings.
+          Complete:
           - `normalized_event_result`、`decode_result_normalizer`
-          - `normalized_events` 表与 materializer
+          - `normalized_events` table and materializer
           - `processing_cursor_repo`、`normalization_worker`、`normalization_replay_driver`
           - `POST /debug/normalization/replay/run`
-          - 第一批 pool-specific Layer 2 families
-          - proxy operation/message families 不再落 generic application fallback
-          - ams/blob-gateway operation/message families 改为显式 Layer 2 families
-          - meme `creator_chain_id` operation 改为显式 Layer 2 family
-          - `post_ingest_pipeline` 挂到 `CatchUpRunner`
-          - matrix-style normalizer coverage 锁住所有6 app types 的显式 family 分支
-          - 验证：34/34 normalizer 测试通过，无 generic fallback 泄漏
+          - First batch of pool-specific Layer 2 families
+          - proxy operation/message families no longer fall into generic application fallback
+          - ams/blob-gateway operation/message families now use explicit Layer 2 families
+          - meme `creator_chain_id` operation now uses an explicit Layer 2 family
+          - `post_ingest_pipeline` is attached to `CatchUpRunner`
+          - Matrix-style normalizer coverage locks explicit family branches for all six app types
+          - Validation: 34/34 normalizer tests pass with no generic fallback leakage
       - id: POS-035
         status: Done
         priority: P0
         depends_on: [POS-034]
-        title: 定义 Layer 3 market-data 契约并替换 latestTransactions
+        title: Define Layer 3 market-data contract and replace latestTransactions
         notes: |
-          已落第一版可执行 Layer 3 主干，并把 `market_deriver` 从 planned 提升为真实 worker boundary。
-          已完成：
+          The first executable Layer 3 backbone is implemented, and `market_deriver` has moved from planned work to a real worker boundary.
+          Complete:
           - `settled_market_result`、`settled_market_deriver`、`settled_market_materializer`
           - `market_derivation_worker`、`market_derivation_replay_driver`
-          - `settled_trades`、`settled_liquidity_changes` MySQL repo 与 schema
+          - `settled_trades`, `settled_liquidity_changes` MySQL repo and schema
           - `POST /debug/market-derivation/replay/run`
-          - Layer 3 runtime 已切到 `raw_posted_messages + pool_new_transaction_recorded`
-          - 所有 product 读路径已审计通过，全部使用 Layer 3 projection repos
+          - Layer 3 runtime now uses `raw_posted_messages + pool_new_transaction_recorded`
+          - All product read paths have been audited and use Layer 3 projection repos
           - Python side latestTransactions cleanup done
-          审计确认：
+          Audit confirmed:
           - `/transactions` → `SettledTradeProjectionRepository` (L3)
           - `/points` → `SettledTradeProjectionRepository` (L3)
           - `/positions` → `SettledLiquidityProjectionRepository` (L3)
@@ -279,27 +279,27 @@ groups:
           - ticker watermarks → `TransactionWatermarksQueryRepository` (L3)
           - maker stall diagnostics → query repos (L3)
           - 0 latestTransactions references in kline src + tests
-          合约侧 `latestTransactions` 队列正在移除。
-          风险记录：`SwapOperation::UpdatePool` 当前是 operation surface；若可被外部直接调用，需要 source/auth 校验或收窄 callable surface，不能靠 cursor 防伪。
+          Contract-side `latestTransactions` queue removal is in progress.
+          Risk record: `SwapOperation::UpdatePool` is currently an operation surface; if it is externally callable, it needs source/auth validation or a narrowed callable surface, and cannot rely on cursors as anti-forgery protection.
       - id: POS-044
         status: Done
         priority: P0
         depends_on: [POS-035]
-        title: 删除交易/K线/debug audit 对 latestTransactions 的所有依赖
+        title: Remove all transactions/K-line/debug audit dependencies on latestTransactions
         notes: |
-          服务端 latestTransactions 清理已完成。
-          - 所有 product 读路径已切到 projection repos
-          - Python kline src/tests 0 引用
-          - active runtime 审计确认所有路径走 projection
-          合约侧 `latestTransactions` 队列正在移除。
+          Server-side latestTransactions cleanup is complete.
+          - All product read paths use projection repos
+          - Python kline src/tests have zero references
+          - Active runtime audit confirms all paths use projections
+          Contract-side `latestTransactions` queue removal is in progress.
       - id: POS-036
         status: Done
         priority: P0
         depends_on: []
-        title: 创建 kline phase-1 新包骨架
+        title: Create kline phase-1 package skeleton
         notes: |
-          按 `agents/primitives/kline-package-layout.md` 创建 phase-1 所需的最小骨架。
-          当前已落地：
+          Created the minimal phase-1 skeleton required by `agents/primitives/kline-package-layout.md`.
+          Implemented:
           - `app/{config,bootstrap,lifecycle}`
           - `integration/chain_client.py`
           - `storage/mysql/{connection,raw_repo,projection_repo}.py`
@@ -307,154 +307,142 @@ groups:
           - `projection/{projector,trades,candles,positions,pools}`
           - `query/{handlers,read_models,serializers}`
           - `compatibility/legacy_response_shapes.py`
-          并已通过 `py_compile` 做最小导入校验。
+          Minimal import validation passed via `py_compile`.
       - id: POS-037
         status: Done
         priority: P0
         depends_on: [POS-035, POS-036, POS-042]
-        title: 实现 transactions 与 candles 的 phase-1 read models
+        title: Implement phase-1 read models for transactions and candles
         notes: |
-          已落 `query.read_models.transactions` / `query.read_models.candles`、对应 handlers 与 serializers，并把 endpoint runtime 切到新查询栈。
-          当前 `ProjectionRepository` 已只走 projection boundary：
-          - `settled_trade_projection_repo` 直接从 Layer 3 `settled_trades` 生成 `/transactions`
-          - `/points` 也从同一来源按 interval 聚合 candle points
-          - 新增 `pool_identity_projection_repo.py`
-          - 新增 `pool_transaction_history_projection_repo.py`
-          当前 targeted unittest 已覆盖 settled-trade rows、candle 聚合、pool identity 和 shared history boundary。
+          Implemented `query.read_models.transactions` / `query.read_models.candles`, their handlers and serializers, and moved endpoint runtime to the new query stack.
+          `ProjectionRepository` now stays inside the projection boundary:
+          - `settled_trade_projection_repo` builds `/transactions` directly from Layer 3 `settled_trades`
+          - `/points` aggregates candle points by interval from the same source
+          - Added `pool_identity_projection_repo.py`
+          - Added `pool_transaction_history_projection_repo.py`
+          Current targeted unittests cover settled-trade rows, candle aggregation, pool identity, and shared history boundaries.
       - id: POS-038
         status: Done
         priority: P0
         depends_on: [POS-035, POS-036, POS-042]
-        title: 实现 positions 的 phase-1 read model
+        title: Implement phase-1 read model for positions
         notes: |
-          已落 `query.read_models.positions`、对应 handler 与 serializer，并把 `/positions` 切到新查询栈。
-          当前 `ProjectionRepository.get_positions()` 与 `PositionMetricsProjectionRepository.get_positions()` 都已只走 `settled_liquidity_projection_repo`，不再回退 `Db.get_positions`。
-          当前硬约束进一步收紧：仓位存在性、虚拟初始仓位、protocol fee receiver 等业务语义必须只来自 parse-block 后的 projection，
-          不允许再用 live pool/swap/wallet query 决定业务真值。Canonical 见 `agents/context/observability-architecture.md`。
-          `position-metrics` 当前 active runtime 已确认只走 projection-backed snapshot/replay inputs。
-          本任务剩余重点不再是补 projection payload，而是把仓位相关依赖继续收紧到 projection-only：
-          - 清理产品路径残留 fallback / dead projection wiring
-          - virtual positions / protocol fee receiver 语义继续只由 parse-block 后的 snapshot + projection 合成
-          - pool catalog 的生产侧改为 parse-block 驱动，避免 consumer 再依赖历史 query-service 写入
-          当前 `db.py` legacy read methods 审计结论：
-          - active product endpoints 已由 `KlineRuntime` 接到 projection repos，旧 `Db.get_kline*` / `get_ticker`
-            / `get_pool_stats` / `get_protocol_stats` 保留为 legacy compatibility，不再作为产品读路径
-          - runtime guard tests 已覆盖 stats/protocol stats 不回退 legacy `Db.get_*`
-          - 剩余结构性问题是 `ProjectionPoolCatalogRepository` / metadata resolver 仍临时通过 legacy
-            `pools` 表取得 numeric `pool_id` bridge；生产侧需要改成 parse-block-driven pool catalog
-            或重新定义 public API identity，不能从 `pool_created` 事件伪造 pool_id
-          已推进：
-          - 新增 `pool_catalog_v2` projection，由 observed `swap_pool_created_recorded` /
-            `swap_user_pool_created_recorded` normalized events 物化
-          - `ProjectionPoolCatalogRepository` / metadata resolver / product read repos 已改读 projection catalog，
-            不再读 legacy `pools` 表
-          - `pool_catalog_v2.pool_id` 明确为 read-model stable id，不宣称是 swap GraphQL `poolId`
-          已完成最终收口：
-          - 产品 `/positions`、`/position-metrics`、pool catalog、stats/read models 均走 projection-backed runtime wiring
-          - `PositionMetricsPublicApi` 不再暴露 `fetch_pool_application_position_metrics` pool-application query 入口
-          - 旧 projection payload client 只保留为 legacy/integration 单元测试对象，不作为 product public API
-          - 公开 `/position-metrics` 响应不暴露 `owner_receives_protocol_fees`、`metrics_status`、`fee_calculation_complete`
-          - 验证：`python3 -m unittest service/kline/tests/positions_api_test.py service/kline/tests/query_stack_read_model_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/position_metrics_public_api_test.py service/kline/tests/position_metrics_test.py service/kline/tests/position_metrics_pool_application_payload_fetcher_test.py service/kline/tests/pool_application_client_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`，`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+          Implemented `query.read_models.positions`, the corresponding handler and serializer, and moved `/positions` to the new query stack.
+          `ProjectionRepository.get_positions()` and `PositionMetricsProjectionRepository.get_positions()` now use only `settled_liquidity_projection_repo` and no longer fall back to `Db.get_positions`.
+          Current hard constraint is stricter: position existence, virtual initial positions, protocol fee receiver, and related business semantics must come only from post-parse-block projections.
+          Do not use live pool/swap/wallet queries to determine business truth. Canonical reference: `agents/context/observability-architecture.md`.
+          The active `position-metrics` runtime is confirmed to use only projection-backed snapshot/replay inputs.
+          The remaining focus of this task is no longer adding projection payload fields, but tightening positions-related dependencies to projection-only:
+          - Clean remaining product-path fallback and dead projection wiring
+          - Keep virtual positions and protocol fee receiver semantics derived only from post-parse-block snapshot + projection
+          - Move production-side pool catalog to parse-block-driven data so consumers no longer depend on historical query-service writes
+          Audit conclusion for legacy read methods in `db.py`:
+          - Active product endpoints are wired by `KlineRuntime` to projection repos. Legacy `Db.get_kline*` / `get_ticker` / `get_pool_stats` / `get_protocol_stats` remain as legacy compatibility and are no longer product read paths
+          - Runtime guard tests cover stats/protocol stats not falling back to legacy `Db.get_*`
+          - The remaining structural issue was that `ProjectionPoolCatalogRepository` / metadata resolver temporarily used the legacy `pools` table for the numeric `pool_id` bridge. Production must use parse-block-driven pool catalog or redefine public API identity; it must not forge pool_id from `pool_created` events
+          Progress:
+          - Added `pool_catalog_v2` projection, materialized from observed `swap_pool_created_recorded` / `swap_user_pool_created_recorded` normalized events
+          - `ProjectionPoolCatalogRepository` / metadata resolver / product read repos now read the projection catalog instead of the legacy `pools` table
+          - `pool_catalog_v2.pool_id` is explicitly a read-model stable id and does not claim to be swap GraphQL `poolId`
+          Final closure:
+          - Product `/positions`, `/position-metrics`, pool catalog, stats/read models all use projection-backed runtime wiring
+          - `PositionMetricsPublicApi` no longer exposes the `fetch_pool_application_position_metrics` pool-application query entrypoint
+          - The old projection payload client remains only as a legacy/integration unit-test object, not as a product public API
+          - Public `/position-metrics` responses do not expose `owner_receives_protocol_fees`, `metrics_status`, or `fee_calculation_complete`
+          - Validation: `python3 -m unittest service/kline/tests/positions_api_test.py service/kline/tests/query_stack_read_model_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/position_metrics_public_api_test.py service/kline/tests/position_metrics_test.py service/kline/tests/position_metrics_pool_application_payload_fetcher_test.py service/kline/tests/pool_application_client_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`, `bun run lint`, `bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
       - id: POS-039
         status: Done
         priority: P0
         depends_on: [POS-037]
-        title: 切换 points 与 transactions handlers 到新 read models
+        title: Switch points and transactions handlers to new read models
         notes: |
-          已完成主 read-path cutover：
+          Main read-path cutover is complete:
           - `/points/...`
           - `/points/.../information`
           - `/transactions/...`
           - `/transactions/information`
-          以上路径现都通过 `query.handlers.* + query.serializers.* + projection repos` 读数据，不再在 endpoint 内调用 legacy `Db`，也不再保留 runtime fallback。
+          These paths now read data through `query.handlers.* + query.serializers.* + projection repos`; endpoints no longer call legacy `Db` and no runtime fallback remains.
       - id: POS-040
         status: Done
         priority: P0
         depends_on: [POS-038]
-        title: 切换 positions handler 到新 read model
+        title: Switch positions handler to the new read model
         notes: |
-          `/positions` 已切到 `query.handlers.positions` 和 `query.serializers.positions`，由新 read model 返回 owner envelope。
-          当前 handler runtime 只走 projection 契约，`settled_liquidity_projection_repo` 负责 positions 与 owner/pool liquidity history。
-          `position-metrics` 侧的 projection fetch / replay / payload enrichment / repo contract 已完成多轮对象化与 bundled-contract 收口。
-          当前稳定边界：
-          - read path 消费 `get_replay_facts()` 与 `get_snapshot_inputs()`
-          - runtime 通过公开 `build_runtime()` / `build_replay_entrypoint()` 获取 position-metrics 能力
-          - `PositionMetricsPublicApi` 已成为稳定入口
-          后续继续把 replay-time derivation 从 query/read boundary 下推到 projection/repository 契约。
+          `/positions` now uses `query.handlers.positions` and `query.serializers.positions`, returning an owner envelope from the new read model.
+          The current handler runtime only follows the projection contract; `settled_liquidity_projection_repo` owns positions and owner/pool liquidity history.
+          On the `position-metrics` side, projection fetch / replay / payload enrichment / repo contracts have gone through multiple object-oriented and bundled-contract closure passes.
+          Stable boundaries:
+          - The read path consumes `get_replay_facts()` and `get_snapshot_inputs()`
+          - Runtime obtains position-metrics capability through public `build_runtime()` / `build_replay_entrypoint()`
+          - `PositionMetricsPublicApi` is now the stable entrypoint
+          Continue pushing replay-time derivation from the query/read boundary down into projection/repository contracts.
       - id: POS-041
         status: Done
         priority: P0
         depends_on: [POS-039, POS-040]
-        title: 为 phase-1 迁移增加 parity 与回退护栏
+        title: Add parity and rollback guardrails for phase-1 migration
         notes: |
-          parity / rollback runtime 方案已废弃。
-          当前目标明确为纯新架构，不再允许 runtime legacy path、handler shadow compare 或 rollout debug surface。
-          之前规划中的 `compatibility/legacy_response_shapes.py` 未成为活跃运行时依赖，
-          现已不再保留兼容层运行时代码。
+          The parity / rollback runtime plan is abandoned.
+          The current target is explicitly the pure new architecture. Runtime legacy paths, handler shadow compare, and rollout debug surfaces are no longer allowed.
+          The previously planned `compatibility/legacy_response_shapes.py` did not become an active runtime dependency, and compatibility-layer runtime code is no longer retained.
       - id: OBS-E2E-001
         status: Done
         priority: P0
         depends_on: [POS-032, POS-035, POS-044]
-        title: 端到端 observability 集成测试
+        title: End-to-end observability integration test
         notes: |
-          这一批工作的主线任务。参考 `scripts/run_local.sh` 搭建本地完整测试环境，验证
-          L1→L2→L3 全管线，并完成与前端读路径相关的最终语义核对。
+          Mainline task for this work batch. Use `scripts/run_local.sh` as the reference for building a complete local test environment, validating the L1->L2->L3 pipeline, and completing final semantic checks for frontend read paths.
 
-          范围收口：
-          - observability E2E 闭环
-          - maker 交易流对 observability / 1min K 线的影响验证
-          - 前端主读路径的金融语义核对（不是只看接口通不通，也不依赖人工逐项浏览器对账）
-          - 完整数据平台约束核对：生产数据只来自 chain parse，消费数据只来自 projections；
-            不允许产品业务真值来自 chain query。Canonical 见 `agents/context/observability-architecture.md`。
+          Scope closure:
+          - observability E2E loop
+          - maker trading flow impact on observability / 1min K-line
+          - financial semantic checks for primary frontend read paths; do not treat API reachability or manual browser-by-browser accounting as correctness
+          - complete data platform constraint check: production data comes only from chain parse, and consumer data comes only from projections; product business truth must not come from chain query. Canonical reference: `agents/context/observability-architecture.md`.
 
-          环境准备：
-          - 启动 MySQL (docker-compose)
-          - 编译 `canonical_decoder` (cargo build --release -p decoder --bin canonical_decoder)
-          - 安装 Python 依赖 (pip install -r requirements.txt)
-          - 启动 kline service，配置 observability 参数指向本地/测试网
+          Environment setup:
+          - Start MySQL (docker-compose)
+          - Build `canonical_decoder` (cargo build --release -p decoder --bin canonical_decoder)
+          - Install Python dependencies (pip install -r requirements.txt)
+          - Start kline service with observability parameters pointing to local/testnet
 
-          验证检查点：
-          - `GET /debug/observability` 返回非空 cursors
-          - `POST /debug/normalization/replay/run` 执行 normalization
-          - `POST /debug/market-derivation/replay/run` 执行 market derivation
-          - `/transactions` 和 `/points` 返回 Layer 3 数据
-          - 日志包含预期的 lifecycle 消息
-          - maker 发起真实交易后，链上与 Layer 3 projection 保持一致
-          - 前端消费接口由自动 E2E/回归测试覆盖金融语义；浏览器只做烟测，不作为账务正确性的完成标准
+          Validation checkpoints:
+          - `GET /debug/observability` returns non-empty cursors
+          - `POST /debug/normalization/replay/run` runs normalization
+          - `POST /debug/market-derivation/replay/run` runs market derivation
+          - `/transactions` and `/points` return Layer 3 data
+          - Logs include expected lifecycle messages
+          - After maker submits real trades, chain state and Layer 3 projections remain consistent
+          - Frontend-consumed interfaces cover financial semantics through automated E2E/regression tests; browser checks are smoke tests only and are not the completion standard for accounting correctness
 
-          当前已落地：
-          - `service/kline/start_kline_e2e.sh` 可在本地拉起 kline，注入 decoder / MySQL / GraphQL 参数并等待 `/debug/observability` ready
-          - 为本地 E2E 启动补了 MySQL 兼容与幂等修正：
-            - `settled_trade_repo.ensure_schema()` 改为 `information_schema` 探测后按需 `ALTER`
-            - `raw_posted_messages` 重复写入改为 `INSERT IGNORE`
-          - 前端主链路中，token 列表、交易、K 线基础拉取与实时更新问题已基本跑通
-          - 2026-05-12 runtime 复核：
-            - `compose_maker_and_funder.sh` 与 `compose_webui.sh` 已重跑，`kline` / `maker` / `funder` / `linera-meme-webui` healthy
-            - `/debug/observability` 返回 `ready=true`，schema/registry/startup_catch_up/listener/workers 均 ready
-            - maker 曾因未传 `SUDO_PASSWORD` 导致 `WALLET_CHAIN` 为空；用 `SUDO_PASSWORD=12345679` 重跑后 maker wallet chain 恢复为 `507e...a733`，swap mutation 成功
-            - `/transactions` 最新交易、`/points` 1m K 线、`/protocol/stats`、`/poolstats/interval/1d` 均能从 projection 返回数据
-          - 已新增系统回归 `service/kline/tests/observability_reconciliation_test.py`：
-            固定 projection facts，独立对账 transactions、1m candles、pool/protocol stats、virtual positions 与
-            protocol fee metrics，防止前端/接口人工观测替代金融语义验证
-          - maker 已完成第一版成熟做市商重构，当前 1min K 线质量验收为可接受
+          Implemented:
+          - `service/kline/start_kline_e2e.sh` can start kline locally, inject decoder / MySQL / GraphQL parameters, and wait for `/debug/observability` readiness
+          - Added MySQL compatibility and idempotency fixes for local E2E startup:
+            - `settled_trade_repo.ensure_schema()` now probes `information_schema` and applies `ALTER` only when needed
+            - Duplicate writes to `raw_posted_messages` now use `INSERT IGNORE`
+          - Primary frontend flows for token list, transactions, K-line baseline fetch, and realtime updates are mostly working
+          - 2026-05-12 runtime review:
+            - `compose_maker_and_funder.sh` and `compose_webui.sh` were rerun; `kline` / `maker` / `funder` / `linera-meme-webui` are healthy
+            - `/debug/observability` returns `ready=true`; schema/registry/startup_catch_up/listener/workers are ready
+            - maker previously had empty `WALLET_CHAIN` because `SUDO_PASSWORD` was not passed; rerunning with `SUDO_PASSWORD=12345679` restored maker wallet chain to `507e...a733`, and swap mutation succeeded
+            - Latest `/transactions`, `/points` 1m K-line, `/protocol/stats`, and `/poolstats/interval/1d` all return projection data
+          - Added system regression `service/kline/tests/observability_reconciliation_test.py`: fixed projection facts independently reconcile transactions, 1m candles, pool/protocol stats, virtual positions, and protocol fee metrics, preventing frontend/API manual observation from replacing financial semantic verification
+          - maker first-pass mature market-maker refactor is complete, and current 1min K-line quality is accepted
 
-          最终收口：
-          - `service/kline/tests/observability_e2e_test.sh` 已成为 shell-level 集成验证入口，
-            包含 observability ready、replay/debug 入口、product API smoke checks
-          - 该脚本已接入 `observability_reconciliation_test.py`，用固定 projection facts 自动对账
-            transactions、1m candles、pool/protocol stats、virtual positions 与 protocol fee metrics
-          - positions / TVL / APR 等金融语义核对已转为自动回归约束，不再以人工浏览器逐项对账作为完成标准
-          - 验证：`bash -n service/kline/tests/observability_e2e_test.sh`
-          - 验证：`output/pytest-venv/bin/pytest service/kline/tests`，683 passed
+          Final closure:
+          - `service/kline/tests/observability_e2e_test.sh` is now the shell-level integration validation entrypoint, covering observability readiness, replay/debug entrypoints, and product API smoke checks
+          - The script includes `observability_reconciliation_test.py`, using fixed projection facts to automatically reconcile transactions, 1m candles, pool/protocol stats, virtual positions, and protocol fee metrics
+          - Financial semantic checks for positions / TVL / APR are now automated regression constraints; manual browser-by-browser reconciliation is no longer a completion standard
+          - Validation: `bash -n service/kline/tests/observability_e2e_test.sh`
+          - Validation: `output/pytest-venv/bin/pytest service/kline/tests`, 683 passed
       - id: POS-045
         status: Done
         priority: P1
         depends_on: [POS-044]
-        title: review kline OO 架构并消除 facade/URL 透传中间态
+        title: Review kline OO architecture and eliminate facade/URL pass-through transitional states
         notes: |
-          observability 整体功能、代码和架构审查已完成，本轮不做高风险大重构。
+          Overall observability functionality, code, and architecture review is complete. This round does not include high-risk major refactors.
 
-          审查范围：
+          Review scope:
           - Layer 1 ingestion/cursor/raw storage
           - application registry / decoder dispatch / Rust decoder runner
           - Layer 2 normalization / pool catalog projection materialization
@@ -462,87 +450,71 @@ groups:
           - product query read models / serializers / stats / positions / position-metrics
           - realtime event queue / publisher / candle finality / websocket invalidation
           - diagnostics/debug/fail-open lifecycle
-          - bootstrap/lifecycle/runtime composition 与外部 integration client 边界
+          - bootstrap/lifecycle/runtime composition and external integration client boundaries
 
-          主要结论：
-          - L1→L2→L3 主链路已经按数据平台分层落地：producer facts 来自 parsed chain blocks，
-            normalized events 由 decoder/normalizer 生成，consumer-facing business data 由 Layer 3
-            projection repos/read models 提供。
-          - `PostIngestPipeline` 明确按 normalization → market derivation 串联，`MarketDerivationWorker`
-            在 projection materialize 成功后再发布 market-data events，符合“projection commit 驱动 realtime”的约束。
-          - `/transactions`、`/points`、`/positions`、`/position-metrics`、stats/read models 的 active runtime
-            通过 `KlineRuntime` 接 projection repos/read models；未发现 product handler 直接以 live chain query
-            或 `latestTransactions` 作为业务真值。
-          - `latestTransactions` 在 kline src/tests 的产品依赖已经清理；当前 Layer 3 事实载体是
-            block-observed `pool_new_transaction_recorded`，不是 pool state history queue。
-          - diagnostics/realtime debug 写入已有 best-effort 与 TTL/max-row 配额，符合“诊断不能打死业务路径”的约束。
-          - account 解析已集中到 `AccountCodec`，运行时写入路径使用 public account 形态；`ensure_schema()`
-            中的 account-format UPDATE 属于历史数据迁移边界，不是运行时兼容 fallback。
-          - `position_metrics_pool_application_payload_*` 不属于 product runtime truth path，当前只应保留为
-            legacy/integration/test 边界，不能重新进入产品读路径。
+          Main conclusions:
+          - The L1->L2->L3 main path is implemented as a layered data platform: producer facts come from parsed chain blocks, normalized events are generated by decoder/normalizer, and consumer-facing business data is provided by Layer 3 projection repos/read models.
+          - `PostIngestPipeline` explicitly chains normalization -> market derivation, and `MarketDerivationWorker` publishes market-data events only after projection materialization succeeds. This matches the "projection commit drives realtime" constraint.
+          - Active runtime for `/transactions`, `/points`, `/positions`, `/position-metrics`, stats/read models is wired through `KlineRuntime` to projection repos/read models. No product handler was found using live chain query or `latestTransactions` as business truth.
+          - Product dependencies on `latestTransactions` are cleaned from kline src/tests. Current Layer 3 facts use block-observed `pool_new_transaction_recorded`, not the pool state history queue.
+          - diagnostics/realtime debug writes are best-effort and bounded by TTL/max-row quotas, satisfying the constraint that diagnostics must not take down business paths.
+          - Account parsing is centralized in `AccountCodec`; runtime write paths use public account shape. The account-format UPDATE in `ensure_schema()` is a historical data migration boundary, not runtime compatibility fallback.
+          - `position_metrics_pool_application_payload_*` is not a product runtime truth path and should remain only in legacy/integration/test boundaries. It must not re-enter product read paths.
 
-          仍需后续结构清理但不阻断当前完成的点：
-          - `service/kline/src/db.py` 仍是 legacy monolith，混有 debug persistence、旧表 schema、历史方法和
-            compatibility surface；它不是 canonical architecture，应逐步拆到 storage/diagnostics/repositories。
-          - `service/kline/src/kline.py` 仍是较大的 FastAPI entrypoint，包含 global state、endpoint wiring、
-            debug endpoint 与 runtime construction；后续应拆成 query/diagnostics API 组合层，而不是继续扩写。
-          - `app/bootstrap.py` 当前是 composition root，但对象装配过重，并重复构建 decoder/repo/pipeline bundle；
-            后续可拆为 observability container builder / projection pipeline builder / integration client builder。
-          - `ObservabilityFacade` 与 `KlineObservabilityDebugService` 当前主要承担 fail-open/debug payload 包装，
-            可以接受；但不要继续扩成只有转发行为、没有独立策略的 pass-through 层。
-          - URL/base URL 拼装仍存在于 outer/integration boundary：
+          Follow-up structure cleanup that does not block current completion:
+          - `service/kline/src/db.py` is still a legacy monolith mixing debug persistence, old table schema, historical methods, and compatibility surface. It is not canonical architecture and should be gradually split into storage/diagnostics/repositories.
+          - `service/kline/src/kline.py` is still a large FastAPI entrypoint with global state, endpoint wiring, debug endpoints, and runtime construction. It should later be split into query/diagnostics API composition layers instead of being expanded further.
+          - `app/bootstrap.py` is currently the composition root, but object assembly is heavy and repeats decoder/repo/pipeline bundle construction. It can later be split into observability container builder / projection pipeline builder / integration client builder.
+          - `ObservabilityFacade` and `KlineObservabilityDebugService` currently mainly wrap fail-open/debug payload behavior, which is acceptable. Do not expand them into pass-through layers with no independent policy.
+          - URL/base URL assembly still exists at the outer/integration boundary:
             `kline.py`、`maker.py`、`funder.py`、`app/bootstrap.py`、`integration/*client.py`。
-            当前作为迁移中间态可接受；稳态目标是外层注入 configured client/transport object，
-            内层不再传递 resolved endpoint string。
-          - `position_metrics_*` 模块数量多且命名仍带历史阶段痕迹；业务真值边界已收敛到 projection，
-            但代码结构后续应按 read-model/snapshot/replay/diagnostics 重新聚合，避免继续碎片化。
+            This is acceptable as a migration transitional state. The stable target is to inject configured client/transport objects from the outer layer and stop passing resolved endpoint strings through inner layers.
+          - There are many `position_metrics_*` modules, and naming still carries historical stage traces. The business-truth boundary has converged to projection, but code structure should later be regrouped by read-model/snapshot/replay/diagnostics to avoid further fragmentation.
 
-          完成标准：
-          - 已按 observability 全链路审查功能、代码和架构边界
-          - 已记录符合架构约束的证据、可接受中间态和后续结构清理点
-          - 未发现需要立即阻断当前 observability 批次收尾的产品业务真值违例
+          Completion standard:
+          - Reviewed functionality, code, and architecture boundaries across the full observability path
+          - Recorded evidence that satisfies architecture constraints, acceptable transitional states, and follow-up structural cleanup points
+          - Found no product business-truth violation that must immediately block closing the current observability batch
       - id: POS-027
         status: Done
         priority: P0
         depends_on: []
-        title: 排查生产环境 K 线自 03:00 起归零原因
+        title: Investigate production K-line flattening after 03:00
         notes: |
-          聚焦线上已发生故障：用户最初描述为“03:00 起归零”，已校正为“03:00 之后没有新蜡烛、价格一直横着”。
-          当前结论：
-          - production 活跃池 1000/1001/1002 的 `/points` 在 2026-04-20 03:00 CST 后并未返回 `close=0`，而是继续返回非零价格
-          - recent projection-vs-DB audit 无缺口，因此不是 recent window 丢交易导致的“假平线”
-          - 早期一轮排查曾指向 maker-like 地址库存枯竭与 `maker-wallet-service` OOM
-          - 新一轮线上取证又确认 maker 仍持续向 wallet 发起 `swap` mutation，wallet balances 与 token inventory 正常
-          - 三个活跃池的 pool-application `latestTransactions` 与 kline DB 都停在更早时间点，断点位于 wallet/chain 执行层，不在 kline 同步
+          Focus on the production incident: the initial description was "zero since 03:00", later corrected to "no new candles after 03:00 and price stays flat".
+          Current conclusions:
+          - `/points` for active production pools 1000/1001/1002 did not return `close=0` after 2026-04-20 03:00 CST; it continued returning non-zero prices
+          - Recent projection-vs-DB audit found no gaps, so this is not a false flatline caused by recent-window transaction loss
+          - An early investigation pointed to depleted maker-like address inventory and `maker-wallet-service` OOM
+          - A later production evidence pass confirmed maker still continuously sent `swap` mutations to wallet, and wallet balances/token inventory were normal
+          - For the three active pools, pool-application `latestTransactions` and kline DB were both stuck at an earlier time, placing the breakpoint in wallet/chain execution rather than kline synchronization
 
-          当前排障已由 POS-028/029/030 收口：
-          - maker-wallet metrics 与 maker debug API 已补齐
-          - kline/projection recent audit 未发现同步缺口
-          - 断点诊断已能暴露 maker→wallet mutation accepted 但 projection 未结算的阶段
-          - Reject 精确映射到合约 panic 点不作为可实现完成条件
+          Current troubleshooting is closed by POS-028/029/030:
+          - maker-wallet metrics and maker debug API are complete
+          - kline/projection recent audit found no synchronization gap
+          - Breakpoint diagnostics can expose the stage where maker->wallet mutation is accepted but projection is not settled
+          - Exact mapping from Reject to contract panic point is not an achievable completion condition
 
-          结论：该故障不再作为 kline 同步缺陷追踪；剩余生产质量问题应通过 observability E2E
-          与自动 projection-fact 对账覆盖。
+          Conclusion: this incident is no longer tracked as a kline synchronization defect. Remaining production quality issues should be covered by observability E2E and automated projection-fact reconciliation.
       - id: POS-028
         status: Done
         priority: P0
         depends_on: [POS-027]
-        title: maker-wallet-service 暴露 8082 metrics 端口
+        title: Expose maker-wallet-service 8082 metrics port
         notes: |
-          已在 `k8s/maker/02-deployment.yaml` 的 `maker-wallet-service` 容器声明 `containerPort: 8082`，
-          并在同文件的 Service 增加 `maker-wallet-metrics` 端口，保持对外仍只走业务 `8080`。
-          部署后可由 `maker-service` 通过
+          Declared `containerPort: 8082` on the `maker-wallet-service` container in `k8s/maker/02-deployment.yaml`, and added the `maker-wallet-metrics` Service port in the same file, while keeping external business traffic on `8080`.
+          After deployment, `maker-service` can fetch metrics through
           `http://maker-wallet-service-$index.maker-wallet-service:8082/metrics`
-          拉取指标。
+          .
       - id: POS-029
         status: Done
         priority: P0
         depends_on: [POS-028]
-        title: maker-service 新增 wallet debug/export API
+        title: Add wallet debug/export API to maker-service
         notes: |
-          已直接扩展现有 `service/kline/src/maker_api.py`，复用 `Db` 与现有 trace/event 表，
-          在 maker-service 原 `8080` 上提供只读 debug API，避免再起第三个进程和新端口。
-          当前已落地：
+          Extended existing `service/kline/src/maker_api.py` directly, reusing `Db` and existing trace/event tables.
+          Provides read-only debug APIs on maker-service's existing `8080`, avoiding a third process and new port.
+          Implemented:
           - `/debug/wallets`
           - `/debug/wallets/{index}/metrics`
           - `/debug/wallets/{index}/balances`
@@ -550,17 +522,15 @@ groups:
           - `/debug/pools/stall`
           - `/debug/health`
 
-          接口会聚合 wallet metrics、wallet GraphQL 余额、maker DB 事件和 pool 最新交易水位，
-          并返回语义化 health/stall 结论。
+          The endpoints aggregate wallet metrics, wallet GraphQL balances, maker DB events, and pool latest transaction watermarks, then return semantic health/stall conclusions.
       - id: POS-030
         status: Done
         priority: P0
         depends_on: [POS-029]
-        title: maker wallet 执行断点诊断闭环
+        title: Close maker wallet execution breakpoint diagnostics
         notes: |
-          已在 `/debug/pools/stall` 聚合最近 maker event、wallet swap trace、DB 最新 transaction 和
-          wallet health，并输出 `lag_seconds` 与 `suspected_stage`。
-          当前已覆盖：
+          `/debug/pools/stall` now aggregates recent maker events, wallet swap trace, latest DB transaction, and wallet health, and outputs `lag_seconds` plus `suspected_stage`.
+          Covered stages:
           - `maker_idle`
           - `wallet_metrics_unreachable`
           - `wallet_low_gas`
@@ -568,509 +538,960 @@ groups:
           - `mutation_accepted_but_not_settled`
           - `unknown`
 
-          已确认的关键事实：
-          - 2026-04-22 线上 maker-service CrashLoop 的直接原因不是 wallet，而是
-            `service/kline/src/db.py` 启动时对超大 `maker_events` 表执行 `ensure_debug_indexes()`，
-            MySQL 返回 `1114 The table 'maker_events' is full`
-          - 现已把 debug 索引创建与 debug 表写入改为 best-effort，表满时只记录
-            `debug_storage_degraded`，不再阻断 maker 启动和主交易循环
-          - 后续线上复核已推翻“没有稳定 inbox 处理者”的中间结论：pool creator 链仍在持续出块并处理 inbox
-          - 最近用户链发来的 `PoolMessage::Swap` 在 creator 链上稳定表现为 `ReceiveMessages + Reject`
-          - maker trace 显示 wallet mutation 持续返回 200，但 pool `latestTransactions` 与 swap root
-            仍停在旧时间窗，同时 pool 合约真实资产余额与 `reserve` 明显漂移
+          Confirmed key facts:
+          - The direct cause of the 2026-04-22 production maker-service CrashLoop was not wallet, but `service/kline/src/db.py` running `ensure_debug_indexes()` against an oversized `maker_events` table during startup; MySQL returned `1114 The table 'maker_events' is full`
+          - Debug index creation and debug table writes are now best-effort. When the table is full, only `debug_storage_degraded` is recorded, and maker startup/main trading loop are no longer blocked
+          - Later production review disproved the interim conclusion that there was no stable inbox processor: the pool creator chain still continuously produced blocks and processed inbox
+          - Recent `PoolMessage::Swap` from the user chain consistently appears on the creator chain as `ReceiveMessages + Reject`
+          - maker trace shows wallet mutations continuously returning 200, while pool `latestTransactions` and swap root remain stuck in the old time window, and real pool contract asset balances visibly drift from `reserve`
 
-          结论：断点已收敛到“资金/消息已到 creator 链，但 swap 执行阶段发生硬失败”，
-          而不是 kline 漏同步或 creator 链无人监听。
-          可实现的诊断目标已完成：系统能暴露 maker→wallet mutation 已接受但 projection 未结算的阶段。
-          由于链上 Reject 不必携带合约 panic 细节，不能把“精确对应到 panic 点”作为完成条件。
+          Conclusion: the breakpoint has narrowed to "funds/messages reached the creator chain, but swap execution hard-failed", not kline missed synchronization or an unmonitored creator chain.
+          The achievable diagnostic goal is complete: the system can expose the stage where maker->wallet mutation was accepted but projection did not settle.
+          Because on-chain Reject does not have to carry contract panic details, "exact mapping to panic point" cannot be a completion condition.
       - id: POS-047
         status: Done
         priority: P0
         depends_on: [POS-030]
-        title: 围绕现有 AMM pool 重构 maker 为成熟做市商
+        title: Refactor maker into a mature market maker around the existing AMM pool
         notes: |
-          该任务统一收口 maker 侧重构目标，约束如下：
-          - 只重构 maker 侧，不重写 pool / swap AMM 合约
-          - 围绕现有 AMM pool 实现成熟做市商算法，而不是再造一套 AMM
-          - 优先改 `service/kline/src/trader.py`，允许新增小模块
-          - 尽量保持 `service/kline/src/swap.py` 与 `service/kline/src/wallet.py` 的外部接口语义不变
+          This task unifies maker-side refactor goals with these constraints:
+          - Refactor maker only; do not rewrite pool / swap AMM contracts
+          - Implement a mature market-maker algorithm around the existing AMM pool instead of building another AMM
+          - Prefer modifying `service/kline/src/trader.py`, with small new modules allowed
+          - Preserve external interface semantics of `service/kline/src/swap.py` and `service/kline/src/wallet.py` as much as possible
 
-          已完成第一版实现：
-          - `maker_reference_price_engine.py` 提供 reference price / regime / directional score
-          - `maker_inventory_controller.py` 管理 pending imbalance、long-term bias 与 active slice plan
-          - `maker_execution_policy.py` 基于 AMM reserves、mispricing、inventory、risk limits 输出交易方向与规模
-          - `maker_minute_scheduler.py` / `maker_minute_plan.py` 将窗口净额拆成 execution slices
-          - `Trader` 已接入上述模块，不再使用“随机抽方向 + 随机抽重尾单量”作为主策略
-          - 当前 1min K 线质量验收为可接受
+          First implementation is complete:
+          - `maker_reference_price_engine.py` provides reference price / regime / directional score
+          - `maker_inventory_controller.py` manages pending imbalance, long-term bias, and active slice plan
+          - `maker_execution_policy.py` outputs trade side and size based on AMM reserves, mispricing, inventory, and risk limits
+          - `maker_minute_scheduler.py` / `maker_minute_plan.py` split window net amount into execution slices
+          - `Trader` is wired to these modules and no longer uses "random direction + random heavy-tail amount" as the main strategy
+          - Current 1min K-line quality is accepted
       - id: POS-048
         status: Done
         priority: P0
         depends_on: [POS-047]
-        title: 提取 maker market state 与 reference/inventory 边界
+        title: Extract maker market state and reference/inventory boundaries
         notes: |
-          从 `Trader` 中拆出每 pool 独立状态与核心状态机边界，至少包括：
+          Extract per-pool independent state and core state-machine boundaries from `Trader`, including at least:
           - `PoolMarketState`
           - `ReferencePriceEngine`
           - `InventoryController`
 
-          约束：
-          - 不再把 `pending_*`、`long_term_quote_bias`、价格状态散落在 `Trader` 顶层字段
-          - 先完成结构与语义收口，再推进执行策略替换
-          已完成：reference / inventory / minute planning 边界已拆出并由 `Trader` 组合。
+          Constraints:
+          - Do not keep `pending_*`, `long_term_quote_bias`, and price state scattered across top-level `Trader` fields
+          - Complete structural and semantic closure before replacing execution strategy
+          Complete: reference / inventory / minute planning boundaries are extracted and composed by `Trader`.
       - id: POS-049
         status: Done
         priority: P0
         depends_on: [POS-048]
-        title: 实现基于 reference price 偏离的 AMM execution policy
+        title: Implement AMM execution policy based on reference price deviation
         notes: |
-          用成熟做市商语义替换当前随机 `trade_amounts()`：
-          - 输入：pool reserves、pool price、reference price、inventory skew、risk limits
-          - 输出：side、target price correction、target quote notional、max impact
+          Replace current random `trade_amounts()` with mature market-maker semantics:
+          - Inputs: pool reserves, pool price, reference price, inventory skew, risk limits
+          - Outputs: side, target price correction, target quote notional, max impact
 
-          必须实现：
-          - 偏离越大，纠偏越强
-          - 库存越偏，同向交易越弱
-          - 下单量按“希望把价格往 reference 拉回多少”反推
+          Requirements:
+          - Larger deviation must cause stronger correction
+          - Larger inventory skew must weaken same-direction trades
+          - Order size must be derived backward from how much the policy wants to pull price toward reference
 
-          禁止继续使用“随机抽方向 + 随机抽重尾单量”作为主策略。
-          已完成：`MakerExecutionPolicy.decide_trade()` 已按 reference mispricing、inventory bias、
-          AMM 曲线 target price、quote cap、impact/risk limits 决策。
+          Do not continue using "random direction + random heavy-tail amount" as the main strategy.
+          Complete: `MakerExecutionPolicy.decide_trade()` now decides based on reference mispricing, inventory bias, AMM-curve target price, quote cap, and impact/risk limits.
       - id: POS-050
         status: Done
         priority: P0
         depends_on: [POS-049]
-        title: 用 minute scheduler 替换高频随机 plan 与 15s flush
+        title: Replace high-frequency random plans and 15s flush with minute scheduler
         notes: |
-          把当前：
-          - 每 `2~4s` 独立 plan
-          - 每 `15s` pending 净额 flush
+          Replace the current behavior:
+          - Independent plan every `2~4s`
+          - Pending net amount flush every `15s`
 
-          改成：
-          - 按分钟生成 `minute plan`
-          - 本分钟定义目标总量、净方向、目标笔数、最大允许波动
-          - 再拆成多个 execution slices
+          With:
+          - Generate a `minute plan` per minute
+          - Define target total amount, net direction, target trade count, and max allowed volatility for the minute
+          - Split into multiple execution slices
 
-          目标：
-          - 减少 1min K 线的离散脉冲感
-          - 让 volume、close 连续性、wick 长度更可控
-          已完成：`MinuteScheduler` 与 `MinutePlan` 已接入 `Trader.prepare_slice_plans()` /
+          Goals:
+          - Reduce discrete pulse artifacts in 1min K-line
+          - Make volume, close continuity, and wick length more controllable
+          Complete: `MinuteScheduler` and `MinutePlan` are wired into `Trader.prepare_slice_plans()` /
           `Trader.execute_next_slices()`。
       - id: POS-051
         status: Done
         priority: P1
         depends_on: [POS-049, POS-050]
-        title: 为 maker 做市策略补单测与 K 线形态回归基线
+        title: Add unit tests and K-line shape regression baseline for maker strategy
         notes: |
-          至少覆盖：
+          Cover at least:
           - AMM target-price sizing
-          - inventory skew 对方向和单量的抑制
-          - minute plan / slice 执行节奏
-          - 单笔 impact limit 与单分钟风险上限
+          - inventory skew suppression on direction and order size
+          - minute plan / slice execution cadence
+          - per-trade impact limit and per-minute risk cap
 
-          已完成：
-          - `maker_execution_policy_test.py` 覆盖 target-price sizing、inventory bias、activity flow、quote cap
-          - `maker_inventory_controller_test.py` 覆盖 pending/long-term bias 与 slice plan
-          - `maker_minute_scheduler_test.py` 覆盖 minute plan / slice 执行节奏
-          - `maker_simulation_test.py` 覆盖 1min gap/range 形态回归基线
-          当前 1min K 线质量验收为可接受，不再要求旧算法 vs 新算法人工肉眼对比。
+          Complete:
+          - `maker_execution_policy_test.py` covers target-price sizing, inventory bias, activity flow, and quote cap
+          - `maker_inventory_controller_test.py` covers pending/long-term bias and slice plan
+          - `maker_minute_scheduler_test.py` covers minute plan / slice execution cadence
+          - `maker_simulation_test.py` covers 1min gap/range shape regression baseline
+          Current 1min K-line quality is accepted; manual visual comparison of old algorithm vs new algorithm is no longer required.
       - id: POS-052
         status: Done
         priority: P0
         depends_on: [POS-035, POS-038, OBS-E2E-001]
-        title: 核对前端 positions TVL APR 等金融语义
+        title: Verify frontend financial semantics for positions, TVL, APR, and related metrics
         notes: |
-          当前重点不是“接口能返回”，而是确保前端消费的 API 与链上/Layer 3 真值一致。
-          人工浏览器逐项对账不是合理完成标准；账务核对应由自动 E2E/回归测试完成。
+          The focus is not "the endpoint returns". The focus is ensuring APIs consumed by the frontend match chain/Layer 3 truth.
+          Manual browser-by-browser reconciliation is not a reasonable completion standard; accounting reconciliation must be automated through E2E/regression tests.
 
-          当前范围：
+          Current scope:
           - `positions`
           - `TVL`
           - `APR`
-          - 其他与资金、仓位、收益率直接相关的前端指标
+          - Other frontend metrics directly related to funds, positions, and yield
 
-          核对约束：
-          - 以链上原始交易与 Layer 3 projection 为真值，不以前端 cache 或单条 DB 聚合结果为真值
-          - 明确 virtual liquidity、真实 reserve、用户 position、fee / yield 语义边界
-          - 核对单位、精度、时间窗和分母定义，不接受“看起来差不多”
+          Verification constraints:
+          - Use raw chain transactions and Layer 3 projections as truth, not frontend cache or single DB aggregate rows
+          - Explicitly define semantic boundaries for virtual liquidity, real reserve, user position, and fee / yield
+          - Verify units, precision, time windows, and denominator definitions; do not accept "looks close enough"
 
-          2026-05-12 runtime 复核：
-          - creator/protocol fee receiver `0xc21...8c13@b0f87...e9f2` 的 `/positions?status=all`
-            返回 `status=virtual`、`position_kind=virtual_initial_liquidity`
-          - 同一 owner 的 `/position-metrics?status=all` 返回 projection-derived protocol fee，
-            公开字段为 `position_liquidity` / `total_supply`，无 `owner_receives_protocol_fees` / `fee calculation` 泄漏
-          - maker owner positions/metrics 为空是合理结果；maker 当前只 swap，不是 LP/creator
-          - `/protocol/stats` 与 `/poolstats/interval/1d` 当前能返回 TVL / volume / fees / tx_count，
-            相关金融语义由 projection facts 自动对账覆盖；浏览器展示只做烟测
-          - 自动回归已覆盖 projection facts 到 transactions / candles / stats / virtual positions /
-            protocol fee metrics 的确定性对账，并锁住 TLINERA native reserve 必须按 1:1 计入 TVL
+          2026-05-12 runtime review:
+          - `/positions?status=all` for creator/protocol fee receiver `0xc21...8c13@b0f87...e9f2` returns `status=virtual`, `position_kind=virtual_initial_liquidity`
+          - `/position-metrics?status=all` for the same owner returns projection-derived protocol fee. Public fields are `position_liquidity` / `total_supply`, with no `owner_receives_protocol_fees` / `fee calculation` leakage
+          - Empty maker owner positions/metrics is valid; maker currently only swaps and is not LP/creator
+          - `/protocol/stats` and `/poolstats/interval/1d` currently return TVL / volume / fees / tx_count. Related financial semantics are covered by automated reconciliation against projection facts; browser display is smoke-test only
+          - Automated regression covers deterministic reconciliation from projection facts to transactions / candles / stats / virtual positions / protocol fee metrics, and locks TLINERA native reserve as 1:1 TVL contribution
       - id: POS-053
         status: Done
         priority: P0
         depends_on: [POS-035, POS-037, POS-038, OBS-E2E-001]
-        title: 重构实时推送为 projection event queue
+        title: Refactor realtime push into projection event queue
         notes: |
-          目标：把实时推送从 `Ticker.run` 的 10s 轮询迁到数据平台事件流。
+          Goal: move realtime push from `Ticker.run` 10s polling to the data-platform event stream.
 
-          当前设计结论：
-          - websocket 推送属于数据平台消费层，必须由 Layer 3 projection commit 或 projection-derived
-            finality event 驱动
-          - 采用多生产者、单消费者、面向多客户端 fan-out：
+          Current design conclusions:
+          - WebSocket push belongs to the data-platform consumption layer and must be driven by Layer 3 projection commits or projection-derived finality events
+          - Use multi-producer, single-consumer fan-out to many clients:
             - producer: market derivation commit、replay/catch-up rebuild notification、candle finality scheduler
             - queue: in-memory async market-data event queue
-            - consumer: event publisher drain/coalesce 后通过 WebSocketManager 推送
-          - `transactions` 是全市场 feed，默认推给所有连接
-          - `kline` 按 pool / pair / interval subscription 过滤
-          - `positions` 新增 topic 与 notification，value 为批量 invalidation，不推单条 position 真值
-          - 前端收到 `positions` 后重新拉 `/positions`、`/position-metrics`、必要 stats；
-            HTTP/projection read model 仍是业务真值
-          - candle finality 由后端统一提供，但 finality scheduler 只产生事件，不直接推 websocket
-          - 禁止继续给 `Ticker` 增加新产品 realtime topic
+            - consumer: event publisher drains/coalesces and pushes through WebSocketManager
+          - `transactions` is a whole-market feed and is pushed to all connections by default
+          - `kline` is filtered by pool / pair / interval subscription
+          - `positions` adds a topic and notification; value is batch invalidation, not single-position truth
+          - After receiving `positions`, the frontend refetches `/positions`, `/position-metrics`, and required stats; HTTP/projection read models remain business truth
+          - candle finality is provided uniformly by the backend, but the finality scheduler only produces events and does not push websocket directly
+          - Do not add new product realtime topics to `Ticker`
 
-          当前拆分：
-          - POS-054: 已建立 market-data event 类型、queue、publisher 基础设施
-          - POS-055: 已把 Layer 3 market derivation commit 接入 event producer
-          - POS-056: 已实现 `positions` websocket topic 与前端自动刷新
-          - POS-057: 已抽出 candle finality scheduler，保留后端统一 `is_final`
-          - POS-058: 已删除 legacy `Ticker` 主运行路径与实现
+          Current split:
+          - POS-054: market-data event types, queue, and publisher infrastructure are established
+          - POS-055: Layer 3 market derivation commit is wired to event producer
+          - POS-056: `positions` websocket topic and frontend auto-refresh are implemented
+          - POS-057: candle finality scheduler is extracted while preserving backend-owned `is_final`
+          - POS-058: legacy `Ticker` main runtime path and implementation are removed
 
-          验证：
+          Validation:
           - `python3 -m compileall -q service/kline/src`
           - `python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/market_data_event_sink_test.py service/kline/tests/market_data_event_publisher_test.py service/kline/tests/subscription_test.py service/kline/tests/kline_service_lifecycle_test.py service/kline/tests/market_derivation_worker_test.py service/kline/tests/kline_runtime_test.py service/kline/tests/positions_api_test.py`
           - `bun test src/stores/kline/liveUpdate.test.ts`
           - `bun run build`
-          2026-05-12 补充：market-data queue 已支持跨线程 producer 安全唤醒 asyncio consumer，
-          并新增有 TTL/max-row 配额的 `/debug/realtime` 诊断 API，用于定位 enqueue→publish→payload→notify 延迟。
+          2026-05-12 addition: market-data queue supports safe asyncio consumer wakeup from cross-thread producers, and `/debug/realtime` diagnostics with TTL/max-row quotas was added to locate enqueue->publish->payload->notify latency.
       - id: POS-054
         status: Done
         priority: P0
         depends_on: [POS-053]
-        title: 建立 market-data event queue 与 publisher
+        title: Build market-data event queue and publisher
         notes: |
-          新增实时推送基础设施：
-          - 定义 MarketDataEvent 类型，覆盖 settled_trade、settled_liquidity_change、candle_finalized、
+          Add realtime push infrastructure:
+          - Define MarketDataEvent types covering settled_trade, settled_liquidity_change, candle_finalized,
             projection_rebuilt/range_invalidated
-          - 建立 async queue，支持多 producer 入队、单 consumer drain
-          - publisher 负责 coalesce、dedupe、按 topic 组装 websocket notification
-          - WebSocketManager 只做 subscription registry 与 fan-out，不计算业务数据
-          - 添加单测覆盖 drain/coalesce、空事件、重复 pool/owner 合并、断开连接清理
-          - 调试/诊断写入必须有资源配额；当前 realtime diagnostics 表按 TTL 和 max rows 清理
+          - Build async queue supporting multi-producer enqueue and single-consumer drain
+          - Publisher owns coalesce, dedupe, and topic-based websocket notification assembly
+          - WebSocketManager only handles subscription registry and fan-out; it must not calculate business data
+          - Add unit tests for drain/coalesce, empty events, duplicate pool/owner merging, and disconnect cleanup
+          - Debug/diagnostic writes must have resource quotas; current realtime diagnostics table is cleaned by TTL and max rows
       - id: POS-055
         status: Done
         priority: P0
         depends_on: [POS-054, POS-035]
-        title: 将 Layer 3 commit 接入实时事件生产
+        title: Wire Layer 3 commit into realtime event production
         notes: |
-          在 market derivation 成功写入 projection 后发布事件，保证前端收到 websocket notification
-          后再拉 HTTP read model 能读到新数据。
+          Publish events after market derivation successfully writes projections, ensuring that after the frontend receives a websocket notification, the HTTP read model can read the new data.
 
-          要求：
-          - settled_trade 产生 transactions/kline/market-stats invalidation
-          - settled_liquidity_change 产生 positions/pool-state invalidation
-          - replay/catch-up 可以发布 range_invalidated 或 projection_rebuilt
-          - 不从 raw block 或 Layer 2 半成品直接推产品事件
+          Requirements:
+          - settled_trade produces transactions/kline/market-stats invalidation
+          - settled_liquidity_change produces positions/pool-state invalidation
+          - replay/catch-up may publish range_invalidated or projection_rebuilt
+          - Do not push product events directly from raw block or incomplete Layer 2 artifacts
       - id: POS-056
         status: Done
         priority: P0
         depends_on: [POS-054, POS-055, POS-052]
-        title: 实现 positions websocket topic 与前端自动刷新
+        title: Implement positions websocket topic and frontend auto-refresh
         notes: |
-          后端：
-          - 支持 `{"action":"subscribe","topic":"positions","owner":"..."}`，owner 可选但推荐传
-          - 推送 `{"notification":"positions","value":{"events":[...]}}`
-          - value 是批量 invalidation，包含 owner/pool_application/pool_id/event_types/updated_at 等足够过滤字段
+          Backend:
+          - Support `{"action":"subscribe","topic":"positions","owner":"..."}`; owner is optional but recommended
+          - Push `{"notification":"positions","value":{"events":[...]}}`
+          - value is batch invalidation and includes enough filter fields such as owner/pool_application/pool_id/event_types/updated_at
 
-          前端：
-          - positions 页订阅 `positions`
-          - 收到命中当前 owner 或相关 pool 的 invalidation 后 throttle 刷新 `/positions`、
+          Frontend:
+          - Positions page subscribes to `positions`
+          - After receiving invalidation matching the current owner or relevant pool, throttle refresh `/positions`,
             `/position-metrics`、poolstats/protocol stats
-          - 不用 blockHash 驱动 positions
-          - 不把 websocket payload 当 position 真值
+          - Do not drive positions by blockHash
+          - Do not treat websocket payload as position truth
       - id: POS-057
         status: Done
         priority: P0
         depends_on: [POS-054]
-        title: 抽出 candle finality scheduler
+        title: Extract candle finality scheduler
         notes: |
-          后端继续统一提供 `is_final`，避免不同前端本地时间漂移导致 candle 状态不一致。
+          Backend continues to provide unified `is_final`, avoiding candle state divergence caused by different frontend local clock drift.
 
-          实现要求：
-          - scheduler 只在 bucket 边界产生 candle_finalized 事件
-          - finality event 进入同一个 market-data queue，由 publisher 推送
-          - HTTP `/points` 仍以服务端时间/projection 语义返回统一 `is_final`
-          - 不依赖 `Ticker.run` 10s loop 做 finality rollover
+          Implementation requirements:
+          - Scheduler only produces candle_finalized events at bucket boundaries
+          - finality event enters the same market-data queue and is pushed by publisher
+          - HTTP `/points` still returns unified `is_final` using server-time/projection semantics
+          - Do not depend on `Ticker.run` 10s loop for finality rollover
       - id: POS-058
         status: Done
         priority: P1
         depends_on: [POS-054, POS-055, POS-057]
-        title: 删除 legacy Ticker
+        title: Delete legacy Ticker
         notes: |
-          当前 `Ticker` 同时承担 10s 轮询、pool catalog 读取、projection transaction history 读取、
-          kline payload 构造、transactions feed 推送和 candle rollover。
+          Current `Ticker` simultaneously owns 10s polling, pool catalog reads, projection transaction history reads, kline payload construction, transactions feed push, and candle rollover.
 
-          目标：
-          - 新交易发现、transactions 推送、kline 增量推送迁出 `Ticker`
-          - candle finality 迁到 `CandleFinalityScheduler`
-          - 删除 `Ticker.run` 后台 loop、`Ticker` 类和启动生命周期 wiring
-          - 不保留兼容或诊断用 ticker 路径
-          - 如果需要诊断，新增 diagnostics/observability 指标或 debug endpoint，不复用 ticker
-          - 不再在 `Ticker` 中新增 positions 或其他产品实时 topic
+          Goals:
+          - Move new trade discovery, transactions push, and kline incremental push out of `Ticker`
+          - Move candle finality to `CandleFinalityScheduler`
+          - Delete `Ticker.run` background loop, the `Ticker` class, and startup lifecycle wiring
+          - Do not keep ticker paths for compatibility or diagnostics
+          - If diagnostics are needed, add diagnostics/observability metrics or debug endpoints instead of reusing ticker
+          - Do not add positions or other product realtime topics to `Ticker`
+      - id: POS-063
+        status: Blocked
+        priority: P0
+        depends_on: [POS-053, OBS-E2E-001]
+        title: Record local query-service and Layer 3 stall risk under unstable upstream chain connectivity
+        notes: |
+          2026-05-15 local incident record:
+          - Symptom set:
+            - After about 09:44 CST, `/points`, `/transactions`, and websocket K-line push stopped advancing
+            - Frontend refresh and push divergence investigation was confounded by the upstream stall
+          - Proven runtime facts before restart:
+            - `query-service` tip for the active pool/proxy chains stopped at old heights
+            - `service/kline` `/debug/observability` later showed runtime `ready`, but this was not sufficient to prove business freshness
+            - `settled_trades.max_transaction_id` stopped at `38328`
+          - Proven recovery sequence:
+            - Restarting the local compose cluster advanced query-service / catch-up / listener again
+            - Layer 1 / Layer 2 resumed first
+            - Layer 3 `market_deriver` still lagged and required explicit `POST /debug/market-derivation/replay/run`
+            - After replay, `settled_trades` advanced to new transactions and `/points` / `/transactions` recovered
+          - Proven external contributing factor:
+            - Local read-chain services logged upstream validator transport failures such as `h2 protocol error`, `service is currently unavailable`, `connection termination`, and `remote refused stream reset`
+          Current decision:
+          - Do not implement automatic compensation, auto-replay, or new self-healing logic now
+          - Treat this as a recorded operational risk while official chain/validator stability is still under observation
+          Revisit only after upstream chain stability is reassessed:
+          - decide whether business-health checks must include tip freshness and Layer2/Layer3 cursor divergence
+          - decide whether Layer 3 replay should remain manual or become controlled automation
       - id: POS-059
         status: Done
         priority: P0
         depends_on: [OBS-E2E-001, POS-035, POS-037]
-        title: 将 transactions 分页改为 projection cursor
+        title: Change transactions pagination to projection cursor
         notes: |
-          Review 发现：前端全市场 transactions 当前仍用固定 10 分钟窗口拼下一页，
-          这不符合 projection read model 的 cursor 语义。
+          Review finding: frontend whole-market transactions still used a fixed 10-minute window to build next pages, which does not match projection read model cursor semantics.
 
-          已完成：
-          - 后端 projection query 已支持 `end_at=<oldest.created_at - 1>&limit=N`
-          - 前端分页不再用 `loadInterval` 决定历史窗口
-          - token-pair 与全市场路径都以 projection query 结果为真值
-          - 全市场 feed 保持只返回 `token_reversed=false` 原始交易
-          - 修复 pair 页 pool created timestamp 毫秒/秒混用问题
-          - 验证：`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+          Complete:
+          - Backend projection query supports `end_at=<oldest.created_at - 1>&limit=N`
+          - Frontend pagination no longer uses `loadInterval` to decide history windows
+          - token-pair and whole-market paths both treat projection query results as truth
+          - Whole-market feed continues returning only original transactions where `token_reversed=false`
+          - Fixed millisecond/second mixup for pool created timestamp on pair page
+          - Validation: `bun run lint`, `bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
       - id: POS-060
         status: Done
         priority: P1
         depends_on: [POS-053, POS-055]
-        title: 实时交易 payload 改为按事件 transaction ids 精确读取
+        title: Change realtime transaction payload to exact reads by event transaction ids
         notes: |
-          Review 发现：`MarketDataPayloadBuilder._load_transactions_for_events` 当前读取整个 pool history，
-          再按 transaction_id 过滤。它仍消费 projection，但不是严格事件驱动，交易量增长后成本会随池历史线性增加。
+          Review finding: `MarketDataPayloadBuilder._load_transactions_for_events` read the entire pool history and then filtered by transaction_id. It still consumed projections, but was not strictly event-driven, and cost would grow linearly with pool history.
 
-          已完成：
-          - 新增 projection query repo 方法按 `(pool_application, pool_id, transaction_ids)` 精确读取 settled trades
-          - websocket transactions/kline 增量 payload 只读取当前事件涉及的交易
-          - 保持全市场推送只使用原始交易，反向视角只用于 pair-specific K 线/transactions
-          - 单测覆盖不会加载整池历史
-          - 验证：`python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/settled_trade_projection_repo_test.py`
+          Complete:
+          - Added projection query repo method to read settled trades exactly by `(pool_application, pool_id, transaction_ids)`
+          - websocket transactions/kline incremental payload reads only trades involved in the current event
+          - Whole-market push continues using only original transactions; reversed view is used only for pair-specific K-line/transactions
+          - Unit tests cover that whole pool history is not loaded
+          - Validation: `python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/settled_trade_projection_repo_test.py`
       - id: POS-061
         status: Done
         priority: P1
         depends_on: [POS-053, POS-057]
-        title: candle finality 推送状态改为 projection/subscription 驱动
+        title: Drive candle finality push state from projection/subscription
         notes: |
-          Review 发现：当前 rollover 推送依赖 `MarketDataPayloadBuilder.last_emitted_bucket_starts`
-          的内存状态。服务重启后，如果某 pool 没有新 trade，finality scheduler 产生事件也可能无法推送该 stream 的 final candle。
+          Review finding: current rollover push depended on in-memory `MarketDataPayloadBuilder.last_emitted_bucket_starts`. After service restart, if a pool had no new trade, the finality scheduler could produce an event but still fail to push that stream's final candle.
 
-          已完成：
-          - finality event 携带 interval 与 finalized bucket
-          - builder 在无 `last_emitted` 内存状态时按 finality event bucket 从 projection 读取并推送
-          - 保持后端统一 `is_final` 语义，前端不本地决定 finality
-          - 添加重启/新订阅后无新 trade 仍能得到一致 final candle 的测试
-          - 验证：`python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py`
+          Complete:
+          - finality event carries interval and finalized bucket
+          - When builder has no `last_emitted` memory state, it reads and pushes from projection using the finality event bucket
+          - Backend-owned `is_final` semantics are preserved; frontend does not decide finality locally
+          - Added tests covering consistent final candle after restart/new subscription even with no new trade
+          - Validation: `python3 -m unittest service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py`
       - id: POS-062
         status: Done
         priority: P2
         depends_on: [POS-038, POS-052]
-        title: 收敛 position-metrics projection 命名与公开字段
+        title: Converge position-metrics projection naming and public fields
         notes: |
-          Review 发现：`position_metrics` 主路径已通过 projection payload adapter 构造数据，
-          但内部和公开字段仍大量使用 `current_*` 命名，例如 `position_liquidity`、
-          `current_total_supply`。这容易让后续实现误以为可以回到 chain query。
+          Review finding: the main `position_metrics` path already builds data through the projection payload adapter, but many internal and public fields still used `current_*` naming, such as `position_liquidity` and `current_total_supply`. This can mislead future work into thinking chain query is allowed again.
 
-          已完成：
-          - 公开 `/position-metrics` 响应把 `position_liquidity`/`current_total_supply`
-            收敛为 `position_liquidity`/`total_supply`
-          - 内部 legacy `current_*` 命名仅保留在 payload/replay 计算边界，不作为公开产品字段
-          - 公开响应继续隐藏 `owner_receives_protocol_fees`、`metrics_status`、`fee_calculation_complete`
-          - `status=active` 不再触发 virtual position enrichment，virtual 仅属于 `all/virtual`
-          - 验证：`python3 -m unittest service/kline/tests/query_stack_read_model_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`，`bun run lint`，`bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+          Complete:
+          - Public `/position-metrics` responses converged `position_liquidity`/`current_total_supply` to `position_liquidity`/`total_supply`
+          - Internal legacy `current_*` naming remains only at payload/replay calculation boundaries and is not a public product field
+          - Public responses continue hiding `owner_receives_protocol_fees`, `metrics_status`, and `fee_calculation_complete`
+          - `status=active` no longer triggers virtual position enrichment; virtual belongs only to `all/virtual`
+          - Validation: `python3 -m unittest service/kline/tests/query_stack_read_model_test.py service/kline/tests/realtime_payload_builder_test.py service/kline/tests/candle_finality_scheduler_test.py service/kline/tests/settled_trade_projection_repo_test.py`, `bun run lint`, `bun test src/stores/kline/liveUpdate.test.ts src/worker/kline/runnerRequestTrace.test.ts`
+      - id: POS-064
+        status: Doing
+        priority: P0
+        depends_on: [POS-035, POS-052, FUND-014]
+        title: Correct projection-backed claim balances, TVL, and fee valuation
+        notes: |
+          Scope: product read-model corrections only. Do not change ABI, contract state, operations, messages, or frontend display semantics to hide projection bugs.
+
+          Findings to fix:
+          - `/claim-balances` currently returns atto-scale aggregate amounts instead of display amounts.
+          - Claim-balance projection can return negative balances because claim debits are projected while corresponding swap/remove/add-liquidity claimable credits are missing or ambiguous.
+          - Native swap and remove-liquidity outputs are claimable-balance credits, not direct payouts. Native claimable may be non-zero.
+          - Runtime QQQ check showed chain truth `native claimableBalance = 28.042304317709314409`, while projection returned a negative native amount.
+          - `/protocol/stats` currently values TVL with latest trade prices instead of current reserve-derived prices.
+          - Protocol fees are currently approximated as `volume * 0.003`; fee token amounts must be accumulated per trade input leg.
+
+          Atomic implementation steps:
+          - A1: Fix `/claim-balances` unit conversion from atto to display amount, with repository/API tests.
+          - A2: Audit and repair claimable credit projection for swap outputs, remove-liquidity outputs, add-liquidity excess, add-liquidity failures, and native legs.
+          - A3: Tighten `swap/add_liquidity/remove_liquidity -> NewTransaction` correlation using existing block facts. Ambiguous same-block cases remain diagnostic-only unless a unique existing-block ordering key is proven.
+          - A4: Add incomplete-projection semantics for claim-balance reads so partial data is not returned as authoritative balance. Do not clamp negative balances.
+          - A5: Change protocol TVL to use current reserve-derived native price graph. For native pairs, TVL is `2 * native_reserve`; meme/meme pools are valued only when current reserve graph reaches native.
+          - A6: Change protocol fees to accumulate exact fee token amounts per trade input leg, then value those token amounts using the current reserve-derived native price graph.
+          - A7: Add focused service tests for units, negative/incomplete protection, native claimable credits, TVL, fees, and meme/meme valuation.
+          - A8: Validate against the running docker environment by comparing projection `/claim-balances` with pool-chain GraphQL claim balances for the active QQQ pool.
+
+          Validation:
+          - Product read APIs must use projection/block-derived facts; no live pool query is added as the normal product accounting path.
+          - Negative claim-balance projections are treated as projection incompleteness or correlation failure, not hidden by frontend formatting or clamping.
+          - Fee token amount is exact; native fee value is current-price valuation.
+          - Native swap/remove-liquidity outputs are represented through claimable balances.
       - id: POS-024
         status: Done
         priority: P0
         depends_on: []
-        title: pool/swap 语义对齐 Uniswap V2
-        notes: 已过期。被新观测系统覆盖，不再单独推进。
+        title: Align pool/swap semantics with Uniswap V2
+        notes: Obsolete. Covered by the new observability system and no longer tracked separately.
   - name: Contract Tests
     tasks:
       - id: TEST-001
         status: Done
         priority: P1
         depends_on: []
-        title: pool SetFeeTo / SetFeeToSetter 权限测试
-        notes: 已覆盖 operator 正常路径 旧 operator 失效 非 operator 拒绝
+        title: pool SetFeeTo / SetFeeToSetter permission tests
+        notes: Covers normal operator path, old operator invalidation, and non-operator rejection.
       - id: TEST-002
         status: Done
         priority: P1
         depends_on: []
-        title: pool RemoveLiquidity 集成级历史断言
-        notes: 已覆盖 meme-native meme-meme 要求 latestTransactions 出现 RemoveLiquidity
+        title: pool RemoveLiquidity integration-level history assertions
+        notes: Covers meme-native and meme-meme cases requiring RemoveLiquidity to appear in latestTransactions.
       - id: TEST-003
         status: Done
         priority: P1
         depends_on: []
-        title: pool min amount 边界测试
-        notes: 已覆盖 Swap AddLiquidity RemoveLiquidity 刚好满足 差1attos 不满足
+        title: pool min amount boundary tests
+        notes: Covers Swap, AddLiquidity, and RemoveLiquidity at exactly satisfying and 1-attos-below failing thresholds.
       - id: TEST-004
         status: Done
         priority: P0
         depends_on: []
-        title: pool fund 异步闭环异常测试
-        notes: 已覆盖第一笔成功第二笔失败 两笔成功但最终 AddLiquidity/NewTransaction 未闭环
+        title: pool fund async closure failure tests
+        notes: Covers first leg success plus second leg failure, and both legs success while final AddLiquidity/NewTransaction does not close.
       - id: TEST-005
         status: Done
         priority: P1
         depends_on: []
-        title: pool NewTransaction 幂等与 5000 条队列边界测试
-        notes: 已覆盖重复 message 4999/5000/5001 截断保序
+        title: pool NewTransaction idempotency and 5000-entry queue boundary tests
+        notes: Covers duplicate messages and 4999/5000/5001 truncation ordering.
       - id: TEST-006
         status: Done
         priority: P0
         depends_on: []
-        title: swap UpdatePool 幂等/乱序测试
-        notes: 已覆盖重复 transaction 旧 transaction 覆盖新状态 reserve/price 不回退
+        title: swap UpdatePool idempotency/out-of-order tests
+        notes: Covers duplicate transactions and old transactions not overriding newer reserve/price state.
       - id: TEST-007
         status: Done
         priority: P1
         depends_on: []
-        title: swap CreatePool / CreateUserPool / UserPoolCreated / PoolCreated 边界测试
-        notes: 已覆盖重复建池 同 token 建池 错链回执 重复回执
+        title: swap CreatePool / CreateUserPool / UserPoolCreated / PoolCreated boundary tests
+        notes: Covers duplicate pool creation, same-token pool creation, wrong-chain receipts, and duplicate receipts.
       - id: TEST-008
         status: Done
         priority: P2
         depends_on: []
-        title: proxy genesis miner remove 全链路测试
-        notes: 已在多链集成层覆盖两阶段移除闭环
+        title: proxy genesis miner remove full-path tests
+        notes: Covers two-phase removal closure at the multi-chain integration layer.
       - id: TEST-009
         status: Done
         priority: P2
         depends_on: []
-        title: proxy miner register/deregister 边界测试
-        notes: 已覆盖重复注册 未注册注销 跨 owner 错链 并修正静默 no-op 掩盖非法输入
+        title: proxy miner register/deregister boundary tests
+        notes: Covers duplicate registration, deregister when unregistered, cross-owner, wrong-chain, and fixes silent no-op hiding invalid input.
       - id: TEST-010
         status: Done
         priority: P2
         depends_on: []
-        title: proxy operator 治理测试
-        notes: 已覆盖 AddOperator/BanOperator 两阶段治理 并修正 operator 校验与 ban 审批状态写回
+        title: proxy operator governance tests
+        notes: Covers two-phase AddOperator/BanOperator governance and fixes operator validation plus ban approval status writeback.
       - id: TEST-011
         status: Done
         priority: P2
         depends_on: [TEST-010]
-        title: proxy CreateMemeExt / MemeCreated 异步幂等测试
-        notes: 已覆盖重复回执 错链回执 创建成功后状态写入 并修正 receipt 幂等处理
+        title: proxy CreateMemeExt / MemeCreated async idempotency tests
+        notes: Covers duplicate receipts, wrong-chain receipts, state write after successful creation, and fixes receipt idempotency handling.
       - id: TEST-012
         status: Done
         priority: P1
         depends_on: []
-        title: meme TransferFromApplication / InitializeLiquidity / TransferToCaller 权限测试
-        notes: 已覆盖缺失 authenticated caller 错误 caller 重复初始化 余额边界
+        title: meme TransferFromApplication / InitializeLiquidity / TransferToCaller permission tests
+        notes: Covers missing authenticated caller, wrong caller, duplicate initialization, and balance boundaries.
       - id: TEST-013
         status: Done
         priority: P1
         depends_on: []
-        title: meme Mint / Redeem 边界测试
-        notes: 已覆盖 Mint 非 owner signer 拒绝 Redeem(None) Redeem(Some(0)) 超额赎回
+        title: meme Mint / Redeem boundary tests
+        notes: Covers Mint rejecting non-owner signer, Redeem(None), Redeem(Some(0)), and excessive redeem.
       - id: TEST-014
         status: Done
         priority: P2
         depends_on: []
-        title: ams contract/integration 基础测试
-        notes: 已覆盖 Register Claim AddApplicationType Update 正常 重复 权限 非法类型 并恢复 Claim 为 origin/runtime 当前发起者语义
+        title: ams contract/integration baseline tests
+        notes: Covers normal, duplicate, permission, and invalid-type cases for Register, Claim, AddApplicationType, and Update; restores Claim to origin/runtime current caller semantics.
       - id: TEST-015
         status: Done
         priority: P2
         depends_on: []
-        title: blob-gateway contract/integration 基础测试
-        notes: 已覆盖 Register operation 发消息 message 落库 重复 hash 幂等且保留首条 metadata
+        title: blob-gateway contract/integration baseline tests
+        notes: Covers Register operation, message emission, message persistence, and duplicate-hash idempotency while preserving first metadata.
       - id: REV-001
         status: Done
         priority: P2
         depends_on: []
-        title: Review 当前资金闭环与退款一致性风险
-        notes: 已确认 3 类高风险缺口 AddLiquidity 双腿部分成功后失败无退款 pool payout/refund 吞掉 MemeResponse::Fail 初始建池路径吞掉下游失败仍持久化成功
+        title: Review current funds closure and refund consistency risks
+        notes: |
+          Confirmed three high-risk gaps: AddLiquidity partial two-leg success followed by failure without refund, pool payout/refund swallowing MemeResponse::Fail, and initial pool creation persisting success while swallowing downstream failure.
+      - id: REV-002
+        status: Todo
+        priority: P0
+        depends_on: [FUND-004]
+        title: Review funding reliability under controlled and uncontrolled reject paths
+        notes: |
+          Backlog review task. Do not record prior conversational conclusions as task facts.
+          Review requirements:
+          - Treat internal message order and authenticated application behavior as deterministic when the deployed contract code is correct.
+          - Do not assume attackers can upgrade contracts or forge internal messages.
+          - Separately classify controlled rejects from uncontrolled rejects.
+          - For controlled rejects, verify the preceding code path cannot construct rejecting inputs in normal execution, and verify any reachable controlled reject leaves funds reliable.
+          - For uncontrolled rejects, identify the exact point where funds are located before the reject, whether the user has received funds, whether the funds are claimable or claiming, whether funds can be used again, and whether double settlement is possible.
+          - Review every funding path: claim success, claim fail, AddLiquidity, Swap, RemoveLiquidity, meme initialization, user CreatePool first funding, duplicate user CreatePool refund, and protocol-fee/remove-liquidity claim credit.
+          - For each path, state whether funds are safe, available, stuck but observable, or incorrectly mutable.
+          - Review public-operation and user-authored-contract call surfaces for ways to construct invalid funding facts or bypass the intended predecessor path.
+          - Do not propose retry-based recovery unless the task explicitly changes the no-retry protocol constraint.
   - name: Funds Consistency
     tasks:
       - id: FUND-001
-        status: Doing
+        status: Done
         priority: P0
         depends_on: []
-        title: 定义跨链资金一致性协议边界与状态机
+        title: Define cross-chain funds consistency protocol boundary and state machine
         notes: |
-          先收口协议边界，再分实现。已确认：
-          1. `transaction_id` 不连续本身不是异常；只有某笔已 `Reject` 或下游失败的交易仍残留
-             reserve / total supply / share / 资金副作用，才算真实不一致
-          2. Linera Wasm 合约里 native `transfer` 失败不可在合约内 catch，也拿不到可恢复的 fail 返回，
-             因此不能依赖“payout fail 回执”修复
-          3. 跨链消息无法原子，meme 输入链与 pool payout 链之间必须显式建模
-             pending / success-only completion / user-claim or escrow 语义
-          4. virtual liquidity、真实 reserve、可支付余额三者语义必须一并收口
-          5. Linera `tracked + bouncing` 应作为原生的一跳 reject receipt 机制纳入协议设计，
-             用于把“目标链 reject”可靠反馈回源链并收敛 `pending -> failed/refund-ready`；
-             但它只覆盖单跳消息，不能替代多跳业务流程的显式状态机
-          6. 当前 swap / add liquidity / remove liquidity 不引入 per-operation temp chain；
-             temp chain 不能提供跨链原子性，且会增加 open-chain fee、gas/funder、listener、
-             cleanup 与权限复杂度。Canonical 见 `agents/primitives/liquidity-and-funds.md`。
+          First close the protocol boundary, then implement. Confirmed:
+          1. A non-contiguous `transaction_id` is not an error by itself. It is a real inconsistency only when a rejected or downstream-failed transaction still leaves reserve, total supply, share, or asset-custody side effects.
+          2. Native `transfer` failure inside Linera Wasm contracts cannot be caught and does not return a recoverable failure response, so the protocol cannot rely on a payout-fail receipt.
+          3. Cross-chain messages are not atomic. Meme input chains and pool payout chains must explicitly model pending, success-only completion, user-claim, or escrow semantics.
+          4. Virtual liquidity, real reserve, and payable balance semantics must be closed together.
+          5. Linera `tracked + bouncing` is a native one-hop reject receipt mechanism that can converge a target-chain reject into source-chain `pending -> failed/refund-ready`; it covers only one hop and cannot replace an explicit multi-hop business state machine.
+          6. Current swap/add-liquidity/remove-liquidity flows must not introduce per-operation temp chains. Temp chains do not provide cross-chain atomicity and add open-chain fee, gas/funder, listener, cleanup, and permission complexity. Canonical reference: `agents/primitives/liquidity-and-funds.md`.
 
-          该任务输出协议定义：哪些阶段可持久化、哪些阶段只能 pending、哪些资金在成功前不得最终归
-          pool 所有、哪些消息必须 tracked、bounce 回来后如何幂等收敛，以及 claim/refund/commit 的
-          幂等边界。
+          The complete protocol is now split under `agents/primitives/funding/`. It covers create meme native pool, user `CreatePool` with initial liquidity, existing add liquidity, swap, remove, claim, internal entry boundaries, application reentrancy boundaries, projection boundaries, and per-path risks and mitigations.
+          The document also captures code-review deltas: `CreatePool` is current user ABI only as create-with-initial-liquidity, legacy `UserPoolCreated` choreography must be collapsed or intent-bound, Claim is target ABI/state, PoolChainCreated/PoolCreated/Active semantics are split, tracked+bouncing convergence is path-level, and transaction id gaps are not errors by themselves.
       - id: FUND-002
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [FUND-001, REV-001]
-        title: 按统一协议修复 pool/swap 异步资金闭环
+        title: Fix pool/swap async funds closure under the unified protocol
         notes: |
-          合并原先分散 TODO，一次性覆盖高风险路径：
-          - AddLiquidity 双腿部分成功后失败无退款
-          - swap/remove/refund/payout 对下游 meme/native 发放缺少可靠闭环
-          - 初始建池路径吞掉下游失败仍持久化成功
-          - `NewTransaction` 或其他后续消息 `Reject` 后仍残留资金/状态副作用
+          Umbrella implementation task for the funds-consistency protocol. This must be executed as progressive, independently verifiable iterations, not as one large patch validated only at the end.
 
-          目标不是在合约内捕获 host transfer panic，而是让失败最多留下可验证的 pending，
-          不留下错误 finalized 状态，并为成功路径补齐显式确认、幂等键与状态收敛。
+          High-risk paths covered by the iteration sequence:
+          - AddLiquidity partial two-leg success followed by failure without refund
+          - swap/remove/refund/payout paths lacking reliable downstream meme/native delivery closure
+          - initial pool creation swallowing downstream failure while persisting success
+          - `NewTransaction` or other follow-up message rejection still leaving funds or state side effects
 
-          约束：
-          - 优先利用 Linera `tracked + bouncing` 承接关键单跳消息的 reject 回执与源链收敛
-          - 不能把它误当成全流程原子回滚
-          - 后续 hop 的失败仍必须由业务协议状态机显式处理
-      - id: FUND-003
-        status: Todo
+          Execution rules:
+          - Each child iteration must define a narrow purpose, minimal related changes, and complete validation criteria that can pass before the next iteration starts.
+          - Do not mix unrelated paths into a child iteration just because they share helpers.
+          - Do not defer all correctness checks to final end-to-end validation.
+          - Do not defer path-local authorization, source-chain, authenticated-caller, intent, token, leg, or state validation to the final hardening iteration.
+          - Keep chain contracts as protocol truth and product data as parsed facts/projections.
+
+          Constraints:
+          - Outgoing application messages must be authenticated by default. Tracking is explicit per message and is enabled only after the owning handler defines a `message_is_bouncing()` branch for that path.
+          - Do not mistake it for full workflow atomic rollback.
+          - Later-hop failures still require the business protocol state machine.
+          - Canonical implementation plan: `agents/primitives/funding/implementation-plan.md`.
+
+          Closure:
+          - Business funds-consistency protocol iterations are complete: FUND-005 through FUND-014 and final regression FUND-004 are Done.
+          - Final validation passed with the full memory-limited Rust suite: `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
+          - An operations-system backlog task remains for cluster, chain, gas, funder, and stalled-workflow visibility; it is not part of business funds protocol closure.
+      - id: FUND-005
+        status: Done
         priority: P0
-        depends_on: [FUND-001]
-        title: 明确 gas/funder 覆盖与链级运行保障
-        notes: |
-          `funder` OOM 已证明 chain gas 不足会直接打断任何可靠协议推进，这条线需要与资金一致性并行治理。
-          需要定义必须持续充值的链集合与覆盖来源，确认包含预创建链和运行期新增链；
-          并落实 `funder` 资源、链发现、监控告警与人工诊断接口，避免再次出现
-          chain balance 耗尽但 application balance 仍在、表面看像资金一致性故障的情况。
-      - id: FUND-004
-        status: Todo
-        priority: P1
         depends_on: [FUND-002]
-        title: 为资金协议与失败收敛补回归测试
-        notes: 覆盖部分成功退款、pending 不 finalize、重复 success/commit/claim 幂等、初始建池下游失败、Reject 后无残留副作用，以及 virtual liquidity 与真实可支付余额边界
+        title: "Iteration 0: Contract-path audit and executable baseline"
+        notes: |
+          Purpose: establish an executable baseline and an exact implementation delta before mutating protocol behavior.
+
+          Required execution gates:
+          1. Scope freeze
+          2. Current implementation audit table
+          3. Target validation matrix
+          4. Transition tables and unresolved-risk closure
+          5. Characterization baseline and implementation handoff
+
+          Review rule:
+          - Execute `FUND-005` gate by gate.
+          - Each gate must be separately output and reviewed before the next gate starts.
+          - Do not batch the whole iteration into one delivery.
+
+          Progress:
+          - Gate 1A audit layers are complete.
+          - Gate 1B in-scope files are accepted.
+          - Gate 1C fixed protocol paths are accepted.
+          - Gate 1D exclusions are accepted.
+          - Gate 1E audit dimensions and Gate 2 format constraints are accepted.
+          - Gate 2 current implementation audit table is accepted.
+          - Gate 3 target validation matrix is accepted.
+          - Gate 4 transition tables and unresolved-risk closure are accepted.
+          - Gate 5 characterization baseline and implementation handoff is accepted.
+          - `FUND-005` is complete; `FUND-006` may start after the Gate 5 artifact is committed.
+
+          Minimal changes:
+          - Inspect current `pool/`, `swap/`, `meme/`, protocol-facing `proxy`, frontend, and observability paths against `agents/primitives/funding/`.
+          - Map `CreatePool`, `CreateUserPool`, `UserPoolCreated`, meme native initialization, existing add liquidity, swap, remove liquidity, payout/refund, `MemeResponse::Fail`, tracked bounce handling, and public operation surfaces to files/functions/state transitions.
+          - Produce a current implementation path audit table covering file, handler, operation/message, current state reads/writes, and current economic side effects.
+          - Produce a target path validation matrix covering operation/message/callback/receipt, required source/auth/app/intent/leg/token/owner/amount/state checks, allowed state transition, failure behavior, and required tests.
+          - Verify whether the current meme/pool payout path can produce the success, fail, or bounce receipts required to close meme `Claim` delivery.
+          - Document that current `mark_user_pool_created(pool_application)` is a late guard around `UserPoolCreated -> PoolOperation::AddLiquidity`, not the target flow design.
+          - Document that user CreatePool keeps the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path; no persisted create-pool or add-liquidity intent is part of the target design.
+          - Add focused characterization tests only where current behavior must be locked before refactor.
+
+          Validation:
+          - Current relevant contract tests compile and run under the project memory-limit rule.
+          - The audit table and validation matrix are committed before `FUND-006` implementation begins.
+          - The audit identifies exact follow-up iterations and the current failing or unsafe behavior each one will close.
+          - No product behavior is changed except test-only characterization coverage.
+      - id: FUND-006
+        status: Done
+        priority: P0
+        depends_on: [FUND-005]
+        title: "Iteration 1: Lock public operation surface"
+        notes: |
+          Purpose: make the current user-reachable operation surface safe before changing deeper choreography.
+
+          Minimal changes:
+          - Treat frontend wallet signing and user-authored contract `call_application` as user-reachable operation entry.
+          - Preserve the current frontend entry where Add Liquidity may submit `SwapOperation::CreatePool`.
+          - Define `CreatePool` as create-with-initial-liquidity only.
+          - Reject empty, shell-only, one-sided, and virtual user pool creation.
+          - Accept only native and meme token identities; reject every other token kind until a concrete validation rule exists.
+          - Fail fast on token identity validation at the user-started `user -> swap` entry.
+          - Do not treat meme creator-chain identity as frontend or user-supplied `CreatePool` input. Validate user-started `CreatePool` token identity from authoritative chain facts. The only carried creator-chain-id field is `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` for the synchronous `meme -> call_application(swap.InitializeLiquidity)` exception; do not propagate that field into swap messages or `PoolParameters`.
+
+          Validation:
+          - Contract tests prove invalid `CreatePool` shapes reject without opening a pool chain or writing active pair state in `swap` application state.
+          - Contract tests prove the currently supported valid two-sided initial-liquidity path still reaches the same externally observable success boundary as before this iteration.
+          - Tests prove `PoolChainCreated`, `PoolCreated`, and `Active` remain distinct states or facts.
+      - id: FUND-007
+        status: Done
+        priority: P0
+        depends_on: [FUND-006]
+        title: "Iteration 2: Split pool app creation from explicit initialization"
+        notes: |
+          Purpose: fix funds-consistency boundaries for meme initialization and user CreatePool app creation without introducing persisted intents.
+
+          Minimal changes:
+          - Remove `PoolCreationIntent` as the target design for user pool creation.
+          - Split pool lifecycle into two protocol phases:
+            - pool app creation
+            - finalized reserve/share facts after the path-specific required funds are in pool control
+          - Change pool instantiate semantics so instantiate creates only pool application base state and does not write final reserve, share supply, or `k_last`.
+          - Treat `PoolCreated` as app-created only. It must not be the activation boundary for meme initialization or user create-pool first funding.
+          - Do not add a separate pool-side `initialized` fact.
+          - Use finalized reserve/share facts as the gate for normal `Swap`, `RemoveLiquidity`, and ordinary existing-pool `AddLiquidity`.
+          - Keep meme initialization and user `CreatePool` as distinct paths. Meme initialization funds from swap/meme-controlled custody and may use virtual bootstrap semantics. User `CreatePool` funds from the user chain through the existing `UserPoolCreated -> PoolOperation::AddLiquidity` flow. Do not add user-pool-specific funding ABI and do not reuse meme virtual-liquidity authority.
+          - Keep `meme initialization` as an internal-only discriminator for bootstrap semantics such as virtual liquidity. It must not be selectable by ordinary user input.
+          - Preserve the current carried `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` exception only for the synchronous `meme -> call_application(swap.InitializeLiquidity)` frame. Do not reintroduce creator-chain-id propagation into later messages or pool parameters.
+          - Document virtual-initial-liquidity as an economic-model parameter, not a claimable or withdrawable balance. The target invariant is that virtual value can never exit through claim, swap output, or remove-liquidity payout.
+
+          Validation:
+          - Tests prove pool instantiate no longer writes final reserve/share state.
+          - Tests prove `PoolCreated` leaves the pool without finalized reserve/share facts.
+          - Tests prove meme initialization and user create-pool first funding remain distinct: meme initialization uses the bootstrap path, while `UserPoolCreated` starts existing `PoolOperation::AddLiquidity` and does not activate at `PoolCreated`.
+          - Tests prove normal `Swap` and `RemoveLiquidity` reject before finalized reserve/share facts exist.
+
+          Completed:
+          - Pool instantiate creates base state only.
+          - Meme initialization writes first reserve/share facts through pool-side `InitializeLiquidity`.
+          - User `CreatePool` keeps `UserPoolCreated -> PoolOperation::AddLiquidity`.
+          - Runtime outgoing messages are authenticated by default and opt into tracking explicitly.
+          - Tracked self-messages in E2E tests are explicitly accepted, not skipped.
+          - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
+      - id: FUND-008
+        status: Done
+        priority: P0
+        depends_on: [FUND-007]
+        title: "Iteration 3: Claim accounting and funds-exit foundation"
+        notes: |
+          Purpose: introduce the single funds-exit model before any workflow starts crediting owed value to it.
+
+          Minimal changes:
+          - Add claim-balance storage and accounting helpers.
+          - Add target `Claim` operation ABI.
+          - Implement native synchronous claim semantics.
+          - Implement meme `claiming_balances` state for asynchronous delivery.
+          - Keep refund, retry, protocol fee, remote liquidity, and excess as claim-balance meanings, not separate user operations.
+          - Use test fixtures or internal test helpers to seed claim balances for `Claim` tests; do not add a production debug operation or public ABI for this.
+          - Define concrete meme claim success/fail/bounce message enum variants and payload fields before implementation.
+
+          Atomic steps:
+          - 008-A1: Add `PoolOperation::Claim { token: Option<ApplicationId>, amount: Amount }`; owner is always derived from `authenticated_account()`.
+          - 008-A2: Add receipt-first meme application-transfer ABI while keeping the existing receipt-free `TransferFromApplication` for unmigrated paths.
+          - 008-A3: Implement meme `TransferFromApplicationWithReceipt` execution, success receipt emission, failure receipt emission, and bounce handling with `message_is_bouncing()`.
+          - 008-A4: Add pool claim and claiming storage with token-first, owner-second helpers. Claim accounting uses explicit `MemeToken` token identity; existing unrelated `Option<ApplicationId>` token surfaces are not refactored in A4.
+          - 008-A5: Implement pool `Claim` operation for native synchronous claim and meme asynchronous claim start.
+          - 008-A6: Implement pool claim receipt handlers; meme transfer bounce is converted to failed receipt by the meme app, not detected directly by pool.
+          - 008-A6.4: Make message tracking explicit. Runtime message sending must authenticate by default but must not track by default. Add a `tracking: bool` parameter to `HandlerMessage::new`, `HandlerOutcome::with_message`, and `ContractRuntimeContext::send_message`; do not introduce separate tracked-message APIs. Each outgoing message call site must pass `tracking` explicitly. In A6.4, only `MemeMessage::TransferFromApplicationWithReceipt` is `tracking: true`, because its handler already converts bounced delivery into a failed receipt. Other messages remain `tracking: false` until their owning funding iteration implements a handler-local `message_is_bouncing()` branch and tests. Future tracking candidates are `PoolMessage::RequestFund`, `MemeMessage::LiquidityFunded`, `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::PoolCreated`, `SwapMessage::CreateUserPool`, `SwapMessage::UserPoolCreated`, `PoolMessage::FundSuccess`, `PoolMessage::FundFail`, `PoolMessage::AddLiquidity`, `PoolMessage::InitializeLiquidity`, `PoolMessage::Swap`, and `PoolMessage::RemoveLiquidity`.
+          - 008-A6.5: Finalize claim receipt settlement. `PoolMessage::Claim` stays untracked and has no bounce branch because no state or funds change before it executes. `MemeMessage::TransferFromApplicationReceipt` inspects `message_is_bouncing()`; the bounced branch is documented no-op because legal receipt rejection is outside the normal protocol path and already leaves successful payouts locked in `claiming_balances`. `PoolOperation::ClaimTransferReceipt` directly settles `claim_success` or `claim_fail` on the pool chain. `PoolMessage::ClaimTransferReceipt` is removed to avoid an extra message hop.
+          - 008-A7: Add pool claim-balance and claiming-balance query support for tests and projection integration. This is a single-pool chain fact query only. It is not a frontend batch-read interface. Frontend claim and claiming balance reads must use observability projection/API data maintained from parsed blocks across pools.
+          - 008-A7.5: Lock claim settlement rejected semantics. Current Linera behavior leaves messages pending when per-block gas or block limits prevent inclusion; those limits are not receipt-reject causes. `TransferFromApplicationReceipt` bounce is defensive no-op only for explicit execution rejection, explicit node reject policy, ABI/deployment mismatch, implementation failure, or a receipt message that alone exceeds an execution limit. A rejected completed success receipt does not restore claimable balance, does not retry, and must be exposed by observability as paid out with claiming settlement rejected.
+          - 008-A8: Add tests for storage shape, native claim, meme claim success, meme claim fail, meme transfer bounce before payout, malformed receipts, stale receipts, pending claiming balances, rejected completed receipt no-op semantics, and unchanged legacy receipt-free transfer paths.
+
+          Validation:
+          - Tests prove claim-balance storage uses token-first, owner-second shape.
+          - Tests prove token claim balances update without duplicating token identity per owner.
+          - Tests prove native claim succeeds or leaves balance unchanged on abort.
+          - Tests prove meme claiming balance keeps the in-flight amount unavailable for another claim.
+          - Tests prove meme claim success/fail receipt settlement validates authenticated caller, token, owner, amount, and claiming-balance state.
+          - Tests prove malformed or stale meme claim callbacks cannot decrease `claiming_balances` or increase `claim_balances`.
+          - Tests prove success decreases claiming balance and transfer failure before payout restores available claim balance.
+          - Tests prove rejected completed `TransferFromApplicationReceipt` is documented no-op, does not dispatch settlement, does not restore claimable balance, and leaves claiming balance locked for observability.
+          - Tests prove untracked messages are sent without tracking and tracked messages opt in explicitly.
+          - Tests prove claim-path bounced messages do not execute normal settlement or dispatch on the wrong chain.
+          - Tests prove pending forever remains safe and observable.
+
+          Completed:
+          - Claim-balance storage, target `Claim` operation, native claim, meme asynchronous claiming, receipt settlement, explicit tracking, claim queries, and product workflow E2E entrypoint are implemented.
+          - Validation passed with `ulimit -v 33554432; cargo test -j 1`.
+      - id: FUND-009
+        status: Done
+        priority: P0
+        depends_on: [FUND-008]
+        title: "Iteration 4: Existing-pool AddLiquidity two-leg pending"
+        notes: |
+          Purpose: make existing finalized-pool add liquidity safe using the established claim exit.
+
+          Minimal changes:
+          - Scope this iteration to ordinary existing-pool add liquidity after finalized reserve/share facts exist.
+          - `PoolOperation::AddLiquidity` remains the user CreatePool funding entry after `UserPoolCreated` and the ordinary finalized-pool add-liquidity entry. It must not infer meme initialization or virtual-liquidity authority from pool state.
+          - Keep the normal existing-pool add-liquidity path.
+          - Preserve the limiting-side add-liquidity calculation for finalized pools.
+          - Credit accepted-liquidity excess/refunds to claim balances instead of direct payout.
+          - Migrate AddLiquidity away from persisted `FundRequest`: AddLiquidity must not create, read, or update persistent `FundRequest` state.
+          - Use message-carried `FundRequest` as the non-persistent funding request fact. The request carries current-token input/min fields and optional counterparty input/min fields; `counterparty_amount_in` is optional for later single-input Swap migration. The first migration shape is `RequestFund { prev, request, next }` and `FundResult { prev, request, next, result }`.
+          - Do not introduce `AddLiquidityContext`, `AddLiquidityLeg`, or ABI-visible pool-internal token-position names such as `Token0` or `Token1`.
+          - `FundResult` must validate authenticated source facts: request token creator chain, current pool application replica as message caller, and request owner as message signer.
+          - Keep persisted `FundRequest` only as a temporary legacy structure for paths that are not migrated in this iteration, currently Swap. InitializeLiquidity already uses direct parameter passing on its main path and is not a reason to keep persisted `FundRequest` for AddLiquidity.
+          - Do not introduce or target a persisted `AddLiquidityIntent` design.
+
+          Atomic implementation steps:
+          - A1: Update funding docs and task routing with the `FundRequest` design.
+          - A2: Add ABI types and messages: `FundType`, `FundRequest`, `RequestFund`, and `FundResult`; keep legacy `RequestFund`, `FundSuccess`, and `FundFail`.
+          - A3: Add handler skeletons for `RequestFund` and `FundResult` and register them in `HandlerFactory` without changing AddLiquidity behavior.
+          - A4: Move `PoolOperation::AddLiquidity` to the `FundRequest` happy path, including `TransferToCaller`, source validation, successor continuation, and final `PoolMessage::AddLiquidity`; do not add claim credit in this step.
+          - A5: Remove AddLiquidity handling from the legacy persisted-`FundRequest` result path while leaving that path for Swap and other unmigrated workflows.
+          - A6.0: Change the message envelope from successor-only to `prev/request/next`.
+          - A6.1: Credit `prev` on failed `FundResult` for AddLiquidity.
+          - A6.2: Credit both legs on final AddLiquidity calculation failure after custody.
+          - A6.3: Credit accepted-liquidity excess/refund to claim balances instead of direct payout.
+          - A6.4: Refactor AddLiquidity settlement handler and reduce known reject paths.
+          - A6.5: Move successful fungible custody from the origin-chain pool app replica to the pool creator-chain pool app using `TransferFromApplicationWithReceipt`; do not finalize AddLiquidity before custody receipts complete.
+          - A6.6: Add the pool-side custody receipt continuation that either credits failed custody or triggers final `PoolMessage::AddLiquidity` only after all required custody transfers complete.
+          - A7: Add and run focused tests, then run the full memory-limited `cargo test -j 1`.
+
+
+          Validation:
+          - Tests cover `UserPoolCreated -> PoolOperation::AddLiquidity` for user CreatePool funding without adding a user-pool-specific funding ABI.
+          - Tests cover finalized-pool add liquidity remaining on the ordinary path.
+          - Tests prove partial failure leaves no finalized reserve increase and no LP share mint.
+          - Tests prove partial failure credits already-custodied value to claim balances exactly once.
+          - Tests prove accepted-liquidity excess/refund is credited to claim balances exactly once.
+
+          Completed:
+          - AddLiquidity now uses message-carried `FundRequest` instead of persisted `FundRequest` state.
+          - Partial funding failure, final settlement failure, and accepted-liquidity excess/refund credit claim balances.
+          - User CreatePool first funding remains on the existing `UserPoolCreated -> PoolOperation::AddLiquidity` path without user-pool-specific funding ABI.
+          - Focused tests, full memory-limited `cargo test -j 1`, and full product E2E with oversupplied and failed AddLiquidity claim paths passed.
+      - id: FUND-010
+        status: Done
+        priority: P0
+        depends_on: [FUND-009]
+        title: "Iteration 5: Pool visibility split"
+        notes: |
+          Purpose: make product visibility depend on finalized pool-side economic facts instead of app creation receipts.
+
+          Minimal changes:
+          - Do not change `swap.pools` service query into an observability or product-visible-only API. It remains the swap contract service view over protocol pool catalog state.
+          - Keep `PoolCreated` as pool-app-created only for both meme initialization and user create-pool flows. A pool may exist in protocol catalog before finalized reserve/share facts exist.
+          - Treat finalized pool-side reserve/share facts as the product visibility boundary.
+          - Product rule: pools that do not yet have finalized reserve/share facts, including zero-reserve shells, are protocol-existing app facts but must not be shown in frontend pool/market/trading surfaces.
+          - Keep `AddLiquidity` available for the reviewed user CreatePool first-funding path; do not reject it merely because the pool is not finalized.
+          - Keep normal `Swap` and `RemoveLiquidity` rejected by the existing pool-side finalized-facts guard.
+
+          Atomic implementation steps:
+          - A1: Update funding docs with the protocol-catalog versus product-visible pool distinction.
+          - A2: Add or tighten pool-side tests proving unfinalized pools reject normal `Swap` and `RemoveLiquidity` without reserve, LP-share, transaction, or funds side effects.
+          - A3: Add swap catalog tests proving `swap.pools` can still expose protocol-existing unfinalized pool catalog entries with `reserve0/reserve1 = null`.
+          - A4: Add a frontend product-visible pool helper that filters to pools with positive `reserve0` and `reserve1`.
+          - A5: Route frontend product display and normal trading pool selection through the visible-pool helper while preserving missing-pair create-pool behavior.
+          - A6: Add frontend tests for null-reserve, zero-reserve, and finalized pools, including add-liquidity submission-mode resolution.
+          - A7: Run targeted tests, full memory-limited `cargo test -j 1`, frontend tests, and full product E2E.
+
+          Validation:
+          - Tests prove pools without finalized reserve/share facts are not usable by normal `Swap` or `RemoveLiquidity`.
+          - Tests prove `swap.pools` remains protocol catalog and can expose unfinalized pool entries with null reserves.
+          - Tests prove pools without finalized reserve/share facts, including zero-reserve shells, are excluded from product-visible frontend pool lists and normal trading surfaces.
+          - Tests prove user CreatePool first funding through `UserPoolCreated -> PoolOperation::AddLiquidity` is not broken.
+
+          Completed:
+          - Added pool-side reject/no-side-effect coverage for normal `Swap` and `RemoveLiquidity` before finalized reserve/share facts.
+          - Added swap service coverage proving `swap.pools` remains a protocol catalog and can expose unfinalized entries with null reserves.
+          - Added frontend visible-pool helper and routed normal product/trading surfaces through finalized positive reserve facts without changing raw store catalog semantics.
+          - Validation passed: targeted Rust tests, full memory-limited `cargo test -j 1`, `bun test`, `bun run build`, and full product E2E.
+      - id: FUND-011
+        status: Done
+        priority: P0
+        depends_on: [FUND-010]
+        title: "Iteration 6: Swap message-carried funding and claim settlement"
+        notes: |
+          Purpose: migrate Swap away from persisted funding state, make swap settlement use claim balances, and promote the message-carried funding ABI to the canonical funding protocol.
+
+          Minimal changes:
+          - Do not add `SwapIntent`.
+          - Migrate meme-input Swap from persisted `FundRequest` state to message-carried funding facts.
+          - Keep native-input Swap direct funding to the pool creator-chain pool application account, then settle through `PoolMessage::Swap`.
+          - Remove the legacy persisted funding protocol after Swap no longer uses it: old `FundRequest`, `FundStatus`, `RequestFund`, `FundSuccess`, `FundFail`, `fund_requests` state/query/interface methods, and legacy handlers.
+          - The message-carried funding protocol uses canonical names: `FundRequest`, `RequestFund`, and `FundResult`.
+          - The final canonical `FundRequest` is a message-carried fact only. It must not include persisted-state fields such as `id`, `status`, `error`, `prev_request`, or `next_request`.
+          - Require finalized reserve/share facts before normal swap execution.
+          - Credit successful output to the claim balance for the output token and owner.
+          - Credit failed post-custody input to the claim balance for the input token and owner.
+          - Do not use `RefundHandler` as the final swap refund path after custody. Swap refund closure uses claim balances.
+
+          Atomic implementation steps:
+          - A1 (done): Update funding docs and task routing with the Swap migration, legacy persisted funding removal, and `Ext` canonicalization plan.
+          - A2 (done): Move meme-input `PoolOperation::Swap` to message-carried funding while keeping temporary `Ext` names.
+          - A3 (done): Extend the funding result handler to support `FundType::Swap`; successful meme custody continues to pool creator-chain swap settlement, and failed meme funding terminates without reserve or claim mutation.
+          - A4 (done): Change `PoolMessage::Swap` settlement so successful outputs are credited to claim balances and post-custody settlement failures credit input refunds to claim balances.
+          - A5 (done): Add focused Swap tests for no persisted request creation, funding failure, successful settlement, output claim credit, post-custody refund claim credit, and wrong source/signer/token rejection.
+          - A6 (done): Remove the legacy persisted funding implementation: old state, query, interface methods, ABI messages, handlers, and obsolete tests.
+          - A7 (done): Rename the remaining message-carried funding protocol from `Ext` names to canonical names.
+          - A8 (done): Run targeted tests and the full memory-limited `cargo test -j 1`.
+
+          Validation:
+          - Tests prove meme-input Swap does not create, read, or update persisted `FundRequest` state.
+          - Tests prove failed meme funding does not update reserves and does not credit an input refund when no custody was acquired.
+          - Tests cover slippage/check failure after input custody creating a claim-balance refund.
+          - Tests cover successful output credited exactly once.
+          - Tests prove swap is rejected before finalized reserve/share facts exist.
+          - Tests prove funding request and result handlers validate source chain, authenticated caller application, message signer, token, owner, amount, request facts, and successor facts before mutating custody, reserve, transaction, or claim state.
+          - Tests prove credited values can exit through `Claim`.
+          - Validation passed: targeted swap/add-liquidity tests and full memory-limited `cargo test -j 1`.
+      - id: FUND-012
+        status: Done
+        priority: P0
+        depends_on: [FUND-011]
+        title: "Iteration 7: Remove/protocol-fee claim balances and duplicate create-pool direct refund"
+        notes: |
+          Purpose: settle remove-liquidity and protocol-fee owed value through aggregated claim balances, and refund duplicate user CreatePool open-chain budget directly on the swap creator chain.
+
+          Minimal changes:
+          - Credit remove-liquidity owed amounts to claim balances.
+          - If user CreatePool loses because the canonical pool already exists, refund the open-chain fee budget directly from the swap creator-chain balance to the message signer account. This is intentionally not modeled as pool claimable value.
+          - Credit protocol-fee value through claim balances when the fee receiver removes liquidity.
+          - Do not add separate refund, retry, claim, or protocol-fee-withdraw user operations for this duplicate CreatePool refund.
+
+          Validation:
+          - Tests prove burn/decrease cannot lose owed value.
+          - Tests prove remove/protocol-fee claim accounting and duplicate CreatePool refund accounting are only reachable from expected workflow states.
+          - Tests prove remove-liquidity and protocol-fee value share the claim-balance exit model, while duplicate CreatePool open-chain budget exits through direct native refund.
+          - Tests prove remove and protocol-fee paths validate owner, token, amount, and current state before mutating positions or claim balances, and duplicate CreatePool refund does not mutate pool claim balances.
+          - Tests prove credited values can exit through `Claim`.
+      - id: FUND-013
+        status: Done
+        priority: P0
+        depends_on: [FUND-012]
+        title: "Iteration 8: Internal entry and application-caller hardening sweep"
+        notes: |
+          Purpose: audit and close residual unsafe public and cross-application entry points after every earlier path has implemented its own required validation.
+
+          Atomic implementation steps:
+          - A1: Write the entry matrix and executable atomic steps.
+          - A2: Harden `SwapOperation::UpdatePool` as a pool-chain application-caller forwarding entry and move canonical pool-chain validation to `SwapMessage::UpdatePool`.
+          - A3: Add `SwapOperation::UpdatePool` tests for missing caller reject, creator-chain reject, and pool-chain application-caller forward success; add `SwapMessage::UpdatePool` tests for missing catalog and wrong message-origin chain reject.
+          - A4: Review and test `SwapMessage::UpdatePool` creator-chain settlement facts: message origin chain must equal the registered pool application chain, and valid operation forwarding sends to `application_creator_chain_id()`.
+          - A5: Review and test `SwapMessage::PoolCreated` boundaries.
+          - A6: Review and test user create-pool continuation boundaries for `CreateUserPool` and `UserPoolCreated`.
+          - A7: Sweep pool receipt operation/message boundaries.
+          - A8: Sweep meme transfer receipt boundaries.
+          - A9: Sweep proxy chain-boundary exceptions.
+          - A10: Run targeted tests and full memory-limited `cargo test -j 1`.
+
+          Validation:
+          - Tests cover direct user calls to internal operations/messages and reject them.
+          - Tests cover forged application caller, wrong source chain, wrong token app, wrong pending leg, and invalid claiming-balance transition.
+          - Tests prove valid meme initialization, token funding callbacks, and claim callbacks still work.
+      - id: FUND-014
+        status: Done
+        priority: P0
+        depends_on: [FUND-013]
+        title: "Iteration 9: Block-derived product read compatibility"
+        notes: |
+          Purpose: make product and observability reads parse existing block facts from finalized funding flows without live pool-state inference.
+
+          Scope:
+          - Business projections only: pool catalog, pool visibility, transactions, candles, positions, reserves, claimable balances, claiming balances, and claim settlement diagnostics.
+          - No operational cluster, chain-health, gas, or funder visibility; that belongs to the operations backlog.
+          - No funding protocol redesign and no persisted intent.
+          - No ABI, operation, message, event, or contract-state additions for observability. Projection facts are off-chain facts derived from existing blocks.
+
+          Atomic implementation steps:
+          - A1: Align Layer 2 pool message family mappings with the current funding ABI: request_fund, fund_result, add_liquidity_transfer_receipt, swap_transfer_receipt, claim, and claim_transfer_receipt; remove obsolete fund_success/fund_fail assumptions.
+          - A2: Add focused decoder and normalizer tests for the current funding and claim message payload types.
+          - A3: Produce the existing-block-fact derivation matrix for claimable and claiming balances. For each mutation, identify the exact existing operation/message/NewTransaction/raw-context carrier or mark it not derivable from current blocks. Do not add protocol facts.
+          - A4: Add Layer 3 projection storage for values derivable from existing block facts only, including derivation source and derivation confidence.
+          - A5: Implement exact projections for direct message-carried facts: claim start, claim transfer receipt success/fail, failed add-liquidity custody receipts, and failed add-liquidity fund results with previous custody facts.
+          - A6: Add diagnostics for non-derivable or partial claim-balance cases: rejected claim/funding messages and swap/add-liquidity/remove-liquidity messages that require NewTransaction correlation before an exact claim delta can be formed.
+          - A7: Add projection tests for exact direct cases and explicit partial/rejected diagnostics. Cross-event exact correlation remains a separate follow-up inside FUND-014 before final close.
+          - A8: Add projection-backed claim-balance product/API read tests and keep market reads on NewTransaction-derived projections, without live-querying pool state for accounting truth.
+          - A8.5: Implement batch and cross-batch correlation between funding messages and NewTransaction records for settled swap output, settled remove-liquidity output, and add-liquidity excess exact deltas.
+          - A9: Run targeted service tests, targeted contract tests, full memory-limited cargo test -j 1, and product smoke tests.
+
+          Validation:
+          - Layer 2 classifies all current funding and claim messages by current ABI names.
+          - NewTransaction remains the only candle/trade/liquidity market derivation input.
+          - Claimable and claiming projections use only parsed existing block facts and explicitly mark any non-derivable balance delta as partial or unknown.
+          - Indistinguishable same-block funding-to-NewTransaction correlations are diagnostic-only (`ambiguous_new_transaction_correlation`) until an existing-block disambiguation key is proven.
+          - Failed or pending funding paths do not create settled market outputs.
+          - Replaying the same normalized events is idempotent.
+          - Product claim-balance reads do not require live pool queries.
+          - Operational gas/funder stalled-message visibility remains deferred to the operations backlog.
+
+          Closure validation:
+          - service/kline tests passed: 714 tests and 78 subtests.
+          - Targeted claim-balance, runtime, read-model, serializer, and positions API tests passed.
+          - Full memory-limited Rust test suite passed with `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
+          - Product E2E against the current docker compose environment is blocked by wallet capability mismatch: maker-wallet on port 40082 does not support `publishDataBlob`; this is an environment precondition, not a FUND-014 protocol or projection failure.
+      - id: FUND-003
+        status: Cancelled
+        priority: P2
+        depends_on: []
+        title: Define operational cluster, chain, and funder visibility
+        notes: |
+          Cancelled from the current funding task sequence. Move this scope to backlog and create a newly numbered operations task when work resumes. Do not mix this work into product business systems, contract funding semantics, observability projections used for product accounting, or FUND-014/FUND-004.
+          Scope: cluster state, chain state, funder/gas coverage, pending/stalled workflow visibility, operational alerts, and manual diagnostics. Gas/funder availability is an operational progress concern, not a funds-safety prerequisite. Current Linera behavior does not reject a message solely because adding it would exceed per-block gas or block limits; the message remains pending/stalled for later execution. Reject handling still covers explicit execution failure, explicit node reject policy, ABI/deployment mismatch, implementation failure, and messages that alone exceed execution limits.
+      - id: FUND-004
+        status: Done
+        priority: P1
+        depends_on: [FUND-014]
+        title: Add final regression suite for funds protocol convergence
+        notes: |
+          This is not a substitute for per-iteration validation. It is the final cross-path regression suite after all iterations pass independently.
+
+          Atomic implementation steps:
+          - A1: Freeze the regression matrix in task docs before adding tests. Classify each row as already covered, needs a new focused contract test, needs an integration test, or deferred to operations visibility.
+          - A2: Add focused pool contract regressions for partial-success and reject side effects: add-liquidity fund failure, add-liquidity custody failure, add-liquidity calculation failure, accepted-liquidity excess, swap post-custody failure, remove-liquidity slippage reject, and no finalized-pool swap/remove guards.
+          - A3: Add focused claim regressions: fungible claim pending cannot be reclaimed, failed receipt restores claimable, success consumes claiming, stale/duplicate receipt rejects without balance mutation, wrong chain/caller/token rejects without balance mutation, and native claim remains invalid for meme/meme pools.
+          - A4: Add initialization and visibility regressions: pool app creation does not imply product-ready reserves/shares, user CreatePool first funding still uses AddLiquidity, meme initialization remains distinct from user CreatePool, user policy cannot call InitializeLiquidity, and virtual liquidity cannot become payable claim balance.
+          - A5: Add integration regressions for real message paths: meme/native initialize -> swap -> claim output -> over-add-liquidity -> claim excess -> remove-liquidity -> claim owed; user CreatePool first funding; meme/meme swap/add/claim path.
+          - A6: Add projection consistency smoke tests only for existing block-derived facts: claimable/claiming reads reflect the contract regression facts and ambiguous correlations remain diagnostic-only.
+          - A7: Run targeted contract and service tests, then run the full memory-limited Rust suite with `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`. Product E2E is required only in an environment whose user wallet supports `publishDataBlob`; otherwise record the environment blocker explicitly.
+
+          A1 regression matrix:
+          - AddLiquidity fund-result partial failure: already covered by `message_fund_result_fail_credits_prev_without_funding_pool_chain`; A2 should add one aggregate no-reserve/no-transaction regression.
+          - AddLiquidity custody receipt failure: already covered by `message_add_liquidity_transfer_receipt_fail_credits_only_prev`; A2 should add aggregate no-finalization regression.
+          - AddLiquidity calculation failure and accepted excess: partially covered by `message_add_liquidity_min_amount_boundary` and integration claimable-balance checks; A2 should add explicit reserve/supply/liquidity/transaction side-effect assertions.
+          - Swap post-custody failure and unfinalized guard: already covered by `message_swap_slippage_after_custody_credits_input_claim_without_reserve_update` and `message_swap_rejects_without_finalized_reserve_share_facts`; A2 should add transaction side-effect assertion where missing.
+          - RemoveLiquidity slippage and unfinalized guard: already covered by `message_remove_liquidity_min_amount_boundary` and `message_remove_liquidity_rejects_without_finalized_reserve_share_facts`; A2 should add claim-balance no-mutation assertion for unfinalized guard if missing.
+          - Claim pending, success, fail, duplicate, wrong chain, wrong caller, wrong token, and native invalidity: already covered by focused claim tests; A3 should add one aggregate invariant regression proving claimable + claiming transitions stay exclusive.
+          - Initialization split: already covered by instantiate/initialize tests and integration create-pool tests; A4 should add virtual-liquidity non-claimable regression.
+          - Real message path integration: partially covered by meme/native, meme/meme, create-pool, swap, add-liquidity, remove-liquidity, and claim tests; A5 should add a single explicit full-flow regression that performs swap output claim, over-add-liquidity excess claim, remove-liquidity owed claim, and verifies final balances.
+          - Projection consistency: partially covered by FUND-014 service tests; A6 should add smoke tests only if a contract regression produces a new projection fixture need.
+          - Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to the operations backlog or environment runbook, not FUND-004.
+
+          Validation:
+          - No regression test creates, reads, or depends on persisted funding intent.
+          - Failed or rejected post-custody paths leave no reserve, total-supply, liquidity, transaction, or duplicate-claim side effects unless the reviewed protocol path explicitly credits claim balance.
+          - Every credited amount is either claimable, claiming, or already settled; no amount is both claimable and settled.
+          - User CreatePool and meme initialization remain separate paths.
+          - Virtual liquidity contributes to pricing/shares only through reviewed initialization semantics and is never directly claimable.
+          - Projection assertions are derived from existing block facts only.
+
+          Closure validation:
+          - Targeted pool contract regression suite passed: `cargo test -p pool contract_tests -- --test-threads=1` with memory limit.
+          - Targeted meme-native full-flow integration regression passed: `cargo test -p pool meme_native_virtual_initial_liquidity_test -- --test-threads=1` with memory limit.
+          - Full Rust suite passed: `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
+          - No ABI or contract implementation changes were made in this iteration; changes are task docs and tests only.
   - name: WebUI
     tasks:
       - id: WEBUI-001
         status: Todo
         priority: P1
         depends_on: []
-        title: 前端国际化
-        notes: 梳理当前硬编码文案并建立可持续的 i18n 接入与迁移范围
+        title: Frontend internationalization
+        notes: Inventory current hard-coded copy and define sustainable i18n integration and migration scope.
       - id: WEBUI-002
         status: Todo
         priority: P1
         depends_on: []
-        title: 优化 transactions 列表的拉取 加载与显示
-        notes: 聚焦 transactions 列表的数据获取时机 加载态 空态 分页或增量展示与可读性
+        title: Improve transactions list fetching, loading, and display
+        notes: Focus on data fetch timing, loading state, empty state, pagination or incremental display, and readability for the transactions list.
       - id: WEBUI-003
         status: Todo
         priority: P1
         depends_on: []
-        title: 优化 FAQ
-        notes: 聚焦 FAQ 的信息结构 文案质量 品牌一致性与版面表现
+        title: Improve FAQ
+        notes: Focus on FAQ information structure, copy quality, brand consistency, and layout presentation.
       - id: WEBUI-004
         status: Todo
         priority: P1
         depends_on: []
-        title: 优化 Add Liquidity 和 Remove Liquidity 页面
-        notes: 聚焦加减池页面的布局 信息层级 交互状态与易用性
+        title: Improve Add Liquidity and Remove Liquidity pages
+        notes: Focus on layout, information hierarchy, interaction states, and usability for add/remove liquidity pages.
       - id: WEBUI-005
         status: Todo
         priority: P1
         depends_on: []
-        title: 实现侧边弹出菜单
-        notes: 明确触发入口 展开行为 响应式表现与菜单项结构
+        title: Implement side drawer menu
+        notes: Define trigger entry, expansion behavior, responsive behavior, and menu item structure.

@@ -5,10 +5,15 @@ use meme::interfaces::state::StateInterface;
 use abi::{
     meme::{
         InstantiationArgument, Liquidity, Meme, MemeAbi, MemeMessage, MemeOperation,
-        MemeParameters, MemeResponse, Metadata,
+        MemeParameters, MemeResponse, Metadata, TransferFromApplicationReceipt,
+        TransferFromApplicationReceiptPayload, TransferFromApplicationReceiptPurpose,
     },
     proxy::ProxyResponse,
     store_type::StoreType,
+    swap::pool::{
+        AddLiquidityTransferReceiptPayload, ClaimTransferReceipt, FundRequest, FundType,
+        PoolInitializeLiquidityCall, PoolOperation, PoolResponse, SwapTransferReceiptPayload,
+    },
 };
 use futures::FutureExt as _;
 use linera_sdk::{
@@ -591,6 +596,31 @@ async fn operation_transfer_from_application_requires_authenticated_caller() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[should_panic]
+async fn operation_initialize_liquidity_rejects_missing_caller() {
+    let mut meme = create_and_instantiate_meme_with_authenticated_caller(false, None, None).await;
+    let chain_id = meme.runtime.borrow_mut().chain_id();
+    let pool_application = Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0x5279b3ae14d3b38e14b65a74aefe44824ea88b25c7841836e9ec77d991a5bc8f",
+        )
+        .unwrap(),
+    };
+
+    let _ = meme
+        .execute_operation(MemeOperation::InitializeLiquidity {
+            pool_application,
+            amount_0: Amount::from_tokens(1),
+            pool_initialize: PoolInitializeLiquidityCall {
+                amount_1_in: Amount::from_tokens(1),
+                to: None,
+            },
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[should_panic(expected = "Invalid caller")]
 async fn message_initialize_liquidity_rejects_wrong_caller() {
     let mut meme = create_and_instantiate_meme(false, None).await;
@@ -612,8 +642,12 @@ async fn message_initialize_liquidity_rejects_wrong_caller() {
 
     meme.execute_message(MemeMessage::InitializeLiquidity {
         caller: wrong_caller,
-        to,
-        amount: Amount::from_tokens(1),
+        pool_application: to,
+        amount_0: Amount::from_tokens(1),
+        pool_initialize: PoolInitializeLiquidityCall {
+            amount_1_in: Amount::from_tokens(1),
+            to: None,
+        },
     })
     .await;
 }
@@ -644,14 +678,30 @@ async fn message_initialize_liquidity_duplicate_fails_without_double_transfer() 
         .unwrap()
         .fungible_amount;
 
-    meme.execute_message(MemeMessage::InitializeLiquidity { caller, to, amount })
-        .await;
+    meme.execute_message(MemeMessage::InitializeLiquidity {
+        caller,
+        pool_application: to,
+        amount_0: amount,
+        pool_initialize: PoolInitializeLiquidityCall {
+            amount_1_in: Amount::from_tokens(1),
+            to: None,
+        },
+    })
+    .await;
 
     assert_eq!(meme.state.borrow().balance_of(to).await, amount);
 
     let second_attempt = std::panic::AssertUnwindSafe(async {
-        meme.execute_message(MemeMessage::InitializeLiquidity { caller, to, amount })
-            .await;
+        meme.execute_message(MemeMessage::InitializeLiquidity {
+            caller,
+            pool_application: to,
+            amount_0: amount,
+            pool_initialize: PoolInitializeLiquidityCall {
+                amount_1_in: Amount::from_tokens(1),
+                to: None,
+            },
+        })
+        .await;
     })
     .catch_unwind()
     .await;
@@ -718,6 +768,497 @@ async fn message_mint_rejects_non_owner_signer() {
         amount: Amount::ONE,
     })
     .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_transfer_from_application_with_receipt_sends_request_message() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let receipt = pool_claim_receipt(None);
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+    let amount = Amount::from_tokens(5);
+
+    let expected_destination = meme.runtime.borrow_mut().application_creator_chain_id();
+    let caller_id = meme.runtime.borrow_mut().authenticated_caller_id().unwrap();
+    let expected_caller = Account {
+        chain_id: meme.runtime.borrow_mut().chain_id(),
+        owner: AccountOwner::from(caller_id),
+    };
+
+    let response = meme
+        .execute_operation(MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount,
+            receipt: receipt.clone(),
+        })
+        .await;
+
+    assert!(matches!(response, MemeResponse::Ok));
+    let runtime = meme.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    assert_eq!(requests.len(), 2);
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, expected_destination);
+    assert!(request.authenticated);
+    assert!(request.is_tracked);
+
+    assert!(matches!(
+        &request.message,
+        MemeMessage::TransferFromApplicationWithReceipt {
+            caller,
+            to: request_to,
+            amount: request_amount,
+            receipt: request_receipt,
+        } if *caller == expected_caller
+            && *request_to == to
+            && *request_amount == amount
+            && request_receipt.purpose == receipt.purpose
+            && request_receipt.owner == receipt.owner
+            && request_receipt.token == receipt.token
+            && request_receipt.amount == receipt.amount
+            && request_receipt.result == receipt.result
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt result")]
+async fn operation_transfer_from_application_with_receipt_rejects_completed_receipt() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+
+    let _ = meme
+        .execute_operation(MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount: Amount::from_tokens(5),
+            receipt: pool_claim_receipt(Some(Ok(()))),
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt amount")]
+async fn operation_transfer_from_application_with_receipt_rejects_amount_mismatch() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+
+    let _ = meme
+        .execute_operation(MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount: Amount::from_tokens(6),
+            receipt: pool_claim_receipt(None),
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Authenticated caller ID has not been mocked")]
+async fn operation_transfer_from_application_with_receipt_rejects_missing_caller() {
+    let mut meme = create_and_instantiate_meme_with_authenticated_caller(false, None, None).await;
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+
+    let _ = meme
+        .execute_operation(MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount: Amount::from_tokens(5),
+            receipt: pool_claim_receipt(None),
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_with_receipt_success_sends_success_receipt() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = application_account(&mut meme);
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+    let amount = Amount::from_tokens(5);
+    let caller_balance = meme.state.borrow().balance_of(caller).await;
+    let to_balance = meme.state.borrow().balance_of(to).await;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+    meme.execute_message(MemeMessage::TransferFromApplicationWithReceipt {
+        caller,
+        to,
+        amount,
+        receipt: pool_claim_receipt(None),
+    })
+    .await;
+
+    assert_eq!(
+        meme.state.borrow().balance_of(caller).await,
+        caller_balance.try_sub(amount).unwrap()
+    );
+    assert_eq!(
+        meme.state.borrow().balance_of(to).await,
+        to_balance.try_add(amount).unwrap()
+    );
+    assert_transfer_from_application_receipt(&meme, caller, Ok(()));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_with_receipt_fail_sends_fail_receipt() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = application_account(&mut meme);
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+    let amount = meme
+        .state
+        .borrow()
+        .balance_of(caller)
+        .await
+        .try_add(Amount::ONE)
+        .unwrap();
+    let caller_balance = meme.state.borrow().balance_of(caller).await;
+    let to_balance = meme.state.borrow().balance_of(to).await;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+    meme.execute_message(MemeMessage::TransferFromApplicationWithReceipt {
+        caller,
+        to,
+        amount,
+        receipt: TransferFromApplicationReceipt {
+            amount,
+            ..pool_claim_receipt(None)
+        },
+    })
+    .await;
+
+    assert_eq!(meme.state.borrow().balance_of(caller).await, caller_balance);
+    assert_eq!(meme.state.borrow().balance_of(to).await, to_balance);
+    assert_transfer_from_application_receipt_err(&meme, caller);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_with_receipt_bounce_sends_fail_receipt_without_transfer()
+{
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = application_account(&mut meme);
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+    let amount = Amount::from_tokens(5);
+    let caller_balance = meme.state.borrow().balance_of(caller).await;
+    let to_balance = meme.state.borrow().balance_of(to).await;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(true);
+    meme.execute_message(MemeMessage::TransferFromApplicationWithReceipt {
+        caller,
+        to,
+        amount,
+        receipt: pool_claim_receipt(None),
+    })
+    .await;
+
+    assert_eq!(meme.state.borrow().balance_of(caller).await, caller_balance);
+    assert_eq!(meme.state.borrow().balance_of(to).await, to_balance);
+    assert_transfer_from_application_receipt_err(&meme, caller);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt result")]
+async fn message_transfer_from_application_with_receipt_rejects_completed_receipt() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = application_account(&mut meme);
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationWithReceipt {
+        caller,
+        to,
+        amount: Amount::from_tokens(5),
+        receipt: pool_claim_receipt(Some(Ok(()))),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt amount")]
+async fn message_transfer_from_application_with_receipt_rejects_amount_mismatch() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = application_account(&mut meme);
+    let to = alternate_account(meme.runtime.borrow_mut().chain_id());
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationWithReceipt {
+        caller,
+        to,
+        amount: Amount::from_tokens(6),
+        receipt: pool_claim_receipt(None),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt result")]
+async fn message_transfer_from_application_receipt_rejects_incomplete_receipt() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: pool_claim_receipt(None),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_dispatches_pool_claim_success() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let owner = alternate_account(meme.runtime.borrow_mut().chain_id());
+    let receipt = TransferFromApplicationReceipt {
+        owner,
+        result: Some(Ok(())),
+        ..pool_claim_receipt(None)
+    };
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: receipt.clone(),
+    })
+    .await;
+
+    let (application_id, operation) = captured.borrow().clone().unwrap();
+    let AccountOwner::Address32(application_description_hash) = caller.owner else {
+        panic!("Invalid test caller");
+    };
+    assert_eq!(
+        application_id,
+        ApplicationId::new(application_description_hash)
+    );
+    assert!(matches!(
+        bcs::from_bytes::<PoolOperation>(&operation).unwrap(),
+        PoolOperation::ClaimTransferReceipt {
+            receipt: ClaimTransferReceipt {
+                owner: receipt_owner,
+                token: receipt_token,
+                amount: receipt_amount,
+                result: Ok(()),
+            },
+        } if receipt_owner == owner
+            && receipt_token == receipt.token
+            && receipt_amount == receipt.amount
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_dispatches_pool_claim_fail() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = TransferFromApplicationReceipt {
+        result: Some(Err("failed".to_string())),
+        ..pool_claim_receipt(None)
+    };
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: receipt.clone(),
+    })
+    .await;
+
+    let (_application_id, operation) = captured.borrow().clone().unwrap();
+    assert!(matches!(
+        bcs::from_bytes::<PoolOperation>(&operation).unwrap(),
+        PoolOperation::ClaimTransferReceipt {
+            receipt: ClaimTransferReceipt {
+                result: Err(error), ..
+            },
+        } if error == "failed"
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_dispatches_pool_add_liquidity_success() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_add_liquidity_receipt(Some(Ok(())), FundType::AddLiquidity);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: receipt.clone(),
+    })
+    .await;
+
+    let (_application_id, operation) = captured.borrow().clone().unwrap();
+    assert!(matches!(
+        bcs::from_bytes::<PoolOperation>(&operation).unwrap(),
+        PoolOperation::AddLiquidityTransferReceipt { receipt: transfer_receipt }
+            if transfer_receipt.result == Ok(())
+                && transfer_receipt.request.amount_in == receipt.amount
+                && transfer_receipt.request.fund_type == FundType::AddLiquidity
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_dispatches_pool_swap_success() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_swap_receipt(Some(Ok(())), FundType::Swap);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: receipt.clone(),
+    })
+    .await;
+
+    let (_application_id, operation) = captured.borrow().clone().unwrap();
+    assert!(matches!(
+        bcs::from_bytes::<PoolOperation>(&operation).unwrap(),
+        PoolOperation::SwapTransferReceipt { receipt: transfer_receipt }
+            if transfer_receipt.result == Ok(())
+                && transfer_receipt.request.amount_in == receipt.amount
+                && transfer_receipt.request.fund_type == FundType::Swap
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt payload")]
+async fn message_transfer_from_application_receipt_rejects_pool_add_liquidity_payload_mismatch() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let mut receipt = pool_add_liquidity_receipt(Some(Ok(())), FundType::AddLiquidity);
+    receipt.payload = pool_swap_receipt(Some(Ok(())), FundType::Swap).payload;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt payload")]
+async fn message_transfer_from_application_receipt_rejects_pool_swap_payload_mismatch() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let mut receipt = pool_swap_receipt(Some(Ok(())), FundType::Swap);
+    receipt.payload = pool_add_liquidity_receipt(Some(Ok(())), FundType::AddLiquidity).payload;
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid fund type")]
+async fn message_transfer_from_application_receipt_rejects_pool_add_liquidity_wrong_fund_type() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_add_liquidity_receipt(Some(Ok(())), FundType::Swap);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid fund type")]
+async fn message_transfer_from_application_receipt_rejects_pool_swap_wrong_fund_type() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+    let receipt = pool_swap_receipt(Some(Ok(())), FundType::AddLiquidity);
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt { caller, receipt })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Invalid receipt caller")]
+async fn message_transfer_from_application_receipt_rejects_invalid_caller_owner() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = Account {
+        chain_id: meme.runtime.borrow_mut().chain_id(),
+        owner: AccountOwner::CHAIN,
+    };
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(false);
+
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: pool_claim_receipt(Some(Ok(()))),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_bounce_is_noop() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(true);
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: pool_claim_receipt(Some(Ok(()))),
+    })
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_transfer_from_application_receipt_bounce_does_not_dispatch_pool_settlement() {
+    let mut meme = create_and_instantiate_meme(false, None).await;
+    let caller = pool_application_account();
+
+    let captured = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let captured_for_handler = captured.clone();
+    meme.runtime.borrow_mut().set_call_application_handler(
+        move |_authenticated, application_id, operation| {
+            *captured_for_handler.borrow_mut() = Some((application_id, operation));
+            bcs::to_bytes(&PoolResponse::Ok).unwrap()
+        },
+    );
+
+    meme.runtime.borrow_mut().set_message_is_bouncing(true);
+    meme.execute_message(MemeMessage::TransferFromApplicationReceipt {
+        caller,
+        receipt: pool_claim_receipt(Some(Ok(()))),
+    })
+    .await;
+
+    assert!(captured.borrow().is_none());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -805,7 +1346,148 @@ fn mock_application_call(
     _application_id: ApplicationId,
     _operation: Vec<u8>,
 ) -> Vec<u8> {
-    bcs::to_bytes(&ProxyResponse::Ok).unwrap()
+    if bcs::from_bytes::<abi::swap::pool::PoolOperation>(&_operation).is_ok() {
+        bcs::to_bytes(&PoolResponse::Ok).unwrap()
+    } else {
+        bcs::to_bytes(&ProxyResponse::Ok).unwrap()
+    }
+}
+
+fn pool_claim_receipt(result: Option<Result<(), String>>) -> TransferFromApplicationReceipt {
+    TransferFromApplicationReceipt {
+        purpose: TransferFromApplicationReceiptPurpose::PoolClaim,
+        owner: Account {
+            chain_id: ChainId::from_str(
+                "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
+            )
+            .unwrap(),
+            owner: AccountOwner::from_str(
+                "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03",
+            )
+            .unwrap(),
+        },
+        token: ApplicationId::from_str(
+            "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad",
+        )
+        .unwrap(),
+        amount: Amount::from_tokens(5),
+        result,
+        payload: None,
+    }
+}
+
+fn pool_add_liquidity_receipt(
+    result: Option<Result<(), String>>,
+    fund_type: FundType,
+) -> TransferFromApplicationReceipt {
+    let base = pool_claim_receipt(result);
+    let request = FundRequest::builder(base.owner, Some(base.token), base.amount, fund_type)
+        .counterparty_token(None)
+        .counterparty_amount_in(Some(Amount::from_tokens(10)))
+        .counterparty_amount_out_min(Some(Amount::ONE))
+        .build();
+
+    TransferFromApplicationReceipt {
+        purpose: TransferFromApplicationReceiptPurpose::PoolAddLiquidity,
+        payload: Some(TransferFromApplicationReceiptPayload::PoolAddLiquidity(
+            AddLiquidityTransferReceiptPayload {
+                prev: None,
+                request,
+                next: None,
+            },
+        )),
+        ..base
+    }
+}
+
+fn pool_swap_receipt(
+    result: Option<Result<(), String>>,
+    fund_type: FundType,
+) -> TransferFromApplicationReceipt {
+    let base = pool_claim_receipt(result);
+    let request = FundRequest::builder(base.owner, Some(base.token), base.amount, fund_type)
+        .counterparty_token(None)
+        .counterparty_amount_out_min(Some(Amount::ONE))
+        .build();
+
+    TransferFromApplicationReceipt {
+        purpose: TransferFromApplicationReceiptPurpose::PoolSwap,
+        payload: Some(TransferFromApplicationReceiptPayload::PoolSwap(
+            SwapTransferReceiptPayload { request },
+        )),
+        ..base
+    }
+}
+
+fn pool_application_account() -> Account {
+    Account {
+        chain_id: ChainId::from_str(
+            "abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65",
+        )
+        .unwrap(),
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bbd",
+            )
+            .unwrap(),
+        ),
+    }
+}
+
+fn application_account(meme: &mut MemeContract) -> Account {
+    let mut runtime = meme.runtime.borrow_mut();
+    Account {
+        chain_id: runtime.chain_id(),
+        owner: AccountOwner::from(runtime.application_id().forget_abi()),
+    }
+}
+
+fn alternate_account(chain_id: ChainId) -> Account {
+    Account {
+        chain_id,
+        owner: AccountOwner::from_str(
+            "0x02e900512d2fca22897f80a2f6932ff454f2752ef7afad18729dd25e5b5b6e03",
+        )
+        .unwrap(),
+    }
+}
+
+fn assert_transfer_from_application_receipt(
+    meme: &MemeContract,
+    caller: Account,
+    result: Result<(), String>,
+) {
+    let runtime = meme.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, caller.chain_id);
+    assert!(request.authenticated);
+    assert!(!request.is_tracked);
+    assert!(matches!(
+        &request.message,
+        MemeMessage::TransferFromApplicationReceipt {
+            caller: receipt_caller,
+            receipt,
+        } if *receipt_caller == caller
+            && receipt.result == Some(result)
+    ));
+}
+
+fn assert_transfer_from_application_receipt_err(meme: &MemeContract, caller: Account) {
+    let runtime = meme.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, caller.chain_id);
+    assert!(request.authenticated);
+    assert!(!request.is_tracked);
+    assert!(matches!(
+        &request.message,
+        MemeMessage::TransferFromApplicationReceipt {
+            caller: receipt_caller,
+            receipt,
+        } if *receipt_caller == caller
+            && matches!(receipt.result, Some(Err(_)))
+    ));
 }
 
 async fn create_and_instantiate_meme(

@@ -11,13 +11,15 @@ use thiserror::Error;
 pub struct HandlerMessage<M: Serialize> {
     destination: ChainId,
     message: M,
+    tracking: bool,
 }
 
 impl<M: Serialize> HandlerMessage<M> {
-    pub fn new(destination: ChainId, message: M) -> Self {
+    pub fn new(destination: ChainId, message: M, tracking: bool) -> Self {
         Self {
             destination,
             message,
+            tracking,
         }
     }
 
@@ -27,6 +29,10 @@ impl<M: Serialize> HandlerMessage<M> {
 
     pub fn message(&self) -> &M {
         &self.message
+    }
+
+    pub fn tracking(&self) -> bool {
+        self.tracking
     }
 }
 
@@ -44,9 +50,9 @@ impl<M: Serialize, R: Serialize> HandlerOutcome<M, R> {
         }
     }
 
-    pub fn with_message(&mut self, destination: ChainId, message: M) -> &mut Self {
+    pub fn with_message(&mut self, destination: ChainId, message: M, tracking: bool) -> &mut Self {
         self.messages
-            .push(HandlerMessage::new(destination, message));
+            .push(HandlerMessage::new(destination, message, tracking));
         self
     }
 

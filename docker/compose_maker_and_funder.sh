@@ -93,6 +93,35 @@ function require_non_empty() {
     fi
 }
 
+function read_ts_export_string() {
+    local file=$1
+    local name=$2
+    awk -v name="$name" '
+        function extract_value(line) {
+            if (match(line, /'\''[^'\'']+'\''/)) {
+                return substr(line, RSTART + 1, RLENGTH - 2)
+            }
+            return ""
+        }
+
+        $0 ~ ("export const " name "[[:space:]]*=") {
+            value = extract_value($0)
+            if (value != "") {
+                print value
+                exit
+            }
+            while (getline > 0) {
+                value = extract_value($0)
+                if (value != "") {
+                    print value
+                    exit
+                }
+            }
+            exit
+        }
+    ' "$file"
+}
+
 cd $OUTPUT_DIR
 
 docker stop kline maker funder
@@ -114,10 +143,14 @@ else
     NO_PROXY_VALUE="$LOCAL_NO_PROXY"
 fi
 
-SWAP_CHAIN_ID=$( cat $DOMAIN_FILE | grep 'SWAP_CHAIN_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
-SWAP_APPLICATION_ID=$( cat $DOMAIN_FILE | grep 'SWAP_APPLICATION_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
-PROXY_CHAIN_ID=$( cat $DOMAIN_FILE | grep 'PROXY_CHAIN_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
-PROXY_APPLICATION_ID=$( cat $DOMAIN_FILE | grep 'PROXY_APPLICATION_ID' | awk -F ' = ' '{print $2}' | sed "s/'//g" )
+SWAP_CHAIN_ID=$(read_ts_export_string "$DOMAIN_FILE" "SWAP_CHAIN_ID")
+SWAP_APPLICATION_ID=$(read_ts_export_string "$DOMAIN_FILE" "SWAP_APPLICATION_ID")
+PROXY_CHAIN_ID=$(read_ts_export_string "$DOMAIN_FILE" "PROXY_CHAIN_ID")
+PROXY_APPLICATION_ID=$(read_ts_export_string "$DOMAIN_FILE" "PROXY_APPLICATION_ID")
+require_non_empty SWAP_CHAIN_ID "$SWAP_CHAIN_ID"
+require_non_empty SWAP_APPLICATION_ID "$SWAP_APPLICATION_ID"
+require_non_empty PROXY_CHAIN_ID "$PROXY_CHAIN_ID"
+require_non_empty PROXY_APPLICATION_ID "$PROXY_APPLICATION_ID"
 
 # Build kline and maker
 function run_kline() {

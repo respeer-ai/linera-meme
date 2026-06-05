@@ -22,6 +22,9 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
             def execute(self, sql, params=()):
                 self.executed.append((sql, params))
 
+            def fetchone(self):
+                return None
+
             def close(self):
                 return None
 
@@ -53,6 +56,10 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
                         },
                         'token_0': 'AAA',
                         'token_1': None,
+                        'creator': {
+                            'chain_id': 'chain-owner',
+                            'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                        },
                     },
                 },
             }
@@ -68,6 +75,7 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
                 'chain-a',
                 'AAA',
                 'TLINERA',
+                '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-owner',
                 'swap_pool_created_recorded',
                 'event-1',
             ),
@@ -122,6 +130,46 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
             ]),
             0,
         )
+
+
+    def test_list_pool_catalog_filters_to_latest_static_swap_lineage(self):
+        class FakeCursor:
+            def __init__(self):
+                self.executed = []
+
+            def execute(self, sql, params=()):
+                self.executed.append((sql, params))
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                return None
+
+        class FakeConnection:
+            def __init__(self):
+                self.cursor_obj = FakeCursor()
+
+            def cursor(self, dictionary=False):
+                self.dictionary = dictionary
+                return self.cursor_obj
+
+        connection = FakeConnection()
+        repo = PoolCatalogProjectionRepository(connection)
+
+        self.assertEqual(repo.list_pool_catalog(), [])
+
+        sql = connection.cursor_obj.executed[0][0]
+        normalized_sql = " ".join(sql.split())
+        self.assertIn("FROM pool_catalog_v2 pc", normalized_sql)
+        self.assertIn("LEFT JOIN application_registry pool_app", normalized_sql)
+        self.assertIn("pool_app.application_id = pc.pool_application_id", normalized_sql)
+        self.assertIn("pool_app.app_type = 'pool'", normalized_sql)
+        self.assertIn("LEFT JOIN ( SELECT current_swap.application_id", normalized_sql)
+        self.assertIn("current_swap.app_type = 'swap'", normalized_sql)
+        self.assertIn("current_swap.discovered_from = 'static_config'", normalized_sql)
+        self.assertIn("current_swap.status = 'active'", normalized_sql)
+        self.assertIn("WHERE current_swap.application_id IS NULL OR pool_app.parent_application_id = current_swap.application_id", normalized_sql)
 
 
 if __name__ == '__main__':

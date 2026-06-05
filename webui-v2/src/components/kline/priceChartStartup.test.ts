@@ -13,6 +13,7 @@ import {
   resolveStartupCatchupFetch,
   resolveStartupGapBackfillFetch,
   resolveStartupGapBackfillFetches,
+  resolveStartupNonFinalRepairFetch,
   resolveStartupRequestPlan,
   shouldContinueStartupFetchAfterEmptyResult,
   shouldRestartKlineOnSelectedPoolChange,
@@ -307,6 +308,51 @@ describe('resolveNextFetchTimestamp', () => {
       endAt: 9 * 60 * 60 * 1000 + 30 * 60 * 1000 - 1,
       key: `${9 * 60 * 60 * 1000}:${9 * 60 * 60 * 1000 + 30 * 60 * 1000 - 1}`,
     })
+  })
+
+  test('repairs non-final cached candles before the latest bucket only for the affected range', () => {
+    const latestWindowStart = 9 * 60 * 60 * 1000
+    const bucket = 10 * 60 * 1000
+
+    expect(
+      resolveStartupNonFinalRepairFetch({
+        pointStates: [
+          { timestamp: latestWindowStart, isFinal: true },
+          { timestamp: latestWindowStart + bucket, isFinal: false },
+          { timestamp: latestWindowStart + bucket * 2, isFinal: false },
+          { timestamp: latestWindowStart + bucket * 3, isFinal: true },
+          { timestamp: latestWindowStart + bucket * 4, isFinal: false },
+        ],
+        latestWindowStart,
+        latestWindowEnd: latestWindowStart + bucket * 4,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+      }),
+    ).toEqual({
+      reverse: false,
+      startAt: latestWindowStart + bucket,
+      endAt: latestWindowStart + bucket * 2 + bucket - 1,
+      key: `${latestWindowStart + bucket}:${latestWindowStart + bucket * 2 + bucket - 1}`,
+    })
+  })
+
+  test('does not repair the latest non-final cached candle by itself', () => {
+    const latestWindowStart = 9 * 60 * 60 * 1000
+    const bucket = 10 * 60 * 1000
+
+    expect(
+      resolveStartupNonFinalRepairFetch({
+        pointStates: [
+          { timestamp: latestWindowStart, isFinal: true },
+          { timestamp: latestWindowStart + bucket, isFinal: true },
+          { timestamp: latestWindowStart + bucket * 2, isFinal: false },
+        ],
+        latestWindowStart,
+        latestWindowEnd: latestWindowStart + bucket * 2,
+        interval: Interval.TEN_MINUTE,
+        requestedKeys: new Set<string>(),
+      }),
+    ).toBe(null)
   })
 
   test('continues startup cache correction after a requested leading gap', () => {

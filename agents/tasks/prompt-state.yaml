@@ -23,8 +23,31 @@ defaults:
     - active_semantic_dependency
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
-active_focus: []
+active_focus:
+  - id: POS-064
+    why: active product read-model correction for claim balances, TVL, and fee valuation
+    summary: Fix projection-backed claim balance units/completeness, reserve-derived TVL, and exact fee-token accumulation without ABI or contract changes.
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - service/kline/AGENTS.md
 on_demand_done:
+  - id: FUND-002
+    why: completed umbrella for business funds-consistency protocol iterations
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/funding/architecture.md
+      - agents/primitives/funding/implementation-plan.md
+      - agents/primitives/funding/open-issues.md
+  - id: FUND-004
+    why: final funds-protocol convergence regression suite completion history
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/funding/implementation-plan.md
+  - id: FUND-014
+    why: block-derived product read compatibility completion history and claim-balance projection semantics
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/funding/implementation-plan.md
   - id: OBS-E2E-001
     why: shell-level observability E2E entrypoint and projection-fact reconciliation completion history
     canonical_refs:

@@ -40,7 +40,7 @@ const memeTokenId = computed(() => buyToken.value === constants.LINERA_NATIVE_ID
 const memeToken = computed(() => tokens.value.find((el) => el.applicationId === memeTokenId.value))
 const memeTicker = computed(() => memeToken.value?.meme?.ticker || constants.LINERA_TICKER)
 
-const pool = computed(() => swap.Swap.getPool(memeTokenId.value, constants.LINERA_NATIVE_ID))
+const pool = computed(() => swap.Swap.getVisiblePool(memeTokenId.value, constants.LINERA_NATIVE_ID))
 const memePrice = computed(() => (Number(memeTokenId.value === pool.value?.token0 ? pool.value?.token0Price : pool.value?.token1Price) || 0).toFixed(6))
 
 const tokenChain = computed(() => proxy.Proxy.tokenCreatorChain(memeTokenId.value) as Chain)
@@ -56,7 +56,7 @@ const applicationHolder = (account: account.Account) => {
   return applications.value.findIndex((el) => el.applicationId === account.owner) >= 0
 }
 
-const pools = computed(() => swap.Swap.pools())
+const pools = computed(() => swap.Swap.visiblePools())
 const poolHolder = (account: account.Account) => {
   return pools.value.findIndex((el) => el.poolApplication.owner === account.owner) >= 0
 }

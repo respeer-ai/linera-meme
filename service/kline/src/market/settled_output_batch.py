@@ -26,6 +26,20 @@ class SettledOutputBatch:
             if output.get('settled_output_type') == SettledMarketResult.OUTPUT_SETTLED_LIQUIDITY_CHANGE
         ]
 
+    def claim_balance_deltas(self) -> list[dict[str, object]]:
+        return [
+            output
+            for output in self.outputs
+            if output.get('settled_output_type') == 'claim_balance_delta'
+        ]
+
+    def claim_balance_diagnostics(self) -> list[dict[str, object]]:
+        return [
+            output
+            for output in self.outputs
+            if output.get('settled_output_type') == 'claim_balance_diagnostic'
+        ]
+
     def affected_pools(self) -> list[tuple[str, str | None]]:
         pools = {
             (

@@ -134,12 +134,22 @@ impl<T: Contract<Message = M>, M: Serialize> ContractRuntimeContext
             .collect()
     }
 
-    fn send_message(&mut self, destination: ChainId, message: M) {
-        self.runtime
+    fn send_message(&mut self, destination: ChainId, message: M, tracking: bool) {
+        let mut builder = self
+            .runtime
             .borrow_mut()
             .prepare_message(message)
-            .with_authentication()
-            .send_to(destination);
+            .with_authentication();
+
+        if tracking {
+            builder = builder.with_tracking();
+        }
+
+        builder.send_to(destination);
+    }
+
+    fn message_is_bouncing(&mut self) -> Option<bool> {
+        self.runtime.borrow_mut().message_is_bouncing()
     }
 
     fn message_origin_chain_id(&mut self) -> Option<ChainId> {
@@ -298,6 +308,17 @@ impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M>
             .then_some(())
             .ok_or(RuntimeError::PermissionDenied(
                 "Only allow application creator".to_string(),
+            ))
+    }
+
+    fn not_application_creator(&mut self) -> Result<(), RuntimeError> {
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let creator_chain_id = self.runtime.borrow_mut().application_creator_chain_id();
+
+        (chain_id != creator_chain_id)
+            .then_some(())
+            .ok_or(RuntimeError::PermissionDenied(
+                "Do not allow application creator".to_string(),
             ))
     }
 }

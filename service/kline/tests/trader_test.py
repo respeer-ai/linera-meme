@@ -36,6 +36,8 @@ class TraderPersistenceTest(unittest.IsolatedAsyncioTestCase):
             token_1_price='0.5',
             pool_application=types.SimpleNamespace(short_owner='pool-app'),
             swap=AsyncMock(return_value=True),
+            claim_balances=AsyncMock(return_value=('0.', '0.')),
+            claim=AsyncMock(return_value=True),
         )
 
     def test_queue_trade_persists_planned_event(self):
@@ -157,6 +159,46 @@ class TraderPersistenceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('missing_required_value:wallet_chain', db.events[0]['details'])
 
 
+    async def test_claim_pool_outputs_claims_claimable_token_and_native_outputs(self):
+        db = FakeDb()
+        trader = Trader(
+            swap=None,
+            wallet=None,
+            meme=None,
+            proxy=None,
+            db=db,
+        )
+        pool = self.make_pool()
+        pool.token_1 = None
+        pool.claim_balances = AsyncMock(side_effect=[('12.5', '0.'), ('3.25', '0.')])
+        pool.claim = AsyncMock(return_value=True)
+
+        await trader.claim_pool_outputs(pool)
+
+        pool.claim.assert_any_await('AAA', '12.5')
+        pool.claim.assert_any_await(None, '3.25')
+        self.assertEqual(pool.claim.await_count, 2)
+        self.assertEqual([event['event_type'] for event in db.events], ['claim_requested', 'claim_requested'])
+
+    async def test_claim_pool_outputs_does_not_duplicate_pending_claim(self):
+        db = FakeDb()
+        trader = Trader(
+            swap=None,
+            wallet=None,
+            meme=None,
+            proxy=None,
+            db=db,
+        )
+        pool = self.make_pool()
+        pool.claim_balances = AsyncMock(return_value=('12.5', '1.0'))
+        pool.claim = AsyncMock(return_value=True)
+
+        await trader.claim_pool_outputs(pool)
+
+        pool.claim.assert_not_awaited()
+        self.assertEqual(db.events, [])
+
+
 class TraderExecutionPolicyTest(unittest.TestCase):
     def make_pool(self):
         return types.SimpleNamespace(
@@ -240,6 +282,8 @@ class TraderSliceExecutionTest(unittest.IsolatedAsyncioTestCase):
             token_1_price='0.5',
             pool_application=types.SimpleNamespace(short_owner='pool-app'),
             swap=AsyncMock(return_value=True),
+            claim_balances=AsyncMock(return_value=('0.', '0.')),
+            claim=AsyncMock(return_value=True),
         )
 
     async def test_execute_next_slices_consumes_one_slice_per_pool(self):

@@ -2,7 +2,9 @@ use super::super::{SwapContract, SwapState};
 
 use abi::{
     meme::MemeResponse,
+    policy::open_chain_fee_budget,
     swap::{
+        pool::{BootstrapPolicy, PoolOperation},
         router::{
             InstantiationArgument, SwapAbi, SwapMessage, SwapOperation, SwapParameters,
             SwapResponse,
@@ -41,15 +43,15 @@ async fn operation_initialize_liquidity() {
     let meme_1 =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
             .unwrap();
+    let token_0_creator_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
 
     let response = swap
         .execute_operation(SwapOperation::InitializeLiquidity {
             creator,
-            token_0_creator_chain_id: ChainId::from_str(
-                "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
-            )
-            .unwrap(),
             token_0: meme_1,
+            token_0_creator_chain_id,
             amount_0: Amount::ONE,
             amount_1: Amount::ONE,
             virtual_liquidity: false,
@@ -63,23 +65,104 @@ async fn operation_initialize_liquidity() {
 #[tokio::test(flavor = "multi_thread")]
 async fn operation_create_pool() {
     let mut swap = create_and_instantiate_swap();
-
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let meme_2 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
-            .unwrap();
-    let chain_id =
-        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
-            .unwrap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
 
     let response = swap
         .execute_operation(SwapOperation::CreatePool {
-            token_0_creator_chain_id: chain_id,
             token_0: meme_1,
-            token_1_creator_chain_id: Some(chain_id),
             token_1: Some(meme_2),
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+            to: None,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+    assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_same_token_pair() {
+    let mut swap = create_and_instantiate_swap();
+    let meme_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0: meme_1,
+        token_1: Some(meme_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_1));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_one_sided_zero_amount_0() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0: meme_1,
+        token_1: Some(meme_2),
+        amount_0: Amount::ZERO,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_one_sided_zero_amount_1() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0: meme_1,
+        token_1: Some(meme_2),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ZERO,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_shell_only_zero_amounts() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0: meme_1,
+        token_1: Some(meme_2),
+        amount_0: Amount::ZERO,
+        amount_1: Amount::ZERO,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_accepts_native_pair_with_two_positive_amounts() {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, _) = public_create_pool_test_tokens();
+
+    let response = swap
+        .execute_operation(SwapOperation::CreatePool {
+            token_0: meme_1,
+            token_1: None,
             amount_0: Amount::ONE,
             amount_1: Amount::ONE,
             to: None,
@@ -90,23 +173,255 @@ async fn operation_create_pool() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn operation_create_pool_rejects_same_token_pair() {
+async fn operation_create_pool_rejects_missing_signer_before_creator_chain_funding() {
     let mut swap = create_and_instantiate_swap();
-    let meme_1 =
-        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
-            .unwrap();
-    let chain_id =
-        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
-            .unwrap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
+
+    swap.runtime.borrow_mut().set_authenticated_signer(None);
 
     let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
-        token_0_creator_chain_id: chain_id,
         token_0: meme_1,
-        token_1_creator_chain_id: Some(chain_id),
+        token_1: Some(meme_2),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(meme_2));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_uses_chain_fact_for_meme_identity_without_public_creator_chain_input(
+) {
+    let mut swap = create_and_instantiate_swap();
+    let (meme_1, meme_2) = public_create_pool_test_tokens();
+
+    let response = swap
+        .execute_operation(SwapOperation::CreatePool {
+            token_0: meme_1,
+            token_1: Some(meme_2),
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+            to: None,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+    assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_non_meme_token_0() {
+    let non_meme =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb4")
+            .unwrap();
+    let (meme_1, _) = public_create_pool_test_tokens();
+    let meme_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        move |_authenticated, application_id, _operation| {
+            if application_id == non_meme {
+                return bcs::to_bytes(&MemeResponse::Ok).unwrap();
+            }
+
+            bcs::to_bytes(&MemeResponse::ChainId(meme_chain_id)).unwrap()
+        }
+    });
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0: non_meme,
         token_1: Some(meme_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
         to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, non_meme, Some(meme_1));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_create_pool_rejects_non_meme_token_1() {
+    let non_meme =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb4")
+            .unwrap();
+    let (meme_1, _) = public_create_pool_test_tokens();
+    let meme_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        move |_authenticated, application_id, _operation| {
+            if application_id == non_meme {
+                return bcs::to_bytes(&MemeResponse::Ok).unwrap();
+            }
+
+            bcs::to_bytes(&MemeResponse::ChainId(meme_chain_id)).unwrap()
+        }
+    });
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::CreatePool {
+        token_0: meme_1,
+        token_1: Some(non_meme),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert_rejected_without_pool_side_effect(&swap, result, meme_1, Some(non_meme));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_update_pool_rejects_missing_authenticated_caller() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, pool_application) =
+        create_pool_for_update_tests_with_application(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    swap.runtime
+        .borrow_mut()
+        .set_chain_id(pool_application.chain_id);
+    swap.runtime.borrow_mut().set_authenticated_caller_id(None);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::UpdatePool {
+        token_0,
+        token_1,
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_update_pool_rejects_creator_chain_execution() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, pool_application) =
+        create_pool_for_update_tests_with_application(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    let creator_chain_id = swap.runtime.borrow_mut().application_creator_chain_id();
+    let AccountOwner::Address32(pool_application_hash) = pool_application.owner else {
+        panic!("Invalid pool application owner");
+    };
+
+    swap.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(ApplicationId::new(pool_application_hash));
+    swap.runtime.borrow_mut().set_chain_id(creator_chain_id);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_operation(SwapOperation::UpdatePool {
+        token_0,
+        token_1,
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn operation_update_pool_accepts_application_caller_on_pool_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, pool_application) =
+        create_pool_for_update_tests_with_application(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    let AccountOwner::Address32(pool_application_hash) = pool_application.owner else {
+        panic!("Invalid pool application owner");
+    };
+
+    swap.runtime
+        .borrow_mut()
+        .set_chain_id(pool_application.chain_id);
+    swap.runtime
+        .borrow_mut()
+        .set_authenticated_caller_id(ApplicationId::new(pool_application_hash));
+
+    let response = swap
+        .execute_operation(SwapOperation::UpdatePool {
+            token_0,
+            token_1,
+            transaction: pool_transaction(100, owner, 10),
+            token_0_price: Amount::ONE,
+            token_1_price: Amount::ONE,
+            reserve_0: Amount::ONE,
+            reserve_1: Amount::ONE,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+    let expected_destination = swap.runtime.borrow_mut().application_creator_chain_id();
+    let runtime = swap.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, expected_destination);
+    assert!(request.authenticated);
+    assert!(!request.is_tracked);
+    assert!(matches!(request.message, SwapMessage::UpdatePool { .. }));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_update_pool_rejects_missing_pool_catalog_entry() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1) = public_create_pool_test_tokens();
+    let owner = authenticated_account(&swap);
+    let pool_chain =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_chain);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::UpdatePool {
+        token_0,
+        token_1: Some(token_1),
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_update_pool_rejects_wrong_origin_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, _pool_application) = create_pool_for_update_tests(&mut swap).await;
+    let owner = authenticated_account(&swap);
+    let wrong_chain =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8")
+            .unwrap();
+
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(wrong_chain);
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::UpdatePool {
+        token_0,
+        token_1,
+        transaction: pool_transaction(100, owner, 10),
+        token_0_price: Amount::ONE,
+        token_1_price: Amount::ONE,
+        reserve_0: Amount::ONE,
+        reserve_1: Amount::ONE,
     }))
     .catch_unwind()
     .await;
@@ -117,7 +432,10 @@ async fn operation_create_pool_rejects_same_token_pair() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_update_pool_applies_each_valid_update() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, pool_application) = create_pool_for_update_tests(&mut swap).await;
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_application.chain_id);
     let owner = authenticated_account(&swap);
 
     let transaction = pool_transaction(100, owner, 10);
@@ -159,7 +477,10 @@ async fn message_update_pool_applies_each_valid_update() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_update_pool_applies_received_order() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, pool_application) = create_pool_for_update_tests(&mut swap).await;
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_application.chain_id);
     let owner = authenticated_account(&swap);
 
     let older = pool_transaction(100, owner, 10);
@@ -203,7 +524,10 @@ async fn message_update_pool_applies_received_order() {
 #[tokio::test(flavor = "multi_thread")]
 async fn message_update_pool_newer_transaction_advances_state() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let (token_0, token_1, pool_application) = create_pool_for_update_tests(&mut swap).await;
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(pool_application.chain_id);
     let owner = authenticated_account(&swap);
 
     let older = pool_transaction(100, owner, 10);
@@ -245,33 +569,149 @@ async fn message_update_pool_newer_transaction_advances_state() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_create_user_pool_rejects_duplicate_existing_pool() {
+async fn message_create_user_pool_rejects_same_token_pair() {
     let mut swap = create_and_instantiate_swap();
-    let (token_0, token_1) = create_pool_for_update_tests(&mut swap).await;
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
 
-    let result = std::panic::AssertUnwindSafe(
-        swap.execute_message(SwapMessage::CreateUserPool {
-            token_0_creator_chain_id: ChainId::from_str(
-                "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
-            )
-            .unwrap(),
-            token_0,
-            token_1_creator_chain_id: Some(
-                ChainId::from_str(
-                    "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe8",
-                )
-                .unwrap(),
-            ),
-            token_1,
-            amount_0: Amount::ONE,
-            amount_1: Amount::ONE,
-            to: None,
-        }),
-    )
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1: Some(token_0),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
     .catch_unwind()
     .await;
 
     assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_create_user_pool_rejects_zero_amount() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ZERO,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_create_user_pool_emits_create_pool_to_new_pool_chain() {
+    let mut swap = create_and_instantiate_swap();
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 = None;
+    let user_chain_id = swap.runtime.borrow_mut().chain_id();
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(user_chain_id);
+    let pool_chain_id = swap.runtime.borrow_mut().application_creator_chain_id();
+
+    swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1,
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    })
+    .await;
+
+    assert!(swap
+        .state
+        .borrow()
+        .is_pool_chain(pool_chain_id)
+        .await
+        .unwrap());
+    let runtime = swap.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, pool_chain_id);
+    assert!(!request.is_tracked);
+    let SwapMessage::CreatePool {
+        creator: message_creator,
+        token_0: message_token_0,
+        token_1: message_token_1,
+        amount_0,
+        amount_1,
+        bootstrap_policy,
+        to,
+        ..
+    } = &request.message
+    else {
+        panic!("Expected CreatePool");
+    };
+    assert_eq!(*message_creator, creator);
+    assert_eq!(*message_token_0, token_0);
+    assert_eq!(*message_token_1, token_1);
+    assert_eq!(*amount_0, Amount::ONE);
+    assert_eq!(*amount_1, Amount::ONE);
+    assert!(matches!(bootstrap_policy, BootstrapPolicy::UserCreatePool));
+    assert_eq!(*to, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_create_user_pool_refunds_open_chain_budget_for_duplicate_existing_pool() {
+    let mut swap = create_and_instantiate_swap();
+    let (token_0, token_1, _pool_application) = create_pool_for_update_tests(&mut swap).await;
+    let existing_pool = swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, token_1)
+        .await
+        .unwrap()
+        .unwrap();
+    let signer = swap.runtime.borrow_mut().authenticated_signer().unwrap();
+    let user_chain_id = swap.runtime.borrow_mut().chain_id();
+    swap.runtime
+        .borrow_mut()
+        .set_message_origin_chain_id(user_chain_id);
+    let owner_balance_before = swap.runtime.borrow_mut().owner_balance(signer);
+    let chain_balance_before = swap.runtime.borrow_mut().chain_balance();
+
+    swap.execute_message(SwapMessage::CreateUserPool {
+        token_0,
+        token_1,
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    })
+    .await;
+
+    assert_eq!(
+        swap.runtime.borrow_mut().owner_balance(signer),
+        owner_balance_before
+            .try_add(open_chain_fee_budget())
+            .unwrap()
+    );
+    assert_eq!(
+        swap.runtime.borrow_mut().chain_balance(),
+        chain_balance_before
+            .try_sub(open_chain_fee_budget())
+            .unwrap()
+    );
+    assert_eq!(
+        swap.state
+            .borrow()
+            .get_pool_exchangable(token_0, token_1)
+            .await
+            .unwrap()
+            .unwrap()
+            .pool_application,
+        existing_pool.pool_application
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -304,9 +744,10 @@ async fn message_pool_created_ignores_wrong_chain_receipt() {
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
-        virtual_initial_liquidity: false,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: false,
+        },
         to: None,
-        user_pool: false,
     })
     .await;
 
@@ -318,6 +759,115 @@ async fn message_pool_created_ignores_wrong_chain_receipt() {
         .unwrap()
         .is_none());
     assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
+    assert_eq!(
+        swap.state
+            .borrow()
+            .pool_chains
+            .indices()
+            .blocking_wait()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        swap.state
+            .borrow()
+            .meme_native_pools
+            .indices()
+            .blocking_wait()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        swap.state
+            .borrow()
+            .meme_meme_pools
+            .indices()
+            .blocking_wait()
+            .unwrap()
+            .len(),
+        0
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn create_pool_operation_pool_chain_created_pool_created_and_update_pool_are_distinct_facts()
+{
+    let mut swap = create_and_instantiate_swap();
+    let creator = authenticated_account(&swap);
+    let (token_0, token_1) = public_create_pool_test_tokens();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+
+    let response = swap
+        .execute_operation(SwapOperation::CreatePool {
+            token_0,
+            token_1: Some(token_1),
+            amount_0: Amount::ONE,
+            amount_1: Amount::ONE,
+            to: None,
+        })
+        .await;
+
+    assert!(matches!(response, SwapResponse::Ok));
+    assert!(swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .is_none());
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    assert!(swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .is_none());
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: false,
+        },
+        to: None,
+    })
+    .await;
+
+    let pool = swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pool.pool_application, pool_application);
+    assert_eq!(pool.reserve_0, None);
+    assert_eq!(pool.reserve_1, None);
+    assert_eq!(pool.token_0_price, None);
+    assert_eq!(pool.token_1_price, None);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -354,9 +904,10 @@ async fn message_pool_created_ignores_duplicate_receipt() {
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
-        virtual_initial_liquidity: false,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: false,
+        },
         to: None,
-        user_pool: false,
     };
 
     swap.execute_message(message.clone()).await;
@@ -375,12 +926,281 @@ async fn message_pool_created_ignores_duplicate_receipt() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn message_user_pool_created_is_idempotent() {
+async fn message_pool_created_rejects_different_pool_for_existing_pair() {
+    let mut swap = create_and_instantiate_swap();
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let other_pool_chain_id =
+        ChainId::from_str("bee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let existing_pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+    let other_pool_application = Account {
+        chain_id: other_pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb3",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(other_pool_chain_id)
+        .unwrap();
+    swap.state
+        .borrow_mut()
+        .create_pool(
+            creator,
+            token_0,
+            Some(token_1),
+            existing_pool_application,
+            1.into(),
+        )
+        .await
+        .unwrap();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application: other_pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::UserCreatePool,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_pool_created_user_bootstrap_branch_does_not_call_meme_initialize_liquidity() {
     let call_count = Rc::new(RefCell::new(0usize));
     let mut swap = create_and_instantiate_swap_with_call_handler({
         let call_count = call_count.clone();
         move |_authenticated, _application_id, _operation| {
             *call_count.borrow_mut() += 1;
+            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        }
+    });
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::UserCreatePool,
+        to: None,
+    })
+    .await;
+
+    assert_eq!(*call_count.borrow(), 0);
+    let runtime = swap.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, creator.chain_id);
+    assert!(!request.is_tracked);
+    assert!(matches!(
+        request.message,
+        SwapMessage::UserPoolCreated { .. }
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_pool_created_meme_bootstrap_branch_calls_meme_initialize_liquidity() {
+    let call_count = Rc::new(RefCell::new(0usize));
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        let call_count = call_count.clone();
+        move |_authenticated, _application_id, _operation| {
+            *call_count.borrow_mut() += 1;
+            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        }
+    });
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb4",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: None,
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity: true,
+        },
+        to: None,
+    })
+    .await;
+
+    assert_eq!(*call_count.borrow(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_user_pool_created_receipt_is_app_created_only() {
+    let call_count = Rc::new(RefCell::new(0usize));
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        let call_count = call_count.clone();
+        move |_authenticated, _application_id, _operation| {
+            *call_count.borrow_mut() += 1;
+            bcs::to_bytes(&MemeResponse::Ok).unwrap()
+        }
+    });
+    let creator = authenticated_account(&swap);
+    let token_0 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let token_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    let pool_chain_id =
+        ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea")
+            .unwrap();
+    let pool_application = Account {
+        chain_id: pool_chain_id,
+        owner: AccountOwner::from(
+            ApplicationId::from_str(
+                "b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bb2",
+            )
+            .unwrap(),
+        ),
+    };
+
+    swap.state
+        .borrow_mut()
+        .create_pool_chain(pool_chain_id)
+        .unwrap();
+
+    swap.execute_message(SwapMessage::PoolCreated {
+        creator,
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        bootstrap_policy: BootstrapPolicy::UserCreatePool,
+        to: None,
+    })
+    .await;
+
+    let pool = swap
+        .state
+        .borrow()
+        .get_pool(token_0, Some(token_1))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pool.pool_application, pool_application);
+    assert_eq!(pool.reserve_0, None);
+    assert_eq!(pool.reserve_1, None);
+    assert_eq!(pool.token_0_price, None);
+    assert_eq!(pool.token_1_price, None);
+    assert_eq!(*call_count.borrow(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_user_pool_created_rejects_non_application_pool_owner() {
+    let mut swap = create_and_instantiate_swap();
+    let pool_application = Account {
+        chain_id: ChainId::from_str(
+            "aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfea",
+        )
+        .unwrap(),
+        owner: AccountOwner::CHAIN,
+    };
+    let (token_0, token_1) = public_create_pool_test_tokens();
+
+    let result = std::panic::AssertUnwindSafe(swap.execute_message(SwapMessage::UserPoolCreated {
+        pool_application,
+        token_0,
+        token_1: Some(token_1),
+        amount_0: Amount::ONE,
+        amount_1: Amount::ONE,
+        to: None,
+    }))
+    .catch_unwind()
+    .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn message_user_pool_created_calls_pool_add_liquidity() {
+    let observed_calls = Rc::new(RefCell::new(Vec::<(ApplicationId, Vec<u8>)>::new()));
+    let mut swap = create_and_instantiate_swap_with_call_handler({
+        let observed_calls = observed_calls.clone();
+        move |_authenticated, application_id, operation| {
+            observed_calls
+                .borrow_mut()
+                .push((application_id, operation.clone()));
             bcs::to_bytes(&MemeResponse::Ok).unwrap()
         }
     });
@@ -402,19 +1222,44 @@ async fn message_user_pool_created_is_idempotent() {
     let token_1 =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
             .unwrap();
-    let message = SwapMessage::UserPoolCreated {
+
+    swap.execute_message(SwapMessage::UserPoolCreated {
         pool_application,
         token_0,
         token_1: Some(token_1),
         amount_0: Amount::ONE,
         amount_1: Amount::ONE,
         to: None,
+    })
+    .await;
+
+    let calls = observed_calls.borrow();
+    assert_eq!(calls.len(), 1);
+
+    let AccountOwner::Address32(application_description_hash) = pool_application.owner else {
+        panic!("Invalid owner");
     };
+    let expected_application_id = ApplicationId::new(application_description_hash);
+    assert_eq!(calls[0].0, expected_application_id.forget_abi());
 
-    swap.execute_message(message.clone()).await;
-    swap.execute_message(message).await;
-
-    assert_eq!(*call_count.borrow(), 1);
+    let operation = bcs::from_bytes::<PoolOperation>(&calls[0].1).unwrap();
+    let PoolOperation::AddLiquidity {
+        amount_0_in,
+        amount_1_in,
+        amount_0_out_min,
+        amount_1_out_min,
+        to,
+        block_timestamp,
+    } = operation
+    else {
+        panic!("Expected AddLiquidity");
+    };
+    assert_eq!(amount_0_in, Amount::ONE);
+    assert_eq!(amount_1_in, Amount::ONE);
+    assert_eq!(amount_0_out_min, None);
+    assert_eq!(amount_1_out_min, None);
+    assert_eq!(to, None);
+    assert_eq!(block_timestamp, None);
 }
 
 fn mock_application_call(
@@ -427,6 +1272,64 @@ fn mock_application_call(
             .unwrap(),
     ))
     .unwrap()
+}
+
+fn assert_rejected_without_pool_side_effect<T>(
+    swap: &SwapContract,
+    result: Result<T, Box<dyn std::any::Any + Send>>,
+    token_0: ApplicationId,
+    token_1: Option<ApplicationId>,
+) {
+    assert!(result.is_err());
+    assert_eq!(*swap.state.borrow().pool_id.get(), 1000);
+    assert_eq!(
+        swap.state
+            .borrow()
+            .pool_chains
+            .indices()
+            .blocking_wait()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        swap.state
+            .borrow()
+            .meme_native_pools
+            .indices()
+            .blocking_wait()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        swap.state
+            .borrow()
+            .meme_meme_pools
+            .indices()
+            .blocking_wait()
+            .unwrap()
+            .len(),
+        0
+    );
+    assert!(swap
+        .state
+        .borrow()
+        .get_pool_exchangable(token_0, token_1)
+        .blocking_wait()
+        .unwrap()
+        .is_none());
+}
+
+fn public_create_pool_test_tokens() -> (ApplicationId, ApplicationId) {
+    let meme_1 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
+            .unwrap();
+    let meme_2 =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+
+    (meme_1, meme_2)
 }
 
 fn authenticated_account(swap: &SwapContract) -> Account {
@@ -453,7 +1356,13 @@ fn pool_transaction(transaction_id: u32, from: Account, created_at: u64) -> Tran
 
 async fn create_pool_for_update_tests(
     swap: &mut SwapContract,
-) -> (ApplicationId, Option<ApplicationId>) {
+) -> (ApplicationId, Option<ApplicationId>, Account) {
+    create_pool_for_update_tests_with_application(swap).await
+}
+
+async fn create_pool_for_update_tests_with_application(
+    swap: &mut SwapContract,
+) -> (ApplicationId, Option<ApplicationId>, Account) {
     let token_0 =
         ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bad")
             .unwrap();
@@ -477,7 +1386,7 @@ async fn create_pool_for_update_tests(
         .await
         .unwrap();
 
-    (token_0, Some(token_1))
+    (token_0, Some(token_1), pool_application)
 }
 
 fn create_and_instantiate_swap() -> SwapContract {
@@ -505,7 +1414,6 @@ where
     let chain_id =
         ChainId::from_str("aee928d4bf3880353b4a3cd9b6f88e6cc6e5ed050860abae439e7782e9b2dfe9")
             .unwrap();
-
     let mut runtime = ContractRuntime::new()
         .with_application_parameters(SwapParameters {})
         .with_application_id(application_id)

@@ -50,6 +50,7 @@ export type StartupGapBackfillFetchRequest = StartupFetchRequest & {
 
 export type StartupCacheGapFetchRequest = StartupGapBackfillFetchRequest
 export type StartupGapBackfillFetchRequests = StartupGapBackfillFetchRequest[]
+export type StartupNonFinalRepairFetchRequest = StartupGapBackfillFetchRequest
 
 type EdgeFetchWindowInput = {
   anchorTimestamp: number
@@ -94,6 +95,14 @@ type StartupGapBackfillBatchInput = StartupGapBackfillInput & {
 
 type StartupCacheGapInput = {
   pointTimestamps: number[]
+  latestWindowStart: number
+  latestWindowEnd: number
+  interval: Interval
+  requestedKeys: Set<string>
+}
+
+type StartupNonFinalRepairInput = {
+  pointStates: Array<{ timestamp: number; isFinal?: boolean }>
   latestWindowStart: number
   latestWindowEnd: number
   interval: Interval
@@ -488,4 +497,41 @@ export const resolveStartupCacheGapFetch = ({
   }
 
   return null
+}
+
+export const resolveStartupNonFinalRepairFetch = ({
+  pointStates,
+  latestWindowStart,
+  latestWindowEnd,
+  interval,
+  requestedKeys,
+}: StartupNonFinalRepairInput): StartupNonFinalRepairFetchRequest | null => {
+  if (!pointStates.length) return null
+
+  const bucketSize = getIntervalBucketSize(interval)
+  const timestamps = [...pointStates]
+    .filter((point) => point.timestamp >= latestWindowStart && point.timestamp <= latestWindowEnd)
+    .sort((left, right) => left.timestamp - right.timestamp)
+
+  if (!timestamps.length) return null
+
+  const lastTimestamp = timestamps[timestamps.length - 1]?.timestamp
+  const nonFinalTimestamps = timestamps
+    .filter((point) => point.isFinal !== true && point.timestamp !== lastTimestamp)
+    .map((point) => point.timestamp)
+
+  if (!nonFinalTimestamps.length) return null
+
+  const startAt = Math.max(latestWindowStart, Math.min(...nonFinalTimestamps))
+  const endAt = Math.min(latestWindowEnd, Math.max(...nonFinalTimestamps) + bucketSize - 1)
+  const key = `${startAt}:${endAt}`
+
+  if (requestedKeys.has(key) || endAt < startAt) return null
+
+  return {
+    reverse: false,
+    startAt,
+    endAt,
+    key,
+  }
 }

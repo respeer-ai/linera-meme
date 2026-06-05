@@ -91,6 +91,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> CreateMemeExt
                 chain_id: meme_chain_id,
                 token: application_id,
             },
+            false,
         );
 
         outcome

@@ -267,15 +267,6 @@ const selectedStatusLabel = computed(() => (
 const walletConnected = computed(() => Boolean(userStore.chainId && userStore.publicKey))
 const allPositions = computed(() => positionsStore.positions)
 const visiblePositions = computed(() => allPositions.value)
-const rewardPositions = computed(() => summaryPositions.value)
-const formattedLiquidityShare = computed(() => {
-  const total = rewardPositions.value.reduce((sum, position) => {
-    if (position.status === 'closed') return sum
-    const metrics = summaryPositionMetrics(position)
-    return sum + Number.parseFloat(metrics?.position_liquidity || position.current_liquidity || '0')
-  }, 0)
-  return formatFixedLiquidity(Number.isFinite(total) ? total : 0, 2)
-})
 const pools = computed(() => swap.Swap.pools())
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 const positionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
@@ -387,6 +378,25 @@ const summaryPositionMetrics = (position: Position) =>
   summaryPositionMetricsSnapshots.value[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
 const isProtocolFeeReceiver = (position: Position) =>
   Boolean(owner.value && position.protocol_fee_receiver_account === owner.value)
+const rewardPositions = computed(() => (
+  summaryPositions.value.filter((position) => (
+    position.status !== 'closed' &&
+    (!isVirtualPosition(position) || isProtocolFeeReceiver(position))
+  ))
+))
+const positionRewardLiquidity = (position: Position) => {
+  const metrics = summaryPositionMetrics(position)
+  if (isVirtualPosition(position)) {
+    return isProtocolFeeReceiver(position) ? metrics?.position_liquidity || '0' : '0'
+  }
+  return metrics?.position_liquidity || position.current_liquidity || '0'
+}
+const formattedLiquidityShare = computed(() => {
+  const total = rewardPositions.value.reduce((sum, position) => (
+    sum + Number.parseFloat(positionRewardLiquidity(position))
+  ), 0)
+  return formatFixedLiquidity(Number.isFinite(total) ? total : 0, 2)
+})
 const hasProtocolFeeReceiverPosition = computed(() => (
   rewardPositions.value.some((position) => isProtocolFeeReceiver(position))
 ))
@@ -524,11 +534,11 @@ const protocolYieldNative = computed(() => nativeValuationTotal(
     return [
       {
         token: position.token_0,
-        amount: metrics?.protocol_fee_amount0 || position.protocol_fee_reference_amount0 || '0',
+        amount: metrics?.protocol_fee_amount0 || '0',
       },
       {
         token: position.token_1,
-        amount: metrics?.protocol_fee_amount1 || position.protocol_fee_reference_amount1 || '0',
+        amount: metrics?.protocol_fee_amount1 || '0',
       },
     ]
   },

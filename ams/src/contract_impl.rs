@@ -37,9 +37,11 @@ impl AmsContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG OP:AMS: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream
@@ -69,9 +71,11 @@ impl AmsContract {
         log::debug!("DEBUG MSG:AMS: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream

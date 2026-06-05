@@ -108,7 +108,35 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        // Public CreatePool is the protocol entry used by the user-facing
+        // add-liquidity missing-pair flow. Its semantics are strictly
+        // "create pool with two-sided real initial liquidity".
+        //
+        // This entry must not be interpreted as:
+        // - shell-only pool creation
+        // - one-sided initial funding
+        // - virtual initial liquidity
         assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+        assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+        assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
+
+        // Public CreatePool accepts only:
+        // - meme / native
+        // - meme / meme
+        //
+        // token_0 is always a meme application id here.
+        // token_1 == None is the native-token fact shape.
+        // No public creator-chain identity is accepted from the caller.
+        self.runtime
+            .borrow_mut()
+            .token_creator_chain_id(self.token_0)
+            .expect("Invalid token_0");
+        if let Some(token_1) = self.token_1 {
+            self.runtime
+                .borrow_mut()
+                .token_creator_chain_id(token_1)
+                .expect("Invalid token_1");
+        }
 
         let signer = self
             .runtime
@@ -117,36 +145,22 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             .expect("Invalid signer");
         self.fund_swap_creator_chain(signer, AccountOwner::CHAIN, open_chain_fee_budget());
 
-        let token_0_creator_chain_id = self
-            .runtime
-            .borrow_mut()
-            .token_creator_chain_id(self.token_0)
-            .expect("Failed: token creator chain id");
-        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
-            Some(
-                self.runtime
-                    .borrow_mut()
-                    .token_creator_chain_id(token_1)
-                    .expect("Failed: token creator chain id"),
-            )
-        } else {
-            None
-        };
-
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
+        // CreateUserPool remains an internal choreography step only after the
+        // public CreatePool request has passed the two-sided initial-liquidity
+        // validation at this user-reachable boundary.
         outcome.with_message(
             destination,
             SwapMessage::CreateUserPool {
-                token_0_creator_chain_id,
                 token_0: self.token_0,
-                token_1_creator_chain_id,
                 token_1: self.token_1,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,
                 to: self.to,
             },
+            false,
         );
 
         Ok(Some(outcome))

@@ -24,6 +24,12 @@ class AppLifecycle:
             and hasattr(settled_liquidity_change_repository, 'ensure_schema')
         ):
             settled_liquidity_change_repository.ensure_schema()
+        claim_balance_projection_repository = container.get('claim_balance_projection_repository')
+        if (
+            claim_balance_projection_repository is not None
+            and hasattr(claim_balance_projection_repository, 'ensure_schema')
+        ):
+            claim_balance_projection_repository.ensure_schema()
         position_state_snapshot_repository = container.get('position_state_snapshot_repository')
         if (
             position_state_snapshot_repository is not None

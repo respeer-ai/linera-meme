@@ -56,11 +56,6 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
                 'amount_out': '1000000000000000000',
             }
         ] if start_at and start_at >= 1_000_000 else []
-        repo._load_native_price_map = lambda start_at=None, end_at=None: {
-            'AAA': repo._display_amount('3000000000000000000'),
-            'TLINERA': repo._display_amount('1000000000000000000'),
-        }
-
         stats = repo.get_protocol_stats(
             pools=[
                 {
@@ -75,8 +70,107 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
         )
 
         self.assertEqual(stats['pool_count'], 1)
-        self.assertGreater(stats['tvl'], 0.0)
+        self.assertEqual(stats['tvl'], 10.0)
         self.assertEqual(stats['volume'], 0.0)
+
+    def test_get_protocol_stats_values_meme_meme_pool_through_reserve_graph(self):
+        class FakeDb:
+            def now_ms(self):
+                return 2_000_000
+
+            def ensure_fresh_read_connection(self):
+                return None
+
+            class Cursor:
+                def execute(self, _sql, _params=()):
+                    return None
+
+                def fetchall(self):
+                    return []
+
+                def close(self):
+                    return None
+
+            cursor_dict = Cursor()
+
+            def fresh_cursor(self, dictionary=False):
+                return self.Cursor()
+
+        repo = MarketStatsProjectionRepository(
+            FakeDb(),
+            metadata_resolver=self.FakeMetadataResolver({}),
+        )
+
+        stats = repo.get_protocol_stats(
+            pools=[
+                {
+                    'pool_id': 7,
+                    'pool_application': 'chain-a:pool-aaa-native',
+                    'token_0': 'AAA',
+                    'token_1': 'TLINERA',
+                    'current_reserve_0': '2',
+                    'current_reserve_1': '5',
+                },
+                {
+                    'pool_id': 8,
+                    'pool_application': 'chain-a:pool-bbb-aaa',
+                    'token_0': 'BBB',
+                    'token_1': 'AAA',
+                    'current_reserve_0': '10',
+                    'current_reserve_1': '4',
+                },
+            ]
+        )
+
+        self.assertEqual(stats['tvl'], 30.0)
+
+    def test_get_protocol_stats_values_fees_by_input_token_amount_through_reserve_graph(self):
+        class FakeDb:
+            def now_ms(self):
+                return 100_000_000
+
+            def ensure_fresh_read_connection(self):
+                return None
+
+        repo = MarketStatsProjectionRepository(
+            FakeDb(),
+            metadata_resolver=self.FakeMetadataResolver({}),
+        )
+        repo._load_settled_trade_rows = lambda start_at=None, end_at=None: [
+            {
+                'pool_id': 8,
+                'pool_application': 'chain-a:pool-bbb-aaa',
+                'token_0': 'BBB',
+                'token_1': 'AAA',
+                'trade_time_ms': 1_500_000,
+                'side': 'sell_token_0',
+                'amount_in': '10000000000000000000',
+                'amount_out': '4000000000000000000',
+            }
+        ] if end_at == repo._now_ms() else []
+
+        stats = repo.get_protocol_stats(
+            pools=[
+                {
+                    'pool_id': 7,
+                    'pool_application': 'chain-a:pool-aaa-native',
+                    'token_0': 'AAA',
+                    'token_1': 'TLINERA',
+                    'current_reserve_0': '2',
+                    'current_reserve_1': '5',
+                },
+                {
+                    'pool_id': 8,
+                    'pool_application': 'chain-a:pool-bbb-aaa',
+                    'token_0': 'BBB',
+                    'token_1': 'AAA',
+                    'current_reserve_0': '10',
+                    'current_reserve_1': '4',
+                },
+            ]
+        )
+
+        self.assertEqual(stats['fees'], 0.03)
 
     def test_load_settled_trade_rows_attaches_projection_metadata_without_joining_pools(self):
         class FakeDb:

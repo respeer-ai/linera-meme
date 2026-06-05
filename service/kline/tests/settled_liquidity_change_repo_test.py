@@ -54,7 +54,6 @@ class SettledLiquidityChangeRepositoryTest(unittest.TestCase):
         self.assertIn('CREATE TABLE IF NOT EXISTS settled_liquidity_changes', executed_sql)
         self.assertIn('is_position_liquidity BOOLEAN', executed_sql)
         self.assertIn('liquidity_semantics VARCHAR(64)', executed_sql)
-        self.assertIn('virtual_initial_liquidity', executed_sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_upsert_settled_liquidity_changes_persists_canonical_payload_json(self):

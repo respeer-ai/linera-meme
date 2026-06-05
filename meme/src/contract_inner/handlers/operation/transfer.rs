@@ -56,6 +56,7 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
                 to: self.to,
                 amount: self.amount,
             },
+            false,
         );
 
         Ok(Some(outcome))

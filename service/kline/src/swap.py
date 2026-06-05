@@ -68,8 +68,9 @@ class Transaction:
 
 
 class Pool:
-    def __init__(self, _dict, wallet):
+    def __init__(self, _dict, wallet, query_base_url: str):
         self.wallet = wallet
+        self.query_base_url = query_base_url.rstrip('/')
 
         self.pool_id = _dict['poolId']
         self.token_0 = _dict['token0']
@@ -83,6 +84,12 @@ class Pool:
 
     def wallet_application_url(self):
         return f'{self.wallet._wallet_url()}/chains/{self.wallet._chain()}/applications/{self.pool_application.short_owner}'
+
+    def query_application_url(self):
+        return f'{self.query_base_url}/chains/{self.pool_application.chain_id}/applications/{self.pool_application.short_owner}'
+
+    def _graphql_token(self, token):
+        return 'null' if token is None else f'"{token}"'
 
     async def swap(self, amount_0: str = None, amount_1: str = None):
         amount_0 = '{:.18f}'.format(amount_0) if amount_0 is not None else None
@@ -142,6 +149,135 @@ class Pool:
                 details={
                     'token_0': self.token_0,
                     'token_1': self.token_1 if self.token_1 is not None else 'TLINERA',
+                },
+            )
+            return False
+
+
+    async def claim_balances(self, token):
+        owner = self.wallet.account()
+        token_value = self._graphql_token(token)
+        payload = {
+            'query': (
+                'query {\n'
+                f' claimableBalance(token: {token_value}, owner: {owner})\n'
+                f' claimingBalance(token: {token_value}, owner: {owner})\n'
+                '}'
+            )
+        }
+        url = self.query_application_url()
+        try:
+            resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
+            payload_json = resp.json() if resp.text else {}
+            persist_http_trace(
+                getattr(self.wallet, 'db', None),
+                source='maker',
+                component='swap',
+                operation='claim_balances',
+                target='pool_query',
+                request_url=url,
+                request_payload=payload,
+                response=resp,
+                owner=getattr(self.wallet, 'owner', None),
+                pool_application=self.account_codec.format_account(
+                    chain_id=self.pool_application.chain_id,
+                    owner=self.pool_application.owner,
+                ),
+                pool_id=self.pool_id,
+                details={
+                    'token': token if token is not None else 'TLINERA',
+                    'graphql_errors': payload_json.get('errors') if isinstance(payload_json, dict) else None,
+                },
+            )
+            if 'errors' in payload_json:
+                print(f'Failed claim balances: {resp.text}')
+                return ('0.', '0.')
+            data = payload_json.get('data') if isinstance(payload_json, dict) else None
+            if not isinstance(data, dict):
+                return ('0.', '0.')
+            return (
+                str(data.get('claimableBalance') or '0.'),
+                str(data.get('claimingBalance') or '0.'),
+            )
+        except Exception as e:
+            print(f'{url}, {payload} -> ERROR: {e}')
+            persist_http_trace(
+                getattr(self.wallet, 'db', None),
+                source='maker',
+                component='swap',
+                operation='claim_balances',
+                target='pool_query',
+                request_url=url,
+                request_payload=payload,
+                error=str(e),
+                owner=getattr(self.wallet, 'owner', None),
+                pool_application=self.account_codec.format_account(
+                    chain_id=self.pool_application.chain_id,
+                    owner=self.pool_application.owner,
+                ),
+                pool_id=self.pool_id,
+                details={'token': token if token is not None else 'TLINERA'},
+            )
+            return ('0.', '0.')
+
+    async def claim(self, token, amount):
+        amount = str(amount)
+        payload = {
+            'query': (
+                'mutation {\n'
+                f' claim(token: {self._graphql_token(token)}, amount: "{amount}") \n'
+                '}'
+            )
+        }
+        url = self.wallet_application_url()
+        try:
+            resp = await async_request.post(url=url, json=payload, timeout=(3, 10))
+            payload_json = resp.json() if resp.text else {}
+            persist_http_trace(
+                getattr(self.wallet, 'db', None),
+                source='maker',
+                component='swap',
+                operation='claim',
+                target='wallet_application_mutation',
+                request_url=url,
+                request_payload=payload,
+                response=resp,
+                owner=getattr(self.wallet, 'owner', None),
+                pool_application=self.account_codec.format_account(
+                    chain_id=self.pool_application.chain_id,
+                    owner=self.pool_application.owner,
+                ),
+                pool_id=self.pool_id,
+                details={
+                    'token': token if token is not None else 'TLINERA',
+                    'amount': amount,
+                    'graphql_errors': payload_json.get('errors') if isinstance(payload_json, dict) else None,
+                },
+            )
+            if 'errors' in payload_json:
+                print(f'Failed claim: {resp.text}')
+                return False
+            return resp.ok is True
+        except Exception as e:
+            print(f'{url}, {payload} -> ERROR: {e}')
+            persist_http_trace(
+                getattr(self.wallet, 'db', None),
+                source='maker',
+                component='swap',
+                operation='claim',
+                target='wallet_application_mutation',
+                request_url=url,
+                request_payload=payload,
+                error=str(e),
+                owner=getattr(self.wallet, 'owner', None),
+                pool_application=self.account_codec.format_account(
+                    chain_id=self.pool_application.chain_id,
+                    owner=self.pool_application.owner,
+                ),
+                pool_id=self.pool_id,
+                details={
+                    'token': token if token is not None else 'TLINERA',
+                    'amount': amount,
                 },
             )
             return False
@@ -222,4 +358,4 @@ class Swap:
         pools = data.get('pools') if isinstance(data, dict) else None
         if not isinstance(pools, list):
             return []
-        return [Pool(v, self.wallet) for v in pools if v['reserve0'] is not None and v['reserve1'] is not None]
+        return [Pool(v, self.wallet, self.base_url) for v in pools if v['reserve0'] is not None and v['reserve1'] is not None]

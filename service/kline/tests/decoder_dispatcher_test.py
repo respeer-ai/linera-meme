@@ -632,13 +632,7 @@ class DecoderDispatcherTest(unittest.TestCase):
         result = dispatcher.dispatch(
             application_id='app-pool',
             payload_kind='operation',
-            raw_bytes=(
-                bytes([4, 1])
-                + (5).to_bytes(16, 'little')
-                + bytes([0, 1])
-                + (7).to_bytes(16, 'little')
-                + bytes([0, 0, 0])
-            ),
+            raw_bytes=self.FIXTURES.load_bytes('pool_swap_operation'),
         )
 
         self.assertEqual(result.to_dict()['payload_type'], 'swap')
@@ -733,24 +727,7 @@ class DecoderDispatcherTest(unittest.TestCase):
         result = dispatcher.dispatch(
             application_id='app-pool',
             payload_kind='message',
-            raw_bytes=b''.join([
-                bytes([8]),
-                bytes([1]),
-                (12).to_bytes(4, 'little'),
-                bytes([2]),
-                bytes.fromhex('11' * 32),
-                bytes([1]),
-                bytes.fromhex('22' * 32),
-                bytes([1]),
-                (3).to_bytes(16, 'little'),
-                bytes([0]),
-                bytes([1]),
-                (4).to_bytes(16, 'little'),
-                bytes([0]),
-                bytes([1]),
-                (5).to_bytes(16, 'little'),
-                (99).to_bytes(8, 'little'),
-            ]),
+            raw_bytes=self.FIXTURES.load_bytes('pool_new_transaction_message'),
         )
 
         self.assertEqual(result.to_dict()['payload_type'], 'new_transaction')

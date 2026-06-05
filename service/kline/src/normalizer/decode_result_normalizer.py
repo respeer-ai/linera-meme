@@ -135,6 +135,7 @@ class DecodeResultNormalizer:
             'target_block_hash': item.get('target_block_hash'),
             'source_cert_hash': item.get('source_cert_hash') or item.get('certificate_hash'),
             'transaction_index': item.get('transaction_index'),
+            'target_transaction_index': item.get('target_transaction_index'),
             'message_index': item.get('message_index'),
         }
         payload['raw_context'] = {

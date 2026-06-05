@@ -28,10 +28,14 @@ Canonical execution semantics for operation, message, replica, and application-c
 - Later cross-chain or same-chain messages persist in their own subsequent transactions
 - The same application on different chains has different state replicas
 - Any analysis must name the execution chain explicitly
+- Any protocol rule, validation, or safety check must be attached to the chain that actually owns the required state truth
 - An `operation` reads and writes only the current chain's replica of that application
 - A `message` reads and writes the destination chain's replica of that application, not the sender's replica
 - An `application call` executes on the caller chain against the callee application's local replica on that same chain
 - An `application call` does not jump to the callee creator chain
+- A synchronous application-call stack cannot reenter an application already present on that stack; Linera rejects that nested call as a reentrant application call
+- The confirmed non-removable exception is `meme -> call_application(swap.InitializeLiquidity)`: `SwapOperation::InitializeLiquidity.token_0_creator_chain_id` must be carried by meme because swap cannot query the meme app during the same call frame
+- That exception terminates at the operation boundary; `SwapMessage::InitializeLiquidity`, `SwapMessage::CreatePool`, `SwapMessage::CreateUserPool`, and `PoolParameters` must not carry token creator-chain-id fields
 - In `pool`, `PoolOperation::AddLiquidity` only creates `FundRequest`s and queues funding messages
 - `PoolOperation::AddLiquidity` does not mint liquidity or write transaction history
 - In `pool`, `PoolMessage::FundSuccess` persists `FundStatus::Success` and may queue follow-up `RequestFund` or `AddLiquidity`

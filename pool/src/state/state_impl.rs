@@ -1,8 +1,8 @@
 use crate::{
     interfaces::state::StateInterface,
     state::{errors::StateError, PoolState},
-    FundRequest,
 };
+use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
     transaction::{Transaction, TransactionType},
@@ -20,7 +20,7 @@ impl StateInterface for PoolState {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<Amount, Self::Error> {
+    ) -> Result<(), Self::Error> {
         self.pool.set(Some(Pool::create(
             parameters.token_0,
             parameters.token_1,
@@ -29,34 +29,11 @@ impl StateInterface for PoolState {
             block_timestamp,
         )));
 
-        let mut pool = self.pool();
-
         self.router_application_id
             .set(Some(argument.router_application_id));
-        self.transfer_id.set(1000);
-
-        let mut liquidity = Amount::ZERO;
-
-        if argument.amount_0 > Amount::ZERO && argument.amount_1 > Amount::ZERO {
-            if !parameters.virtual_initial_liquidity {
-                liquidity = self
-                    .mint_shares(argument.amount_0, argument.amount_1, owner)
-                    .await?;
-            } else {
-                self.total_supply.set(pool.calculate_liquidity(
-                    Amount::ZERO,
-                    argument.amount_0,
-                    argument.amount_1,
-                ));
-            }
-            pool.liquid(argument.amount_0, argument.amount_1, block_timestamp);
-            pool.update_k_last();
-        }
-
-        self.pool.set(Some(pool));
         self.transaction_id.set(1000);
 
-        Ok(liquidity)
+        Ok(())
     }
 
     fn pool(&self) -> Pool {
@@ -79,39 +56,10 @@ impl StateInterface for PoolState {
         *self.total_supply.get()
     }
 
-    fn consume_transfer_id(&mut self) -> u64 {
-        let transfer_id = *self.transfer_id.get();
-        self.transfer_id.set(transfer_id + 1);
-        transfer_id
-    }
-
-    fn create_fund_request(&mut self, fund_request: FundRequest) -> Result<u64, Self::Error> {
-        let transfer_id = self.consume_transfer_id();
-        self.fund_requests.insert(&transfer_id, fund_request)?;
-        Ok(transfer_id)
-    }
-
-    async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, Self::Error> {
-        Ok(self.fund_requests.get(&transfer_id).await?.unwrap())
-    }
-
-    async fn _fund_requests(&self) -> Result<Vec<FundRequest>, Self::Error> {
-        Ok(self
-            .fund_requests
-            .index_values()
-            .await?
-            .into_iter()
-            .map(|(_, v)| v)
-            .collect())
-    }
-
-    async fn update_fund_request(
-        &mut self,
-        transfer_id: u64,
-        fund_request: FundRequest,
-    ) -> Result<(), Self::Error> {
-        let _ = self.fund_requests.get(&transfer_id).await?.unwrap();
-        Ok(self.fund_requests.insert(&transfer_id, fund_request)?)
+    fn has_finalized_reserve_share_facts(&self) -> bool {
+        self.reserve_0() > Amount::ZERO
+            && self.reserve_1() > Amount::ZERO
+            && self.total_supply() > Amount::ZERO
     }
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error> {
@@ -164,16 +112,40 @@ impl StateInterface for PoolState {
         to: Account,
         block_timestamp: Timestamp,
     ) -> Result<Amount, Self::Error> {
+        let pool: Pool = self.pool();
+        let reserve_0 = pool.reserve_0.try_add(amount_0)?;
+        let reserve_1 = pool.reserve_1.try_add(amount_1)?;
+
         let liquidity = self.mint_shares(amount_0, amount_1, to).await?;
 
         let mut pool: Pool = self.pool();
-        pool.liquid(
-            pool.reserve_0.try_add(amount_0)?,
-            pool.reserve_1.try_add(amount_1)?,
-            block_timestamp,
-        );
+        pool.liquid(reserve_0, reserve_1, block_timestamp);
         pool.update_k_last();
         self.pool.set(Some(pool));
+        Ok(liquidity)
+    }
+
+    async fn initialize_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) -> Result<Amount, Self::Error> {
+        assert!(
+            !self.has_finalized_reserve_share_facts(),
+            "Pool already initialized"
+        );
+        assert!(amount_0 > Amount::ZERO, "Invalid amount");
+        assert!(amount_1 > Amount::ZERO, "Invalid amount");
+
+        let liquidity = self.mint_shares(amount_0, amount_1, to).await?;
+
+        let mut pool = self.pool();
+        pool.liquid(amount_0, amount_1, block_timestamp);
+        pool.update_k_last();
+        self.pool.set(Some(pool));
+
         Ok(liquidity)
     }
 
@@ -208,6 +180,128 @@ impl StateInterface for PoolState {
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error> {
         Ok(self.shares.get(&account).await?.unwrap_or(Amount::ZERO))
+    }
+
+    async fn claimable_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        Ok(self
+            .claimable_balances
+            .get(&token)
+            .await?
+            .and_then(|balances| balances.get(&owner).copied())
+            .unwrap_or(Amount::ZERO))
+    }
+
+    async fn claiming_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        Ok(self
+            .claiming_balances
+            .get(&token)
+            .await?
+            .and_then(|balances| balances.get(&owner).copied())
+            .unwrap_or(Amount::ZERO))
+    }
+
+    async fn credit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let mut balances = self
+            .claimable_balances
+            .get(&token)
+            .await?
+            .unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        balances.insert(owner, current.try_add(amount)?);
+        Ok(self.claimable_balances.insert(&token, balances)?)
+    }
+
+    async fn debit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let mut balances = self
+            .claimable_balances
+            .get(&token)
+            .await?
+            .unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        assert!(current >= amount, "Insufficient claimable balance");
+
+        let next = current.try_sub(amount)?;
+        if next == Amount::ZERO {
+            balances.remove(&owner);
+        } else {
+            balances.insert(owner, next);
+        }
+        Ok(self.claimable_balances.insert(&token, balances)?)
+    }
+
+    async fn claim(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.debit(token, owner, amount).await?;
+
+        let mut balances = self
+            .claiming_balances
+            .get(&token)
+            .await?
+            .unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        balances.insert(owner, current.try_add(amount)?);
+        Ok(self.claiming_balances.insert(&token, balances)?)
+    }
+
+    async fn claim_success(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        assert!(amount > Amount::ZERO, "Invalid amount");
+
+        let mut balances = self
+            .claiming_balances
+            .get(&token)
+            .await?
+            .unwrap_or_default();
+        let current = balances.get(&owner).copied().unwrap_or(Amount::ZERO);
+        assert!(current >= amount, "Insufficient claiming balance");
+
+        let next = current.try_sub(amount)?;
+        if next == Amount::ZERO {
+            balances.remove(&owner);
+        } else {
+            balances.insert(owner, next);
+        }
+        Ok(self.claiming_balances.insert(&token, balances)?)
+    }
+
+    async fn claim_fail(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.claim_success(token, owner, amount).await?;
+        self.credit(token, owner, amount).await
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error> {

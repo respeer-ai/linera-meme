@@ -60,7 +60,11 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
         let destination = self.runtime.borrow_mut().application_creator_chain_id();
         let mut outcome = HandlerOutcome::new();
 
-        outcome.with_message(destination, BlobGatewayMessage::Register { blob_data });
+        outcome.with_message(
+            destination,
+            BlobGatewayMessage::Register { blob_data },
+            false,
+        );
 
         Ok(Some(outcome))
     }

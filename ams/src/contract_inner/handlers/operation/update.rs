@@ -54,6 +54,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
                 application_id: self.application_id,
                 metadata: self.metadata.clone(),
             },
+            false,
         );
 
         Ok(Some(outcome))

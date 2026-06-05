@@ -28,6 +28,9 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                     'opened_at': 1000,
                     'updated_at': 1000,
                     'add_tx_count': 1,
+                    'virtual_initial_amount0': '1',
+                    'virtual_initial_amount1': '2',
+                    'virtual_initial_liquidity': '5',
                 }]
 
         class FakeSnapshotInputsProjectionRepository:
@@ -71,7 +74,47 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
         self.assertEqual(result[0]['added_liquidity'], '5')
         self.assertEqual(result[0]['removed_liquidity'], '0')
 
-    def test_enrich_positions_falls_back_to_pool_state_snapshots_when_projection_has_no_candidates(self):
+    def test_enrich_positions_keeps_candidate_protocol_fee_receiver_without_snapshot(self):
+        class FakeProjectionRepository:
+            def get_owner_candidate_histories(self, *, owner):
+                return [{
+                    'pool_application': 'chain-candidate:0xpool-app',
+                    'pool_id': 18,
+                    'token_0': 'MEME',
+                    'token_1': 'TLINERA',
+                    'owner': owner,
+                    'opened_at': 7000,
+                    'updated_at': 7000,
+                    'add_tx_count': 1,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '302587.389030012286796095',
+                    'protocol_fee_receiver_account': owner,
+                }]
+
+        class FakeSnapshotInputsProjectionRepository:
+            def get_snapshot_inputs(self, *, owner, pool_application_id, status):
+                return None
+
+        read_model = VirtualPositionsReadModel(
+            projection_repository=FakeProjectionRepository(),
+            snapshot_inputs_projection_repository=FakeSnapshotInputsProjectionRepository(),
+        )
+
+        result = asyncio.run(read_model.enrich_positions(
+            owner='chain-candidate:owner-a',
+            status='all',
+            positions=[],
+        ))
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['status'], 'virtual')
+        self.assertEqual(result[0]['protocol_fee_receiver_account'], 'chain-candidate:owner-a')
+        self.assertEqual(result[0]['current_liquidity'], '302587.389030012286796095')
+        self.assertEqual(result[0]['protocol_fee_reference_amount0'], '10499900')
+        self.assertEqual(result[0]['protocol_fee_reference_amount1'], '8720')
+
+    def test_enrich_positions_does_not_create_virtual_position_from_pool_state_without_candidate(self):
         class FakeProjectionRepository:
             def get_owner_candidate_histories(self, *, owner):
                 self.owner = owner
@@ -120,19 +163,24 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
             positions=[],
         ))
 
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['status'], 'virtual')
-        self.assertEqual(result[0]['pool_application'], 'chain-b:0xpool-app')
-        self.assertEqual(result[0]['token_1'], 'TLINERA')
-        self.assertEqual(result[0]['pool_id'], 0)
-        self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
-        self.assertTrue(result[0]['is_virtual_position'])
-        self.assertEqual(result[0]['current_liquidity'], '7')
+        self.assertEqual(result, [])
 
-    def test_enrich_positions_falls_back_to_catalog_and_pool_fee_free_basis_for_virtual_initial_liquidity(self):
+    def test_enrich_positions_uses_candidate_and_pool_fee_free_basis_for_virtual_initial_liquidity(self):
         class FakeProjectionRepository:
             def get_owner_candidate_histories(self, *, owner):
-                return []
+                return [{
+                    'pool_application': '0xpool@app-chain',
+                    'pool_id': 17,
+                    'token_0': 'MEME',
+                    'token_1': 'TLINERA',
+                    'owner': owner,
+                    'opened_at': 2000,
+                    'updated_at': 2000,
+                    'add_tx_count': 1,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '0',
+                }]
 
         class FakePoolCatalogRepository:
             def list_current_pools(self):
@@ -215,6 +263,9 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                     'opened_at': None,
                     'updated_at': 2000,
                     'add_tx_count': 0,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '0',
                 }]
 
         class FakeSnapshotInputsProjectionRepository:
@@ -229,6 +280,8 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                 return {
                     'position_basis_snapshot': {
                         'current_liquidity': '0',
+                        'basis_amount_0': '10499900',
+                        'basis_amount_1': '8720',
                         'semantic_facts': {},
                     },
                     'pool_state_snapshot': {
@@ -252,16 +305,14 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['status'], 'virtual')
-        self.assertEqual(
-            result[0]['position_kind'],
-            VirtualPositionsReadModel.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND,
-        )
+        self.assertEqual(result[0]['position_kind'], 'virtual_initial_liquidity')
+        self.assertEqual(result[0]['protocol_fee_receiver_account'], 'chain-fee:0xfee-owner')
         self.assertTrue(result[0]['is_virtual_position'])
         self.assertEqual(result[0]['current_liquidity'], '0')
         self.assertEqual(result[0]['added_liquidity'], '0')
         self.assertEqual(result[0]['removed_liquidity'], '0')
-        self.assertEqual(result[0]['protocol_fee_reference_amount0'], '0')
-        self.assertEqual(result[0]['protocol_fee_reference_amount1'], '0')
+        self.assertEqual(result[0]['protocol_fee_reference_amount0'], '10499900')
+        self.assertEqual(result[0]['protocol_fee_reference_amount1'], '8720')
 
     def test_enrich_positions_adds_virtual_initial_liquidity_when_current_liquidity_is_zero(self):
         class FakeProjectionRepository:
@@ -275,6 +326,9 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                     'opened_at': None,
                     'updated_at': 3000,
                     'add_tx_count': 0,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '0',
                 }]
 
         class FakeSnapshotInputsProjectionRepository:
@@ -335,6 +389,9 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                     'opened_at': None,
                     'updated_at': 4000,
                     'add_tx_count': 0,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '0',
                 }]
 
         class FakeSnapshotInputsProjectionRepository:
@@ -396,6 +453,9 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                     'opened_at': None,
                     'updated_at': 5000,
                     'add_tx_count': 0,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '0',
                 }]
 
         class FakeSnapshotInputsProjectionRepository:
@@ -493,6 +553,9 @@ class VirtualPositionsReadModelTest(unittest.TestCase):
                     'opened_at': None,
                     'updated_at': 6000,
                     'add_tx_count': 0,
+                    'virtual_initial_amount0': '10499900',
+                    'virtual_initial_amount1': '8720',
+                    'virtual_initial_liquidity': '0',
                 }]
 
         class FakeSnapshotInputsProjectionRepository:

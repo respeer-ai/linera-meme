@@ -449,6 +449,53 @@ async fn msg_create_meme_ext_rejects_creator_chain_execution() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn op_register_miner_on_user_chain_emits_creator_chain_message() {
+    let mut proxy = create_and_instantiate_proxy();
+    let creator_chain_id = proxy.runtime.borrow_mut().application_creator_chain_id();
+    let user_chain_id =
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
+            .unwrap();
+    proxy.runtime.borrow_mut().set_chain_id(user_chain_id);
+
+    let response = proxy
+        .execute_operation(ProxyOperation::RegisterMiner)
+        .now_or_never()
+        .expect("Execution of proxy operation should not await anything");
+
+    assert!(matches!(response, ProxyResponse::Ok));
+    let runtime = proxy.runtime.borrow();
+    let requests = runtime.created_send_message_requests();
+    let request = requests.last().unwrap();
+    assert_eq!(request.destination, creator_chain_id);
+    assert!(request.authenticated);
+    assert!(!request.is_tracked);
+    assert!(matches!(
+        request.message,
+        ProxyMessage::RegisterMiner { .. }
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[should_panic(expected = "Failed: construct message handler: NotAllowed")]
+async fn msg_meme_created_rejects_user_chain_execution() {
+    let mut proxy = create_and_instantiate_proxy();
+    let user_chain_id =
+        ChainId::from_str("abdb7c1079f36eaa03f629540283a881eb4256d1ece83a84415022d4d2a9ac65")
+            .unwrap();
+    let token =
+        ApplicationId::from_str("b10ac11c3569d9e1b6e22fe50f8c1de8b33a01173b4563c614aa07d8b8eb5bae")
+            .unwrap();
+    proxy.runtime.borrow_mut().set_chain_id(user_chain_id);
+
+    proxy
+        .execute_message(ProxyMessage::MemeCreated {
+            chain_id: user_chain_id,
+            token,
+        })
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn msg_meme_created_sets_chain_token_for_existing_chain() {
     let mut proxy = create_and_instantiate_proxy();
     let chain_id =

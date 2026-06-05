@@ -59,6 +59,10 @@ impl<
 
         let call = SwapOperation::InitializeLiquidity {
             creator,
+            // This is the only token creator-chain-id field that must be carried.
+            // The following synchronous call enters swap while meme is already
+            // on the call stack, so swap cannot query this meme app again in
+            // that frame without a Linera reentrant-call rejection.
             token_0_creator_chain_id: chain_id,
             token_0: application_id,
             amount_0: liquidity.fungible_amount,

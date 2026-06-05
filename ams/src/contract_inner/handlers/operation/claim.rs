@@ -43,6 +43,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface> Handler<AmsMe
             AmsMessage::Claim {
                 application_id: self.application_id,
             },
+            false,
         );
 
         Ok(Some(outcome))

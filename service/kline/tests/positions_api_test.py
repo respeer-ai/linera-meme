@@ -597,6 +597,31 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.body, b'{"error":"Invalid positions status"}')
 
+
+    async def test_on_get_claim_balances_returns_projection_backed_balances(self):
+        class FakeHandler:
+            def get_claim_balances(self, **kwargs):
+                self.kwargs = dict(kwargs)
+                return {
+                    'owner': kwargs['owner'],
+                    'balances': [{'token': 'native', 'claimable_amount': '7'}],
+                }
+
+        handler = FakeHandler()
+        original_builder = kline_module._build_claim_balances_handler
+        kline_module._build_claim_balances_handler = lambda: handler
+
+        try:
+            response = await kline_module.on_get_claim_balances(owner='chain:owner-a')
+        finally:
+            kline_module._build_claim_balances_handler = original_builder
+
+        self.assertEqual(response, {
+            'owner': 'chain:owner-a',
+            'balances': [{'token': 'native', 'claimable_amount': '7'}],
+        })
+        self.assertEqual(handler.kwargs, {'owner': 'chain:owner-a'})
+
     async def test_on_get_position_metrics_returns_projected_metrics(self):
         original_overrides = PositionMetricsEntrypointOverrideState()
         original_db = kline_module._db

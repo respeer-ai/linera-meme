@@ -45,6 +45,7 @@ from kline_runtime import KlineRuntime  # noqa: E402
 from storage.mysql.settled_liquidity_projection_repo import SettledLiquidityProjectionRepository  # noqa: E402
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository  # noqa: E402
 from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistoryProjectionRepository  # noqa: E402
+from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRepository  # noqa: E402
 
 
 class KlineRuntimeTest(unittest.TestCase):
@@ -132,6 +133,22 @@ class KlineRuntimeTest(unittest.TestCase):
         handler = runtime.positions_handler()
 
         self.assertIsInstance(handler.read_model.repository, SettledLiquidityProjectionRepository)
+
+
+    def test_claim_balances_handler_uses_claim_balance_projection_repository(self):
+        db = self.FakeDb()
+        runtime = KlineRuntime(
+            db=db,
+            realtime_db=self.FakeDb(),
+            observability_config=None,
+            swap=object(),
+            websocket_manager=object(),
+        )
+
+        handler = runtime.claim_balances_handler()
+
+        self.assertIsInstance(handler.read_model.repository, ClaimBalanceProjectionRepository)
+        self.assertIs(handler.read_model.repository.connection, db.connection)
 
     def test_market_stats_runtime_methods_do_not_call_legacy_db_stats_methods(self):
         class GuardedDb(self.FakeDb):

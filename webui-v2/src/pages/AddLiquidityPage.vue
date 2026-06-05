@@ -110,7 +110,7 @@ const token1InputOptions = computed(() => {
 
 const selectedPool = computed(() => {
   if (!selectedToken0.value?.applicationId || !selectedToken1.value?.applicationId) return undefined
-  return findPoolByPair(swap.Swap.pools(), {
+  return findPoolByPair(swap.Swap.visiblePools(), {
     token0: selectedToken0.value.applicationId,
     token1: selectedToken1.value.applicationId,
   })
@@ -193,7 +193,7 @@ const onAddLiquidity = async () => {
 
   submitting.value = true
   const account = await user.User.account()
-  const submissionMode = resolveLiquiditySubmissionMode(swap.Swap.pools(), {
+  const submissionMode = resolveLiquiditySubmissionMode(swap.Swap.visiblePools(), {
     token0: selectedToken0.value.applicationId,
     token1: selectedToken1.value.applicationId,
   })
@@ -249,26 +249,8 @@ const onAddLiquidity = async () => {
       token1: selectedCanonicalPair.value?.token1 as string,
     },
   })
-  const token0CreatorChain = proxy.Proxy.tokenCreatorChain(selectedCanonicalPair.value?.token0 as string)
-  const token1CreatorChain = selectedCanonicalPair.value?.token1 === constants.LINERA_NATIVE_ID
-    ? undefined
-    : proxy.Proxy.tokenCreatorChain(selectedCanonicalPair.value?.token1 as string)
-
-  if (!token0CreatorChain || (selectedCanonicalPair.value?.token1 !== constants.LINERA_NATIVE_ID && !token1CreatorChain)) {
-    notify.Notify.pushNotification({
-      Title: 'Add liquidity',
-      Message: 'Failed resolve token creator chain for pool creation.',
-      Popup: true,
-      Type: NotifyType.Error,
-    })
-    submitting.value = false
-    return
-  }
-
   await Wallet.createPool(
-    token0CreatorChain.chainId,
     selectedCanonicalPair.value?.token0 as string,
-    token1CreatorChain?.chainId,
     selectedCanonicalPair.value?.token1 === constants.LINERA_NATIVE_ID
       ? undefined
       : selectedCanonicalPair.value?.token1,

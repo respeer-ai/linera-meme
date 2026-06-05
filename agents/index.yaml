@@ -44,6 +44,10 @@ decision_map:
       - docker/AGENTS.md
   funds_consistency_issue:
     read_first:
+      - agents/primitives/funding/architecture.md
+      - agents/primitives/funding/state-machines.md
+      - agents/primitives/funding/claim.md
+      - agents/primitives/funding/open-issues.md
       - agents/primitives/liquidity-and-funds.md
       - agents/primitives/cross-chain.md
       - agents/runbooks/bug-investigation.md
@@ -137,6 +141,60 @@ navigation:
         - debugging positions
         - reviewing liquidity accounting
         - reviewing refund/payout safety
+    - path: agents/primitives/funding/architecture.md
+      canonical_for:
+        - funding_architecture
+        - user_reachable_operation_boundary
+        - single_claim_funds_exit
+      when_to_read:
+        - designing funds consistency fixes
+        - reviewing swap or liquidity failure handling
+        - implementing FUND-002
+    - path: agents/primitives/funding/state-machines.md
+      canonical_for:
+        - funding_state_machines
+        - create_pool_add_liquidity_swap_remove_claim_flows
+        - forever_pending_workflow_rules
+      when_to_read:
+        - implementing funding protocol state transitions
+        - auditing async funding message flows
+        - reasoning about stalled cross-chain workflows
+    - path: agents/primitives/funding/fund-005-gate-4-handler-transition-table.md
+      canonical_for:
+        - fund_005_gate_4_handler_transition_tables
+        - meme_initialize_liquidity_transition_table
+        - funding_unresolved_risk_closure
+      when_to_read:
+        - implementing funding protocol state transitions
+        - reviewing meme initialize liquidity funding changes
+        - resolving FUND-005 Gate 4 handoff requirements
+    - path: agents/primitives/funding/fund-005-gate-5-characterization-handoff.md
+      canonical_for:
+        - fund_005_gate_5_characterization_baseline
+        - fund_005_implementation_handoff
+        - fund_006_entry_criteria
+      when_to_read:
+        - entering FUND-006 implementation
+        - checking which unsafe current behavior maps to which funding iteration
+        - deciding whether FUND-005 can be marked complete
+    - path: agents/primitives/funding/claim.md
+      canonical_for:
+        - single_claim_operation
+        - claim_balance_model
+        - meme_delivery_attempt_rules
+      when_to_read:
+        - designing or implementing funds exit behavior
+        - reviewing refund or payout semantics
+        - implementing claim delivery
+    - path: agents/primitives/funding/open-issues.md
+      canonical_for:
+        - funding_open_protocol_risks
+        - unresolved_forever_pending_cases
+        - recovery_operation_constraints
+      when_to_read:
+        - proposing recovery behavior
+        - resolving stalled funding workflows
+        - changing open funding assumptions
     - path: agents/primitives/data-sources.md
       canonical_for:
         - truth_hierarchy
@@ -275,6 +333,25 @@ navigation:
       stop_conditions:
         - startup path corrected and validated
         - unresolved external environment blocker identified
+    - path: agents/runbooks/full-product-e2e.md
+      canonical_for:
+        - full_product_e2e
+        - run_local_product_validation
+        - create_meme_swap_liquidity_claim_e2e
+      when_to_read:
+        - running complete local E2E
+        - validating run_local.sh product workflow
+        - debugging product workflow E2E failures
+      inputs:
+        - repository root
+        - official faucet availability
+        - local service ports
+      outputs:
+        - full product workflow validation result
+        - failure logs and chain facts when blocked
+      stop_conditions:
+        - product workflow E2E completed
+        - explicit environment or protocol blocker identified
     - path: agents/runbooks/testing.md
       canonical_for:
         - testing_expectations

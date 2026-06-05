@@ -600,6 +600,7 @@ class RawRepository(MysqlRepositoryConnectionMixin):
                     m.raw_message_bytes,
                     b.target_chain_id,
                     b.target_block_hash,
+                    b.bundle_index AS target_transaction_index,
                     b.action
                 FROM {self.raw_posted_messages_table} AS m
                 INNER JOIN {self.raw_incoming_bundles_table} AS b
@@ -622,6 +623,7 @@ class RawRepository(MysqlRepositoryConnectionMixin):
                     'source_chain_id': row['origin_chain_id'],
                     'target_chain_id': row['target_chain_id'],
                     'target_block_hash': row['target_block_hash'],
+                    'target_transaction_index': row['target_transaction_index'],
                     'source_cert_hash': row['source_cert_hash'],
                     'transaction_index': row['transaction_index'],
                     'message_index': row['message_index'],

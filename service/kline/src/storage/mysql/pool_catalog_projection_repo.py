@@ -35,6 +35,7 @@ class PoolCatalogProjectionRepository:
                     pool_chain_id VARCHAR(64) NULL,
                     token_0 VARCHAR(256) NOT NULL,
                     token_1 VARCHAR(256) NOT NULL,
+                    creator_account VARCHAR(256) NULL,
                     event_family VARCHAR(64) NOT NULL,
                     source_event_key VARCHAR(255) NOT NULL,
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -46,9 +47,21 @@ class PoolCatalogProjectionRepository:
                 '''
             )
             self._migrate_pool_application_account_format(cursor)
+            self._migrate_creator_account_column(cursor)
             self._connection().commit()
         finally:
             cursor.close()
+
+    def _migrate_creator_account_column(self, cursor) -> None:
+        cursor.execute(f"SHOW COLUMNS FROM {self.pool_catalog_table} LIKE 'creator_account'")
+        if cursor.fetchone() is not None:
+            return
+        cursor.execute(
+            f'''
+            ALTER TABLE {self.pool_catalog_table}
+            ADD COLUMN creator_account VARCHAR(256) NULL AFTER token_1
+            '''
+        )
 
     def _migrate_pool_application_account_format(self, cursor) -> None:
         # Legacy one-time migration for pre-canonical rows. Runtime writes must
@@ -85,14 +98,16 @@ class PoolCatalogProjectionRepository:
                         pool_chain_id,
                         token_0,
                         token_1,
+                        creator_account,
                         event_family,
                         source_event_key
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         pool_application_id = VALUES(pool_application_id),
                         pool_chain_id = VALUES(pool_chain_id),
                         token_0 = VALUES(token_0),
                         token_1 = VALUES(token_1),
+                        creator_account = VALUES(creator_account),
                         event_family = VALUES(event_family),
                         source_event_key = VALUES(source_event_key)
                     ''',
@@ -102,6 +117,7 @@ class PoolCatalogProjectionRepository:
                         row.get('pool_chain_id'),
                         row['token_0'],
                         row['token_1'],
+                        row.get('creator_account'),
                         row['event_family'],
                         row['source_event_key'],
                     ),
@@ -117,12 +133,27 @@ class PoolCatalogProjectionRepository:
             cursor.execute(
                 f'''
                 SELECT
-                    pool_id,
-                    pool_application,
-                    token_0,
-                    token_1
-                FROM {self.pool_catalog_table}
-                ORDER BY pool_id ASC
+                    pc.pool_id,
+                    pc.pool_application,
+                    pc.token_0,
+                    pc.token_1,
+                    pc.creator_account
+                FROM {self.pool_catalog_table} pc
+                LEFT JOIN application_registry pool_app
+                  ON pool_app.application_id = pc.pool_application_id
+                 AND pool_app.app_type = 'pool'
+                LEFT JOIN (
+                    SELECT current_swap.application_id
+                    FROM application_registry current_swap
+                    WHERE current_swap.app_type = 'swap'
+                      AND current_swap.discovered_from = 'static_config'
+                      AND current_swap.status = 'active'
+                    ORDER BY current_swap.first_seen_at DESC, current_swap.updated_at DESC, current_swap.application_id ASC
+                    LIMIT 1
+                ) current_swap ON 1 = 1
+                WHERE current_swap.application_id IS NULL
+                   OR pool_app.parent_application_id = current_swap.application_id
+                ORDER BY pc.pool_id ASC
                 '''
             )
             return [
@@ -131,6 +162,7 @@ class PoolCatalogProjectionRepository:
                     'pool_application': row['pool_application'],
                     'token_0': row['token_0'],
                     'token_1': row['token_1'],
+                    'creator_account': row.get('creator_account'),
                 }
                 for row in (cursor.fetchall() or [])
             ]
@@ -154,6 +186,7 @@ class PoolCatalogProjectionRepository:
         token_1 = decoded_payload.get('token_1')
         if token_1 in (None, ''):
             token_1 = 'TLINERA'
+        creator_account = self._account_to_user_account(decoded_payload.get('creator'))
         parsed_pool_application = self.account_codec.parse_account(pool_application)
         return {
             'pool_application': pool_application,
@@ -161,6 +194,7 @@ class PoolCatalogProjectionRepository:
             'pool_chain_id': parsed_pool_application['chain_id'],
             'token_0': str(token_0),
             'token_1': str(token_1),
+            'creator_account': creator_account,
             'event_family': str(event_family),
             'source_event_key': str(event.get('normalized_event_id') or event.get('source_event_key')),
         }
@@ -173,6 +207,19 @@ class PoolCatalogProjectionRepository:
         return {}
 
     def _account_to_pool_application(self, account: object) -> str | None:
+        public_account = self.account_codec.public_account_from_payload(account)
+        if public_account is None:
+            return None
+        parsed = self.account_codec.parse_account(public_account)
+        if parsed['owner'] == self.account_codec.CHAIN_OWNER:
+            return None
+        return self.account_codec.format_account(
+            chain_id=parsed['chain_id'],
+            owner=parsed['owner'],
+        )
+
+
+    def _account_to_user_account(self, account: object) -> str | None:
         public_account = self.account_codec.public_account_from_payload(account)
         if public_account is None:
             return None

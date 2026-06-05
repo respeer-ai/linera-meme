@@ -12,12 +12,16 @@ Authority: High
 - Human-facing plans, proposals, reports, and background belong under `documents/`
 - Chain contracts are protocol truth
 - `service/kline` is an off-chain aggregation layer, not protocol truth
+- `webui/` is obsolete legacy code and is not the current frontend
+- `webui-v2/` is the current frontend
 - Frontend should consume APIs and wallet state, not invent protocol state
 
 ## Rules
 
 - Unless the user explicitly asks for human-facing docs, write docs for assistants
 - Default assistant docs belong either under `agents/` or in directory-scoped `AGENTS.md` files near the code they govern
+- User-facing conversation in this repository may use Chinese, but repository documents, assistant primitives, AI constraints, runbooks, task titles, and task notes must be written in English
+- When updating existing non-English assistant docs or task metadata, translate the touched durable content to English instead of adding new non-English text
 - Optimize assistant docs for execution and maintenance, not for human readability
 - For assistant docs with non-trivial semantics, prefer Markdown with a fixed section contract over forcing pure YAML or TOML
 - Use YAML for navigation, indexes, and task metadata; use Markdown for semantics, rules, implications, and workflows
@@ -27,6 +31,10 @@ Authority: High
 - Do not treat plan documents as task sources
 - Do not introduce parallel "latest" versions of the same assistant doc
 - If a document is superseded, update or remove it instead of leaving competing copies
+- Exclude `webui/` from current frontend analysis, funding scope, frontend constraints, implementation, tests, task plans, and assistant primitives unless the user explicitly asks to inspect legacy code
+- Do not add `webui/` paths to current scope-freeze documents, task-board notes, prompt-routing state, test baselines, or implementation plans
+- If a current task or assistant primitive references `webui/` without explicitly labeling it as legacy-only inspection, correct that reference to `webui-v2/` or remove it before continuing
+- Use `webui-v2/` for current frontend analysis, funding scope, frontend constraints, implementation, and tests
 - For newly created or actively refactored Python modules, keep each file at or below 1000 lines
 - For newly created or actively refactored Python modules, define only one top-level object per file
 - Organize new Python code in an object-oriented way; do not keep expanding helper-function clusters in large legacy modules

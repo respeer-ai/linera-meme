@@ -1,6 +1,6 @@
 import type { KLineData } from './chart/KlineData'
 import type { Point } from 'src/stores/kline/types'
-import { shouldOverwriteOverlappingPoint } from 'src/worker/kline/pointMerge'
+import { shouldOverwriteOverlappingPoint } from 'src/stores/kline/pointOverwrite'
 
 type MergeSortedPointsInput = {
   currentPoints: KLineData[]

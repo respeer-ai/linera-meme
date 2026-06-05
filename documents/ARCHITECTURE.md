@@ -13,7 +13,7 @@ MicroMeme is a Linera-native product stack that combines:
 - mining-enabled meme issuance,
 - and market data services.
 
-This document describes the current system structure and the main runtime flows.
+This document describes the current system structure and the main runtime flows. Canonical assistant-facing constraints live under `agents/`; this human document must not override `agents/primitives/` or `agents/tasks/board.yaml`.
 
 ## System Overview
 
@@ -24,14 +24,14 @@ MicroMeme is split into protocol modules, services, and frontend modules.
 - `meme/`: meme token logic, token balances, mining state, mining rewards, and token-side transfer operations.
 - `proxy/`: meme creation orchestration, miner registration, and creation-time coordination.
 - `swap/`: pool registry and router-side state for available markets.
-- `pool/`: per-pool execution logic for swap, add liquidity, remove liquidity, and transaction generation.
+- `pool/`: per-pool AMM execution, reserves, liquidity, positions, transaction facts, and target funding/claim accounting.
 - `ams/`: application indexing and discovery support.
 - `runtime/`, `abi/`, `base/`: shared runtime interfaces, types, and handler abstractions.
 
 ### Services
 
 - `service/miner/`: mining worker that watches mineable meme chains and submits `mine` operations.
-- `service/kline/`: trade indexing, K-line generation, ticker aggregation, and websocket push.
+- `service/kline/`: block-based observability, normalized events, derived market data, positions, candles, transactions, stats, diagnostics, and websocket push.
 
 ### Frontend
 
@@ -85,8 +85,8 @@ Primary role:
 - execute swap,
 - add and remove liquidity,
 - manage pool reserves,
-- record latest transactions,
-- emit pool updates back to `swap/`.
+- emit protocol facts consumed by observability,
+- participate in target funding and claim accounting.
 
 In product terms:
 
@@ -109,15 +109,15 @@ Important consequence:
 
 Primary role:
 
-- read pool transactions,
-- persist transactions and pool metadata,
-- build K-lines and ticker stats,
-- expose market data over HTTP and websocket.
+- ingest parsed chain facts,
+- derive normalized events and market-data projections,
+- build K-lines, transactions, positions, stats, and diagnostics,
+- expose projection-backed market data over HTTP and websocket.
 
 Important consequence:
 
-- this service reflects settled trades, not planned trades.
-- any settlement asymmetry or mining-induced delay can change K-line shape.
+- this service reflects parsed chain facts and derived product projections, not planned trades or frontend state.
+- any settlement asymmetry, stalled workflow, or mining-induced delay must be modeled from facts before entering product read models.
 
 ### `webui-v2/`
 
@@ -155,8 +155,8 @@ Creator / Trader / Miner
         |
    service/miner
 
-pool -> service/kline -> charts / tickers / transactions
-swap -> service/kline -> pool discovery and market indexing
+Linera chain facts -> service/kline -> charts / tickers / transactions / positions / diagnostics
+swap/pool/meme facts -> service/kline -> pool discovery and market indexing
 ```
 
 ## Main Runtime Flows
@@ -169,7 +169,7 @@ Typical path:
 2. `proxy/` coordinates creation.
 3. `meme/` application is instantiated with token and mining parameters.
 4. `swap/` and `pool/` are involved if initial liquidity or pool creation is requested.
-5. The new market becomes visible through swap state and market data services.
+5. The new market becomes visible through parsed facts and projection-backed product APIs.
 
 Participating modules:
 
@@ -187,9 +187,9 @@ Typical path:
 2. A `pool` operation is scheduled on the relevant chain.
 3. Depending on asset type and chain location, funding messages may be required.
 4. `pool/` updates reserves.
-5. `pool/` creates a transaction record.
-6. `swap/` receives updated pool state.
-7. `service/kline/` indexes the resulting trade.
+5. `pool/` emits protocol facts for settled trade/accounting state.
+6. `swap/` receives valid pool updates where required by catalog semantics.
+7. `service/kline/` derives transactions, candles, and stats from parsed facts.
 
 Participating modules:
 
@@ -222,16 +222,18 @@ Important product effect:
 
 Typical path:
 
-1. `service/kline/` fetches pools from `swap/`.
-2. For each pool it fetches latest transactions from `pool/`.
-3. It persists normalized records to its database.
-4. It computes K-line, ticker, protocol stats, and transaction feeds.
-5. `webui-v2` consumes this over HTTP and websocket.
+1. `service/kline/` ingests parsed chain facts.
+2. It normalizes application events.
+3. It derives Layer 3 market-data read models.
+4. It computes K-line, transactions, positions, TVL, APR inputs, protocol stats, and diagnostics.
+5. `webui-v2` consumes projection-backed HTTP APIs and websocket invalidation/update signals.
 
 Participating modules:
 
+- Linera chain facts
 - `swap`
 - `pool`
+- `meme`
 - `service/kline`
 - `webui-v2`
 
@@ -260,9 +262,11 @@ Participating modules:
 - parts of price and swap estimation are still local UI logic,
 - which weakens execution trust.
 
-### 4. Market Data Is Trade-Centric but Not Execution-Semantics-Aware
+### 4. Funding Consistency Is Still Being Hardened
 
-- delayed settlement, mining effects, and maker behavior are not yet modeled explicitly enough.
+- asynchronous cross-chain funding can remain pending indefinitely,
+- output/refund/protocol-fee delivery is being converged into a unified claim model,
+- stalled workflows must remain safe and observable.
 
 ## Recommended Architectural Direction
 
@@ -284,11 +288,11 @@ Participating modules:
 - move execution-critical quote logic behind protocol-aligned services or APIs,
 - reduce frontend-only math for trade outcomes.
 
-### 4. Improve Observability
+### 4. Preserve Observability As Product Data Platform
 
-- expose in-flight funding state,
-- expose delayed settlement state,
-- expose route and execution path metadata to services and UI.
+- expose pending and stalled funding state,
+- expose claim balances and delivery attempts,
+- keep product reads projection-backed instead of live-query reconstructed.
 
 ## Repository Map
 
@@ -301,15 +305,15 @@ meme/               Token and mining contract
 swap/               Pool registry and router-side state
 pool/               Pool execution logic
 service/miner/      Mining worker service
-service/kline/      Trade and K-line indexing service
+service/kline/      Observability and market-data projection service
 webui-v2/           Current frontend
 documents/          Product, technical, and architecture docs
 ```
 
 ## Near-Term Architecture Priorities
 
-1. Fix buy/sell settlement asymmetry.
-2. Define mining-aware execution semantics.
-3. Add quote and routing layers above current pool registry.
-4. Improve delayed-settlement observability.
-5. Align frontend trade UX with protocol truth.
+1. Complete funding consistency design and progressive implementation.
+2. Keep observability as the complete parsed-fact data platform.
+3. Maintain accurate positions, fees, TVL, volume, transactions, and candles from projections.
+4. Harden public operation and internal message boundaries.
+5. Keep frontend product state aligned with projection-backed APIs.

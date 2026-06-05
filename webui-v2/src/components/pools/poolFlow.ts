@@ -1,6 +1,8 @@
 import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import { constants } from 'src/constant'
 
+export { isFinalizedPool, visiblePools } from 'src/utils/poolVisibility'
+
 export interface PoolPairLike {
   token0: string
   token1?: string

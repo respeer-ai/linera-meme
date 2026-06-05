@@ -20,15 +20,25 @@ class SettledMarketDeriver:
         self.transaction_family_codec = transaction_family_codec or TransactionFamilyCodec()
         self.account_codec = AccountCodec()
 
-    def derive_item(self, event: dict[str, object]) -> dict[str, object]:
+    def derive_item(
+        self,
+        event: dict[str, object],
+        *,
+        liquidity_semantics: str | None = None,
+    ) -> dict[str, object]:
         self._validate_event(event)
-        result = self._derive(event)
+        result = self._derive(event, liquidity_semantics=liquidity_semantics)
         return result.to_dict()
 
     def derive_batch(self, events: list[dict[str, object]]) -> list[dict[str, object]]:
         return [self.derive_item(event) for event in events]
 
-    def _derive(self, event: dict[str, object]) -> SettledMarketResult:
+    def _derive(
+        self,
+        event: dict[str, object],
+        *,
+        liquidity_semantics: str | None = None,
+    ) -> SettledMarketResult:
         if event.get('normalization_status') != 'observed':
             return self._result(
                 event,
@@ -66,7 +76,10 @@ class SettledMarketDeriver:
                     derivation_status=SettledMarketResult.STATUS_BLOCKED_MISSING_CONTEXT,
                     error_text='liquidity transaction has invalid owner account',
                 )
-            liquidity_change = self._build_liquidity_change(execution_fact)
+            liquidity_change = self._build_liquidity_change(
+                execution_fact,
+                liquidity_semantics=liquidity_semantics,
+            )
             if liquidity_change is None:
                 return self._result(
                     event,
@@ -136,6 +149,8 @@ class SettledMarketDeriver:
     def _build_liquidity_change(
         self,
         execution_fact,
+        *,
+        liquidity_semantics: str | None = None,
     ) -> dict[str, object] | None:
         transaction_type = execution_fact.transaction_type()
         change_type = self.transaction_family_codec.liquidity_change_type_from_transaction_type(
@@ -155,7 +170,7 @@ class SettledMarketDeriver:
             return None
         liquidity_semantics = self._liquidity_semantics(
             change_type=change_type,
-            liquidity_delta=liquidity_delta,
+            explicit_semantics=liquidity_semantics,
         )
         return {
             'settled_output_type': SettledMarketResult.OUTPUT_SETTLED_LIQUIDITY_CHANGE,
@@ -182,10 +197,10 @@ class SettledMarketDeriver:
         self,
         *,
         change_type: str,
-        liquidity_delta: object,
+        explicit_semantics: str | None,
     ) -> str:
-        if change_type == 'add_liquidity' and str(liquidity_delta) in {'0', '0.0', '0.000000000000000000'}:
-            return 'virtual_initial_liquidity'
+        if explicit_semantics is not None:
+            return explicit_semantics
         return 'position_liquidity'
 
     def _pool_application(self, execution_fact) -> str:

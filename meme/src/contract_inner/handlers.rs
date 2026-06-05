@@ -14,6 +14,8 @@ use message::{
     transfer::TransferHandler as MessageTransferHandler,
     transfer_from::TransferFromHandler as MessageTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as MessageTransferFromApplicationHandler,
+    transfer_from_application_receipt::TransferFromApplicationReceiptHandler as MessageTransferFromApplicationReceiptHandler,
+    transfer_from_application_with_receipt::TransferFromApplicationWithReceiptHandler as MessageTransferFromApplicationWithReceiptHandler,
     transfer_ownership::TransferOwnershipHandler as MessageTransferOwnershipHandler,
 };
 use operation::{
@@ -25,6 +27,7 @@ use operation::{
     transfer::TransferHandler as OperationTransferHandler,
     transfer_from::TransferFromHandler as OperationTransferFromHandler,
     transfer_from_application::TransferFromApplicationHandler as OperationTransferFromApplicationHandler,
+    transfer_from_application_with_receipt::TransferFromApplicationWithReceiptHandler as OperationTransferFromApplicationWithReceiptHandler,
     transfer_ownership::TransferOwnershipHandler as OperationTransferOwnershipHandler,
     transfer_to_caller::TransferToCallerHandler as OperationTransferToCallerHandler,
 };
@@ -70,6 +73,9 @@ impl HandlerFactory {
             MemeOperation::TransferFromApplication { .. } => Box::new(
                 OperationTransferFromApplicationHandler::new(runtime, state, op),
             ),
+            MemeOperation::TransferFromApplicationWithReceipt { .. } => Box::new(
+                OperationTransferFromApplicationWithReceiptHandler::new(runtime, state, op),
+            ),
             MemeOperation::TransferOwnership { .. } => {
                 Box::new(OperationTransferOwnershipHandler::new(runtime, state, op))
             }
@@ -114,6 +120,12 @@ impl HandlerFactory {
             }
             MemeMessage::TransferFromApplication { .. } => Box::new(
                 MessageTransferFromApplicationHandler::new(runtime, state, msg),
+            ),
+            MemeMessage::TransferFromApplicationWithReceipt { .. } => Box::new(
+                MessageTransferFromApplicationWithReceiptHandler::new(runtime, state, msg),
+            ),
+            MemeMessage::TransferFromApplicationReceipt { .. } => Box::new(
+                MessageTransferFromApplicationReceiptHandler::new(runtime, state, msg),
             ),
             MemeMessage::TransferOwnership { .. } => {
                 Box::new(MessageTransferOwnershipHandler::new(runtime, state, msg))
@@ -199,10 +211,15 @@ impl HandlerFactory {
             return Ok(HandlerFactory::new_operation_handler(runtime, state, op));
         }
         if let Some(msg) = msg {
-            // All messages must be run on user chain side
-            if runtime.borrow_mut().only_application_creator().is_err()
-                || !HandlerFactory::is_valid_mining_height(runtime.clone(), state.clone())
-            {
+            let executable = match msg {
+                MemeMessage::TransferFromApplicationReceipt { .. } => true,
+                _ => {
+                    runtime.borrow_mut().only_application_creator().is_ok()
+                        && HandlerFactory::is_valid_mining_height(runtime.clone(), state.clone())
+                }
+            };
+
+            if !executable {
                 return Err(HandlerError::NotAllowed);
             }
 

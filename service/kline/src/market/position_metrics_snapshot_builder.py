@@ -536,8 +536,7 @@ class PositionMetricsSnapshotBuilder:
         for row in history:
             if row.get('transaction_type') != 'AddLiquidity':
                 continue
-            liquidity_attos = self.value_support.to_attos(row.get('liquidity')) or 0
-            return liquidity_attos == 0
+            return row.get('liquidity_semantics') == 'virtual_initial_liquidity'
         return False
 
     def _basis_type(self, row: dict[str, object]) -> str:

@@ -1,8 +1,7 @@
 use crate::interfaces::state::StateInterface;
-use abi::swap::pool::{PoolMessage, PoolResponse};
+use abi::swap::pool::{FundRequest, PoolMessage, PoolResponse};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -15,9 +14,9 @@ pub struct RequestMemeFundHandler<
     runtime: Rc<RefCell<R>>,
     _state: Rc<RefCell<S>>,
 
-    token: ApplicationId,
-    amount: Amount,
-    transfer_id: u64,
+    prev: Option<FundRequest>,
+    request: FundRequest,
+    next: Option<FundRequest>,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
@@ -26,17 +25,16 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     pub fn new(
         runtime: Rc<RefCell<R>>,
         state: Rc<RefCell<S>>,
-        token: ApplicationId,
-        amount: Amount,
-        transfer_id: u64,
+        prev: Option<FundRequest>,
+        request: FundRequest,
+        next: Option<FundRequest>,
     ) -> Self {
         Self {
-            _state: state,
             runtime,
-
-            token,
-            amount,
-            transfer_id,
+            _state: state,
+            prev,
+            request,
+            next,
         }
     }
 }
@@ -48,20 +46,22 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<PoolMessage, PoolResponse>>, HandlerError> {
+        let token = self.request.token.expect("Invalid fund token");
         let destination = self
             .runtime
             .borrow_mut()
-            .token_creator_chain_id(self.token)
+            .token_creator_chain_id(token)
             .expect("Failed: token creator chain id");
-        let mut outcome = HandlerOutcome::new();
 
+        let mut outcome = HandlerOutcome::new();
         outcome.with_message(
             destination,
             PoolMessage::RequestFund {
-                token: self.token,
-                transfer_id: self.transfer_id,
-                amount: self.amount,
+                prev: self.prev.clone(),
+                request: self.request.clone(),
+                next: self.next.clone(),
             },
+            false,
         );
 
         Ok(Some(outcome))

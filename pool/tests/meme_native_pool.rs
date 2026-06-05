@@ -232,6 +232,32 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
+    async fn claim(&self, chain: &ActiveChain, token: ApplicationId, amount: Amount) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    self.pool_application_id.unwrap(),
+                    PoolOperation::Claim {
+                        token: Some(token),
+                        amount,
+                    },
+                );
+            })
+            .await;
+
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+        self.meme_chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
+    }
+
     async fn add_liquidity(&self, chain: &ActiveChain, amount_0: Amount, amount_1: Amount) {
         chain
             .add_block(|block| {
@@ -250,7 +276,7 @@ impl TestSuite {
             .await;
         self.meme_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
-        chain.handle_received_messages().await;
+        self.meme_chain.handle_received_messages().await;
         chain.handle_received_messages().await;
         self.pool_chain
             .clone()
@@ -262,7 +288,11 @@ impl TestSuite {
             .unwrap()
             .handle_received_messages()
             .await;
-        chain.handle_received_messages().await;
+        self.pool_chain
+            .clone()
+            .unwrap()
+            .handle_received_messages()
+            .await;
     }
 
     async fn remove_liquidity(&self, chain: &ActiveChain, liquidity: Amount) {
@@ -341,6 +371,8 @@ async fn meme_native_virtual_initial_liquidity_test() {
     pool_chain.handle_received_messages().await;
     swap_chain.handle_received_messages().await;
     meme_chain.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+    pool_chain.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = swap_chain
         .graphql_query(
@@ -461,6 +493,57 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::ZERO,
+    );
+
+    let claim_query = Request::new(
+        r#"
+        query Claimable($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id.unwrap().forget_abi().to_string(),
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), claim_query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
+        Amount::from_attos(5436183019230574691713959),
+    );
+
+    suite
+        .claim(
+            &user_chain,
+            suite.meme_application_id.unwrap().forget_abi(),
+            Amount::from_attos(5436183019230574691713959),
+        )
+        .await;
+
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
         Amount::from_attos(5436183019230574691713959),
     );
 
@@ -521,7 +604,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
             balance.try_sub(budget).unwrap(),
         )
         .await;
-    let liquidity_fund_amount = Amount::from_attos(9803863743830562123);
+    let liquidity_fund_amount = Amount::from_str("20.1").unwrap();
     assert_eq!(
         liquidity_fund_amount,
         pool_chain
@@ -529,9 +612,26 @@ async fn meme_native_virtual_initial_liquidity_test() {
             .await
             .unwrap()
     );
+
+    let claim_query = Request::new(
+        r#"
+        query Claimable($owner: Account!) {
+            claimableBalance(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), claim_query)
+        .await;
     assert_eq!(
-        balance.try_sub(liquidity_fund_amount).unwrap(),
-        user_chain.owner_balance(&user_account.owner).await.unwrap()
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
+        Amount::from_str("10.296136256169437877").unwrap(),
     );
 
     let query = Request::new(
@@ -553,7 +653,7 @@ async fn meme_native_virtual_initial_liquidity_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(5563816980769425308286041),
+        Amount::from_attos(5564902696099416451856693),
     );
 
     let QueryOutcome { response, .. } = pool_chain
@@ -627,6 +727,81 @@ async fn meme_native_virtual_initial_liquidity_test() {
     let pool: Pool = serde_json::from_value(response["pool"].clone()).unwrap();
     assert!(pool.reserve_0 > Amount::ZERO);
     assert!(pool.reserve_1 > Amount::ZERO);
+
+    let removed_claim_query = Request::new(
+        r#"
+        query Claimable($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id.unwrap().forget_abi().to_string(),
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), removed_claim_query)
+        .await;
+    let removed_claimable =
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap();
+    assert!(removed_claimable > Amount::ZERO);
+
+    let user_balance_before_removed_claim = Amount::from_attos(5435097303900583548143307);
+    suite
+        .claim(
+            &user_chain,
+            suite.meme_application_id.unwrap().forget_abi(),
+            removed_claimable,
+        )
+        .await;
+
+    let query = Request::new(
+        r#"
+        query Balance($owner: Account!) {
+            balanceOf(owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = meme_chain
+        .graphql_query(suite.meme_application_id.unwrap(), query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        user_balance_before_removed_claim
+            .try_add(removed_claimable)
+            .unwrap(),
+    );
+
+    let removed_claim_query = Request::new(
+        r#"
+        query Claimable($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id.unwrap().forget_abi().to_string(),
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain
+        .graphql_query(suite.pool_application_id.unwrap(), removed_claim_query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
+        Amount::ZERO
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

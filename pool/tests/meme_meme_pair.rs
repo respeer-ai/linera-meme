@@ -268,6 +268,32 @@ impl TestSuite {
         chain.handle_received_messages().await;
     }
 
+    async fn claim(
+        &self,
+        chain: &ActiveChain,
+        pool_chain: &ActiveChain,
+        pool_application_id: ApplicationId<PoolAbi>,
+        token: ApplicationId,
+        amount: Amount,
+    ) {
+        chain
+            .add_block(|block| {
+                block.with_operation(
+                    pool_application_id,
+                    PoolOperation::Claim {
+                        token: Some(token),
+                        amount,
+                    },
+                );
+            })
+            .await;
+
+        pool_chain.handle_received_messages().await;
+        self.meme_chain_0.handle_received_messages().await;
+        self.meme_chain_1.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
+    }
+
     async fn add_liquidity(
         &self,
         chain: &ActiveChain,
@@ -313,11 +339,11 @@ impl TestSuite {
         self.meme_chain_0.handle_received_messages().await;
         self.meme_chain_1.handle_received_messages().await;
         chain.handle_received_messages().await;
-        chain.handle_received_messages().await;
+        self.meme_chain_1.handle_received_messages().await;
         chain.handle_received_messages().await;
         pool_chain.handle_received_messages().await;
         pool_chain.handle_received_messages().await;
-        chain.handle_received_messages().await;
+        pool_chain.handle_received_messages().await;
     }
 
     async fn remove_liquidity(
@@ -359,9 +385,7 @@ impl TestSuite {
                 block.with_operation(
                     self.swap_application_id.unwrap(),
                     SwapOperation::CreatePool {
-                        token_0_creator_chain_id: chain.id(),
                         token_0: self.meme_application_id_0.unwrap().forget_abi(),
-                        token_1_creator_chain_id: Some(chain.id()),
                         token_1: Some(self.meme_application_id_1.unwrap().forget_abi()),
                         amount_0,
                         amount_1,
@@ -494,6 +518,15 @@ async fn meme_meme_pair_test() {
 
     let pool_chain_meme_0 = &suite.pool_chain_meme_0.as_ref().unwrap().clone();
     let pool_chain_meme_1 = &suite.pool_chain_meme_1.as_ref().unwrap().clone();
+
+    meme_chain_0.handle_received_messages().await;
+    meme_chain_1.handle_received_messages().await;
+    pool_chain_meme_0.handle_received_messages().await;
+    pool_chain_meme_1.handle_received_messages().await;
+    pool_chain_meme_0.handle_received_messages().await;
+    pool_chain_meme_1.handle_received_messages().await;
+    swap_chain.handle_received_messages().await;
+
     suite
         .swap(
             &user_chain,
@@ -507,24 +540,35 @@ async fn meme_meme_pair_test() {
     let user_account = suite.chain_owner_account(user_chain);
     let query = Request::new(
         r#"
-        query Balance($owner: Account!) {
-            balanceOf(owner: $owner)
+        query ClaimableBalance($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
         }
         "#,
     )
     .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id_0.unwrap().forget_abi().to_string(),
         "owner": {
             "chain_id": user_account.chain_id.to_string(),
             "owner": user_account.owner.to_string(),
         }
     })));
-    let QueryOutcome { response, .. } = meme_chain_0
-        .graphql_query(suite.meme_application_id_0.unwrap(), query)
+    let QueryOutcome { response, .. } = pool_chain_meme_0
+        .graphql_query(suite.pool_application_id_meme_0.unwrap(), query)
         .await;
     assert_eq!(
-        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
         Amount::from_attos(793702900258497670180725),
     );
+
+    suite
+        .claim(
+            &user_chain,
+            &pool_chain_meme_0,
+            suite.pool_application_id_meme_0.unwrap(),
+            suite.meme_application_id_0.unwrap().forget_abi(),
+            Amount::from_attos(793702900258497670180725),
+        )
+        .await;
 
     suite
         .swap(
@@ -538,24 +582,35 @@ async fn meme_meme_pair_test() {
 
     let query = Request::new(
         r#"
-        query Balance($owner: Account!) {
-            balanceOf(owner: $owner)
+        query ClaimableBalance($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
         }
         "#,
     )
     .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id_1.unwrap().forget_abi().to_string(),
         "owner": {
             "chain_id": user_account.chain_id.to_string(),
             "owner": user_account.owner.to_string(),
         }
     })));
-    let QueryOutcome { response, .. } = meme_chain_1
-        .graphql_query(suite.meme_application_id_1.unwrap(), query)
+    let QueryOutcome { response, .. } = pool_chain_meme_1
+        .graphql_query(suite.pool_application_id_meme_1.unwrap(), query)
         .await;
     assert_eq!(
-        Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
         Amount::from_attos(1201588945967107624856252),
     );
+
+    suite
+        .claim(
+            &user_chain,
+            &pool_chain_meme_1,
+            suite.pool_application_id_meme_1.unwrap(),
+            suite.meme_application_id_1.unwrap().forget_abi(),
+            Amount::from_attos(1201588945967107624856252),
+        )
+        .await;
 
     let descriptions = suite
         .create_pool(&user_chain, Amount::ONE, Amount::ONE)
@@ -649,6 +704,11 @@ async fn meme_meme_pair_test() {
 
     swap_chain.handle_received_messages().await;
     user_chain.handle_received_messages().await;
+    meme_chain_0.handle_received_messages().await;
+    meme_chain_1.handle_received_messages().await;
+    user_chain.handle_received_messages().await;
+    pool_chain_user.handle_received_messages().await;
+    pool_chain_user.handle_received_messages().await;
     pool_chain_user.handle_received_messages().await;
 
     let QueryOutcome { response, .. } = pool_chain_user
@@ -742,7 +802,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_str("0.83375020843755211").unwrap(),
+        Amount::ONE,
     );
 
     let query = Request::new(
@@ -785,7 +845,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(793702066508289232628615),
+        Amount::from_attos(793701900258497670180725),
     );
 
     let query = Request::new(
@@ -838,7 +898,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_str("2.03375020843755211").unwrap(),
+        Amount::from_str("2.2").unwrap(),
     );
 
     let query = Request::new(
@@ -859,7 +919,29 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_str("2.927135999999999999").unwrap(),
+        Amount::from_str("3.0").unwrap(),
+    );
+
+    let claim_query = Request::new(
+        r#"
+        query Claimable($token: ApplicationId, $owner: Account!) {
+            claimableBalance(token: $token, owner: $owner)
+        }
+        "#,
+    )
+    .variables(Variables::from_json(json!({
+        "token": suite.meme_application_id_1.unwrap().forget_abi().to_string(),
+        "owner": {
+            "chain_id": user_account.chain_id.to_string(),
+            "owner": user_account.owner.to_string(),
+        }
+    })));
+    let QueryOutcome { response, .. } = pool_chain_user
+        .graphql_query(suite.pool_application_id_user.unwrap(), claim_query)
+        .await;
+    assert_eq!(
+        Amount::from_str(response["claimableBalance"].as_str().unwrap()).unwrap(),
+        Amount::from_str("0.072864000000000001").unwrap(),
     );
 
     let query = Request::new(
@@ -881,7 +963,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(793700866508289232628615),
+        Amount::from_attos(793700700258497670180725),
     );
 
     let query = Request::new(
@@ -902,7 +984,7 @@ async fn meme_meme_pair_test() {
         .await;
     assert_eq!(
         Amount::from_str(response["balanceOf"].as_str().unwrap()).unwrap(),
-        Amount::from_attos(1201586018831107624856253),
+        Amount::from_attos(1201585945967107624856252),
     );
 
     let QueryOutcome { response, .. } = pool_chain_user

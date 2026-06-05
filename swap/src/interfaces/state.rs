@@ -3,13 +3,17 @@ use abi::swap::{
     transaction::Transaction,
 };
 use async_trait::async_trait;
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId, ChainId, ModuleId, Timestamp};
+use linera_sdk::linera_base_types::{Amount, ApplicationId, ChainId, ModuleId, Timestamp};
 
 #[async_trait(?Send)]
 pub trait StateInterface {
     type Error: std::fmt::Debug + std::error::Error + 'static;
 
-    fn instantiate(&mut self, owner: Account, argument: InstantiationArgument);
+    fn instantiate(
+        &mut self,
+        owner: linera_sdk::linera_base_types::Account,
+        argument: InstantiationArgument,
+    );
 
     async fn get_pool(
         &self,
@@ -27,21 +31,16 @@ pub trait StateInterface {
 
     async fn create_pool(
         &mut self,
-        creator: Account,
+        creator: linera_sdk::linera_base_types::Account,
         token_0: ApplicationId,
         token_1: Option<ApplicationId>,
-        pool_application: Account,
+        pool_application: linera_sdk::linera_base_types::Account,
         timestamp: Timestamp,
     ) -> Result<(), Self::Error>;
 
     fn create_pool_chain(&mut self, chain_id: ChainId) -> Result<(), Self::Error>;
 
     async fn is_pool_chain(&self, chain_id: ChainId) -> Result<bool, Self::Error>;
-
-    async fn mark_user_pool_created(
-        &mut self,
-        pool_application: Account,
-    ) -> Result<bool, Self::Error>;
 
     async fn update_pool(
         &mut self,

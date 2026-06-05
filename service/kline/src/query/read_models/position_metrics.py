@@ -36,7 +36,7 @@ class PositionMetricsReadModel:
                     self._build_metric_diagnostic(
                         metric_row=metric_row,
                         fetch_stage='synthetic_virtual_position',
-                        fetch_reason_code='virtual_initial_protocol_fee_receiver',
+                        fetch_reason_code='virtual_initial_liquidity',
                     )
                 )
                 continue
@@ -123,7 +123,7 @@ class PositionMetricsReadModel:
             'fee_amount1': '0',
             'protocol_fee_amount0': position.get('protocol_fee_reference_amount0', '0'),
             'protocol_fee_amount1': position.get('protocol_fee_reference_amount1', '0'),
-            'value_warning_codes': ['virtual_initial_protocol_fee_receiver_position'],
+            'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
             'value_warning_message': (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
                 'This synthetic position marks the protocol fee receiver and uses the '
@@ -133,8 +133,6 @@ class PositionMetricsReadModel:
 
     def _is_protocol_fee_receiver_virtual_position(self, position: dict) -> bool:
         position_kind = str(position.get('position_kind') or '')
-        if position_kind == VirtualPositionsReadModel.SYNTHETIC_PROTOCOL_FEE_RECEIVER_POSITION_KIND:
-            return bool(position.get('is_virtual_position'))
         return (
             bool(position.get('is_virtual_position'))
             and self._is_protocol_fee_receiver(position)
@@ -193,7 +191,7 @@ class PositionMetricsReadModel:
             'fee_amount1': '0',
             'protocol_fee_amount0': self._serialize_decimal(protocol_fee_amount0),
             'protocol_fee_amount1': self._serialize_decimal(protocol_fee_amount1),
-            'value_warning_codes': ['virtual_initial_protocol_fee_receiver_position'],
+            'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
             'value_warning_message': (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
                 'Protocol yield is projected from parsed pool state.'

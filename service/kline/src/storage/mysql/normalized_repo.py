@@ -7,7 +7,24 @@ from normalizer.normalized_event_result import NormalizedEventResult
 
 class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
     MARKET_DERIVATION_EVENT_FAMILIES = (
-        'pool_new_transaction_recorded',
+        NormalizedEventResult.FAMILY_POOL_NEW_TRANSACTION_RECORDED,
+        NormalizedEventResult.FAMILY_POOL_SWAP_MESSAGE_OBSERVED,
+        NormalizedEventResult.FAMILY_POOL_SWAP_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_MESSAGE_OBSERVED,
+        NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_MESSAGE_OBSERVED,
+        NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_MESSAGE_OBSERVED,
+        NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_CLAIM_RECORDED,
+        NormalizedEventResult.FAMILY_POOL_CLAIM_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_CLAIM_TRANSFER_RECEIPT_RECORDED,
+        NormalizedEventResult.FAMILY_POOL_CLAIM_TRANSFER_RECEIPT_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_FUND_RESULT_RECORDED,
+        NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_TRANSFER_RECEIPT_RECORDED,
+        NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_TRANSFER_RECEIPT_REJECTED,
+        NormalizedEventResult.FAMILY_POOL_SWAP_TRANSFER_RECEIPT_RECORDED,
+        NormalizedEventResult.FAMILY_POOL_SWAP_TRANSFER_RECEIPT_REJECTED,
     )
     REPROCESS_REASON_COLUMN_LENGTH = 255
 
@@ -191,6 +208,110 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 ORDER BY CAST(raw_fact_id AS UNSIGNED) ASC, normalized_event_id ASC
                 LIMIT %s
                 ''',
+                tuple(params),
+            )
+            rows = cursor.fetchall() or []
+            return [self._decode_row(dict(row)) for row in rows]
+        finally:
+            cursor.close()
+
+    def list_pool_new_transactions_for_source_block(
+        self,
+        *,
+        application_id: str,
+        source_cert_hash: str,
+    ) -> list[dict]:
+        return self._list_pool_events(
+            application_id=application_id,
+            event_families=(NormalizedEventResult.FAMILY_POOL_NEW_TRANSACTION_RECORDED,),
+            source_cert_hash=source_cert_hash,
+        )
+
+    def list_correlatable_pool_messages(
+        self,
+        *,
+        application_id: str,
+        target_block_hash: str,
+    ) -> list[dict]:
+        return self._list_pool_events(
+            application_id=application_id,
+            event_families=(
+                NormalizedEventResult.FAMILY_POOL_SWAP_MESSAGE_OBSERVED,
+                NormalizedEventResult.FAMILY_POOL_ADD_LIQUIDITY_MESSAGE_OBSERVED,
+                NormalizedEventResult.FAMILY_POOL_REMOVE_LIQUIDITY_MESSAGE_OBSERVED,
+            ),
+            target_block_hash=target_block_hash,
+        )
+
+    def list_pool_initialize_liquidity_messages(
+        self,
+        *,
+        application_id: str,
+        target_block_hash: str,
+    ) -> list[dict]:
+        return self._list_pool_events(
+            application_id=application_id,
+            event_families=(
+                NormalizedEventResult.FAMILY_POOL_INITIALIZE_LIQUIDITY_MESSAGE_OBSERVED,
+            ),
+            target_block_hash=target_block_hash,
+        )
+
+    def _list_pool_events(
+        self,
+        *,
+        application_id: str,
+        event_families: tuple[str, ...],
+        source_cert_hash: str | None = None,
+        target_block_hash: str | None = None,
+    ) -> list[dict]:
+        cursor = self.cursor(dictionary=True)
+        try:
+            placeholders = ", ".join(["%s"] * len(event_families))
+            where_clauses = [
+                "application_id = %s",
+                f"event_family IN ({placeholders})",
+                "normalization_status = %s",
+            ]
+            params: list[object] = [
+                application_id,
+                *event_families,
+                NormalizedEventResult.STATUS_OBSERVED,
+            ]
+            if source_cert_hash is not None:
+                where_clauses.append("source_cert_hash = %s")
+                params.append(source_cert_hash)
+            if target_block_hash is not None:
+                where_clauses.append("target_block_hash = %s")
+                params.append(target_block_hash)
+            cursor.execute(
+                f"""
+                SELECT
+                    normalized_event_id,
+                    raw_fact_id,
+                    raw_table,
+                    application_id,
+                    payload_kind,
+                    event_family,
+                    event_type,
+                    correlation_key,
+                    normalization_status,
+                    source_chain_id,
+                    target_chain_id,
+                    source_block_hash,
+                    target_block_hash,
+                    source_cert_hash,
+                    transaction_index,
+                    message_index,
+                    app_type,
+                    payload_type,
+                    decode_status,
+                    event_payload_json,
+                    reprocess_reason
+                FROM {self.normalized_events_table}
+                WHERE {" AND ".join(where_clauses)}
+                ORDER BY CAST(raw_fact_id AS UNSIGNED) ASC, normalized_event_id ASC
+                """,
                 tuple(params),
             )
             rows = cursor.fetchall() or []

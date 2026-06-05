@@ -1,6 +1,6 @@
 import type { Interval } from './const'
 import type { Point, Points } from './types'
-import { shouldOverwriteOverlappingPoint } from 'src/worker/kline/pointMerge'
+import { shouldOverwriteOverlappingPoint } from './pointOverwrite'
 
 const mergePointLists = (current: Point[], incoming: Point[]): Point[] => {
   const merged = new Map<number, Point>()

@@ -181,12 +181,16 @@ Canonical mapping from existing `service/kline` product tables and query contrac
 
 ### Shadow Tables
 
-- Recommended first pass:
+- Historical migration shape:
   - `transactions_v2`
   - `candles_v2`
   - `position_state_v2`
   - `fee_state_v2`
-  - optional `pool_state_v2`
+  - `pool_state_v2`
+
+`pool_state_v2` is the current materialized pool-state snapshot table. Do not refer
+to a separate `pool_state` table when documenting or debugging the current
+implementation.
 
 ### Final Cutover
 

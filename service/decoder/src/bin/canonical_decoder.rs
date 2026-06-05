@@ -1,8 +1,14 @@
 use abi::ams::{AmsMessage, AmsOperation};
 use abi::blob_gateway::{BlobGatewayMessage, BlobGatewayOperation};
-use abi::meme::{MemeMessage, MemeOperation};
+use abi::meme::{
+    MemeMessage, MemeOperation, TransferFromApplicationReceipt,
+    TransferFromApplicationReceiptPayload,
+};
 use abi::proxy::{ProxyMessage, ProxyOperation};
-use abi::swap::pool::{PoolMessage, PoolOperation};
+use abi::swap::pool::{
+    AddLiquidityTransferReceipt, AddLiquidityTransferReceiptPayload, BootstrapPolicy,
+    ClaimTransferReceipt, FundRequest, PoolMessage, PoolOperation,
+};
 use abi::swap::router::{SwapMessage, SwapOperation};
 use abi::swap::transaction::{Transaction, TransactionType};
 use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, Timestamp};
@@ -123,6 +129,22 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "account": encode_account(account),
             }),
         ),
+        PoolOperation::InitializeLiquidity {
+            amount_0_in,
+            amount_1_in,
+            to,
+            block_timestamp,
+        } => (
+            "initialize_liquidity",
+            json!({
+                "operation_type": "initialize_liquidity",
+                "application_id": application_id,
+                "amount_0_in": encode_amount(amount_0_in),
+                "amount_1_in": encode_amount(amount_1_in),
+                "to": encode_option_account(to),
+                "block_timestamp_micros": encode_option_timestamp(block_timestamp),
+            }),
+        ),
         PoolOperation::AddLiquidity {
             amount_0_in,
             amount_1_in,
@@ -181,6 +203,39 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "block_timestamp_micros": encode_option_timestamp(block_timestamp),
             }),
         ),
+        PoolOperation::Claim { token, amount } => (
+            "claim",
+            json!({
+                "operation_type": "claim",
+                "application_id": application_id,
+                "token": token.map(|value| value.to_string()),
+                "amount": encode_amount(amount),
+            }),
+        ),
+        PoolOperation::ClaimTransferReceipt { receipt } => (
+            "claim_transfer_receipt",
+            json!({
+                "operation_type": "claim_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_claim_transfer_receipt(receipt),
+            }),
+        ),
+        PoolOperation::AddLiquidityTransferReceipt { receipt } => (
+            "add_liquidity_transfer_receipt",
+            json!({
+                "operation_type": "add_liquidity_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_add_liquidity_transfer_receipt(receipt),
+            }),
+        ),
+        PoolOperation::SwapTransferReceipt { receipt } => (
+            "swap_transfer_receipt",
+            json!({
+                "operation_type": "swap_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_swap_transfer_receipt(receipt),
+            }),
+        ),
     };
     Ok(json!({
         "payload_type": payload_type,
@@ -192,35 +247,58 @@ fn decode_pool_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
 fn decode_pool_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result<Value> {
     let message = bcs::from_bytes::<PoolMessage>(raw_bytes)?;
     let (payload_type, decoded_payload_json) = match message {
+        PoolMessage::ClaimTransferReceipt { receipt } => (
+            "claim_transfer_receipt",
+            json!({
+                "message_type": "claim_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_claim_transfer_receipt(receipt),
+            }),
+        ),
         PoolMessage::RequestFund {
-            token,
-            transfer_id,
-            amount,
+            prev,
+            request,
+            next,
         } => (
             "request_fund",
             json!({
                 "message_type": "request_fund",
                 "application_id": application_id,
-                "token": token.to_string(),
-                "transfer_id": transfer_id,
-                "amount": encode_amount(amount),
+                "prev": prev.map(encode_fund_request),
+                "request": encode_fund_request(request),
+                "next": next.map(encode_fund_request),
             }),
         ),
-        PoolMessage::FundSuccess { transfer_id } => (
-            "fund_success",
+        PoolMessage::FundResult {
+            prev,
+            request,
+            next,
+            result,
+        } => (
+            "fund_result",
             json!({
-                "message_type": "fund_success",
+                "message_type": "fund_result",
                 "application_id": application_id,
-                "transfer_id": transfer_id,
+                "prev": prev.map(encode_fund_request),
+                "request": encode_fund_request(request),
+                "next": next.map(encode_fund_request),
+                "result": encode_unit_result(result),
             }),
         ),
-        PoolMessage::FundFail { transfer_id, error } => (
-            "fund_fail",
+        PoolMessage::AddLiquidityTransferReceipt { receipt } => (
+            "add_liquidity_transfer_receipt",
             json!({
-                "message_type": "fund_fail",
+                "message_type": "add_liquidity_transfer_receipt",
                 "application_id": application_id,
-                "transfer_id": transfer_id,
-                "error": error,
+                "receipt": encode_add_liquidity_transfer_receipt(receipt),
+            }),
+        ),
+        PoolMessage::SwapTransferReceipt { receipt } => (
+            "swap_transfer_receipt",
+            json!({
+                "message_type": "swap_transfer_receipt",
+                "application_id": application_id,
+                "receipt": encode_swap_transfer_receipt(receipt),
             }),
         ),
         PoolMessage::Swap {
@@ -263,6 +341,24 @@ fn decode_pool_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "amount_1_in": encode_amount(amount_1_in),
                 "amount_0_out_min": encode_option_amount(amount_0_out_min),
                 "amount_1_out_min": encode_option_amount(amount_1_out_min),
+                "to": encode_option_account(to),
+                "block_timestamp_micros": encode_option_timestamp(block_timestamp),
+            }),
+        ),
+        PoolMessage::InitializeLiquidity {
+            origin,
+            amount_0_in,
+            amount_1_in,
+            to,
+            block_timestamp,
+        } => (
+            "initialize_liquidity",
+            json!({
+                "message_type": "initialize_liquidity",
+                "application_id": application_id,
+                "origin": encode_account(origin),
+                "amount_0_in": encode_amount(amount_0_in),
+                "amount_1_in": encode_amount(amount_1_in),
                 "to": encode_option_account(to),
                 "block_timestamp_micros": encode_option_timestamp(block_timestamp),
             }),
@@ -311,6 +407,20 @@ fn decode_pool_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "message_type": "new_transaction",
                 "application_id": application_id,
                 "transaction": encode_transaction(transaction),
+            }),
+        ),
+        PoolMessage::Claim {
+            origin,
+            token,
+            amount,
+        } => (
+            "claim",
+            json!({
+                "message_type": "claim",
+                "application_id": application_id,
+                "origin": encode_account(origin),
+                "token": token.map(|value| value.to_string()),
+                "amount": encode_amount(amount),
             }),
         ),
     };
@@ -504,9 +614,7 @@ fn decode_swap_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
             }),
         ),
         SwapOperation::CreatePool {
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
@@ -516,9 +624,7 @@ fn decode_swap_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
             json!({
                 "operation_type": "create_pool",
                 "application_id": application_id,
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
-                "token_1_creator_chain_id": token_1_creator_chain_id.map(|value| value.to_string()),
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
@@ -560,7 +666,6 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
     let (payload_type, decoded_payload_json) = match message {
         SwapMessage::InitializeLiquidity {
             creator,
-            token_0_creator_chain_id,
             token_0,
             amount_0,
             amount_1,
@@ -572,7 +677,6 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "message_type": "initialize_liquidity",
                 "application_id": application_id,
                 "creator": encode_account(creator),
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
@@ -583,15 +687,12 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
         SwapMessage::CreatePool {
             creator,
             pool_bytecode_id,
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
-            virtual_initial_liquidity,
+            bootstrap_policy,
             to,
-            user_pool,
         } => (
             "create_pool",
             json!({
@@ -599,15 +700,12 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "application_id": application_id,
                 "creator": encode_account(creator),
                 "pool_bytecode_id": pool_bytecode_id.to_string(),
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
-                "token_1_creator_chain_id": token_1_creator_chain_id.map(|value| value.to_string()),
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
-                "virtual_initial_liquidity": virtual_initial_liquidity,
+                "bootstrap_policy": encode_bootstrap_policy(&bootstrap_policy),
                 "to": encode_option_account(to),
-                "user_pool": user_pool,
             }),
         ),
         SwapMessage::PoolCreated {
@@ -617,9 +715,8 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
             token_1,
             amount_0,
             amount_1,
-            virtual_initial_liquidity,
+            bootstrap_policy,
             to,
-            user_pool,
         } => (
             "pool_created",
             json!({
@@ -631,15 +728,12 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
-                "virtual_initial_liquidity": virtual_initial_liquidity,
+                "bootstrap_policy": encode_bootstrap_policy(&bootstrap_policy),
                 "to": encode_option_account(to),
-                "user_pool": user_pool,
             }),
         ),
         SwapMessage::CreateUserPool {
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
@@ -649,9 +743,7 @@ fn decode_swap_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
             json!({
                 "message_type": "create_user_pool",
                 "application_id": application_id,
-                "token_0_creator_chain_id": token_0_creator_chain_id.to_string(),
                 "token_0": token_0.to_string(),
-                "token_1_creator_chain_id": token_1_creator_chain_id.map(|value| value.to_string()),
                 "token_1": token_1.map(|value| value.to_string()),
                 "amount_0": encode_amount(amount_0),
                 "amount_1": encode_amount(amount_1),
@@ -746,13 +838,35 @@ fn decode_meme_operation(application_id: &str, raw_bytes: &[u8]) -> anyhow::Resu
                 "amount": encode_amount(amount),
             }),
         ),
-        MemeOperation::InitializeLiquidity { to, amount } => (
+        MemeOperation::TransferFromApplicationWithReceipt {
+            to,
+            amount,
+            receipt,
+        } => (
+            "transfer_from_application_with_receipt",
+            json!({
+                "operation_type": "transfer_from_application_with_receipt",
+                "application_id": application_id,
+                "to": encode_account(to),
+                "amount": encode_amount(amount),
+                "receipt": encode_transfer_from_application_receipt(receipt),
+            }),
+        ),
+        MemeOperation::InitializeLiquidity {
+            pool_application,
+            amount_0,
+            pool_initialize,
+        } => (
             "initialize_liquidity",
             json!({
                 "operation_type": "initialize_liquidity",
                 "application_id": application_id,
-                "to": encode_account(to),
-                "amount": encode_amount(amount),
+                "pool_application": encode_account(pool_application),
+                "amount_0": encode_amount(amount_0),
+                "pool_initialize": {
+                    "amount_1_in": encode_amount(pool_initialize.amount_1_in),
+                    "to": encode_option_account(pool_initialize.to),
+                },
             }),
         ),
         MemeOperation::Approve { spender, amount } => (
@@ -859,14 +973,48 @@ fn decode_meme_message(application_id: &str, raw_bytes: &[u8]) -> anyhow::Result
                 "amount": encode_amount(amount),
             }),
         ),
-        MemeMessage::InitializeLiquidity { caller, to, amount } => (
+        MemeMessage::TransferFromApplicationWithReceipt {
+            caller,
+            to,
+            amount,
+            receipt,
+        } => (
+            "transfer_from_application_with_receipt",
+            json!({
+                "message_type": "transfer_from_application_with_receipt",
+                "application_id": application_id,
+                "caller": encode_account(caller),
+                "to": encode_account(to),
+                "amount": encode_amount(amount),
+                "receipt": encode_transfer_from_application_receipt(receipt),
+            }),
+        ),
+        MemeMessage::TransferFromApplicationReceipt { caller, receipt } => (
+            "transfer_from_application_receipt",
+            json!({
+                "message_type": "transfer_from_application_receipt",
+                "application_id": application_id,
+                "caller": encode_account(caller),
+                "receipt": encode_transfer_from_application_receipt(receipt),
+            }),
+        ),
+        MemeMessage::InitializeLiquidity {
+            caller,
+            pool_application,
+            amount_0,
+            pool_initialize,
+        } => (
             "initialize_liquidity",
             json!({
                 "message_type": "initialize_liquidity",
                 "application_id": application_id,
                 "caller": encode_account(caller),
-                "to": encode_account(to),
-                "amount": encode_amount(amount),
+                "pool_application": encode_account(pool_application),
+                "amount_0": encode_amount(amount_0),
+                "pool_initialize": {
+                    "amount_1_in": encode_amount(pool_initialize.amount_1_in),
+                    "to": encode_option_account(pool_initialize.to),
+                },
             }),
         ),
         MemeMessage::Approve {
@@ -1085,8 +1233,113 @@ fn encode_option_timestamp(value: Option<Timestamp>) -> Option<u64> {
     value.map(|timestamp| timestamp.micros())
 }
 
+fn encode_bootstrap_policy(policy: &BootstrapPolicy) -> Value {
+    match policy {
+        BootstrapPolicy::UserCreatePool => json!({
+            "kind": "user_create_pool"
+        }),
+        BootstrapPolicy::MemeInitializeLiquidity {
+            virtual_initial_liquidity,
+        } => json!({
+            "kind": "meme_initialize_liquidity",
+            "virtual_initial_liquidity": virtual_initial_liquidity,
+        }),
+    }
+}
+
 fn encode_option_amount(value: Option<Amount>) -> Option<String> {
     value.map(encode_amount)
+}
+
+fn encode_claim_transfer_receipt(value: ClaimTransferReceipt) -> Value {
+    json!({
+        "owner": encode_account(value.owner),
+        "token": value.token.to_string(),
+        "amount": encode_amount(value.amount),
+        "result": encode_unit_result(value.result),
+    })
+}
+
+fn encode_add_liquidity_transfer_receipt(value: AddLiquidityTransferReceipt) -> Value {
+    json!({
+        "result": encode_unit_result(value.result),
+        "prev": value.prev.map(encode_fund_request),
+        "request": encode_fund_request(value.request),
+        "next": value.next.map(encode_fund_request),
+    })
+}
+
+fn encode_add_liquidity_transfer_receipt_payload(
+    value: AddLiquidityTransferReceiptPayload,
+) -> Value {
+    json!({
+        "prev": value.prev.map(encode_fund_request),
+        "request": encode_fund_request(value.request),
+        "next": value.next.map(encode_fund_request),
+    })
+}
+
+fn encode_swap_transfer_receipt(value: abi::swap::pool::SwapTransferReceipt) -> Value {
+    json!({
+        "result": encode_unit_result(value.result),
+        "request": encode_fund_request(value.request),
+    })
+}
+
+fn encode_swap_transfer_receipt_payload(
+    value: abi::swap::pool::SwapTransferReceiptPayload,
+) -> Value {
+    json!({
+        "request": encode_fund_request(value.request),
+    })
+}
+
+fn encode_fund_request(value: FundRequest) -> Value {
+    json!({
+        "from": encode_account(value.from),
+        "token": value.token.map(|token| token.to_string()),
+        "amount_in": encode_amount(value.amount_in),
+        "amount_out_min": encode_option_amount(value.amount_out_min),
+        "counterparty_token": value.counterparty_token.map(|token| token.to_string()),
+        "counterparty_amount_in": encode_option_amount(value.counterparty_amount_in),
+        "counterparty_amount_out_min": encode_option_amount(value.counterparty_amount_out_min),
+        "to": encode_option_account(value.to),
+        "block_timestamp_micros": encode_option_timestamp(value.block_timestamp),
+        "fund_type": format!("{:?}", value.fund_type),
+    })
+}
+
+fn encode_transfer_from_application_receipt(value: TransferFromApplicationReceipt) -> Value {
+    json!({
+        "purpose": format!("{:?}", value.purpose),
+        "owner": encode_account(value.owner),
+        "token": value.token.to_string(),
+        "amount": encode_amount(value.amount),
+        "result": value.result.map(encode_unit_result),
+        "payload": value.payload.map(encode_transfer_from_application_receipt_payload),
+    })
+}
+
+fn encode_transfer_from_application_receipt_payload(
+    value: TransferFromApplicationReceiptPayload,
+) -> Value {
+    match value {
+        TransferFromApplicationReceiptPayload::PoolAddLiquidity(receipt) => json!({
+            "kind": "pool_add_liquidity",
+            "receipt": encode_add_liquidity_transfer_receipt_payload(receipt),
+        }),
+        TransferFromApplicationReceiptPayload::PoolSwap(receipt) => json!({
+            "kind": "pool_swap",
+            "receipt": encode_swap_transfer_receipt_payload(receipt),
+        }),
+    }
+}
+
+fn encode_unit_result(value: Result<(), String>) -> Value {
+    match value {
+        Ok(()) => json!({ "ok": true }),
+        Err(error) => json!({ "ok": false, "error": error }),
+    }
 }
 
 fn encode_amount(value: Amount) -> String {

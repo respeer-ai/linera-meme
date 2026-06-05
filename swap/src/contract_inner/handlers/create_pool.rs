@@ -1,7 +1,10 @@
 use crate::interfaces::state::StateInterface;
 use abi::{
     policy::open_chain_fee_budget,
-    swap::router::{SwapMessage, SwapResponse},
+    swap::{
+        pool::BootstrapPolicy,
+        router::{SwapMessage, SwapResponse},
+    },
 };
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
@@ -21,16 +24,13 @@ pub struct CreatePoolHandler<
     state: Rc<RefCell<S>>,
 
     creator: Account,
-    token_0_creator_chain_id: ChainId,
     token_0: ApplicationId,
-    token_1_creator_chain_id: Option<ChainId>,
     token_1: Option<ApplicationId>,
     amount_0: Amount,
     amount_1: Amount,
-    virtual_liquidity: bool,
+    bootstrap_policy: BootstrapPolicy,
     to: Option<Account>,
     _deadline: Option<Timestamp>,
-    user_pool: bool,
 }
 
 impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInterface>
@@ -40,32 +40,26 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
         runtime: Rc<RefCell<R>>,
         state: Rc<RefCell<S>>,
         creator: Account,
-        token_0_creator_chain_id: ChainId,
         token_0: ApplicationId,
-        token_1_creator_chain_id: Option<ChainId>,
         token_1: Option<ApplicationId>,
         amount_0: Amount,
         amount_1: Amount,
-        virtual_liquidity: bool,
+        bootstrap_policy: BootstrapPolicy,
         to: Option<Account>,
         _deadline: Option<Timestamp>,
-        user_pool: bool,
     ) -> Self {
         Self {
             state,
             runtime,
 
             creator,
-            token_0_creator_chain_id,
             token_0,
-            token_1_creator_chain_id,
             token_1,
             amount_0,
             amount_1,
-            virtual_liquidity,
+            bootstrap_policy,
             to,
             _deadline,
-            user_pool,
         }
     }
 
@@ -105,6 +99,17 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        match &self.bootstrap_policy {
+            BootstrapPolicy::UserCreatePool => {
+                assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+                assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+                assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
+            }
+            BootstrapPolicy::MemeInitializeLiquidity {
+                virtual_initial_liquidity: _,
+            } => {}
+        }
+
         let pool_bytecode_id = self.state.borrow_mut().pool_bytecode_id();
 
         let destination = self.create_child_chain(self.token_0, self.token_1)?;
@@ -121,16 +126,14 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
             SwapMessage::CreatePool {
                 creator: self.creator,
                 pool_bytecode_id,
-                token_0_creator_chain_id: self.token_0_creator_chain_id,
                 token_0: self.token_0,
-                token_1_creator_chain_id: self.token_1_creator_chain_id,
                 token_1: self.token_1,
                 amount_0: self.amount_0,
                 amount_1: self.amount_1,
-                virtual_initial_liquidity: self.virtual_liquidity,
+                bootstrap_policy: self.bootstrap_policy.clone(),
                 to: self.to,
-                user_pool: self.user_pool,
             },
+            false,
         );
 
         Ok(Some(outcome))

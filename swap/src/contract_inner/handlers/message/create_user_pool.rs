@@ -1,10 +1,16 @@
 use crate::{
     contract_inner::handlers::create_pool::CreatePoolHandler, interfaces::state::StateInterface,
 };
-use abi::swap::router::{SwapMessage, SwapResponse};
+use abi::{
+    policy::open_chain_fee_budget,
+    swap::{
+        pool::BootstrapPolicy,
+        router::{SwapMessage, SwapResponse},
+    },
+};
 use async_trait::async_trait;
 use base::handler::{Handler, HandlerError, HandlerOutcome};
-use linera_sdk::linera_base_types::{Account, Amount, ApplicationId};
+use linera_sdk::linera_base_types::{Account, AccountOwner, Amount, ApplicationId};
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
 };
@@ -60,52 +66,48 @@ impl<R: ContractRuntimeContext + AccessControl + MemeRuntimeContext, S: StateInt
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
+        // CreateUserPool is not a second public surface with looser semantics.
+        // It is the internal continuation of a public CreatePool request that is
+        // already constrained to two-sided real initial liquidity.
+        //
+        // token_0 remains a meme application id.
+        // token_1 remains either:
+        // - Some(meme application id)
+        // - None for the native-token fact shape
         assert!(Some(self.token_0) != self.token_1, "Invalid token pair");
+        assert!(self.amount_0 > Amount::ZERO, "Invalid amount_0");
+        assert!(self.amount_1 > Amount::ZERO, "Invalid amount_1");
 
-        if let Some(_) = self
+        if self
             .state
             .borrow()
             .get_pool_exchangable(self.token_0, self.token_1)
             .await
             .expect("Failed: get pool exchangable")
+            .is_some()
         {
-            // TODO: refund fee budget
-            panic!("Pool exists");
+            let creator = self.runtime.borrow_mut().message_signer_account();
+            self.runtime.borrow_mut().transfer(
+                AccountOwner::CHAIN,
+                creator,
+                open_chain_fee_budget(),
+            );
+            return Ok(None);
         }
 
         let creator = self.runtime.borrow_mut().message_signer_account();
-
-        // Safe to call meme to get creator chain id here due to it's from user
-        let token_0_creator_chain_id = self
-            .runtime
-            .borrow_mut()
-            .token_creator_chain_id(self.token_0)
-            .expect("Failed: token creator chain id");
-        let token_1_creator_chain_id = if let Some(token_1) = self.token_1 {
-            Some(
-                self.runtime
-                    .borrow_mut()
-                    .token_creator_chain_id(token_1)
-                    .expect("Failed: token creator chain id"),
-            )
-        } else {
-            None
-        };
 
         let mut handler = CreatePoolHandler::new(
             self.runtime.clone(),
             self.state.clone(),
             creator,
-            token_0_creator_chain_id,
             self.token_0,
-            token_1_creator_chain_id,
             self.token_1,
             self.amount_0,
             self.amount_1,
-            false,
+            BootstrapPolicy::UserCreatePool,
             self.to,
             None,
-            true,
         );
 
         handler.handle().await

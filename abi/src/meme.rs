@@ -1,4 +1,9 @@
-use crate::store_type::StoreType;
+use crate::{
+    store_type::StoreType,
+    swap::pool::{
+        AddLiquidityTransferReceiptPayload, PoolInitializeLiquidityCall, SwapTransferReceiptPayload,
+    },
+};
 use async_graphql::{scalar, InputObject, Request, Response, SimpleObject};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
@@ -230,7 +235,6 @@ pub struct MemeParameters {
     pub virtual_initial_liquidity: bool,
     // TODO: work around for https://github.com/linera-io/linera-protocol/issues/3538
     pub swap_creator_chain_id: ChainId,
-
     pub enable_mining: bool,
     pub mining_supply: Option<Amount>,
 }
@@ -249,6 +253,31 @@ impl ServiceAbi for MemeAbi {
     type QueryResponse = Response;
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub enum TransferFromApplicationReceiptPurpose {
+    PoolClaim,
+    PoolAddLiquidity,
+    PoolSwap,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum TransferFromApplicationReceiptPayload {
+    PoolAddLiquidity(AddLiquidityTransferReceiptPayload),
+    PoolSwap(SwapTransferReceiptPayload),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct TransferFromApplicationReceipt {
+    pub purpose: TransferFromApplicationReceiptPurpose,
+    pub owner: Account,
+    pub token: ApplicationId,
+    pub amount: Amount,
+    pub result: Option<Result<(), String>>,
+    pub payload: Option<TransferFromApplicationReceiptPayload>,
+}
+
+scalar!(TransferFromApplicationReceipt);
+
 #[derive(Debug, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum MemeOperation {
     CreatorChainId,
@@ -266,10 +295,16 @@ pub enum MemeOperation {
         to: Account,
         amount: Amount,
     },
-    // Special operation used by swap to initialize liquidity for new pool
-    InitializeLiquidity {
+    TransferFromApplicationWithReceipt {
         to: Account,
         amount: Amount,
+        receipt: TransferFromApplicationReceipt,
+    },
+    // Special operation used by swap to initialize liquidity for new pool
+    InitializeLiquidity {
+        pool_application: Account,
+        amount_0: Amount,
+        pool_initialize: PoolInitializeLiquidityCall,
     },
     Approve {
         spender: Account,
@@ -314,11 +349,22 @@ pub enum MemeMessage {
         to: Account,
         amount: Amount,
     },
-    // Special operation used by swap to initialize liquidity for new pool
-    InitializeLiquidity {
+    TransferFromApplicationWithReceipt {
         caller: Account,
         to: Account,
         amount: Amount,
+        receipt: TransferFromApplicationReceipt,
+    },
+    TransferFromApplicationReceipt {
+        caller: Account,
+        receipt: TransferFromApplicationReceipt,
+    },
+    // Special operation used by swap to initialize liquidity for new pool
+    InitializeLiquidity {
+        caller: Account,
+        pool_application: Account,
+        amount_0: Amount,
+        pool_initialize: PoolInitializeLiquidityCall,
     },
     Approve {
         owner: Account,

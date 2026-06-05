@@ -5,13 +5,16 @@ from app.observability_supervisor import ObservabilitySupervisor
 from position_metrics_bootstrap import PositionMetricsBootstrap
 from query.handlers.kline import KlineHandler
 from query.handlers.position_metrics_noop_diagnostic_recorder import PositionMetricsNoopDiagnosticRecorder
+from query.handlers.claim_balances import ClaimBalancesHandler
 from query.handlers.positions import PositionsHandler
 from query.handlers.transactions import TransactionsHandler
 from query.read_models.candles import CandlesReadModel
+from query.read_models.claim_balances import ClaimBalancesReadModel
 from query.read_models.position_metrics_protocol_fee_split_semantics import PositionMetricsProtocolFeeSplitSemantics
 from query.read_models.positions import PositionsReadModel
 from query.read_models.virtual_positions import VirtualPositionsReadModel
 from query.read_models.transactions import TransactionsReadModel
+from query.serializers.claim_balances import ClaimBalancesSerializer
 from query.serializers.kline import KlineSerializer
 from query.serializers.positions import PositionsSerializer
 from query.serializers.transactions import TransactionsSerializer
@@ -24,6 +27,7 @@ from realtime.market_data_payload_builder import MarketDataPayloadBuilder
 from realtime.realtime_diagnostic_recorder import RealtimeDiagnosticRecorder
 from storage.mysql.debug_traces_query_repo import DebugTracesQueryRepository
 from storage.mysql.diagnostic_events_query_repo import DiagnosticEventsQueryRepository
+from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRepository
 from storage.mysql.market_stats_projection_repo import MarketStatsProjectionRepository
 from storage.mysql.position_metrics_diagnostic_recorder import PositionMetricsDiagnosticRecorder
 from storage.mysql.position_metrics_positions_projection_repo import PositionMetricsPositionsProjectionRepository
@@ -73,6 +77,10 @@ class KlineRuntime:
     def settled_liquidity_projection_repository(self):
         self.require_db()
         return SettledLiquidityProjectionRepository(self._db)
+
+    def claim_balance_projection_repository(self):
+        self.require_db()
+        return ClaimBalanceProjectionRepository(self._db.connection)
 
     def settled_pool_history_projection_repository(self):
         self.require_db()
@@ -174,6 +182,12 @@ class KlineRuntime:
                 virtual_positions_read_model=self.virtual_positions_read_model(),
             ),
             PositionsSerializer(),
+        )
+
+    def claim_balances_handler(self) -> ClaimBalancesHandler:
+        return ClaimBalancesHandler(
+            ClaimBalancesReadModel(self.claim_balance_projection_repository()),
+            ClaimBalancesSerializer(),
         )
 
     def virtual_positions_read_model(self) -> VirtualPositionsReadModel | None:
@@ -284,6 +298,8 @@ class KlineRuntime:
             queue=self.build_market_data_event_queue(),
             pool_catalog_repository=self._build_projection_pool_catalog_repository_for_db(realtime_db),
             pool_catalog_repository_factory=self._build_scheduler_pool_catalog_repository_factory(realtime_db),
+            market_watermark_repository=SettledTradeProjectionRepository(realtime_db),
+            market_watermark_repository_factory=self._build_scheduler_market_watermark_repository_factory(realtime_db),
             account_codec=AccountCodec(),
         )
 
@@ -313,6 +329,26 @@ class KlineRuntime:
 
         return factory
 
+    def _build_scheduler_market_watermark_repository_factory(self, realtime_db):
+        if not hasattr(realtime_db, 'config'):
+            return None
+
+        def factory():
+            scheduler_db = Db(
+                realtime_db.host,
+                realtime_db.port,
+                realtime_db.db_name,
+                realtime_db.username,
+                realtime_db.password,
+                False,
+            )
+            return _OwnedDbMarketWatermarkRepository(
+                db=scheduler_db,
+                repository=SettledTradeProjectionRepository(scheduler_db),
+            )
+
+        return factory
+
     async def get_protocol_stats(self) -> dict:
         pools = self.projection_pool_catalog_repository().list_current_pools()
         return self.market_stats_projection_repository().get_protocol_stats(pools=pools)
@@ -329,6 +365,18 @@ class _OwnedDbProjectionPoolCatalogRepository:
 
     def list_current_pool_views(self):
         return self.repository.list_current_pool_views()
+
+    def close(self):
+        self.db.close()
+
+
+class _OwnedDbMarketWatermarkRepository:
+    def __init__(self, *, db, repository):
+        self.db = db
+        self.repository = repository
+
+    def load_pool_market_watermark_ms(self, pool_application):
+        return self.repository.load_pool_market_watermark_ms(pool_application)
 
     def close(self):
         self.db.close()

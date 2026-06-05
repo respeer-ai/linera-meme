@@ -41,6 +41,7 @@ from registry.proxy_operation_decoder import ProxyOperationDecoder
 from registry.swap_message_decoder import SwapMessageDecoder
 from registry.swap_operation_decoder import SwapOperationDecoder
 from storage.mysql.application_registry_repo import ApplicationRegistryRepository
+from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRepository
 from storage.mysql.connection import MysqlConnectionFactory
 from storage.mysql.normalized_repo import NormalizedEventRepository
 from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
@@ -97,6 +98,7 @@ class AppBootstrap:
         pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
+        claim_balance_projection_repository = ClaimBalanceProjectionRepository(connection)
         position_state_snapshot_repository = PositionStateSnapshotRepository(connection)
         pool_state_snapshot_repository = PoolStateSnapshotRepository(connection)
         position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(connection)
@@ -131,6 +133,7 @@ class AppBootstrap:
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
+            claim_balance_projection_repository=claim_balance_projection_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
             settled_market_deriver=settled_market_deriver,
             market_data_event_sink=self.market_data_event_sink,
@@ -145,6 +148,7 @@ class AppBootstrap:
             'pool_catalog_projection_repository': pool_catalog_projection_repository,
             'settled_trade_repository': settled_trade_repository,
             'settled_liquidity_change_repository': settled_liquidity_change_repository,
+            'claim_balance_projection_repository': claim_balance_projection_repository,
             'position_state_snapshot_repository': position_state_snapshot_repository,
             'pool_state_snapshot_repository': pool_state_snapshot_repository,
             'position_metrics_snapshot_materialization_inputs_repository': position_metrics_snapshot_materialization_inputs_repository,
@@ -242,6 +246,7 @@ class AppBootstrap:
         pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
+        claim_balance_projection_repository = ClaimBalanceProjectionRepository(connection)
         position_state_snapshot_repository = PositionStateSnapshotRepository(connection)
         pool_state_snapshot_repository = PoolStateSnapshotRepository(connection)
         position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(connection)
@@ -261,6 +266,7 @@ class AppBootstrap:
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
+            claim_balance_projection_repository=claim_balance_projection_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
             settled_market_deriver=SettledMarketDeriver(),
             market_data_event_sink=self.market_data_event_sink,
@@ -280,6 +286,7 @@ class AppBootstrap:
         normalized_event_repository,
         settled_trade_repository,
         settled_liquidity_change_repository,
+        claim_balance_projection_repository,
         position_metrics_snapshot_materializer,
         settled_market_deriver,
         market_data_event_sink,
@@ -316,6 +323,9 @@ class AppBootstrap:
             settled_market_deriver=settled_market_deriver,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
+            claim_balance_projection_repository=claim_balance_projection_repository,
+            pool_catalog_repository=pool_catalog_projection_repository,
+            normalized_event_repository=normalized_event_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
         )
         market_derivation_worker = MarketDerivationWorker(

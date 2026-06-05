@@ -1,4 +1,4 @@
-use crate::FundRequest;
+use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
     transaction::Transaction,
@@ -17,7 +17,7 @@ pub trait StateInterface {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<Amount, Self::Error>;
+    ) -> Result<(), Self::Error>;
 
     fn pool(&self) -> Pool;
 
@@ -26,20 +26,7 @@ pub trait StateInterface {
     fn reserve_0(&self) -> Amount;
     fn reserve_1(&self) -> Amount;
     fn total_supply(&self) -> Amount;
-
-    fn consume_transfer_id(&mut self) -> u64;
-
-    fn create_fund_request(&mut self, fund_request: FundRequest) -> Result<u64, Self::Error>;
-
-    async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, Self::Error>;
-
-    async fn _fund_requests(&self) -> Result<Vec<FundRequest>, Self::Error>;
-
-    async fn update_fund_request(
-        &mut self,
-        transfer_id: u64,
-        fund_request: FundRequest,
-    ) -> Result<(), Self::Error>;
+    fn has_finalized_reserve_share_facts(&self) -> bool;
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error>;
     fn calculate_swap_amount_1(&self, amount_0: Amount) -> Result<Amount, Self::Error>;
@@ -69,6 +56,14 @@ pub trait StateInterface {
         block_timestamp: Timestamp,
     ) -> Result<Amount, Self::Error>;
 
+    async fn initialize_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) -> Result<Amount, Self::Error>;
+
     async fn remove_liquidity(
         &mut self,
         from: Account,
@@ -79,6 +74,53 @@ pub trait StateInterface {
     ) -> Result<(Amount, Amount), Self::Error>;
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error>;
+
+    async fn claimable_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error>;
+
+    async fn claiming_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error>;
+
+    async fn credit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn debit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn claim(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn claim_success(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
+
+    async fn claim_fail(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error>;
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error>;
 

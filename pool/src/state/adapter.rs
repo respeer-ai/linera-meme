@@ -1,7 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use super::errors::StateError;
-use crate::{interfaces::state::StateInterface, state::PoolState, FundRequest};
+use crate::{interfaces::state::StateInterface, state::PoolState};
+use abi::meme_token::MemeToken;
 use abi::swap::{
     pool::{InstantiationArgument, Pool, PoolParameters},
     transaction::Transaction,
@@ -30,7 +31,7 @@ impl StateInterface for StateAdapter {
         parameters: PoolParameters,
         owner: Account,
         block_timestamp: Timestamp,
-    ) -> Result<Amount, Self::Error> {
+    ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
             .instantiate(argument, parameters, owner, block_timestamp)
@@ -57,31 +58,8 @@ impl StateInterface for StateAdapter {
         self.state.borrow().total_supply()
     }
 
-    fn consume_transfer_id(&mut self) -> u64 {
-        self.state.borrow_mut().consume_transfer_id()
-    }
-
-    fn create_fund_request(&mut self, fund_request: FundRequest) -> Result<u64, Self::Error> {
-        self.state.borrow_mut().create_fund_request(fund_request)
-    }
-
-    async fn fund_request(&self, transfer_id: u64) -> Result<FundRequest, Self::Error> {
-        self.state.borrow().fund_request(transfer_id).await
-    }
-
-    async fn _fund_requests(&self) -> Result<Vec<FundRequest>, Self::Error> {
-        self.state.borrow()._fund_requests().await
-    }
-
-    async fn update_fund_request(
-        &mut self,
-        transfer_id: u64,
-        fund_request: FundRequest,
-    ) -> Result<(), Self::Error> {
-        self.state
-            .borrow_mut()
-            .update_fund_request(transfer_id, fund_request)
-            .await
+    fn has_finalized_reserve_share_facts(&self) -> bool {
+        self.state.borrow().has_finalized_reserve_share_facts()
     }
 
     fn calculate_swap_amount_0(&self, amount_1: Amount) -> Result<Amount, Self::Error> {
@@ -139,6 +117,19 @@ impl StateInterface for StateAdapter {
             .await
     }
 
+    async fn initialize_liquidity(
+        &mut self,
+        amount_0: Amount,
+        amount_1: Amount,
+        to: Account,
+        block_timestamp: Timestamp,
+    ) -> Result<Amount, Self::Error> {
+        self.state
+            .borrow_mut()
+            .initialize_liquidity(amount_0, amount_1, to, block_timestamp)
+            .await
+    }
+
     async fn remove_liquidity(
         &mut self,
         from: Account,
@@ -155,6 +146,73 @@ impl StateInterface for StateAdapter {
 
     async fn liquidity(&self, account: Account) -> Result<Amount, Self::Error> {
         self.state.borrow().liquidity(account).await
+    }
+
+    async fn claimable_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        self.state.borrow().claimable_balance(token, owner).await
+    }
+
+    async fn claiming_balance(
+        &self,
+        token: MemeToken,
+        owner: Account,
+    ) -> Result<Amount, Self::Error> {
+        self.state.borrow().claiming_balance(token, owner).await
+    }
+
+    async fn credit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state.borrow_mut().credit(token, owner, amount).await
+    }
+
+    async fn debit(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state.borrow_mut().debit(token, owner, amount).await
+    }
+
+    async fn claim(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state.borrow_mut().claim(token, owner, amount).await
+    }
+
+    async fn claim_success(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .claim_success(token, owner, amount)
+            .await
+    }
+
+    async fn claim_fail(
+        &mut self,
+        token: MemeToken,
+        owner: Account,
+        amount: Amount,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .claim_fail(token, owner, amount)
+            .await
     }
 
     async fn mint(&mut self, to: Account, amount: Amount) -> Result<(), Self::Error> {

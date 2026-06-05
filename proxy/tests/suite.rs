@@ -252,6 +252,31 @@ impl TestSuite {
         enable_mining: bool,
         mining_supply: Option<Amount>,
     ) -> ChainDescription {
+        self.create_meme_application_with_liquidity(
+            chain,
+            "Test Token",
+            "LTT",
+            Some(Liquidity {
+                fungible_amount: self.initial_liquidity,
+                native_amount: self.initial_native,
+            }),
+            virtual_initial_liquidity,
+            enable_mining,
+            mining_supply,
+        )
+        .await
+    }
+
+    pub async fn create_meme_application_with_liquidity(
+        &self,
+        chain: &ActiveChain,
+        name: &str,
+        ticker: &str,
+        initial_liquidity: Option<Liquidity>,
+        virtual_initial_liquidity: bool,
+        enable_mining: bool,
+        mining_supply: Option<Amount>,
+    ) -> ChainDescription {
         let (certificate, _) = chain
             .add_block(|block| {
                 block.with_operation(
@@ -259,8 +284,8 @@ impl TestSuite {
                     ProxyOperation::CreateMeme {
                         meme_instantiation_argument: MemeInstantiationArgument {
                             meme: Meme {
-                                name: "Test Token".to_string(),
-                                ticker: "LTT".to_string(),
+                                name: name.to_string(),
+                                ticker: ticker.to_string(),
                                 decimals: 6,
                                 initial_supply: Amount::from_tokens(21000000),
                                 total_supply: Amount::from_tokens(21000000),
@@ -289,13 +314,9 @@ impl TestSuite {
                         },
                         meme_parameters: MemeParameters {
                             creator: self.chain_owner_account(chain),
-                            initial_liquidity: Some(Liquidity {
-                                fungible_amount: self.initial_liquidity,
-                                native_amount: self.initial_native,
-                            }),
+                            initial_liquidity,
                             virtual_initial_liquidity,
                             swap_creator_chain_id: self.swap_chain.id(),
-
                             enable_mining,
                             mining_supply,
                         },

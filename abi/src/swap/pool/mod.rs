@@ -1,9 +1,7 @@
-use async_graphql::{scalar, InputObject, Request, Response};
+use async_graphql::{scalar, Enum, InputObject, Request, Response};
 use linera_sdk::{
     graphql::GraphQLMutationRoot,
-    linera_base_types::{
-        Account, Amount, ApplicationId, ChainId, ContractAbi, ServiceAbi, Timestamp,
-    },
+    linera_base_types::{Account, Amount, ApplicationId, ContractAbi, ServiceAbi, Timestamp},
 };
 use primitive_types::U256;
 use rust_decimal::prelude::*;
@@ -23,13 +21,158 @@ impl ServiceAbi for PoolAbi {
     type Query = Request;
     type QueryResponse = Response;
 }
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
+
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, InputObject)]
+pub struct PoolInitializeLiquidityCall {
+    pub amount_1_in: Amount,
+    pub to: Option<Account>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ClaimTransferReceipt {
+    pub owner: Account,
+    pub token: ApplicationId,
+    pub amount: Amount,
+    pub result: Result<(), String>,
+}
+
+scalar!(ClaimTransferReceipt);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AddLiquidityTransferReceiptPayload {
+    pub prev: Option<FundRequest>,
+    pub request: FundRequest,
+    pub next: Option<FundRequest>,
+}
+
+scalar!(AddLiquidityTransferReceiptPayload);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AddLiquidityTransferReceipt {
+    pub result: Result<(), String>,
+    pub prev: Option<FundRequest>,
+    pub request: FundRequest,
+    pub next: Option<FundRequest>,
+}
+
+scalar!(AddLiquidityTransferReceipt);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SwapTransferReceiptPayload {
+    pub request: FundRequest,
+}
+
+scalar!(SwapTransferReceiptPayload);
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct SwapTransferReceipt {
+    pub result: Result<(), String>,
+    pub request: FundRequest,
+}
+
+scalar!(SwapTransferReceipt);
+
+#[derive(Clone, Debug, Deserialize, Serialize, Enum, Eq, Copy, PartialEq)]
+pub enum FundType {
+    Swap,
+    InitializeLiquidity,
+    AddLiquidity,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct FundRequest {
+    pub from: Account,
+    pub token: Option<ApplicationId>,
+    pub amount_in: Amount,
+    pub amount_out_min: Option<Amount>,
+    pub counterparty_token: Option<ApplicationId>,
+    pub counterparty_amount_in: Option<Amount>,
+    pub counterparty_amount_out_min: Option<Amount>,
+    pub to: Option<Account>,
+    pub block_timestamp: Option<Timestamp>,
+    pub fund_type: FundType,
+}
+
+pub struct FundRequestBuilder {
+    request: FundRequest,
+}
+
+impl FundRequest {
+    pub fn builder(
+        from: Account,
+        token: Option<ApplicationId>,
+        amount_in: Amount,
+        fund_type: FundType,
+    ) -> FundRequestBuilder {
+        FundRequestBuilder {
+            request: Self {
+                from,
+                token,
+                amount_in,
+                amount_out_min: None,
+                counterparty_token: None,
+                counterparty_amount_in: None,
+                counterparty_amount_out_min: None,
+                to: None,
+                block_timestamp: None,
+                fund_type,
+            },
+        }
+    }
+}
+
+impl FundRequestBuilder {
+    pub fn amount_out_min(mut self, amount_out_min: Option<Amount>) -> Self {
+        self.request.amount_out_min = amount_out_min;
+        self
+    }
+
+    pub fn counterparty_token(mut self, counterparty_token: Option<ApplicationId>) -> Self {
+        self.request.counterparty_token = counterparty_token;
+        self
+    }
+
+    pub fn counterparty_amount_in(mut self, counterparty_amount_in: Option<Amount>) -> Self {
+        self.request.counterparty_amount_in = counterparty_amount_in;
+        self
+    }
+
+    pub fn counterparty_amount_out_min(
+        mut self,
+        counterparty_amount_out_min: Option<Amount>,
+    ) -> Self {
+        self.request.counterparty_amount_out_min = counterparty_amount_out_min;
+        self
+    }
+
+    pub fn to(mut self, to: Option<Account>) -> Self {
+        self.request.to = to;
+        self
+    }
+
+    pub fn block_timestamp(mut self, block_timestamp: Option<Timestamp>) -> Self {
+        self.request.block_timestamp = block_timestamp;
+        self
+    }
+
+    pub fn build(self) -> FundRequest {
+        self.request
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, GraphQLMutationRoot)]
 pub enum PoolOperation {
     SetFeeTo {
         account: Account,
     },
     SetFeeToSetter {
         account: Account,
+    },
+    InitializeLiquidity {
+        amount_0_in: Amount,
+        amount_1_in: Amount,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
     },
     AddLiquidity {
         amount_0_in: Amount,
@@ -54,6 +197,19 @@ pub enum PoolOperation {
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
+    Claim {
+        token: Option<ApplicationId>,
+        amount: Amount,
+    },
+    ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt,
+    },
+    AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt,
+    },
+    SwapTransferReceipt {
+        receipt: SwapTransferReceipt,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -64,19 +220,25 @@ pub enum PoolResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum PoolMessage {
-    // Sent from user chain to meme chain
+    ClaimTransferReceipt {
+        receipt: ClaimTransferReceipt,
+    },
     RequestFund {
-        token: ApplicationId,
-        transfer_id: u64,
-        amount: Amount,
+        prev: Option<FundRequest>,
+        request: FundRequest,
+        next: Option<FundRequest>,
     },
-    // Sent from meme chain to user chain
-    FundSuccess {
-        transfer_id: u64,
+    FundResult {
+        prev: Option<FundRequest>,
+        request: FundRequest,
+        next: Option<FundRequest>,
+        result: Result<(), String>,
     },
-    FundFail {
-        transfer_id: u64,
-        error: String,
+    AddLiquidityTransferReceipt {
+        receipt: AddLiquidityTransferReceipt,
+    },
+    SwapTransferReceipt {
+        receipt: SwapTransferReceipt,
     },
     Swap {
         // Used to refund
@@ -95,6 +257,17 @@ pub enum PoolMessage {
         amount_1_in: Amount,
         amount_0_out_min: Option<Amount>,
         amount_1_out_min: Option<Amount>,
+        to: Option<Account>,
+        block_timestamp: Option<Timestamp>,
+    },
+    // Unified first economic initialization entry.
+    // This is valid only before finalized reserve/share facts exist.
+    // Whether virtual-liquidity semantics are allowed is determined only by the
+    // immutable pool BootstrapPolicy set at application creation time.
+    InitializeLiquidity {
+        origin: Account,
+        amount_0_in: Amount,
+        amount_1_in: Amount,
         to: Option<Account>,
         block_timestamp: Option<Timestamp>,
     },
@@ -118,25 +291,31 @@ pub enum PoolMessage {
     NewTransaction {
         transaction: Transaction,
     },
+    Claim {
+        origin: Account,
+        token: Option<ApplicationId>,
+        amount: Amount,
+    },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum BootstrapPolicy {
+    UserCreatePool,
+    MemeInitializeLiquidity { virtual_initial_liquidity: bool },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PoolParameters {
     pub creator: Account,
     pub token_0: ApplicationId,
     pub token_1: Option<ApplicationId>,
-    pub virtual_initial_liquidity: bool,
-    // TODO: work around of https://github.com/linera-io/linera-protocol/issues/3538
-    pub token_0_creator_chain_id: ChainId,
-    pub token_1_creator_chain_id: Option<ChainId>,
+    pub bootstrap_policy: BootstrapPolicy,
 }
 
 scalar!(PoolParameters);
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, InputObject)]
 pub struct InstantiationArgument {
-    pub amount_0: Amount,
-    pub amount_1: Amount,
     pub pool_fee_percent_mul_100: u16,
     pub router_application_id: ApplicationId,
 }
@@ -196,6 +375,16 @@ impl Pool {
             price_1_cumulative: Decimal::default(),
             k_last: Amount::ZERO,
             block_timestamp,
+        }
+    }
+
+    pub fn validate_token(&self, token: Option<ApplicationId>) {
+        match token {
+            Some(token) => assert!(
+                token == self.token_0 || Some(token) == self.token_1,
+                "Invalid token"
+            ),
+            None => assert!(self.token_1.is_none(), "Invalid token"),
         }
     }
 

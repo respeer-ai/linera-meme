@@ -4,7 +4,7 @@ set -euo pipefail
 
 ####
 ## E.g. ./run_local.sh -f http://api.testnet-conway.faucet.respeer.ai/api/faucet -C 0 -z testnet-conway
-## This script must be run without proxy
+## Set HTTPS_PROXY or https_proxy externally when external network access needs a proxy.
 ####
 
 LAN_IP=$( hostname -I | awk '{print $1}' )
@@ -14,17 +14,6 @@ GIT_BRANCH=respeer-maas-testnet_conway-7e52827f-2026-03-15
 CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 RUN_MAKER=1
-DEFAULT_CLONE_PROXY=""
-case "$LAN_IP" in
-    10.1.29.*)
-        DEFAULT_CLONE_PROXY="socks5://10.1.29.66:7897"
-        ;;
-    192.168.31.*)
-        DEFAULT_CLONE_PROXY="socks5://192.168.31.178:7897"
-        ;;
-esac
-CLONE_PROXY=${CLONE_PROXY:-$DEFAULT_CLONE_PROXY}
-EXTERNAL_PROXY=${EXTERNAL_PROXY:-$CLONE_PROXY}
 LINERA_TIMEOUT_SECONDS=${LINERA_TIMEOUT_SECONDS:-180}
 SUDO_PASSWORD=${SUDO_PASSWORD:-}
 
@@ -92,19 +81,19 @@ if [ "x$COMPILE" = "x1" ]; then
     if [ ! -d "$PERSISTENT_LINERA_SOURCE_DIR/.git" ]; then
         rm -rf "$PERSISTENT_LINERA_SOURCE_DIR"
         # We should run with respeer fork for blob query
-        all_proxy=$CLONE_PROXY git clone --branch $GIT_BRANCH --single-branch --depth 1 https://github.com/respeer-ai/linera-protocol.git "$PERSISTENT_LINERA_SOURCE_DIR"
+        env $(external_proxy_env_args) git clone --branch $GIT_BRANCH --single-branch --depth 1 https://github.com/respeer-ai/linera-protocol.git "$PERSISTENT_LINERA_SOURCE_DIR"
     fi
     cd "$PERSISTENT_LINERA_SOURCE_DIR"
 
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     if [ "x$CURRENT_BRANCH" != "x$GIT_BRANCH" ]; then
         rm -rf "$PERSISTENT_LINERA_SOURCE_DIR"
-        all_proxy=$CLONE_PROXY git clone --branch $GIT_BRANCH --single-branch --depth 1 https://github.com/respeer-ai/linera-protocol.git "$PERSISTENT_LINERA_SOURCE_DIR"
+        env $(external_proxy_env_args) git clone --branch $GIT_BRANCH --single-branch --depth 1 https://github.com/respeer-ai/linera-protocol.git "$PERSISTENT_LINERA_SOURCE_DIR"
         cd "$PERSISTENT_LINERA_SOURCE_DIR"
     fi
 
     # Refresh the branch head when reusing the persistent checkout.
-    all_proxy=$CLONE_PROXY git fetch origin $GIT_BRANCH --depth 1
+    env $(external_proxy_env_args) git fetch origin $GIT_BRANCH --depth 1
     git checkout $GIT_BRANCH
     git reset --hard origin/$GIT_BRANCH
 
@@ -166,12 +155,21 @@ function log_step() {
     echo "$message" >&2
 }
 
-function linera_env_args() {
-    if [ -n "${EXTERNAL_PROXY:-}" ]; then
+function external_proxy_env_args() {
+    local proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+    if [ -n "$proxy" ]; then
         printf 'all_proxy=%s\nhttp_proxy=%s\nhttps_proxy=%s\nALL_PROXY=%s\nHTTP_PROXY=%s\nHTTPS_PROXY=%s\n' \
-            "$EXTERNAL_PROXY" "$EXTERNAL_PROXY" "$EXTERNAL_PROXY" \
-            "$EXTERNAL_PROXY" "$EXTERNAL_PROXY" "$EXTERNAL_PROXY"
+            "$proxy" "$proxy" "$proxy" \
+            "$proxy" "$proxy" "$proxy"
     fi
+}
+
+function no_external_proxy_env_args() {
+    printf 'all_proxy=\nhttp_proxy=\nhttps_proxy=\nALL_PROXY=\nHTTP_PROXY=\nHTTPS_PROXY=\n'
+}
+
+function linera_env_args() {
+    external_proxy_env_args
 }
 
 function run_linera() {
@@ -258,21 +256,41 @@ function sudo_run() {
     fi
 }
 
+function wallet_init_clean() {
+    local wallet_name=$1
+    local wallet_index=$2
+
+    local attempt=1
+    while [ $attempt -le 3 ]; do
+        rm -rf $WALLET_DIR/$wallet_name/$wallet_index
+        mkdir -p $WALLET_DIR/$wallet_name/$wallet_index
+
+        if run_linera "wallet_init ${wallet_name}/${wallet_index} attempt=${attempt}/3" \
+               --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+               wallet init \
+               --faucet $FAUCET_URL; then
+            return 0
+        fi
+
+        if [ $attempt -eq 3 ]; then
+            log_step "ABORT wallet_init ${wallet_name}/${wallet_index} exhausted retries"
+            return 1
+        fi
+
+        log_step "RETRY wallet_init ${wallet_name}/${wallet_index} sleeping before next attempt"
+        sleep 5
+        attempt=$((attempt + 1))
+    done
+}
+
 function create_wallet() {
     wallet_name=$1
     wallet_index=$2
     new_chain=$3
 
-    rm -rf $WALLET_DIR/$wallet_name/$wallet_index
-    mkdir -p $WALLET_DIR/$wallet_name/$wallet_index
-
-    # Init wallet from faucet
-    run_linera_retry "wallet_init ${wallet_name}/${wallet_index}" 3 \
-           --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
-           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
-           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-           wallet init \
-           --faucet $FAUCET_URL || return 1
+    wallet_init_clean $wallet_name $wallet_index || return 1
     if [ "x$new_chain" = "x1" ]; then
         run_linera_retry "wallet_request_chain ${wallet_name}/${wallet_index}" 3 \
                --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
@@ -295,14 +313,23 @@ function create_wallet() {
 
 function create_wallets() {
     wallet_name=$1
+    expected_owner_count=$((CHAIN_OWNER_COUNT + 1))
 
     # Create creator chain which will be used to create multi-owner chain
-    owners=($(create_wallet $wallet_name creator 1))
+    owners=()
+    owner=$(create_wallet $wallet_name creator 1) || return 1
+    owners+=("$owner")
 
     for i in $(seq 0 $((CHAIN_OWNER_COUNT - 1))); do
         # Creator new wallet which only have owner
-        owners+=($(create_wallet $wallet_name $i 0))
+        owner=$(create_wallet $wallet_name $i 0) || return 1
+        owners+=("$owner")
     done
+
+    if [ "${#owners[@]}" -ne "$expected_owner_count" ]; then
+        log_step "ABORT create_wallets ${wallet_name} expected ${expected_owner_count} owners, got ${#owners[@]}"
+        return 1
+    fi
 
     echo ${owners[@]}
 }
@@ -734,14 +761,7 @@ run_services ams 21080
 run_services swap 22080
 run_services proxy 23080
 
-rm -rf $WALLET_DIR/query/0
-mkdir -p $WALLET_DIR/query/0
-run_linera_retry "wallet_init query/0" 3 \
-       --wallet $WALLET_DIR/query/0/wallet.json \
-       --keystore $WALLET_DIR/query/0/keystore.json \
-       --storage rocksdb://$WALLET_DIR/query/0/client.db \
-       wallet init \
-       --faucet $FAUCET_URL
+wallet_init_clean query 0
 run_linera_retry "wallet_request_chain query/0" 3 \
        --wallet $WALLET_DIR/query/0/wallet.json \
        --keystore $WALLET_DIR/query/0/keystore.json \
@@ -829,23 +849,23 @@ python3 -m venv $VENV_DIR
 PYTHON3=$VENV_DIR/bin/python3
 PIP3=$VENV_DIR/bin/pip3
 
-all_proxy= $PIP3 install PySocks
+env $(external_proxy_env_args) $PIP3 install PySocks
 
 function run_kline() {
     cargo build --release -p decoder --bin canonical_decoder -j 1
 
     cd service/kline
 
-    all_proxy=$CLONE_PROXY $PIP3 install 'uvicorn[standard]'
-    all_proxy=$CLONE_PROXY $PIP3 install --upgrade pip
-    all_proxy=$CLONE_PROXY $PIP3 install -r requirements.txt
-    all_proxy=$CLONE_PROXY $PIP3 install -e .
+    env $(external_proxy_env_args) $PIP3 install 'uvicorn[standard]'
+    env $(external_proxy_env_args) $PIP3 install --upgrade pip
+    env $(external_proxy_env_args) $PIP3 install -r requirements.txt
+    env $(external_proxy_env_args) $PIP3 install -e .
 
     $PIP3 uninstall websocket -y
     $PIP3 uninstall websocket-client -y
-    all_proxy=$CLONE_PROXY $PIP3 install websocket-client
+    env $(external_proxy_env_args) $PIP3 install websocket-client
 
-    KLINE_RUST_DECODER_BIN=$PWD/../../target/release/canonical_decoder all_proxy= $PYTHON3 -u src/kline.py \
+    env $(no_external_proxy_env_args) KLINE_RUST_DECODER_BIN=$PWD/../../target/release/canonical_decoder $PYTHON3 -u src/kline.py \
         --host "0.0.0.0" \
         --port 25080 \
         --chain-graphql-url "$OBSERVABILITY_CHAIN_GRAPHQL_URL" \
@@ -882,7 +902,7 @@ function run_maker() {
     sleep 10
 
     cd $ROOT_DIR/service/kline
-    all_proxy= $PYTHON3 -u src/maker.py \
+    env $(no_external_proxy_env_args) WALLET_OWNER="$owner" WALLET_CHAIN="$chain" $PYTHON3 -u src/maker.py \
         --swap-chain-id "$SWAP_CHAIN_ID" \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --database-host "$DATABASE_HOST" \
@@ -891,8 +911,6 @@ function run_maker() {
         --database-password "$DATABASE_PASSWORD" \
         --database-name "$DATABASE_NAME" \
         --wallet-host "localhost:40082" \
-        --wallet-owner "$owner" \
-        --wallet-chain "$chain" \
         --swap-host "$SWAP_HOST" \
         --proxy-host "$PROXY_HOST" \
         --proxy-chain-id "$PROXY_CHAIN_ID" \
@@ -900,7 +918,7 @@ function run_maker() {
     maker_pid=$!
     ensure_background_process "$maker_pid" "maker" "$PWD/maker.log"
 
-    all_proxy= $PYTHON3 -u src/maker_api.py \
+    env $(no_external_proxy_env_args) WALLET_OWNER="$owner" WALLET_CHAIN="$chain" $PYTHON3 -u src/maker_api.py \
         --host "0.0.0.0" \
         --port 25081 \
         --database-host "$DATABASE_HOST" \
@@ -908,10 +926,9 @@ function run_maker() {
         --database-user "$DATABASE_USER" \
         --database-password "$DATABASE_PASSWORD" \
         --database-name "$DATABASE_NAME" \
-        --maker-replicas 1 \
-        --wallet-host-template "localhost" \
-        --wallet-rpc-port 40082 \
-        --wallet-metrics-port 40084 > maker_api.log 2>&1 &
+        --wallet-url "http://localhost:40082" \
+        --wallet-metrics-url "http://localhost:40084/metrics" \
+        --wallet-memory-limit-bytes 0 > maker_api.log 2>&1 &
     maker_api_pid=$!
     ensure_background_process "$maker_api_pid" "maker_api" "$PWD/maker_api.log"
     wait_http_ready "maker_api" "http://localhost:25081/debug/health"
@@ -945,12 +962,10 @@ function run_funder() {
     chain=$(wallet_chain_id maker 0)
 
     cd $ROOT_DIR/service/kline
-    all_proxy= $PYTHON3 -u src/funder.py \
+    env $(no_external_proxy_env_args) WALLET_OWNER="$owner" WALLET_CHAIN="$chain" $PYTHON3 -u src/funder.py \
         --swap-chain-id "$SWAP_CHAIN_ID" \
         --swap-application-id "$SWAP_APPLICATION_ID" \
         --wallet-host "localhost:40082" \
-        --wallet-owner "$owner" \
-        --wallet-chain "$chain" \
         --swap-host "$SWAP_HOST" \
         --proxy-host "$PROXY_HOST" \
         --proxy-chain-id "$PROXY_CHAIN_ID" \

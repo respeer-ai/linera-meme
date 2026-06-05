@@ -31,9 +31,11 @@ impl BlobGatewayContract {
         while let Some(message) = outcome.messages.pop() {
             log::debug!("DEBUG OP:BLOB GATEWAY: sending message {:?} ", message);
 
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream
@@ -63,9 +65,11 @@ impl BlobGatewayContract {
         log::debug!("DEBUG MSG:BLOB GATEWAY: processed {:?}", msg);
 
         while let Some(message) = outcome.messages.pop() {
-            runtime_context
-                .borrow_mut()
-                .send_message(*message.destination(), message.message().clone());
+            runtime_context.borrow_mut().send_message(
+                *message.destination(),
+                message.message().clone(),
+                message.tracking(),
+            );
         }
 
         // TODO: process event / stream

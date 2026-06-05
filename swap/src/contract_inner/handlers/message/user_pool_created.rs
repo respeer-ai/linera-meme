@@ -56,16 +56,7 @@ impl<R: ContractRuntimeContext + AccessControl, S: StateInterface>
     async fn handle(
         &mut self,
     ) -> Result<Option<HandlerOutcome<SwapMessage, SwapResponse>>, HandlerError> {
-        if !self
-            ._state
-            .mark_user_pool_created(self.pool_application)
-            .await
-            .expect("Failed: mark user pool created")
-        {
-            return Ok(None);
-        }
-
-        // Now we're on our caller chain, we can call all liquidity like what we do in out wallet
+        // UserPoolCreated is the handoff that starts first real funding on the user chain.
         let call = PoolOperation::AddLiquidity {
             amount_0_in: self.amount_0,
             amount_1_in: self.amount_1,

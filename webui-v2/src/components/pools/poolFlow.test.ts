@@ -1,17 +1,40 @@
 import { describe, expect, test } from 'bun:test'
 import { constants } from 'src/constant'
+import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import {
   buildAddLiquidityRoute,
   canAddLiquidityForPair,
   canCreatePoolForPair,
+  isFinalizedPool,
   mapPairAmountsToPoolOrder,
   normalizePoolPair,
   pairExists,
   resolveLiquiditySubmissionMode,
   resolveRoutePoolPair,
+  visiblePools,
 } from './poolFlow'
 
 describe('poolFlow', () => {
+  const pool = (reserve0: string | null, reserve1: string | null): Pool =>
+    ({
+      token0: 'meme-1',
+      token1: constants.LINERA_NATIVE_ID,
+      reserve0,
+      reserve1,
+    }) as Pool
+
+  test('finalized pools require positive reserve facts on both sides', () => {
+    expect(isFinalizedPool(pool('1', '2'))).toBe(true)
+    expect(isFinalizedPool(pool(null, '2'))).toBe(false)
+    expect(isFinalizedPool(pool('1', null))).toBe(false)
+    expect(isFinalizedPool(pool('0', '2'))).toBe(false)
+    expect(isFinalizedPool(pool('1', '0'))).toBe(false)
+  })
+
+  test('visiblePools hides unfinalized protocol catalog entries', () => {
+    expect(visiblePools([pool(null, null), pool('0', '1'), pool('1', '1')])).toHaveLength(1)
+  })
+
   test('normalizePoolPair keeps native token in token1 when one side is native', () => {
     expect(
       normalizePoolPair({
@@ -104,6 +127,17 @@ describe('poolFlow', () => {
       resolveLiquiditySubmissionMode(pools, {
         token0: 'meme-2',
         token1: constants.LINERA_NATIVE_ID,
+      }),
+    ).toBe('create-pool')
+  })
+
+  test('resolveLiquiditySubmissionMode uses the caller supplied visible pool set', () => {
+    const catalogPools = [pool(null, null)]
+
+    expect(
+      resolveLiquiditySubmissionMode(visiblePools(catalogPools), {
+        token0: constants.LINERA_NATIVE_ID,
+        token1: 'meme-1',
       }),
     ).toBe('create-pool')
   })

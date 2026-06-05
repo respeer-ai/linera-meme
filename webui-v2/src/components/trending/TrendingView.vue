@@ -25,7 +25,7 @@ import BulletinListView from '../bulletin/BulletinListView.vue'
 const applications = computed(() => ams.Ams.applications())
 const poolsByToken = computed(() => {
   return new Map(
-    swap.Swap.pools()
+    swap.Swap.visiblePools()
       .filter((pool) => pool.token1)
       .map((pool) => [
         pool.token0 === 'TLINERA' ? (pool.token1 as string) : pool.token0,

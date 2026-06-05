@@ -533,3 +533,136 @@ async fn proxy_create_meme_real_logo_blob_same_input_in_memory_test() {
             .unwrap();
     assert!(meme_application.is_some());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn proxy_create_meme_frontend_product_state_matrix_test() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    run_create_meme_product_state_case(
+        "real liquidity, mining disabled",
+        Some(Liquidity {
+            fungible_amount: Amount::from_tokens(11_000_000),
+            native_amount: Amount::from_tokens(10),
+        }),
+        false,
+        false,
+        None,
+        true,
+    )
+    .await;
+    run_create_meme_product_state_case(
+        "real liquidity, mining enabled",
+        Some(Liquidity {
+            fungible_amount: Amount::from_tokens(11_000_000),
+            native_amount: Amount::from_tokens(10),
+        }),
+        false,
+        true,
+        Some(Amount::from_tokens(10_000_000)),
+        true,
+    )
+    .await;
+    run_create_meme_product_state_case(
+        "virtual liquidity, mining disabled",
+        Some(Liquidity {
+            fungible_amount: Amount::from_tokens(11_000_000),
+            native_amount: Amount::from_tokens(10),
+        }),
+        true,
+        false,
+        None,
+        true,
+    )
+    .await;
+    run_create_meme_product_state_case(
+        "virtual liquidity, mining enabled",
+        Some(Liquidity {
+            fungible_amount: Amount::from_tokens(11_000_000),
+            native_amount: Amount::from_tokens(10),
+        }),
+        true,
+        true,
+        Some(Amount::from_tokens(10_000_000)),
+        true,
+    )
+    .await;
+    run_create_meme_product_state_case("no initial liquidity", None, true, false, None, false)
+        .await;
+}
+
+async fn run_create_meme_product_state_case(
+    label: &str,
+    initial_liquidity: Option<Liquidity>,
+    virtual_initial_liquidity: bool,
+    enable_mining: bool,
+    mining_supply: Option<Amount>,
+    expect_pool_creation: bool,
+) {
+    let mut suite = TestSuite::new().await;
+    let proxy_chain = suite.proxy_chain.clone();
+    let meme_user_chain = suite.meme_user_chain.clone();
+    let swap_chain = suite.swap_chain.clone();
+
+    suite.create_swap_application().await;
+    suite.create_proxy_application(vec![]).await;
+
+    let initial_native = initial_liquidity
+        .as_ref()
+        .map(|liquidity| liquidity.native_amount)
+        .unwrap_or(Amount::ZERO);
+    suite
+        .fund_chain(
+            &meme_user_chain,
+            open_chain_fee_budget()
+                .try_mul(2)
+                .unwrap()
+                .try_add(initial_native)
+                .unwrap(),
+        )
+        .await;
+
+    let description = suite
+        .create_meme_application_with_liquidity(
+            &meme_user_chain,
+            label,
+            "LTT",
+            initial_liquidity,
+            virtual_initial_liquidity,
+            enable_mining,
+            mining_supply,
+        )
+        .await;
+
+    let meme_chain = ActiveChain::new(
+        meme_user_chain.key_pair().copy(),
+        description,
+        suite.validator.clone(),
+    );
+    suite.validator.add_chain(meme_chain.clone());
+
+    for _ in 0..3 {
+        proxy_chain.handle_received_messages().await;
+        meme_chain.handle_received_messages().await;
+    }
+
+    let QueryOutcome { response, .. } = proxy_chain
+        .graphql_query(
+            suite.proxy_application_id.unwrap(),
+            "query { memeApplicationIds }",
+        )
+        .await;
+    let meme_application: Option<ApplicationId> =
+        serde_json::from_value(response["memeApplicationIds"].as_array().unwrap()[0].clone())
+            .unwrap();
+    assert!(
+        meme_application.is_some(),
+        "{label}: meme app must be recorded"
+    );
+
+    let pool_creation = swap_chain.handle_received_messages().await;
+    assert_eq!(
+        pool_creation.is_some(),
+        expect_pool_creation,
+        "{label}: initial liquidity presence must determine swap pool creation"
+    );
+}

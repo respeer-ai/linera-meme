@@ -10,21 +10,30 @@ use abi::swap::pool::{PoolMessage, PoolOperation, PoolResponse};
 use base::handler::{Handler, HandlerError};
 use message::{
     add_liquidity::AddLiquidityHandler as MessageAddLiquidityHandler,
-    fund_fail::FundFailHandler as MessageFundFailHandler,
-    fund_success::FundSuccessHandler as MessageFundSuccessHandler,
+    add_liquidity_transfer_receipt::AddLiquidityTransferReceiptHandler as MessageAddLiquidityTransferReceiptHandler,
+    claim::ClaimHandler as MessageClaimHandler,
+    claim_transfer_receipt::ClaimTransferReceiptHandler as MessageClaimTransferReceiptHandler,
+    fund_result::FundResultHandler as MessageFundResultHandler,
+    initialize_liquidity::InitializeLiquidityHandler as MessageInitializeLiquidityHandler,
     new_transaction::NewTransactionHandler as MessageNewTransactionHandler,
     remove_liquidity::RemoveLiquidityHandler as MessageRemoveLiquidityHandler,
     request_fund::RequestFundHandler as MessageRequestFundHandler,
     set_fee_to::SetFeeToHandler as MessageSetFeeToHandler,
     set_fee_to_setter::SetFeeToSetterHandler as MessageSetFeeToSetterHandler,
     swap::SwapHandler as MessageSwapHandler,
+    swap_transfer_receipt::SwapTransferReceiptHandler as MessageSwapTransferReceiptHandler,
 };
 use operation::{
     add_liquidity::AddLiquidityHandler as OperationAddLiquidityHandler,
+    add_liquidity_transfer_receipt::AddLiquidityTransferReceiptHandler as OperationAddLiquidityTransferReceiptHandler,
+    claim::ClaimHandler as OperationClaimHandler,
+    claim_transfer_receipt::ClaimTransferReceiptHandler as OperationClaimTransferReceiptHandler,
+    initialize_liquidity::InitializeLiquidityHandler as OperationInitializeLiquidityHandler,
     remove_liquidity::RemoveLiquidityHandler as OperationRemoveLiquidityHandler,
     set_fee_to::SetFeeToHandler as OperationSetFeeToHandler,
     set_fee_to_setter::SetFeeToSetterHandler as OperationSetFeeToSetterHandler,
     swap::SwapHandler as OperationSwapHandler,
+    swap_transfer_receipt::SwapTransferReceiptHandler as OperationSwapTransferReceiptHandler,
 };
 use runtime::interfaces::{
     access_control::AccessControl, contract::ContractRuntimeContext, meme::MemeRuntimeContext,
@@ -54,6 +63,9 @@ impl HandlerFactory {
             PoolOperation::SetFeeToSetter { .. } => {
                 Box::new(OperationSetFeeToSetterHandler::new(runtime, state, op))
             }
+            PoolOperation::InitializeLiquidity { .. } => {
+                Box::new(OperationInitializeLiquidityHandler::new(runtime, state, op))
+            }
             PoolOperation::AddLiquidity { .. } => {
                 Box::new(OperationAddLiquidityHandler::new(runtime, state, op))
             }
@@ -61,6 +73,16 @@ impl HandlerFactory {
                 Box::new(OperationRemoveLiquidityHandler::new(runtime, state, op))
             }
             PoolOperation::Swap { .. } => Box::new(OperationSwapHandler::new(runtime, state, op)),
+            PoolOperation::Claim { .. } => Box::new(OperationClaimHandler::new(runtime, state, op)),
+            PoolOperation::ClaimTransferReceipt { .. } => Box::new(
+                OperationClaimTransferReceiptHandler::new(runtime, state, op),
+            ),
+            PoolOperation::AddLiquidityTransferReceipt { .. } => Box::new(
+                OperationAddLiquidityTransferReceiptHandler::new(runtime, state, op),
+            ),
+            PoolOperation::SwapTransferReceipt { .. } => {
+                Box::new(OperationSwapTransferReceiptHandler::new(runtime, state, op))
+            }
         }
     }
 
@@ -81,15 +103,24 @@ impl HandlerFactory {
             PoolMessage::RequestFund { .. } => {
                 Box::new(MessageRequestFundHandler::new(runtime, state, msg))
             }
-            PoolMessage::FundSuccess { .. } => {
-                Box::new(MessageFundSuccessHandler::new(runtime, state, msg))
+            PoolMessage::FundResult { .. } => {
+                Box::new(MessageFundResultHandler::new(runtime, state, msg))
             }
-            PoolMessage::FundFail { .. } => {
-                Box::new(MessageFundFailHandler::new(runtime, state, msg))
+            PoolMessage::ClaimTransferReceipt { .. } => {
+                Box::new(MessageClaimTransferReceiptHandler::new(runtime, state, msg))
+            }
+            PoolMessage::AddLiquidityTransferReceipt { .. } => Box::new(
+                MessageAddLiquidityTransferReceiptHandler::new(runtime, state, msg),
+            ),
+            PoolMessage::SwapTransferReceipt { .. } => {
+                Box::new(MessageSwapTransferReceiptHandler::new(runtime, state, msg))
             }
             PoolMessage::Swap { .. } => Box::new(MessageSwapHandler::new(runtime, state, msg)),
             PoolMessage::AddLiquidity { .. } => {
                 Box::new(MessageAddLiquidityHandler::new(runtime, state, msg))
+            }
+            PoolMessage::InitializeLiquidity { .. } => {
+                Box::new(MessageInitializeLiquidityHandler::new(runtime, state, msg))
             }
             PoolMessage::RemoveLiquidity { .. } => {
                 Box::new(MessageRemoveLiquidityHandler::new(runtime, state, msg))
@@ -103,6 +134,7 @@ impl HandlerFactory {
             PoolMessage::NewTransaction { .. } => {
                 Box::new(MessageNewTransactionHandler::new(runtime, state, msg))
             }
+            PoolMessage::Claim { .. } => Box::new(MessageClaimHandler::new(runtime, state, msg)),
         }
     }
 
