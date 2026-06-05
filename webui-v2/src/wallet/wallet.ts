@@ -265,13 +265,7 @@ export class Wallet {
     error?: (e: string) => void,
   ) => {
     try {
-      await Wallet._createPool(
-        token0,
-        token1,
-        amount0,
-        amount1,
-        to,
-      )
+      await Wallet._createPool(token0, token1, amount0, amount1, to)
       done?.()
     } catch (e) {
       error?.(JSON.stringify(e))

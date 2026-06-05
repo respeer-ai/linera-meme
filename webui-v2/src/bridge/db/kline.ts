@@ -21,10 +21,8 @@ const MAX_RESOLVED_IDENTITIES = 200
 
 export type KlinePersistenceSource = 'fetch' | 'live'
 
-export const shouldPersistIncomingKlinePoint = (
-  current: Point,
-  incoming: Point,
-): boolean => shouldOverwriteOverlappingPoint(current, incoming)
+export const shouldPersistIncomingKlinePoint = (current: Point, incoming: Point): boolean =>
+  shouldOverwriteOverlappingPoint(current, incoming)
 
 export class Kline {
   static resolvedIdentity = async ({
