@@ -133,7 +133,7 @@ pass "Python environment ready"
 # ─── Step 3: Automated projection-fact reconciliation ─────────────────
 echo "=== [3/6] Running projection-fact reconciliation regression ==="
 "$VENV_DIR/bin/python3" -m pytest "$KLINE_DIR/tests/observability_reconciliation_test.py" -q
-pass "projection facts reconcile transactions, candles, stats, virtual positions and protocol fee metrics"
+pass "projection facts reconcile transactions, candles, stats, virtual positions, protocol fee metrics, and claim balances"
 
 # ─── Step 4: Start kline service ─────────────────────────────────────
 echo "=== [4/6] Starting kline service ==="

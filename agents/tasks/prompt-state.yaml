@@ -23,14 +23,13 @@ defaults:
     - active_semantic_dependency
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
-active_focus:
+active_focus: []
+on_demand_done:
   - id: POS-064
-    why: active product read-model correction for claim balances, TVL, and fee valuation
-    summary: Fix projection-backed claim balance units/completeness, reserve-derived TVL, and exact fee-token accumulation without ABI or contract changes.
+    why: completed product read-model correction for claim balances, TVL, fee valuation, and claim amount E2E reconciliation
     canonical_refs:
       - agents/tasks/board.yaml
       - service/kline/AGENTS.md
-on_demand_done:
   - id: FUND-002
     why: completed umbrella for business funds-consistency protocol iterations
     canonical_refs:

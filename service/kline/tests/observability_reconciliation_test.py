@@ -13,11 +13,14 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from query.read_models.candles import CandlesReadModel  # noqa: E402
+from query.read_models.claim_balances import ClaimBalancesReadModel  # noqa: E402
 from query.read_models.position_metrics import PositionMetricsReadModel  # noqa: E402
 from query.read_models.position_metrics_snapshot_inputs import PositionMetricsSnapshotInputs  # noqa: E402
 from query.read_models.positions import PositionsReadModel  # noqa: E402
 from query.read_models.transactions import TransactionsReadModel  # noqa: E402
 from query.read_models.virtual_positions import VirtualPositionsReadModel  # noqa: E402
+from query.serializers.claim_balances import ClaimBalancesSerializer  # noqa: E402
+from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRepository  # noqa: E402
 from storage.mysql.market_stats_projection_repo import MarketStatsProjectionRepository  # noqa: E402
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository  # noqa: E402
 
@@ -214,6 +217,118 @@ class ObservabilityReconciliationTest(unittest.TestCase):
                 return len(self.params) - 1
             return len(self.params)
 
+    class ClaimProjectionDb:
+        INCOMPLETE_DIAGNOSTICS = {
+            'claim_delta_requires_new_transaction_correlation',
+            'ambiguous_new_transaction_correlation',
+            'missing_pool_token_metadata',
+        }
+
+        def __init__(self, *, deltas, diagnostics=None):
+            self.deltas = list(deltas)
+            self.diagnostics = list(diagnostics or [])
+
+        def ping(self, **_kwargs):
+            return None
+
+        def cursor(self, **_kwargs):
+            return ObservabilityReconciliationTest.ClaimProjectionCursor(self)
+
+    class ClaimProjectionCursor:
+        def __init__(self, db):
+            self.db = db
+            self.sql = ''
+            self.params = ()
+
+        def execute(self, sql, params=()):
+            self.sql = sql
+            self.params = tuple(params)
+
+        def fetchall(self):
+            if 'FROM claim_balance_deltas deltas' not in self.sql:
+                return []
+            owner = self.params[0]
+            groups = {}
+            for delta in self.db.deltas:
+                if delta['owner'] != owner:
+                    continue
+                key = (
+                    delta['pool_application_id'],
+                    delta['execution_chain_id'],
+                    delta['token'],
+                    delta['owner'],
+                )
+                group = groups.setdefault(key, {
+                    'claimable_raw': Decimal('0'),
+                    'claiming_raw': Decimal('0'),
+                    'latest_block_height': None,
+                    'latest_transaction_index': None,
+                    'latest_message_index': None,
+                })
+                signed_amount = Decimal(delta['delta_amount'])
+                if delta['delta_direction'] == 'debit':
+                    signed_amount = -signed_amount
+                if delta['balance_kind'] == 'claimable':
+                    group['claimable_raw'] += signed_amount
+                elif delta['balance_kind'] == 'claiming':
+                    group['claiming_raw'] += signed_amount
+                group['latest_block_height'] = self._max_optional(group['latest_block_height'], delta.get('block_height'))
+                group['latest_transaction_index'] = self._max_optional(group['latest_transaction_index'], delta.get('transaction_index'))
+                group['latest_message_index'] = self._max_optional(group['latest_message_index'], delta.get('message_index'))
+
+            rows = []
+            incomplete_counts = self._incomplete_counts()
+            for key, group in groups.items():
+                claimable_amount = group['claimable_raw'] / SCALE
+                claiming_amount = group['claiming_raw'] / SCALE
+                if claimable_amount == 0 and claiming_amount == 0:
+                    continue
+                pool_application_id, execution_chain_id, token, owner = key
+                incomplete_count = incomplete_counts.get((pool_application_id, execution_chain_id), 0)
+                rows.append({
+                    'pool_application_id': pool_application_id,
+                    'execution_chain_id': execution_chain_id,
+                    'token': token,
+                    'owner': owner,
+                    'claimable_amount': self._display_decimal(claimable_amount),
+                    'claiming_amount': self._display_decimal(claiming_amount),
+                    'latest_block_height': group['latest_block_height'],
+                    'latest_transaction_index': group['latest_transaction_index'],
+                    'latest_message_index': group['latest_message_index'],
+                    'projection_status': 'incomplete' if incomplete_count > 0 else 'complete',
+                    'incomplete_diagnostic_count': incomplete_count,
+                })
+            rows.sort(key=lambda row: (
+                row['pool_application_id'],
+                row['execution_chain_id'],
+                row['token'],
+            ))
+            return rows
+
+        def close(self):
+            return None
+
+        def _incomplete_counts(self):
+            counts = {}
+            for diagnostic in self.db.diagnostics:
+                if diagnostic['diagnostic_type'] not in ObservabilityReconciliationTest.ClaimProjectionDb.INCOMPLETE_DIAGNOSTICS:
+                    continue
+                key = (diagnostic['pool_application_id'], diagnostic['execution_chain_id'])
+                counts[key] = counts.get(key, 0) + 1
+            return counts
+
+        def _max_optional(self, current, value):
+            if value is None:
+                return current
+            if current is None or value > current:
+                return value
+            return current
+
+        def _display_decimal(self, value):
+            if value == 0:
+                return '0'
+            return format(value.normalize(), 'f')
+
     class FakePositionsRepository:
         def __init__(self, candidates):
             self.candidates = list(candidates)
@@ -304,6 +419,7 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         self._assert_candles_match_independent_aggregation()
         self._assert_market_stats_match_independent_aggregation()
         self._assert_virtual_positions_and_protocol_fee_metrics_match_projection_facts()
+        self._assert_claim_balances_match_projection_facts()
 
     def _assert_transactions_match_projection_facts(self):
         read_model = TransactionsReadModel(self.trade_repo)
@@ -371,6 +487,150 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         self.assertEqual(carry['base_volume'], 0.0)
         self.assertEqual(carry['quote_volume'], 0.0)
         self.assertEqual(carry['open'], carry['close'])
+
+    def _assert_claim_balances_match_projection_facts(self):
+        self._assert_single_claim_balance_delta_reconciles()
+        self._assert_consecutive_claim_balance_deltas_reconcile()
+
+    def _assert_single_claim_balance_delta_reconciles(self):
+        payload = self._claim_balances_payload([
+            self._claim_delta(
+                delta_id='single-native-credit',
+                token='native',
+                balance_kind='claimable',
+                amount='7.5',
+                direction='credit',
+                block_height=41,
+                transaction_index=2,
+                message_index=0,
+            ),
+        ])
+
+        self.assertEqual(payload['owner'], self.OWNER)
+        self.assertEqual(len(payload['balances']), 1)
+        balance = payload['balances'][0]
+        self.assertEqual(balance['token'], 'native')
+        self.assertEqual(balance['claimable_amount'], '7.5')
+        self.assertEqual(balance['claiming_amount'], '0')
+        self.assertEqual(balance['projection_status'], 'complete')
+        self.assertEqual(balance['diagnostics'], {'incomplete_count': 0})
+        self.assertEqual(balance['latest_block_height'], 41)
+        self.assertEqual(balance['latest_transaction_index'], 2)
+        self.assertEqual(balance['latest_message_index'], 0)
+
+    def _assert_consecutive_claim_balance_deltas_reconcile(self):
+        payload = self._claim_balances_payload([
+            self._claim_delta(
+                delta_id='native-credit-swap-output',
+                token='native',
+                balance_kind='claimable',
+                amount='10',
+                direction='credit',
+                block_height=50,
+                transaction_index=1,
+                message_index=0,
+            ),
+            self._claim_delta(
+                delta_id='native-credit-remove-output',
+                token='native',
+                balance_kind='claimable',
+                amount='2.5',
+                direction='credit',
+                block_height=51,
+                transaction_index=1,
+                message_index=0,
+            ),
+            self._claim_delta(
+                delta_id='native-claim-start-debit',
+                token='native',
+                balance_kind='claimable',
+                amount='4',
+                direction='debit',
+                block_height=52,
+                transaction_index=2,
+                message_index=0,
+            ),
+            self._claim_delta(
+                delta_id='native-claim-start-claiming-credit',
+                token='native',
+                balance_kind='claiming',
+                amount='4',
+                direction='credit',
+                block_height=52,
+                transaction_index=2,
+                message_index=0,
+            ),
+            self._claim_delta(
+                delta_id='native-claim-receipt-success',
+                token='native',
+                balance_kind='claiming',
+                amount='1.5',
+                direction='debit',
+                block_height=53,
+                transaction_index=3,
+                message_index=1,
+            ),
+            self._claim_delta(
+                delta_id='meme-credit-add-liquidity-excess',
+                token=self.TOKEN_0,
+                balance_kind='claimable',
+                amount='3.25',
+                direction='credit',
+                block_height=54,
+                transaction_index=1,
+                message_index=0,
+            ),
+        ])
+
+        by_token = {balance['token']: balance for balance in payload['balances']}
+        self.assertEqual(set(by_token), {'native', self.TOKEN_0})
+        self.assertEqual(by_token['native']['claimable_amount'], '8.5')
+        self.assertEqual(by_token['native']['claiming_amount'], '2.5')
+        self.assertEqual(by_token['native']['projection_status'], 'complete')
+        self.assertEqual(by_token['native']['latest_block_height'], 53)
+        self.assertEqual(by_token['native']['latest_transaction_index'], 3)
+        self.assertEqual(by_token['native']['latest_message_index'], 1)
+        self.assertEqual(by_token[self.TOKEN_0]['claimable_amount'], '3.25')
+        self.assertEqual(by_token[self.TOKEN_0]['claiming_amount'], '0')
+        self.assertEqual(by_token[self.TOKEN_0]['projection_status'], 'complete')
+
+    def _claim_balances_payload(self, deltas, diagnostics=None):
+        repository = ClaimBalanceProjectionRepository(
+            self.ClaimProjectionDb(deltas=deltas, diagnostics=diagnostics),
+        )
+        read_model_payload = ClaimBalancesReadModel(repository).get_claim_balances(owner=self.OWNER)
+        return ClaimBalancesSerializer().serialize_claim_balances(read_model_payload)
+
+    def _claim_delta(
+        self,
+        *,
+        delta_id,
+        token,
+        balance_kind,
+        amount,
+        direction,
+        block_height,
+        transaction_index,
+        message_index,
+    ):
+        return {
+            'claim_balance_delta_id': delta_id,
+            'normalized_event_id': f'event-{delta_id}',
+            'pool_application_id': self.POOL_APPLICATION,
+            'execution_chain_id': 'chain-a',
+            'token': token,
+            'owner': self.OWNER,
+            'balance_kind': balance_kind,
+            'delta_amount': raw_amount(amount),
+            'delta_direction': direction,
+            'block_height': block_height,
+            'transaction_index': transaction_index,
+            'message_index': message_index,
+            'derivation_source': 'e2e_projection_fact',
+            'derivation_confidence': 'exact',
+            'source_event_key': f'source-{delta_id}',
+            'event_payload_json': {},
+        }
 
     def _assert_market_stats_match_independent_aggregation(self):
         pool_stats = self.stats_repo.get_pool_stats(interval='1d')
