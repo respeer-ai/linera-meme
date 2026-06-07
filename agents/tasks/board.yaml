@@ -1485,11 +1485,23 @@ groups:
           Complete. Transaction list now has i18n table copy, explicit empty state, stable transaction row keys, safer amount/address formatting, direct token-pair reloads, and no fake default pagination count.
           Validation: `bun test`, `bun run lint`, `bun run build`.
       - id: WEBUI-003
-        status: Doing
+        status: Done
         priority: P1
         depends_on: []
         title: Improve FAQ
-        notes: Focus on FAQ information structure, copy quality, brand consistency, and layout presentation.
+        notes: |
+          Complete. FAQ copy was rewritten from current swap/pool/meme contract semantics, Linera application-chain architecture, and the live WebUI flows.
+          Product framing now treats MicroMeme as one Linera-native meme trading product, not as separate MicroMeme and Linera Meme Swap products.
+          The FAQ section is an i18n-backed component shared by visible content and FAQ structured data; Quasar expansion header/content padding was normalized so the FAQ title, questions, and answers align without reducing the approved reading scale.
+          Validation: `bun test`, `bun run lint`, `bun run build`.
+      - id: WEBUI-006
+        status: Todo
+        priority: P2
+        depends_on: []
+        title: Plan and build documentation entry
+        notes: |
+          Define the product documentation direction separately from the FAQ task.
+          The eventual Docs navigation may link to a dedicated external documentation site or to a future in-app documentation area; this remains undecided and should not block WEBUI-003.
       - id: WEBUI-004
         status: Doing
         priority: P1
