@@ -122,6 +122,15 @@ navigation:
         - implementing business freshness status
         - adding debug business freshness endpoints
         - designing frontend status updates for kline freshness
+    - path: agents/context/webui-internationalization.md
+      canonical_for:
+        - webui_i18n_phase_1_scope
+        - webui_locale_resolution_rules
+        - webui_header_language_switch_design
+      when_to_read:
+        - implementing WEBUI-001
+        - changing webui-v2 locale handling
+        - adding WebUI language switch UI
   primitives:
     - path: agents/primitives/cross-chain.md
       canonical_for:

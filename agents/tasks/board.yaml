@@ -1468,31 +1468,34 @@ groups:
   - name: WebUI
     tasks:
       - id: WEBUI-001
-        status: Todo
+        status: Done
         priority: P1
         depends_on: []
         title: Frontend internationalization
-        notes: Inventory current hard-coded copy and define sustainable i18n integration and migration scope.
+        notes: |
+          Phase 1 complete. WebUI now supports `en-US` and `zh-TW`, resolves stored app locale before browser locale, excludes mainland Chinese locale matching, and exposes a compact header language dropdown next to the dark-mode switch.
+          Design reference: `agents/context/webui-internationalization.md`.
+          Validation: `bun test`, `bun run lint`.
       - id: WEBUI-002
-        status: Todo
+        status: Doing
         priority: P1
         depends_on: []
         title: Improve transactions list fetching, loading, and display
         notes: Focus on data fetch timing, loading state, empty state, pagination or incremental display, and readability for the transactions list.
       - id: WEBUI-003
-        status: Todo
+        status: Doing
         priority: P1
         depends_on: []
         title: Improve FAQ
         notes: Focus on FAQ information structure, copy quality, brand consistency, and layout presentation.
       - id: WEBUI-004
-        status: Todo
+        status: Doing
         priority: P1
         depends_on: []
         title: Improve Add Liquidity and Remove Liquidity pages
         notes: Focus on layout, information hierarchy, interaction states, and usability for add/remove liquidity pages.
       - id: WEBUI-005
-        status: Todo
+        status: Doing
         priority: P1
         depends_on: []
         title: Implement side drawer menu

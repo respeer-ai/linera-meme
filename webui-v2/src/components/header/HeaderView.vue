@@ -19,7 +19,10 @@
       <wallet-info-view />
     </div>
     <div class='header-actions q-ml-md'>
-      <q-btn fab flat round icon='invert_colors' size='24px' class='bg-dark-dark' @click='onModeSwitchClick' />
+      <q-btn fab flat round icon='invert_colors' size='24px' class='bg-dark-dark' @click='onModeSwitchClick'>
+        <q-tooltip>{{ t('header.theme') }}</q-tooltip>
+      </q-btn>
+      <language-switch-view class='q-ml-sm' />
     </div>
   </div>
 </template>
@@ -27,6 +30,7 @@
 <script lang='ts' setup>
 import { Dark } from 'quasar'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { user } from 'src/stores/export'
 import { useRouter } from 'vue-router'
 
@@ -37,6 +41,9 @@ import LogoView from '../logo/LogoView.vue'
 import CreateMemeBtn from '../meme/CreateMemeBtn.vue'
 import WalletInfoView from '../wallet/WalletInfoView.vue'
 import SubscriptionView from '../subscription/SubscriptionView.vue'
+import LanguageSwitchView from './LanguageSwitchView.vue'
+
+const { t } = useI18n()
 
 const walletConnected = computed(() => user.User.walletConnected())
 const walletType = computed(() => user.User.walletConnectedType())
@@ -55,6 +62,8 @@ const onLogoClick = () => {
 
 <style scoped lang='sass'>
 .header-actions
+  display: flex
+  align-items: center
   ::v-deep(.q-btn--fab .q-icon)
     font-size: 32px
 </style>

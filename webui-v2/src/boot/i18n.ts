@@ -2,6 +2,8 @@ import { defineBoot } from '#q-app/wrappers'
 import { createI18n } from 'vue-i18n'
 
 import messages from 'src/i18n'
+import { resolveInitialLocale } from 'src/i18n/localeResolver'
+import { readStoredLocale } from 'src/i18n/runtimeLocale'
 
 export type MessageLanguages = keyof typeof messages
 // Type-define 'en-US' as the master schema for the resource
@@ -22,12 +24,18 @@ declare module 'vue-i18n' {
 /* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export default defineBoot(({ app }) => {
+  const browserLanguages = typeof navigator === 'undefined' ? [] : Array.from(navigator.languages || [])
+  const browserLanguage = typeof navigator === 'undefined' ? undefined : navigator.language
+
   const i18n = createI18n<{ message: MessageSchema }, MessageLanguages>({
-    locale: 'en-US',
+    locale: resolveInitialLocale({
+      storedLocale: readStoredLocale(),
+      browserLocales: browserLanguages,
+      browserLocale: browserLanguage,
+    }),
     legacy: false,
     messages,
   })
 
-  // Set i18n instance on app
   app.use(i18n)
 })
