@@ -11,6 +11,7 @@ class ChainEventProcessor:
         max_blocks_per_chain: int,
         allowed_chain_ids: tuple[str, ...] = (),
         registry_refresh=None,
+        business_freshness_service=None,
         task_timeout_seconds: float = 30.0,
         retry_delay_seconds: float = 0.05,
         retry_enabled: bool = True,
@@ -19,6 +20,7 @@ class ChainEventProcessor:
         self.max_blocks_per_chain = int(max_blocks_per_chain)
         self.allowed_chain_ids = tuple(allowed_chain_ids)
         self.registry_refresh = registry_refresh
+        self.business_freshness_service = business_freshness_service
         self.task_timeout_seconds = float(task_timeout_seconds)
         self.retry_delay_seconds = float(retry_delay_seconds)
         self.retry_enabled = bool(retry_enabled)
@@ -127,6 +129,7 @@ class ChainEventProcessor:
                     except Exception as error:
                         result = self._failed_result(chain_id, error)
                 self._last_results[chain_id] = result
+                await self._check_business_freshness(chain_id)
                 if self.retry_enabled and self._needs_retry(result):
                     await asyncio.sleep(self.retry_delay_seconds)
                     self._pending_counts[chain_id] = self._pending_counts.get(chain_id, 0) + 1
@@ -165,6 +168,19 @@ class ChainEventProcessor:
             'finished_at_ms': now_ms,
             'batches': [],
         }
+
+    async def _check_business_freshness(self, chain_id: str) -> None:
+        if self.business_freshness_service is None:
+            return
+        try:
+            result = self.business_freshness_service.check(
+                chain_id=chain_id,
+                trigger='chain_catch_up',
+            )
+            if hasattr(result, '__await__'):
+                await result
+        except Exception as error:
+            print(f'Failed check business freshness after chain catch-up: {error}')
 
     async def wait_for_idle(self, chain_id: str, timeout: float = 1.0) -> dict | None:
         task = self._chain_tasks.get(chain_id)

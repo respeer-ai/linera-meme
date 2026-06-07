@@ -50,7 +50,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
         self.assertTrue(fact.is_trade())
         self.assertFalse(fact.is_liquidity_change())
 
-    def test_falls_back_to_created_at_and_from_account_string(self):
+    def test_from_account_string_is_display_only_not_position_owner(self):
         fact = PoolNewTransactionExecutionFactExtractor().extract(
             {
                 'normalized_event_id': 'event-3',
@@ -76,7 +76,7 @@ class PoolNewTransactionExecutionFactExtractorTest(unittest.TestCase):
 
         self.assertEqual(fact.trade_time_ms(), 888000)
         self.assertEqual(fact.from_account(), '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
-        self.assertEqual(fact.position_owner(), '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@user-chain')
+        self.assertIsNone(fact.position_owner())
 
     def test_falls_back_to_owner_string_when_from_fields_are_missing(self):
         fact = PoolNewTransactionExecutionFactExtractor().extract(

@@ -113,6 +113,15 @@ navigation:
         - designing the chain observability system
         - replacing latestTransactions as a truth source
         - aligning kline semantics with chain-event ingestion
+    - path: agents/context/business-freshness.md
+      canonical_for:
+        - business_freshness_status_contract
+        - event_driven_freshness_checks
+        - future_business_freshness_websocket_topic
+      when_to_read:
+        - implementing business freshness status
+        - adding debug business freshness endpoints
+        - designing frontend status updates for kline freshness
   primitives:
     - path: agents/primitives/cross-chain.md
       canonical_for:

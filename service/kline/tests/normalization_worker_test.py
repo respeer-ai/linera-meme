@@ -55,6 +55,17 @@ class NormalizationWorkerTest(unittest.TestCase):
                 for item in decoded_batch
             ]
 
+    class FakeBusinessFreshnessService:
+        def __init__(self, should_fail=False):
+            self.should_fail = should_fail
+            self.calls = []
+
+        def check(self, *, chain_id=None, pool_application=None, trigger=None):
+            self.calls.append((chain_id, pool_application, trigger))
+            if self.should_fail:
+                raise RuntimeError('freshness failed')
+            return {'status': 'fresh'}
+
     class FakeProcessingCursorRepository:
         def __init__(self):
             self.attempts = []
@@ -104,6 +115,81 @@ class NormalizationWorkerTest(unittest.TestCase):
         self.assertEqual(cursor_repo.attempts[0]['partition_key'], 'chain-a')
         self.assertEqual(cursor_repo.successes[0]['last_sequence'], 'raw-2')
         self.assertEqual(cursor_repo.failures, [])
+
+    def test_process_items_checks_business_freshness_for_distinct_chains(self):
+        cursor_repo = self.FakeProcessingCursorRepository()
+        freshness_service = self.FakeBusinessFreshnessService()
+        worker = NormalizationWorker(
+            decode_scheduler=self.FakeDecodeScheduler(),
+            normalized_event_materializer=self.FakeNormalizedEventMaterializer(),
+            processing_cursor_repository=cursor_repo,
+            business_freshness_service=freshness_service,
+        )
+
+        worker.process_items([
+            {'raw_fact_id': 'raw-1', 'application_id': 'app-1', 'payload_kind': 'operation', 'target_chain_id': 'chain-a'},
+            {'raw_fact_id': 'raw-2', 'application_id': 'app-2', 'payload_kind': 'message', 'target_chain_id': 'chain-a'},
+            {'raw_fact_id': 'raw-3', 'application_id': 'app-3', 'payload_kind': 'event', 'source_chain_id': 'chain-b'},
+        ])
+
+        self.assertEqual(
+            freshness_service.calls,
+            [
+                ('chain-a', None, 'normalization'),
+                ('chain-b', None, 'normalization'),
+            ],
+        )
+
+    def test_process_items_checks_global_business_freshness_without_chain_id(self):
+        cursor_repo = self.FakeProcessingCursorRepository()
+        freshness_service = self.FakeBusinessFreshnessService()
+        worker = NormalizationWorker(
+            decode_scheduler=self.FakeDecodeScheduler(),
+            normalized_event_materializer=self.FakeNormalizedEventMaterializer(),
+            processing_cursor_repository=cursor_repo,
+            business_freshness_service=freshness_service,
+        )
+
+        worker.process_items([
+            {'raw_fact_id': 'raw-1', 'application_id': 'app-1', 'payload_kind': 'operation'},
+        ])
+
+        self.assertEqual(freshness_service.calls, [(None, None, 'normalization')])
+
+    def test_business_freshness_failure_does_not_block_normalization_result(self):
+        cursor_repo = self.FakeProcessingCursorRepository()
+        freshness_service = self.FakeBusinessFreshnessService(should_fail=True)
+        worker = NormalizationWorker(
+            decode_scheduler=self.FakeDecodeScheduler(),
+            normalized_event_materializer=self.FakeNormalizedEventMaterializer(),
+            processing_cursor_repository=cursor_repo,
+            business_freshness_service=freshness_service,
+        )
+
+        result = worker.process_items([
+            {'raw_fact_id': 'raw-1', 'application_id': 'app-1', 'payload_kind': 'operation', 'chain_id': 'chain-a'},
+        ])
+
+        self.assertEqual(result['processed_count'], 1)
+        self.assertEqual(cursor_repo.failures, [])
+        self.assertEqual(freshness_service.calls, [('chain-a', None, 'normalization')])
+
+    def test_decode_failure_does_not_check_business_freshness(self):
+        cursor_repo = self.FakeProcessingCursorRepository()
+        freshness_service = self.FakeBusinessFreshnessService()
+        worker = NormalizationWorker(
+            decode_scheduler=self.FakeDecodeScheduler(should_fail=True),
+            normalized_event_materializer=self.FakeNormalizedEventMaterializer(),
+            processing_cursor_repository=cursor_repo,
+            business_freshness_service=freshness_service,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, 'decode failed'):
+            worker.process_items([
+                {'raw_fact_id': 'raw-1', 'application_id': 'app-1', 'payload_kind': 'operation'},
+            ])
+
+        self.assertEqual(freshness_service.calls, [])
 
     def test_process_items_marks_failure_when_decode_raises(self):
         cursor_repo = self.FakeProcessingCursorRepository()

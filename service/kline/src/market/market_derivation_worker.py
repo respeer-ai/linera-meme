@@ -5,12 +5,14 @@ class MarketDerivationWorker:
         settled_market_materializer,
         processing_cursor_repository,
         market_data_event_sink=None,
+        business_freshness_service=None,
         cursor_name: str = 'layer3_market_deriver',
         cursor_scope: str = 'derive',
     ):
         self.settled_market_materializer = settled_market_materializer
         self.processing_cursor_repository = processing_cursor_repository
         self.market_data_event_sink = market_data_event_sink
+        self.business_freshness_service = business_freshness_service
         self.cursor_name = cursor_name
         self.cursor_scope = cursor_scope
 
@@ -51,6 +53,7 @@ class MarketDerivationWorker:
         )
         if self.market_data_event_sink is not None:
             self.market_data_event_sink.publish_derivation_batch(derivation_batch)
+        self._check_business_freshness(derivation_batch)
         return {
             'cursor_name': self.cursor_name,
             'cursor_scope': self.cursor_scope,
@@ -83,3 +86,31 @@ class MarketDerivationWorker:
         if candidate is None:
             return None
         return str(candidate)
+
+    def _check_business_freshness(self, derivation_batch) -> None:
+        if self.business_freshness_service is None:
+            return
+        pool_applications = self._pool_applications(derivation_batch)
+        if not pool_applications:
+            self._safe_business_freshness_check(pool_application=None)
+            return
+        for pool_application in pool_applications:
+            self._safe_business_freshness_check(pool_application=pool_application)
+
+    def _safe_business_freshness_check(self, *, pool_application: str | None) -> None:
+        try:
+            self.business_freshness_service.check(
+                pool_application=pool_application,
+                trigger='market_derivation',
+            )
+        except Exception as error:
+            print(f'Failed check business freshness after market derivation: {error}')
+
+    def _pool_applications(self, derivation_batch) -> tuple[str, ...]:
+        pool_applications = []
+        for item in derivation_batch:
+            for output in item.get('settled_outputs', []):
+                pool_application = output.get('pool_application_id')
+                if pool_application and pool_application not in pool_applications:
+                    pool_applications.append(pool_application)
+        return tuple(pool_applications)

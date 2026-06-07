@@ -51,8 +51,6 @@ class PoolNewTransactionExecutionFact:
     def owner_chain_id(self) -> str | None:
         value = self.owner_account().get('chain_id')
         if value is None:
-            value = self._chain_id_from_account_string(self._explicit_from_account())
-        if value is None:
             value = self._chain_id_from_position_owner()
         if value is None:
             return None
@@ -60,8 +58,6 @@ class PoolNewTransactionExecutionFact:
 
     def owner(self) -> str | None:
         value = self.owner_account().get('owner')
-        if value is None:
-            value = self._owner_from_account_string(self._explicit_from_account())
         if value is None:
             value = self._owner_from_position_owner()
         if value is None:
@@ -141,22 +137,6 @@ class PoolNewTransactionExecutionFact:
             return None
         owner_id, _ = owner.split('@', 1)
         return owner_id or None
-
-    def _chain_id_from_account_string(self, account: str | None) -> str | None:
-        if not isinstance(account, str):
-            return None
-        try:
-            return self.account_codec.chain_id_from_account(account)
-        except ValueError:
-            return None
-
-    def _owner_from_account_string(self, account: str | None) -> str | None:
-        if not isinstance(account, str):
-            return None
-        try:
-            return self.account_codec.parse_account(account)['owner']
-        except ValueError:
-            return None
 
     def _explicit_from_account(self) -> str | None:
         value = self.transaction.get('from_account')

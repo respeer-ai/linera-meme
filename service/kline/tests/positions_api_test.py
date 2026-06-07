@@ -2326,6 +2326,57 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['status']['state'], 'disabled')
         self.assertFalse(response['status']['recovery_allowed'])
 
+    async def test_on_get_debug_business_freshness_returns_service_payload(self):
+        class FakeBusinessFreshnessService:
+            def __init__(self):
+                self.calls = []
+
+            def get_debug_payload(self, *, chain_id=None, pool_application=None):
+                self.calls.append((chain_id, pool_application))
+                return {'computed': {'status': 'fresh'}, 'latest': None}
+
+        class FakeRuntime:
+            def __init__(self):
+                self.service = FakeBusinessFreshnessService()
+
+            def business_freshness_service(self):
+                return self.service
+
+        runtime = FakeRuntime()
+        original_runtime = kline_module._runtime
+        kline_module._runtime = lambda: runtime
+
+        try:
+            response = await kline_module.on_get_debug_business_freshness(
+                chain_id='chain-a',
+                pool_application='pool-app',
+            )
+        finally:
+            kline_module._runtime = original_runtime
+
+        self.assertEqual(runtime.service.calls, [('chain-a', 'pool-app')])
+        self.assertEqual(response, {'computed': {'status': 'fresh'}, 'latest': None})
+
+    async def test_on_get_debug_business_freshness_returns_500_on_service_error(self):
+        class FakeBusinessFreshnessService:
+            def get_debug_payload(self, *, chain_id=None, pool_application=None):
+                raise RuntimeError('freshness failed')
+
+        class FakeRuntime:
+            def business_freshness_service(self):
+                return FakeBusinessFreshnessService()
+
+        original_runtime = kline_module._runtime
+        kline_module._runtime = lambda: FakeRuntime()
+
+        try:
+            response = await kline_module.on_get_debug_business_freshness()
+        finally:
+            kline_module._runtime = original_runtime
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.body, b'{"error":"freshness failed"}')
+
 
 if __name__ == '__main__':
     unittest.main()

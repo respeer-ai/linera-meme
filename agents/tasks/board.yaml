@@ -120,11 +120,13 @@ groups:
         title: Wire Manage / Remove liquidity entry points
         notes: Active positions can navigate to remove/manage pages.
       - id: POS-019
-        status: Blocked
+        status: Done
         priority: P0
         depends_on: []
         title: Verify whether from_account stably represents LP owner
-        notes: Depends on confirming backend transaction persistence semantics.
+        notes: |
+          Closed by making from_account display-only for position ownership.
+          PoolNewTransactionExecutionFact.position_owner() now requires authoritative owner or structured from transaction facts; liquidity derivation blocks when only from_account is present.
       - id: POS-020
         status: Blocked
         priority: P0
@@ -770,32 +772,36 @@ groups:
           - If diagnostics are needed, add diagnostics/observability metrics or debug endpoints instead of reusing ticker
           - Do not add positions or other product realtime topics to `Ticker`
       - id: POS-063
-        status: Blocked
+        status: Done
         priority: P0
         depends_on: [POS-053, OBS-E2E-001]
         title: Record local query-service and Layer 3 stall risk under unstable upstream chain connectivity
         notes: |
-          2026-05-15 local incident record:
-          - Symptom set:
-            - After about 09:44 CST, `/points`, `/transactions`, and websocket K-line push stopped advancing
-            - Frontend refresh and push divergence investigation was confounded by the upstream stall
-          - Proven runtime facts before restart:
-            - `query-service` tip for the active pool/proxy chains stopped at old heights
-            - `service/kline` `/debug/observability` later showed runtime `ready`, but this was not sufficient to prove business freshness
-            - `settled_trades.max_transaction_id` stopped at `38328`
-          - Proven recovery sequence:
-            - Restarting the local compose cluster advanced query-service / catch-up / listener again
-            - Layer 1 / Layer 2 resumed first
-            - Layer 3 `market_deriver` still lagged and required explicit `POST /debug/market-derivation/replay/run`
-            - After replay, `settled_trades` advanced to new transactions and `/points` / `/transactions` recovered
-          - Proven external contributing factor:
-            - Local read-chain services logged upstream validator transport failures such as `h2 protocol error`, `service is currently unavailable`, `connection termination`, and `remote refused stream reset`
-          Current decision:
-          - Do not implement automatic compensation, auto-replay, or new self-healing logic now
-          - Treat this as a recorded operational risk while official chain/validator stability is still under observation
-          Revisit only after upstream chain stability is reassessed:
-          - decide whether business-health checks must include tip freshness and Layer2/Layer3 cursor divergence
-          - decide whether Layer 3 replay should remain manual or become controlled automation
+          Incident risk is recorded. Runtime freshness design and implementation are now tracked by POS-065.
+          Do not implement automatic compensation, auto-replay, or an independent watchdog as part of this historical risk record.
+      - id: POS-065
+        status: Done
+        priority: P0
+        depends_on: [POS-053, POS-063, OBS-E2E-001]
+        title: Add event-driven business freshness status
+        notes: |
+          Canonical design: agents/context/business-freshness.md.
+
+          Scope:
+          - Add read-only business freshness status for L1/L2/L3/product read watermarks.
+          - Add GET /debug/business-freshness for immediate inspection and future frontend status page initial load.
+          - Keep current freshness status non-persistent; do not create history tables.
+          - Keep checks event-driven; do not add an independent watchdog loop.
+          - Do not trigger automatic replay, compensation, or recovery from freshness checks.
+          - Prepare the service boundary for a future websocket topic, but do not implement frontend push yet.
+
+          Complete:
+          - Added read-only BusinessFreshnessReadModel over local L1, L2, L3, and product watermarks.
+          - Added in-memory latest snapshot store and BusinessFreshnessService with a future push callback extension point.
+          - Exposed GET /debug/business-freshness with chain_id and pool_application filters.
+          - Hooked isolated event-driven checks after chain catch-up, normalization completion, and market-derivation completion.
+          - Kept freshness non-persistent and avoided watchdogs, replay, recovery, or compensation.
+          - Added targeted tests for status classification, endpoint payloads, event hook isolation, bootstrap wiring, and non-persistence.
       - id: POS-059
         status: Done
         priority: P0

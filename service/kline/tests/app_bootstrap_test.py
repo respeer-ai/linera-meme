@@ -476,6 +476,63 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('catch_up_runner', container)
         self.assertIn('chain_event_processor', container)
 
+    async def test_build_business_freshness_service_uses_local_repositories(self):
+        bootstrap = AppBootstrap()
+        raw_repository = self.FakeRawRepository(self.FakeConnection())
+        processing_cursor_repository = self.FakeProcessingCursorRepository(self.FakeConnection())
+
+        class FakeWatermarkRepository:
+            def __init__(self):
+                self.calls = []
+
+            def load_pool_market_watermark_ms(self, pool_application):
+                self.calls.append(pool_application)
+                return 1234
+
+        watermark_repository = FakeWatermarkRepository()
+        service = bootstrap._build_business_freshness_service(
+            raw_repository=raw_repository,
+            processing_cursor_repository=processing_cursor_repository,
+            settled_trade_watermark_repository=watermark_repository,
+        )
+
+        snapshot = service.check(pool_application='pool-app', trigger='test')
+
+        self.assertEqual(snapshot['scope_key'], 'pool:pool-app')
+        self.assertEqual(watermark_repository.calls, ['pool-app'])
+
+    async def test_post_ingest_bundle_wires_business_freshness_to_market_worker(self):
+        connection = self.FakeConnection()
+        bootstrap = AppBootstrap()
+        processing_cursor_repository = self.FakeProcessingCursorRepository(connection)
+        freshness_service = object()
+
+        bundle = bootstrap._build_post_ingest_pipeline_bundle(
+            config=KlineAppConfig(
+                database_host='db',
+                database_port='3306',
+                database_name='kline',
+                database_username='user',
+                database_password='pass',
+            ),
+            raw_repository=self.FakeRawRepository(connection),
+            processing_cursor_repository=processing_cursor_repository,
+            pool_catalog_projection_repository=self.FakePoolCatalogProjectionRepository(connection),
+            normalized_event_repository=self.FakeNormalizedEventRepository(connection),
+            settled_trade_repository=self.FakeSettledTradeRepository(connection),
+            settled_liquidity_change_repository=self.FakeSettledLiquidityChangeRepository(connection),
+            claim_balance_projection_repository=self.FakeClaimBalanceProjectionRepository(connection),
+            position_metrics_snapshot_materializer=object(),
+            settled_market_deriver=object(),
+            market_data_event_sink=None,
+            business_freshness_service=freshness_service,
+        )
+
+        self.assertIs(
+            bundle['market_derivation_worker'].business_freshness_service,
+            freshness_service,
+        )
+
     async def test_bootstrap_wires_catch_up_driver_when_chain_list_present(self):
         connection = self.FakeConnection()
         bootstrap = self.TestableBootstrap(

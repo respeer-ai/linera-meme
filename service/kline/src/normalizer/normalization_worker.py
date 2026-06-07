@@ -5,12 +5,14 @@ class NormalizationWorker:
         decode_scheduler,
         normalized_event_materializer,
         processing_cursor_repository,
+        business_freshness_service=None,
         cursor_name: str = 'layer2_normalizer',
         cursor_scope: str = 'normalize',
     ):
         self.decode_scheduler = decode_scheduler
         self.normalized_event_materializer = normalized_event_materializer
         self.processing_cursor_repository = processing_cursor_repository
+        self.business_freshness_service = business_freshness_service
         self.cursor_name = cursor_name
         self.cursor_scope = cursor_scope
 
@@ -55,6 +57,7 @@ class NormalizationWorker:
             last_sequence=last_sequence,
             last_block_hash=last_block_hash,
         )
+        self._check_business_freshness(items)
         return {
             'cursor_name': self.cursor_name,
             'cursor_scope': self.cursor_scope,
@@ -90,3 +93,29 @@ class NormalizationWorker:
             return None
         return str(candidate)
 
+    def _check_business_freshness(self, items: list[dict]) -> None:
+        if self.business_freshness_service is None:
+            return
+        chain_ids = self._chain_ids(items)
+        if not chain_ids:
+            self._safe_business_freshness_check(chain_id=None)
+            return
+        for chain_id in chain_ids:
+            self._safe_business_freshness_check(chain_id=chain_id)
+
+    def _safe_business_freshness_check(self, *, chain_id: str | None) -> None:
+        try:
+            self.business_freshness_service.check(
+                chain_id=chain_id,
+                trigger='normalization',
+            )
+        except Exception as error:
+            print(f'Failed check business freshness after normalization: {error}')
+
+    def _chain_ids(self, items: list[dict]) -> tuple[str, ...]:
+        chain_ids = []
+        for item in items:
+            chain_id = item.get('target_chain_id') or item.get('source_chain_id') or item.get('chain_id')
+            if chain_id and chain_id not in chain_ids:
+                chain_ids.append(chain_id)
+        return tuple(chain_ids)

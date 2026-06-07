@@ -42,6 +42,7 @@ sys.modules.setdefault('swap', swap_stub)
 
 
 from kline_runtime import KlineRuntime  # noqa: E402
+from business_freshness_service import BusinessFreshnessService  # noqa: E402
 from storage.mysql.settled_liquidity_projection_repo import SettledLiquidityProjectionRepository  # noqa: E402
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository  # noqa: E402
 from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistoryProjectionRepository  # noqa: E402
@@ -120,6 +121,21 @@ class KlineRuntimeTest(unittest.TestCase):
         handler = runtime.transactions_handler()
 
         self.assertIsInstance(handler.read_model.repository, SettledTradeProjectionRepository)
+
+    def test_business_freshness_service_uses_shared_snapshot_store(self):
+        runtime = KlineRuntime(
+            db=self.FakeDb(),
+            realtime_db=self.FakeDb(),
+            observability_config=None,
+            swap=object(),
+            websocket_manager=object(),
+        )
+
+        first = runtime.business_freshness_service()
+        second = runtime.business_freshness_service()
+
+        self.assertIsInstance(first, BusinessFreshnessService)
+        self.assertIs(first.snapshot_store, second.snapshot_store)
 
     def test_positions_handler_uses_settled_liquidity_projection_repository(self):
         runtime = KlineRuntime(

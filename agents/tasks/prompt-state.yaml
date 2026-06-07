@@ -73,6 +73,16 @@ on_demand_done:
     canonical_refs:
       - agents/tasks/board.yaml
       - agents/context/observability-architecture.md
+  - id: POS-063
+    why: recorded upstream connectivity and Layer 3 stall incident that motivates POS-065
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/context/business-freshness.md
+  - id: POS-065
+    why: event-driven business freshness status implementation and debug API completion history
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/context/business-freshness.md
   - id: POS-041
     why: explains why parity or rollback guardrails were intentionally removed
     canonical_refs:

@@ -100,6 +100,10 @@ def _build_claim_balances_handler():
     return _runtime().claim_balances_handler()
 
 
+def _business_freshness_service():
+    return _runtime().business_freshness_service()
+
+
 def _build_position_metrics_handler():
     dependencies = _position_metrics_dependencies()
     runtime = _runtime()
@@ -646,6 +650,24 @@ async def on_post_debug_observability_recover():
         return await _debug_service().recover_observability()
     except Exception as e:
         print(f'Failed recover observability: {e}')
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get('/debug/business-freshness')
+async def on_get_debug_business_freshness(
+    chain_id: str | None = Query(default=None),
+    pool_application: str | None = Query(default=None),
+):
+    try:
+        return _business_freshness_service().get_debug_payload(
+            chain_id=chain_id,
+            pool_application=pool_application,
+        )
+    except Exception as e:
+        print(f'Failed get business freshness debug: {e}')
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}

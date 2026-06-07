@@ -2,12 +2,15 @@ from app.config import KlineAppConfig
 from app.observability_facade import ObservabilityFacade
 from app.observability_runtime import ObservabilityRuntime
 from app.observability_supervisor import ObservabilitySupervisor
+from business_freshness_service import BusinessFreshnessService
+from business_freshness_snapshot_store import BusinessFreshnessSnapshotStore
 from position_metrics_bootstrap import PositionMetricsBootstrap
 from query.handlers.kline import KlineHandler
 from query.handlers.position_metrics_noop_diagnostic_recorder import PositionMetricsNoopDiagnosticRecorder
 from query.handlers.claim_balances import ClaimBalancesHandler
 from query.handlers.positions import PositionsHandler
 from query.handlers.transactions import TransactionsHandler
+from query.read_models.business_freshness import BusinessFreshnessReadModel
 from query.read_models.candles import CandlesReadModel
 from query.read_models.claim_balances import ClaimBalancesReadModel
 from query.read_models.position_metrics_protocol_fee_split_semantics import PositionMetricsProtocolFeeSplitSemantics
@@ -36,6 +39,8 @@ from storage.mysql.position_metrics_snapshot_inputs_projection_repo import Posit
 from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
 from storage.mysql.pool_state_projection_repo import PoolStateProjectionRepository
 from storage.mysql.projection_pool_catalog_repo import ProjectionPoolCatalogRepository
+from storage.mysql.processing_cursor_repo import ProcessingCursorRepository
+from storage.mysql.raw_repo import RawRepository
 from storage.mysql.settled_liquidity_projection_repo import SettledLiquidityProjectionRepository
 from storage.mysql.settled_pool_history_projection_repo import SettledPoolHistoryProjectionRepository
 from storage.mysql.settled_trade_projection_repo import SettledTradeProjectionRepository
@@ -63,6 +68,7 @@ class KlineRuntime:
         self._market_data_event_queue = market_data_event_queue
         self._position_metrics_protocol_fee_split_semantics = PositionMetricsProtocolFeeSplitSemantics()
         self._position_metrics_public_api = PositionMetricsBootstrap().public_api()
+        self._business_freshness_snapshot_store = BusinessFreshnessSnapshotStore()
 
     def position_metrics_protocol_fee_split_semantics(self) -> PositionMetricsProtocolFeeSplitSemantics:
         return self._position_metrics_protocol_fee_split_semantics
@@ -73,6 +79,26 @@ class KlineRuntime:
     def settled_trade_projection_repository(self):
         self.require_db()
         return SettledTradeProjectionRepository(self._db)
+
+    def raw_repository(self):
+        self.require_db()
+        return RawRepository(self._db.connection)
+
+    def processing_cursor_repository(self):
+        self.require_db()
+        return ProcessingCursorRepository(self._db.connection)
+
+    def business_freshness_service(self):
+        self.require_db()
+        return BusinessFreshnessService(
+            read_model=BusinessFreshnessReadModel(
+                raw_repository=self.raw_repository(),
+                processing_cursor_repository=self.processing_cursor_repository(),
+                settled_trade_projection_repository=self.settled_trade_projection_repository(),
+                clock_ms=self._db.now_ms,
+            ),
+            snapshot_store=self._business_freshness_snapshot_store,
+        )
 
     def settled_liquidity_projection_repository(self):
         self.require_db()

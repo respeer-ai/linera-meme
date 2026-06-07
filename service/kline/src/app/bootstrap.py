@@ -1,4 +1,6 @@
 from app.config import KlineAppConfig
+from business_freshness_service import BusinessFreshnessService
+from business_freshness_snapshot_store import BusinessFreshnessSnapshotStore
 from ingestion.chain_event_processor import ChainEventProcessor
 from ingestion.catch_up_driver import CatchUpDriver
 from ingestion.catch_up_runner import CatchUpRunner
@@ -40,6 +42,7 @@ from registry.proxy_message_decoder import ProxyMessageDecoder
 from registry.proxy_operation_decoder import ProxyOperationDecoder
 from registry.swap_message_decoder import SwapMessageDecoder
 from registry.swap_operation_decoder import SwapOperationDecoder
+from query.read_models.business_freshness import BusinessFreshnessReadModel
 from storage.mysql.application_registry_repo import ApplicationRegistryRepository
 from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRepository
 from storage.mysql.connection import MysqlConnectionFactory
@@ -52,6 +55,7 @@ from storage.mysql.processing_cursor_repo import ProcessingCursorRepository
 from storage.mysql.raw_repo import RawRepository
 from storage.mysql.settled_liquidity_change_repo import SettledLiquidityChangeRepository
 from storage.mysql.settled_trade_repo import SettledTradeRepository
+from storage.mysql.settled_trade_watermark_repo import SettledTradeWatermarkRepository
 
 
 async def _refresh_discovered_chain_ids(container: dict[str, object]) -> tuple[str, ...]:
@@ -111,6 +115,11 @@ class AppBootstrap:
             pool_state_snapshot_repository=pool_state_snapshot_repository,
         )
         processing_cursor_repository = ProcessingCursorRepository(connection)
+        business_freshness_service = self._build_business_freshness_service(
+            raw_repository=raw_repository,
+            processing_cursor_repository=processing_cursor_repository,
+            settled_trade_watermark_repository=SettledTradeWatermarkRepository(connection),
+        )
         chain_cursor_store = ChainCursorStore(raw_repository)
         block_parser = LayerOneBlockParser()
         application_registry = ApplicationRegistry(application_registry_repository)
@@ -137,6 +146,7 @@ class AppBootstrap:
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
             settled_market_deriver=settled_market_deriver,
             market_data_event_sink=self.market_data_event_sink,
+            business_freshness_service=business_freshness_service,
         )
         post_ingest_pipeline = post_ingest_pipeline_bundle['post_ingest_pipeline']
         container = {
@@ -155,6 +165,7 @@ class AppBootstrap:
             'position_metrics_snapshot_builder': position_metrics_snapshot_builder,
             'position_metrics_snapshot_materializer': position_metrics_snapshot_materializer,
             'processing_cursor_repository': processing_cursor_repository,
+            'business_freshness_service': business_freshness_service,
             'application_registry': application_registry,
             'decoder_registry': decoder_registry,
             'decoder_dispatcher': decoder_dispatcher,
@@ -221,6 +232,7 @@ class AppBootstrap:
                 max_blocks_per_chain=config.catch_up_max_blocks_per_chain,
                 allowed_chain_ids=config.catch_up_chain_ids,
                 registry_refresh=lambda: _refresh_discovered_chain_ids(container),
+                business_freshness_service=business_freshness_service,
                 task_timeout_seconds=config.catch_up_task_timeout_seconds,
                 retry_delay_seconds=config.catch_up_retry_delay_seconds,
             )
@@ -238,6 +250,23 @@ class AppBootstrap:
                     reconnect_delay_seconds=config.notification_reconnect_delay_seconds,
                 )
         return container
+
+    def _build_business_freshness_service(
+        self,
+        *,
+        raw_repository,
+        processing_cursor_repository,
+        settled_trade_watermark_repository,
+    ):
+        return BusinessFreshnessService(
+            read_model=BusinessFreshnessReadModel(
+                raw_repository=raw_repository,
+                processing_cursor_repository=processing_cursor_repository,
+                settled_trade_projection_repository=settled_trade_watermark_repository,
+                clock_ms=lambda: None,
+            ),
+            snapshot_store=BusinessFreshnessSnapshotStore(),
+        )
 
     def _build_owned_post_ingest_pipeline(self, config: KlineAppConfig):
         connection = MysqlConnectionFactory().connect_from_app_config(config)
@@ -258,10 +287,11 @@ class AppBootstrap:
             position_state_snapshot_repository=position_state_snapshot_repository,
             pool_state_snapshot_repository=pool_state_snapshot_repository,
         )
+        processing_cursor_repository = ProcessingCursorRepository(connection)
         bundle = self._build_post_ingest_pipeline_bundle(
             config=config,
             raw_repository=raw_repository,
-            processing_cursor_repository=ProcessingCursorRepository(connection),
+            processing_cursor_repository=processing_cursor_repository,
             pool_catalog_projection_repository=pool_catalog_projection_repository,
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
@@ -270,6 +300,11 @@ class AppBootstrap:
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
             settled_market_deriver=SettledMarketDeriver(),
             market_data_event_sink=self.market_data_event_sink,
+            business_freshness_service=self._build_business_freshness_service(
+                raw_repository=raw_repository,
+                processing_cursor_repository=processing_cursor_repository,
+                settled_trade_watermark_repository=SettledTradeWatermarkRepository(connection),
+            ),
         )
         return _OwnedConnectionPostIngestPipeline(
             connection=connection,
@@ -290,6 +325,7 @@ class AppBootstrap:
         position_metrics_snapshot_materializer,
         settled_market_deriver,
         market_data_event_sink,
+        business_freshness_service,
     ) -> dict[str, object]:
         decode_scheduler = DecodeScheduler(
             DecoderDispatcher(
@@ -312,6 +348,7 @@ class AppBootstrap:
             decode_scheduler=decode_scheduler,
             normalized_event_materializer=normalized_event_materializer,
             processing_cursor_repository=processing_cursor_repository,
+            business_freshness_service=business_freshness_service,
         )
         normalization_replay_driver = NormalizationReplayDriver(
             raw_repository=raw_repository,
@@ -332,6 +369,7 @@ class AppBootstrap:
             settled_market_materializer=settled_market_materializer,
             processing_cursor_repository=processing_cursor_repository,
             market_data_event_sink=market_data_event_sink,
+            business_freshness_service=business_freshness_service,
         )
         market_derivation_replay_driver = MarketDerivationReplayDriver(
             normalized_event_repository=normalized_event_repository,

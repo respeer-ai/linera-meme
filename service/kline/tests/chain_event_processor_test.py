@@ -41,6 +41,17 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
                 'mode': mode,
             }
 
+    class FakeBusinessFreshnessService:
+        def __init__(self, should_fail=False):
+            self.should_fail = should_fail
+            self.calls = []
+
+        def check(self, *, chain_id=None, pool_application=None, trigger=None):
+            self.calls.append((chain_id, pool_application, trigger))
+            if self.should_fail:
+                raise RuntimeError('freshness failed')
+            return {'status': 'fresh'}
+
     class FakeRegistryRefresh:
         def __init__(self, result=None):
             self.calls = 0
@@ -70,6 +81,41 @@ class ChainEventProcessorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(last_result['chain_id'], 'chain-a')
         self.assertEqual(last_result['ingested_count'], 1)
         self.assertEqual(last_result['batch_count'], 1)
+
+    async def test_chain_catch_up_checks_business_freshness_after_result_is_recorded(self):
+        runner = self.FakeCatchUpRunner()
+        freshness_service = self.FakeBusinessFreshnessService()
+        processor = ChainEventProcessor(
+            catch_up_runner=runner,
+            max_blocks_per_chain=20,
+            allowed_chain_ids=('chain-a',),
+            business_freshness_service=freshness_service,
+            retry_enabled=False,
+        )
+
+        await processor.on_chain_notification('chain-a')
+        last_result = await processor.wait_for_idle('chain-a')
+
+        self.assertEqual(last_result['chain_id'], 'chain-a')
+        self.assertEqual(freshness_service.calls, [('chain-a', None, 'chain_catch_up')])
+
+    async def test_business_freshness_failure_does_not_block_catch_up_result(self):
+        runner = self.FakeCatchUpRunner()
+        freshness_service = self.FakeBusinessFreshnessService(should_fail=True)
+        processor = ChainEventProcessor(
+            catch_up_runner=runner,
+            max_blocks_per_chain=20,
+            allowed_chain_ids=('chain-a',),
+            business_freshness_service=freshness_service,
+            retry_enabled=False,
+        )
+
+        await processor.on_chain_notification('chain-a')
+        last_result = await processor.wait_for_idle('chain-a')
+
+        self.assertEqual(last_result['chain_id'], 'chain-a')
+        self.assertEqual(last_result['batch_count'], 1)
+        self.assertEqual(freshness_service.calls, [('chain-a', None, 'chain_catch_up')])
 
     async def test_on_chain_notification_ignores_unconfigured_chain(self):
         runner = self.FakeCatchUpRunner()
