@@ -1,41 +1,43 @@
 <template>
   <q-page class='row justify-center'>
-    <main class='page-width q-py-xl' style='max-width: 560px; width: 100%;'>
-      <div class='text-h4 text-white text-center q-mb-xl'>Add Liquidity</div>
+    <main class='add-liquidity-page page-width q-py-xl'>
+      <section class='add-shell'>
+        <header class='add-header'>
+          <h1 class='add-title q-ma-none'>Add Liquidity</h1>
+        </header>
 
-      <q-card flat class='bg-dark-secondary radius-16'>
-        <div class='column'>
-          <token-input-view
-            label='Token 0'
-            :tokens='tokenInputOptions'
-            :disable='submitting'
-            v-model='selectedToken0'
-            v-model:amount='amount0'
-          />
-          <q-separator dark />
-          <token-input-view
-            label='Token 1'
-            :tokens='token1InputOptions'
-            :disable='submitting'
-            :auto-focus='false'
-            v-model='selectedToken1'
-            v-model:amount='amount1'
-          />
-        </div>
-      </q-card>
+        <q-card flat class='add-card'>
+          <div class='token-stack'>
+            <token-input-view
+              label='Token 0'
+              :tokens='tokenInputOptions'
+              :disable='submitting'
+              v-model='selectedToken0'
+              v-model:amount='amount0'
+            />
+            <div class='token-divider' />
+            <token-input-view
+              label='Token 1'
+              :tokens='token1InputOptions'
+              :disable='submitting'
+              :auto-focus='false'
+              v-model='selectedToken1'
+              v-model:amount='amount1'
+            />
+          </div>
+        </q-card>
 
-      <div class='row justify-center q-mt-xl'>
         <q-btn
           rounded
-          class='bg-primary text-white'
-          style='width: calc(100% - 48px); max-width: 512px;'
+          no-caps
+          class='add-action bg-primary text-white'
           :disable='submitDisabled'
           :loading='submitting'
           @click='onPrimaryAction'
         >
           {{ primaryActionLabel }}
         </q-btn>
-      </div>
+      </section>
     </main>
     <q-dialog v-model='connectingWallet'>
       <div class='bg-dark-secondary q-py-lg radius-16' style='min-width: 400px;'>
@@ -300,3 +302,58 @@ watch(tokenInputOptions, () => {
   initializeFromRoute()
 }, { deep: false })
 </script>
+
+<style scoped lang='sass'>
+.add-liquidity-page
+  width: 100%
+  display: flex
+  justify-content: center
+
+.add-shell
+  width: 100%
+  max-width: 560px
+
+.add-header
+  display: flex
+  justify-content: center
+  margin-bottom: 28px
+
+.add-title
+  color: var(--q-light)
+  font-size: 32px
+  font-weight: 500
+  line-height: 1.12
+  letter-spacing: 0
+
+.add-card
+  border: 1px solid rgba(255, 255, 255, 0.1)
+  border-radius: 8px
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.025))
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22)
+  overflow: hidden
+
+.token-stack
+  display: grid
+  gap: 0
+
+.token-divider
+  height: 1px
+  margin: 0 18px
+  background: rgba(255, 255, 255, 0.08)
+
+.add-action
+  width: 100%
+  min-height: 50px
+  margin-top: 24px
+  font-size: 16px
+  font-weight: 700
+  letter-spacing: 0
+
+@media (max-width: 599px)
+  .add-liquidity-page
+    padding-left: 16px
+    padding-right: 16px
+
+  .add-title
+    font-size: 28px
+</style>
