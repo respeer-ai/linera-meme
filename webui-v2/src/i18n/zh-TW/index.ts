@@ -19,4 +19,22 @@ export default {
     traditionalChinese: '繁體中文',
     current: '目前語言',
   },
+  transactions: {
+    columns: {
+      time: '時間',
+      swap: '交換',
+      value: '價值',
+      bought: '買入',
+      sold: '賣出',
+      address: '地址',
+    },
+    action: {
+      swap: '交換',
+      for: '兌',
+    },
+    empty: {
+      title: '沒有交易',
+      caption: '交換結算後，交易會顯示在這裡。',
+    },
+  },
 }

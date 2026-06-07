@@ -24,12 +24,6 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
-  - id: WEBUI-002
-    why: current WebUI queue; improve transactions list fetching, loading, empty state, pagination, and readability
-    summary: Review and implement transactions list UX/data-loading improvements in webui-v2.
-    canonical_refs:
-      - agents/tasks/board.yaml
-      - webui-v2/AGENTS.md
   - id: WEBUI-003
     why: current WebUI queue; improve FAQ information structure, copy quality, brand consistency, and layout
     summary: Review and implement FAQ page/content improvements after WEBUI-002.
@@ -49,6 +43,11 @@ active_focus:
       - agents/tasks/board.yaml
       - webui-v2/AGENTS.md
 on_demand_done:
+  - id: WEBUI-002
+    why: completed transaction list fetching/loading/display improvements
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - webui-v2/AGENTS.md
   - id: WEBUI-001
     why: completed WebUI i18n phase 1 and header language dropdown
     canonical_refs:

@@ -3,58 +3,61 @@
     <q-table
       :columns='(columns as never)'
       :rows='transactions'
-      row-key='id'
+      row-key='transaction_id'
       separator='none'
       :loading='loading'
       :virtual-scroll='true'
       hide-pagination
       :rows-per-page-options="[pagination.rowsPerPage]"
+      class='transactions-table'
     >
       <template #header='props'>
         <q-tr class='text-neutral bg-dark-secondary' :props='props'>
-          <q-th class='cursor-pointer text-left'>Time</q-th>
-          <q-th class='cursor-pointer text-left'>Swap</q-th>
-          <q-th class='cursor-pointer'>Value</q-th>
-          <q-th class='cursor-pointer'>Amount</q-th>
-          <q-th class='cursor-pointer'>Amount</q-th>
-          <q-th class='cursor-pointer'>Address</q-th>
+          <q-th class='text-left'>{{ t('transactions.columns.time') }}</q-th>
+          <q-th class='text-left'>{{ t('transactions.columns.swap') }}</q-th>
+          <q-th>{{ t('transactions.columns.value') }}</q-th>
+          <q-th>{{ t('transactions.columns.bought') }}</q-th>
+          <q-th>{{ t('transactions.columns.sold') }}</q-th>
+          <q-th>{{ t('transactions.columns.address') }}</q-th>
         </q-tr>
       </template>
 
       <template #body='props'>
         <q-tr :props='props' class='cursor-pointer'>
           <td :props='props' class='text-left'>{{ timestamp.timestamp2HumanReadable(props.row.created_at) }}</td>
-          <td :props='props' class='text-left row items-center'>
-            <div class='text-neutral q-mr-xs'>Swap</div>
-            {{ tokenTicker(buyToken(props.row)) }}
-            <q-avatar class='q-mx-sm' size='20px'>
-              <q-img :src='tokenLogo(buyToken(props.row))' width='20px' height='20px' />
-            </q-avatar>
-            <div class='text-neutral q-ml-xs q-mr-sm'>for</div>
-            {{ tokenTicker(sellToken(props.row)) }}
-            <q-avatar class='q-ml-sm' size='20px'>
-              <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
-            </q-avatar>
+          <td :props='props' class='text-left'>
+            <div class='row items-center no-wrap transaction-swap-cell'>
+              <div class='text-neutral q-mr-xs'>{{ t('transactions.action.swap') }}</div>
+              <span>{{ tokenTicker(buyToken(props.row)) }}</span>
+              <q-avatar class='q-mx-sm' size='20px'>
+                <q-img :src='tokenLogo(buyToken(props.row))' width='20px' height='20px' />
+              </q-avatar>
+              <div class='text-neutral q-ml-xs q-mr-sm'>{{ t('transactions.action.for') }}</div>
+              <span>{{ tokenTicker(sellToken(props.row)) }}</span>
+              <q-avatar class='q-ml-sm' size='20px'>
+                <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
+              </q-avatar>
+            </div>
           </td>
           <td :props='props' class='text-center'>{{ transactionValue(props.row) }}</td>
           <td :props='props' class='text-center'>
-            {{ Number(buyAmount(props.row)).toFixed(5) }}
+            {{ formatTokenAmount(buyAmount(props.row)) }}
             <q-avatar class='q-ml-xs' size='20px'>
               <q-img :src='tokenLogo(buyToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
           <td :props='props' class='text-center'>
-            {{ Number(sellAmount(props.row)).toFixed(5) }}
+            {{ formatTokenAmount(sellAmount(props.row)) }}
             <q-avatar class='q-ml-xs' size='20px'>
               <q-img :src='tokenLogo(sellToken(props.row))' width='20px' height='20px' />
             </q-avatar>
           </td>
-          <td :props='props' class='text-center'>{{ shortid.shortId(props.row.from_account, 12, 10) }}</td>
+          <td :props='props' class='text-center'>{{ formatAddress(props.row.from_account) }}</td>
         </q-tr>
       </template>
 
       <template #bottom>
-        <div class='full-width row items-center justify-center' style='line-height: 30px;'>
+        <div v-if='showPagination' class='full-width row items-center justify-center' style='line-height: 30px;'>
           <q-pagination
             v-model='pagination.page'
             :max='totalPages'
@@ -67,12 +70,20 @@
           />
         </div>
       </template>
+
+      <template #no-data>
+        <div class='transactions-empty full-width column items-center justify-center q-pa-lg'>
+          <div class='text-body1'>{{ t('transactions.empty.title') }}</div>
+          <div class='text-caption text-neutral q-mt-xs'>{{ t('transactions.empty.caption') }}</div>
+        </div>
+      </template>
     </q-table>
   </div>
 </template>
 
 <script setup lang='ts'>
 import { computed, onMounted, watch, onBeforeUnmount, ref, onBeforeMount, toRef } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ams, meme, swap, transaction, kline } from 'src/stores/export'
 import { klineWorker } from 'src/worker'
 import { Token } from '../trade/Token'
@@ -87,17 +98,20 @@ interface Props {
 const props = defineProps<Props>()
 const token0 = toRef(props, 'token0')
 const token1 = toRef(props, 'token1')
+const { t } = useI18n()
 
 const pools = computed(() => swap.Swap.pools())
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 
-const tokenTicker = (token: string) => {
+const tokenTicker = (token: string | undefined) => {
+  if (!token) return '--'
   const application = ams.Ams.application(token) as Token
   if (!application) return constants.LINERA_NATIVE_ID
   return (JSON.parse(application?.spec || '{}') as meme.Meme).ticker || constants.LINERA_NATIVE_ID
 }
 
-const tokenLogo = (token: string) => {
+const tokenLogo = (token: string | undefined) => {
+  if (!token) return constants.LINERA_LOGO
   const application = ams.Ams.application(token) as Token
   if (!application) return constants.LINERA_LOGO
   return ams.Ams.applicationLogo(application)
@@ -125,6 +139,17 @@ const sellAmount = (_transaction: transaction.TransactionExt) => {
   return _transaction.direction === 'Buy' ? _transaction.amount_1_in : _transaction.amount_0_in
 }
 
+const formatTokenAmount = (value: unknown) => {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return '--'
+  return amount.toFixed(5)
+}
+
+const formatAddress = (address: string | undefined) => {
+  if (!address) return '--'
+  return shortid.shortId(address, 12, 10)
+}
+
 const transactionValue = (_transaction: transaction.TransactionExt) => {
   const value = protocol.calculateTransactionValueInNative(
     _transaction,
@@ -137,37 +162,37 @@ const transactionValue = (_transaction: transaction.TransactionExt) => {
 const columns = computed(() => [
   {
     name: 'Time',
-    label: 'Time',
+    label: t('transactions.columns.time'),
     align: 'left',
     field: (row: transaction.TransactionExt) => row.created_at
   },
   {
     name: 'Swap',
-    label: 'Swap',
+    label: t('transactions.columns.swap'),
     align: 'center',
     field: (row: transaction.TransactionExt) => row.pool_id
   },
   {
     name: 'Value',
-    label: 'Value',
+    label: t('transactions.columns.value'),
     align: 'center',
     field:  'USD $ 3145.23'
   },
   {
     name: 'Amount',
-    label: 'Amount',
+    label: t('transactions.columns.bought'),
     align: 'center',
     field: (row: transaction.TransactionExt) => row.amount_0_in
   },
   {
     name: 'Amount',
-    label: 'Amount',
+    label: t('transactions.columns.sold'),
     align: 'center',
     field: (row: transaction.TransactionExt) => row.amount_1_out
   },
   {
     name: 'Address',
-    label: 'Address',
+    label: t('transactions.columns.address'),
     align: 'center',
     field: (row: transaction.TransactionExt) => row.from_account
   }
@@ -176,9 +201,10 @@ const columns = computed(() => [
 const pagination = ref({
   page: 1,
   rowsPerPage: 20,
-  rowsNumber: 1000
+  rowsNumber: 0
 })
-const totalPages = computed(() => Math.ceil(pagination.value.rowsNumber / pagination.value.rowsPerPage))
+const totalPages = computed(() => Math.max(1, Math.ceil(pagination.value.rowsNumber / pagination.value.rowsPerPage)))
+const showPagination = computed(() => pagination.value.rowsNumber > pagination.value.rowsPerPage)
 
 const loading = ref(false)
 
@@ -230,9 +256,7 @@ const loadTransactions = (timestampBegin: number | undefined, timestampEnd: numb
 
 const getTransactionsInformation = async () => {
   const info = await kline.Kline.getTransactionsInformation(selectedToken0.value, selectedToken1.value)
-  if (!info) return
-  // TODO: record timestamp begin and end then we can control data loading
-  pagination.value.rowsNumber = info.count
+  pagination.value.rowsNumber = info?.count ?? 0
 }
 
 const getStoreTransactions = async () => {
@@ -241,24 +265,16 @@ const getStoreTransactions = async () => {
   pageCursors.value = new Map()
   pagination.value = {
     ...pagination.value,
-    page: 1
+    page: 1,
+    rowsNumber: 0
   }
   loading.value = false
-  if (loading.value) return
 
   loadTransactions(undefined, undefined, pagination.value.rowsPerPage)
   void getTransactionsInformation()
 }
 
-watch(selectedToken0, async () => {
-  // await getStoreTransactions()
-})
-
-watch(selectedToken1, async () => {
-  // await getStoreTransactions()
-})
-
-watch(selectedPool, async () => {
+watch([selectedToken0, selectedToken1], async () => {
   await getStoreTransactions()
 })
 
@@ -443,6 +459,12 @@ onBeforeUnmount(() => {
     font-size: 14px
   tbody td
     font-size: 16px
+
+.transactions-empty
+  min-height: 160px
+
+.transaction-swap-cell
+  min-width: 220px
 
 ::v-deep(.q-pagination)
   .q-btn

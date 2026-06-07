@@ -19,4 +19,22 @@ export default {
     traditionalChinese: 'Traditional Chinese',
     current: 'Current language',
   },
+  transactions: {
+    columns: {
+      time: 'Time',
+      swap: 'Swap',
+      value: 'Value',
+      bought: 'Bought',
+      sold: 'Sold',
+      address: 'Address',
+    },
+    action: {
+      swap: 'Swap',
+      for: 'for',
+    },
+    empty: {
+      title: 'No transactions',
+      caption: 'Transactions will appear here after swaps settle.',
+    },
+  },
 }

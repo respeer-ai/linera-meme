@@ -1477,11 +1477,13 @@ groups:
           Design reference: `agents/context/webui-internationalization.md`.
           Validation: `bun test`, `bun run lint`.
       - id: WEBUI-002
-        status: Doing
+        status: Done
         priority: P1
         depends_on: []
         title: Improve transactions list fetching, loading, and display
-        notes: Focus on data fetch timing, loading state, empty state, pagination or incremental display, and readability for the transactions list.
+        notes: |
+          Complete. Transaction list now has i18n table copy, explicit empty state, stable transaction row keys, safer amount/address formatting, direct token-pair reloads, and no fake default pagination count.
+          Validation: `bun test`, `bun run lint`, `bun run build`.
       - id: WEBUI-003
         status: Doing
         priority: P1
