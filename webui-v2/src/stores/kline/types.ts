@@ -124,6 +124,10 @@ export interface PositionMetricsEntry {
   fee_amount1: string | null
   protocol_fee_amount0: string | null
   protocol_fee_amount1: string | null
+  trailing_24h_fee_amount0: string | null
+  trailing_24h_fee_amount1: string | null
+  trailing_24h_fee_window_start_ms: number | null
+  trailing_24h_fee_window_end_ms: number | null
   value_warning_codes: string[]
   value_warning_message: string | null
 }

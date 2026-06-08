@@ -29,7 +29,7 @@ class PoolStateSnapshotRepository:
                     fee_free_reserve_0 VARCHAR(64) NOT NULL,
                     fee_free_reserve_1 VARCHAR(64) NOT NULL,
                     fee_free_total_supply VARCHAR(64) NOT NULL,
-                    source_event_key VARCHAR(255) NOT NULL,
+                    source_event_key VARCHAR(512) NOT NULL,
                     state_payload_json LONGTEXT NOT NULL,
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
@@ -50,7 +50,8 @@ class PoolStateSnapshotRepository:
         cursor.execute(
             f'''
             ALTER TABLE {self.pool_state_table}
-            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL,
+            MODIFY COLUMN source_event_key VARCHAR(512) NOT NULL
             '''
         )
 

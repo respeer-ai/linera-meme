@@ -1465,6 +1465,16 @@ groups:
           - Targeted meme-native full-flow integration regression passed: `cargo test -p pool meme_native_virtual_initial_liquidity_test -- --test-threads=1` with memory limit.
           - Full Rust suite passed: `ulimit -v 80000000; CARGO_BUILD_JOBS=1 cargo test -j 1 -- --test-threads=1`.
           - No ABI or contract implementation changes were made in this iteration; changes are task docs and tests only.
+  - name: Documentation
+    tasks:
+      - id: DOC-001
+        status: Todo
+        priority: P2
+        depends_on: []
+        title: Plan and build documentation entry
+        notes: |
+          Define the product documentation direction separately from WebUI FAQ work.
+          The eventual Docs navigation may link to a dedicated external documentation site or to a future in-app documentation area; this remains undecided.
   - name: WebUI
     tasks:
       - id: WEBUI-001
@@ -1494,14 +1504,6 @@ groups:
           Product framing now treats MicroMeme as one Linera-native meme trading product, not as separate MicroMeme and Linera Meme Swap products.
           The FAQ section is an i18n-backed component shared by visible content and FAQ structured data; Quasar expansion header/content padding was normalized so the FAQ title, questions, and answers align without reducing the approved reading scale.
           Validation: `bun test`, `bun run lint`, `bun run build`.
-      - id: WEBUI-006
-        status: Todo
-        priority: P2
-        depends_on: []
-        title: Plan and build documentation entry
-        notes: |
-          Define the product documentation direction separately from the FAQ task.
-          The eventual Docs navigation may link to a dedicated external documentation site or to a future in-app documentation area; this remains undecided and should not block WEBUI-003.
       - id: WEBUI-004
         status: Doing
         priority: P1

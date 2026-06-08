@@ -23,6 +23,7 @@ from normalizer.normalized_event_materializer import NormalizedEventMaterializer
 from normalizer.normalization_replay_driver import NormalizationReplayDriver
 from normalizer.normalization_worker import NormalizationWorker
 from normalizer.pool_catalog_projection_materializer import PoolCatalogProjectionMaterializer
+from normalizer.pool_fee_to_history_projection_materializer import PoolFeeToHistoryProjectionMaterializer
 from registry.ams_operation_decoder import AmsOperationDecoder
 from registry.application_discovery_service import ApplicationDiscoveryService
 from registry.application_registry import ApplicationRegistry
@@ -48,6 +49,7 @@ from storage.mysql.claim_balance_projection_repo import ClaimBalanceProjectionRe
 from storage.mysql.connection import MysqlConnectionFactory
 from storage.mysql.normalized_repo import NormalizedEventRepository
 from storage.mysql.pool_catalog_projection_repo import PoolCatalogProjectionRepository
+from storage.mysql.pool_fee_to_history_projection_repo import PoolFeeToHistoryProjectionRepository
 from storage.mysql.pool_state_snapshot_repo import PoolStateSnapshotRepository
 from storage.mysql.position_metrics_snapshot_materialization_inputs_repo import PositionMetricsSnapshotMaterializationInputsRepository
 from storage.mysql.position_state_snapshot_repo import PositionStateSnapshotRepository
@@ -100,12 +102,16 @@ class AppBootstrap:
         application_registry_repository = ApplicationRegistryRepository(connection)
         normalized_event_repository = NormalizedEventRepository(connection)
         pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
+        pool_fee_to_history_projection_repository = PoolFeeToHistoryProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
         claim_balance_projection_repository = ClaimBalanceProjectionRepository(connection)
         position_state_snapshot_repository = PositionStateSnapshotRepository(connection)
         pool_state_snapshot_repository = PoolStateSnapshotRepository(connection)
-        position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(connection)
+        position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(
+            connection,
+            pool_fee_to_history_projection_repository=pool_fee_to_history_projection_repository,
+        )
         position_metrics_snapshot_builder = PositionMetricsSnapshotBuilder(
             snapshot_materialization_inputs_repository=position_metrics_snapshot_materialization_inputs_repository,
         )
@@ -139,6 +145,7 @@ class AppBootstrap:
             raw_repository=raw_repository,
             processing_cursor_repository=processing_cursor_repository,
             pool_catalog_projection_repository=pool_catalog_projection_repository,
+            pool_fee_to_history_projection_repository=pool_fee_to_history_projection_repository,
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
@@ -156,6 +163,7 @@ class AppBootstrap:
             'application_registry_repository': application_registry_repository,
             'normalized_event_repository': normalized_event_repository,
             'pool_catalog_projection_repository': pool_catalog_projection_repository,
+            'pool_fee_to_history_projection_repository': pool_fee_to_history_projection_repository,
             'settled_trade_repository': settled_trade_repository,
             'settled_liquidity_change_repository': settled_liquidity_change_repository,
             'claim_balance_projection_repository': claim_balance_projection_repository,
@@ -172,6 +180,7 @@ class AppBootstrap:
             'decode_scheduler': decode_scheduler,
             'decode_result_normalizer': post_ingest_pipeline_bundle['decode_result_normalizer'],
             'pool_catalog_projection_materializer': post_ingest_pipeline_bundle['pool_catalog_projection_materializer'],
+            'pool_fee_to_history_projection_materializer': post_ingest_pipeline_bundle['pool_fee_to_history_projection_materializer'],
             'normalized_event_materializer': post_ingest_pipeline_bundle['normalized_event_materializer'],
             'normalization_worker': post_ingest_pipeline_bundle['normalization_worker'],
             'normalization_replay_driver': post_ingest_pipeline_bundle['normalization_replay_driver'],
@@ -273,12 +282,16 @@ class AppBootstrap:
         raw_repository = RawRepository(connection)
         normalized_event_repository = NormalizedEventRepository(connection)
         pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
+        pool_fee_to_history_projection_repository = PoolFeeToHistoryProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
         claim_balance_projection_repository = ClaimBalanceProjectionRepository(connection)
         position_state_snapshot_repository = PositionStateSnapshotRepository(connection)
         pool_state_snapshot_repository = PoolStateSnapshotRepository(connection)
-        position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(connection)
+        position_metrics_snapshot_materialization_inputs_repository = PositionMetricsSnapshotMaterializationInputsRepository(
+            connection,
+            pool_fee_to_history_projection_repository=pool_fee_to_history_projection_repository,
+        )
         position_metrics_snapshot_builder = PositionMetricsSnapshotBuilder(
             snapshot_materialization_inputs_repository=position_metrics_snapshot_materialization_inputs_repository,
         )
@@ -293,6 +306,7 @@ class AppBootstrap:
             raw_repository=raw_repository,
             processing_cursor_repository=processing_cursor_repository,
             pool_catalog_projection_repository=pool_catalog_projection_repository,
+            pool_fee_to_history_projection_repository=pool_fee_to_history_projection_repository,
             normalized_event_repository=normalized_event_repository,
             settled_trade_repository=settled_trade_repository,
             settled_liquidity_change_repository=settled_liquidity_change_repository,
@@ -318,6 +332,7 @@ class AppBootstrap:
         raw_repository,
         processing_cursor_repository,
         pool_catalog_projection_repository,
+        pool_fee_to_history_projection_repository,
         normalized_event_repository,
         settled_trade_repository,
         settled_liquidity_change_repository,
@@ -339,10 +354,14 @@ class AppBootstrap:
         pool_catalog_projection_materializer = PoolCatalogProjectionMaterializer(
             pool_catalog_projection_repository=pool_catalog_projection_repository,
         )
+        pool_fee_to_history_projection_materializer = PoolFeeToHistoryProjectionMaterializer(
+            pool_fee_to_history_projection_repository=pool_fee_to_history_projection_repository,
+        )
         normalized_event_materializer = NormalizedEventMaterializer(
             decode_result_normalizer=decode_result_normalizer,
             normalized_event_repository=normalized_event_repository,
             pool_catalog_projection_materializer=pool_catalog_projection_materializer,
+            pool_fee_to_history_projection_materializer=pool_fee_to_history_projection_materializer,
         )
         normalization_worker = NormalizationWorker(
             decode_scheduler=decode_scheduler,
@@ -380,6 +399,7 @@ class AppBootstrap:
         return {
             'decode_result_normalizer': decode_result_normalizer,
             'pool_catalog_projection_materializer': pool_catalog_projection_materializer,
+            'pool_fee_to_history_projection_materializer': pool_fee_to_history_projection_materializer,
             'normalized_event_materializer': normalized_event_materializer,
             'normalization_worker': normalization_worker,
             'normalization_replay_driver': normalization_replay_driver,

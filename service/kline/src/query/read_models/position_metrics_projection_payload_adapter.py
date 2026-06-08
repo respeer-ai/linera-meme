@@ -26,9 +26,7 @@ class PositionMetricsProjectionPayloadAdapter:
         if pool_state_snapshot.raw() is None:
             raise RuntimeError('position_metrics_pool_state_snapshot_unavailable')
 
-        current_liquidity = self._decimal_or_none(position_basis_snapshot.current_liquidity())
-        if current_liquidity is None:
-            current_liquidity = self._decimal_or_none(position.get('current_liquidity'))
+        current_liquidity = self._position_liquidity(position=position, position_basis_snapshot=position_basis_snapshot)
         if current_liquidity is None:
             raise RuntimeError('position_metrics_position_liquidity_unavailable')
         current_total_supply = self._decimal_or_none(
@@ -73,6 +71,22 @@ class PositionMetricsProjectionPayloadAdapter:
                 },
             }
         }
+
+    def _position_liquidity(
+        self,
+        *,
+        position: dict,
+        position_basis_snapshot,
+    ) -> Decimal | None:
+        if (
+            position.get('position_kind') in (None, '', 'recorded')
+            and not bool(position.get('is_virtual_position'))
+        ):
+            return self._decimal_or_none(position.get('current_liquidity'))
+        return (
+            self._decimal_or_none(position_basis_snapshot.current_liquidity())
+            or self._decimal_or_none(position.get('current_liquidity'))
+        )
 
     def _position_basis_snapshot(self, snapshot) -> PositionMetricsPositionBasisSnapshot:
         if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):

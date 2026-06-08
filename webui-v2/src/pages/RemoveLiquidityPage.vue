@@ -1,9 +1,12 @@
 <template>
   <q-page class='row justify-center'>
-    <main class='page-width q-py-xl' style='max-width: 560px; width: 100%;'>
-      <div class='text-h4 text-white text-center q-mb-xl'>Remove Liquidity</div>
+    <main class='remove-liquidity-page page-width q-py-xl'>
+      <section class='remove-shell'>
+        <header class='remove-page-header'>
+          <h1 class='remove-title q-ma-none'>Remove Liquidity</h1>
+        </header>
 
-      <q-card flat class='bg-dark-secondary radius-16'>
+        <q-card flat class='remove-card'>
         <template v-if='selectedPair'>
           <div class='remove-section remove-header'>
             <div class='remove-pair-wrap'>
@@ -94,20 +97,19 @@
             Return to positions and try again after pools finish loading.
           </div>
         </div>
-      </q-card>
+        </q-card>
 
-      <div class='row justify-center q-mt-xl'>
         <q-btn
           rounded
-          class='bg-primary text-white'
-          style='width: calc(100% - 48px); max-width: 512px;'
+          no-caps
+          class='remove-action bg-primary text-white'
           :disable='submitDisabled'
           :loading='submitting || liquidityLoading'
           @click='onPrimaryAction'
         >
           {{ primaryActionLabel }}
         </q-btn>
-      </div>
+      </section>
     </main>
 
     <q-dialog v-model='connectingWallet'>
@@ -280,17 +282,49 @@ watch(
 </script>
 
 <style scoped lang='sass'>
+.remove-liquidity-page
+  width: 100%
+  display: flex
+  justify-content: center
+
+.remove-shell
+  width: 100%
+  max-width: 560px
+
+.remove-page-header
+  display: flex
+  justify-content: center
+  margin-bottom: 28px
+
+.remove-title
+  color: var(--q-light)
+  font-size: 32px
+  font-weight: 500
+  line-height: 1.12
+  letter-spacing: 0
+
+.remove-card
+  border: 1px solid rgba(255, 255, 255, 0.1)
+  border-radius: 8px
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.025))
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22)
+  overflow: hidden
+
 .remove-section
   padding: 20px
+
+.remove-section + .remove-section
+  border-top: 1px solid rgba(255, 255, 255, 0.08)
 
 .remove-header
   display: flex
   align-items: center
   justify-content: flex-start
   gap: 16px
+  background: rgba(0, 0, 0, 0.1)
 
 .remove-primary-section
-  padding-top: 10px
+  padding-top: 18px
 
 .remove-pair-wrap
   display: flex
@@ -330,6 +364,10 @@ watch(
 
 .remove-amount-field
   margin-top: 8px
+  padding: 14px 16px
+  border: 1px solid rgba(255, 255, 255, 0.08)
+  border-radius: 8px
+  background: rgba(0, 0, 0, 0.14)
 
 .remove-amount-field :deep(.q-field__control)
   min-height: auto
@@ -349,22 +387,21 @@ watch(
   color: rgba(255, 255, 255, 0.28)
 
 .remove-chips
-  display: flex
-  flex-wrap: wrap
+  display: grid
+  grid-template-columns: repeat(5, minmax(0, 1fr))
   gap: 10px
   margin-top: 16px
 
 .remove-chip
-  min-width: 58px
-  min-height: 24px
+  min-width: 0
+  min-height: 30px
   padding-top: 0
   padding-bottom: 0
+  border-color: rgba(255, 255, 255, 0.16) !important
 
 .remove-chip :deep(.q-btn__content)
   font-size: 12px
   line-height: 1
-
-.remove-chip :deep(.q-btn__content)
   padding-top: 4px
   padding-bottom: 4px
 
@@ -376,12 +413,17 @@ watch(
 
 .remove-estimate-list
   margin-top: 10px
+  border: 1px solid rgba(255, 255, 255, 0.08)
+  border-radius: 8px
+  background: rgba(0, 0, 0, 0.12)
+  overflow: hidden
 
 .remove-estimate-row
   display: flex
   justify-content: space-between
+  align-items: center
   gap: 12px
-  padding: 12px 0
+  padding: 13px 14px
   font-size: 15px
   color: #d7dde7
 
@@ -391,7 +433,7 @@ watch(
   gap: 8px
 
 .remove-estimate-row + .remove-estimate-row
-  border-top: 1px dashed rgba(255, 255, 255, 0.2)
+  border-top: 1px solid rgba(255, 255, 255, 0.08)
 
 .remove-empty
   padding: 20px
@@ -400,4 +442,23 @@ watch(
   margin-top: 6px
   font-size: 14px
   line-height: 1.5
+
+.remove-action
+  width: 100%
+  min-height: 50px
+  margin-top: 24px
+  font-size: 16px
+  font-weight: 700
+  letter-spacing: 0
+
+@media (max-width: 599px)
+  .remove-liquidity-page
+    padding-left: 16px
+    padding-right: 16px
+
+  .remove-title
+    font-size: 28px
+
+  .remove-chips
+    gap: 8px
 </style>

@@ -1,4 +1,56 @@
 class QueryStackSnapshotFastPathBaselineMixin:
+    def test_snapshot_fast_path_uses_recorded_position_liquidity_when_snapshot_is_owner_level(self):
+        result = self._resolve(
+            position={
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                'pool_id': 5,
+                'opened_at': 1000,
+                'status': 'active',
+                'current_liquidity': '6',
+            },
+            payload={
+                'data': {
+                    'pool': {'fee_to': None},
+                    'totalSupply': '100',
+                    'virtualInitialLiquidity': False,
+                    'liquidity': {'liquidity': '6', 'amount0': '12', 'amount1': '18'},
+                }
+            },
+            position_basis_snapshot={
+                'status': 'active',
+                'basis_type': 'add_liquidity',
+                'current_liquidity': '36',
+                'basis_transaction_id': 15,
+                'basis_time_ms': 1000,
+                'semantic_facts': {
+                    'basis_opens_current_round': True,
+                    'current_round_trade_count_before_basis': 0,
+                    'exact_current_principal_case': 'materialized_current_principal',
+                    'principal_amount_0_current': '10',
+                    'principal_amount_1_current': '15',
+                },
+            },
+            pool_state_snapshot={
+                'last_transaction_id': 16,
+                'last_trade_time_ms': 1200,
+                'last_liquidity_event_time_ms': 1000,
+                'fee_free_basis_transaction_id': 15,
+                'fee_free_basis_time_ms': 1000,
+                'fee_free_reserve_0': '100',
+                'fee_free_reserve_1': '150',
+                'fee_free_total_supply': '100',
+            },
+        )
+
+        self.assertIsNotNone(result)
+        metrics = result['projected_metrics']
+        self.assertEqual(metrics['position_liquidity'], '6')
+        self.assertEqual(metrics['fee_calculation_complete'], True)
+        self.assertEqual(metrics['value_warning_codes'], [])
+        self.assertEqual(metrics['fee_amount0'], '6')
+        self.assertEqual(metrics['fee_amount1'], '9')
+
     def test_snapshot_fast_path_requires_strict_subset(self):
         result = self._resolve(
             position={

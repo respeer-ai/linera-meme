@@ -328,6 +328,15 @@ class PositionMetricsSnapshotBuilder:
         if exact_current_principal is not None and protocol_fee_ownership is not None:
             exact_current_principal = {
                 **exact_current_principal,
+                **self._build_trailing_24h_fee_summary(
+                    exact_current_principal=exact_current_principal,
+                    reconstructed_pool_history=reconstructed_pool_history,
+                    latest_position_tx=latest_transaction,
+                    tracked_liquidity_attos=max(running_liquidity, 0),
+                    basis_type=basis_type,
+                    basis_opens_current_round=prior_running_liquidity <= 0,
+                    current_round_trade_count_before_basis=current_round_trade_count_before_basis,
+                ),
                 **protocol_fee_ownership,
             }
         fee_to_continuity = self._build_fee_to_continuity(
@@ -652,6 +661,120 @@ class PositionMetricsSnapshotBuilder:
             current_round_trade_count_before_basis=current_round_trade_count_before_basis,
         )
 
+    def _build_trailing_24h_fee_summary(
+        self,
+        *,
+        exact_current_principal: dict[str, object],
+        reconstructed_pool_history: dict[str, object] | None,
+        latest_position_tx: dict[str, object],
+        tracked_liquidity_attos: int,
+        basis_type: str,
+        basis_opens_current_round: bool,
+        current_round_trade_count_before_basis: int,
+    ) -> dict[str, object]:
+        states = (reconstructed_pool_history or {}).get('states') or []
+        effective_history = (reconstructed_pool_history or {}).get('effective_history') or []
+        current_time_ms = int((states[-1] if states else {}).get('created_at') or 0)
+        window_start_ms = current_time_ms - 86400000
+        empty_summary = {
+            'trailing_24h_fee_amount_0': '0',
+            'trailing_24h_fee_amount_1': '0',
+            'trailing_24h_fee_window_start_ms': window_start_ms,
+            'trailing_24h_fee_window_end_ms': current_time_ms,
+        }
+        if not states or not effective_history or tracked_liquidity_attos <= 0:
+            return empty_summary
+        current_principal_0 = self.value_support.to_attos(
+            exact_current_principal.get('principal_amount_0_current')
+        )
+        current_principal_1 = self.value_support.to_attos(
+            exact_current_principal.get('principal_amount_1_current')
+        )
+        if current_principal_0 is None or current_principal_1 is None:
+            return {}
+        current_fee_0, current_fee_1 = self._position_fee_at_state(
+            state=states[-1],
+            tracked_liquidity_attos=tracked_liquidity_attos,
+            principal_0_attos=current_principal_0,
+            principal_1_attos=current_principal_1,
+        )
+        baseline_index = self._latest_state_index_before(
+            exact_states=states,
+            created_at_ms=window_start_ms,
+        )
+        if baseline_index is None:
+            baseline_index = self._state_index_for_transaction(
+                exact_states=states,
+                transaction=latest_position_tx,
+            )
+        if baseline_index is None:
+            return empty_summary
+        basis_index = self._state_index_for_transaction(
+            exact_states=states,
+            transaction=latest_position_tx,
+        )
+        if basis_index is None:
+            return empty_summary
+        if baseline_index < basis_index:
+            baseline_fee_0, baseline_fee_1 = 0, 0
+        else:
+            baseline_principal = self.principal_simulator.simulate_current_principal(
+                effective_history=effective_history[:baseline_index + 1],
+                states=states[:baseline_index + 1],
+                latest_position_tx=latest_position_tx,
+                tracked_liquidity_attos=tracked_liquidity_attos,
+                basis_type=basis_type,
+                basis_opens_current_round=basis_opens_current_round,
+                current_round_trade_count_before_basis=current_round_trade_count_before_basis,
+            )
+            if baseline_principal is None:
+                return empty_summary
+            baseline_principal_0 = self.value_support.to_attos(
+                baseline_principal.get('principal_amount_0_current')
+            )
+            baseline_principal_1 = self.value_support.to_attos(
+                baseline_principal.get('principal_amount_1_current')
+            )
+            if baseline_principal_0 is None or baseline_principal_1 is None:
+                return empty_summary
+            baseline_fee_0, baseline_fee_1 = self._position_fee_at_state(
+                state=states[baseline_index],
+                tracked_liquidity_attos=tracked_liquidity_attos,
+                principal_0_attos=baseline_principal_0,
+                principal_1_attos=baseline_principal_1,
+            )
+        return {
+            **empty_summary,
+            'trailing_24h_fee_amount_0': self._serialize_attos(max(current_fee_0 - baseline_fee_0, 0)),
+            'trailing_24h_fee_amount_1': self._serialize_attos(max(current_fee_1 - baseline_fee_1, 0)),
+        }
+
+    def _position_fee_at_state(self, *, state, tracked_liquidity_attos, principal_0_attos, principal_1_attos):
+        total_supply = self._effective_total_supply_attos(state)
+        if total_supply <= 0:
+            return 0, 0
+        amount_0 = tracked_liquidity_attos * int(state.get('reserve0_after') or 0) // total_supply
+        amount_1 = tracked_liquidity_attos * int(state.get('reserve1_after') or 0) // total_supply
+        return max(amount_0 - principal_0_attos, 0), max(amount_1 - principal_1_attos, 0)
+
+    def _latest_state_index_before(self, *, exact_states, created_at_ms):
+        candidates = [
+            index
+            for index, state in enumerate(exact_states)
+            if int(state.get('created_at') or 0) < created_at_ms
+        ]
+        return candidates[-1] if candidates else None
+
+    def _state_index_for_transaction(self, *, exact_states, transaction):
+        key = (
+            int(transaction.get('created_at') or 0),
+            int(transaction.get('transaction_id') or 0),
+        )
+        for index, state in enumerate(exact_states):
+            if (int(state.get('created_at') or 0), int(state.get('transaction_id') or 0)) == key:
+                return index
+        return 0 if exact_states else None
+
     def _build_protocol_fee_ownership_summary(
         self,
         *,
@@ -667,11 +790,7 @@ class PositionMetricsSnapshotBuilder:
         blockers = reconstructed_pool_history['blockers']
         if blockers or not effective_history or not states:
             return None
-        fee_to_history = None
-        if hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
-            fee_to_history = self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
-                pool_application_id=pool_application_id,
-            )
+        fee_to_history = self._pool_fee_to_history(pool_application_id=pool_application_id)
         return self.protocol_fee_ownership_tracker.summarize(
             owner=owner,
             effective_history=effective_history,
@@ -710,9 +829,7 @@ class PositionMetricsSnapshotBuilder:
     ) -> dict[str, object]:
         if not hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
             return {'continuity_case': 'unsupported_source', 'owner': owner}
-        history = self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
-            pool_application_id=pool_application_id,
-        )
+        history = self._pool_fee_to_history(pool_application_id=pool_application_id)
         basis_key = (
             int(basis_time_ms or 0),
             int(basis_transaction_id or 0),
@@ -771,9 +888,7 @@ class PositionMetricsSnapshotBuilder:
     ) -> str | None:
         if not hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
             return None
-        history = self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
-            pool_application_id=pool_application_id,
-        )
+        history = self._pool_fee_to_history(pool_application_id=pool_application_id)
         if not history:
             return None
         latest = max(
@@ -788,6 +903,25 @@ class PositionMetricsSnapshotBuilder:
         if value in (None, ''):
             return None
         return str(value)
+
+    def _pool_fee_to_history(
+        self,
+        *,
+        pool_application_id: str,
+    ) -> list[dict[str, object]]:
+        if not hasattr(self.snapshot_materialization_inputs_repository, 'list_pool_fee_to_history'):
+            return []
+        history = list(self.snapshot_materialization_inputs_repository.list_pool_fee_to_history(
+            pool_application_id=pool_application_id,
+        ) or [])
+        history.sort(
+            key=lambda row: (
+                int(row.get('created_at') or 0),
+                int(row.get('transaction_id') or 0),
+                str(row.get('fee_to_account') or ''),
+            )
+        )
+        return history
 
     def _fee_free_state_from_latest_liquidity_event(
         self,

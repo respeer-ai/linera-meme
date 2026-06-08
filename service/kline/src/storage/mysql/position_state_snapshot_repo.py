@@ -25,7 +25,7 @@ class PositionStateSnapshotRepository:
                     basis_amount_1 VARCHAR(64) NOT NULL,
                     basis_time_ms BIGINT NULL,
                     basis_transaction_id BIGINT NULL,
-                    source_event_key VARCHAR(255) NOT NULL,
+                    source_event_key VARCHAR(512) NOT NULL,
                     state_payload_json LONGTEXT NOT NULL,
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
                     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
@@ -46,7 +46,8 @@ class PositionStateSnapshotRepository:
             f'''
             ALTER TABLE {self.position_state_table}
             MODIFY COLUMN position_state_id VARCHAR(512) NOT NULL,
-            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL,
+            MODIFY COLUMN source_event_key VARCHAR(512) NOT NULL
             '''
         )
 

@@ -31,7 +31,7 @@ class PoolCatalogProjectionRepository:
                 CREATE TABLE IF NOT EXISTS {self.pool_catalog_table} (
                     pool_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
                     pool_application VARCHAR(256) NOT NULL,
-                    pool_application_id VARCHAR(128) NOT NULL,
+                    pool_application_id VARCHAR(256) NOT NULL,
                     pool_chain_id VARCHAR(64) NULL,
                     token_0 VARCHAR(256) NOT NULL,
                     token_1 VARCHAR(256) NOT NULL,
@@ -46,11 +46,27 @@ class PoolCatalogProjectionRepository:
                 )
                 '''
             )
+            self._migrate_pool_application_id_column(cursor)
             self._migrate_pool_application_account_format(cursor)
             self._migrate_creator_account_column(cursor)
             self._connection().commit()
         finally:
             cursor.close()
+
+    def _migrate_pool_application_id_column(self, cursor) -> None:
+        cursor.execute(f"SHOW COLUMNS FROM {self.pool_catalog_table} LIKE 'pool_application_id'")
+        row = cursor.fetchone()
+        if row is None:
+            return
+        column_type = str(row.get('Type') if isinstance(row, dict) else row[1]).lower()
+        if 'varchar(256)' in column_type:
+            return
+        cursor.execute(
+            f'''
+            ALTER TABLE {self.pool_catalog_table}
+            MODIFY COLUMN pool_application_id VARCHAR(256) NOT NULL
+            '''
+        )
 
     def _migrate_creator_account_column(self, cursor) -> None:
         cursor.execute(f"SHOW COLUMNS FROM {self.pool_catalog_table} LIKE 'creator_account'")

@@ -74,6 +74,18 @@ class PositionMetricsPositionBasisSnapshot:
     def principal_amount_1_current(self):
         return self.semantic_facts().principal_amount_1_current()
 
+    def trailing_24h_fee_amount_0(self):
+        return self.semantic_facts().trailing_24h_fee_amount_0()
+
+    def trailing_24h_fee_amount_1(self):
+        return self.semantic_facts().trailing_24h_fee_amount_1()
+
+    def trailing_24h_fee_window_start_ms(self):
+        return self.semantic_facts().trailing_24h_fee_window_start_ms()
+
+    def trailing_24h_fee_window_end_ms(self):
+        return self.semantic_facts().trailing_24h_fee_window_end_ms()
+
     def post_basis_protocol_fee_mint_event_count(self):
         return self.semantic_facts().post_basis_protocol_fee_mint_event_count()
 

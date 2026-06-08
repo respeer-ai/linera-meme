@@ -1,8 +1,10 @@
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 from query.read_models.position_metrics_fetched_result import PositionMetricsFetchedResult
 from query.read_models.position_metrics_pool_state_snapshot import PositionMetricsPoolStateSnapshot
+from query.read_models.position_metrics_position_basis_snapshot import PositionMetricsPositionBasisSnapshot
 from query.read_models.position_metrics_read_result import PositionMetricsReadResult
+from query.read_models.position_metrics_snapshot_inputs import PositionMetricsSnapshotInputs
 from query.read_models.virtual_positions import VirtualPositionsReadModel
 
 
@@ -80,6 +82,8 @@ class PositionMetricsReadModel:
             'fee_amount1',
             'protocol_fee_amount0',
             'protocol_fee_amount1',
+            'trailing_24h_fee_amount0',
+            'trailing_24h_fee_amount1',
         ):
             if normalized_metrics.get(field_name) is None:
                 normalized_metrics[field_name] = '0'
@@ -123,6 +127,10 @@ class PositionMetricsReadModel:
             'fee_amount1': '0',
             'protocol_fee_amount0': position.get('protocol_fee_reference_amount0', '0'),
             'protocol_fee_amount1': position.get('protocol_fee_reference_amount1', '0'),
+            'trailing_24h_fee_amount0': '0',
+            'trailing_24h_fee_amount1': '0',
+            'trailing_24h_fee_window_start_ms': None,
+            'trailing_24h_fee_window_end_ms': None,
             'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
             'value_warning_message': (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
@@ -144,7 +152,11 @@ class PositionMetricsReadModel:
         return receiver not in (None, '') and str(receiver) == str(position.get('owner'))
 
     def _build_projected_protocol_fee_receiver_virtual_metrics(self, position: dict) -> dict | None:
-        pool_snapshot = self._pool_state_snapshot(position)
+        snapshot_inputs = self._metric_snapshot_inputs(position)
+        if snapshot_inputs is None:
+            return None
+        position_basis_snapshot = self._position_basis_snapshot(snapshot_inputs.position_basis_snapshot())
+        pool_snapshot = self._pool_state_snapshot_value(snapshot_inputs.pool_state_snapshot())
         if pool_snapshot is None:
             return None
 
@@ -163,7 +175,14 @@ class PositionMetricsReadModel:
         if current_reserve_0 is None or current_reserve_1 is None:
             return None
 
-        protocol_fee_liquidity = current_total_supply - fee_free_total_supply
+        protocol_fee_liquidity = self._owner_protocol_fee_liquidity(
+            position=position,
+            position_basis_snapshot=position_basis_snapshot,
+            current_total_supply=current_total_supply,
+            fee_free_total_supply=fee_free_total_supply,
+        )
+        if protocol_fee_liquidity is None or protocol_fee_liquidity <= Decimal('0'):
+            return None
         protocol_fee_ratio = protocol_fee_liquidity / current_total_supply
         protocol_fee_amount0 = current_reserve_0 * protocol_fee_ratio
         protocol_fee_amount1 = current_reserve_1 * protocol_fee_ratio
@@ -191,6 +210,10 @@ class PositionMetricsReadModel:
             'fee_amount1': '0',
             'protocol_fee_amount0': self._serialize_decimal(protocol_fee_amount0),
             'protocol_fee_amount1': self._serialize_decimal(protocol_fee_amount1),
+            'trailing_24h_fee_amount0': '0',
+            'trailing_24h_fee_amount1': '0',
+            'trailing_24h_fee_window_start_ms': None,
+            'trailing_24h_fee_window_end_ms': None,
             'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
             'value_warning_message': (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
@@ -198,7 +221,75 @@ class PositionMetricsReadModel:
             ),
         }
 
-    def _pool_state_snapshot(self, position: dict) -> PositionMetricsPoolStateSnapshot | None:
+    def _position_basis_snapshot(self, snapshot) -> PositionMetricsPositionBasisSnapshot:
+        if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):
+            return snapshot
+        return PositionMetricsPositionBasisSnapshot(snapshot)
+
+    def _pool_state_snapshot_value(self, snapshot) -> PositionMetricsPoolStateSnapshot:
+        if isinstance(snapshot, PositionMetricsPoolStateSnapshot):
+            return snapshot
+        return PositionMetricsPoolStateSnapshot(snapshot)
+
+    def _owner_protocol_fee_liquidity(
+        self,
+        *,
+        position: dict,
+        position_basis_snapshot,
+        current_total_supply: Decimal,
+        fee_free_total_supply: Decimal,
+    ) -> Decimal | None:
+        materialized = self._materialized_owner_protocol_fee_liquidity(position_basis_snapshot) or Decimal('0')
+        pending = current_total_supply - fee_free_total_supply
+        if pending < Decimal('0'):
+            pending = Decimal('0')
+        if pending > Decimal('0') and not self._owner_receives_pending_protocol_fees(
+            position=position,
+            position_basis_snapshot=position_basis_snapshot,
+        ):
+            pending = Decimal('0')
+        total = materialized + pending
+        if total <= Decimal('0'):
+            return None
+        return total
+
+    def _materialized_owner_protocol_fee_liquidity(self, position_basis_snapshot) -> Decimal | None:
+        if position_basis_snapshot is None:
+            return None
+        if not isinstance(position_basis_snapshot, PositionMetricsPositionBasisSnapshot):
+            position_basis_snapshot = PositionMetricsPositionBasisSnapshot(position_basis_snapshot)
+        value = self._to_decimal(position_basis_snapshot.protocol_fee_liquidity_owned_by_current_owner_current())
+        if value is None or value <= Decimal('0'):
+            return None
+        return value
+
+    def _owner_receives_pending_protocol_fees(self, *, position: dict, position_basis_snapshot) -> bool:
+        owner = str(position.get('owner') or '')
+        if not owner:
+            return False
+        if position_basis_snapshot is None:
+            return False
+        if not isinstance(position_basis_snapshot, PositionMetricsPositionBasisSnapshot):
+            position_basis_snapshot = PositionMetricsPositionBasisSnapshot(position_basis_snapshot)
+        latest_fee_to = position_basis_snapshot.fee_to_account_latest_known()
+        if latest_fee_to not in (None, ''):
+            return str(latest_fee_to) == owner
+        continuity_owner = position_basis_snapshot.fee_to_continuity_owner()
+        if continuity_owner not in (None, ''):
+            return str(continuity_owner) == owner
+        return False
+
+    def _snapshot_inputs(self, snapshot) -> PositionMetricsSnapshotInputs:
+        if isinstance(snapshot, PositionMetricsSnapshotInputs):
+            return snapshot
+        if hasattr(snapshot, 'position_basis_snapshot') and hasattr(snapshot, 'pool_state_snapshot'):
+            return PositionMetricsSnapshotInputs({
+                'position_basis_snapshot': snapshot.position_basis_snapshot(),
+                'pool_state_snapshot': snapshot.pool_state_snapshot(),
+            })
+        return PositionMetricsSnapshotInputs(snapshot)
+
+    def _metric_snapshot_inputs(self, position: dict) -> PositionMetricsSnapshotInputs | None:
         if self.virtual_positions_read_model is None:
             return None
         snapshot_inputs_repository = getattr(
@@ -208,23 +299,29 @@ class PositionMetricsReadModel:
         )
         if snapshot_inputs_repository is None:
             return None
-        snapshot_inputs = snapshot_inputs_repository.get_snapshot_inputs(
+        active_snapshot = snapshot_inputs_repository.get_snapshot_inputs(
+            owner=position.get('owner'),
+            pool_application_id=position.get('pool_application'),
+            status='active',
+        )
+        if active_snapshot is not None:
+            active = self._snapshot_inputs(active_snapshot)
+            if active.position_basis_snapshot().raw() is not None:
+                return active
+        closed_snapshot = snapshot_inputs_repository.get_snapshot_inputs(
             owner=position.get('owner'),
             pool_application_id=position.get('pool_application'),
             status='closed',
         )
-        if snapshot_inputs is None:
-            snapshot_inputs = snapshot_inputs_repository.get_snapshot_inputs(
-                owner=position.get('owner'),
-                pool_application_id=position.get('pool_application'),
-                status='active',
-            )
-        if snapshot_inputs is None:
-            return None
-        pool_state_snapshot = snapshot_inputs.pool_state_snapshot()
-        if isinstance(pool_state_snapshot, PositionMetricsPoolStateSnapshot):
-            return pool_state_snapshot
-        return PositionMetricsPoolStateSnapshot(pool_state_snapshot)
+        if closed_snapshot is not None:
+            closed = self._snapshot_inputs(closed_snapshot)
+            if closed.position_basis_snapshot().raw() is not None:
+                return closed
+            if closed.pool_state_snapshot().raw() is not None:
+                return closed
+        if active_snapshot is not None and active.pool_state_snapshot().raw() is not None:
+            return active
+        return None
 
     def _to_decimal(self, value: object) -> Decimal | None:
         if value in (None, ''):
@@ -236,7 +333,9 @@ class PositionMetricsReadModel:
             return None
         if value == 0:
             return '0'
-        return format(value.quantize(Decimal('0.000000000000000001')).normalize(), 'f')
+        with localcontext() as context:
+            context.prec = max(60, len(value.as_tuple().digits) + 18)
+            return format(value.quantize(Decimal('0.000000000000000001')).normalize(), 'f')
 
     def _build_metric_diagnostic(
         self,

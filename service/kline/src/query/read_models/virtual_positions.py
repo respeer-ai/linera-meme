@@ -1,6 +1,7 @@
 from query.read_models.position_metrics_pool_state_snapshot import PositionMetricsPoolStateSnapshot
 from query.read_models.position_metrics_position_basis_snapshot import PositionMetricsPositionBasisSnapshot
 from query.read_models.position_metrics_snapshot_inputs import PositionMetricsSnapshotInputs
+from account_codec import AccountCodec
 
 
 class VirtualPositionsReadModel:
@@ -12,10 +13,12 @@ class VirtualPositionsReadModel:
         projection_repository,
         snapshot_inputs_projection_repository,
         pool_catalog_repository=None,
+        account_codec=None,
     ):
         self.projection_repository = projection_repository
         self.snapshot_inputs_projection_repository = snapshot_inputs_projection_repository
         self.pool_catalog_repository = pool_catalog_repository
+        self.account_codec = account_codec or AccountCodec()
 
     async def enrich_positions(
         self,
@@ -49,29 +52,14 @@ class VirtualPositionsReadModel:
             pool_state = snapshot.pool_state_snapshot() if snapshot is not None else self._pool_state({})
             position_basis = snapshot.position_basis_snapshot() if snapshot is not None else self._position_basis({})
 
-            liquidity_value = self._string_or_zero(
-                position_basis.current_liquidity()
-                or candidate.get('virtual_initial_liquidity')
+            liquidity_value = self._string_or_zero(candidate.get('virtual_initial_liquidity'))
+            protocol_fee_receiver_account = self._first_canonical_public_account(
+                pool_state.fee_to_account_latest_known(),
+                position_basis.fee_to_continuity_owner(),
+                candidate.get('protocol_fee_receiver_account'),
             )
-            protocol_fee_receiver_account = (
-                pool_state.fee_to_account_latest_known()
-                or position_basis.fee_to_continuity_owner()
-                or candidate.get('protocol_fee_receiver_account')
-            )
-            basis_amount_0 = self._string_or_zero(
-                (
-                    position_basis.raw().get('basis_amount_0')
-                    if position_basis.raw()
-                    else candidate.get('virtual_initial_amount0')
-                )
-            )
-            basis_amount_1 = self._string_or_zero(
-                (
-                    position_basis.raw().get('basis_amount_1')
-                    if position_basis.raw()
-                    else candidate.get('virtual_initial_amount1')
-                )
-            )
+            basis_amount_0 = self._string_or_zero(candidate.get('virtual_initial_amount0'))
+            basis_amount_1 = self._string_or_zero(candidate.get('virtual_initial_amount1'))
 
             key = (
                 str(candidate['pool_application']),
@@ -164,6 +152,21 @@ class VirtualPositionsReadModel:
         if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):
             return snapshot
         return PositionMetricsPositionBasisSnapshot(snapshot)
+
+    def _first_canonical_public_account(self, *values: object) -> str | None:
+        for value in values:
+            account = self.account_codec.public_account_from_payload(value)
+            if self._is_user_public_account(account):
+                return account
+        return None
+
+    def _is_user_public_account(self, account: str | None) -> bool:
+        if account in (None, ''):
+            return False
+        try:
+            return self.account_codec.parse_account(account)['owner'] != self.account_codec.CHAIN_OWNER
+        except ValueError:
+            return False
 
     def _string_or_zero(self, value: object) -> str:
         if value in (None, ''):

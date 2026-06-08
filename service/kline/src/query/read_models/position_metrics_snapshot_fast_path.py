@@ -36,6 +36,7 @@ class PositionMetricsSnapshotFastPath:
             decimal_equal=self._decimal_equal,
             int_or_none=self._int_or_none,
             tracked_liquidity_value=self._tracked_liquidity_value,
+            payload_tracked_liquidity_value=self._payload_tracked_liquidity_value,
             materialized_exact_current_principal_case=self._materialized_exact_current_principal_case,
             basis_opens_current_round=self._basis_opens_current_round,
             current_round_trade_count_before_basis=self._current_round_trade_count_before_basis,
@@ -65,7 +66,11 @@ class PositionMetricsSnapshotFastPath:
         liquidity = data.get('liquidity') or {}
         liquidity_value = self._to_decimal(liquidity.get('liquidity'))
         total_supply_value = self._to_decimal(data.get('totalSupply'))
-        tracked_liquidity_value = self._tracked_liquidity_value(position_basis_snapshot)
+        tracked_liquidity_value = self._payload_tracked_liquidity_value(
+            position=position,
+            payload=payload,
+            position_basis_snapshot=position_basis_snapshot,
+        )
         owner_receives_protocol_fees = self._account_payload_to_string((data.get('pool') or {}).get('fee_to')) == position['owner']
         pool_has_fee_to = (data.get('pool') or {}).get('fee_to') is not None
         redeemable_amount0 = self._serialize_decimal(self._to_decimal(liquidity.get('amount0')))
@@ -130,6 +135,10 @@ class PositionMetricsSnapshotFastPath:
             'fee_amount1': self._serialize_decimal(fee_amount1),
             'protocol_fee_amount0': self._serialize_decimal(protocol_fee_amount0),
             'protocol_fee_amount1': self._serialize_decimal(protocol_fee_amount1),
+            'trailing_24h_fee_amount0': position_basis_snapshot.trailing_24h_fee_amount_0() or '0',
+            'trailing_24h_fee_amount1': position_basis_snapshot.trailing_24h_fee_amount_1() or '0',
+            'trailing_24h_fee_window_start_ms': position_basis_snapshot.trailing_24h_fee_window_start_ms(),
+            'trailing_24h_fee_window_end_ms': position_basis_snapshot.trailing_24h_fee_window_end_ms(),
             'value_warning_codes': [],
             'value_warning_message': None,
         }
@@ -316,6 +325,26 @@ class PositionMetricsSnapshotFastPath:
         protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
         protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
         return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
+
+    def _payload_tracked_liquidity_value(
+        self,
+        *,
+        position: dict,
+        payload: dict,
+        position_basis_snapshot: dict,
+    ) -> Decimal | None:
+        if self._is_recorded_position(position):
+            return (
+                self._to_decimal(position.get('current_liquidity'))
+                or self._to_decimal(((payload.get('data') or {}).get('liquidity') or {}).get('liquidity'))
+            )
+        return self._tracked_liquidity_value(position_basis_snapshot)
+
+    def _is_recorded_position(self, position: dict) -> bool:
+        return (
+            position.get('position_kind') in (None, '', 'recorded')
+            and not bool(position.get('is_virtual_position'))
+        )
 
     def _tracked_liquidity_value(self, position_basis_snapshot: dict) -> Decimal | None:
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)

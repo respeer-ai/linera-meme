@@ -55,6 +55,9 @@ class PoolStateSnapshotRepositoryTest(unittest.TestCase):
 
         executed_sql = connection.cursor_instances[0].executed[0][0]
         self.assertIn('CREATE TABLE IF NOT EXISTS pool_state_v2', executed_sql)
+        self.assertIn('source_event_key VARCHAR(512) NOT NULL', executed_sql)
+        width_migration_sql = connection.cursor_instances[0].executed[1][0]
+        self.assertIn('MODIFY COLUMN source_event_key VARCHAR(512) NOT NULL', width_migration_sql)
         migration_sql = [
             sql
             for sql, _params in connection.cursor_instances[0].executed

@@ -88,6 +88,14 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         def ensure_schema(self):
             self.ensure_schema_called = True
 
+    class FakePoolFeeToHistoryProjectionRepository:
+        def __init__(self, connection):
+            self.connection = connection
+            self.ensure_schema_called = False
+
+        def ensure_schema(self):
+            self.ensure_schema_called = True
+
     class FakeSettledTradeRepository:
         def __init__(self, connection):
             self.connection = connection
@@ -518,6 +526,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
             raw_repository=self.FakeRawRepository(connection),
             processing_cursor_repository=processing_cursor_repository,
             pool_catalog_projection_repository=self.FakePoolCatalogProjectionRepository(connection),
+            pool_fee_to_history_projection_repository=self.FakePoolFeeToHistoryProjectionRepository(connection),
             normalized_event_repository=self.FakeNormalizedEventRepository(connection),
             settled_trade_repository=self.FakeSettledTradeRepository(connection),
             settled_liquidity_change_repository=self.FakeSettledLiquidityChangeRepository(connection),

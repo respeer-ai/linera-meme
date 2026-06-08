@@ -66,53 +66,60 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
         self.assertEqual(cursor, {'dictionary': True})
         self.assertEqual(connection.requests, [True, True])
 
-    def test_build_fee_to_history_row_accepts_public_account_string(self):
-        repository = PositionMetricsSnapshotMaterializationInputsRepository(connection=None)
+    def test_get_pool_created_metadata_prefers_pool_catalog_creator(self):
+        class FakeCursor:
+            def __init__(self):
+                self.requests = []
 
-        row = repository._build_fee_to_history_row(  # noqa: SLF001
-            {
-                'event_payload_json': {
-                    'decoded_payload_json': {
-                        'transaction_id': 11,
-                        'created_at': 1234,
-                        'fee_to': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
-                    }
-                },
-                'source_chain_id': 'chain-src',
-                'target_chain_id': 'chain-dst',
-                'source_cert_hash': 'cert-1',
-                'transaction_index': 3,
-                'message_index': 4,
-            }
+            def execute(self, sql, params=()):
+                self.requests.append((" ".join(sql.split()), params))
+
+            def fetchone(self):
+                return {
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-pool',
+                    'token_0': 'AAA',
+                    'token_1': 'TLINERA',
+                    'creator_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-owner',
+                    'event_family': 'swap_pool_created_recorded',
+                    'source_event_key': 'event-1',
+                }
+
+            def close(self):
+                return None
+
+        class FakeConnection:
+            def __init__(self):
+                self.cursor_obj = FakeCursor()
+
+            def cursor(self, dictionary=False):
+                self.dictionary = dictionary
+                return self.cursor_obj
+
+        connection = FakeConnection()
+        repository = PositionMetricsSnapshotMaterializationInputsRepository(connection=connection)
+
+        metadata = repository.get_pool_created_metadata(
+            pool_application_id='0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-pool',
         )
 
-        self.assertEqual(row['fee_to_account'], '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee')
-        self.assertEqual(row['created_at'], 1234)
-        self.assertEqual(row['transaction_id'], 11)
-
-    def test_build_fee_to_history_row_accepts_settled_owner_string(self):
-        repository = PositionMetricsSnapshotMaterializationInputsRepository(connection=None)
-
-        row = repository._build_fee_to_history_row(  # noqa: SLF001
+        self.assertEqual(
+            metadata,
             {
-                'event_payload_json': {
-                    'decoded_payload_json': {
-                        'transaction_id': 12,
-                        'created_at_micros': 5678000,
-                        'new_fee_to': '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee',
-                    }
-                },
-                'source_chain_id': 'chain-src',
-                'target_chain_id': 'chain-dst',
-                'source_cert_hash': 'cert-2',
-                'transaction_index': 5,
-                'message_index': 6,
-            }
+                'event_family': 'swap_pool_created_recorded',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-pool',
+                'token_0': 'AAA',
+                'token_1': 'TLINERA',
+                'creator_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-owner',
+                'source_event_key': 'event-1',
+                'source': 'pool_catalog_v2',
+            },
+        )
+        self.assertIn('FROM pool_catalog_v2', connection.cursor_obj.requests[0][0])
+        self.assertEqual(
+            connection.cursor_obj.requests[0][1],
+            ('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-pool',),
         )
 
-        self.assertEqual(row['fee_to_account'], '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd@chain-fee')
-        self.assertEqual(row['created_at'], 5678)
-        self.assertEqual(row['transaction_id'], 12)
 
     def test_list_active_position_owners_for_pool_delegates_to_liquidity_projection(self):
         class FakeLiquidityProjectionRepository:

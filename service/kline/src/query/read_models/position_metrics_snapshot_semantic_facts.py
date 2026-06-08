@@ -68,6 +68,10 @@ class PositionMetricsSnapshotSemanticFacts:
                 'fee_to_continuity_owner': fee_to_continuity.get('owner'),
                 'fee_to_account_at_basis': fee_to_continuity.get('fee_to_account_at_basis'),
                 'fee_to_account_latest_known': fee_to_continuity.get('fee_to_account_latest_known'),
+                'trailing_24h_fee_amount_0': exact_current_principal.get('trailing_24h_fee_amount_0'),
+                'trailing_24h_fee_amount_1': exact_current_principal.get('trailing_24h_fee_amount_1'),
+                'trailing_24h_fee_window_start_ms': exact_current_principal.get('trailing_24h_fee_window_start_ms'),
+                'trailing_24h_fee_window_end_ms': exact_current_principal.get('trailing_24h_fee_window_end_ms'),
             }
         )
 
@@ -123,6 +127,30 @@ class PositionMetricsSnapshotSemanticFacts:
         if value in (None, ''):
             return None
         return str(value)
+
+    def trailing_24h_fee_amount_0(self) -> str | None:
+        value = self.get('trailing_24h_fee_amount_0')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def trailing_24h_fee_amount_1(self) -> str | None:
+        value = self.get('trailing_24h_fee_amount_1')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def trailing_24h_fee_window_start_ms(self) -> int | None:
+        value = self.get('trailing_24h_fee_window_start_ms')
+        if value in (None, ''):
+            return None
+        return int(value)
+
+    def trailing_24h_fee_window_end_ms(self) -> int | None:
+        value = self.get('trailing_24h_fee_window_end_ms')
+        if value in (None, ''):
+            return None
+        return int(value)
 
     def basis_opens_current_round(self) -> bool:
         return bool(self.get('basis_opens_current_round'))

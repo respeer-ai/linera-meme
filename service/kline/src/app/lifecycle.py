@@ -15,6 +15,12 @@ class AppLifecycle:
             and hasattr(pool_catalog_projection_repository, 'ensure_schema')
         ):
             pool_catalog_projection_repository.ensure_schema()
+        pool_fee_to_history_projection_repository = container.get('pool_fee_to_history_projection_repository')
+        if (
+            pool_fee_to_history_projection_repository is not None
+            and hasattr(pool_fee_to_history_projection_repository, 'ensure_schema')
+        ):
+            pool_fee_to_history_projection_repository.ensure_schema()
         settled_trade_repository = container.get('settled_trade_repository')
         if settled_trade_repository is not None and hasattr(settled_trade_repository, 'ensure_schema'):
             settled_trade_repository.ensure_schema()

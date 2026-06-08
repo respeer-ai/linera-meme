@@ -11,6 +11,7 @@ class PositionMetricsSnapshotFastPathEligibility:
         decimal_equal,
         int_or_none,
         tracked_liquidity_value,
+        payload_tracked_liquidity_value,
         materialized_exact_current_principal_case,
         basis_opens_current_round,
         current_round_trade_count_before_basis,
@@ -22,6 +23,7 @@ class PositionMetricsSnapshotFastPathEligibility:
         self.decimal_equal = decimal_equal
         self.int_or_none = int_or_none
         self.tracked_liquidity_value = tracked_liquidity_value
+        self.payload_tracked_liquidity_value = payload_tracked_liquidity_value
         self.materialized_exact_current_principal_case = materialized_exact_current_principal_case
         self.basis_opens_current_round = basis_opens_current_round
         self.current_round_trade_count_before_basis = current_round_trade_count_before_basis
@@ -69,9 +71,13 @@ class PositionMetricsSnapshotFastPathEligibility:
             return False
         if self.to_decimal(liquidity.get('amount0')) is None or self.to_decimal(liquidity.get('amount1')) is None:
             return False
-        if not self.decimal_equal(position.get('current_liquidity'), position_basis_snapshot.current_liquidity()):
+        if self.to_decimal(position.get('current_liquidity')) is None:
             return False
-        tracked_liquidity = self.tracked_liquidity_value(position_basis_snapshot)
+        tracked_liquidity = self.payload_tracked_liquidity_value(
+            position=position,
+            payload=payload,
+            position_basis_snapshot=position_basis_snapshot,
+        )
         if tracked_liquidity is None:
             return False
         current_liquidity_allowed = self.decimal_equal(position.get('current_liquidity'), liquidity.get('liquidity'))

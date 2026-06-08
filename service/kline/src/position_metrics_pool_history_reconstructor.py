@@ -107,7 +107,7 @@ class PositionMetricsPoolHistoryReconstructor:
                         blockers.append('pool_history_bootstrap_supply_unknown')
                         break
                     if virtual_initial_liquidity:
-                        if liquidity != 0:
+                        if liquidity not in (0, expected_liquidity):
                             blockers.append('pool_history_bootstrap_supply_unknown')
                             break
                         total_supply = expected_liquidity

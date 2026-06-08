@@ -55,6 +55,9 @@ class PositionStateSnapshotRepositoryTest(unittest.TestCase):
 
         executed_sql = connection.cursor_instances[0].executed[0][0]
         self.assertIn('CREATE TABLE IF NOT EXISTS position_state_v2', executed_sql)
+        self.assertIn('source_event_key VARCHAR(512) NOT NULL', executed_sql)
+        migration_sql = connection.cursor_instances[0].executed[1][0]
+        self.assertIn('MODIFY COLUMN source_event_key VARCHAR(512) NOT NULL', migration_sql)
         self.assertEqual(connection.commit_count, 1)
 
     def test_upsert_position_states_persists_canonical_payload_json(self):

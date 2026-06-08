@@ -166,7 +166,7 @@
                   <span class='metric-label'>Pool share</span>
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionPoolShareLabel(position) }}</span>
-                    <span>{{ formatLiquidity(position.current_liquidity) }} LMM</span>
+                    <span>{{ formatLiquidity(positionDisplayLiquidity(position)) }} LMM</span>
                   </span>
                 </div>
                 <div class='position-metric'>
@@ -229,7 +229,7 @@
 
 <script setup lang='ts'>
 import axios from 'axios'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useMeta } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { usePageSeo } from 'src/utils/seo'
@@ -241,6 +241,18 @@ import { type PositionMetricsEntry, type PositionsInvalidationPayload } from 'sr
 import { account, ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
+import {
+  isPositionProtocolFeeReceiver,
+  isVirtualPosition,
+  positionKey,
+  positionLiquidityAmounts,
+  positionMetricsFor,
+  positionMetricsKey,
+  positionRewardLiquidity as resolvePositionRewardLiquidity,
+  selectProtocolYieldPositions,
+  selectRewardPositions,
+  selectTradingYieldPositions,
+} from './positionsData'
 
 const route = useRoute()
 const router = useRouter()
@@ -348,8 +360,6 @@ const positionsInvalidationMatchesOwner = (payload: PositionsInvalidationPayload
   })
 }
 
-const positionKey = (position: Position) =>
-  `${position.pool_application}:${position.pool_id}:${position.status}:${position.position_kind || 'recorded'}`
 const positionStatusLabel = (status: Position['status']) => {
   if (status === 'active') return 'Active'
   if (status === 'virtual') return 'Virtual'
@@ -370,27 +380,16 @@ const tokenLogo = (token: string) => {
   const application = tokenApplication(token)
   return application ? ams.Ams.applicationLogo(application) : constants.LINERA_LOGO
 }
-const positionMetrics = (position: Position) =>
-  positionMetricsSnapshots.value[positionKey(position)] ||
-  positionMetricsSnapshots.value[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
-const summaryPositionMetrics = (position: Position) =>
-  summaryPositionMetricsSnapshots.value[positionKey(position)] ||
-  summaryPositionMetricsSnapshots.value[`${position.pool_application}:${position.pool_id}:${position.status}:recorded`]
+const positionMetrics = (position: Position) => positionMetricsFor(position, positionMetricsSnapshots.value)
+const summaryPositionMetrics = (position: Position) => positionMetricsFor(position, summaryPositionMetricsSnapshots.value)
 const isProtocolFeeReceiver = (position: Position) =>
-  Boolean(owner.value && position.protocol_fee_receiver_account === owner.value)
-const rewardPositions = computed(() => (
-  summaryPositions.value.filter((position) => (
-    position.status !== 'closed' &&
-    (!isVirtualPosition(position) || isProtocolFeeReceiver(position))
-  ))
-))
+  isPositionProtocolFeeReceiver(position, owner.value)
+const rewardPositions = computed(() => selectRewardPositions(summaryPositions.value, owner.value))
 const positionRewardLiquidity = (position: Position) => {
   const metrics = summaryPositionMetrics(position)
-  if (isVirtualPosition(position)) {
-    return isProtocolFeeReceiver(position) ? metrics?.position_liquidity || '0' : '0'
-  }
-  return metrics?.position_liquidity || position.current_liquidity || '0'
+  return resolvePositionRewardLiquidity(position, metrics, owner.value)
 }
+const positionDisplayLiquidity = (position: Position) => position.current_liquidity || '0'
 const formattedLiquidityShare = computed(() => {
   const total = rewardPositions.value.reduce((sum, position) => (
     sum + Number.parseFloat(positionRewardLiquidity(position))
@@ -424,7 +423,6 @@ const nativeYieldLabel = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return `0 ${constants.LINERA_TICKER}`
   return `≈ ${formatLiquidity(value)} ${constants.LINERA_TICKER}`
 }
-const isVirtualPosition = (position: Position) => position.status === 'virtual' || Boolean(position.is_virtual_position)
 const virtualInitialTokenAmounts = (position: Position): Array<{ token: string, amount: string | null | undefined }> => [
   { token: position.token_0, amount: position.virtual_initial_amount0 },
   { token: position.token_1, amount: position.virtual_initial_amount1 },
@@ -453,29 +451,7 @@ const virtualQuoteLiquidityItem = (position: Position) => {
     label: `${formatLiquidity(item.amount || '0')} ${tokenTicker(item.token)}`,
   }
 }
-const positionLiquidity = (position: Position) => {
-  if (isVirtualPosition(position)) {
-    return {
-      liquidity: position.current_liquidity || '0',
-      amount0: position.virtual_initial_amount0 || '0',
-      amount1: position.virtual_initial_amount1 || '0',
-    }
-  }
-
-  return {
-    liquidity:
-      positionMetrics(position)?.position_liquidity || position.current_liquidity || '0',
-    amount0:
-      positionMetrics(position)?.redeemable_amount0 ||
-      position.virtual_initial_amount0 ||
-      '0',
-    amount1:
-      positionMetrics(position)?.redeemable_amount1 ||
-      position.virtual_initial_amount1 ||
-      '0',
-  }
-}
-const poolForPosition = (position: Position) => swap.Swap.getPool(position.token_0, position.token_1)
+const positionLiquidity = (position: Position) => positionLiquidityAmounts(position, positionMetrics(position))
 const positionShareRatio = (position: Position) => {
   const ratio = Number.parseFloat(positionMetrics(position)?.share_ratio || '0')
 
@@ -512,13 +488,8 @@ const positionFeesLabel = (position: Position) => {
     token1: `${formatLiquidity(metrics.fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
   }
 }
-const yieldSummaryPositions = computed(() => (
-  hasProtocolFeeReceiverPosition.value
-    ? rewardPositions.value.filter((position) => isProtocolFeeReceiver(position))
-    : rewardPositions.value.filter((position) => !position.is_virtual_position)
-))
 const tradingYieldNative = computed(() => nativeValuationTotal(
-  yieldSummaryPositions.value,
+  selectTradingYieldPositions(rewardPositions.value),
   (position) => {
     const metrics = summaryPositionMetrics(position)
     return [
@@ -528,7 +499,7 @@ const tradingYieldNative = computed(() => nativeValuationTotal(
   },
 ))
 const protocolYieldNative = computed(() => nativeValuationTotal(
-  rewardPositions.value.filter((position) => isProtocolFeeReceiver(position)),
+  selectProtocolYieldPositions(rewardPositions.value, owner.value),
   (position) => {
     const metrics = summaryPositionMetrics(position)
     return [
@@ -583,7 +554,7 @@ const refreshSummaryPositions = async (nextOwner: string) => {
   summaryPositions.value = response.data.positions
   summaryPositionMetricsSnapshots.value = Object.fromEntries(
     (metricsResponse?.metrics || []).map((entry) => [
-      `${entry.pool_application}:${entry.pool_id}:${entry.status}:recorded`,
+      positionMetricsKey(entry),
       entry,
     ]),
   )
@@ -601,17 +572,20 @@ const metricsWarningMessage = (position: Position) => {
 }
 const positionAprLabel = (position: Position) => {
   if (isVirtualPosition(position)) return '--'
-  const selectedPool = poolForPosition(position)
-  if (!selectedPool) return '--'
+  const metrics = positionMetrics(position)
+  if (!metrics) return '--'
 
-  const tvl = protocol.calculatePoolTvlInNative(selectedPool, nativePriceMap.value)
-  const oneDayVolume = protocol.calculatePoolVolumeInNative(
-    kline.Kline.poolStat(selectedPool.poolId, kline.TickerInterval.OneDay),
-    nativePriceMap.value,
-  )
-  if (tvl === undefined || oneDayVolume === undefined) return '--'
+  const trailingFeeNative = nativeValuationTotal([position], () => [
+    { token: position.token_0, amount: metrics.trailing_24h_fee_amount0 || '0' },
+    { token: position.token_1, amount: metrics.trailing_24h_fee_amount1 || '0' },
+  ])
+  const positionValue = nativeValuationTotal([position], () => [
+    { token: position.token_0, amount: metrics.redeemable_amount0 || '0' },
+    { token: position.token_1, amount: metrics.redeemable_amount1 || '0' },
+  ])
+  if (!Number.isFinite(trailingFeeNative) || !Number.isFinite(positionValue) || positionValue <= 0) return '--'
 
-  return formatPercentLabel(protocol.calculatePoolAprFromDailyVolume(oneDayVolume, tvl) * 100, 4)
+  return formatPercentLabel((trailingFeeNative / positionValue) * 365 * 100, 4)
 }
 const hasLiquidity = (position: Position) =>
   Number.parseFloat(positionLiquidity(position).liquidity || position.current_liquidity || '0') > 0
@@ -664,7 +638,7 @@ const refreshPositionMetricsSnapshots = async (
   const metrics = response?.metrics || []
   positionMetricsSnapshots.value = Object.fromEntries(
     metrics.map((entry) => [
-      `${entry.pool_application}:${entry.pool_id}:${entry.status}:recorded`,
+      positionMetricsKey(entry),
       entry,
     ]),
   )
@@ -697,6 +671,10 @@ watch(
 const unsubscribePositionsListener = kline.Kline.onPositions((payload) => {
   if (!positionsInvalidationMatchesOwner(payload)) return
   schedulePositionsRefresh()
+})
+
+onMounted(() => {
+  swap.Swap.getPools()
 })
 
 onBeforeUnmount(() => {
