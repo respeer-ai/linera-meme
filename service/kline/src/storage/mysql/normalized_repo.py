@@ -27,6 +27,9 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
         NormalizedEventResult.FAMILY_POOL_SWAP_TRANSFER_RECEIPT_REJECTED,
     )
     REPROCESS_REASON_COLUMN_LENGTH = 255
+    TARGET_BLOCK_POOL_EVENT_INDEX = 'idx_normalized_events_app_target_block_status_family'
+    SOURCE_CERT_POOL_EVENT_INDEX = 'idx_normalized_events_app_source_cert_status_family'
+    MARKET_SEQUENCE_INDEX = 'idx_normalized_events_market_sequence'
 
     def __init__(self, connection):
         self.connection = connection
@@ -41,6 +44,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 CREATE TABLE IF NOT EXISTS {self.normalized_events_table} (
                     normalized_event_id VARCHAR(255) NOT NULL,
                     raw_fact_id VARCHAR(255) NOT NULL,
+                    raw_fact_sequence BIGINT NULL,
                     raw_table VARCHAR(64) NOT NULL,
                     application_id VARCHAR(128) NOT NULL,
                     payload_kind VARCHAR(16) NOT NULL,
@@ -70,15 +74,91 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 )
                 '''
             )
+            raw_fact_sequence_column_added = self._ensure_raw_fact_sequence_column(cursor)
             cursor.execute(
                 f'''
                 ALTER TABLE {self.normalized_events_table}
                 MODIFY COLUMN reprocess_reason VARCHAR({self.REPROCESS_REASON_COLUMN_LENGTH}) NULL
                 '''
             )
+            if raw_fact_sequence_column_added:
+                self._backfill_raw_fact_sequence(cursor)
+            self._ensure_index(
+                cursor,
+                self.MARKET_SEQUENCE_INDEX,
+                (
+                    'raw_table',
+                    'normalization_status',
+                    'raw_fact_sequence',
+                    'normalized_event_id',
+                ),
+            )
+            self._ensure_index(
+                cursor,
+                self.TARGET_BLOCK_POOL_EVENT_INDEX,
+                (
+                    'application_id',
+                    'target_block_hash',
+                    'normalization_status',
+                    'event_family',
+                    'transaction_index',
+                    'message_index',
+                    'normalized_event_id',
+                ),
+            )
+            self._ensure_index(
+                cursor,
+                self.SOURCE_CERT_POOL_EVENT_INDEX,
+                (
+                    'application_id',
+                    'source_cert_hash',
+                    'normalization_status',
+                    'event_family',
+                    'transaction_index',
+                    'message_index',
+                    'normalized_event_id',
+                ),
+            )
             self.connection.commit()
         finally:
             cursor.close()
+
+    def _ensure_raw_fact_sequence_column(self, cursor) -> bool:
+        cursor.execute(f'SHOW COLUMNS FROM {self.normalized_events_table} LIKE %s', ('raw_fact_sequence',))
+        if cursor.fetchone() is not None:
+            return False
+        cursor.execute(
+            f'ALTER TABLE {self.normalized_events_table} '
+            'ADD COLUMN raw_fact_sequence BIGINT NULL AFTER raw_fact_id'
+        )
+        return True
+
+    def _backfill_raw_fact_sequence(self, cursor) -> None:
+        cursor.execute(
+            f'''
+            UPDATE {self.normalized_events_table}
+            SET raw_fact_sequence = CAST(raw_fact_id AS UNSIGNED)
+            WHERE raw_fact_sequence IS NULL
+              AND raw_fact_id REGEXP '^[0-9]+$'
+            '''
+        )
+
+    def _ensure_index(self, cursor, index_name: str, expected_columns: tuple[str, ...]) -> None:
+        cursor.execute(f'SHOW INDEX FROM {self.normalized_events_table}')
+        matching_rows = [
+            row for row in cursor.fetchall()
+            if len(row) > 4 and row[2] == index_name
+        ]
+        existing_columns = tuple(
+            row[4] for row in sorted(matching_rows, key=lambda row: row[3])
+        )
+        if existing_columns == expected_columns:
+            return
+        if existing_columns:
+            cursor.execute(f'DROP INDEX {index_name} ON {self.normalized_events_table}')
+        cursor.execute(
+            f'CREATE INDEX {index_name} ON {self.normalized_events_table} ({", ".join(expected_columns)})'
+        )
 
     def upsert_normalized_events(self, events: list[dict[str, object]]) -> int:
         if not events:
@@ -91,6 +171,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                     INSERT INTO {self.normalized_events_table} (
                         normalized_event_id,
                         raw_fact_id,
+                        raw_fact_sequence,
                         raw_table,
                         application_id,
                         payload_kind,
@@ -110,8 +191,9 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                         decode_status,
                         event_payload_json,
                         reprocess_reason
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
+                        raw_fact_sequence = VALUES(raw_fact_sequence),
                         correlation_key = VALUES(correlation_key),
                         normalization_status = VALUES(normalization_status),
                         source_chain_id = VALUES(source_chain_id),
@@ -130,6 +212,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                     (
                         event['normalized_event_id'],
                         event['raw_fact_id'],
+                        self._raw_fact_sequence(event),
                         event['raw_table'],
                         event['application_id'],
                         event['payload_kind'],
@@ -156,6 +239,15 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
         finally:
             cursor.close()
 
+    def _raw_fact_sequence(self, event: dict[str, object]) -> int | None:
+        explicit_value = event.get('raw_fact_sequence')
+        if explicit_value not in (None, ''):
+            return int(explicit_value)
+        raw_fact_id = str(event['raw_fact_id'])
+        if not raw_fact_id.isdigit():
+            return None
+        return int(raw_fact_id)
+
     def list_market_derivation_candidates(
         self,
         *,
@@ -176,7 +268,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 NormalizedEventResult.STATUS_OBSERVED,
             ]
             if after_sequence is not None:
-                where_clauses.append('CAST(raw_fact_id AS UNSIGNED) > %s')
+                where_clauses.append('raw_fact_sequence > %s')
                 params.append(int(after_sequence))
             params.append(int(limit))
             cursor.execute(
@@ -184,6 +276,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 SELECT
                     normalized_event_id,
                     raw_fact_id,
+                    raw_fact_sequence,
                     raw_table,
                     application_id,
                     payload_kind,
@@ -205,7 +298,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                     reprocess_reason
                 FROM {self.normalized_events_table}
                 WHERE {' AND '.join(where_clauses)}
-                ORDER BY CAST(raw_fact_id AS UNSIGNED) ASC, normalized_event_id ASC
+                ORDER BY raw_fact_sequence ASC, normalized_event_id ASC
                 LIMIT %s
                 ''',
                 tuple(params),
@@ -289,6 +382,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                 SELECT
                     normalized_event_id,
                     raw_fact_id,
+                    raw_fact_sequence,
                     raw_table,
                     application_id,
                     payload_kind,
@@ -310,7 +404,7 @@ class NormalizedEventRepository(MysqlRepositoryConnectionMixin):
                     reprocess_reason
                 FROM {self.normalized_events_table}
                 WHERE {" AND ".join(where_clauses)}
-                ORDER BY CAST(raw_fact_id AS UNSIGNED) ASC, normalized_event_id ASC
+                ORDER BY transaction_index ASC, message_index ASC, normalized_event_id ASC
                 """,
                 tuple(params),
             )

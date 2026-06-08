@@ -55,14 +55,7 @@ class ClaimBalanceCorrelationDeriver:
             if not matches:
                 continue
             if len(matches) != 1:
-                outputs = [
-                    self.item_deriver._diagnostic(
-                        original,
-                        'ambiguous_new_transaction_correlation',
-                        source=self._message_type(original),
-                        confidence='partial',
-                    )
-                ]
+                outputs = self._ambiguous_match_diagnostics(original)
             else:
                 pair_id = f"{original_id}:{matches[0]['normalized_event_id']}"
                 if pair_id in emitted_pair_ids:
@@ -85,6 +78,19 @@ class ClaimBalanceCorrelationDeriver:
             'batch_outputs': batch_outputs,
             'resolved_event_ids': resolved_event_ids,
         }
+
+    def _ambiguous_match_diagnostics(self, original: dict[str, object]) -> list[dict[str, object]]:
+        message_type = self._message_type(original)
+        if message_type == 'swap':
+            return []
+        return [
+            self.item_deriver._diagnostic(
+                original,
+                'ambiguous_new_transaction_correlation',
+                source=message_type,
+                confidence='partial',
+            )
+        ]
 
     def filter_resolved_diagnostics(
         self,
@@ -113,11 +119,14 @@ class ClaimBalanceCorrelationDeriver:
         pool_application = self.item_deriver._pool_application(original)
         tokens = pool_tokens.get(pool_application)
         if tokens is None:
+            message_type = self._message_type(original)
+            if message_type == 'swap':
+                return []
             return [
                 self.item_deriver._diagnostic(
                     original,
                     'missing_pool_token_metadata',
-                    source=self._message_type(original),
+                    source=message_type,
                     confidence='partial',
                 )
             ]
@@ -318,21 +327,24 @@ class ClaimBalanceCorrelationDeriver:
         if self.normalized_event_repository is None:
             return []
         messages = []
-        for event in self._new_transactions(events):
-            source_cert_hash = event.get('source_cert_hash')
-            if source_cert_hash in (None, ''):
-                continue
-            list_messages = getattr(
-                self.normalized_event_repository,
-                'list_correlatable_pool_messages',
-                None,
-            )
-            if list_messages is None:
-                continue
+        list_messages = getattr(
+            self.normalized_event_repository,
+            'list_correlatable_pool_messages',
+            None,
+        )
+        if list_messages is None:
+            return []
+        lookup_keys = {
+            (str(event['application_id']), str(event['source_cert_hash']))
+            for event in self._new_transactions(events)
+            if event.get('application_id') not in (None, '')
+            and event.get('source_cert_hash') not in (None, '')
+        }
+        for application_id, source_cert_hash in sorted(lookup_keys):
             messages.extend(
                 list_messages(
-                    application_id=str(event['application_id']),
-                    target_block_hash=str(source_cert_hash),
+                    application_id=application_id,
+                    target_block_hash=source_cert_hash,
                 )
             )
         return messages
@@ -348,14 +360,17 @@ class ClaimBalanceCorrelationDeriver:
         )
         if list_new_transactions is None:
             return []
-        for event in self._correlatable_messages(events):
-            source_block = event.get('target_block_hash') or event.get('source_block_hash')
-            if source_block in (None, ''):
-                continue
+        lookup_keys = {
+            (str(event['application_id']), str(event.get('target_block_hash') or event.get('source_block_hash')))
+            for event in self._correlatable_messages(events)
+            if event.get('application_id') not in (None, '')
+            and (event.get('target_block_hash') or event.get('source_block_hash')) not in (None, '')
+        }
+        for application_id, source_block in sorted(lookup_keys):
             new_transactions.extend(
                 list_new_transactions(
-                    application_id=str(event['application_id']),
-                    source_cert_hash=str(source_block),
+                    application_id=application_id,
+                    source_cert_hash=source_block,
                 )
             )
         return new_transactions

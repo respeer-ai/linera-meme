@@ -309,6 +309,11 @@ class SettledTradeProjectionRepositoryTest(unittest.TestCase):
         self.assertEqual(payload[4][0]['close'], 3.0)
         self.assertEqual(payload[4][0]['base_volume'], 16.0)
         self.assertEqual(payload[4][0]['quote_volume'], 38.0)
+        trade_sql = next(
+            sql for sql, _params in db.cursor_dict.executed
+            if 'FROM settled_trades st' in sql
+        )
+        self.assertIn('FORCE INDEX (idx_settled_trades_pool_time)', trade_sql)
 
     def test_trade_queries_join_against_prefixed_pool_application(self):
         db = self.FakeDb()

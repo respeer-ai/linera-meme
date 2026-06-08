@@ -3,6 +3,8 @@ from storage.mysql.repository_connection_mixin import MysqlRepositoryConnectionM
 
 
 class SettledTradeRepository(MysqlRepositoryConnectionMixin):
+    POOL_TIME_INDEX = 'idx_settled_trades_pool_time'
+
     def __init__(self, connection):
         self.connection = connection
         self.fingerprint = CanonicalFingerprint()
@@ -116,9 +118,31 @@ class SettledTradeRepository(MysqlRepositoryConnectionMixin):
                     AFTER amount_1_in
                     '''
                 )
+            self._ensure_index(
+                cursor,
+                self.POOL_TIME_INDEX,
+                ('pool_application_id', 'trade_time_ms', 'transaction_id', 'settled_trade_id'),
+            )
             self.connection.commit()
         finally:
             cursor.close()
+
+    def _ensure_index(self, cursor, index_name: str, expected_columns: tuple[str, ...]) -> None:
+        cursor.execute(f'SHOW INDEX FROM {self.settled_trades_table}')
+        matching_rows = [
+            row for row in cursor.fetchall()
+            if len(row) > 4 and row[2] == index_name
+        ]
+        existing_columns = tuple(
+            row[4] for row in sorted(matching_rows, key=lambda row: row[3])
+        )
+        if existing_columns == expected_columns:
+            return
+        if existing_columns:
+            cursor.execute(f'DROP INDEX {index_name} ON {self.settled_trades_table}')
+        cursor.execute(
+            f'CREATE INDEX {index_name} ON {self.settled_trades_table} ({", ".join(expected_columns)})'
+        )
 
     def upsert_settled_trades(self, trades: list[dict[str, object]]) -> int:
         if not trades:

@@ -26,7 +26,9 @@ class ClaimBalanceDeriver:
             return self._add_liquidity_transfer_receipt(event, payload)
         if message_type == 'swap_transfer_receipt':
             return self._swap_transfer_receipt(event, payload)
-        if message_type in {'swap', 'add_liquidity', 'remove_liquidity'}:
+        if message_type == 'swap':
+            return self._result(event, outputs=[])
+        if message_type in {'add_liquidity', 'remove_liquidity'}:
             return self._correlation_required_message(event, message_type)
         return self._result(event, outputs=[])
 

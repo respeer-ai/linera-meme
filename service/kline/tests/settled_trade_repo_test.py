@@ -27,6 +27,9 @@ class FakeCursor:
         sql, params = self.connection.last_select
         return self.connection.select_results.get((self.connection._normalize_sql(sql), params))
 
+    def fetchall(self):
+        return []
+
     def close(self):
         self.closed = True
 
@@ -72,6 +75,11 @@ class SettledTradeRepositoryTest(unittest.TestCase):
         self.assertIn('ADD COLUMN amount_0_out', all_sql)
         self.assertIn('ADD COLUMN amount_1_in', all_sql)
         self.assertIn('ADD COLUMN amount_1_out', all_sql)
+        self.assertIn(
+            'CREATE INDEX idx_settled_trades_pool_time ON settled_trades '
+            '(pool_application_id, trade_time_ms, transaction_id, settled_trade_id)',
+            [sql for sql, _params in executed],
+        )
         self.assertEqual(connection.commit_count, 1)
 
     def test_ensure_schema_skips_alter_for_existing_columns(self):

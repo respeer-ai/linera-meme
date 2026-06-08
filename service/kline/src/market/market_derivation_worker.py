@@ -72,7 +72,9 @@ class MarketDerivationWorker:
     def _last_sequence(self, items: list[dict]) -> str | None:
         if not items:
             return None
-        value = items[-1].get('raw_fact_id')
+        value = items[-1].get('raw_fact_sequence')
+        if value is None:
+            value = items[-1].get('raw_fact_id')
         if value is None:
             value = items[-1].get('normalized_event_id')
         if value is None:

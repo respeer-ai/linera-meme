@@ -305,7 +305,7 @@ class SettledTradeProjectionRepository:
                     st.amount_in,
                     st.amount_out,
                     st.event_payload_json
-                FROM settled_trades st
+                FROM settled_trades st FORCE INDEX (idx_settled_trades_pool_time)
                 {where_sql}
                 ORDER BY st.trade_time_ms DESC, st.transaction_id DESC, st.settled_trade_id DESC
                 {limit_sql}
@@ -364,7 +364,7 @@ class SettledTradeProjectionRepository:
                     COUNT(*) AS trade_count,
                     MAX(st.trade_time_ms) AS timestamp_begin,
                     MIN(st.trade_time_ms) AS timestamp_end
-                FROM settled_trades st
+                FROM settled_trades st FORCE INDEX (idx_settled_trades_pool_time)
                 {where_sql}
                 ''',
                 tuple(params),
@@ -506,7 +506,7 @@ class SettledTradeProjectionRepository:
                     COALESCE(MAX(st.trade_time_ms), 0),
                     COALESCE({raw_block_watermark_sql}, 0)
                 ) AS market_watermark_ms
-                FROM settled_trades st
+                FROM settled_trades st FORCE INDEX (idx_settled_trades_pool_time)
                 WHERE {self._pool_application_condition('st')}
                 ''',
                 tuple(params),
@@ -531,7 +531,7 @@ class SettledTradeProjectionRepository:
             cursor.execute(
                 f'''
                 SELECT MAX(st.trade_time_ms) AS trade_watermark_ms
-                FROM settled_trades st
+                FROM settled_trades st FORCE INDEX (idx_settled_trades_pool_time)
                 WHERE {self._pool_application_condition('st')}
                 ''',
                 (pool_application,),
@@ -593,7 +593,7 @@ class SettledTradeProjectionRepository:
                     st.amount_in,
                     st.amount_out,
                     st.event_payload_json
-                FROM settled_trades st
+                FROM settled_trades st FORCE INDEX (idx_settled_trades_pool_time)
                 WHERE {self._pool_application_condition('st')}
                   AND st.trade_time_ms < %s
                 ORDER BY st.trade_time_ms DESC, st.transaction_id DESC, st.settled_trade_id DESC

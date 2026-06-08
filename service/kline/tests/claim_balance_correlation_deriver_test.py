@@ -197,7 +197,7 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
         self.assertEqual(outputs[1]['token'], 'native')
         self.assertEqual(outputs[1]['delta_amount'], '6')
 
-    def test_missing_pool_token_metadata_keeps_partial_diagnostic(self):
+    def test_swap_missing_pool_token_metadata_does_not_emit_diagnostic(self):
         swap = self.pool_event('swap', {
             'origin': self.account(),
             'amount_0_in': None,
@@ -213,10 +213,8 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
 
         result = ClaimBalanceCorrelationDeriver().derive_batch([swap, new_transaction])
 
-        outputs = result['outputs_by_event_id']['event-swap']
-        self.assertEqual(outputs[0]['settled_output_type'], 'claim_balance_diagnostic')
-        self.assertEqual(outputs[0]['diagnostic_type'], 'missing_pool_token_metadata')
-        self.assertEqual(outputs[0]['derivation_confidence'], 'partial')
+        self.assertEqual(result['outputs_by_event_id'], {})
+        self.assertEqual(result['batch_outputs'], [])
 
     def test_correlates_message_with_repository_new_transaction(self):
         swap = self.pool_event('swap', {
@@ -267,7 +265,7 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
         self.assertEqual(result['batch_outputs'][0]['derivation_source'], 'correlated_swap_new_transaction')
         self.assertEqual(result['batch_outputs'][0]['delta_amount'], '12')
 
-    def test_ambiguous_new_transaction_match_is_diagnostic_only(self):
+    def test_ambiguous_swap_new_transaction_match_does_not_emit_diagnostic(self):
         swap = self.pool_event('swap', {
             'origin': self.account(),
             'amount_0_in': None,
@@ -287,11 +285,41 @@ class ClaimBalanceCorrelationDeriverTest(unittest.TestCase):
             pool_catalog_repository=self.FakePoolCatalogRepository(),
         ).derive_batch([swap, first, second])
 
-        outputs = result['outputs_by_event_id']['event-swap']
-        self.assertEqual(len(outputs), 1)
-        self.assertEqual(outputs[0]['settled_output_type'], 'claim_balance_diagnostic')
-        self.assertEqual(outputs[0]['diagnostic_type'], 'ambiguous_new_transaction_correlation')
+        self.assertEqual(result['outputs_by_event_id'], {})
+        self.assertEqual(result['batch_outputs'], [])
+        self.assertNotIn('event-swap', result['resolved_event_ids'])
 
+    def test_repository_lookups_are_deduplicated_by_application_and_block(self):
+        first = self.new_transaction(
+            {'transaction_type': 'BuyToken0', 'from': self.account(), 'amount_0_out': '12', 'amount_1_in': '50'},
+            event_id='new-1',
+            source_cert_hash='same-source-block',
+        )
+        second = self.new_transaction(
+            {'transaction_type': 'BuyToken0', 'from': self.account(), 'amount_0_out': '13', 'amount_1_in': '51'},
+            event_id='new-2',
+            source_cert_hash='same-source-block',
+        )
+
+        class CountingRepository(self.FakeNormalizedEventRepository):
+            def __init__(self):
+                super().__init__()
+                self.message_calls = []
+
+            def list_correlatable_pool_messages(self, *, application_id, target_block_hash):
+                self.message_calls.append((application_id, target_block_hash))
+                return []
+
+        repository = CountingRepository()
+
+        ClaimBalanceCorrelationDeriver(
+            normalized_event_repository=repository,
+        ).derive_batch([first, second])
+
+        self.assertEqual(
+            repository.message_calls,
+            [('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'same-source-block')],
+        )
 
     def test_disambiguates_repeated_swap_amounts_by_execution_position(self):
         swap = self.pool_event(

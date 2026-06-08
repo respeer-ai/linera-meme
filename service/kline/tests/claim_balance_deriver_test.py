@@ -155,7 +155,7 @@ class ClaimBalanceDeriverTest(unittest.TestCase):
         self.assertEqual(outputs[0]['settled_output_type'], 'claim_balance_diagnostic')
         self.assertEqual(outputs[0]['diagnostic_type'], 'swap_transfer_receipt_failure_has_no_claim_delta')
 
-    def test_observed_swap_message_derives_partial_correlation_diagnostic(self):
+    def test_observed_swap_message_does_not_emit_partial_correlation_diagnostic(self):
         event = self.base_event('swap', {
             'origin': self.account(),
             'amount_0_in': None,
@@ -165,12 +165,7 @@ class ClaimBalanceDeriverTest(unittest.TestCase):
 
         outputs = ClaimBalanceDeriver().derive_item(event)['settled_outputs']
 
-        self.assertEqual(len(outputs), 1)
-        self.assertEqual(outputs[0]['settled_output_type'], 'claim_balance_diagnostic')
-        self.assertEqual(outputs[0]['diagnostic_type'], 'claim_delta_requires_new_transaction_correlation')
-        self.assertEqual(outputs[0]['derivation_source'], 'swap')
-        self.assertEqual(outputs[0]['derivation_confidence'], 'partial')
-        self.assertFalse(outputs[0]['rejected'])
+        self.assertEqual(outputs, [])
 
     def test_rejected_claim_message_derives_no_handler_delta_diagnostic(self):
         event = self.base_event('claim', {

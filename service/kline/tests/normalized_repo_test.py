@@ -19,12 +19,16 @@ class FakeCursor:
         self.executed = []
         self.closed = False
         self.fetchall_result = []
+        self.fetchone_result = None
 
     def execute(self, sql: str, params=None):
         self.executed.append((sql, params))
 
     def fetchall(self):
         return list(self.fetchall_result)
+
+    def fetchone(self):
+        return self.fetchone_result
 
     def close(self):
         self.closed = True
@@ -54,10 +58,56 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
         executed_statements = [sql for sql, _params in connection.cursor_instances[0].executed]
         self.assertIn('CREATE TABLE IF NOT EXISTS normalized_events', executed_statements[0])
         self.assertIn('reprocess_reason VARCHAR(255) NULL', executed_statements[0])
-        self.assertIn('ALTER TABLE normalized_events', executed_statements[1])
-        self.assertIn('MODIFY COLUMN reprocess_reason VARCHAR(255) NULL', executed_statements[1])
+        self.assertIn('raw_fact_sequence BIGINT NULL', executed_statements[0])
+        self.assertTrue(any(
+            'ALTER TABLE normalized_events' in sql
+            and 'MODIFY COLUMN reprocess_reason VARCHAR(255) NULL' in sql
+            for sql in executed_statements
+        ))
         self.assertEqual(connection.commit_count, 1)
         self.assertTrue(connection.cursor_instances[0].closed)
+
+    def test_ensure_schema_adds_pool_event_lookup_indexes(self):
+        connection = FakeConnection()
+        repository = NormalizedEventRepository(connection)
+
+        repository.ensure_schema()
+
+        executed_statements = [sql for sql, _params in connection.cursor_instances[0].executed]
+        self.assertIn(
+            'CREATE INDEX idx_normalized_events_market_sequence ON normalized_events '
+            '(raw_table, normalization_status, raw_fact_sequence, normalized_event_id)',
+            executed_statements,
+        )
+        self.assertIn(
+            'CREATE INDEX idx_normalized_events_app_target_block_status_family ON normalized_events '
+            '(application_id, target_block_hash, normalization_status, event_family, '
+            'transaction_index, message_index, normalized_event_id)',
+            executed_statements,
+        )
+        self.assertIn(
+            'CREATE INDEX idx_normalized_events_app_source_cert_status_family ON normalized_events '
+            '(application_id, source_cert_hash, normalization_status, event_family, '
+            'transaction_index, message_index, normalized_event_id)',
+            executed_statements,
+        )
+
+    def test_ensure_schema_does_not_backfill_raw_fact_sequence_when_column_exists(self):
+        connection = FakeConnection()
+        cursor = FakeCursor(connection)
+        cursor.fetchone_result = {'Field': 'raw_fact_sequence'}
+        connection.cursor_instances.append(cursor)
+        connection.cursor = lambda **_kwargs: connection.cursor_instances.pop(0)
+        repository = NormalizedEventRepository(connection)
+
+        repository.ensure_schema()
+
+        executed_statements = [sql for sql, _params in cursor.executed]
+        self.assertFalse(any(
+            'UPDATE normalized_events' in sql
+            and 'SET raw_fact_sequence = CAST(raw_fact_id AS UNSIGNED)' in sql
+            for sql in executed_statements
+        ))
 
     def test_upsert_normalized_events_persists_canonical_payload_json(self):
         connection = FakeConnection()
@@ -97,8 +147,9 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
         self.assertEqual(count, 1)
         executed_sql, params = connection.cursor_instances[0].executed[0]
         self.assertIn('INSERT INTO normalized_events', executed_sql)
+        self.assertEqual(params[2], None)
         self.assertEqual(
-            params[19],
+            params[20],
             '{"decoded_payload_json":{"application_type":"DeFi"},"raw_context":{"chain_id":"chain-a"}}',
         )
         self.assertEqual(connection.commit_count, 1)
@@ -165,6 +216,9 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
             executed_sql,
         )
         self.assertIn('normalization_status = %s', executed_sql)
+        self.assertIn('raw_fact_sequence > %s', executed_sql)
+        self.assertIn('ORDER BY raw_fact_sequence ASC, normalized_event_id ASC', executed_sql)
+        self.assertNotIn('CAST(raw_fact_id AS UNSIGNED)', executed_sql)
         self.assertEqual(
             params,
             (
@@ -191,6 +245,8 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
         executed_sql, params = cursor.executed[0]
         self.assertIn("application_id = %s", executed_sql)
         self.assertIn("source_cert_hash = %s", executed_sql)
+        self.assertIn("ORDER BY transaction_index ASC, message_index ASC, normalized_event_id ASC", executed_sql)
+        self.assertNotIn("CAST(raw_fact_id AS UNSIGNED)", executed_sql)
         self.assertEqual(
             params,
             (
@@ -216,6 +272,8 @@ class NormalizedEventRepositoryTest(unittest.TestCase):
         executed_sql, params = cursor.executed[0]
         self.assertIn("application_id = %s", executed_sql)
         self.assertIn("target_block_hash = %s", executed_sql)
+        self.assertIn("ORDER BY transaction_index ASC, message_index ASC, normalized_event_id ASC", executed_sql)
+        self.assertNotIn("CAST(raw_fact_id AS UNSIGNED)", executed_sql)
         self.assertIn("pool_swap_message_observed", params)
         self.assertIn("pool_add_liquidity_message_observed", params)
         self.assertIn("pool_remove_liquidity_message_observed", params)
