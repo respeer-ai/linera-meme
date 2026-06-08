@@ -51,6 +51,36 @@ class SettledLiquidityProjectionRepository:
             return None
         return [self._build_history_row(row) for row in rows]
 
+    def list_active_position_owners_for_pool(
+        self,
+        *,
+        pool_application: str,
+    ) -> list[str]:
+        rows = self._load_liquidity_rows(
+            owner=None,
+            pool_application=pool_application,
+            position_liquidity_only=True,
+        )
+        if rows is None:
+            return []
+        liquidity_by_owner: dict[str, Decimal] = {}
+        for row in rows:
+            owner = self.transaction_adapter.public_owner_from_settled_owner(row.get('owner'))
+            if owner in (None, ''):
+                continue
+            delta = self._display_decimal(Decimal(str(row['liquidity_delta'])))
+            current = liquidity_by_owner.get(owner, Decimal('0'))
+            if row['change_type'] == 'add_liquidity':
+                current += delta
+            elif row['change_type'] == 'remove_liquidity':
+                current -= delta
+            liquidity_by_owner[owner] = current
+        return sorted(
+            owner
+            for owner, liquidity in liquidity_by_owner.items()
+            if liquidity > Decimal('0.000000000001')
+        )
+
     def get_owner_candidate_histories(
         self,
         *,

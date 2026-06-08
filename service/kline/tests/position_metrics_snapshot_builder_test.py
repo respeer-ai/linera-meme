@@ -32,6 +32,22 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         def list_position_liquidity_history(self, *, owner, pool_application_id):
             return list(self.position_liquidity_history.get((owner, pool_application_id), []))
 
+        def list_active_position_owners_for_pool(self, *, pool_application):
+            owners = []
+            for owner, pool_application_id in self.position_liquidity_history:
+                if pool_application_id != pool_application:
+                    continue
+                running_liquidity = 0
+                for row in self.position_liquidity_history[(owner, pool_application_id)]:
+                    liquidity = int(row.get('liquidity') or 0)
+                    if row.get('transaction_type') == 'AddLiquidity':
+                        running_liquidity += liquidity
+                    elif row.get('transaction_type') == 'RemoveLiquidity':
+                        running_liquidity -= liquidity
+                if running_liquidity > 0:
+                    owners.append(owner)
+            return sorted(owners)
+
         def list_pool_fee_to_history(self, *, pool_application_id):
             return list(self.pool_fee_to_history.get(pool_application_id, []))
 
@@ -171,8 +187,37 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         self.assertTrue(pool_state['state_payload_json']['virtual_initial_liquidity'])
         self.assertEqual(pool_state['current_total_supply'], '6')
 
-    def test_build_materialization_plan_ignores_trade_only_position_rebuilds(self):
+    def test_build_materialization_plan_rebuilds_active_position_snapshots_for_trade_only_pool(self):
         source_repository = self.FakeSnapshotSourceRepository()
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        source_repository.pool_transaction_history[pool_application_id] = [
+            {
+                'transaction_id': 10,
+                'transaction_type': 'AddLiquidity',
+                'amount_0_in': '4',
+                'amount_0_out': None,
+                'amount_1_in': '9',
+                'amount_1_out': None,
+                'liquidity': '6',
+                'created_at': 1000,
+                'from_account': owner,
+            },
+            {
+                'transaction_id': 11,
+                'transaction_type': 'BuyToken0',
+                'amount_0_in': None,
+                'amount_0_out': '1',
+                'amount_1_in': '2',
+                'amount_1_out': None,
+                'liquidity': None,
+                'created_at': 2000,
+                'from_account': 'buyer@chain-user',
+            },
+        ]
+        source_repository.position_liquidity_history[(owner, pool_application_id)] = [
+            source_repository.pool_transaction_history[pool_application_id][0]
+        ]
         builder = PositionMetricsSnapshotBuilder(
             snapshot_materialization_inputs_repository=source_repository,
             settled_output_batch_factory=SettledOutputBatchFactory(),
@@ -183,7 +228,7 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
                 [
                     {
                         'settled_output_type': 'settled_trade',
-                        'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
+                        'pool_application_id': pool_application_id,
                         'pool_chain_id': 'chain-a',
                     }
                 ]
@@ -191,8 +236,13 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         )
 
         self.assertEqual(plan['affected_pool_count'], 1)
-        self.assertEqual(plan['affected_position_count'], 0)
-        self.assertEqual(plan['position_replacements'], [])
+        self.assertEqual(plan['affected_position_count'], 1)
+        self.assertEqual(len(plan['position_replacements']), 1)
+        replacement = plan['position_replacements'][0]
+        self.assertEqual(replacement['owner'], owner)
+        self.assertEqual(replacement['pool_application_id'], pool_application_id)
+        self.assertEqual(len(replacement['states']), 1)
+        self.assertEqual(replacement['states'][0]['basis_transaction_id'], 10)
 
     def test_build_materialization_plan_persists_recorded_state_when_exact_swap_replay_is_blocked(self):
         source_repository = self.FakeSnapshotSourceRepository()

@@ -388,7 +388,19 @@ class PositionMetricsSnapshotBuilder:
         self,
         output_batch,
     ) -> list[tuple[str, str, str | None]]:
-        return output_batch.affected_positions()
+        affected = set(output_batch.affected_positions())
+        affected_pools = output_batch.affected_pools()
+        for pool_application_id, pool_chain_id in affected_pools:
+            snapshot_pool_application_id = self._canonical_pool_application(
+                pool_application_id=pool_application_id,
+                pool_chain_id=pool_chain_id,
+            )
+            active_owners = self.snapshot_materialization_inputs_repository.list_active_position_owners_for_pool(
+                pool_application=snapshot_pool_application_id,
+            )
+            for owner in active_owners:
+                affected.add((owner, snapshot_pool_application_id, pool_chain_id))
+        return sorted(affected)
 
     def _load_pool_transaction_history(
         self,

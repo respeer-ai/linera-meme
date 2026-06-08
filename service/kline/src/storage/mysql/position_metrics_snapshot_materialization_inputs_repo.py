@@ -84,6 +84,15 @@ class PositionMetricsSnapshotMaterializationInputsRepository:
         )
         return [] if history is None else list(history)
 
+    def list_active_position_owners_for_pool(
+        self,
+        *,
+        pool_application: str,
+    ) -> list[str]:
+        return self.settled_liquidity_projection_repo.list_active_position_owners_for_pool(
+            pool_application=pool_application,
+        )
+
     def list_pool_fee_to_history(
         self,
         *,

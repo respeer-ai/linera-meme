@@ -20,6 +20,17 @@ class SettledLiquidityChangeRepository(MysqlRepositoryConnectionMixin):
         )
         return cursor.fetchone() is not None
 
+    def _index_exists(self, cursor, index_name: str) -> bool:
+        cursor.execute(
+            '''
+            SELECT INDEX_NAME FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = %s
+            LIMIT 1
+            ''',
+            (self.settled_liquidity_changes_table, index_name),
+        )
+        return cursor.fetchone() is not None
+
     def ensure_schema(self) -> None:
         cursor = self.cursor()
         try:
@@ -48,6 +59,7 @@ class SettledLiquidityChangeRepository(MysqlRepositoryConnectionMixin):
                     PRIMARY KEY (settled_liquidity_change_id),
                     UNIQUE KEY uq_settled_liquidity_event (normalized_event_id),
                     KEY idx_settled_liquidity_owner (owner, pool_application_id, event_time_ms),
+                    KEY idx_settled_liquidity_pool_position_owner (pool_application_id, is_position_liquidity, owner, event_time_ms),
                     KEY idx_settled_liquidity_source_event (source_event_key)
                 )
                 '''
@@ -96,6 +108,18 @@ class SettledLiquidityChangeRepository(MysqlRepositoryConnectionMixin):
                    OR liquidity_semantics = ''
                 '''
             )
+            if not self._index_exists(cursor, 'idx_settled_liquidity_pool_position_owner'):
+                cursor.execute(
+                    f'''
+                    ALTER TABLE {self.settled_liquidity_changes_table}
+                    ADD INDEX idx_settled_liquidity_pool_position_owner (
+                        pool_application_id,
+                        is_position_liquidity,
+                        owner,
+                        event_time_ms
+                    )
+                    '''
+                )
             self.connection.commit()
         finally:
             cursor.close()

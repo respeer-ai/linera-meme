@@ -114,6 +114,26 @@ class PositionMetricsSnapshotMaterializationInputsRepositoryTest(unittest.TestCa
         self.assertEqual(row['created_at'], 5678)
         self.assertEqual(row['transaction_id'], 12)
 
+    def test_list_active_position_owners_for_pool_delegates_to_liquidity_projection(self):
+        class FakeLiquidityProjectionRepository:
+            def __init__(self):
+                self.calls = []
+
+            def list_active_position_owners_for_pool(self, **kwargs):
+                self.calls.append(dict(kwargs))
+                return ['owner-a@chain']
+
+        liquidity_repository = FakeLiquidityProjectionRepository()
+        repository = PositionMetricsSnapshotMaterializationInputsRepository(
+            connection=None,
+            settled_liquidity_projection_repo=liquidity_repository,
+        )
+
+        owners = repository.list_active_position_owners_for_pool(pool_application='pool@app')
+
+        self.assertEqual(owners, ['owner-a@chain'])
+        self.assertEqual(liquidity_repository.calls, [{'pool_application': 'pool@app'}])
+
 
 if __name__ == '__main__':
     unittest.main()

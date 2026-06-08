@@ -1,3 +1,4 @@
+from decimal import Decimal
 from query.read_models.position_metrics import PositionMetricsReadModel
 
 
@@ -526,15 +527,15 @@ class KlinePositionMetricsDebugService:
         }
 
     @staticmethod
-    def _int_or_zero(value: object) -> int:
+    def _decimal_or_zero(value: object) -> Decimal:
         if value in (None, ''):
-            return 0
-        return int(value)
+            return Decimal('0')
+        return Decimal(str(value))
 
     def _protocol_fee_current_owner_timing_case(self, position_basis_snapshot: dict) -> str | None:
-        basis_owned = self._int_or_zero(position_basis_snapshot.get('basis_protocol_fee_liquidity_owned_by_current_owner'))
-        post_basis_owned = self._int_or_zero(position_basis_snapshot.get('post_basis_protocol_fee_liquidity_owned_by_current_owner'))
-        post_basis_owned_before_first_add = self._int_or_zero(
+        basis_owned = self._decimal_or_zero(position_basis_snapshot.get('basis_protocol_fee_liquidity_owned_by_current_owner'))
+        post_basis_owned = self._decimal_or_zero(position_basis_snapshot.get('post_basis_protocol_fee_liquidity_owned_by_current_owner'))
+        post_basis_owned_before_first_add = self._decimal_or_zero(
             position_basis_snapshot.get('post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add')
         )
         if (
