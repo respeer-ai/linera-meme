@@ -111,10 +111,10 @@
                           clickable
                           v-close-popup
                           class='status-menu-item'
-                          :disable='position.status !== "active" || !hasLiquidity(position)'
+                          :disable='!canUsePositionAction(position)'
                           @click='onManagePositionClick(position)'
                         >
-                          <q-item-section>Remove</q-item-section>
+                          <q-item-section>{{ positionActionLabel(position) }}</q-item-section>
                         </q-item>
                       </q-list>
                     </q-menu>
@@ -243,7 +243,9 @@ import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 import {
   isPositionProtocolFeeReceiver,
+  canUsePositionAction as resolveCanUsePositionAction,
   isVirtualPosition,
+  positionActionLabel as resolvePositionActionLabel,
   positionKey,
   positionLiquidityAmounts,
   positionMetricsFor,
@@ -587,8 +589,13 @@ const positionAprLabel = (position: Position) => {
 
   return formatPercentLabel((trailingFeeNative / positionValue) * 365 * 100, 4)
 }
-const hasLiquidity = (position: Position) =>
-  Number.parseFloat(positionLiquidity(position).liquidity || position.current_liquidity || '0') > 0
+const actionMetrics = (position: Position) => positionMetrics(position) || summaryPositionMetrics(position)
+const positionActionLabel = (position: Position) => (
+  resolvePositionActionLabel(position, actionMetrics(position), owner.value)
+)
+const canUsePositionAction = (position: Position) => (
+  resolveCanUsePositionAction(position, actionMetrics(position), owner.value)
+)
 const formatLiquidity = (value: string | number) => {
   const numeric = typeof value === 'number' ? value : Number.parseFloat(value || '0')
   if (!Number.isFinite(numeric)) return '0'
@@ -614,10 +621,24 @@ const onNewPositionClick = () => {
   void router.push('/pools/add-liquidity')
 }
 const onManagePositionClick = (position: Position) => {
+  const metrics = actionMetrics(position)
+  const context = isVirtualPosition(position)
+    ? {
+        mode: 'fees' as const,
+        liquidity: metrics?.position_liquidity || '0',
+        amount0: metrics?.protocol_fee_amount0 || '0',
+        amount1: metrics?.protocol_fee_amount1 || '0',
+      }
+    : {
+        mode: 'liquidity' as const,
+        liquidity: position.current_liquidity || '0',
+        amount0: metrics?.redeemable_amount0 || '0',
+        amount1: metrics?.redeemable_amount1 || '0',
+      }
   void router.push(buildRemoveLiquidityRoute({
     token0: position.token_0,
     token1: position.token_1,
-  }))
+  }, context))
 }
 
 const refreshPositionMetricsSnapshots = async (

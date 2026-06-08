@@ -3,7 +3,7 @@
     <main class='remove-liquidity-page page-width q-py-xl'>
       <section class='remove-shell'>
         <header class='remove-page-header'>
-          <h1 class='remove-title q-ma-none'>Remove Liquidity</h1>
+          <h1 class='remove-title q-ma-none'>{{ pageTitle }}</h1>
         </header>
 
         <q-card flat class='remove-card'>
@@ -123,14 +123,18 @@
 <script setup lang='ts'>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ams, notify, pool, swap, user, type meme } from 'src/stores/export'
+import { account, ams, kline, notify, swap, user, type meme } from 'src/stores/export'
 import { constants } from 'src/constant'
 import { type LiquidityAmount } from 'src/stores/pool'
+import { type PositionsResponse } from 'src/stores/positions'
+import { positionMetricsFor, positionMetricsKey } from './positionsData'
+import axios from 'axios'
 import { NotifyType } from 'src/stores/notify'
 import { Wallet } from 'src/wallet'
 import ConnectWalletView from 'src/components/wallet/ConnectWalletView.vue'
-import { resolveRoutePoolPair } from 'src/components/pools/poolFlow'
+import { resolveRoutePoolPair, type RemoveLiquidityMode } from 'src/components/pools/poolFlow'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
+import { poolApplicationKey } from 'src/stores/swap/poolIdentity'
 
 const route = useRoute()
 const router = useRouter()
@@ -150,6 +154,21 @@ const routePair = computed(() => resolveRoutePoolPair({
   token0: route.query.token0,
   token1: route.query.token1,
 }))
+const queryValue = (value: unknown) => {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0]
+  return undefined
+}
+const removeMode = computed<RemoveLiquidityMode>(() => (
+  queryValue(route.query.mode) === 'fees' ? 'fees' : 'liquidity'
+))
+const routeLiquidityContext = () => {
+  const liquidity = queryValue(route.query.liquidity)
+  const amount0 = queryValue(route.query.amount0)
+  const amount1 = queryValue(route.query.amount1)
+  if (liquidity === undefined || amount0 === undefined || amount1 === undefined) return undefined
+  return { liquidity, amount0, amount1 }
+}
 const selectedPair = computed(() => {
   if (selectedPool.value) {
     return {
@@ -190,7 +209,11 @@ const tokenLogo = (token: string) => {
 const pairLabel = computed(() => selectedPair.value
   ? `${tokenTicker(selectedPair.value.token0)} / ${tokenTicker(selectedPair.value.token1)}`
   : 'Position')
-const primaryActionLabel = computed(() => walletConnected.value ? 'REMOVE LIQUIDITY' : 'CONNECT WALLET')
+const pageTitle = computed(() => removeMode.value === 'fees' ? 'Collect Fees' : 'Remove Liquidity')
+const primaryActionLabel = computed(() => {
+  if (!walletConnected.value) return 'CONNECT WALLET'
+  return removeMode.value === 'fees' ? 'COLLECT FEES' : 'REMOVE LIQUIDITY'
+})
 const submitDisabled = computed(() => {
   if (!walletConnected.value) return false
   if (!selectedPool.value || submitting.value || liquidityLoading.value) return true
@@ -211,20 +234,71 @@ const setRatio = (ratio: number) => {
   removeAmount.value = (removeAmountMax.value * ratio / 100).toFixed(18).replace(/\.?0+$/, '')
 }
 
+const zeroLiquidity = (): LiquidityAmount => ({ liquidity: '0', amount0: '0', amount1: '0' })
+
+const buildOwnerParam = async () => {
+  const currentAccount = await user.User.account()
+  if (!currentAccount.owner || !account._Account.chainId(currentAccount)) return ''
+  return account._Account.accountDescription(currentAccount)
+}
+
+const localRouteLiquidity = () => {
+  const context = routeLiquidityContext()
+  if (!context) return undefined
+  return {
+    liquidity: context.liquidity,
+    amount0: context.amount0,
+    amount1: context.amount1,
+  }
+}
+
+const findRemoteLiquidity = async (): Promise<LiquidityAmount | undefined> => {
+  if (!selectedPool.value) return undefined
+  const owner = await buildOwnerParam()
+  if (!owner) return undefined
+  const status = removeMode.value === 'fees' ? 'virtual' : 'active'
+  const selectedPoolApplication = poolApplicationKey(selectedPool.value)
+  const positionsUrl = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/positions`)
+  const positionsResponse = await axios.get<PositionsResponse>(positionsUrl, {
+    params: { owner, status },
+  })
+  const metricsResponse = await kline.Kline.getPositionMetrics(owner, status === 'virtual' ? 'all' : status)
+  const metricsByKey = Object.fromEntries(
+    (metricsResponse?.metrics || []).map((entry) => [positionMetricsKey(entry), entry]),
+  )
+  const position = positionsResponse.data.positions.find((entry) => (
+    entry.pool_application === selectedPoolApplication &&
+    Number(entry.pool_id) === Number(selectedPool.value?.poolId) &&
+    entry.token_0 === selectedPool.value?.token0 &&
+    entry.token_1 === (selectedPool.value?.token1 || constants.LINERA_NATIVE_ID) &&
+    (removeMode.value === 'fees' ? entry.status === 'virtual' : entry.status === 'active')
+  ))
+  if (!position) return undefined
+  const metrics = positionMetricsFor(position, metricsByKey)
+  if (removeMode.value === 'fees') {
+    return {
+      liquidity: metrics?.position_liquidity || '0',
+      amount0: metrics?.protocol_fee_amount0 || '0',
+      amount1: metrics?.protocol_fee_amount1 || '0',
+    }
+  }
+  return {
+    liquidity: position.current_liquidity || '0',
+    amount0: metrics?.redeemable_amount0 || '0',
+    amount1: metrics?.redeemable_amount1 || '0',
+  }
+}
+
 const loadLiquidity = async () => {
   if (!walletConnected.value || !selectedPool.value) return
 
   liquidityLoading.value = true
-  const account = await user.User.account()
-
-  pool.liquidity(account, selectedPool.value.poolApplication, (liquidity) => {
+  try {
+    currentLiquidity.value = localRouteLiquidity() || await findRemoteLiquidity() || zeroLiquidity()
+    removeAmount.value = ''
+  } finally {
     liquidityLoading.value = false
-    currentLiquidity.value = liquidity || {
-      liquidity: '0',
-      amount0: '0',
-      amount1: '0',
-    }
-  })
+  }
 }
 
 const onPrimaryAction = async () => {
@@ -245,8 +319,8 @@ const onPrimaryAction = async () => {
       await swap.Swap.getPools()
       await loadLiquidity()
       notify.Notify.pushNotification({
-        Title: 'Remove liquidity',
-        Message: 'Remove liquidity submitted successfully.',
+        Title: removeMode.value === 'fees' ? 'Collect fees' : 'Remove liquidity',
+        Message: removeMode.value === 'fees' ? 'Collect fees submitted successfully.' : 'Remove liquidity submitted successfully.',
         Popup: true,
         Type: NotifyType.Success,
       })
@@ -255,8 +329,8 @@ const onPrimaryAction = async () => {
     },
     (e: string) => {
       notify.Notify.pushNotification({
-        Title: 'Remove liquidity',
-        Message: `Failed remove liquidity: ${e}`,
+        Title: removeMode.value === 'fees' ? 'Collect fees' : 'Remove liquidity',
+        Message: removeMode.value === 'fees' ? `Failed collect fees: ${e}` : `Failed remove liquidity: ${e}`,
         Popup: true,
         Type: NotifyType.Error,
       })

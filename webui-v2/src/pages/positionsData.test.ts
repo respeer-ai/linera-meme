@@ -3,6 +3,8 @@ import { describe, expect, test } from 'bun:test'
 import { type Position } from 'src/stores/positions'
 import { type PositionMetricsEntry } from 'src/stores/kline'
 import {
+  canUsePositionAction,
+  positionActionLabel,
   positionKey,
   positionLiquidityAmounts,
   positionMetricsFor,
@@ -138,5 +140,24 @@ describe('positionsData', () => {
     const virtualLiquidity = positionRewardLiquidity(virtualPosition, virtualMetrics, owner)
 
     expect((Number(activeLiquidity) + Number(virtualLiquidity)).toFixed(12)).toBe('75.053988631240')
+  })
+
+  test('labels actual and virtual protocol-fee actions distinctly', () => {
+    expect(positionActionLabel(activePosition, activeMetrics, owner)).toBe('Remove liquidity')
+    expect(canUsePositionAction(activePosition, activeMetrics, owner)).toBe(true)
+    expect(positionActionLabel(virtualPosition, virtualMetrics, owner)).toBe('Collect fees')
+    expect(canUsePositionAction(virtualPosition, virtualMetrics, owner)).toBe(true)
+  })
+
+  test('keeps collect-fees label disabled when no protocol-fee liquidity is available', () => {
+    const emptyVirtualMetrics = {
+      ...virtualMetrics,
+      position_liquidity: '0',
+      protocol_fee_amount0: '0',
+      protocol_fee_amount1: '0',
+    }
+
+    expect(positionActionLabel(virtualPosition, emptyVirtualMetrics, owner)).toBe('Collect fees')
+    expect(canUsePositionAction(virtualPosition, emptyVirtualMetrics, owner)).toBe(false)
   })
 })

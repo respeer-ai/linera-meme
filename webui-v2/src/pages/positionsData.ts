@@ -61,6 +61,28 @@ export const positionRewardLiquidity = (
   return position.current_liquidity || '0'
 }
 
+export const positionActionLabel = (
+  position: Position,
+  metrics: PositionMetricsEntry | undefined,
+  owner: string,
+) => {
+  if (!isVirtualPosition(position)) return 'Remove liquidity'
+  if (isPositionProtocolFeeReceiver(position, owner)) return 'Collect fees'
+  return 'No withdrawable liquidity'
+}
+
+export const canUsePositionAction = (
+  position: Position,
+  metrics: PositionMetricsEntry | undefined,
+  owner: string,
+) => {
+  if (!isVirtualPosition(position)) {
+    return position.status === 'active' && Number.parseFloat(position.current_liquidity || '0') > 0
+  }
+  if (!isPositionProtocolFeeReceiver(position, owner)) return false
+  return Number.parseFloat(metrics?.position_liquidity || '0') > 0
+}
+
 export const positionLiquidityAmounts = (
   position: Position,
   metrics: PositionMetricsEntry | undefined,

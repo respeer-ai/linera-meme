@@ -13,11 +13,24 @@ export interface CanonicalPoolPair {
   token1: string
 }
 
+export type RemoveLiquidityMode = 'liquidity' | 'fees'
+
+export interface RemoveLiquidityContext {
+  mode?: RemoveLiquidityMode
+  liquidity?: string
+  amount0?: string
+  amount1?: string
+}
+
 export interface PoolFlowRoute {
   path: string
   query?: {
     token0: string
     token1: string
+    mode?: RemoveLiquidityMode
+    liquidity?: string
+    amount0?: string
+    amount1?: string
   }
 }
 
@@ -105,7 +118,7 @@ export const buildAddLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute => {
   }
 }
 
-export const buildRemoveLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute => {
+export const buildRemoveLiquidityRoute = (pair?: PoolPairLike, context: RemoveLiquidityContext = {}): PoolFlowRoute => {
   if (!pair) {
     return {
       path: '/pools/remove-liquidity',
@@ -114,7 +127,10 @@ export const buildRemoveLiquidityRoute = (pair?: PoolPairLike): PoolFlowRoute =>
 
   return {
     path: '/pools/remove-liquidity',
-    query: normalizePoolPair(pair),
+    query: {
+      ...normalizePoolPair(pair),
+      ...context,
+    },
   }
 }
 
