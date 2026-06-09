@@ -799,12 +799,28 @@ class PositionMetricsSnapshotBuilder:
         latest_position_tx: dict[str, object],
         pool_application_id: str,
     ) -> dict[str, object] | None:
-        if reconstructed_pool_history is None:
-            return None
-        effective_history = reconstructed_pool_history['effective_history']
-        states = reconstructed_pool_history['states']
-        blockers = reconstructed_pool_history['blockers']
-        if blockers or not effective_history or not states:
+        if reconstructed_pool_history is not None:
+            effective_history = reconstructed_pool_history.get('effective_history')
+            states = reconstructed_pool_history.get('states')
+            blockers = reconstructed_pool_history.get('blockers')
+            if not blockers and effective_history and states:
+                fee_to_history = self._pool_fee_to_history(pool_application_id=pool_application_id)
+                return self.protocol_fee_ownership_tracker.summarize(
+                    owner=owner,
+                    effective_history=effective_history,
+                    states=states,
+                    latest_position_tx=latest_position_tx,
+                    fee_to_history=fee_to_history,
+                )
+        pool_transaction_history = self._load_pool_transaction_history(
+            pool_application_id=pool_application_id,
+        )
+        virtual_initial_liquidity = self._infer_virtual_initial_liquidity(pool_transaction_history)
+        effective_history, states = self._reconstruct_recorded_pool_state_history(
+            history=pool_transaction_history,
+            virtual_initial_liquidity=virtual_initial_liquidity,
+        )
+        if not effective_history or not states:
             return None
         fee_to_history = self._pool_fee_to_history(pool_application_id=pool_application_id)
         return self.protocol_fee_ownership_tracker.summarize(
