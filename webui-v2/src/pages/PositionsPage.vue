@@ -12,7 +12,7 @@
                   <q-img class='reward-inline-logo' :src='constants.MICROMEME_LOGO' width='18px' height='18px' fit='contain' />
                 </div>
                 <div class='reward-native-value'>
-                  <span>{{ positionValueNativeSummary.label }}</span>
+                  <span>{{ currentValueSummary.label }}</span>
                   <q-img class='reward-native-logo' :src='constants.LINERA_LOGO' width='18px' height='18px' fit='contain' />
                 </div>
               </div>
@@ -28,20 +28,6 @@
             </div>
           </div>
 
-          <div v-if='hasProtocolFeeReceiverPosition' class='reward-yield-strip'>
-            <div class='reward-yield-item reward-yield-item-primary'>
-              <span class='reward-yield-label'>Total yield</span>
-              <span class='reward-yield-value'>{{ totalYieldSummary.label }}</span>
-            </div>
-            <div class='reward-yield-item'>
-              <span class='reward-yield-label'>Trading</span>
-              <span class='reward-yield-value'>{{ tradingYieldSummary.label }}</span>
-            </div>
-            <div class='reward-yield-item reward-yield-item-protocol'>
-              <span class='reward-yield-label'>Protocol</span>
-              <span class='reward-yield-value'>{{ protocolYieldSummary.label }}</span>
-            </div>
-          </div>
         </div>
 
         <section class='positions-section'>
@@ -103,7 +89,7 @@
                   </div>
                 </div>
                 <div class='position-header-actions'>
-                  <button class='position-menu-btn' aria-label='Position actions'>
+                  <button v-if='positionActionLabel(position)' class='position-menu-btn' aria-label='Position actions'>
                     ⋮
                     <q-menu class='status-menu position-actions-menu' anchor='bottom right' self='top right' :offset='[0, 10]'>
                       <q-list dense class='status-menu-list'>
@@ -126,39 +112,6 @@
               </div>
 
               <div
-                v-if='isVirtualPosition(position)'
-                class='position-summary-row position-summary-row-virtual'
-                :style='{ "--position-summary-columns": "2" }'
-              >
-                <div class='position-metric'>
-                  <span class='metric-label'>Deposited token</span>
-                  <span class='metric-value metric-value-stack virtual-bootstrap-stack'>
-                    <span class='virtual-bootstrap-line'>
-                      <span>{{ virtualDepositedLiquidityItem(position).label }}</span>
-                      <span class='virtual-bootstrap-tag'>Deposited</span>
-                    </span>
-                  </span>
-                </div>
-                <div class='position-metric position-metric-virtual-quote'>
-                  <span class='metric-label'>
-                    Virtual reference
-                    <span class='metric-info'>?
-                      <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
-                        Used to seed the initial pool price; not deposited as liquidity.
-                      </q-tooltip>
-                    </span>
-                  </span>
-                  <span class='metric-value metric-value-stack virtual-bootstrap-stack'>
-                    <span class='virtual-bootstrap-line virtual-bootstrap-line-quote'>
-                      <span>{{ virtualQuoteLiquidityItem(position).label }}</span>
-                      <span class='virtual-bootstrap-tag'>Virtual</span>
-                    </span>
-                  </span>
-                </div>
-              </div>
-
-              <div
-                v-else
                 class='position-summary-row'
                 :style='{ "--position-summary-columns": "4" }'
               >
@@ -166,14 +119,20 @@
                   <span class='metric-label'>Pool share</span>
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionPoolShareLabel(position) }}</span>
-                    <span>{{ formatLiquidity(positionDisplayLiquidity(position)) }} LMM</span>
+                    <span>{{ formatLiquidity(positionDisplayLiquidity(position).liquidity) }} LMM</span>
                   </span>
                 </div>
                 <div class='position-metric'>
                   <span class='metric-label'>Pooled tokens</span>
                   <span class='metric-value metric-value-stack'>
-                    <span>{{ formatLiquidity(positionLiquidity(position).amount0) }} {{ tokenTicker(position.token_0) }}</span>
-                    <span>{{ formatLiquidity(positionLiquidity(position).amount1) }} {{ tokenTicker(position.token_1) }}</span>
+                    <span class='pooled-token-line'>
+                      <span>{{ pooledTokenLabel(position, position.token_0) }}</span>
+                      <span v-if='pooledTokenIncludesVirtual(position, position.token_0)' class='virtual-bootstrap-tag'>Includes virtual</span>
+                    </span>
+                    <span class='pooled-token-line'>
+                      <span>{{ pooledTokenLabel(position, position.token_1) }}</span>
+                      <span v-if='pooledTokenIncludesVirtual(position, position.token_1)' class='virtual-bootstrap-tag'>Includes virtual</span>
+                    </span>
                   </span>
                 </div>
                 <div class='position-metric'>
@@ -242,18 +201,18 @@ import { account, ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 import {
-  isPositionProtocolFeeReceiver,
   canUsePositionAction as resolveCanUsePositionAction,
   isVirtualPosition,
   positionActionLabel as resolvePositionActionLabel,
   positionKey,
-  positionLiquidityAmounts,
+  positionDisplayLiquidityAmounts,
+  positionDisplayShareRatio,
+  positionHasVirtualReference,
   positionMetricsFor,
   positionMetricsKey,
-  positionRewardLiquidity as resolvePositionRewardLiquidity,
-  selectProtocolYieldPositions,
+  selectDisplayPositions,
   selectRewardPositions,
-  selectTradingYieldPositions,
+  virtualPositionMetricsFor,
 } from './positionsData'
 
 const route = useRoute()
@@ -272,7 +231,6 @@ const statusOptions: Array<{ value: PositionStatusFilter; label: string }> = [
   { value: 'all', label: 'All positions' },
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
-  { value: 'virtual', label: 'Virtual' },
 ]
 
 const selectedStatusLabel = computed(() => (
@@ -280,7 +238,7 @@ const selectedStatusLabel = computed(() => (
 ))
 const walletConnected = computed(() => Boolean(userStore.chainId && userStore.publicKey))
 const allPositions = computed(() => positionsStore.positions)
-const visiblePositions = computed(() => allPositions.value)
+const visiblePositions = computed(() => selectDisplayPositions(allPositions.value))
 const pools = computed(() => swap.Swap.pools())
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 const positionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
@@ -295,7 +253,6 @@ const showClosedHint = computed(() => (
 const emptyStateTitle = computed(() => {
   if (!walletConnected.value) return 'Connect wallet to view positions'
   if (selectedStatus.value === 'closed') return 'No closed positions'
-  if (selectedStatus.value === 'virtual') return 'No virtual positions'
   return 'No positions'
 })
 const emptyStateText = computed(() => {
@@ -304,9 +261,6 @@ const emptyStateText = computed(() => {
   }
   if (selectedStatus.value === 'closed') {
     return 'You have not fully redeemed any liquidity positions yet.'
-  }
-  if (selectedStatus.value === 'virtual') {
-    return 'No virtual initial liquidity positions are associated with your account.'
   }
   return 'You do not have any liquidity positions for the selected filter yet.'
 })
@@ -384,23 +338,21 @@ const tokenLogo = (token: string) => {
 }
 const positionMetrics = (position: Position) => positionMetricsFor(position, positionMetricsSnapshots.value)
 const summaryPositionMetrics = (position: Position) => positionMetricsFor(position, summaryPositionMetricsSnapshots.value)
-const isProtocolFeeReceiver = (position: Position) =>
-  isPositionProtocolFeeReceiver(position, owner.value)
+const summaryVirtualPositionMetrics = (position: Pick<Position, 'pool_application' | 'pool_id'>) => (
+  virtualPositionMetricsFor(position, summaryPositionMetricsSnapshots.value)
+)
 const rewardPositions = computed(() => selectRewardPositions(summaryPositions.value, owner.value))
-const positionRewardLiquidity = (position: Position) => {
-  const metrics = summaryPositionMetrics(position)
-  return resolvePositionRewardLiquidity(position, metrics, owner.value)
-}
-const positionDisplayLiquidity = (position: Position) => position.current_liquidity || '0'
+const positionRewardLiquidity = (position: Position) => positionDisplayLiquidityAmounts(
+  position,
+  summaryPositionMetrics(position),
+  summaryVirtualPositionMetrics(position),
+).liquidity
 const formattedLiquidityShare = computed(() => {
   const total = rewardPositions.value.reduce((sum, position) => (
     sum + Number.parseFloat(positionRewardLiquidity(position))
   ), 0)
   return formatFixedLiquidity(Number.isFinite(total) ? total : 0, 2)
 })
-const hasProtocolFeeReceiverPosition = computed(() => (
-  rewardPositions.value.some((position) => isProtocolFeeReceiver(position))
-))
 const nativeValuationTotal = (
   positions: Position[],
   selectAmounts: (position: Position) => Array<{ token: string, amount: string | null | undefined }>,
@@ -425,37 +377,71 @@ const nativeYieldLabel = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) return `0 ${constants.LINERA_TICKER}`
   return `≈ ${formatLiquidity(value)} ${constants.LINERA_TICKER}`
 }
-const virtualInitialTokenAmounts = (position: Position): Array<{ token: string, amount: string | null | undefined }> => [
-  { token: position.token_0, amount: position.virtual_initial_amount0 },
-  { token: position.token_1, amount: position.virtual_initial_amount1 },
-]
-const virtualDepositedLiquidityItem = (position: Position) => {
-  const item = virtualInitialTokenAmounts(position).find(({ token, amount }) => {
-    const numeric = Number.parseFloat(amount || '0')
-    return token !== constants.LINERA_NATIVE_ID && Number.isFinite(numeric) && numeric > 0
-  })
-
-  if (!item) return { token: 'none', label: 'No meme token amount recorded' }
-  return {
-    token: item.token,
-    label: `${formatLiquidity(item.amount || '0')} ${tokenTicker(item.token)}`,
-  }
+const currentValue = computed(() => nativeValuationTotal(
+  rewardPositions.value.filter((position) => position.status !== 'closed'),
+  (position) => {
+    const metrics = summaryPositionMetrics(position)
+    const virtualMetrics = summaryVirtualPositionMetrics(position)
+    return [
+      { token: position.token_0, amount: sumAmount(metrics?.redeemable_amount0, virtualMetrics?.protocol_fee_amount0) },
+      { token: position.token_1, amount: sumAmount(metrics?.redeemable_amount1, virtualMetrics?.protocol_fee_amount1) },
+    ]
+  },
+))
+const currentValueSummary = computed(() => ({
+  label: nativeYieldLabel(currentValue.value),
+}))
+const virtualBootstrapFor = (position: Position) => allPositions.value.find((candidate) => (
+  isVirtualPosition(candidate) &&
+  candidate.pool_application === position.pool_application &&
+  Number(candidate.pool_id) === Number(position.pool_id) &&
+  candidate.protocol_fee_receiver_account === owner.value
+))
+const summaryVirtualBootstrapFor = (position: Position) => summaryPositions.value.find((candidate) => (
+  isVirtualPosition(candidate) &&
+  candidate.pool_application === position.pool_application &&
+  Number(candidate.pool_id) === Number(position.pool_id) &&
+  candidate.protocol_fee_receiver_account === owner.value
+))
+const virtualBootstrapDisplayFor = (position: Position) => (
+  position.status === 'active'
+    ? virtualBootstrapFor(position) || summaryVirtualBootstrapFor(position) || (positionHasVirtualReference(position, owner.value) ? position : undefined)
+    : undefined
+)
+const tokenAmountFor = (position: Position, token: string, amount0: string | null | undefined, amount1: string | null | undefined) => (
+  token === position.token_0 ? amount0 : amount1
+)
+const sumAmount = (...values: Array<string | null | undefined>) => {
+  const total = values.reduce((sum, value) => {
+    const numeric = Number.parseFloat(value || '0')
+    return Number.isFinite(numeric) ? sum + numeric : sum
+  }, 0)
+  return Number.isFinite(total) ? String(total) : '0'
 }
-const virtualQuoteLiquidityItem = (position: Position) => {
-  const item = virtualInitialTokenAmounts(position).find(({ token, amount }) => {
-    const numeric = Number.parseFloat(amount || '0')
-    return token === constants.LINERA_NATIVE_ID && Number.isFinite(numeric) && numeric > 0
-  })
-
-  if (!item) return { token: constants.LINERA_NATIVE_ID, label: `No ${constants.LINERA_TICKER} reference recorded` }
-  return {
-    token: item.token,
-    label: `${formatLiquidity(item.amount || '0')} ${tokenTicker(item.token)}`,
-  }
+const positionVirtualMetrics = (position: Position) => (
+  virtualBootstrapDisplayFor(position) ? summaryVirtualPositionMetrics(position) : undefined
+)
+const positionDisplayLiquidity = (position: Position) => positionDisplayLiquidityAmounts(
+  position,
+  positionMetrics(position),
+  positionVirtualMetrics(position),
+)
+const pooledTokenLabel = (position: Position, token: string) => {
+  const liquidity = positionDisplayLiquidity(position)
+  const amount = tokenAmountFor(position, token, liquidity.amount0, liquidity.amount1)
+  return `${formatLiquidity(amount || '0')} ${tokenTicker(token)}`
 }
-const positionLiquidity = (position: Position) => positionLiquidityAmounts(position, positionMetrics(position))
+const pooledTokenIncludesVirtual = (position: Position, token: string) => (
+  token === constants.LINERA_NATIVE_ID &&
+  Number.parseFloat(tokenAmountFor(
+    position,
+    token,
+    positionVirtualMetrics(position)?.protocol_fee_amount0,
+    positionVirtualMetrics(position)?.protocol_fee_amount1,
+  ) || '0') > 0
+)
 const positionShareRatio = (position: Position) => {
-  const ratio = Number.parseFloat(positionMetrics(position)?.share_ratio || '0')
+  const ratio = positionDisplayShareRatio(position, positionMetrics(position), positionVirtualMetrics(position))
 
   if (!Number.isFinite(ratio) || ratio <= 0) return 0
   return ratio
@@ -470,15 +456,9 @@ const formatPercentLabel = (value: number, fractionDigits = 2) => {
   return `${value.toFixed(fractionDigits).replace(/\.?0+$/, '')}%`
 }
 const positionFeesLabel = (position: Position) => {
-  if (isVirtualPosition(position)) {
-    return {
-      token0: '--',
-      token1: '--',
-    }
-  }
-
   const metrics = positionMetrics(position)
-  if (!metrics) {
+  const virtualMetrics = positionVirtualMetrics(position)
+  if (!metrics && !virtualMetrics) {
     return {
       token0: '--',
       token1: '--',
@@ -486,58 +466,37 @@ const positionFeesLabel = (position: Position) => {
   }
 
   return {
-    token0: `${formatLiquidity(metrics.fee_amount0 || '0')} ${tokenTicker(position.token_0)}`,
-    token1: `${formatLiquidity(metrics.fee_amount1 || '0')} ${tokenTicker(position.token_1)}`,
+    token0: `${formatLiquidity(sumAmount(metrics?.fee_amount0, virtualMetrics?.protocol_fee_amount0))} ${tokenTicker(position.token_0)}`,
+    token1: `${formatLiquidity(sumAmount(metrics?.fee_amount1, virtualMetrics?.protocol_fee_amount1))} ${tokenTicker(position.token_1)}`,
   }
 }
-const tradingYieldNative = computed(() => nativeValuationTotal(
-  selectTradingYieldPositions(rewardPositions.value),
-  (position) => {
-    const metrics = summaryPositionMetrics(position)
-    return [
-      { token: position.token_0, amount: metrics?.fee_amount0 || '0' },
-      { token: position.token_1, amount: metrics?.fee_amount1 || '0' },
-    ]
-  },
-))
-const protocolYieldNative = computed(() => nativeValuationTotal(
-  selectProtocolYieldPositions(rewardPositions.value, owner.value),
-  (position) => {
-    const metrics = summaryPositionMetrics(position)
-    return [
-      {
-        token: position.token_0,
-        amount: metrics?.protocol_fee_amount0 || '0',
-      },
-      {
-        token: position.token_1,
-        amount: metrics?.protocol_fee_amount1 || '0',
-      },
-    ]
-  },
-))
-const positionValueNative = computed(() => nativeValuationTotal(
-  rewardPositions.value.filter((position) => position.status !== 'closed'),
-  (position) => {
-    const metrics = summaryPositionMetrics(position)
-    return [
-      { token: position.token_0, amount: metrics?.redeemable_amount0 || '0' },
-      { token: position.token_1, amount: metrics?.redeemable_amount1 || '0' },
-    ]
-  },
-))
-const positionValueNativeSummary = computed(() => ({
-  label: nativeYieldLabel(positionValueNative.value),
-}))
-const totalYieldSummary = computed(() => ({
-  label: nativeYieldLabel(tradingYieldNative.value + protocolYieldNative.value),
-}))
-const tradingYieldSummary = computed(() => ({
-  label: nativeYieldLabel(tradingYieldNative.value),
-}))
-const protocolYieldSummary = computed(() => ({
-  label: nativeYieldLabel(protocolYieldNative.value),
-}))
+const hasMetricsWarning = (position: Position) => {
+  const metrics = positionMetrics(position)
+  return Boolean(metrics?.value_warning_message || (metrics?.value_warning_codes?.length || 0) > 0)
+}
+const metricsWarningMessage = (position: Position) => {
+  const metrics = positionMetrics(position)
+  if (!metrics) return 'Actual LP metrics are still updating.'
+  if (metrics.value_warning_message) return metrics.value_warning_message
+  return 'Current fee values are still updating.'
+}
+const positionAprLabel = (position: Position) => {
+  const metrics = positionMetrics(position)
+  const virtualMetrics = positionVirtualMetrics(position)
+  if (!metrics && !virtualMetrics) return '--'
+
+  const feeNative = nativeValuationTotal([position], () => [
+    { token: position.token_0, amount: sumAmount(metrics?.trailing_24h_fee_amount0, virtualMetrics?.trailing_24h_fee_amount0) },
+    { token: position.token_1, amount: sumAmount(metrics?.trailing_24h_fee_amount1, virtualMetrics?.trailing_24h_fee_amount1) },
+  ])
+  const positionValue = nativeValuationTotal([position], () => [
+    { token: position.token_0, amount: sumAmount(metrics?.redeemable_amount0, virtualMetrics?.protocol_fee_amount0) },
+    { token: position.token_1, amount: sumAmount(metrics?.redeemable_amount1, virtualMetrics?.protocol_fee_amount1) },
+  ])
+  if (!Number.isFinite(feeNative) || !Number.isFinite(positionValue) || positionValue <= 0) return '--'
+
+  return formatPercentLabel((feeNative / positionValue) * 365 * 100, 4)
+}
 const refreshSummaryPositions = async (nextOwner: string) => {
   const requestSerial = ++summaryPositionsRequestSerial.value
 
@@ -561,40 +520,14 @@ const refreshSummaryPositions = async (nextOwner: string) => {
     ]),
   )
 }
-const hasMetricsWarning = (position: Position) => {
-  if (isVirtualPosition(position)) return false
-  const metrics = positionMetrics(position)
-  return Boolean(metrics?.value_warning_message || (metrics?.value_warning_codes?.length || 0) > 0)
-}
-const metricsWarningMessage = (position: Position) => {
-  const metrics = positionMetrics(position)
-  if (!metrics) return 'Fee values are still updating.'
-  if (metrics.value_warning_message) return metrics.value_warning_message
-  return 'Current fee values are still updating.'
-}
-const positionAprLabel = (position: Position) => {
-  if (isVirtualPosition(position)) return '--'
-  const metrics = positionMetrics(position)
-  if (!metrics) return '--'
-
-  const trailingFeeNative = nativeValuationTotal([position], () => [
-    { token: position.token_0, amount: metrics.trailing_24h_fee_amount0 || '0' },
-    { token: position.token_1, amount: metrics.trailing_24h_fee_amount1 || '0' },
-  ])
-  const positionValue = nativeValuationTotal([position], () => [
-    { token: position.token_0, amount: metrics.redeemable_amount0 || '0' },
-    { token: position.token_1, amount: metrics.redeemable_amount1 || '0' },
-  ])
-  if (!Number.isFinite(trailingFeeNative) || !Number.isFinite(positionValue) || positionValue <= 0) return '--'
-
-  return formatPercentLabel((trailingFeeNative / positionValue) * 365 * 100, 4)
-}
-const actionMetrics = (position: Position) => positionMetrics(position) || summaryPositionMetrics(position)
+const actionMetrics = (position: Position) => (
+  positionMetrics(position) || summaryPositionMetrics(position) || positionVirtualMetrics(position)
+)
 const positionActionLabel = (position: Position) => (
-  resolvePositionActionLabel(position, actionMetrics(position), owner.value)
+  resolvePositionActionLabel(position, actionMetrics(position), owner.value, allPositions.value)
 )
 const canUsePositionAction = (position: Position) => (
-  resolveCanUsePositionAction(position, actionMetrics(position), owner.value)
+  resolveCanUsePositionAction(position, actionMetrics(position), owner.value, allPositions.value)
 )
 const formatLiquidity = (value: string | number) => {
   const numeric = typeof value === 'number' ? value : Number.parseFloat(value || '0')
@@ -621,20 +554,9 @@ const onNewPositionClick = () => {
   void router.push('/pools/add-liquidity')
 }
 const onManagePositionClick = (position: Position) => {
-  const metrics = actionMetrics(position)
-  const context = isVirtualPosition(position)
-    ? {
-        mode: 'fees' as const,
-        liquidity: metrics?.position_liquidity || '0',
-        amount0: metrics?.protocol_fee_amount0 || '0',
-        amount1: metrics?.protocol_fee_amount1 || '0',
-      }
-    : {
-        mode: 'liquidity' as const,
-        liquidity: position.current_liquidity || '0',
-        amount0: metrics?.redeemable_amount0 || '0',
-        amount1: metrics?.redeemable_amount1 || '0',
-      }
+  const context = {
+    mode: Number.parseFloat(position.current_liquidity || '0') > 0 ? 'liquidity' as const : 'fees' as const,
+  }
   void router.push(buildRemoveLiquidityRoute({
     token0: position.token_0,
     token1: position.token_1,
@@ -652,8 +574,7 @@ const refreshPositionMetricsSnapshots = async (
     return
   }
 
-  const metricsStatus = status === 'virtual' ? 'all' : status
-  const response = await kline.Kline.getPositionMetrics(nextOwner, metricsStatus)
+  const response = await kline.Kline.getPositionMetrics(nextOwner, status)
   if (requestSerial !== positionMetricsRequestSerial.value) return
 
   const metrics = response?.metrics || []
@@ -713,7 +634,7 @@ useMeta(() => ({
         '@context': 'https://schema.org',
         '@type': 'CollectionPage',
         name: 'MicroMeme Positions',
-        description: 'Positions view for liquidity positions and fee accrual on MicroMeme.',
+        description: 'Positions view for liquidity positions on MicroMeme.',
       }),
     },
   },
@@ -723,12 +644,11 @@ usePageSeo(() => ({
   title: route.meta.seo?.title || 'Positions | MicroMeme',
   description:
     route.meta.seo?.description ||
-    'Review your liquidity positions, pool share, and trading fee accrual on MicroMeme.',
+    'Review your liquidity positions and pool share on MicroMeme.',
   path: route.meta.seo?.path || route.path,
   keywords: route.meta.seo?.keywords || [
     'MicroMeme positions',
     'Liquidity positions',
-    'Trading fees',
     'Liquidity share',
   ],
 }))
@@ -1170,17 +1090,11 @@ usePageSeo(() => ({
   white-space: normal
   word-break: break-word
 
-.virtual-bootstrap-stack
-  gap: 8px
-
-.virtual-bootstrap-line
-  display: flex
+.pooled-token-line
+  display: inline-flex
   align-items: center
   flex-wrap: wrap
   gap: 8px
-
-.virtual-bootstrap-line-quote
-  color: #d1d7e0
 
 .virtual-bootstrap-tag
   display: inline-flex
@@ -1193,14 +1107,6 @@ usePageSeo(() => ({
   font-size: 11px
   font-weight: 700
   line-height: 1
-
-.virtual-bootstrap-line:not(.virtual-bootstrap-line-quote) .virtual-bootstrap-tag
-  background: rgba(77, 214, 143, 0.12)
-  color: #7de9ab
-
-.virtual-bootstrap-line-quote .virtual-bootstrap-tag
-  background: rgba(247, 196, 92, 0.14)
-  color: #f3cf7a
 
 .empty-card
   display: flex

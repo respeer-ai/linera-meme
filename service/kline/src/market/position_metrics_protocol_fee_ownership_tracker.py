@@ -32,8 +32,11 @@ class PositionMetricsProtocolFeeOwnershipTracker:
         post_basis_owned_by_current_owner_before_first_add_attos = 0
         owned_by_other_accounts_attos = 0
         owner_unknown_attos = 0
+        full_owned_by_current_owner_attos = 0
+        full_owned_by_other_accounts_attos = 0
+        full_owner_unknown_attos = 0
 
-        for index in range(basis_index, len(effective_history)):
+        for index in range(0, len(effective_history)):
             row = effective_history[index]
             state = states[index]
             protocol_fee_minted_attos = int(state.get('protocol_fee_minted_after') or 0)
@@ -51,16 +54,22 @@ class PositionMetricsProtocolFeeOwnershipTracker:
                 fee_to_account = ordered_fee_to_history[fee_to_cursor].get('fee_to_account')
             if protocol_fee_minted_attos > 0:
                 if fee_to_account is None:
-                    owner_unknown_attos += protocol_fee_minted_attos
+                    full_owner_unknown_attos += protocol_fee_minted_attos
+                    if index >= basis_index:
+                        owner_unknown_attos += protocol_fee_minted_attos
                 elif str(fee_to_account) == owner:
-                    if index == basis_index:
-                        basis_owned_by_current_owner_attos += protocol_fee_minted_attos
-                    else:
-                        post_basis_owned_by_current_owner_attos += protocol_fee_minted_attos
-                        if not saw_add_after_basis:
-                            post_basis_owned_by_current_owner_before_first_add_attos += protocol_fee_minted_attos
+                    full_owned_by_current_owner_attos += protocol_fee_minted_attos
+                    if index >= basis_index:
+                        if index == basis_index:
+                            basis_owned_by_current_owner_attos += protocol_fee_minted_attos
+                        else:
+                            post_basis_owned_by_current_owner_attos += protocol_fee_minted_attos
+                            if not saw_add_after_basis:
+                                post_basis_owned_by_current_owner_before_first_add_attos += protocol_fee_minted_attos
                 else:
-                    owned_by_other_accounts_attos += protocol_fee_minted_attos
+                    full_owned_by_other_accounts_attos += protocol_fee_minted_attos
+                    if index >= basis_index:
+                        owned_by_other_accounts_attos += protocol_fee_minted_attos
             if index > basis_index and row.get('transaction_type') == 'AddLiquidity':
                 saw_add_after_basis = True
 
@@ -88,6 +97,18 @@ class PositionMetricsProtocolFeeOwnershipTracker:
                 owned_by_current_owner_current_attos=owned_by_current_owner_current_attos,
                 owned_by_other_accounts_attos=owned_by_other_accounts_attos,
                 owner_unknown_attos=owner_unknown_attos,
+            ),
+            'full_protocol_fee_liquidity_owned_by_current_owner': self.serialize_attos(
+                full_owned_by_current_owner_attos
+            ),
+            'full_protocol_fee_liquidity_owned_by_other_accounts': self.serialize_attos(
+                full_owned_by_other_accounts_attos
+            ),
+            'full_protocol_fee_liquidity_owner_unknown': self.serialize_attos(full_owner_unknown_attos),
+            'full_protocol_fee_current_owner_provenance_case': self._provenance_case(
+                owned_by_current_owner_current_attos=full_owned_by_current_owner_attos,
+                owned_by_other_accounts_attos=full_owned_by_other_accounts_attos,
+                owner_unknown_attos=full_owner_unknown_attos,
             ),
         }
 

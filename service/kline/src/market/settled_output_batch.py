@@ -46,10 +46,13 @@ class SettledOutputBatch:
                 str(output['pool_application_id']),
                 self._string_or_none(output.get('pool_chain_id')),
             )
-            for output in self.outputs
+            for output in self._position_metrics_outputs()
             if output.get('pool_application_id') is not None
         }
         return sorted(pools)
+
+    def _position_metrics_outputs(self) -> list[dict[str, object]]:
+        return self.trades() + self.liquidity_changes()
 
     def affected_positions(self) -> list[tuple[str, str, str | None]]:
         positions = {

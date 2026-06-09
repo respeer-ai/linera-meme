@@ -30,6 +30,7 @@ class PositionsSerializer:
         'protocol_fee_receiver_account',
         'protocol_fee_reference_amount0',
         'protocol_fee_reference_amount1',
+        'virtual_current_liquidity',
     })
 
     def serialize_positions(self, payload: dict) -> dict:

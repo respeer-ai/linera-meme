@@ -86,3 +86,29 @@ class SettledOutputBatchTest(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_claim_balance_outputs_do_not_affect_position_metrics_scope(self):
+        batch = SettledOutputBatch(
+            outputs=[
+                {
+                    'settled_output_type': 'settled_trade',
+                    'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
+                    'pool_chain_id': 'chain-a',
+                },
+                {
+                    'settled_output_type': 'claim_balance_delta',
+                    'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
+                    'execution_chain_id': 'chain-a',
+                },
+                {
+                    'settled_output_type': 'claim_balance_diagnostic',
+                    'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a',
+                    'execution_chain_id': 'chain-a',
+                },
+            ]
+        )
+
+        self.assertEqual(
+            batch.affected_pools(),
+            [('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a', 'chain-a')],
+        )

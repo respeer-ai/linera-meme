@@ -140,6 +140,18 @@ class PositionMetricsPositionBasisSnapshot:
     def protocol_fee_liquidity_owner_unknown(self):
         return self.semantic_facts().protocol_fee_liquidity_owner_unknown()
 
+    def full_protocol_fee_liquidity_owned_by_current_owner(self):
+        return self.semantic_facts().full_protocol_fee_liquidity_owned_by_current_owner()
+
+    def full_protocol_fee_liquidity_owned_by_other_accounts(self):
+        return self.semantic_facts().full_protocol_fee_liquidity_owned_by_other_accounts()
+
+    def full_protocol_fee_liquidity_owner_unknown(self):
+        return self.semantic_facts().full_protocol_fee_liquidity_owner_unknown()
+
+    def full_protocol_fee_current_owner_provenance_case(self):
+        return self.semantic_facts().full_protocol_fee_current_owner_provenance_case()
+
     def summary_dict(self) -> dict | None:
         if self.payload is None:
             return None
@@ -185,6 +197,14 @@ class PositionMetricsPositionBasisSnapshot:
                 facts.protocol_fee_liquidity_owned_by_other_accounts()
             ),
             'protocol_fee_liquidity_owner_unknown': facts.protocol_fee_liquidity_owner_unknown(),
+            'full_protocol_fee_liquidity_owned_by_current_owner': (
+                facts.full_protocol_fee_liquidity_owned_by_current_owner()
+            ),
+            'full_protocol_fee_liquidity_owned_by_other_accounts': (
+                facts.full_protocol_fee_liquidity_owned_by_other_accounts()
+            ),
+            'full_protocol_fee_liquidity_owner_unknown': facts.full_protocol_fee_liquidity_owner_unknown(),
+            'full_protocol_fee_current_owner_provenance_case': facts.full_protocol_fee_current_owner_provenance_case(),
             'fee_to_continuity_case': facts.fee_to_continuity_case(),
             'fee_to_continuity_change_count_after_basis': facts.fee_to_continuity_change_count_after_basis(),
             'fee_to_continuity_known_before_basis': facts.fee_to_continuity_known_before_basis(),

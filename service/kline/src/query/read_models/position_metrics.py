@@ -20,7 +20,8 @@ class PositionMetricsReadModel:
         owner: str,
         status: str,
     ) -> dict:
-        positions = self.positions_repository.get_positions(owner=owner, status=status)
+        repository_status = 'all' if (status or '').lower() == 'virtual' else status
+        positions = self.positions_repository.get_positions(owner=owner, status=repository_status)
         if self.virtual_positions_read_model is not None and status in ('all', 'virtual'):
             positions = await self.virtual_positions_read_model.enrich_positions(
                 owner=owner,
@@ -186,6 +187,8 @@ class PositionMetricsReadModel:
         protocol_fee_ratio = protocol_fee_liquidity / current_total_supply
         protocol_fee_amount0 = current_reserve_0 * protocol_fee_ratio
         protocol_fee_amount1 = current_reserve_1 * protocol_fee_ratio
+        trailing_fee_amount0 = position_basis_snapshot.trailing_24h_fee_amount_0() or '0'
+        trailing_fee_amount1 = position_basis_snapshot.trailing_24h_fee_amount_1() or '0'
         return {
             'pool_application': position['pool_application'],
             'pool_id': position['pool_id'],
@@ -210,10 +213,10 @@ class PositionMetricsReadModel:
             'fee_amount1': '0',
             'protocol_fee_amount0': self._serialize_decimal(protocol_fee_amount0),
             'protocol_fee_amount1': self._serialize_decimal(protocol_fee_amount1),
-            'trailing_24h_fee_amount0': '0',
-            'trailing_24h_fee_amount1': '0',
-            'trailing_24h_fee_window_start_ms': None,
-            'trailing_24h_fee_window_end_ms': None,
+            'trailing_24h_fee_amount0': trailing_fee_amount0,
+            'trailing_24h_fee_amount1': trailing_fee_amount1,
+            'trailing_24h_fee_window_start_ms': position_basis_snapshot.trailing_24h_fee_window_start_ms(),
+            'trailing_24h_fee_window_end_ms': position_basis_snapshot.trailing_24h_fee_window_end_ms(),
             'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
             'value_warning_message': (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
@@ -239,26 +242,17 @@ class PositionMetricsReadModel:
         current_total_supply: Decimal,
         fee_free_total_supply: Decimal,
     ) -> Decimal | None:
-        materialized = self._materialized_owner_protocol_fee_liquidity(position_basis_snapshot) or Decimal('0')
-        pending = current_total_supply - fee_free_total_supply
-        if pending < Decimal('0'):
-            pending = Decimal('0')
-        if pending > Decimal('0') and not self._owner_receives_pending_protocol_fees(
-            position=position,
-            position_basis_snapshot=position_basis_snapshot,
-        ):
-            pending = Decimal('0')
-        total = materialized + pending
-        if total <= Decimal('0'):
+        materialized = self._materialized_owner_protocol_fee_liquidity(position_basis_snapshot)
+        if materialized is None or materialized <= Decimal('0'):
             return None
-        return total
+        return materialized
 
     def _materialized_owner_protocol_fee_liquidity(self, position_basis_snapshot) -> Decimal | None:
         if position_basis_snapshot is None:
             return None
         if not isinstance(position_basis_snapshot, PositionMetricsPositionBasisSnapshot):
             position_basis_snapshot = PositionMetricsPositionBasisSnapshot(position_basis_snapshot)
-        value = self._to_decimal(position_basis_snapshot.protocol_fee_liquidity_owned_by_current_owner_current())
+        value = self._to_decimal(position_basis_snapshot.full_protocol_fee_liquidity_owned_by_current_owner())
         if value is None or value <= Decimal('0'):
             return None
         return value

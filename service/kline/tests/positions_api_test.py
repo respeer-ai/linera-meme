@@ -2,7 +2,6 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,8 +94,6 @@ sys.modules['uvicorn'] = uvicorn_stub
 
 import kline as kline_module  # noqa: E402
 from query.read_models.position_metrics_product_state_query_input_provider import PositionMetricsProductStateQueryInputProvider  # noqa: E402
-from position_metrics_payload_decision import PositionMetricsPayloadDecision  # noqa: E402
-from position_metrics_payload_result import PositionMetricsPayloadResult  # noqa: E402
 
 
 class FakeDb:
@@ -383,15 +380,15 @@ class FakeRawRepository:
         return list(self.anomalies)
 
 
-class PositionMetricsEntrypointOverrideState:
+class PositionMetricsDependencyOverrideState:
     def __init__(self):
-        self.entrypoint_overrides = kline_module._position_metrics_entrypoint_overrides
+        self.dependency_overrides = kline_module._position_metrics_dependency_overrides
 
     def restore(self):
-        kline_module._position_metrics_entrypoint_overrides = self.entrypoint_overrides
+        kline_module._position_metrics_dependency_overrides = self.dependency_overrides
 
 
-def set_position_metrics_entrypoint_overrides(
+def set_position_metrics_dependency_overrides(
     *,
     positions_repository_builder=None,
     snapshot_inputs_repository_builder=None,
@@ -399,7 +396,7 @@ def set_position_metrics_entrypoint_overrides(
     pool_history_repository_builder=None,
     fetcher_override=None,
 ):
-    kline_module._position_metrics_entrypoint_overrides = {
+    kline_module._position_metrics_dependency_overrides = {
         'positions_repository_builder': positions_repository_builder,
         'snapshot_inputs_repository_builder': snapshot_inputs_repository_builder,
         'replay_facts_repository_builder': replay_facts_repository_builder,
@@ -623,7 +620,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(handler.kwargs, {'owner': 'chain:owner-a'})
 
     async def test_on_get_position_metrics_returns_projected_metrics(self):
-        original_overrides = PositionMetricsEntrypointOverrideState()
+        original_overrides = PositionMetricsDependencyOverrideState()
         original_db = kline_module._db
         fake_db = FakeDb()
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a'
@@ -672,7 +669,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
 
         kline_module._db = fake_db
-        set_position_metrics_entrypoint_overrides(
+        set_position_metrics_dependency_overrides(
             positions_repository_builder=lambda: FakeRepository(),
             fetcher_override=fake_fetcher,
         )
@@ -711,6 +708,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     'fee_amount1': '0',
                     'protocol_fee_amount0': '0',
                     'protocol_fee_amount1': '0',
+                    'trailing_24h_fee_amount0': '0',
+                    'trailing_24h_fee_amount1': '0',
                     'value_warning_codes': [],
                     'value_warning_message': None,
                 },
@@ -779,79 +778,28 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                     },
                 }
 
-        def fake_enrich_position_metrics_from_payload(position, payload, **kwargs):
-            captured['position'] = position
-            captured['payload'] = payload
-            captured.update(kwargs)
-            return PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'ok'},
-                decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
-                reason_code='payload_requires_history',
-            )
-
-        def fake_plan_position_metrics_from_payload(position, payload):
-            captured['planned_position'] = position
-            captured['planned_payload'] = payload
-            return PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_projected_redeemable_only'},
-                decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
-                reason_code='payload_requires_history',
-            )
-
         try:
-            with patch(
-                'position_metrics_entrypoint.PositionMetricsEntrypoint.plan_position_metrics_from_payload',
-                side_effect=fake_plan_position_metrics_from_payload,
-            ), patch(
-                'position_metrics_entrypoint.PositionMetricsEntrypoint.enrich_position_metrics_from_payload_result',
-                side_effect=fake_enrich_position_metrics_from_payload,
-            ):
-                repository = FakeRepository()
-                fetcher = kline_module._runtime().position_metrics_public_api().build_fetcher(
-                    query_input_provider=PositionMetricsProductStateQueryInputProvider(
-                        snapshot_inputs_repository=repository,
-                        replay_facts_repository=repository,
-                    )
+            repository = FakeRepository()
+            fetcher = kline_module._runtime().position_metrics_public_api().build_fetcher(
+                query_input_provider=PositionMetricsProductStateQueryInputProvider(
+                    snapshot_inputs_repository=repository,
                 )
-                response = await fetcher({
-                    'owner': 'chain:owner-a',
-                    'pool_application': 'chain:pool-app',
-                    'pool_id': 7,
-                    'opened_at': 1500,
-                    'current_liquidity': '2.5',
-                })
+            )
+            response = await fetcher({
+                'owner': 'chain:owner-a',
+                'pool_application': 'chain:pool-app',
+                'pool_id': 7,
+                'opened_at': 1500,
+                'current_liquidity': '2.5',
+            })
         finally:
             kline_module._swap = original_swap
 
-        self.assertEqual(response.projected_metrics, {'metrics_status': 'ok'})
-        self.assertIsNotNone(response.snapshot_shadow)
-        self.assertEqual(captured['planned_payload'], {
-            'data': {
-                'pool': {'fee_to': None},
-                'totalSupply': '10',
-                'virtualInitialLiquidity': False,
-                'liquidity': {
-                    'liquidity': '2.5',
-                    'amount0': '5',
-                    'amount1': '7.5',
-                },
-            },
-        })
-        self.assertEqual(captured['payload'], captured['planned_payload'])
-        self.assertEqual(
-            captured['replay_bundle'].liquidity_history(),
-            [
-                {
-                    'transaction_id': 10,
-                    'transaction_type': 'AddLiquidity',
-                    'created_at': 1000,
-                    'from_account': 'chain:owner-a',
-                },
-            ],
-        )
-        self.assertEqual(captured['replay_bundle'].pool_transaction_history()[0]['transaction_id'], 10)
-        self.assertEqual(captured['replay_bundle'].pool_swap_count_since_open(), 1)
-        self.assertEqual(captured['replay_bundle'].pool_history_gap_summary()['start_id'], 10)
+        self.assertEqual(response.projected_metrics['metrics_status'], 'snapshot_unavailable')
+        self.assertEqual(response.projected_metrics['position_liquidity'], '2.5')
+        self.assertEqual(response.fetch_stage, 'snapshot_unavailable')
+        self.assertEqual(response.fetch_reason_code, 'snapshot_fast_path_miss_no_fallback')
+        self.assertIsNone(response.snapshot_shadow)
 
     async def test_on_get_position_metrics_returns_400_for_invalid_status(self):
         class FakeRepository:
@@ -901,14 +849,14 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
                 return DummyDiagnosticRecorder()
 
-        original_overrides = PositionMetricsEntrypointOverrideState()
+        original_overrides = PositionMetricsDependencyOverrideState()
         original_runtime = kline_module._runtime
         kline_module._runtime = lambda: FakeRuntime()
 
         async def fake_fetcher(_position):
             raise AssertionError('fetcher should not be called for invalid status')
 
-        set_position_metrics_entrypoint_overrides(
+        set_position_metrics_dependency_overrides(
             positions_repository_builder=lambda: FakeRepository(),
             snapshot_inputs_repository_builder=lambda: FakeSnapshotInputsRepository(),
             replay_facts_repository_builder=lambda: FakeRepository(),
@@ -959,7 +907,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         })
 
     async def test_on_get_position_metrics_readiness_debug_aggregates_samples(self):
-        original_overrides = PositionMetricsEntrypointOverrideState()
+        original_overrides = PositionMetricsDependencyOverrideState()
 
         class FakeRepository:
             def get_positions(self, **_kwargs):
@@ -1053,7 +1001,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
             if position['pool_id'] == 2:
                 return {
-                'fetch_stage': 'payload_only',
+                'fetch_stage': 'snapshot_unavailable',
                 'projected_metrics': {
                     'metrics_status': 'partial',
                     'fee_calculation_complete': False,
@@ -1106,7 +1054,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             }
             if position['pool_id'] == 3:
                 return {
-                'fetch_stage': 'replay_fallback',
+                'fetch_stage': 'snapshot_unavailable',
                 'projected_metrics': {
                     'metrics_status': 'exact',
                     'fee_calculation_complete': True,
@@ -1153,7 +1101,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 },
             }
             return {
-                'fetch_stage': 'replay_fallback',
+                'fetch_stage': 'snapshot_unavailable',
                 'projected_metrics': {
                     'metrics_status': 'exact',
                     'fee_calculation_complete': True,
@@ -1200,7 +1148,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 },
             }
 
-        set_position_metrics_entrypoint_overrides(
+        set_position_metrics_dependency_overrides(
             positions_repository_builder=lambda: FakeRepository(),
             snapshot_inputs_repository_builder=lambda: FakeRepository(),
             replay_facts_repository_builder=lambda: FakeRepository(),
@@ -1234,8 +1182,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
             response['fetch_stage_counts'],
             {
                 'snapshot_fast_path': 1,
-                'payload_only': 1,
-                'replay_fallback': 2,
+                'snapshot_unavailable': 3,
             },
         )
         self.assertEqual(
@@ -1244,10 +1191,8 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'snapshot_fast_path': {
                     'candidate': 1,
                 },
-                'payload_only': {
+                'snapshot_unavailable': {
                     'financial_semantics_pending': 1,
-                },
-                'replay_fallback': {
                     'candidate': 2,
                 },
             },
@@ -1448,7 +1393,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['samples'][0]['current_round_started_at'], 1000)
         self.assertEqual(response['samples'][0]['current_round_started_transaction_id'], 10)
         self.assertEqual(response['samples'][0]['mismatch_codes'], ['pool_last_trade_time_mismatch'])
-        self.assertEqual(response['samples'][1]['fetch_stage'], 'payload_only')
+        self.assertEqual(response['samples'][1]['fetch_stage'], 'snapshot_unavailable')
         self.assertEqual(response['samples'][1]['readiness'], 'financial_semantics_pending')
         self.assertIsNone(response['samples'][1]['exact_case'])
         self.assertEqual(
@@ -1511,7 +1456,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
                 'estimated_values',
             ],
         )
-        self.assertEqual(response['samples'][2]['fetch_stage'], 'replay_fallback')
+        self.assertEqual(response['samples'][2]['fetch_stage'], 'snapshot_unavailable')
         self.assertEqual(response['samples'][2]['readiness'], 'candidate')
         self.assertEqual(
             response['samples'][2]['exact_case'],
@@ -1563,7 +1508,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response['samples'][2]['current_round_started_at'], 800)
         self.assertEqual(response['samples'][2]['current_round_started_transaction_id'], 6)
         self.assertEqual(response['samples'][2]['readiness_reason_codes'], [])
-        self.assertEqual(response['samples'][3]['fetch_stage'], 'replay_fallback')
+        self.assertEqual(response['samples'][3]['fetch_stage'], 'snapshot_unavailable')
         self.assertEqual(response['samples'][3]['readiness'], 'candidate')
         self.assertEqual(
             response['samples'][3]['exact_case'],
@@ -1826,7 +1771,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_get_debug_pool_bundle_exports_transactions_liquidity_history_and_diagnostics(self):
         original_db = kline_module._db
-        original_overrides = PositionMetricsEntrypointOverrideState()
+        original_overrides = PositionMetricsDependencyOverrideState()
         fake_db = FakeDb(positions=[
             {
                 'transaction_id': 1001,
@@ -1890,7 +1835,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         replay_repository = FakeReplayFactsRepository()
         pool_history_repository = replay_repository.settled_pool_history_projection_repo
         kline_module._db = fake_db
-        set_position_metrics_entrypoint_overrides(
+        set_position_metrics_dependency_overrides(
             snapshot_inputs_repository_builder=lambda: EmptySnapshotRepository(),
             replay_facts_repository_builder=lambda: replay_repository,
             pool_history_repository_builder=lambda: pool_history_repository,
@@ -1945,7 +1890,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_get_debug_pool_bundle_can_include_snapshot_state(self):
         original_db = kline_module._db
-        original_overrides = PositionMetricsEntrypointOverrideState()
+        original_overrides = PositionMetricsDependencyOverrideState()
         fake_db = FakeDb(positions=[])
 
         class FakePositionMetricsRepository:
@@ -1979,7 +1924,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
         repository = FakePositionMetricsRepository()
         kline_module._db = fake_db
-        set_position_metrics_entrypoint_overrides(
+        set_position_metrics_dependency_overrides(
             snapshot_inputs_repository_builder=lambda: repository,
             replay_facts_repository_builder=lambda: FakeReplayFactsRepository(),
             pool_history_repository_builder=lambda: FakePoolHistoryRepository(),
@@ -2010,7 +1955,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_on_get_replay_transaction_audit_returns_first_failure_details(self):
         original_db = kline_module._db
-        original_overrides = PositionMetricsEntrypointOverrideState()
+        original_overrides = PositionMetricsDependencyOverrideState()
         fake_db = FakeDb(positions=[
             {
                 'transaction_id': 1,
@@ -2048,7 +1993,7 @@ class PositionsApiTest(unittest.IsolatedAsyncioTestCase):
         replay_repository = FakeReplayFactsRepository()
         pool_history_repository = replay_repository.settled_pool_history_projection_repo
         kline_module._db = fake_db
-        set_position_metrics_entrypoint_overrides(
+        set_position_metrics_dependency_overrides(
             replay_facts_repository_builder=lambda: replay_repository,
             pool_history_repository_builder=lambda: pool_history_repository,
         )

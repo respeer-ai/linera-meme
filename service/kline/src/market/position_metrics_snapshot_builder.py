@@ -247,12 +247,14 @@ class PositionMetricsSnapshotBuilder:
         current_round_liquidity_event_count = 0
         current_round_started_at = None
         current_round_started_transaction_id = None
+        current_round_start_transaction = None
         for row in history:
             liquidity_delta = self.value_support.to_attos(row.get('liquidity')) or 0
             if running_liquidity <= 0:
                 current_round_liquidity_event_count = 0
                 current_round_started_at = row.get('created_at')
                 current_round_started_transaction_id = row.get('transaction_id')
+                current_round_start_transaction = row
             if row is not latest_transaction and liquidity_delta > 0:
                 prior_positive_liquidity_event_count += 1
             if row.get('transaction_type') == 'AddLiquidity':
@@ -311,13 +313,26 @@ class PositionMetricsSnapshotBuilder:
         reconstructed_pool_history = self._reconstruct_pool_transaction_history(
             pool_transaction_history=pool_transaction_history,
         )
+        principal_basis_transaction = latest_transaction
+        principal_basis_type = basis_type
+        principal_basis_opens_current_round = prior_running_liquidity <= 0
+        principal_round_trade_count_before_basis = current_round_trade_count_before_basis
+        if (
+            latest_transaction.get('transaction_type') == 'RemoveLiquidity'
+            and prior_positive_liquidity_event_count == 1
+            and current_round_start_transaction is not None
+        ):
+            principal_basis_transaction = current_round_start_transaction
+            principal_basis_type = self._basis_type(current_round_start_transaction)
+            principal_basis_opens_current_round = True
+            principal_round_trade_count_before_basis = 0
         exact_current_principal = self._simulate_exact_current_principal(
             reconstructed_pool_history=reconstructed_pool_history,
-            latest_position_tx=latest_transaction,
+            latest_position_tx=principal_basis_transaction,
             tracked_liquidity_attos=max(running_liquidity, 0),
-            basis_type=basis_type,
-            basis_opens_current_round=prior_running_liquidity <= 0,
-            current_round_trade_count_before_basis=current_round_trade_count_before_basis,
+            basis_type=principal_basis_type,
+            basis_opens_current_round=principal_basis_opens_current_round,
+            current_round_trade_count_before_basis=principal_round_trade_count_before_basis,
         )
         protocol_fee_ownership = self._build_protocol_fee_ownership_summary(
             owner=owner,
@@ -331,11 +346,11 @@ class PositionMetricsSnapshotBuilder:
                 **self._build_trailing_24h_fee_summary(
                     exact_current_principal=exact_current_principal,
                     reconstructed_pool_history=reconstructed_pool_history,
-                    latest_position_tx=latest_transaction,
+                    latest_position_tx=principal_basis_transaction,
                     tracked_liquidity_attos=max(running_liquidity, 0),
-                    basis_type=basis_type,
-                    basis_opens_current_round=prior_running_liquidity <= 0,
-                    current_round_trade_count_before_basis=current_round_trade_count_before_basis,
+                    basis_type=principal_basis_type,
+                    basis_opens_current_round=principal_basis_opens_current_round,
+                    current_round_trade_count_before_basis=principal_round_trade_count_before_basis,
                 ),
                 **protocol_fee_ownership,
             }
@@ -375,6 +390,7 @@ class PositionMetricsSnapshotBuilder:
                 'removed_liquidity': self._serialize_attos(removed_liquidity),
                 'prior_liquidity_before_basis': self._serialize_attos(max(prior_running_liquidity, 0)),
                 'basis_opens_current_round': prior_running_liquidity <= 0,
+                'position_liquidity_over_removed': running_liquidity < 0,
                 'has_only_zero_liquidity_before_basis': prior_positive_liquidity_event_count == 0,
                 'current_round_liquidity_event_count': current_round_liquidity_event_count,
                 'current_round_started_at': current_round_started_at,

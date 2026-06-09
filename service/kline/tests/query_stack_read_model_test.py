@@ -355,7 +355,8 @@ class ReadModelBridgeTest(
         self.assertEqual(candles['pool_id'], 9)
         self.assertEqual(candles['points'], [{'close': '3'}])
         self.assertEqual(transactions, [{'transaction_id': 1}])
-        self.assertEqual(positions, {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'positions': [{'pool_id': 5}]})
+        self.assertEqual(positions['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
+        self.assertEqual(positions['positions'][0]['pool_id'], 5)
 
     def test_position_metrics_read_model_preserves_phase1_contract(self):
         repository = QueryStackTestSupport.FakeRepository()
@@ -408,6 +409,8 @@ class ReadModelBridgeTest(
                     'fee_amount1': '0',
                     'protocol_fee_amount0': '0',
                     'protocol_fee_amount1': '0',
+                    'trailing_24h_fee_amount0': '0',
+                    'trailing_24h_fee_amount1': '0',
                     'value_warning_codes': [],
                     'value_warning_message': None,
                 }],
@@ -467,6 +470,10 @@ class ReadModelBridgeTest(
                     'fee_amount1': '0',
                     'protocol_fee_amount0': '25',
                     'protocol_fee_amount1': '0',
+                    'trailing_24h_fee_amount0': '0',
+                    'trailing_24h_fee_amount1': '0',
+                    'trailing_24h_fee_window_start_ms': None,
+                    'trailing_24h_fee_window_end_ms': None,
                     'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
                     'value_warning_message': (
                         'Virtual initial liquidity is pool-level, not owner-held LP. '
@@ -478,44 +485,6 @@ class ReadModelBridgeTest(
             },
         )
         self.assertEqual(payload.shadow_diagnostics, [])
-        self.assertEqual(payload.metric_diagnostics[0]['fetch_stage'], 'synthetic_virtual_position')
-        self.assertEqual(
-            payload.metric_diagnostics[0]['fetch_reason_code'],
-            'virtual_initial_liquidity',
-        )
-
-    def test_position_metrics_read_model_projects_virtual_protocol_yield_from_exact_snapshot_and_pending_supply_delta(self):
-        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
-        materialized_protocol_fee_liquidity = '7'
-        current_total_supply = '130'
-        fee_free_total_supply = '100'
-        current_reserve_0 = '260'
-        current_reserve_1 = '390'
-        expected_protocol_liquidity = (
-            Decimal(materialized_protocol_fee_liquidity)
-            + Decimal(current_total_supply)
-            - Decimal(fee_free_total_supply)
-        )
-        expected_protocol_amount0 = expected_protocol_liquidity * Decimal(current_reserve_0) / Decimal(current_total_supply)
-        expected_protocol_amount1 = expected_protocol_liquidity * Decimal(current_reserve_1) / Decimal(current_total_supply)
-
-        payload = self._virtual_protocol_fee_metrics_payload(
-            owner=owner,
-            materialized_protocol_fee_liquidity=materialized_protocol_fee_liquidity,
-            latest_fee_to_account=owner,
-            current_total_supply=current_total_supply,
-            fee_free_total_supply=fee_free_total_supply,
-            current_reserve_0=current_reserve_0,
-            current_reserve_1=current_reserve_1,
-        )
-
-        metric = payload.public_payload()['metrics'][0]
-        self.assertEqual(payload.metric_diagnostics[0]['metrics_status'], 'projection_protocol_fee_receiver_virtual')
-        self.assertEqual(metric['position_liquidity'], str(expected_protocol_liquidity))
-        self.assertEqual(metric['protocol_fee_amount0'], str(expected_protocol_amount0))
-        self.assertEqual(metric['protocol_fee_amount1'], str(expected_protocol_amount1))
-        self.assertEqual(metric['redeemable_amount0'], metric['protocol_fee_amount0'])
-        self.assertEqual(metric['redeemable_amount1'], metric['protocol_fee_amount1'])
         self.assertEqual(payload.metric_diagnostics[0]['fetch_stage'], 'synthetic_virtual_position')
         self.assertEqual(
             payload.metric_diagnostics[0]['fetch_reason_code'],
@@ -551,14 +520,15 @@ class ReadModelBridgeTest(
         self.assertEqual(changed_metric['protocol_fee_amount0'], base_metric['protocol_fee_amount0'])
         self.assertEqual(changed_metric['protocol_fee_amount1'], base_metric['protocol_fee_amount1'])
 
-    def test_position_metrics_read_model_does_not_project_pending_protocol_yield_without_fee_to_proof(self):
+
+    def test_position_metrics_read_model_uses_full_history_protocol_fee_liquidity_for_virtual_position(self):
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
-        materialized_protocol_fee_liquidity = '7'
 
         payload = self._virtual_protocol_fee_metrics_payload(
             owner=owner,
-            materialized_protocol_fee_liquidity=materialized_protocol_fee_liquidity,
-            latest_fee_to_account=None,
+            materialized_protocol_fee_liquidity='7',
+            full_materialized_protocol_fee_liquidity='37',
+            latest_fee_to_account=owner,
             current_total_supply='130',
             fee_free_total_supply='100',
             current_reserve_0='260',
@@ -566,11 +536,59 @@ class ReadModelBridgeTest(
         )
 
         metric = payload.public_payload()['metrics'][0]
-        expected_protocol_amount0 = Decimal(materialized_protocol_fee_liquidity) * Decimal('260') / Decimal('130')
-        expected_protocol_amount1 = Decimal(materialized_protocol_fee_liquidity) * Decimal('390') / Decimal('130')
-        self.assertEqual(metric['position_liquidity'], materialized_protocol_fee_liquidity)
-        self.assertEqual(metric['protocol_fee_amount0'], str(expected_protocol_amount0))
-        self.assertEqual(metric['protocol_fee_amount1'], str(expected_protocol_amount1))
+        self.assertEqual(metric['position_liquidity'], '37')
+        self.assertEqual(metric['protocol_fee_amount0'], '74')
+        self.assertEqual(metric['protocol_fee_amount1'], '111')
+
+    def test_position_metrics_read_model_exposes_protocol_fee_trailing_24h_for_virtual_position(self):
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
+
+        payload = self._virtual_protocol_fee_metrics_payload(
+            owner=owner,
+            materialized_protocol_fee_liquidity='7',
+            full_materialized_protocol_fee_liquidity='37',
+            latest_fee_to_account=owner,
+            current_total_supply='130',
+            fee_free_total_supply='100',
+            current_reserve_0='260',
+            current_reserve_1='390',
+            trailing_24h_fee_amount_0='1.25',
+            trailing_24h_fee_amount_1='0.5',
+            trailing_24h_fee_window_start_ms=1000,
+            trailing_24h_fee_window_end_ms=86401000,
+        )
+
+        metric = payload.public_payload()['metrics'][0]
+        self.assertEqual(metric['trailing_24h_fee_amount0'], '1.25')
+        self.assertEqual(metric['trailing_24h_fee_amount1'], '0.5')
+        self.assertEqual(metric['trailing_24h_fee_window_start_ms'], 1000)
+        self.assertEqual(metric['trailing_24h_fee_window_end_ms'], 86401000)
+
+    def test_position_metrics_read_model_does_not_use_basis_scoped_protocol_fee_for_virtual_position(self):
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
+
+        payload = self._virtual_protocol_fee_metrics_payload(
+            owner=owner,
+            materialized_protocol_fee_liquidity='7',
+            latest_fee_to_account=owner,
+            current_total_supply='130',
+            fee_free_total_supply='100',
+            current_reserve_0='260',
+            current_reserve_1='390',
+        )
+
+        metric = payload.public_payload()['metrics'][0]
+        self.assertEqual(metric['position_liquidity'], '0')
+        self.assertEqual(metric['protocol_fee_amount0'], '0')
+        self.assertEqual(metric['protocol_fee_amount1'], '0')
+        self.assertEqual(
+            metric['value_warning_message'],
+            (
+                'Virtual initial liquidity is pool-level, not owner-held LP. '
+                'This synthetic position marks the protocol fee receiver and uses the '
+                'virtual bootstrap amounts as reference values.'
+            ),
+        )
 
     def _virtual_protocol_fee_metrics_payload(
         self,
@@ -578,11 +596,16 @@ class ReadModelBridgeTest(
         owner,
         materialized_protocol_fee_liquidity,
         latest_fee_to_account,
+        full_materialized_protocol_fee_liquidity=None,
         current_total_supply,
         fee_free_total_supply,
         current_reserve_0,
         current_reserve_1,
         pool_fee_free_basis_protocol_fee_minted_after=None,
+        trailing_24h_fee_amount_0=None,
+        trailing_24h_fee_amount_1=None,
+        trailing_24h_fee_window_start_ms=None,
+        trailing_24h_fee_window_end_ms=None,
     ):
         repository = QueryStackTestSupport.FakeRepository()
 
@@ -596,8 +619,20 @@ class ReadModelBridgeTest(
                         materialized_protocol_fee_liquidity
                     ),
                 }
+                if full_materialized_protocol_fee_liquidity is not None:
+                    semantic_facts['full_protocol_fee_liquidity_owned_by_current_owner'] = (
+                        full_materialized_protocol_fee_liquidity
+                    )
                 if latest_fee_to_account is not None:
                     semantic_facts['fee_to_account_latest_known'] = latest_fee_to_account
+                if trailing_24h_fee_amount_0 is not None:
+                    semantic_facts['trailing_24h_fee_amount_0'] = trailing_24h_fee_amount_0
+                if trailing_24h_fee_amount_1 is not None:
+                    semantic_facts['trailing_24h_fee_amount_1'] = trailing_24h_fee_amount_1
+                if trailing_24h_fee_window_start_ms is not None:
+                    semantic_facts['trailing_24h_fee_window_start_ms'] = trailing_24h_fee_window_start_ms
+                if trailing_24h_fee_window_end_ms is not None:
+                    semantic_facts['trailing_24h_fee_window_end_ms'] = trailing_24h_fee_window_end_ms
                 return {'semantic_facts': semantic_facts}
 
             def pool_state_snapshot(self):
@@ -688,8 +723,8 @@ class ReadModelBridgeTest(
                             'principal_calculation_complete': False,
                             'computation_blockers': ['missing_history'],
                             'value_warning_codes': [],
-                            'fetch_stage': 'payload_only',
-                            'fetch_reason_code': 'snapshot_fast_path_miss_payload_only',
+                            'fetch_stage': 'snapshot_unavailable',
+                            'fetch_reason_code': 'snapshot_fast_path_miss_no_fallback',
                         },
                         {
                             'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
@@ -745,8 +780,8 @@ class ReadModelBridgeTest(
                 'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
-                'fetch_stage': 'payload_only',
-                'fetch_reason_code': 'snapshot_fast_path_miss_payload_only',
+                'fetch_stage': 'snapshot_unavailable',
+                'fetch_reason_code': 'snapshot_fast_path_miss_no_fallback',
                 'metrics_status': 'partial',
                 'fee_calculation_complete': False,
                 'principal_calculation_complete': False,
@@ -761,8 +796,8 @@ class ReadModelBridgeTest(
         self.assertEqual(
             db.rows[0]['details'],
             {
-                'fetch_stage': 'payload_only',
-                'fetch_reason_code': 'snapshot_fast_path_miss_payload_only',
+                'fetch_stage': 'snapshot_unavailable',
+                'fetch_reason_code': 'snapshot_fast_path_miss_no_fallback',
                 'metrics_status': 'partial',
                 'fee_calculation_complete': False,
                 'principal_calculation_complete': False,
@@ -786,8 +821,8 @@ class ReadModelBridgeTest(
                 'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                 'pool_id': 5,
                 'status': 'active',
-                'fetch_stage': 'replay_fallback',
-                'fetch_reason_code': 'snapshot_fast_path_miss_payload_requires_history',
+                'fetch_stage': 'snapshot_unavailable',
+                'fetch_reason_code': 'snapshot_fast_path_miss_no_fallback',
                 'metrics_status': 'exact',
                 'fee_calculation_complete': True,
                 'principal_calculation_complete': True,
@@ -820,8 +855,8 @@ class ReadModelBridgeTest(
         self.assertEqual(
             db.rows[0]['details'],
             {
-                'fetch_stage': 'replay_fallback',
-                'fetch_reason_code': 'snapshot_fast_path_miss_payload_requires_history',
+                'fetch_stage': 'snapshot_unavailable',
+                'fetch_reason_code': 'snapshot_fast_path_miss_no_fallback',
                 'metrics_status': 'exact',
                 'fee_calculation_complete': True,
                 'principal_calculation_complete': True,
@@ -851,17 +886,28 @@ class ReadModelBridgeTest(
         class FakeRepository:
             def get_positions(self, *, owner, status):
                 return [
-                    {'pool_id': 1, 'status': 'active'},
-                    {'pool_id': 2, 'status': 'closed'},
+                    {
+                        'pool_application': '0xpool1@chain',
+                        'pool_id': 1,
+                        'token_0': 'AAA',
+                        'token_1': 'BBB',
+                        'status': 'active',
+                    },
+                    {
+                        'pool_application': '0xpool2@chain',
+                        'pool_id': 2,
+                        'token_0': 'CCC',
+                        'token_1': 'DDD',
+                        'status': 'closed',
+                    },
                 ]
 
         read_model = PositionsReadModel(FakeRepository())
         result = asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
 
         self.assertEqual(result['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
-        self.assertEqual(len(result['positions']), 2)
+        self.assertEqual(len(result['positions']), 1)
         self.assertEqual(result['positions'][0]['pool_id'], 1)
-        self.assertEqual(result['positions'][1]['pool_id'], 2)
 
     def test_positions_read_model_raises_on_none_repository_result(self):
         class FakeRepository:
@@ -872,44 +918,77 @@ class ReadModelBridgeTest(
         with self.assertRaises(ProjectionQueryUnavailableError):
             asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
 
-    def test_positions_read_model_enriches_virtual_positions_when_available(self):
+    def test_positions_read_model_merges_virtual_lmm_into_active_display_position(self):
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
+
         class FakeRepository:
             def get_positions(self, *, owner, status):
-                return []
-
-        class FakeVirtualPositionsReadModel:
-            async def enrich_positions(self, *, owner, status, positions):
-                self.calls = (owner, status, list(positions))
+                self.calls = (owner, status)
                 return [{
                     'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
                     'pool_id': 1,
                     'token_0': 'AAA',
                     'token_1': 'BBB',
                     'owner': owner,
-                    'status': 'active',
-                    'current_liquidity': '5',
-                    'added_liquidity': '5',
+                    'status': 'closed',
+                    'current_liquidity': '0',
+                    'added_liquidity': '1.2',
+                    'removed_liquidity': '2.0',
+                    'add_tx_count': 1,
+                    'remove_tx_count': 1,
+                    'opened_at': 1000,
+                    'updated_at': 2000,
+                    'closed_at': 2000,
+                }]
+
+        class FakeVirtualPositionsReadModel:
+            async def enrich_positions(self, *, owner, status, positions):
+                self.calls = (owner, status, list(positions))
+                return list(positions) + [{
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                    'pool_id': 1,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': owner,
+                    'status': 'virtual',
+                    'current_liquidity': '5.123456789123456789',
+                    'added_liquidity': '5.123456789123456789',
                     'removed_liquidity': '0',
                     'add_tx_count': 1,
                     'remove_tx_count': 0,
-                    'opened_at': 1000,
-                    'updated_at': 1000,
+                    'opened_at': 900,
+                    'updated_at': 3000,
                     'closed_at': None,
                     'position_kind': 'virtual_initial_liquidity',
                     'is_virtual_position': True,
+                    'virtual_initial_amount0': '100',
+                    'virtual_initial_amount1': '1',
+                    'protocol_fee_receiver_account': owner,
+                    'protocol_fee_reference_amount0': '100',
+                    'protocol_fee_reference_amount1': '1',
                 }]
 
+        repository = FakeRepository()
         virtual_positions = FakeVirtualPositionsReadModel()
         read_model = PositionsReadModel(
-            FakeRepository(),
+            repository,
             virtual_positions_read_model=virtual_positions,
         )
 
-        result = asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='active'))
+        result = asyncio.run(read_model.get_positions(owner=owner, status='active'))
 
-        self.assertEqual(result['owner'], '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain')
-        self.assertEqual(result['positions'][0]['position_kind'], 'virtual_initial_liquidity')
-        self.assertTrue(result['positions'][0]['is_virtual_position'])
+        self.assertEqual(repository.calls, (owner, 'all'))
+        self.assertEqual(virtual_positions.calls[0:2], (owner, 'all'))
+        self.assertEqual(len(result['positions']), 1)
+        position = result['positions'][0]
+        self.assertEqual(position['status'], 'active')
+        self.assertEqual(position['current_liquidity'], '0')
+        self.assertEqual(position['virtual_current_liquidity'], '5.123456789123456789')
+        self.assertIsNone(position['closed_at'])
+        self.assertIsNone(position['position_kind'])
+        self.assertIsNone(position['is_virtual_position'])
+        self.assertEqual(position['virtual_initial_amount0'], '100')
+        self.assertEqual(position['protocol_fee_receiver_account'], owner)
 
     def test_positions_read_model_queries_all_before_virtual_filter(self):
         class FakeRepository:
@@ -932,8 +1011,55 @@ class ReadModelBridgeTest(
         result = asyncio.run(read_model.get_positions(owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', status='virtual'))
 
         self.assertEqual(repository.calls, ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'all'))
-        self.assertEqual(virtual_positions.calls, ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'virtual', []))
-        self.assertEqual(result['positions'], [{'pool_id': 1, 'status': 'virtual'}])
+        self.assertEqual(virtual_positions.calls, ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'all', []))
+        self.assertEqual(result['positions'], [])
+
+    def test_position_metrics_read_model_queries_all_before_virtual_filter(self):
+        class FakeRepository:
+            def get_positions(self, *, owner, status):
+                self.calls = (owner, status)
+                return []
+
+        class FakeVirtualPositionsReadModel:
+            async def enrich_positions(self, *, owner, status, positions):
+                self.calls = (owner, status, list(positions))
+                return [{
+                    'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                    'pool_id': 1,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                    'owner': owner,
+                    'status': 'virtual',
+                    'current_liquidity': '0',
+                    'position_kind': 'virtual_initial_liquidity',
+                    'is_virtual_position': True,
+                    'protocol_fee_receiver_account': owner,
+                    'protocol_fee_reference_amount0': '0',
+                    'protocol_fee_reference_amount1': '0',
+                }]
+
+        async def fake_fetcher(_position):
+            raise AssertionError('virtual protocol fee receiver metrics should not call fetcher')
+
+        repository = FakeRepository()
+        virtual_positions = FakeVirtualPositionsReadModel()
+        read_model = PositionMetricsReadModel(
+            repository,
+            fake_fetcher,
+            virtual_positions_read_model=virtual_positions,
+        )
+
+        result = asyncio.run(read_model.get_position_metrics(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+            status='virtual',
+        ))
+
+        self.assertEqual(repository.calls, ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'all'))
+        self.assertEqual(
+            virtual_positions.calls,
+            ('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'virtual', []),
+        )
+        self.assertEqual(result.metrics[0]['status'], 'virtual')
 
     def test_position_metrics_read_model_enriches_virtual_positions_when_available(self):
         class FakeRepository:

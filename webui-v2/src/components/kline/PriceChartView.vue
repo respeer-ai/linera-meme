@@ -43,6 +43,7 @@ import {
   resolveFetchSortDecision,
   resolveLoadRange,
   resolveNextFetchTimestamp,
+  resolveStartupCatchupFetch,
   resolveStartupNonFinalRepairFetch,
   resolveStartupRequestPlan,
   shouldContinueFetchAfterNoChange,
@@ -723,6 +724,19 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   })
 
   if (isStartupCacheLoad && _points.length > 0) {
+    const latestCachedTimestamp = Math.max(..._points.map((point) => point.timestamp))
+    const catchupFetch = startupPlan
+      ? resolveStartupCatchupFetch({
+          cacheLatestTimestamp: latestCachedTimestamp,
+          latestWindowStart: startupPlan.fetchLatest.startAt,
+          latestWindowEnd: startupPlan.fetchLatest.endAt,
+          interval: selectedInterval.value,
+        })
+      : null
+    if (catchupFetch) {
+      fetchStartupRepairRange(catchupFetch.startAt, catchupFetch.endAt, catchupFetch.reverse)
+    }
+
     const nonFinalRepairFetch = startupPlan
       ? resolveStartupNonFinalRepairFetch({
           pointStates: _points.map((point) => ({

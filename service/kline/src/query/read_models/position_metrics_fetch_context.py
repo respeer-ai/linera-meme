@@ -1,5 +1,4 @@
 from query.read_models.position_metrics_fetch_inputs import PositionMetricsFetchInputs
-from query.read_models.position_metrics_replay_bundle import PositionMetricsReplayBundle
 
 
 class PositionMetricsFetchContext:
@@ -28,11 +27,5 @@ class PositionMetricsFetchContext:
                 position=self.position,
                 payload=self.payload,
                 snapshot_inputs=snapshot_inputs,
-                replay_bundle_loader=self._load_replay_bundle,
             )
         return self._fetch_inputs
-
-    def _load_replay_bundle(self):
-        return self.query_input_provider.load_replay_bundle(
-            position=self.position,
-        )

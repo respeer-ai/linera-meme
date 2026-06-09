@@ -19,8 +19,6 @@ from position_metrics_bootstrap import PositionMetricsBootstrap  # noqa: E402
 from query.read_models.position_metrics_snapshot_fast_path import PositionMetricsSnapshotFastPath  # noqa: E402
 from query.read_models.position_metrics_snapshot_shadow_evaluator import PositionMetricsSnapshotShadowEvaluator  # noqa: E402
 from query.read_models.position_metrics_fetched_result import PositionMetricsFetchedResult  # noqa: E402
-from position_metrics_payload_decision import PositionMetricsPayloadDecision  # noqa: E402
-from position_metrics_payload_result import PositionMetricsPayloadResult  # noqa: E402
 
 _public_api = PositionMetricsBootstrap().public_api()
 
@@ -44,32 +42,10 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             return payload.snapshot_shadow
         return self._shadow(payload)
 
-    def test_projection_position_metrics_fetcher_uses_repository_histories(self):
+    def test_projection_position_metrics_fetcher_does_not_use_replay_fallback_on_snapshot_miss(self):
         class FakeRepository:
-            def get_replay_facts(self, **kwargs):
-                self.replay_kwargs = dict(kwargs)
-                return _replay_facts(
-                    liquidity_history=[{'transaction_id': 10}],
-                    pool_transaction_history=[
-                        {
-                            'transaction_id': 11,
-                            'created_at': 1499,
-                            'transaction_type': 'AddLiquidity',
-                            'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
-                        },
-                        {'transaction_id': 12, 'created_at': 1500, 'transaction_type': 'BuyToken0'},
-                        {'transaction_id': 13, 'created_at': 1600, 'transaction_type': 'SellToken0'},
-                        {'transaction_id': 14, 'created_at': 1700, 'transaction_type': 'BuyToken0'},
-                    ],
-                    pool_swap_count_since_open=3,
-                    pool_history_gap_summary={'has_internal_gaps': False},
-                    replay_summary=_replay_summary(
-                        latest_position_transaction_id=10,
-                        latest_pool_transaction_id=14,
-                        latest_pool_trade_time_ms=1700,
-                        latest_pool_liquidity_event_time_ms=1499,
-                    ),
-                )
+            def get_replay_facts(self, **_kwargs):
+                raise AssertionError('snapshot miss should not load replay facts')
 
             def get_snapshot_inputs(self, **kwargs):
                 self.snapshot_kwargs = dict(kwargs)
@@ -88,28 +64,11 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
                 )
 
         repository = FakeRepository()
-        captured = {}
-
-        def fake_enrich_position_metrics_from_payload(position, payload, **kwargs):
-            captured['position'] = dict(position)
-            captured['payload'] = dict(payload)
-            captured.update(kwargs)
-            return PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'ok'},
-                decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
-                reason_code='payload_requires_history',
-            )
 
         payload = asyncio.run(
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=_build_payload_builder({'data': {}}),
-                plan_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                    metrics={'metrics_status': 'partial_projected_redeemable_only'},
-                    decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
-                    reason_code='payload_requires_history',
-                ),
-                enrich_payload=fake_enrich_position_metrics_from_payload,
             )({
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
                 'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
@@ -119,98 +78,19 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
         )
 
         self.assertIsInstance(payload, PositionMetricsFetchedResult)
-        self.assertEqual(payload.projected_metrics, {'metrics_status': 'ok'})
-        self.assertEqual(payload.fetch_stage, 'replay_fallback')
-        self.assertEqual(
-            payload.fetch_reason_code,
-            'snapshot_fast_path_miss_payload_requires_history',
-        )
-        self.assertEqual(captured['payload'], {'data': {}})
-        self.assertEqual(
-            captured['replay_bundle'].liquidity_history(),
-            [
-                {'transaction_id': 10}
-            ],
-        )
-        self.assertEqual(
-            captured['replay_bundle'].pool_transaction_history(),
-            [
-                {
-                    'transaction_id': 11,
-                    'created_at': 1499,
-                    'transaction_type': 'AddLiquidity',
-                    'from_account': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
-                },
-                {'transaction_id': 12, 'created_at': 1500, 'transaction_type': 'BuyToken0'},
-                {'transaction_id': 13, 'created_at': 1600, 'transaction_type': 'SellToken0'},
-                {'transaction_id': 14, 'created_at': 1700, 'transaction_type': 'BuyToken0'},
-            ],
-        )
-        self.assertEqual(captured['replay_bundle'].pool_swap_count_since_open(), 3)
-        self.assertEqual(
-            captured['replay_bundle'].pool_history_gap_summary(),
-            {'has_internal_gaps': False},
-        )
-        self.assertEqual(captured['position_basis_snapshot'].raw()['position_state_id'], 'pos-1')
-        self.assertEqual(captured['position_basis_snapshot'].raw()['semantic_facts'], {
-            'prior_liquidity_before_basis': None,
-            'has_only_zero_liquidity_before_basis': None,
-            'basis_opens_current_round': None,
-            'current_round_liquidity_event_count': None,
-            'current_round_started_at': None,
-            'current_round_started_transaction_id': None,
-            'current_round_trade_count_before_basis': None,
-            'trade_count_between_basis_and_fee_free_basis': None,
-            'exact_current_principal_case': None,
-            'principal_amount_0_current': None,
-            'principal_amount_1_current': None,
-            'post_basis_remove_count': None,
-            'basis_protocol_fee_liquidity_minted': None,
-            'post_basis_protocol_fee_liquidity_minted': None,
-            'post_basis_protocol_fee_mint_event_count': None,
-            'post_basis_protocol_fee_liquidity_minted_before_first_add': None,
-            'fee_to_continuous_protocol_fee_liquidity_current': None,
-            'protocol_fee_liquidity_provenance_case': None,
-            'protocol_fee_current_owner_provenance_case': None,
-            'basis_protocol_fee_liquidity_owned_by_current_owner': None,
-            'post_basis_protocol_fee_liquidity_owned_by_current_owner': None,
-            'post_basis_protocol_fee_liquidity_owned_by_current_owner_before_first_add': None,
-            'protocol_fee_liquidity_owned_by_current_owner_current': None,
-            'protocol_fee_liquidity_owned_by_other_accounts': None,
-            'protocol_fee_liquidity_owner_unknown': None,
-            'fee_to_continuity_case': None,
-            'fee_to_continuity_change_count_after_basis': None,
-            'fee_to_continuity_known_before_basis': None,
-            'fee_to_continuity_owner': None,
-            'fee_to_account_at_basis': None,
-            'fee_to_account_latest_known': None,
-        })
-        self.assertEqual(captured['pool_state_snapshot'].raw()['pool_state_id'], 'pool-state-1')
-        self.assertEqual(captured['pool_state_snapshot'].current_total_supply(), '10')
+        self.assertEqual(payload.projected_metrics['metrics_status'], 'snapshot_unavailable')
+        self.assertEqual(payload.fetch_stage, 'snapshot_unavailable')
+        self.assertEqual(payload.fetch_reason_code, 'snapshot_fast_path_miss_no_fallback')
+        self.assertIsNone(payload.snapshot_shadow)
         self.assertEqual(
             repository.snapshot_kwargs,
             {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application_id': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'status': 'active'},
         )
-        self.assertEqual(
-            repository.replay_kwargs,
-            {'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain', 'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain', 'pool_id': 5, 'opened_at': 1500},
-        )
 
-    def test_projection_position_metrics_fetcher_returns_shadow_evaluation_when_enabled(self):
+    def test_projection_position_metrics_fetcher_returns_unavailable_when_snapshot_missing(self):
         class FakeRepository:
             def get_replay_facts(self, **_kwargs):
-                return _replay_facts(
-                    liquidity_history=[{'transaction_id': 10, 'created_at': 1000, 'transaction_type': 'AddLiquidity'}],
-                    pool_transaction_history=[{'transaction_id': 11, 'created_at': 2000, 'transaction_type': 'BuyToken0'}],
-                    pool_swap_count_since_open=1,
-                    pool_history_gap_summary={'has_internal_gaps': False},
-                    replay_summary=_replay_summary(
-                        latest_position_transaction_id=10,
-                        latest_position_created_at=1000,
-                        latest_pool_transaction_id=11,
-                        latest_pool_trade_time_ms=2000,
-                    ),
-                )
+                raise AssertionError('snapshot miss should not load replay facts')
 
             def get_snapshot_inputs(self, **_kwargs):
                 return _snapshot_inputs(
@@ -228,24 +108,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=FakeRepository(),
                 payload_builder=_build_payload_builder({'data': {}}),
-                plan_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                    metrics={
-                        'metrics_status': 'partial_projected_redeemable_only',
-                        'fee_calculation_complete': True,
-                        'principal_calculation_complete': True,
-                    },
-                    decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
-                    reason_code='payload_requires_history',
-                ),
-                enrich_payload=lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                    metrics={
-                        'metrics_status': 'exact',
-                        'fee_calculation_complete': True,
-                        'principal_calculation_complete': True,
-                    },
-                    decision=PositionMetricsPayloadDecision.NEEDS_HISTORY_ENRICHMENT,
-                    reason_code='payload_requires_history',
-                ),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
                 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
@@ -257,16 +119,9 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             })
         )
 
-        self.assertEqual(self._metrics(payload)['metrics_status'], 'exact')
-        self.assertEqual(
-            self._shadow(payload)['snapshot_shadow']['mismatch_codes'],
-            ['missing_position_basis_snapshot', 'pool_last_trade_time_mismatch'],
-        )
-        self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'snapshot_missing')
-        self.assertEqual(
-            self._shadow(payload)['snapshot_shadow']['readiness_reason_codes'],
-            ['missing_position_basis_snapshot', 'pool_last_trade_time_mismatch'],
-        )
+        self.assertEqual(self._metrics(payload)['metrics_status'], 'snapshot_unavailable')
+        self.assertEqual(self._metrics(payload)['position_liquidity'], '7')
+        self.assertIsNone(self._shadow(payload))
 
     def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_without_loading_histories(self):
         repository = _build_snapshot_only_repository(
@@ -298,12 +153,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
         payload = asyncio.run(
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
-                plan_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass payload planning')
-                ),
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -366,9 +215,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -428,9 +274,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -496,9 +339,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -557,9 +397,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -621,9 +458,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -696,9 +530,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -770,9 +601,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -844,9 +672,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -921,9 +746,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -1001,9 +823,6 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=FakeRepository(),
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({

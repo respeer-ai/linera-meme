@@ -56,7 +56,6 @@ class KlinePositionMetricsDependencies:
         if fetcher_override is None:
             query_input_provider = PositionMetricsProductStateQueryInputProvider(
                 snapshot_inputs_repository=snapshot_inputs_repository,
-                replay_facts_repository=replay_facts_repository,
             )
 
         return cls(

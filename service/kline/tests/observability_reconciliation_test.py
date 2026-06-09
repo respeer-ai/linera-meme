@@ -37,7 +37,7 @@ class ObservabilityReconciliationTest(unittest.TestCase):
     POOL_ID = 7
     TOKEN_0 = 'MEME'
     TOKEN_1 = 'TLINERA'
-    OWNER = '0xcreator@chain-owner'
+    OWNER = '0xaaaaaaaa@chain-owner'
 
     class FakeMetadataResolver:
         def __init__(self, metadata):
@@ -673,7 +673,10 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'current_liquidity': '0',
             'basis_amount_0': '105',
             'basis_amount_1': '0',
-            'semantic_facts': {},
+            'semantic_facts': {
+                'full_protocol_fee_liquidity_owned_by_current_owner': '10',
+                'full_protocol_fee_current_owner_provenance_case': 'all_mints_owned_by_current_owner',
+            },
         }
         pool_state_snapshot = {
             'pool_application_id': self.POOL_APPLICATION,

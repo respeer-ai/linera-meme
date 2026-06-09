@@ -36,6 +36,7 @@
               borderless
               dark
               type='number'
+              step='0.0001'
               placeholder='0'
               input-class='remove-amount-input'
               class='q-mt-md remove-amount-field'
@@ -123,18 +124,14 @@
 <script setup lang='ts'>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { account, ams, kline, notify, swap, user, type meme } from 'src/stores/export'
+import { account, ams, notify, pool, swap, user, type meme } from 'src/stores/export'
 import { constants } from 'src/constant'
 import { type LiquidityAmount } from 'src/stores/pool'
-import { type PositionsResponse } from 'src/stores/positions'
-import { positionMetricsFor, positionMetricsKey } from './positionsData'
-import axios from 'axios'
 import { NotifyType } from 'src/stores/notify'
 import { Wallet } from 'src/wallet'
 import ConnectWalletView from 'src/components/wallet/ConnectWalletView.vue'
 import { resolveRoutePoolPair, type RemoveLiquidityMode } from 'src/components/pools/poolFlow'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
-import { poolApplicationKey } from 'src/stores/swap/poolIdentity'
 
 const route = useRoute()
 const router = useRouter()
@@ -162,13 +159,6 @@ const queryValue = (value: unknown) => {
 const removeMode = computed<RemoveLiquidityMode>(() => (
   queryValue(route.query.mode) === 'fees' ? 'fees' : 'liquidity'
 ))
-const routeLiquidityContext = () => {
-  const liquidity = queryValue(route.query.liquidity)
-  const amount0 = queryValue(route.query.amount0)
-  const amount1 = queryValue(route.query.amount1)
-  if (liquidity === undefined || amount0 === undefined || amount1 === undefined) return undefined
-  return { liquidity, amount0, amount1 }
-}
 const selectedPair = computed(() => {
   if (selectedPool.value) {
     return {
@@ -229,64 +219,30 @@ const formatAmount = (value: string | number) => {
   return numeric.toFixed(8).replace(/\.?0+$/, '')
 }
 
+const formatRemoveInputAmount = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '0'
+  const scaled = Math.floor(value * 10000) / 10000
+  return scaled.toFixed(4).replace(/\.?0+$/, '')
+}
+
 const setRatio = (ratio: number) => {
   if (!removeAmountMax.value) return
-  removeAmount.value = (removeAmountMax.value * ratio / 100).toFixed(18).replace(/\.?0+$/, '')
+  removeAmount.value = formatRemoveInputAmount(removeAmountMax.value * ratio / 100)
 }
 
 const zeroLiquidity = (): LiquidityAmount => ({ liquidity: '0', amount0: '0', amount1: '0' })
 
-const buildOwnerParam = async () => {
-  const currentAccount = await user.User.account()
-  if (!currentAccount.owner || !account._Account.chainId(currentAccount)) return ''
-  return account._Account.accountDescription(currentAccount)
-}
-
-const localRouteLiquidity = () => {
-  const context = routeLiquidityContext()
-  if (!context) return undefined
-  return {
-    liquidity: context.liquidity,
-    amount0: context.amount0,
-    amount1: context.amount1,
-  }
-}
-
-const findRemoteLiquidity = async (): Promise<LiquidityAmount | undefined> => {
+const queryOwnerLiquidity = async (): Promise<LiquidityAmount | undefined> => {
   if (!selectedPool.value) return undefined
-  const owner = await buildOwnerParam()
-  if (!owner) return undefined
-  const status = removeMode.value === 'fees' ? 'virtual' : 'active'
-  const selectedPoolApplication = poolApplicationKey(selectedPool.value)
-  const positionsUrl = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/positions`)
-  const positionsResponse = await axios.get<PositionsResponse>(positionsUrl, {
-    params: { owner, status },
+  const currentAccount = await user.User.account()
+  if (!currentAccount.owner || !account._Account.chainId(currentAccount)) return undefined
+  return await new Promise((resolve) => {
+    pool.liquidity(
+      currentAccount,
+      selectedPool.value?.poolApplication as account.Account,
+      (liquidity?: LiquidityAmount) => resolve(liquidity),
+    )
   })
-  const metricsResponse = await kline.Kline.getPositionMetrics(owner, status === 'virtual' ? 'all' : status)
-  const metricsByKey = Object.fromEntries(
-    (metricsResponse?.metrics || []).map((entry) => [positionMetricsKey(entry), entry]),
-  )
-  const position = positionsResponse.data.positions.find((entry) => (
-    entry.pool_application === selectedPoolApplication &&
-    Number(entry.pool_id) === Number(selectedPool.value?.poolId) &&
-    entry.token_0 === selectedPool.value?.token0 &&
-    entry.token_1 === (selectedPool.value?.token1 || constants.LINERA_NATIVE_ID) &&
-    (removeMode.value === 'fees' ? entry.status === 'virtual' : entry.status === 'active')
-  ))
-  if (!position) return undefined
-  const metrics = positionMetricsFor(position, metricsByKey)
-  if (removeMode.value === 'fees') {
-    return {
-      liquidity: metrics?.position_liquidity || '0',
-      amount0: metrics?.protocol_fee_amount0 || '0',
-      amount1: metrics?.protocol_fee_amount1 || '0',
-    }
-  }
-  return {
-    liquidity: position.current_liquidity || '0',
-    amount0: metrics?.redeemable_amount0 || '0',
-    amount1: metrics?.redeemable_amount1 || '0',
-  }
 }
 
 const loadLiquidity = async () => {
@@ -294,7 +250,7 @@ const loadLiquidity = async () => {
 
   liquidityLoading.value = true
   try {
-    currentLiquidity.value = localRouteLiquidity() || await findRemoteLiquidity() || zeroLiquidity()
+    currentLiquidity.value = await queryOwnerLiquidity() || zeroLiquidity()
     removeAmount.value = ''
   } finally {
     liquidityLoading.value = false

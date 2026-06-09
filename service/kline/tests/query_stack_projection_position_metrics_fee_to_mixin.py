@@ -101,9 +101,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -190,9 +187,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -284,9 +278,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -388,9 +379,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=FakeRepository(),
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -489,9 +477,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -569,9 +554,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -650,9 +632,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({
@@ -719,9 +698,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
             _build_projection_position_metrics_fetcher(
                 product_state_provider=repository,
                 payload_builder=client,
-                enrich_payload=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                    AssertionError('fast path should bypass replay enrichment')
-                ),
                 snapshot_fast_path=PositionMetricsSnapshotFastPath(),
                 snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
             )({

@@ -31,13 +31,6 @@ class PositionMetricsSnapshotInputs:
             'pool_state_snapshot': self.pool_state_snapshot(),
         }
 
-    def enrich_kwargs(self, *, replay_bundle) -> dict:
-        return {
-            'replay_bundle': replay_bundle,
-            'position_basis_snapshot': self.position_basis_snapshot(),
-            'pool_state_snapshot': self.pool_state_snapshot(),
-        }
-
     def shadow_kwargs(
         self,
         *,

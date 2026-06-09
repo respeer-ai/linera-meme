@@ -146,6 +146,142 @@ class SettledLiquidityProjectionRepositoryTest(unittest.TestCase):
         }])
         self.assertEqual([row['pool_id'] for row in all_rows], [8, 7])
 
+    def test_get_positions_ignores_over_remove_for_recorded_position(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'change_type': 'add_liquidity',
+                'liquidity_delta': '1200000000000000000',
+                'event_time_ms': 1000,
+            },
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'change_type': 'remove_liquidity',
+                'liquidity_delta': '88667547587977480816',
+                'event_time_ms': 2000,
+            },
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                },
+            }),
+        )
+
+        rows = repository.get_positions(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+            status='all',
+        )
+
+        self.assertEqual(rows[0]['status'], 'active')
+        self.assertEqual(rows[0]['current_liquidity'], '1.2')
+        self.assertEqual(rows[0]['removed_liquidity'], '0')
+
+    def test_get_positions_does_not_apply_protocol_fee_remove_to_recorded_position(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'change_type': 'add_liquidity',
+                'liquidity_delta': '1200232328779602238',
+                'event_time_ms': 1000,
+                'transaction_id': 10,
+            },
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'change_type': 'remove_liquidity',
+                'liquidity_delta': '120023232877960226',
+                'event_time_ms': 2000,
+                'transaction_id': 11,
+            },
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'change_type': 'remove_liquidity',
+                'liquidity_delta': '88667547587977480816',
+                'event_time_ms': 3000,
+                'transaction_id': 12,
+            },
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {
+                    'pool_id': 7,
+                    'token_0': 'AAA',
+                    'token_1': 'BBB',
+                },
+            }),
+        )
+
+        rows = repository.get_positions(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+            status='all',
+        )
+
+        self.assertEqual(rows[0]['status'], 'active')
+        self.assertEqual(rows[0]['current_liquidity'], '1.080209095901642012')
+        self.assertEqual(rows[0]['removed_liquidity'], '0.120023232877960226')
+        self.assertEqual(rows[0]['remove_tx_count'], 1)
+
+    def test_get_position_liquidity_history_excludes_protocol_fee_remove_from_recorded_history(self):
+        db = self.FakeDb()
+        db.cursor_dict.rows = [
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'transaction_id': 13,
+                'change_type': 'add_liquidity',
+                'liquidity_delta': '1200232328779602238',
+                'amount_0_delta': '40000000000000000000',
+                'amount_1_delta': '36799944205599588',
+                'event_time_ms': 1234,
+            },
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'transaction_id': 14,
+                'change_type': 'remove_liquidity',
+                'liquidity_delta': '120023232877960226',
+                'amount_0_delta': '4123536261315352134',
+                'amount_1_delta': '3597798029752398',
+                'event_time_ms': 2234,
+            },
+            {
+                'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+                'transaction_id': 15,
+                'change_type': 'remove_liquidity',
+                'liquidity_delta': '88667547587977480816',
+                'amount_0_delta': '3033112970918179412733',
+                'amount_1_delta': '2675152001985059812',
+                'event_time_ms': 3234,
+            },
+        ]
+        repository = SettledLiquidityProjectionRepository(
+            db,
+            metadata_resolver=self.FakeMetadataResolver({
+                '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a': {'pool_id': 7, 'token_0': 'AAA', 'token_1': 'BBB'},
+            }),
+        )
+
+        history = repository.get_position_liquidity_history(
+            owner='0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-a',
+            pool_application='0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+            pool_id=None,
+        )
+
+        self.assertEqual([row['transaction_id'] for row in history], [13, 14])
+
     def test_settled_liquidity_projection_keeps_empty_positions_without_legacy_fallback(self):
         db = self.FakeDb()
         repository = SettledLiquidityProjectionRepository(

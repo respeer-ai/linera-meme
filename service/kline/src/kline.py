@@ -26,7 +26,7 @@ _observability_supervisor = None
 _observability_facade = None
 _entrypoint_services = None
 _entrypoint_graph_signature = None
-_position_metrics_entrypoint_overrides = None
+_position_metrics_dependency_overrides = None
 _market_data_event_queue = MarketDataEventQueue()
 
 
@@ -119,16 +119,16 @@ def _build_position_metrics_handler():
         runtime.position_metrics_diagnostic_recorder(),
     )
 
-def _position_metrics_entrypoint_overrides_resolved():
-    if _position_metrics_entrypoint_overrides is not None:
-        return _position_metrics_entrypoint_overrides
+def _position_metrics_dependency_overrides_resolved():
+    if _position_metrics_dependency_overrides is not None:
+        return _position_metrics_dependency_overrides
     return {}
 
 
 def _position_metrics_dependencies():
     return KlinePositionMetricsDependencies.resolve(
         runtime=_runtime(),
-        overrides=_position_metrics_entrypoint_overrides_resolved(),
+        overrides=_position_metrics_dependency_overrides_resolved(),
     )
 
 @app.get('/transactions/audit/replay')

@@ -41,6 +41,10 @@ class PositionMetricsSnapshotSemanticFactsTest(unittest.TestCase):
                 'protocol_fee_liquidity_owned_by_current_owner_current': '5',
                 'protocol_fee_liquidity_owned_by_other_accounts': '0',
                 'protocol_fee_liquidity_owner_unknown': '0',
+                'full_protocol_fee_liquidity_owned_by_current_owner': '15',
+                'full_protocol_fee_liquidity_owned_by_other_accounts': '0',
+                'full_protocol_fee_liquidity_owner_unknown': '0',
+                'full_protocol_fee_current_owner_provenance_case': 'all_mints_owned_by_current_owner',
                 'fee_to_continuity_case': 'continuous_no_changes_after_basis',
                 'fee_to_continuity_change_count_after_basis': '2',
                 'fee_to_continuity_known_before_basis': False,
@@ -75,6 +79,10 @@ class PositionMetricsSnapshotSemanticFactsTest(unittest.TestCase):
                 'protocol_fee_liquidity_owned_by_current_owner_current': '5',
                 'protocol_fee_liquidity_owned_by_other_accounts': '0',
                 'protocol_fee_liquidity_owner_unknown': '0',
+                'full_protocol_fee_liquidity_owned_by_current_owner': '15',
+                'full_protocol_fee_liquidity_owned_by_other_accounts': '0',
+                'full_protocol_fee_liquidity_owner_unknown': '0',
+                'full_protocol_fee_current_owner_provenance_case': 'all_mints_owned_by_current_owner',
                 'fee_to_continuity_case': 'continuous_no_changes_after_basis',
                 'fee_to_continuity_change_count_after_basis': '2',
                 'fee_to_continuity_known_before_basis': False,
@@ -108,6 +116,10 @@ class PositionMetricsSnapshotSemanticFactsTest(unittest.TestCase):
         self.assertEqual(facts.protocol_fee_liquidity_owned_by_current_owner_current(), '5')
         self.assertEqual(facts.protocol_fee_liquidity_owned_by_other_accounts(), '0')
         self.assertEqual(facts.protocol_fee_liquidity_owner_unknown(), '0')
+        self.assertEqual(facts.full_protocol_fee_liquidity_owned_by_current_owner(), '15')
+        self.assertEqual(facts.full_protocol_fee_liquidity_owned_by_other_accounts(), '0')
+        self.assertEqual(facts.full_protocol_fee_liquidity_owner_unknown(), '0')
+        self.assertEqual(facts.full_protocol_fee_current_owner_provenance_case(), 'all_mints_owned_by_current_owner')
         self.assertEqual(facts.fee_to_continuity_case(), 'continuous_no_changes_after_basis')
         self.assertEqual(facts.fee_to_continuity_change_count_after_basis(), 2)
         self.assertFalse(facts.fee_to_continuity_known_before_basis())

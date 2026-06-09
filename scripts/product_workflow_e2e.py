@@ -5,6 +5,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -87,12 +88,18 @@ class ProductWorkflowE2E:
         print(f"[product-e2e] {label} pool: {pool.pool_id} {pool.application_id}")
 
         pool = self.execute_swap_and_wait(pool)
+        self.wait_for_virtual_protocol_fee(pool)
         print(f"[product-e2e] {label} swap completed")
 
         liquidity = self.execute_add_liquidity_and_wait(pool)
         print(f"[product-e2e] {label} add liquidity completed: {liquidity}")
 
+        pool = self.execute_swap_and_wait(pool)
+        self.wait_for_actual_position_fee(pool)
+        print(f"[product-e2e] {label} post-add swap fee accrual completed")
+
         self.execute_remove_liquidity_and_wait(pool, liquidity)
+        self.wait_for_actual_position_fee(pool)
         print(f"[product-e2e] {label} remove liquidity completed")
 
         self.execute_oversupplied_add_liquidity_claim_path(pool)
@@ -190,15 +197,21 @@ class ProductWorkflowE2E:
 
     def execute_swap_and_wait(self, pool: Pool) -> Pool:
         before = self.pool_state(pool)
+        before_swap_count = self.transaction_count(pool.pool_id, self.swap_transaction_types())
         self.execute_swap(pool)
 
         def changed_pool() -> Pool | None:
             current = self.find_pool(pool.pool_id)
-            if current and (current.reserve_0 != before.reserve_0 or current.reserve_1 != before.reserve_1):
+            if (
+                current
+                and (current.reserve_0 != before.reserve_0 or current.reserve_1 != before.reserve_1)
+                and self.transaction_count(pool.pool_id, self.swap_transaction_types()) > before_swap_count
+            ):
+                self.validate_position_interfaces(current)
                 return current
             return None
 
-        return self.wait_for("pool reserve change after swap", changed_pool)
+        return self.wait_for("pool reserve and kline transaction change after swap", changed_pool)
 
     def execute_swap(self, pool: Pool) -> None:
         self.application_graphql(
@@ -218,16 +231,24 @@ class ProductWorkflowE2E:
         )
 
     def execute_add_liquidity_and_wait(self, pool: Pool) -> Decimal:
-        before = self.owner_liquidity_amount(pool)
+        before_contract_liquidity = self.owner_liquidity_amount(pool)
+        before_position_liquidity = self.actual_position_liquidity_amount(pool)
+        before_add_count = self.transaction_count(pool.pool_id, {"AddLiquidity"})
         self.execute_add_liquidity(pool)
 
         def increased_liquidity() -> Decimal | None:
-            current = self.owner_liquidity_amount(pool)
-            if current > before:
-                return current
+            current_contract_liquidity = self.owner_liquidity_amount(pool)
+            current_position_liquidity = self.actual_position_liquidity_amount(pool)
+            if (
+                current_position_liquidity > before_position_liquidity
+                and current_contract_liquidity > before_contract_liquidity
+                and self.transaction_count(pool.pool_id, {"AddLiquidity"}) > before_add_count
+            ):
+                self.validate_position_interfaces(pool)
+                return current_position_liquidity
             return None
 
-        return self.wait_for("user liquidity increase after add liquidity", increased_liquidity)
+        return self.wait_for("actual position and kline add-liquidity projection", increased_liquidity)
 
     def execute_add_liquidity(
         self,
@@ -266,26 +287,33 @@ class ProductWorkflowE2E:
 
     def execute_remove_liquidity_and_wait(self, pool: Pool, liquidity: Decimal) -> Decimal:
         if liquidity <= 0:
-            raise E2EError("remove liquidity cannot run because user liquidity is zero")
+            raise E2EError("remove liquidity cannot run because actual position liquidity is zero")
         remove_amount = Decimal("0.1") if liquidity >= Decimal("0.1") else liquidity
         before_claims = self.claim_balances_by_token(pool)
+        before_position_liquidity = self.actual_position_liquidity_amount(pool)
+        before_remove_count = self.transaction_count(pool.pool_id, {"RemoveLiquidity"})
 
         self.execute_remove_liquidity(pool, str(remove_amount))
 
         def settled_remove_liquidity() -> dict[str | None, tuple[Decimal, Decimal]] | None:
-            current_liquidity = self.owner_liquidity_amount(pool)
+            current_position_liquidity = self.actual_position_liquidity_amount(pool)
             current_claims = self.claim_balances_by_token(pool)
-            if current_liquidity < liquidity and self.claimable_increased(
-                before_claims,
-                current_claims,
-                require_all=True,
+            if (
+                current_position_liquidity < before_position_liquidity
+                and self.transaction_count(pool.pool_id, {"RemoveLiquidity"}) > before_remove_count
+                and self.claimable_increased(
+                    before_claims,
+                    current_claims,
+                    require_all=True,
+                )
             ):
+                self.validate_position_interfaces(pool, require_actual_fee_positive=True)
                 return current_claims
             return None
 
-        claims = self.wait_for("remove liquidity claimable output", settled_remove_liquidity)
+        claims = self.wait_for("remove liquidity claimable output and kline projection", settled_remove_liquidity)
         self.claim_balances_and_wait(pool, claims, "remove liquidity")
-        return self.owner_liquidity_amount(pool)
+        return self.actual_position_liquidity_amount(pool)
 
     def execute_remove_liquidity(self, pool: Pool, remove_amount: str) -> None:
         self.application_graphql(
@@ -481,6 +509,196 @@ class ProductWorkflowE2E:
         rows = payload if isinstance(payload, list) else payload.get("transactions", [])
         return [row for row in rows if isinstance(row, dict)]
 
+    def transaction_count(self, pool_id: int, types: set[str]) -> int:
+        return sum(
+            1
+            for row in self.transaction_rows(limit=300)
+            if isinstance(row, dict)
+            and int(row.get("pool_id") or 0) == int(pool_id)
+            and row.get("transaction_type") in types
+        )
+
+    def wait_for_actual_position_fee(self, pool: Pool) -> None:
+        def has_fee() -> bool | None:
+            self.validate_position_interfaces(pool, require_actual_fee_positive=True)
+            return True
+
+        self.wait_for("actual position trading-fee projection", has_fee)
+
+    def wait_for_virtual_protocol_fee(self, pool: Pool) -> None:
+        def has_fee() -> bool | None:
+            self.validate_position_interfaces(pool, require_virtual_protocol_fee_positive=True)
+            return True
+
+        self.wait_for("virtual protocol-fee projection", has_fee)
+
+    def validate_position_interfaces(
+        self,
+        pool: Pool,
+        *,
+        require_actual_fee_positive: bool = False,
+        require_virtual_protocol_fee_positive: bool = False,
+    ) -> None:
+        positions = self.position_rows_for_pool(pool)
+        metrics = self.position_metrics_for_pool(pool)
+        if not positions:
+            raise E2EError(f"/positions has no rows for pool {pool.pool_id}")
+        if not metrics:
+            raise E2EError(f"/position-metrics has no rows for pool {pool.pool_id}")
+
+        actual_positions = [row for row in positions if self.is_actual_position(row)]
+        if len(actual_positions) > 1:
+            raise E2EError(f"/positions returned multiple actual rows for pool {pool.pool_id}: {actual_positions}")
+        if actual_positions:
+            actual = actual_positions[0]
+            metric = self.single_metric(metrics, status="active")
+            self.assert_decimal_equal(
+                actual.get("current_liquidity"),
+                metric.get("current_liquidity"),
+                "actual /positions.current_liquidity vs /position-metrics.current_liquidity",
+            )
+            self.assert_decimal_equal(
+                actual.get("current_liquidity"),
+                metric.get("position_liquidity"),
+                "actual /positions.current_liquidity vs /position-metrics.position_liquidity",
+            )
+            self.assert_metric_amounts_balance(metric, protocol_fee_expected=False)
+            if require_actual_fee_positive and self.metric_fee_total(metric) <= 0:
+                raise E2EError(f"actual position trading fees are not positive for pool {pool.pool_id}: {metric}")
+            if require_actual_fee_positive and self.metric_trailing_fee_total(metric) <= 0:
+                raise E2EError(f"actual position trailing 24h fees are not positive for pool {pool.pool_id}: {metric}")
+
+        virtual_positions = [row for row in positions if self.is_virtual_position(row)]
+        virtual_metric = None
+        if virtual_positions:
+            virtual_metric = self.single_metric(metrics, status="virtual")
+            self.assert_metric_amounts_balance(virtual_metric, protocol_fee_expected=True)
+            if require_virtual_protocol_fee_positive and self.metric_protocol_fee_total(virtual_metric) <= 0:
+                raise E2EError(f"virtual protocol fees are not positive for pool {pool.pool_id}: {virtual_metric}")
+
+        contract_liquidity = self.owner_liquidity_amount(pool)
+        projected_liquidity = sum(self.decimal_or_zero(row.get("current_liquidity")) for row in positions)
+        residual_liquidity = contract_liquidity - projected_liquidity
+        if residual_liquidity < Decimal("-0.000000000000000001"):
+            raise E2EError(
+                f"contract owner liquidity {contract_liquidity} is below projected /positions liquidity "
+                f"{projected_liquidity} for pool {pool.pool_id}"
+            )
+        if virtual_metric is not None:
+            self.assert_decimal_equal(
+                residual_liquidity,
+                virtual_metric.get("position_liquidity"),
+                "contract owner liquidity residual vs virtual protocol-fee position_liquidity",
+            )
+
+    def assert_metric_amounts_balance(self, metric: dict, *, protocol_fee_expected: bool) -> None:
+        amount_0 = self.decimal_or_zero(metric.get("redeemable_amount0"))
+        components_0 = (
+            self.decimal_or_zero(metric.get("principal_amount0"))
+            + self.decimal_or_zero(metric.get("fee_amount0"))
+            + self.decimal_or_zero(metric.get("protocol_fee_amount0"))
+        )
+        self.assert_decimal_equal(amount_0, components_0, "metric token0 redeemable amount components")
+
+        amount_1 = self.decimal_or_zero(metric.get("redeemable_amount1"))
+        components_1 = (
+            self.decimal_or_zero(metric.get("principal_amount1"))
+            + self.decimal_or_zero(metric.get("fee_amount1"))
+            + self.decimal_or_zero(metric.get("protocol_fee_amount1"))
+        )
+        self.assert_decimal_equal(amount_1, components_1, "metric token1 redeemable amount components")
+
+        protocol_total = self.metric_protocol_fee_total(metric)
+        if protocol_fee_expected and protocol_total < 0:
+            raise E2EError(f"protocol fee metric cannot be negative: {metric}")
+        if not protocol_fee_expected and protocol_total != 0:
+            raise E2EError(f"actual LP metric should not include protocol fee amounts: {metric}")
+
+    def actual_position_liquidity_amount(self, pool: Pool) -> Decimal:
+        row = self.actual_position_row(pool)
+        if row is None:
+            return Decimal("0")
+        return self.decimal_or_zero(row.get("current_liquidity"))
+
+    def actual_position_row(self, pool: Pool) -> dict | None:
+        rows = [row for row in self.position_rows_for_pool(pool) if self.is_actual_position(row)]
+        if len(rows) > 1:
+            raise E2EError(f"multiple actual position rows for pool {pool.pool_id}: {rows}")
+        return rows[0] if rows else None
+
+    def position_rows_for_pool(self, pool: Pool) -> list[dict]:
+        return [
+            row
+            for row in self.kline_positions(status="all")
+            if int(row.get("pool_id") or 0) == int(pool.pool_id)
+            and row.get("pool_application") == self.pool_application_account(pool)
+        ]
+
+    def position_metrics_for_pool(self, pool: Pool) -> list[dict]:
+        return [
+            row
+            for row in self.kline_position_metrics(status="all")
+            if int(row.get("pool_id") or 0) == int(pool.pool_id)
+            and row.get("pool_application") == self.pool_application_account(pool)
+        ]
+
+    def kline_positions(self, *, status: str) -> list[dict]:
+        params = urllib.parse.urlencode({"owner": self.owner_account_string(), "status": status})
+        payload = self.http_json(f"{self.kline_url}/positions?{params}")
+        rows = payload.get("positions", []) if isinstance(payload, dict) else []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def kline_position_metrics(self, *, status: str) -> list[dict]:
+        params = urllib.parse.urlencode({"owner": self.owner_account_string(), "status": status})
+        payload = self.http_json(f"{self.kline_url}/position-metrics?{params}")
+        rows = payload.get("metrics", []) if isinstance(payload, dict) else []
+        return [row for row in rows if isinstance(row, dict)]
+
+    def single_metric(self, metrics: list[dict], *, status: str) -> dict:
+        rows = [row for row in metrics if row.get("status") == status]
+        if len(rows) != 1:
+            raise E2EError(f"expected exactly one {status} /position-metrics row, got {len(rows)}: {rows}")
+        return rows[0]
+
+    @staticmethod
+    def is_actual_position(row: dict) -> bool:
+        return (
+            row.get("status") != "virtual"
+            and not bool(row.get("is_virtual_position"))
+            and row.get("position_kind") != "virtual_initial_liquidity"
+        )
+
+    @staticmethod
+    def is_virtual_position(row: dict) -> bool:
+        return (
+            row.get("status") == "virtual"
+            or bool(row.get("is_virtual_position"))
+            or row.get("position_kind") == "virtual_initial_liquidity"
+        )
+
+    @staticmethod
+    def metric_fee_total(metric: dict) -> Decimal:
+        return ProductWorkflowE2E.decimal_or_zero(metric.get("fee_amount0")) + ProductWorkflowE2E.decimal_or_zero(metric.get("fee_amount1"))
+
+    @staticmethod
+    def metric_trailing_fee_total(metric: dict) -> Decimal:
+        return ProductWorkflowE2E.decimal_or_zero(metric.get("trailing_24h_fee_amount0")) + ProductWorkflowE2E.decimal_or_zero(metric.get("trailing_24h_fee_amount1"))
+
+    @staticmethod
+    def metric_protocol_fee_total(metric: dict) -> Decimal:
+        return ProductWorkflowE2E.decimal_or_zero(metric.get("protocol_fee_amount0")) + ProductWorkflowE2E.decimal_or_zero(metric.get("protocol_fee_amount1"))
+
+    @staticmethod
+    def assert_decimal_equal(left, right, label: str) -> None:
+        left_decimal = ProductWorkflowE2E.decimal_or_zero(left)
+        right_decimal = ProductWorkflowE2E.decimal_or_zero(right)
+        if abs(left_decimal - right_decimal) > Decimal("0.000000000000000001"):
+            raise E2EError(f"{label} mismatch: {left_decimal} != {right_decimal}")
+
+    @staticmethod
+    def swap_transaction_types() -> set[str]:
+        return {"BuyToken0", "SellToken0", "Swap"}
+
     def owner_liquidity_amount(self, pool: Pool) -> Decimal:
         liquidity = self.pool_liquidity(pool)
         return Decimal(str(liquidity.get("liquidity", "0")))
@@ -523,6 +741,12 @@ class ProductWorkflowE2E:
             raise E2EError(f"cannot resolve meme chain for token {token}")
         self.meme_chains[token] = chain_id
         return chain_id
+
+    def owner_account_string(self) -> str:
+        return f"{self.user_owner}@{self.user_chain_id}"
+
+    def pool_application_account(self, pool: Pool) -> str:
+        return f"{pool.pool_application_owner}@{pool.pool_application_chain}"
 
     def pool_liquidity(self, pool: Pool) -> dict:
         return self.application_graphql(

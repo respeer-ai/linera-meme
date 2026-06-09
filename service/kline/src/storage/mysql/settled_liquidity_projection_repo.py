@@ -31,6 +31,7 @@ class SettledLiquidityProjectionRepository:
         rows = self._load_liquidity_rows(owner=owner, position_liquidity_only=True)
         if rows is None:
             return None
+        rows = self._recorded_position_rows(rows)
         aggregated = self._aggregate_positions(rows=rows, owner=owner, normalized_status=normalized_status)
         return aggregated
 
@@ -49,7 +50,7 @@ class SettledLiquidityProjectionRepository:
         )
         if rows is None:
             return None
-        return [self._build_history_row(row) for row in rows]
+        return [self._build_history_row(row) for row in self._recorded_position_rows(rows)]
 
     def list_active_position_owners_for_pool(
         self,
@@ -64,7 +65,7 @@ class SettledLiquidityProjectionRepository:
         if rows is None:
             return []
         liquidity_by_owner: dict[str, Decimal] = {}
-        for row in rows:
+        for row in self._recorded_position_rows(rows):
             owner = self.transaction_adapter.public_owner_from_settled_owner(row.get('owner'))
             if owner in (None, ''):
                 continue
@@ -232,6 +233,28 @@ class SettledLiquidityProjectionRepository:
         finally:
             cursor.close()
 
+    def _recorded_position_rows(self, rows: list[dict]) -> list[dict]:
+        current_by_key: dict[tuple[str, str, int], Decimal] = {}
+        recorded_rows = []
+        for row in rows:
+            owner = str(row.get('owner') or '')
+            key = (owner, str(row.get('pool_application') or ''), int(row.get('pool_id') or 0))
+            current = current_by_key.get(key, Decimal('0'))
+            delta = self._display_decimal(Decimal(str(row['liquidity_delta'])))
+            if row['change_type'] == 'add_liquidity':
+                current_by_key[key] = current + delta
+                recorded_rows.append(row)
+                continue
+            if row['change_type'] == 'remove_liquidity':
+                if current <= Decimal('0') or delta - current > Decimal('0.000000000001'):
+                    continue
+                next_current = current - delta
+                current_by_key[key] = next_current if next_current > Decimal('0.000000000001') else Decimal('0')
+                recorded_rows.append(row)
+                continue
+            recorded_rows.append(row)
+        return recorded_rows
+
     def _aggregate_positions(
         self,
         *,
@@ -276,7 +299,7 @@ class SettledLiquidityProjectionRepository:
             added_liquidity = current['added_liquidity']
             removed_liquidity = current['removed_liquidity']
             net_liquidity = added_liquidity - removed_liquidity
-            if abs(net_liquidity) < Decimal('0.000000000001'):
+            if net_liquidity < Decimal('0') or abs(net_liquidity) < Decimal('0.000000000001'):
                 net_liquidity = Decimal('0')
             position_status = 'active' if net_liquidity > 0 else 'closed'
             if normalized_status != 'all' and position_status != normalized_status:

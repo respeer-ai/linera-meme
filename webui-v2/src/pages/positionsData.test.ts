@@ -5,14 +5,17 @@ import { type PositionMetricsEntry } from 'src/stores/kline'
 import {
   canUsePositionAction,
   positionActionLabel,
+  positionDisplayLiquidityAmounts,
+  positionDisplayShareRatio,
+  positionHasVirtualReference,
   positionKey,
   positionLiquidityAmounts,
   positionMetricsFor,
   positionMetricsKey,
   positionRewardLiquidity,
-  selectProtocolYieldPositions,
-  selectRewardPositions,
-  selectTradingYieldPositions,
+  positionRewardShareRatio,
+  selectDisplayPositions,
+  virtualPositionMetricsFor,
 } from './positionsData'
 
 const owner = '0xc21c@owner-chain'
@@ -55,6 +58,20 @@ const virtualPosition: Position = {
   virtual_initial_amount0: '10499900',
   virtual_initial_amount1: '8720',
   protocol_fee_receiver_account: owner,
+}
+
+const mergedVirtualOnlyPosition: Position = {
+  ...activePosition,
+  current_liquidity: '0',
+  added_liquidity: '0',
+  removed_liquidity: '0',
+  status: 'active',
+  virtual_current_liquidity: '302587.389030012286796095',
+  virtual_initial_amount0: '10499900',
+  virtual_initial_amount1: '8720',
+  protocol_fee_receiver_account: owner,
+  protocol_fee_reference_amount0: '29937.723',
+  protocol_fee_reference_amount1: '27.164',
 }
 
 const activeMetrics: PositionMetricsEntry = {
@@ -126,27 +143,75 @@ describe('positionsData', () => {
     expect(liquidity.amount1).toBe('0.036771630990749769')
   })
 
-  test('separates trading fees from virtual protocol yield', () => {
-    const rewardPositions = selectRewardPositions([activePosition, virtualPosition], owner)
-    const tradingPositions = selectTradingYieldPositions(rewardPositions)
-    const protocolPositions = selectProtocolYieldPositions(rewardPositions, owner)
-
-    expect(tradingPositions).toEqual([activePosition])
-    expect(protocolPositions).toEqual([virtualPosition])
-  })
-
-  test('sums recorded liquidity and protocol-yield liquidity without using virtual principal', () => {
+  test('uses position metrics liquidity for the top LMM summary', () => {
     const activeLiquidity = positionRewardLiquidity(activePosition, activeMetrics, owner)
     const virtualLiquidity = positionRewardLiquidity(virtualPosition, virtualMetrics, owner)
 
-    expect((Number(activeLiquidity) + Number(virtualLiquidity)).toFixed(12)).toBe('75.053988631240')
+    expect(activeLiquidity).toBe('1.200232328779602238')
+    expect(virtualLiquidity).toBe('73.853756302460584155')
   })
 
-  test('labels actual and virtual protocol-fee actions distinctly', () => {
-    expect(positionActionLabel(activePosition, activeMetrics, owner)).toBe('Remove liquidity')
-    expect(canUsePositionAction(activePosition, activeMetrics, owner)).toBe(true)
-    expect(positionActionLabel(virtualPosition, virtualMetrics, owner)).toBe('Collect fees')
-    expect(canUsePositionAction(virtualPosition, virtualMetrics, owner)).toBe(true)
+  test('hides virtual positions from the card list', () => {
+    expect(selectDisplayPositions([activePosition, virtualPosition])).toEqual([activePosition])
+  })
+
+  test('counts merged virtual protocol-fee liquidity in the top LMM summary', () => {
+    expect(positionRewardLiquidity(mergedVirtualOnlyPosition, virtualMetrics, owner)).toBe('73.853756302460584155')
+    expect(positionHasVirtualReference(mergedVirtualOnlyPosition, owner)).toBe(true)
+  })
+
+  test('uses actual plus virtual share ratio for displayed pool share', () => {
+    expect(positionRewardShareRatio(undefined, virtualMetrics).toFixed(18)).toBe('0.000243490868207888')
+    expect(positionRewardShareRatio(activeMetrics, virtualMetrics).toFixed(18)).toBe('0.000247447953485837')
+  })
+
+  test('uses virtual initial plus protocol fee liquidity for displayed pool share', () => {
+    const displayRatio = positionDisplayShareRatio(mergedVirtualOnlyPosition, undefined, virtualMetrics)
+
+    expect(displayRatio.toFixed(18)).toBe('0.997853764906781460')
+  })
+
+  test('uses virtual initial plus protocol fee amounts for displayed pooled tokens', () => {
+    const liquidity = positionDisplayLiquidityAmounts(mergedVirtualOnlyPosition, undefined, virtualMetrics)
+
+    expect(liquidity.liquidity).toBe('302661.24278631475')
+    expect(Number(liquidity.amount0).toFixed(6)).toBe('10119151.972676')
+    expect(Number(liquidity.amount1).toFixed(6)).toBe('9272.661024')
+  })
+
+  test('does not use virtual bootstrap amounts as actual pooled tokens', () => {
+    const liquidity = positionLiquidityAmounts(mergedVirtualOnlyPosition, undefined)
+
+    expect(liquidity.liquidity).toBe('0')
+    expect(liquidity.amount0).toBe('0')
+    expect(liquidity.amount1).toBe('0')
+  })
+
+  test('looks up virtual metrics by pool for a merged display position', () => {
+    const snapshots = {
+      [positionMetricsKey(virtualMetrics)]: virtualMetrics,
+    }
+
+    expect(virtualPositionMetricsFor(mergedVirtualOnlyPosition, snapshots)?.protocol_fee_amount0).toBe('2469.220627317689461086')
+  })
+
+  test('uses collect-fees action for merged virtual-only display position', () => {
+    expect(positionActionLabel(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe('Collect fees')
+    expect(canUsePositionAction(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe(true)
+  })
+
+  test('uses only one withdraw action per pool when actual liquidity exists', () => {
+    const positions = [activePosition, virtualPosition]
+
+    expect(positionActionLabel(activePosition, activeMetrics, owner, positions)).toBe('Remove liquidity')
+    expect(canUsePositionAction(activePosition, activeMetrics, owner, positions)).toBe(true)
+    expect(positionActionLabel(virtualPosition, virtualMetrics, owner, positions)).toBe(undefined)
+    expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, positions)).toBe(false)
+  })
+
+  test('keeps collect-fees action on virtual position when no actual liquidity exists', () => {
+    expect(positionActionLabel(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe('Collect fees')
+    expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe(true)
   })
 
   test('keeps collect-fees label disabled when no protocol-fee liquidity is available', () => {
@@ -157,7 +222,7 @@ describe('positionsData', () => {
       protocol_fee_amount1: '0',
     }
 
-    expect(positionActionLabel(virtualPosition, emptyVirtualMetrics, owner)).toBe('Collect fees')
-    expect(canUsePositionAction(virtualPosition, emptyVirtualMetrics, owner)).toBe(false)
+    expect(positionActionLabel(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe('Collect fees')
+    expect(canUsePositionAction(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe(false)
   })
 })

@@ -62,6 +62,18 @@ class PositionMetricsSnapshotSemanticFacts:
                 'protocol_fee_liquidity_owner_unknown': exact_current_principal.get(
                     'protocol_fee_liquidity_owner_unknown'
                 ),
+                'full_protocol_fee_liquidity_owned_by_current_owner': exact_current_principal.get(
+                    'full_protocol_fee_liquidity_owned_by_current_owner'
+                ),
+                'full_protocol_fee_liquidity_owned_by_other_accounts': exact_current_principal.get(
+                    'full_protocol_fee_liquidity_owned_by_other_accounts'
+                ),
+                'full_protocol_fee_liquidity_owner_unknown': exact_current_principal.get(
+                    'full_protocol_fee_liquidity_owner_unknown'
+                ),
+                'full_protocol_fee_current_owner_provenance_case': exact_current_principal.get(
+                    'full_protocol_fee_current_owner_provenance_case'
+                ),
                 'fee_to_continuity_case': fee_to_continuity.get('continuity_case'),
                 'fee_to_continuity_change_count_after_basis': fee_to_continuity.get('change_count_after_basis'),
                 'fee_to_continuity_known_before_basis': fee_to_continuity.get('known_before_basis'),
@@ -286,6 +298,30 @@ class PositionMetricsSnapshotSemanticFacts:
 
     def protocol_fee_liquidity_owner_unknown(self) -> str | None:
         value = self.get('protocol_fee_liquidity_owner_unknown')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def full_protocol_fee_liquidity_owned_by_current_owner(self) -> str | None:
+        value = self.get('full_protocol_fee_liquidity_owned_by_current_owner')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def full_protocol_fee_liquidity_owned_by_other_accounts(self) -> str | None:
+        value = self.get('full_protocol_fee_liquidity_owned_by_other_accounts')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def full_protocol_fee_liquidity_owner_unknown(self) -> str | None:
+        value = self.get('full_protocol_fee_liquidity_owner_unknown')
+        if value in (None, ''):
+            return None
+        return str(value)
+
+    def full_protocol_fee_current_owner_provenance_case(self) -> str | None:
+        value = self.get('full_protocol_fee_current_owner_provenance_case')
         if value in (None, ''):
             return None
         return str(value)

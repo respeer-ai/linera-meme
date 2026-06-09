@@ -88,6 +88,17 @@ class SettledMarketMaterializerTest(unittest.TestCase):
         def upsert_settled_liquidity_changes(self, changes):
             self.changes = list(changes)
 
+    class FakeSnapshotMaterializer:
+        def __init__(self, *, degraded=False):
+            self.degraded = degraded
+            self.calls = []
+
+        def materialize_output_batch(self, output_batch):
+            self.calls.append(output_batch)
+            if self.degraded:
+                return {'degraded': True, 'error_text': 'snapshot failed'}
+            return {'degraded': False}
+
     class FakeClaimBalanceRepository:
         def __init__(self):
             self.deltas = None
@@ -149,6 +160,39 @@ class SettledMarketMaterializerTest(unittest.TestCase):
         )
         self.assertEqual(claim_repository.deleted_correlated_deltas, {'event-1'})
         self.assertEqual(claim_repository.diagnostics, [])
+
+
+    def test_materialize_batch_invokes_position_snapshot_materializer(self):
+        snapshot_materializer = self.FakeSnapshotMaterializer()
+        materializer = SettledMarketMaterializer(
+            settled_market_deriver=self.FakeMarketDeriver(),
+            claim_balance_deriver=self.FakeClaimDeriver(),
+            claim_balance_correlation_deriver=self.FakeCorrelationDeriver(),
+            settled_trade_repository=self.FakeTradeRepository(),
+            settled_liquidity_change_repository=self.FakeLiquidityRepository(),
+            position_metrics_snapshot_materializer=snapshot_materializer,
+        )
+
+        materializer.materialize_batch([{'normalized_event_id': 'event-1'}])
+
+        self.assertEqual(len(snapshot_materializer.calls), 1)
+        self.assertEqual(
+            snapshot_materializer.calls[0].liquidity_changes(),
+            [{'settled_output_type': 'settled_liquidity_change', 'settled_liquidity_change_id': 'liq-event-1'}],
+        )
+
+    def test_materialize_batch_raises_when_position_snapshot_materializer_degrades(self):
+        materializer = SettledMarketMaterializer(
+            settled_market_deriver=self.FakeMarketDeriver(),
+            claim_balance_deriver=self.FakeClaimDeriver(),
+            claim_balance_correlation_deriver=self.FakeCorrelationDeriver(),
+            settled_trade_repository=self.FakeTradeRepository(),
+            settled_liquidity_change_repository=self.FakeLiquidityRepository(),
+            position_metrics_snapshot_materializer=self.FakeSnapshotMaterializer(degraded=True),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, 'position metrics snapshot materialization failed: snapshot failed'):
+            materializer.materialize_batch([{'normalized_event_id': 'event-1'}])
 
 
     def test_materialize_batch_marks_initialize_liquidity_new_transaction_as_virtual(self):

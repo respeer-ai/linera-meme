@@ -103,7 +103,7 @@ class QueryStackTestSupport:
 
         def get_positions(self, **kwargs):
             self.calls.append(('get_positions', dict(kwargs)))
-            return [{'pool_id': 5}]
+            return [{'pool_application': '0xpool5@chain', 'pool_id': 5, 'token_0': 'AAA', 'token_1': 'BBB', 'status': 'active'}]
 
     @classmethod
     async def dummy_post(cls, *_args, **_kwargs):

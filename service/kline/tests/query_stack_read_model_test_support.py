@@ -16,19 +16,13 @@ from query.read_models.position_metrics_fetch_coordinator import PositionMetrics
 from query.read_models.position_metrics_fast_path_executor import PositionMetricsFastPathExecutor
 from query.read_models.position_metrics_fast_path_plan_builder import PositionMetricsFastPathPlanBuilder
 from query.read_models.position_metrics_projection_payload_adapter import PositionMetricsProjectionPayloadAdapter
-from query.read_models.position_metrics_payload_only_executor import PositionMetricsPayloadOnlyExecutor
-from query.read_models.position_metrics_replay_fallback_executor import PositionMetricsReplayFallbackExecutor
 from query.read_models.position_metrics_replay_bundle import PositionMetricsReplayBundle
 from query.read_models.position_metrics_replay_facts import PositionMetricsReplayFacts
-from query.read_models.position_metrics_replay_fallback_result_builder import PositionMetricsReplayFallbackResultBuilder
-from query.read_models.position_metrics_replay_snapshot_shadow_builder import PositionMetricsReplaySnapshotShadowBuilder
 from query.read_models.position_metrics_product_state_query_input_provider import PositionMetricsProductStateQueryInputProvider
 from query.read_models.position_metrics_snapshot_inputs import PositionMetricsSnapshotInputs
 from storage.mysql.position_metrics_snapshot_semantic_facts_projector import (
     PositionMetricsSnapshotSemanticFactsProjector,
 )
-from position_metrics_payload_decision import PositionMetricsPayloadDecision
-from position_metrics_payload_result import PositionMetricsPayloadResult
 
 
 class QueryStackReadModelTestSupport:
@@ -36,19 +30,11 @@ class QueryStackReadModelTestSupport:
     def build_projection_position_metrics_fetcher(
         *,
         payload_builder=None,
-        plan_payload=None,
-        enrich_payload,
         query_inputs_loader=None,
         product_state_provider=None,
         snapshot_fast_path=None,
         snapshot_shadow_evaluator=None,
     ):
-        if plan_payload is None:
-            plan_payload = lambda *_args, **_kwargs: PositionMetricsPayloadResult(
-                metrics={'metrics_status': 'partial_projected_redeemable_only'},
-                decision=PositionMetricsPayloadDecision.PAYLOAD_ONLY,
-                reason_code='payload_history_unavailable',
-            )
         if payload_builder is None:
             projection_payload_adapter = PositionMetricsProjectionPayloadAdapter()
 
@@ -62,7 +48,6 @@ class QueryStackReadModelTestSupport:
         if query_inputs_loader is None:
             query_inputs_loader = PositionMetricsProductStateQueryInputProvider(
                 snapshot_inputs_repository=product_state_provider,
-                replay_facts_repository=product_state_provider,
             )
         fetch_coordinator = PositionMetricsFetchCoordinator(
             payload_builder=payload_builder,
@@ -70,16 +55,7 @@ class QueryStackReadModelTestSupport:
             fast_path_plan_builder=PositionMetricsFastPathPlanBuilder(
                 snapshot_fast_path=snapshot_fast_path,
             ),
-            plan_payload=plan_payload,
             fast_path_executor=PositionMetricsFastPathExecutor(),
-            payload_only_executor=PositionMetricsPayloadOnlyExecutor(),
-            replay_fallback_executor=PositionMetricsReplayFallbackExecutor(
-                enrich_payload=enrich_payload,
-                replay_snapshot_shadow_builder=PositionMetricsReplaySnapshotShadowBuilder(
-                    snapshot_shadow_evaluator=snapshot_shadow_evaluator,
-                ),
-                replay_fallback_result_builder=PositionMetricsReplayFallbackResultBuilder(),
-            ),
         )
 
         async def fetch(position: dict):

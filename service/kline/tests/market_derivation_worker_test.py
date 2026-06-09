@@ -161,6 +161,19 @@ class MarketDerivationWorkerTest(unittest.TestCase):
 
         self.assertEqual(freshness_service.calls, [])
 
+    def test_process_items_marks_failure_when_snapshot_materializer_error_is_propagated(self):
+        cursor_repo = self.FakeProcessingCursorRepository()
+        worker = MarketDerivationWorker(
+            settled_market_materializer=self.FakeSettledMarketMaterializer(should_fail=True),
+            processing_cursor_repository=cursor_repo,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, 'derivation failed'):
+            worker.process_items([{'normalized_event_id': 'event-1', 'raw_fact_id': '10'}])
+
+        self.assertEqual(len(cursor_repo.failures), 1)
+        self.assertEqual(cursor_repo.successes, [])
+
     def test_process_items_marks_failure_when_materializer_raises(self):
         cursor_repo = self.FakeProcessingCursorRepository()
         worker = MarketDerivationWorker(

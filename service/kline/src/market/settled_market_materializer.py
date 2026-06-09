@@ -210,6 +210,9 @@ class SettledMarketMaterializer:
                 claim_balance_diagnostics
             )
         if self.position_metrics_snapshot_materializer is not None:
-            self.position_metrics_snapshot_materializer.materialize_output_batch(
+            snapshot_summary = self.position_metrics_snapshot_materializer.materialize_output_batch(
                 output_batch
             )
+            if snapshot_summary and snapshot_summary.get('degraded'):
+                error_text = snapshot_summary.get('error_text') or 'unknown snapshot materialization error'
+                raise RuntimeError(f'position metrics snapshot materialization failed: {error_text}')

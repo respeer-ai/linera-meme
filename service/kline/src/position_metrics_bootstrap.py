@@ -11,31 +11,13 @@ from position_metrics_value_support import PositionMetricsValueSupport
 from query.read_models.position_metrics_fetch_coordinator import PositionMetricsFetchCoordinator
 from query.read_models.position_metrics_fast_path_executor import PositionMetricsFastPathExecutor
 from query.read_models.position_metrics_fast_path_plan_builder import PositionMetricsFastPathPlanBuilder
-from query.read_models.position_metrics_payload_only_executor import PositionMetricsPayloadOnlyExecutor
-from query.read_models.position_metrics_replay_fallback_executor import PositionMetricsReplayFallbackExecutor
-from query.read_models.position_metrics_replay_fallback_result_builder import PositionMetricsReplayFallbackResultBuilder
 from query.read_models.position_metrics_replay_snapshot_shadow_builder import PositionMetricsReplaySnapshotShadowBuilder
 from query.read_models.position_metrics_projection_payload_adapter import PositionMetricsProjectionPayloadAdapter
 from query.read_models.position_metrics_snapshot_fast_path import PositionMetricsSnapshotFastPath
 from query.read_models.position_metrics_snapshot_shadow_evaluator import PositionMetricsSnapshotShadowEvaluator
-from position_metrics_entrypoint import PositionMetricsEntrypoint
-from position_metrics_estimated_fallback_resolver import PositionMetricsEstimatedFallbackResolver
-from position_metrics_fee_to_opening_mint_resolver import PositionMetricsFeeToOpeningMintResolver
-from position_metrics_history_enricher import PositionMetricsHistoryEnricher
-from position_metrics_history_semantic_resolver import PositionMetricsHistorySemanticResolver
-from position_metrics_no_swap_exact_resolver import PositionMetricsNoSwapExactResolver
 from position_metrics_partial_result_builder import PositionMetricsPartialResultBuilder
-from position_metrics_payload_decision_resolver import PositionMetricsPayloadDecisionResolver
-from position_metrics_payload_enricher import PositionMetricsPayloadEnricher
-from position_metrics_payload_planner import PositionMetricsPayloadPlanner
-from position_metrics_payload_semantic_builder import PositionMetricsPayloadSemanticBuilder
 from position_metrics_public_api import PositionMetricsPublicApi
 from position_metrics_replay_entrypoint import PositionMetricsReplayEntrypoint
-from position_metrics_swap_history_alignment_checker import PositionMetricsSwapHistoryAlignmentChecker
-from position_metrics_swap_history_exact_materializer import PositionMetricsSwapHistoryExactMaterializer
-from position_metrics_swap_history_exactness_solver import PositionMetricsSwapHistoryExactnessSolver
-from position_metrics_swap_history_exactness_validator import PositionMetricsSwapHistoryExactnessValidator
-from position_metrics_swap_history_precheck import PositionMetricsSwapHistoryPrecheck
 from position_metrics_warning_applier import PositionMetricsWarningApplier
 
 
@@ -52,14 +34,9 @@ class PositionMetricsBootstrap:
         self.account_codec = AccountCodec()
         self.default_post = async_request.post
         self._pool_application_support = None
-        self._entrypoint = None
         self._replay_entrypoint = None
         self._projection_payload_adapter = None
         self._snapshot_shadow_evaluator = None
-        self._swap_history_exactness_solver = None
-        self._history_enricher = None
-        self._payload_enricher = None
-        self._payload_planner = None
         self._public_api = None
         self._partial_result_builder = None
         self._warning_applier = None
@@ -73,7 +50,6 @@ class PositionMetricsBootstrap:
     def public_api(self):
         if self._public_api is None:
             self._public_api = PositionMetricsPublicApi(
-                entrypoint=self.entrypoint(),
                 replay_entrypoint=self.replay_entrypoint(),
                 fetcher_factory=self,
                 default_swap_out_tolerance_attos=self.SWAP_OUT_TOLERANCE_ATTOS,
@@ -96,16 +72,7 @@ class PositionMetricsBootstrap:
                     snapshot_shadow_evaluator=self.snapshot_shadow_evaluator(),
                 ),
             ),
-            plan_payload=self.entrypoint().plan_position_metrics_from_payload,
             fast_path_executor=PositionMetricsFastPathExecutor(),
-            payload_only_executor=PositionMetricsPayloadOnlyExecutor(),
-            replay_fallback_executor=PositionMetricsReplayFallbackExecutor(
-                enrich_payload=self.entrypoint().enrich_position_metrics_from_payload_result,
-                replay_snapshot_shadow_builder=PositionMetricsReplaySnapshotShadowBuilder(
-                    snapshot_shadow_evaluator=self.snapshot_shadow_evaluator(),
-                ),
-                replay_fallback_result_builder=PositionMetricsReplayFallbackResultBuilder(),
-            ),
         )
 
         async def fetch(position: dict):
@@ -122,86 +89,6 @@ class PositionMetricsBootstrap:
                 mint_fee_attos=self.mint_fee_attos,
             )
         return self._replay_entrypoint
-
-    def swap_history_exactness_solver(self):
-        if self._swap_history_exactness_solver is None:
-            self._swap_history_exactness_solver = PositionMetricsSwapHistoryExactnessSolver(
-                validator=PositionMetricsSwapHistoryExactnessValidator(
-                    precheck=PositionMetricsSwapHistoryPrecheck(
-                        to_decimal=self.to_decimal,
-                        history_liquidity=self.history_liquidity,
-                    ),
-                    alignment_checker=PositionMetricsSwapHistoryAlignmentChecker(
-                        replay_entrypoint=self.replay_entrypoint(),
-                        fee_to_opening_mint_resolver=PositionMetricsFeeToOpeningMintResolver(
-                            history_liquidity_before=self.history_liquidity_before,
-                            split_protocol_fee_redeemable_attos=self.split_protocol_fee_redeemable_attos,
-                            from_attos=self.from_attos,
-                            epsilon=self.EPSILON,
-                        ),
-                        attos_within_tolerance=self.attos_within_tolerance,
-                        to_attos=self.to_attos,
-                    ),
-                ),
-                materializer=PositionMetricsSwapHistoryExactMaterializer(
-                    from_attos=self.from_attos,
-                    normalize_non_negative=self.normalize_non_negative,
-                    serialize_decimal=self.serialize_decimal,
-                ),
-            )
-        return self._swap_history_exactness_solver
-
-    def history_enricher(self):
-        if self._history_enricher is None:
-            self._history_enricher = PositionMetricsHistoryEnricher(
-                to_decimal=self.to_decimal,
-                history_liquidity=self.history_liquidity,
-                try_enrich_metrics_with_swap_history=self.swap_history_exactness_solver().solve,
-                semantic_resolver=PositionMetricsHistorySemanticResolver(
-                    no_swap_exact_resolver=PositionMetricsNoSwapExactResolver(
-                        serialize_decimal=self.serialize_decimal,
-                    ),
-                    estimated_fallback_resolver=PositionMetricsEstimatedFallbackResolver(
-                        build_estimated_metrics_from_liquidity_history=self.build_estimated_metrics_from_liquidity_history,
-                    ),
-                ),
-            )
-        return self._history_enricher
-
-    def payload_enricher(self):
-        if self._payload_enricher is None:
-            self._payload_enricher = PositionMetricsPayloadEnricher(
-                payload_semantic_builder=PositionMetricsPayloadSemanticBuilder(
-                    build_partial_metrics=self.build_partial_metrics,
-                    account_payload_to_string=self.account_payload_to_string,
-                ),
-                payload_decision_resolver=PositionMetricsPayloadDecisionResolver(),
-                enrich_metrics_with_history=self.history_enricher().enrich,
-                apply_data_quality_warnings=self.apply_data_quality_warnings,
-                build_transaction_gap_summary=self.build_transaction_gap_summary,
-            )
-        return self._payload_enricher
-
-    def payload_planner(self):
-        if self._payload_planner is None:
-            self._payload_planner = PositionMetricsPayloadPlanner(
-                payload_semantic_builder=PositionMetricsPayloadSemanticBuilder(
-                    build_partial_metrics=self.build_partial_metrics,
-                    account_payload_to_string=self.account_payload_to_string,
-                ),
-                payload_decision_resolver=PositionMetricsPayloadDecisionResolver(),
-                apply_data_quality_warnings=self.apply_data_quality_warnings,
-                build_transaction_gap_summary=self.build_transaction_gap_summary,
-            )
-        return self._payload_planner
-
-    def entrypoint(self):
-        if self._entrypoint is None:
-            self._entrypoint = PositionMetricsEntrypoint(
-                payload_planner=self.payload_planner(),
-                payload_enricher=self.payload_enricher(),
-            )
-        return self._entrypoint
 
     def projection_payload_adapter(self):
         if self._projection_payload_adapter is None:

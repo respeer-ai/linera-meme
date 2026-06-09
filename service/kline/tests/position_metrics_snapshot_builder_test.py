@@ -1217,6 +1217,97 @@ class PositionMetricsSnapshotBuilderTest(unittest.TestCase):
         self.assertEqual(exact_principal['trailing_24h_fee_amount_0'], '0.213698093307388746')
         self.assertEqual(exact_principal['trailing_24h_fee_amount_1'], '0.140590529414606629')
 
+    def test_build_materialization_plan_keeps_fee_basis_before_partial_remove(self):
+        source_repository = self.FakeSnapshotSourceRepository()
+        pool_application_id = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain-a'
+        bootstrap_owner = '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc@chain-user'
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-user'
+        source_repository.pool_transaction_history[pool_application_id] = [
+            {
+                'transaction_id': 1,
+                'transaction_type': 'AddLiquidity',
+                'amount_0_in': '100',
+                'amount_0_out': '0',
+                'amount_1_in': '100',
+                'amount_1_out': '0',
+                'liquidity': '100',
+                'created_at': 1_800_000_000_000,
+                'from_account': bootstrap_owner,
+            },
+            {
+                'transaction_id': 2,
+                'transaction_type': 'AddLiquidity',
+                'amount_0_in': '50',
+                'amount_0_out': '0',
+                'amount_1_in': '50',
+                'amount_1_out': '0',
+                'liquidity': '50',
+                'created_at': 1_800_000_001_000,
+                'from_account': owner,
+            },
+            {
+                'transaction_id': 3,
+                'transaction_type': 'BuyToken0',
+                'amount_0_in': '0',
+                'amount_0_out': '11.930155067776952767',
+                'amount_1_in': '13',
+                'amount_1_out': '0',
+                'liquidity': None,
+                'created_at': 1_800_000_002_000,
+                'from_account': 'buyer@chain-user',
+            },
+            {
+                'transaction_id': 4,
+                'transaction_type': 'RemoveLiquidity',
+                'amount_0_in': '0',
+                'amount_0_out': '18.408945578823790166',
+                'amount_1_in': '0',
+                'amount_1_out': '21.732899974076653249',
+                'liquidity': '20',
+                'created_at': 1_800_000_003_000,
+                'from_account': owner,
+            },
+            {
+                'transaction_id': 5,
+                'transaction_type': 'BuyToken0',
+                'amount_0_in': '0',
+                'amount_0_out': '5.633290969822070596',
+                'amount_1_in': '7',
+                'amount_1_out': '0',
+                'liquidity': None,
+                'created_at': 1_800_000_004_000,
+                'from_account': 'buyer@chain-user',
+            },
+        ]
+        source_repository.position_liquidity_history[(owner, pool_application_id)] = [
+            source_repository.pool_transaction_history[pool_application_id][1],
+            source_repository.pool_transaction_history[pool_application_id][3],
+        ]
+        builder = PositionMetricsSnapshotBuilder(
+            snapshot_materialization_inputs_repository=source_repository,
+            settled_output_batch_factory=SettledOutputBatchFactory(),
+        )
+
+        plan = builder.build_materialization_plan(
+            self._build_output_batch([
+                {
+                    'settled_output_type': 'settled_trade',
+                    'pool_application_id': pool_application_id,
+                    'pool_chain_id': 'chain-a',
+                }
+            ])
+        )
+
+        exact_principal = plan['position_replacements'][0]['states'][0]['state_payload_json']['exact_current_principal']
+        self.assertEqual(exact_principal['principal_amount_0_current'], '26.303956834532374101')
+        self.assertEqual(exact_principal['principal_amount_1_current'], '34.215384615384615384')
+        self.assertEqual(exact_principal['trailing_24h_fee_window_start_ms'], 1_799_913_604_000)
+        self.assertEqual(exact_principal['trailing_24h_fee_window_end_ms'], 1_800_000_004_000)
+        self.assertEqual(exact_principal['trailing_24h_fee_amount_0'], '0.009190629996034949')
+        self.assertEqual(exact_principal['trailing_24h_fee_amount_1'], '0')
+        self.assertEqual(exact_principal['exact_current_principal_case'], 'post_basis_liquidity_changes_with_intervening_swaps')
+        self.assertEqual(exact_principal['post_basis_remove_count'], 1)
+
 
     def test_build_materialization_plan_counts_position_opened_inside_24h_window_from_zero_fee_baseline(self):
         source_repository = self.FakeSnapshotSourceRepository()

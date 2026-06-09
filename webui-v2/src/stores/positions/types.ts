@@ -1,5 +1,5 @@
 export type PositionStatus = 'active' | 'closed' | 'virtual'
-export type PositionStatusFilter = PositionStatus | 'all'
+export type PositionStatusFilter = 'active' | 'closed' | 'all'
 
 export interface Position {
   pool_application: string
@@ -23,6 +23,7 @@ export interface Position {
   protocol_fee_receiver_account?: string | null
   protocol_fee_reference_amount0?: string | null
   protocol_fee_reference_amount1?: string | null
+  virtual_current_liquidity?: string | null
 }
 
 export interface PositionsResponse {
