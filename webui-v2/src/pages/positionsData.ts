@@ -85,11 +85,11 @@ const amountString = (value: number) => (
   Number.isFinite(value) && value > 0 ? String(value) : '0'
 )
 
-const virtualInitialLiquidity = (position: Position): string => (
+export const virtualInitialLiquidity = (position: Position): string => (
   positiveAmount(position.virtual_current_liquidity) ? String(position.virtual_current_liquidity) : '0'
 )
 
-const virtualInitialTokenAmount = (
+export const virtualInitialTokenAmount = (
   virtualLiquidity: string,
   protocolLiquidity: string | null | undefined,
   protocolTokenAmount: string | null | undefined,

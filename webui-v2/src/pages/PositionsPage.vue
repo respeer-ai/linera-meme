@@ -119,7 +119,19 @@
                   <span class='metric-label'>Pool share</span>
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionPoolShareLabel(position) }}</span>
-                    <span>{{ formatLiquidity(positionDisplayLiquidity(position).liquidity) }} LMM</span>
+                    <span class='pooled-token-line'>
+                      <span>{{ formatLiquidity(positionDisplayLiquidity(position).liquidity) }} LMM</span>
+                      <span v-if='poolShareComposition(position).length > 1' class='metric-info'>i
+                        <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                          <table class='tooltip-table'>
+                            <tr v-for='item in poolShareComposition(position)' :key='item.label' class='tooltip-row'>
+                              <td class='tooltip-cell-value'>{{ item.value }} {{ item.unit }}</td>
+                              <td class='tooltip-cell-label'>{{ item.label }}<span v-if='!item.collectable' class='tooltip-claim-tag'>not claimable</span></td>
+                            </tr>
+                          </table>
+                        </q-tooltip>
+                      </span>
+                    </span>
                   </span>
                 </div>
                 <div class='position-metric'>
@@ -127,11 +139,29 @@
                   <span class='metric-value metric-value-stack'>
                     <span class='pooled-token-line'>
                       <span>{{ pooledTokenLabel(position, position.token_0) }}</span>
-                      <span v-if='pooledTokenIncludesVirtual(position, position.token_0)' class='virtual-bootstrap-tag'>Includes virtual</span>
+                      <span v-if='pooledTokenComposition(position, position.token_0).length > 1' class='metric-info'>i
+                        <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                          <table class='tooltip-table'>
+                            <tr v-for='item in pooledTokenComposition(position, position.token_0)' :key='item.label' class='tooltip-row'>
+                              <td class='tooltip-cell-value'>{{ item.value }} {{ item.unit }}</td>
+                              <td class='tooltip-cell-label'>{{ item.label }}<span v-if='!item.collectable' class='tooltip-claim-tag'>not claimable</span></td>
+                            </tr>
+                          </table>
+                        </q-tooltip>
+                      </span>
                     </span>
                     <span class='pooled-token-line'>
                       <span>{{ pooledTokenLabel(position, position.token_1) }}</span>
-                      <span v-if='pooledTokenIncludesVirtual(position, position.token_1)' class='virtual-bootstrap-tag'>Includes virtual</span>
+                      <span v-if='pooledTokenComposition(position, position.token_1).length > 1' class='metric-info'>i
+                        <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
+                          <table class='tooltip-table'>
+                            <tr v-for='item in pooledTokenComposition(position, position.token_1)' :key='item.label' class='tooltip-row'>
+                              <td class='tooltip-cell-value'>{{ item.value }} {{ item.unit }}</td>
+                              <td class='tooltip-cell-label'>{{ item.label }}<span v-if='!item.collectable' class='tooltip-claim-tag'>not claimable</span></td>
+                            </tr>
+                          </table>
+                        </q-tooltip>
+                      </span>
                     </span>
                   </span>
                 </div>
@@ -212,6 +242,8 @@ import {
   positionMetricsKey,
   selectDisplayPositions,
   selectRewardPositions,
+  virtualInitialLiquidity,
+  virtualInitialTokenAmount,
   virtualPositionMetricsFor,
 } from './positionsData'
 
@@ -342,11 +374,16 @@ const summaryVirtualPositionMetrics = (position: Pick<Position, 'pool_applicatio
   virtualPositionMetricsFor(position, summaryPositionMetricsSnapshots.value)
 )
 const rewardPositions = computed(() => selectRewardPositions(summaryPositions.value, owner.value))
-const positionRewardLiquidity = (position: Position) => positionDisplayLiquidityAmounts(
-  position,
-  summaryPositionMetrics(position),
-  summaryVirtualPositionMetrics(position),
-).liquidity
+const positionRewardLiquidity = (position: Position) => {
+  const display = positionDisplayLiquidityAmounts(
+    position,
+    summaryPositionMetrics(position),
+    summaryVirtualPositionMetrics(position),
+  )
+  const virtualInitial = parseFloat(position.virtual_current_liquidity || '0')
+  const total = parseFloat(display.liquidity) - virtualInitial
+  return String(Number.isFinite(total) && total > 0 ? total : 0)
+}
 const formattedLiquidityShare = computed(() => {
   const total = rewardPositions.value.reduce((sum, position) => (
     sum + Number.parseFloat(positionRewardLiquidity(position))
@@ -426,20 +463,83 @@ const positionDisplayLiquidity = (position: Position) => positionDisplayLiquidit
   positionMetrics(position),
   positionVirtualMetrics(position),
 )
+interface CompositionItem {
+  label: string
+  value: string
+  unit: string
+  collectable: boolean
+}
+
+const poolHasVirtualInitialLiquidity = (position: Position): boolean => {
+  const app = tokenApplication(position.token_0)
+  if (!app?.spec) return false
+  try {
+    const spec = JSON.parse(app.spec) as meme.Meme
+    return spec.virtualInitialLiquidity === true
+  } catch {
+    return false
+  }
+}
+
+const poolShareComposition = (position: Position): CompositionItem[] => {
+  const metrics = positionMetrics(position)
+  const virtualMetrics = positionVirtualMetrics(position)
+  const items: CompositionItem[] = []
+
+  const actualLP = metrics?.position_liquidity || position.current_liquidity || '0'
+  items.push({ label: 'Your position', value: formatLiquidity(actualLP), unit: 'LMM', collectable: true })
+
+  const protocolLP = virtualMetrics?.position_liquidity
+  if (parseFloat(protocolLP || '0') > 0) {
+    items.push({ label: 'Protocol fees', value: formatLiquidity(protocolLP!), unit: 'LMM', collectable: true })
+  }
+
+  const virtualLP = virtualInitialLiquidity(position)
+  if (parseFloat(virtualLP) > 0) {
+    items.push({ label: 'Virtual initial', value: formatLiquidity(virtualLP), unit: 'LMM', collectable: false })
+  }
+
+  return items
+}
+
+const pooledTokenComposition = (position: Position, token: string): CompositionItem[] => {
+  const metrics = positionMetrics(position)
+  const virtualMetrics = positionVirtualMetrics(position)
+  const ticker = tokenTicker(token)
+  const isToken0 = token === position.token_0
+  const items: CompositionItem[] = []
+
+  const actualAmount = isToken0 ? metrics?.redeemable_amount0 : metrics?.redeemable_amount1
+  items.push({ label: 'Your pooled tokens', value: formatLiquidity(actualAmount || '0'), unit: ticker, collectable: true })
+
+  const protocolFee = isToken0 ? virtualMetrics?.protocol_fee_amount0 : virtualMetrics?.protocol_fee_amount1
+  if (parseFloat(protocolFee || '0') > 0) {
+    items.push({ label: 'Protocol fees', value: formatLiquidity(protocolFee!), unit: ticker, collectable: true })
+  }
+
+  const poolVirtual = poolHasVirtualInitialLiquidity(position)
+  const virtualTokenAmount = virtualInitialTokenAmount(
+    virtualInitialLiquidity(position),
+    virtualMetrics?.position_liquidity,
+    isToken0 ? virtualMetrics?.protocol_fee_amount0 : virtualMetrics?.protocol_fee_amount1,
+    isToken0 ? position.virtual_initial_amount0 : position.virtual_initial_amount1,
+  )
+  if (poolVirtual && parseFloat(virtualTokenAmount) > 0) {
+    if (isToken0) {
+      items.push({ label: 'Initial', value: formatLiquidity(virtualTokenAmount), unit: ticker, collectable: true })
+    } else {
+      items.push({ label: 'Virtual initial', value: formatLiquidity(virtualTokenAmount), unit: ticker, collectable: false })
+    }
+  }
+
+  return items
+}
+
 const pooledTokenLabel = (position: Position, token: string) => {
   const liquidity = positionDisplayLiquidity(position)
   const amount = tokenAmountFor(position, token, liquidity.amount0, liquidity.amount1)
   return `${formatLiquidity(amount || '0')} ${tokenTicker(token)}`
 }
-const pooledTokenIncludesVirtual = (position: Position, token: string) => (
-  token === constants.LINERA_NATIVE_ID &&
-  Number.parseFloat(tokenAmountFor(
-    position,
-    token,
-    positionVirtualMetrics(position)?.protocol_fee_amount0,
-    positionVirtualMetrics(position)?.protocol_fee_amount1,
-  ) || '0') > 0
-)
 const positionShareRatio = (position: Position) => {
   const ratio = positionDisplayShareRatio(position, positionMetrics(position), positionVirtualMetrics(position))
 
@@ -856,11 +956,67 @@ usePageSeo(() => ({
   white-space: normal !important
   display: block
 
+:global(.tooltip-table)
+  border-collapse: collapse
+
+:global(.tooltip-row + .tooltip-row)
+  & > td
+    padding-top: 5px
+    border-top: 1px solid rgba(255, 255, 255, 0.08)
+
+:global(.tooltip-cell-value)
+  padding-right: 14px
+  font-weight: 700
+  white-space: nowrap
+  color: #d7dde7
+  vertical-align: baseline
+
+:global(.tooltip-cell-label)
+  color: #9aa0ab
+  white-space: nowrap
+  vertical-align: baseline
+
+:global(.reward-tooltip.q-tooltip .tooltip-arrow)
+  position: absolute
+  top: -6px
+  left: 50%
+  transform: translateX(-50%)
+  width: 0
+  height: 0
+  border-left: 6px solid transparent
+  border-right: 6px solid transparent
+  border-bottom: 6px solid rgba(16, 18, 24, 0.96)
+
+:global(.reward-tooltip.q-tooltip .tooltip-arrow-border)
+  position: absolute
+  top: -7px
+  left: 50%
+  transform: translateX(-50%)
+  width: 0
+  height: 0
+  border-left: 7px solid transparent
+  border-right: 7px solid transparent
+  border-bottom: 7px solid rgba(255, 255, 255, 0.1)
+
 :global(.reward-tooltip.q-tooltip p)
   margin: 0
 
 :global(.reward-tooltip.q-tooltip p + p)
   margin-top: 5px
+
+:global(.tooltip-claim-tag)
+  display: inline-flex
+  align-items: center
+  min-height: 18px
+  margin-left: 8px
+  padding: 0 7px
+  border-radius: 999px
+  background: rgba(255, 255, 255, 0.10)
+  color: #9aa0ab
+  font-size: 11px
+  font-weight: 700
+  line-height: 1
+  vertical-align: middle
 
 .positions-section
   margin-top: 34px
