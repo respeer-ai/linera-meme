@@ -167,7 +167,6 @@ class PositionMetricsReadModel:
             current_total_supply is None
             or fee_free_total_supply is None
             or current_total_supply <= Decimal('0')
-            or current_total_supply <= fee_free_total_supply
         ):
             return None
 
@@ -176,15 +175,19 @@ class PositionMetricsReadModel:
         if current_reserve_0 is None or current_reserve_1 is None:
             return None
 
-        protocol_fee_liquidity = self._owner_protocol_fee_liquidity(
+        minted_fee = self._owner_protocol_fee_liquidity(
             position=position,
             position_basis_snapshot=position_basis_snapshot,
             current_total_supply=current_total_supply,
             fee_free_total_supply=fee_free_total_supply,
         )
-        if protocol_fee_liquidity is None or protocol_fee_liquidity <= Decimal('0'):
+        pending_fee = self._pending_protocol_fee_liquidity(pool_snapshot)
+        protocol_fee_liquidity = (minted_fee or Decimal('0')) + pending_fee
+        if protocol_fee_liquidity <= Decimal('0'):
             return None
-        protocol_fee_ratio = protocol_fee_liquidity / current_total_supply
+
+        effective_total_supply = current_total_supply + pending_fee
+        protocol_fee_ratio = protocol_fee_liquidity / effective_total_supply
         protocol_fee_amount0 = current_reserve_0 * protocol_fee_ratio
         protocol_fee_amount1 = current_reserve_1 * protocol_fee_ratio
         trailing_fee_amount0 = position_basis_snapshot.trailing_24h_fee_amount_0() or '0'
@@ -198,7 +201,7 @@ class PositionMetricsReadModel:
             'status': position['status'],
             'current_liquidity': position['current_liquidity'],
             'position_liquidity': self._serialize_decimal(protocol_fee_liquidity),
-            'current_total_supply': self._serialize_decimal(current_total_supply),
+            'current_total_supply': self._serialize_decimal(effective_total_supply),
             'exact_share_ratio': self._serialize_decimal(protocol_fee_ratio),
             'redeemable_amount0': self._serialize_decimal(protocol_fee_amount0),
             'redeemable_amount1': self._serialize_decimal(protocol_fee_amount1),
@@ -223,6 +226,34 @@ class PositionMetricsReadModel:
                 'Protocol yield is projected from parsed pool state.'
             ),
         }
+
+    def _pending_protocol_fee_liquidity(self, pool_snapshot) -> Decimal:
+        fee_free_reserve_0 = self._to_decimal(pool_snapshot.fee_free_reserve_0())
+        fee_free_reserve_1 = self._to_decimal(pool_snapshot.fee_free_reserve_1())
+        current_reserve_0 = self._to_decimal(pool_snapshot.current_reserve_0())
+        current_reserve_1 = self._to_decimal(pool_snapshot.current_reserve_1())
+        if (
+            fee_free_reserve_0 is None
+            or fee_free_reserve_1 is None
+            or current_reserve_0 is None
+            or current_reserve_1 is None
+        ):
+            return Decimal('0')
+        fee_free_k2 = fee_free_reserve_0 * fee_free_reserve_1
+        current_k2 = current_reserve_0 * current_reserve_1
+        if fee_free_k2 <= Decimal('0') or current_k2 <= fee_free_k2:
+            return Decimal('0')
+        fee_free_k = fee_free_k2.sqrt()
+        current_k = current_k2.sqrt()
+        if current_k <= fee_free_k:
+            return Decimal('0')
+        fee_free_total_supply = self._to_decimal(pool_snapshot.fee_free_total_supply())
+        if fee_free_total_supply is None or fee_free_total_supply <= Decimal('0'):
+            return Decimal('0')
+        denominator = current_k * Decimal('5') + fee_free_k
+        if denominator <= Decimal('0'):
+            return Decimal('0')
+        return fee_free_total_supply * (current_k - fee_free_k) / denominator
 
     def _position_basis_snapshot(self, snapshot) -> PositionMetricsPositionBasisSnapshot:
         if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):
