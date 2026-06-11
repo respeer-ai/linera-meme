@@ -56,6 +56,9 @@ class PositionMetricsSnapshotMaterializer:
                 int(o.get('transaction_id') or 0),
             ))
             for event in events:
+                tx_id = int(event.get('transaction_id') or 0)
+                if tx_id <= state.get('last_transaction_id', 0):
+                    continue
                 state = self.snapshot_builder.apply_pool_state(state, event)
             pool_states.append(
                 self._pool_state_row_from_attos(state, pool_application_id, pool_chain_id)
@@ -137,6 +140,9 @@ class PositionMetricsSnapshotMaterializer:
                     'pool_chain_id': output.get('pool_chain_id'),
                     'state': self._position_state_attos_from_row(row),
                 }
+            tx_id = int(output.get('transaction_id') or 0)
+            if tx_id <= positions[key]['state'].get('last_transaction_id', 0):
+                continue
             positions[key]['state'] = (
                 self.snapshot_builder.apply_position_state(
                     positions[key]['state'], output,
@@ -166,6 +172,7 @@ class PositionMetricsSnapshotMaterializer:
                 'current_round_liquidity_event_count': 0,
                 'current_round_started_at': None,
                 'current_round_started_transaction_id': None,
+                'last_transaction_id': 0,
             }
         payload = row.get('state_payload_json') or {}
         return {
@@ -181,6 +188,7 @@ class PositionMetricsSnapshotMaterializer:
             'current_round_started_transaction_id': (
                 payload.get('current_round_started_transaction_id')
             ),
+            'last_transaction_id': int(payload.get('last_transaction_id') or 0),
         }
 
     def _position_state_row_from_attos(
@@ -223,6 +231,7 @@ class PositionMetricsSnapshotMaterializer:
                 'current_round_started_transaction_id': (
                     state.get('current_round_started_transaction_id')
                 ),
+                'last_transaction_id': state.get('last_transaction_id', 0),
                 'current_round_trade_count_before_basis': 0,
                 'trade_count_between_basis_and_fee_free_basis': 0,
                 'latest_liquidity_transaction': {},

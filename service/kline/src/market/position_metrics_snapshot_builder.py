@@ -148,6 +148,9 @@ class PositionMetricsSnapshotBuilder:
         state['current_round_liquidity_event_count'] = (
             state.get('current_round_liquidity_event_count', 0) + 1
         )
+        state['last_transaction_id'] = max(
+            state.get('last_transaction_id', 0), tx_id
+        )
         return state
 
     def _build_pool_state(
