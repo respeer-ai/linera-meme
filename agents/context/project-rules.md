@@ -67,6 +67,12 @@ Authority: High
 - Treat the limit as an explicit virtual-memory cap such as `ulimit -v`, not as a requirement that the host must have the same amount of physical RAM
 - For Wasmer-heavy Rust suites, increase the virtual-memory cap gradually if module instantiation still fails with `os error 12`; the required cap can be higher in sandboxed or containerized environments than on a developer's local machine
 - For heavy Rust tests, reduce parallelism and memory pressure further
+- For `service/kline` Python tests, run with `cd service/kline && python3 -m pytest tests/<test_file>.py -x -v`
+- For `service/kline` regression check, run `cd service/kline && python3 -m pytest tests/ -x -q --timeout=60`
+- All kline observability state updates must go through incremental `apply_*` pure functions, never through full-history replay in the normal processing path
+- Full-history replay is reserved for manual verification only; it must reuse the same `apply_*` functions as the incremental path
+- Every observability test must verify economic correctness against Uniswap V2 AMM formulas with concrete input values and independently computed expected outputs
+- Do not introduce new full-history replay loops in the observability write path
 - For async contract flows, test both happy path and message-chain failure or duplication edges
 
 ## Checklist

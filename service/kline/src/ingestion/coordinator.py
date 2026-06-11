@@ -25,11 +25,16 @@ class IngestionCoordinator:
         except BlockNotAvailableError:
             raise
         except Exception as error:
+            error_text = str(error)
+            if 'Blobs not found' in error_text:
+                raise BlockNotAvailableError(
+                    f'Blobs not found for {cursor.chain_id}@{next_height}: {error_text}'
+                ) from error
             self.raw_repository.record_failed_ingest_run(
                 cursor.chain_id,
                 next_height,
                 mode,
-                str(error),
+                error_text,
             )
-            self.raw_repository.mark_failure(cursor.chain_id, next_height, str(error))
+            self.raw_repository.mark_failure(cursor.chain_id, next_height, error_text)
             raise

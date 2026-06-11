@@ -29,6 +29,8 @@ class PoolStateSnapshotRepository:
                     fee_free_reserve_0 VARCHAR(64) NOT NULL,
                     fee_free_reserve_1 VARCHAR(64) NOT NULL,
                     fee_free_total_supply VARCHAR(64) NOT NULL,
+                    total_minted_protocol_fee VARCHAR(64) NOT NULL DEFAULT '0',
+                    pending_protocol_fee VARCHAR(64) NOT NULL DEFAULT '0',
                     source_event_key VARCHAR(512) NOT NULL,
                     state_payload_json LONGTEXT NOT NULL,
                     indexed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -42,6 +44,7 @@ class PoolStateSnapshotRepository:
             )
             self._migrate_pool_application_id_width(cursor)
             self._migrate_legacy_pool_application_accounts(cursor)
+            self._migrate_protocol_fee_columns(cursor)
             self.connection.commit()
         finally:
             cursor.close()
@@ -82,6 +85,32 @@ class PoolStateSnapshotRepository:
             '''
         )
 
+    def _column_exists(self, cursor, column_name: str) -> bool:
+        cursor.execute(
+            '''
+            SELECT COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+            ''',
+            (self.pool_state_table, column_name),
+        )
+        return cursor.fetchone() is not None
+
+    def _migrate_protocol_fee_columns(self, cursor) -> None:
+        if not self._column_exists(cursor, 'total_minted_protocol_fee'):
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.pool_state_table}
+                ADD COLUMN total_minted_protocol_fee VARCHAR(64) NOT NULL DEFAULT '0'
+                ''',
+            )
+        if not self._column_exists(cursor, 'pending_protocol_fee'):
+            cursor.execute(
+                f'''
+                ALTER TABLE {self.pool_state_table}
+                ADD COLUMN pending_protocol_fee VARCHAR(64) NOT NULL DEFAULT '0'
+                ''',
+            )
+
     def upsert_pool_states(self, states: list[dict[str, object]]) -> int:
         if not states:
             return 0
@@ -107,9 +136,11 @@ class PoolStateSnapshotRepository:
                         fee_free_reserve_0,
                         fee_free_reserve_1,
                         fee_free_total_supply,
+                        total_minted_protocol_fee,
+                        pending_protocol_fee,
                         source_event_key,
                         state_payload_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         pool_application_id = VALUES(pool_application_id),
                         pool_chain_id = VALUES(pool_chain_id),
@@ -126,6 +157,8 @@ class PoolStateSnapshotRepository:
                         fee_free_reserve_0 = VALUES(fee_free_reserve_0),
                         fee_free_reserve_1 = VALUES(fee_free_reserve_1),
                         fee_free_total_supply = VALUES(fee_free_total_supply),
+                        total_minted_protocol_fee = VALUES(total_minted_protocol_fee),
+                        pending_protocol_fee = VALUES(pending_protocol_fee),
                         source_event_key = VALUES(source_event_key),
                         state_payload_json = VALUES(state_payload_json)
                     ''',
@@ -146,6 +179,8 @@ class PoolStateSnapshotRepository:
                         state['fee_free_reserve_0'],
                         state['fee_free_reserve_1'],
                         state['fee_free_total_supply'],
+                        state.get('total_minted_protocol_fee', '0'),
+                        state.get('pending_protocol_fee', '0'),
                         state['source_event_key'],
                         self.fingerprint.build_json(state.get('state_payload_json') or {}),
                     ),

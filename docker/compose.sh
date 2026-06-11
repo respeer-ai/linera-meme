@@ -28,7 +28,6 @@ COMPILE=0
 GIT_BRANCH=respeer-maas-testnet_conway-7e52827f-2026-03-15
 COPY_TARGET=${COPY_TARGET:-0}
 MULTI_OWNER_INITIAL_BALANCE=${MULTI_OWNER_INITIAL_BALANCE:-4.5}
-LINERA_TIMEOUT_SECONDS=${LINERA_TIMEOUT_SECONDS:-180}
 SUDO_PASSWORD=${SUDO_PASSWORD:-}
 LINERA_RETRY_ATTEMPTS=${LINERA_RETRY_ATTEMPTS:-10}
 
@@ -185,12 +184,13 @@ function log_step() {
 }
 
 function external_proxy_env_args() {
-    local proxy="${HTTPS_PROXY:-${https_proxy:-${ALL_PROXY:-${all_proxy:-}}}}"
-    if [ -n "$proxy" ]; then
-        printf 'all_proxy=%s\nhttp_proxy=%s\nhttps_proxy=%s\nALL_PROXY=%s\nHTTP_PROXY=%s\nHTTPS_PROXY=%s\n' \
-            "$proxy" "$proxy" "$proxy" \
-            "$proxy" "$proxy" "$proxy"
-    fi
+    local all_proxy_val="${ALL_PROXY:-${all_proxy:-}}"
+    local http_proxy_val="${HTTP_PROXY:-${http_proxy:-}}"
+    local https_proxy_val="${HTTPS_PROXY:-${https_proxy:-}}"
+
+    [ -n "$all_proxy_val" ] && printf 'all_proxy=%s\nALL_PROXY=%s\n' "$all_proxy_val" "$all_proxy_val"
+    [ -n "$http_proxy_val" ] && printf 'http_proxy=%s\nHTTP_PROXY=%s\n' "$http_proxy_val" "$http_proxy_val"
+    [ -n "$https_proxy_val" ] && printf 'https_proxy=%s\nHTTPS_PROXY=%s\n' "$https_proxy_val" "$https_proxy_val"
 }
 
 function linera_env_args() {
@@ -202,7 +202,7 @@ function run_linera() {
     shift
 
     log_step "START $step_name"
-    if ! env $(linera_env_args) timeout --foreground "${LINERA_TIMEOUT_SECONDS}s" linera "$@" >> "$COMPOSE_DEBUG_LOG" 2>&1; then
+    if ! env $(linera_env_args) linera "$@" >> "$COMPOSE_DEBUG_LOG" 2>&1; then
         log_step "FAIL $step_name"
         tail -n 80 "$COMPOSE_DEBUG_LOG" >&2
         return 1
@@ -236,7 +236,7 @@ function run_linera_capture() {
     local stdout_file
     stdout_file=$(mktemp)
     log_step "START $step_name"
-    if ! env $(linera_env_args) timeout --foreground "${LINERA_TIMEOUT_SECONDS}s" linera "$@" > "$stdout_file" 2>> "$COMPOSE_DEBUG_LOG"; then
+    if ! env $(linera_env_args) linera "$@" > "$stdout_file" 2>> "$COMPOSE_DEBUG_LOG"; then
         log_step "FAIL $step_name"
         rm -f "$stdout_file"
         tail -n 80 "$COMPOSE_DEBUG_LOG" >&2
@@ -272,15 +272,28 @@ function create_wallet() {
     new_chain=$3
     requested_chain_id=""
 
-    rm -rf $WALLET_DIR/$wallet_name/$wallet_index
-    mkdir -p $WALLET_DIR/$wallet_name/$wallet_index
+    local attempt=1
+    while [ $attempt -le 3 ]; do
+        rm -rf $WALLET_DIR/$wallet_name/$wallet_index
+        mkdir -p $WALLET_DIR/$wallet_name/$wallet_index
 
-    run_linera_retry "wallet_init ${wallet_name}/${wallet_index}" 3 \
-           --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
-           --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
-           --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
-           wallet init \
-           --faucet $FAUCET_URL || return 1
+        if run_linera "wallet_init ${wallet_name}/${wallet_index} attempt=${attempt}/3" \
+               --wallet $WALLET_DIR/$wallet_name/$wallet_index/wallet.json \
+               --keystore $WALLET_DIR/$wallet_name/$wallet_index/keystore.json \
+               --storage rocksdb://$WALLET_DIR/$wallet_name/$wallet_index/client.db \
+               wallet init \
+               --faucet $FAUCET_URL; then
+            break
+        fi
+
+        if [ $attempt -eq 3 ]; then
+            log_step "ABORT wallet_init ${wallet_name}/${wallet_index} exhausted retries"
+            return 1
+        fi
+
+        sleep 5
+        attempt=$((attempt + 1))
+    done
 
     # Init wallet from faucet
     if [ "x$new_chain" = "x1" ]; then

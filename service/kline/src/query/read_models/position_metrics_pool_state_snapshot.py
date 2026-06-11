@@ -35,6 +35,16 @@ class PositionMetricsPoolStateSnapshot:
             return None
         return self.payload.get('fee_free_total_supply')
 
+    def total_minted_protocol_fee(self):
+        if self.payload is None:
+            return None
+        return self.payload.get('total_minted_protocol_fee')
+
+    def pending_protocol_fee(self):
+        if self.payload is None:
+            return None
+        return self.payload.get('pending_protocol_fee')
+
     def last_transaction_id(self):
         if self.payload is None:
             return None

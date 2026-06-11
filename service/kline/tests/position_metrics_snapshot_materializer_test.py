@@ -11,14 +11,32 @@ if str(SRC_ROOT) not in sys.path:
 
 
 from market.position_metrics_snapshot_materializer import PositionMetricsSnapshotMaterializer  # noqa: E402
+from market.position_metrics_snapshot_builder import PositionMetricsSnapshotBuilder  # noqa: E402
 from market.settled_output_batch_factory import SettledOutputBatchFactory  # noqa: E402
+from position_metrics_swap_math_support import PositionMetricsSwapMathSupport  # noqa: E402
+from position_metrics_value_support import PositionMetricsValueSupport  # noqa: E402
 
 
 class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
+    ATTOS_SCALE = 10 ** 18
+
+    class FakeValueSupport:
+        def to_attos(self, value):
+            if value is None:
+                return None
+            return int(value)
+
+        def from_attos(self, value):
+            return value
+
+        def serialize_decimal(self, value):
+            return str(value)
+
     class FakeSnapshotBuilder:
         def __init__(self, *, should_fail=False):
             self.should_fail = should_fail
             self.calls = []
+            self.value_support = PositionMetricsSnapshotMaterializerTest.FakeValueSupport()
 
         def build_materialization_plan(self, output_batch):
             self.calls.append(output_batch)
@@ -37,66 +55,176 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
                 'affected_position_count': 1,
             }
 
+        def apply_pool_state(self, state, output):
+            return state
+
+        def _serialize_attos(self, value):
+            return str(value or 0)
+
     class FakePositionStateSnapshotRepository:
-        def __init__(self):
+        def __init__(self, stored_state=None):
             self.calls = []
+            self.stored_state = stored_state
 
         def replace_position_states(self, **kwargs):
             self.calls.append(dict(kwargs))
             return len(kwargs['states'])
 
+        def get_position_state(self, *, owner, pool_application_id):
+            return self.stored_state
+
     class FakePoolStateSnapshotRepository:
-        def __init__(self):
+        def __init__(self, stored_state=None):
             self.calls = []
+            self.stored_state = stored_state
 
         def upsert_pool_states(self, states):
             self.calls.append(list(states))
             return len(states)
 
-    def test_materialize_outputs_persists_replacements_and_pool_states(self):
-        position_repository = self.FakePositionStateSnapshotRepository()
-        pool_repository = self.FakePoolStateSnapshotRepository()
+        def get_pool_state(self, *, pool_application_id):
+            return self.stored_state
+
+
+    def _real_snapshot_builder(self):
+        from decimal import Decimal
+        value_support = PositionMetricsValueSupport(
+            attos_scale=self.ATTOS_SCALE,
+            display_quantum=Decimal('0.000000000000000001'),
+            epsilon=Decimal('0.000000000001'),
+            liquidity_mint_tolerance_attos=100,
+            swap_out_tolerance_attos=1,
+        )
+        swap_math = PositionMetricsSwapMathSupport(
+            to_attos=value_support.to_attos,
+            from_attos=value_support.from_attos,
+            swap_fee_numerator=997,
+            swap_fee_denominator=1000,
+            swap_out_tolerance_attos=1,
+        )
+        builder = PositionMetricsSnapshotBuilder(
+            snapshot_materialization_inputs_repository=None,
+            attos_scale=self.ATTOS_SCALE,
+        )
+        builder.value_support = value_support
+        builder.swap_math_support = swap_math
+
+        def build_materialization_plan(output_batch):
+            return {
+                'pool_states': [],
+                'position_replacements': [],
+                'affected_pool_count': 0,
+                'affected_position_count': 0,
+            }
+
+        builder.build_materialization_plan = build_materialization_plan
+        return builder
+
+    def test_incremental_pool_state_swap_updates_reserves_and_pending(self):
+        stored = {
+            'current_reserve_0': '1000',
+            'current_reserve_1': '1000',
+            'current_total_supply': '1000',
+            'current_k_last': '1000',
+            'pending_protocol_fee': '0',
+            'total_minted_protocol_fee': '0',
+            'swap_count': '0',
+            'last_trade_time_ms': '0',
+            'last_liquidity_event_time_ms': '0',
+            'last_transaction_id': '0',
+        }
+        pool_repo = self.FakePoolStateSnapshotRepository(stored_state=stored)
         materializer = PositionMetricsSnapshotMaterializer(
-            snapshot_builder=self.FakeSnapshotBuilder(),
-            position_state_snapshot_repository=position_repository,
-            pool_state_snapshot_repository=pool_repository,
+            snapshot_builder=self._real_snapshot_builder(),
+            position_state_snapshot_repository=self.FakePositionStateSnapshotRepository(),
+            pool_state_snapshot_repository=pool_repo,
         )
-        output_batch = SettledOutputBatchFactory().build(
-            [{'settled_output_type': 'settled_trade', 'pool_application_id': 'chain-a:pool-app'}]
-        )
+        outputs = [{
+            'settled_output_type': 'settled_trade',
+            'pool_application_id': 'pool-app',
+            'transaction_type': 'BuyToken0',
+            'amount_0_in': '0',
+            'amount_0_out': '9.872',
+            'amount_1_in': '10',
+            'amount_1_out': '0',
+            'trade_time_ms': 1000,
+            'transaction_id': 1,
+        }]
+        batch = SettledOutputBatchFactory().build(outputs)
+        result = materializer.materialize_output_batch(batch)
 
-        summary = materializer.materialize_output_batch(output_batch)
+        self.assertFalse(result['degraded'])
+        self.assertEqual(len(pool_repo.calls), 1)
+        upserted = pool_repo.calls[0][0]
+        self.assertNotEqual(upserted['current_reserve_0'], '1000')
+        self.assertNotEqual(upserted['pending_protocol_fee'], '0')
 
-        self.assertFalse(summary['degraded'])
-        self.assertEqual(summary['persisted_pool_state_count'], 1)
-        self.assertEqual(summary['persisted_position_state_count'], 1)
-        self.assertEqual(len(position_repository.calls), 1)
-        self.assertEqual(len(pool_repository.calls), 1)
-        self.assertEqual(len(materializer.snapshot_builder.calls), 1)
-        self.assertEqual(
-            materializer.snapshot_builder.calls[0].trades(),
-            [{'settled_output_type': 'settled_trade', 'pool_application_id': 'chain-a:pool-app'}],
-        )
-
-    def test_materialize_outputs_is_fail_open_when_snapshot_rebuild_raises(self):
-        position_repository = self.FakePositionStateSnapshotRepository()
-        pool_repository = self.FakePoolStateSnapshotRepository()
+    def test_incremental_position_state_add_creates_active(self):
+        pos_repo = self.FakePositionStateSnapshotRepository(stored_state=None)
+        pool_repo = self.FakePoolStateSnapshotRepository()
         materializer = PositionMetricsSnapshotMaterializer(
-            snapshot_builder=self.FakeSnapshotBuilder(should_fail=True),
-            position_state_snapshot_repository=position_repository,
-            pool_state_snapshot_repository=pool_repository,
+            snapshot_builder=self._real_snapshot_builder(),
+            position_state_snapshot_repository=pos_repo,
+            pool_state_snapshot_repository=pool_repo,
         )
-        output_batch = SettledOutputBatchFactory().build(
-            [{'settled_output_type': 'settled_trade', 'pool_application_id': 'chain-a:pool-app'}]
+        outputs = [{
+            'settled_output_type': 'settled_liquidity_change',
+            'pool_application_id': 'pool-app',
+            'transaction_type': 'AddLiquidity',
+            'owner': 'user-a',
+            'liquidity': '10',
+            'amount_0_in': '100', 'amount_0_out': '0',
+            'amount_1_in': '100', 'amount_1_out': '0',
+            'created_at': 1000, 'transaction_id': 1,
+        }]
+        batch = SettledOutputBatchFactory().build(outputs)
+        result = materializer.materialize_output_batch(batch)
+
+        self.assertFalse(result['degraded'])
+        self.assertEqual(len(pos_repo.calls), 1)
+        call = pos_repo.calls[0]
+        self.assertEqual(call['owner'], 'user-a')
+        self.assertEqual(call['pool_application_id'], 'pool-app')
+        state = call['states'][0]
+        self.assertEqual(state['status'], 'active')
+        self.assertNotEqual(state['current_liquidity'], '0')
+        self.assertEqual(state['basis_type'], 'add_liquidity')
+
+    def test_incremental_position_state_remove_closes(self):
+        stored = {
+            'current_liquidity': '10',
+            'status': 'active',
+            'state_payload_json': {
+                'added_liquidity': '10', 'removed_liquidity': '0',
+                'current_round_liquidity_event_count': 1,
+                'current_round_started_at': 1000,
+                'current_round_started_transaction_id': 1,
+            },
+        }
+        pos_repo = self.FakePositionStateSnapshotRepository(stored_state=stored)
+        pool_repo = self.FakePoolStateSnapshotRepository()
+        materializer = PositionMetricsSnapshotMaterializer(
+            snapshot_builder=self._real_snapshot_builder(),
+            position_state_snapshot_repository=pos_repo,
+            pool_state_snapshot_repository=pool_repo,
         )
+        outputs = [{
+            'settled_output_type': 'settled_liquidity_change',
+            'pool_application_id': 'pool-app',
+            'transaction_type': 'RemoveLiquidity',
+            'owner': 'user-a',
+            'liquidity': '10',
+            'amount_0_in': '0', 'amount_0_out': '100',
+            'amount_1_in': '0', 'amount_1_out': '100',
+            'created_at': 2000, 'transaction_id': 2,
+        }]
+        batch = SettledOutputBatchFactory().build(outputs)
+        result = materializer.materialize_output_batch(batch)
 
-        summary = materializer.materialize_output_batch(output_batch)
-
-        self.assertTrue(summary['degraded'])
-        self.assertEqual(summary['error_text'], 'snapshot rebuild failed')
-        self.assertEqual(position_repository.calls, [])
-        self.assertEqual(pool_repository.calls, [])
-        self.assertEqual(len(materializer.snapshot_builder.calls), 1)
+        self.assertFalse(result['degraded'])
+        call = pos_repo.calls[0]
+        self.assertEqual(call['states'][0]['status'], 'closed')
+        self.assertEqual(call['states'][0]['current_liquidity'], '0')
 
 
 if __name__ == '__main__':

@@ -3,7 +3,6 @@ from decimal import Decimal
 from account_codec import AccountCodec
 from market.position_metrics_protocol_fee_ownership_tracker import PositionMetricsProtocolFeeOwnershipTracker
 from market.position_metrics_snapshot_principal_simulator import PositionMetricsSnapshotPrincipalSimulator
-from market.settled_output_batch_factory import SettledOutputBatchFactory
 from position_metrics_pool_history_reconstructor import PositionMetricsPoolHistoryReconstructor
 from position_metrics_swap_math_support import PositionMetricsSwapMathSupport
 from position_metrics_value_support import PositionMetricsValueSupport
@@ -21,13 +20,8 @@ class PositionMetricsSnapshotBuilder:
         epsilon: Decimal = Decimal('0.000000000001'),
         liquidity_mint_tolerance_attos: int = 100,
         swap_out_tolerance_attos: int = 1,
-        settled_output_batch_factory=None,
     ):
         self.snapshot_materialization_inputs_repository = snapshot_materialization_inputs_repository
-        self.settled_output_batch_factory = (
-            settled_output_batch_factory
-            or SettledOutputBatchFactory()
-        )
         self.value_support = PositionMetricsValueSupport(
             attos_scale=attos_scale,
             display_quantum=display_quantum,
@@ -54,55 +48,107 @@ class PositionMetricsSnapshotBuilder:
         )
         self.account_codec = AccountCodec()
 
-    def build_materialization_plan(
-        self,
-        output_batch,
-    ) -> dict[str, object]:
-        affected_pools = self._collect_affected_pools(output_batch)
-        affected_positions = self._collect_affected_positions(output_batch)
-        pool_states = []
-        position_replacements = []
+    def apply_pool_state(self, state, output):
+        created_at = int(output.get('created_at') or output.get('trade_time_ms') or 0)
+        tx_id = int(output.get('transaction_id') or 0)
 
-        for pool_application_id, pool_chain_id in affected_pools:
-            pool_state = self._build_pool_state(
-                pool_application_id=pool_application_id,
-                pool_chain_id=pool_chain_id,
-            )
-            if pool_state is not None:
-                pool_states.append(pool_state)
+        if output.get('settled_output_type') == 'settled_trade':
+            return self._apply_trade(state, output, created_at, tx_id)
+        if output.get('settled_output_type') == 'settled_liquidity_change':
+            return self._apply_liquidity(state, output, created_at, tx_id)
+        return state
 
-        for owner, pool_application_id, pool_chain_id in affected_positions:
-            snapshot_pool_application_id = self._canonical_pool_application(
-                pool_application_id=pool_application_id,
-                pool_chain_id=pool_chain_id,
-            )
-            position_state = self._build_position_state(
-                owner=owner,
-                pool_application_id=pool_application_id,
-                pool_chain_id=pool_chain_id,
-            )
-            position_replacements.append(
-                {
-                    'owner': owner,
-                    'pool_application_id': snapshot_pool_application_id,
-                    'states': [] if position_state is None else [position_state],
-                }
-            )
+    def _apply_trade(self, state, output, created_at, tx_id):
+        tx_type = output.get('transaction_type')
+        amount0_in = self.value_support.to_attos(output.get('amount_0_in')) or 0
+        amount0_out = self.value_support.to_attos(output.get('amount_0_out')) or 0
+        amount1_in = self.value_support.to_attos(output.get('amount_1_in')) or 0
+        amount1_out = self.value_support.to_attos(output.get('amount_1_out')) or 0
 
-        return {
-            'pool_states': pool_states,
-            'position_replacements': position_replacements,
-            'affected_pool_count': len(affected_pools),
-            'affected_position_count': len(affected_positions),
-        }
-
-    def build_materialization_plan_from_outputs(
-        self,
-        outputs: list[dict[str, object]],
-    ) -> dict[str, object]:
-        return self.build_materialization_plan(
-            self.settled_output_batch_factory.build(outputs)
+        reserve0, reserve1 = self.swap_math_support.apply_recorded_swap_attos(
+            tx_type, state['reserve0'], state['reserve1'],
+            amount0_in=amount0_in, amount0_out=amount0_out,
+            amount1_in=amount1_in, amount1_out=amount1_out,
         )
+        state['reserve0'] = max(reserve0, 0)
+        state['reserve1'] = max(reserve1, 0)
+        state['pending_protocol_fee'] = self.swap_math_support.mint_fee_attos(
+            state['total_supply'], state['reserve0'], state['reserve1'], state['k_last'],
+        )
+        state['swap_count'] = state.get('swap_count', 0) + 1
+        state['last_trade_time_ms'] = created_at
+        state['last_transaction_id'] = max(state.get('last_transaction_id') or 0, tx_id)
+        return state
+
+    def _apply_liquidity(self, state, output, created_at, tx_id):
+        tx_type = output.get('transaction_type')
+        liquidity = self.value_support.to_attos(output.get('liquidity')) or 0
+        amount0_in = self.value_support.to_attos(output.get('amount_0_in')) or 0
+        amount0_out = self.value_support.to_attos(output.get('amount_0_out')) or 0
+        amount1_in = self.value_support.to_attos(output.get('amount_1_in')) or 0
+        amount1_out = self.value_support.to_attos(output.get('amount_1_out')) or 0
+        is_add = tx_type == 'AddLiquidity'
+        is_virtual_init = (
+            is_add and state['reserve0'] == 0 and state['reserve1'] == 0
+            and output.get('liquidity_semantics') == 'virtual_initial_liquidity'
+        )
+
+        if is_virtual_init:
+            state['total_supply'] = (
+                self.swap_math_support.sqrt_attos_product(amount0_in, amount1_in) or 0
+            )
+        else:
+            mint = state['pending_protocol_fee']
+            state['total_minted_protocol_fee'] = state.get('total_minted_protocol_fee', 0) + mint
+            state['pending_protocol_fee'] = max(0, state['pending_protocol_fee'] - mint)
+            state['total_supply'] += mint + (liquidity if is_add else -liquidity)
+
+        if is_add:
+            state['reserve0'] += amount0_in
+            state['reserve1'] += amount1_in
+        else:
+            state['reserve0'] = max(state['reserve0'] - amount0_out, 0)
+            state['reserve1'] = max(state['reserve1'] - amount1_out, 0)
+
+        state['k_last'] = (
+            self.swap_math_support.sqrt_attos_product(state['reserve0'], state['reserve1']) or 0
+        )
+        state['last_liquidity_event_time_ms'] = created_at
+        state['last_transaction_id'] = max(state.get('last_transaction_id') or 0, tx_id)
+        return state
+
+    def apply_position_state(self, state, output):
+        tx_type = output.get('transaction_type')
+        liquidity = self.value_support.to_attos(output.get('liquidity')) or 0
+        created_at = int(output.get('created_at') or 0)
+        tx_id = int(output.get('transaction_id') or 0)
+        is_add = tx_type == 'AddLiquidity'
+
+        if state.get('running_liquidity', 0) <= 0:
+            state['current_round_liquidity_event_count'] = 0
+            state['current_round_started_at'] = created_at
+            state['current_round_started_transaction_id'] = tx_id
+
+        if is_add:
+            state['running_liquidity'] = state.get('running_liquidity', 0) + liquidity
+            state['added_liquidity'] = state.get('added_liquidity', 0) + liquidity
+            state['basis_amount_0'] = output.get('amount_0_in', '0')
+            state['basis_amount_1'] = output.get('amount_1_in', '0')
+        else:
+            state['running_liquidity'] = state.get('running_liquidity', 0) - liquidity
+            state['removed_liquidity'] = state.get('removed_liquidity', 0) + liquidity
+            state['basis_amount_0'] = output.get('amount_0_out', '0')
+            state['basis_amount_1'] = output.get('amount_1_out', '0')
+
+        state['current_liquidity'] = max(state.get('running_liquidity', 0), 0)
+        state['status'] = 'active' if state.get('running_liquidity', 0) > 0 else 'closed'
+        state['basis_type'] = self._basis_type({'transaction_type': tx_type})
+        state['basis_time_ms'] = created_at
+        state['basis_transaction_id'] = tx_id
+        state['current_round_liquidity_event_count'] = (
+            state.get('current_round_liquidity_event_count', 0) + 1
+        )
+        return state
 
     def _build_pool_state(
         self,
@@ -117,93 +163,77 @@ class PositionMetricsSnapshotBuilder:
         if not history:
             return None
         virtual_initial_liquidity = self._infer_virtual_initial_liquidity(history)
-        exact_effective_history, exact_states, blockers = self._reconstructor().reconstruct(
-            history,
-            virtual_initial_liquidity=virtual_initial_liquidity,
-        )
-        effective_history, states = self._reconstruct_recorded_pool_state_history(
-            history=history,
-            virtual_initial_liquidity=virtual_initial_liquidity,
-        )
-        if not states:
-            return None
+
+        state = {
+            'reserve0': 0, 'reserve1': 0,
+            'total_supply': 0, 'k_last': 0,
+            'pending_protocol_fee': 0, 'total_minted_protocol_fee': 0,
+            'swap_count': 0,
+            'last_trade_time_ms': 0, 'last_liquidity_event_time_ms': 0,
+            'last_transaction_id': 0,
+        }
+
+        for row in history:
+            tx_type = row.get('transaction_type')
+            output = dict(row)
+            if tx_type in ('BuyToken0', 'SellToken0'):
+                output['settled_output_type'] = 'settled_trade'
+                output['trade_time_ms'] = row.get('created_at')
+            elif tx_type in ('AddLiquidity', 'RemoveLiquidity'):
+                output['settled_output_type'] = 'settled_liquidity_change'
+            else:
+                continue
+            if (
+                virtual_initial_liquidity
+                and tx_type == 'AddLiquidity'
+                and state['reserve0'] == 0
+                and state['reserve1'] == 0
+            ):
+                output['liquidity_semantics'] = 'virtual_initial_liquidity'
+            state = self.apply_pool_state(state, output)
+
         snapshot_pool_application_id = self._canonical_pool_application(
             pool_application_id=pool_application_id,
             pool_chain_id=pool_chain_id,
         )
-        latest_state = states[-1]
-        current_total_supply_attos = self._effective_total_supply_attos(latest_state)
-        fee_free_state, fee_free_basis = self._fee_free_state_from_latest_liquidity_event(
-            states=exact_states or states,
-            effective_history=exact_effective_history or effective_history or [],
-        )
-        last_trade_time_ms = max(
-            (
-                int(row.get('created_at') or 0)
-                for row in effective_history
-                if row.get('transaction_type') in {'BuyToken0', 'SellToken0'}
-            ),
-            default=None,
-        )
-        last_liquidity_event_time_ms = max(
-            (
-                int(row.get('created_at') or 0)
-                for row in effective_history
-                if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}
-            ),
-            default=None,
-        )
-        transaction_ids = [
-            int(row['transaction_id'])
-            for row in effective_history
-            if row.get('transaction_id') is not None
-        ]
-        last_transaction_id = max(transaction_ids) if transaction_ids else None
-        swap_count = sum(
-            1
-            for row in history
-            if row.get('transaction_type') in {'BuyToken0', 'SellToken0'}
-        )
-        pool_created_metadata = self.snapshot_materialization_inputs_repository.get_pool_created_metadata(
-            pool_application_id=pool_application_id,
-        )
+        tx_id = state.get('last_transaction_id')
         return {
             'pool_state_id': snapshot_pool_application_id,
             'pool_application_id': snapshot_pool_application_id,
-            'pool_chain_id': pool_chain_id or self._parse_pool_chain_id(snapshot_pool_application_id),
-            'last_trade_time_ms': last_trade_time_ms,
-            'last_liquidity_event_time_ms': last_liquidity_event_time_ms,
-            'last_transaction_id': last_transaction_id,
-            'swap_count': swap_count,
-            'current_reserve_0': self._serialize_attos(latest_state['reserve0_after']),
-            'current_reserve_1': self._serialize_attos(latest_state['reserve1_after']),
-            'current_total_supply': self._serialize_attos(current_total_supply_attos),
-            'current_k_last': self._serialize_attos(latest_state['k_last_after']),
-            'fee_free_basis_transaction_id': fee_free_basis.get('transaction_id') if fee_free_basis is not None else None,
-            'fee_free_basis_time_ms': fee_free_basis.get('created_at') if fee_free_basis is not None else None,
-            'fee_free_reserve_0': self._serialize_attos(fee_free_state['reserve0']),
-            'fee_free_reserve_1': self._serialize_attos(fee_free_state['reserve1']),
-            'fee_free_total_supply': self._serialize_attos(
-                fee_free_basis['total_supply_after'] if fee_free_basis is not None else latest_state['total_supply_after']
+            'pool_chain_id': pool_chain_id or self._parse_pool_chain_id(
+                snapshot_pool_application_id
             ),
+            'last_trade_time_ms': state.get('last_trade_time_ms'),
+            'last_liquidity_event_time_ms': state.get('last_liquidity_event_time_ms'),
+            'last_transaction_id': tx_id,
+            'swap_count': state.get('swap_count', 0),
+            'current_reserve_0': self._serialize_attos(state['reserve0']),
+            'current_reserve_1': self._serialize_attos(state['reserve1']),
+            'current_total_supply': self._serialize_attos(state['total_supply']),
+            'current_k_last': self._serialize_attos(state['k_last']),
+            'total_minted_protocol_fee': self._serialize_attos(
+                state.get('total_minted_protocol_fee', 0)
+            ),
+            'pending_protocol_fee': self._serialize_attos(
+                state.get('pending_protocol_fee', 0)
+            ),
+            'fee_free_basis_transaction_id': None,
+            'fee_free_basis_time_ms': None,
+            'fee_free_reserve_0': '0',
+            'fee_free_reserve_1': '0',
+            'fee_free_total_supply': '0',
             'source_event_key': self._pool_source_event_key(
                 pool_application_id=pool_application_id,
-                last_transaction_id=last_transaction_id,
-                last_trade_time_ms=last_trade_time_ms,
-                last_liquidity_event_time_ms=last_liquidity_event_time_ms,
+                last_transaction_id=tx_id,
+                last_trade_time_ms=state.get('last_trade_time_ms'),
+                last_liquidity_event_time_ms=state.get('last_liquidity_event_time_ms'),
             ),
             'state_payload_json': {
                 'virtual_initial_liquidity': virtual_initial_liquidity,
                 'fee_to_account_latest_known': self._pool_fee_to_account_latest_known(
                     pool_application_id=pool_application_id,
                 ),
-                'pool_created_metadata': pool_created_metadata,
                 'history_size': len(history),
-                'effective_history_size': len(effective_history),
-                'exact_replay_blockers': blockers,
-                'last_state': latest_state,
-                'fee_free_basis': fee_free_basis,
-                'fee_free_state': fee_free_state,
             },
         }
 
@@ -239,37 +269,48 @@ class PositionMetricsSnapshotBuilder:
         ]
         latest_transaction = history[-1]
         latest_pool_liquidity_transaction = self._latest_row(pool_liquidity_history)
-        running_liquidity = 0
-        added_liquidity = 0
-        removed_liquidity = 0
-        prior_running_liquidity = 0
+        state = {
+            'running_liquidity': 0, 'current_liquidity': 0,
+            'added_liquidity': 0, 'removed_liquidity': 0,
+            'status': None,
+            'current_round_liquidity_event_count': 0,
+            'current_round_started_at': None,
+            'current_round_started_transaction_id': None,
+        }
         prior_positive_liquidity_event_count = 0
-        current_round_liquidity_event_count = 0
-        current_round_started_at = None
-        current_round_started_transaction_id = None
-        current_round_start_transaction = None
-        for row in history:
-            liquidity_delta = self.value_support.to_attos(row.get('liquidity')) or 0
-            if running_liquidity <= 0:
-                current_round_liquidity_event_count = 0
-                current_round_started_at = row.get('created_at')
-                current_round_started_transaction_id = row.get('transaction_id')
-                current_round_start_transaction = row
-            if row is not latest_transaction and liquidity_delta > 0:
-                prior_positive_liquidity_event_count += 1
-            if row.get('transaction_type') == 'AddLiquidity':
-                running_liquidity += liquidity_delta
-                added_liquidity += liquidity_delta
-            elif row.get('transaction_type') == 'RemoveLiquidity':
-                running_liquidity -= liquidity_delta
-                removed_liquidity += liquidity_delta
-            current_round_liquidity_event_count += 1
-            if row is not latest_transaction:
-                prior_running_liquidity = running_liquidity
-        status = 'active' if running_liquidity > 0 else 'closed'
-        basis_type = self._basis_type(latest_transaction)
-        basis_amount_0 = self._basis_amount(latest_transaction, 'amount_0_in', 'amount_0_out')
-        basis_amount_1 = self._basis_amount(latest_transaction, 'amount_1_in', 'amount_1_out')
+        prior_running_liquidity = 0
+        prev_state = None
+
+        for index, row in enumerate(history):
+            if index == len(history) - 1:
+                prev_state = dict(state)
+                prior_positive_liquidity_event_count = sum(
+                    1 for j in range(index)
+                    if history[j].get('transaction_type') == 'AddLiquidity'
+                    and (self.value_support.to_attos(history[j].get('liquidity')) or 0) > 0
+                )
+            output = dict(row)
+            output['settled_output_type'] = 'settled_liquidity_change'
+            state = self.apply_position_state(state, output)
+
+        if prev_state is not None:
+            prior_running_liquidity = prev_state.get('running_liquidity', 0)
+
+        status = state.get('status') or 'closed'
+        basis_type = state.get('basis_type')
+        basis_amount_0 = state.get('basis_amount_0', '0')
+        basis_amount_1 = state.get('basis_amount_1', '0')
+        running_liquidity = state.get('running_liquidity', 0)
+        added_liquidity = state.get('added_liquidity', 0)
+        removed_liquidity = state.get('removed_liquidity', 0)
+        current_round_liquidity_event_count = state.get('current_round_liquidity_event_count', 0)
+        current_round_started_at = state.get('current_round_started_at')
+        current_round_started_transaction_id = state.get('current_round_started_transaction_id')
+        current_round_start_transaction = self._find_row_by_key(
+            history,
+            current_round_started_transaction_id,
+            current_round_started_at,
+        )
         current_round_started_key = (
             int(current_round_started_at or 0),
             int(current_round_started_transaction_id or 0),
@@ -660,6 +701,19 @@ class PositionMetricsSnapshotBuilder:
             ),
         )
 
+    def _find_row_by_key(
+        self,
+        rows: list[dict[str, object]],
+        transaction_id: object,
+        created_at: object,
+    ) -> dict[str, object] | None:
+        target_key = (int(created_at or 0), int(transaction_id or 0))
+        for row in rows:
+            row_key = (int(row.get('created_at') or 0), int(row.get('transaction_id') or 0))
+            if row_key == target_key:
+                return row
+        return None
+
     def _simulate_exact_current_principal(
         self,
         *,
@@ -948,46 +1002,6 @@ class PositionMetricsSnapshotBuilder:
             )
         )
         return history
-
-    def _fee_free_state_from_latest_liquidity_event(
-        self,
-        *,
-        states: list[dict[str, object]],
-        effective_history: list[dict[str, object]],
-    ) -> tuple[dict[str, int], dict[str, object] | None]:
-        latest_liquidity_index = None
-        for index, row in enumerate(effective_history):
-            if row.get('transaction_type') in {'AddLiquidity', 'RemoveLiquidity'}:
-                latest_liquidity_index = index
-        if latest_liquidity_index is None:
-            latest_state = states[-1]
-            return {
-                'reserve0': int(latest_state['reserve0_after']),
-                'reserve1': int(latest_state['reserve1_after']),
-            }, None
-        basis_state = states[latest_liquidity_index]
-        reserve0 = int(basis_state['reserve0_after'])
-        reserve1 = int(basis_state['reserve1_after'])
-        for row in effective_history[latest_liquidity_index + 1:]:
-            transaction_type = row.get('transaction_type')
-            if transaction_type == 'BuyToken0':
-                amount1_in = self.value_support.to_attos(row.get('amount_1_in')) or 0
-                if amount1_in <= 0:
-                    continue
-                amount0_out = amount1_in * reserve0 // (reserve1 + amount1_in)
-                reserve1 += amount1_in
-                reserve0 -= amount0_out
-            elif transaction_type == 'SellToken0':
-                amount0_in = self.value_support.to_attos(row.get('amount_0_in')) or 0
-                if amount0_in <= 0:
-                    continue
-                amount1_out = amount0_in * reserve1 // (reserve0 + amount0_in)
-                reserve0 += amount0_in
-                reserve1 -= amount1_out
-        return {
-            'reserve0': reserve0,
-            'reserve1': reserve1,
-        }, basis_state
 
     def _public_owner(self, owner: str) -> str:
         return owner

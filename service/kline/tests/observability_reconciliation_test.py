@@ -686,6 +686,8 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'current_reserve_1': '90',
             'current_total_supply': '110',
             'fee_free_total_supply': '100',
+            'total_minted_protocol_fee': '10',
+            'pending_protocol_fee': '0',
             'state_payload_json': {
                 'virtual_initial_liquidity': True,
                 'fee_to_account_latest_known': self.OWNER,
@@ -706,11 +708,15 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'token_0': self.TOKEN_0,
             'token_1': self.TOKEN_1,
             'owner': self.OWNER,
-            'opened_at': None,
+            'opened_at': 50_000,
             'updated_at': 50_000,
-            'add_tx_count': 0,
+            'add_tx_count': 1,
             'virtual_initial_amount0': '105',
             'virtual_initial_amount1': '0',
+            'virtual_initial_liquidity': '105',
+            'protocol_fee_receiver_account': self.OWNER,
+            'protocol_fee_reference_amount0': '105',
+            'protocol_fee_reference_amount1': '0',
         }])
         snapshot_repository = self.FakeSnapshotInputsProjectionRepository({
             'pool_application': self.POOL_APPLICATION,

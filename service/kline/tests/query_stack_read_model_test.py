@@ -646,6 +646,8 @@ class ReadModelBridgeTest(
                     'current_reserve_1': current_reserve_1,
                     'current_total_supply': current_total_supply,
                     'fee_free_total_supply': fee_free_total_supply,
+                    'total_minted_protocol_fee': full_materialized_protocol_fee_liquidity or '0',
+                    'pending_protocol_fee': '0',
                     'state_payload_json': state_payload_json,
                 }
 

@@ -1516,3 +1516,242 @@ groups:
         depends_on: []
         title: Implement side drawer menu
         notes: Define trigger entry, expansion behavior, responsive behavior, and menu item structure.
+  - name: Observability Incremental
+    constraints:
+      tdd:
+        rule: Every task MUST follow TDD. Write the test first, verify it fails (red), implement until it passes (green), then refactor.
+        test_command: cd service/kline && python3 -m pytest tests/<test_file>.py -x -v
+        regression_check: python3 -m pytest tests/ -x -q --timeout=60
+      economic_verification:
+        rule: Tests MUST verify economic correctness against Uniswap V2 AMM formulas, not just database writes or function calls.
+        requirement:
+          - Each test scenario must specify concrete input values (reserves, amounts, total_supply, k_last).
+          - Expected outputs must be independently computed using the same Uniswap V2 math formulas (mint_fee_attos, apply_swap, sqrt product).
+          - The test asserts exact field-level equality between function output and independently expected value.
+          - For end-to-end tests, feed a complete event sequence (pool creation → swaps → add/remove) and verify cumulative economic state after each event.
+      full_replay_equivalence:
+        rule: Full replay and incremental path MUST use the same apply_* functions. After refactor (OBS-INC-007/008), full replay output and incremental state must diff to zero for every field.
+      independent_verification:
+        rule: Each task must be independently verifiable. No task should require unmerged code from another task to pass its own tests.
+      no_new_replay:
+        rule: Do NOT introduce new full-history replay loops. All state updates go through the incremental apply_* functions. The only exception is the manual full-replay trigger (OBS-INC-009) which reuses the same apply_* functions.
+    tasks:
+      - id: OBS-INC-001
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: pool_state_v2 add protocol fee columns
+        notes: |
+          Schema: add `total_minted_protocol_fee` and `pending_protocol_fee` VARCHAR(64) NOT NULL DEFAULT '0'
+          to pool_state_v2. Add ALTER TABLE migration in pool_state_snapshot_repo._migrate_* pattern.
+          Add accessor methods to PositionMetricsPoolStateSnapshot.
+          Acceptance: pool_state_snapshot_repo_test.py —
+          upsert + get new columns round-trip. Old rows without these columns default to '0'.
+      - id: OBS-INC-002
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: apply_pool_state() pure function
+        notes: |
+          Implement `apply_pool_state(state, settled_output)` in position_metrics_snapshot_builder.py.
+          Handles both trade and liquidity_change outputs.
+          TDD: position_metrics_snapshot_builder_apply_pool_state_test.py first.
+
+          Economic acceptance scenarios:
+          A. Trade:
+             Given pool: reserve0=1000000, reserve1=1000000, total_supply=1000000, k_last=1000000, pending=0
+             Apply BuyToken0 amount1_in=10000
+             → reserve0_after = 1000000 - (9970*1000000)/(1000000+9970) ≈ 990130
+             → reserve1_after = 1010000
+             → pending_fee = mint_fee_attos(total_supply, reserve0_after, reserve1_after, k_last)
+             → swap_count += 1
+             → fee_free_reserve updated by fee-free swap formula (no 0.3% deduction)
+             Assert each field matches independent Uniswap V2 calculation.
+          B. AddLiquidity (non-initial):
+             Given pool: reserve0=1005000, reserve1=1010000, total_supply=1000000, k_last=1000000, pending=50
+             Apply AddLiquidity amount0_in=5000, amount1_in=5050, liquidity=5000
+             → mint = 50, total_minted += 50, pending = max(0, 50-50) = 0
+             → total_supply = 1000000 + 50 + 5000 = 1005050
+             → reserve0 = 1010000, reserve1 = 1015050
+             → k_last = √(reserve0 * reserve1)
+             → fee_free_reserve = reserve, fee_free_total_supply = total_supply
+             Assert each field matches.
+          C. Virtual initial bootstrap:
+             Given empty pool (reserve0=0, reserve1=0)
+             Apply AddLiquidity amount0_in=1000000, amount1_in=1000000, liquidity=0, virtual_initial=True
+             → total_supply = √(1000000 * 1000000) = 1000000
+             → k_last = √(reserve0_after * reserve1_after)
+             Assert no mint_fee_attos called (initial add).
+      - id: OBS-INC-003
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: apply_position_state() pure function
+        notes: |
+          Implement `apply_position_state(state, liquidity_output)` in position_metrics_snapshot_builder.py.
+          TDD: position_metrics_snapshot_builder_apply_position_state_test.py first.
+
+          Economic acceptance scenarios:
+          A. First AddLiquidity:
+             Given empty position state
+             Apply AddLiquidity liquidity=1000, amount0_in=5000, amount1_in=5000
+             → running_liquidity=1000, status='active', basis_type='add_liquidity'
+             → basis_amount_0='5000', basis_amount_1='5000'
+             → added_liquidity=1000, current_round_liquidity_event_count=1
+             Assert position state matches expected.
+          B. RemoveLiquidity closing position:
+             Given active position running_liquidity=1000
+             Apply RemoveLiquidity liquidity=1000, amount0_out=5000, amount1_out=5000
+             → running_liquidity=0, status='closed', removed_liquidity=1000
+             → basis_type='remove_liquidity'
+             Assert status transition to closed.
+          C. Multi-round tracking:
+             Add 1000 → running=1000 (round 1)
+             Remove 1000 → running=0 (round 1 ends)
+             Add 500 → running=500 (round 2, new round_started_at)
+             Assert round counters and boundaries correct.
+      - id: OBS-INC-004
+        status: Todo
+        priority: P0
+        depends_on: [OBS-INC-001, OBS-INC-002]
+        title: Incremental pool state write path
+        notes: |
+          Implement incremental pool state update in PositionMetricsSnapshotMaterializer:
+          load pool_state_v2 row → sort output_batch events by time → apply via apply_pool_state() → upsert.
+          Replace pool_state part of build_materialization_plan in normal path.
+          Keep _build_pool_state untouched (refactored in OBS-INC-007).
+
+          Acceptance (position_metrics_snapshot_materializer_test.py):
+          A. Pool creation + 2 swaps + 1 AddLiquidity full event sequence:
+             Feed settled outputs through materializer in order.
+             After each batch, read pool_state_v2 and assert:
+             - reserves match AMM math computed independently from input amounts
+             - total_supply changes only at AddLiquidity (mint_fee + new LP)
+             - pending_protocol_fee grows after each swap, drops after AddLiquidity
+             - total_minted_protocol_fee accumulates correctly
+             - k_last only updates at AddLiquidity
+             All values verified against Uniswap V2 formulas computed by the test.
+          B. Existing pool with prior state:
+             Load pool_state with known values, apply new events, verify incremental update.
+      - id: OBS-INC-005
+        status: Todo
+        priority: P0
+        depends_on: [OBS-INC-003]
+        title: Incremental position state write path
+        notes: |
+          Implement incremental position state: load position_state_v2 → apply events
+          via apply_position_state() → upsert. Replace position part of build_materialization_plan
+          in normal path.
+
+          Acceptance (position_metrics_snapshot_materializer_test.py):
+          A. User adds liquidity to existing pool:
+             Feed AddLiquidity output → position_state created with:
+             - current_liquidity = new LP amount
+             - basis amounts match event token amounts
+             - status = 'active'
+             - added_liquidity tracked correctly
+          B. User removes partial liquidity:
+             Feed RemoveLiquidity output → position_state updated:
+             - current_liquidity reduced by removed amount
+             - status stays 'active' if remaining > 0
+             - removed_liquidity tracked correctly
+          C. User removes all liquidity:
+             Feed RemoveLiquidity closing position → status = 'closed'.
+      - id: OBS-INC-006
+        status: Todo
+        priority: P0
+        depends_on: [OBS-INC-001]
+        title: Read path use pool_state protocol fee fields
+        notes: |
+          Update _build_projected_protocol_fee_receiver_virtual_metrics:
+          read total_minted_protocol_fee and pending_protocol_fee from pool_snapshot.
+          Replace _owner_protocol_fee_liquidity() call and _pending_protocol_fee_liquidity() method.
+
+          Acceptance (position_metrics_public_api_test.py):
+          Build pool_state with total_minted=500000, pending=5000, current_total_supply=2000000,
+          current_reserve_0=1000000, current_reserve_1=1000000.
+          Query /position-metrics for protocol fee receiver.
+          → position_liquidity = 500000 + 5000 = 505000
+          → protocol_fee_amount0 = reserve0 * (505000 / (2000000 + 5000)) ≈ 251868
+          → protocol_fee_amount1 computed same way
+          All values independently verified against the same formula.
+      - id: OBS-INC-007
+        status: Todo
+        priority: P1
+        depends_on: [OBS-INC-002, OBS-INC-004]
+        title: Refactor _build_pool_state to reuse apply_pool_state()
+        notes: |
+          Replace inline replay logic in _build_pool_state with calls to apply_pool_state().
+          The full replay loop iterates history and calls the SAME apply_pool_state() as incremental.
+
+          Acceptance (position_metrics_snapshot_builder_test.py):
+          Given the same complete pool event history:
+          A. Run _build_pool_state (full replay) → get pool state dict.
+          B. Run incremental path (empty state + apply each event) → get pool state dict.
+          C. Diff every field: pool_state_id, reserves, total_supply, k_last, fee_free values,
+             total_minted, pending, swap_count, timestamps → ALL ZERO diff.
+          D. Repeat for event histories with only swaps, only adds, mixed sequences.
+      - id: OBS-INC-008
+        status: Todo
+        priority: P1
+        depends_on: [OBS-INC-003, OBS-INC-005]
+        title: Refactor _build_position_state to reuse apply_position_state()
+        notes: |
+          Replace inline liquidity loop in _build_position_state with calls to
+          apply_position_state(). Complex principal simulation stays as-is.
+
+          Acceptance (position_metrics_snapshot_builder_test.py):
+          Same comparison pattern as OBS-INC-007:
+          A. Full _build_position_state vs incremental apply → ALL position fields match.
+          B. Test with add-only, add-then-remove, multi-round sequences.
+          C. Liquidity, basis, status, added/removed, round tracking all identical.
+      - id: OBS-INC-009
+        status: Todo
+        priority: P1
+        depends_on: [OBS-INC-007, OBS-INC-008]
+        title: Manual full-replay trigger and initial bootstrap
+        notes: |
+          Bootstrap: on first run with new schema, detect pools with NULL protocol fee columns,
+          run full replay once via _build_pool_state to populate them.
+          Manual replay: add method to trigger full _build_pool_state + _build_position_state
+          for a given pool_application_id. Compare with current incremental state, report diffs.
+
+          Acceptance (position_metrics_bootstrap_test.py):
+          A. Given existing pool with complete trade+liquidity history:
+             - Run bootstrap → pool_state protocol fee columns populated.
+             - Verify total_minted + pending matches independently computed values
+               from replaying the same history through Uniswap V2 formulas.
+          B. Given pool already populated by incremental path:
+             - Run manual full replay → diff report shows zero differences.
+          C. Run incremental updates after bootstrap:
+             - New events applied correctly on top of bootstrapped state.
+      - id: OBS-INC-010
+        status: Todo
+        priority: P2
+        depends_on: [OBS-INC-008]
+        title: Clean up dead code after incremental refactor
+        notes: |
+          Remove all code, methods, classes, and DB columns that are no longer needed
+          after the incremental refactor. No behavior change — only deletion.
+
+          Candidates (final list TBD after OBS-INC-008 completes):
+          - pool_state_v2: fee_free_reserve_0/1, fee_free_total_supply, fee_free_basis_* columns
+          - pool state snapshot read model: fee_free_* accessors
+          - _fee_free_state_from_latest_liquidity_event
+          - _fee_free_swap_expected_out_attos
+          - _effective_total_supply_attos
+          - _reconstruct_recorded_pool_state_history (if no longer called)
+          - _reconstruct_pool_transaction_history (if no longer called)
+          - PositionMetricsPoolHistoryReconstructor (if no longer called)
+          - PositionMetricsFeeFreeOpenStateSimulator
+          - PositionMetricsProtocolFeeOwnershipTracker
+          - _build_protocol_fee_ownership_summary
+          - _build_fee_to_continuity
+          - ownership-related fields in state_payload_json and semantic_facts
+          - Python modules that become empty after deletions
+
+          Acceptance:
+          - All modules import cleanly
+          - Existing test suite passes without modification
+          - No remaining callers of deleted code
+          - No remaining fee_free references outside test files

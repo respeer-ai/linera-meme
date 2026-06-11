@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 
 class PositionMetricsValueSupport:
@@ -20,24 +20,36 @@ class PositionMetricsValueSupport:
     def to_decimal(self, value):
         if value is None:
             return None
-        return Decimal(str(value))
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            return None
 
     def serialize_decimal(self, value: Decimal | None):
         if value is None:
             return None
-        if value == 0:
+        try:
+            if value == 0:
+                return '0'
+            return format(value.quantize(self.display_quantum).normalize(), 'f')
+        except (InvalidOperation, ValueError):
             return '0'
-        return format(value.quantize(self.display_quantum).normalize(), 'f')
 
     def to_attos(self, value) -> int | None:
         if value is None:
             return None
-        return int((Decimal(str(value)) * self.attos_scale).to_integral_value())
+        try:
+            return int((Decimal(str(value)) * self.attos_scale).to_integral_value())
+        except (InvalidOperation, ValueError):
+            return None
 
     def from_attos(self, value: int | None) -> Decimal | None:
         if value is None:
             return None
-        return Decimal(value) / Decimal(self.attos_scale)
+        try:
+            return Decimal(value) / Decimal(self.attos_scale)
+        except (InvalidOperation, ValueError):
+            return None
 
     def attos_within_tolerance(
         self,

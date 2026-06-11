@@ -156,12 +156,13 @@ function log_step() {
 }
 
 function external_proxy_env_args() {
-    local proxy="${HTTPS_PROXY:-${https_proxy:-}}"
-    if [ -n "$proxy" ]; then
-        printf 'all_proxy=%s\nhttp_proxy=%s\nhttps_proxy=%s\nALL_PROXY=%s\nHTTP_PROXY=%s\nHTTPS_PROXY=%s\n' \
-            "$proxy" "$proxy" "$proxy" \
-            "$proxy" "$proxy" "$proxy"
-    fi
+    local all_proxy_val="${ALL_PROXY:-${all_proxy:-}}"
+    local http_proxy_val="${HTTP_PROXY:-${http_proxy:-}}"
+    local https_proxy_val="${HTTPS_PROXY:-${https_proxy:-}}"
+
+    [ -n "$all_proxy_val" ] && printf 'all_proxy=%s\nALL_PROXY=%s\n' "$all_proxy_val" "$all_proxy_val"
+    [ -n "$http_proxy_val" ] && printf 'http_proxy=%s\nHTTP_PROXY=%s\n' "$http_proxy_val" "$http_proxy_val"
+    [ -n "$https_proxy_val" ] && printf 'https_proxy=%s\nHTTPS_PROXY=%s\n' "$https_proxy_val" "$https_proxy_val"
 }
 
 function no_external_proxy_env_args() {

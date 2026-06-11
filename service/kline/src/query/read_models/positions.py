@@ -85,9 +85,9 @@ class PositionsReadModel:
     def _synthetic_display_position(self, position: dict) -> dict:
         return {
             **position,
-            'status': 'active',
-            'position_kind': None,
-            'is_virtual_position': None,
+            'status': position.get('status') or 'active',
+            'position_kind': position.get('position_kind'),
+            'is_virtual_position': position.get('is_virtual_position'),
             'closed_at': None,
             'current_liquidity': '0',
             'added_liquidity': '0',
@@ -124,7 +124,8 @@ class PositionsReadModel:
             int(position.get('updated_at') or 0),
         ) or base.get('updated_at') or position.get('updated_at')
         if self._positive_amount(merged.get('current_liquidity')) or self._positive_amount(merged.get('virtual_current_liquidity')):
-            merged['status'] = 'active'
+            if merged.get('status') != 'virtual':
+                merged['status'] = 'active'
             merged['closed_at'] = None
         return merged
 

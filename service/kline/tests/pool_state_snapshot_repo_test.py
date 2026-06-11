@@ -88,6 +88,8 @@ class PoolStateSnapshotRepositoryTest(unittest.TestCase):
                     'fee_free_reserve_0': '90',
                     'fee_free_reserve_1': '190',
                     'fee_free_total_supply': '280',
+                    'total_minted_protocol_fee': '0',
+                    'pending_protocol_fee': '5',
                     'source_event_key': 'evt-2',
                     'state_payload_json': {'pool': {'swap_count': 17}},
                 }
@@ -99,7 +101,9 @@ class PoolStateSnapshotRepositoryTest(unittest.TestCase):
         self.assertIn('INSERT INTO pool_state_v2', executed_sql)
         self.assertIsNone(params[11])
         self.assertIsNone(params[12])
-        self.assertEqual(params[17], '{"pool":{"swap_count":17}}')
+        self.assertEqual(params[16], '0')
+        self.assertEqual(params[17], '5')
+        self.assertEqual(params[19], '{"pool":{"swap_count":17}}')
         self.assertEqual(connection.commit_count, 1)
 
     def test_get_pool_state_reads_by_pool_application(self):

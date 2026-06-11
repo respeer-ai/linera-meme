@@ -162,12 +162,7 @@ class PositionMetricsReadModel:
             return None
 
         current_total_supply = self._to_decimal(pool_snapshot.current_total_supply())
-        fee_free_total_supply = self._to_decimal(pool_snapshot.fee_free_total_supply())
-        if (
-            current_total_supply is None
-            or fee_free_total_supply is None
-            or current_total_supply <= Decimal('0')
-        ):
+        if current_total_supply is None or current_total_supply <= Decimal('0'):
             return None
 
         current_reserve_0 = self._to_decimal(pool_snapshot.current_reserve_0())
@@ -175,14 +170,9 @@ class PositionMetricsReadModel:
         if current_reserve_0 is None or current_reserve_1 is None:
             return None
 
-        minted_fee = self._owner_protocol_fee_liquidity(
-            position=position,
-            position_basis_snapshot=position_basis_snapshot,
-            current_total_supply=current_total_supply,
-            fee_free_total_supply=fee_free_total_supply,
-        )
-        pending_fee = self._pending_protocol_fee_liquidity(pool_snapshot)
-        protocol_fee_liquidity = (minted_fee or Decimal('0')) + pending_fee
+        minted_fee = self._to_decimal(pool_snapshot.total_minted_protocol_fee()) or Decimal('0')
+        pending_fee = self._to_decimal(pool_snapshot.pending_protocol_fee()) or Decimal('0')
+        protocol_fee_liquidity = minted_fee + pending_fee
         if protocol_fee_liquidity <= Decimal('0'):
             return None
 
@@ -227,34 +217,6 @@ class PositionMetricsReadModel:
             ),
         }
 
-    def _pending_protocol_fee_liquidity(self, pool_snapshot) -> Decimal:
-        fee_free_reserve_0 = self._to_decimal(pool_snapshot.fee_free_reserve_0())
-        fee_free_reserve_1 = self._to_decimal(pool_snapshot.fee_free_reserve_1())
-        current_reserve_0 = self._to_decimal(pool_snapshot.current_reserve_0())
-        current_reserve_1 = self._to_decimal(pool_snapshot.current_reserve_1())
-        if (
-            fee_free_reserve_0 is None
-            or fee_free_reserve_1 is None
-            or current_reserve_0 is None
-            or current_reserve_1 is None
-        ):
-            return Decimal('0')
-        fee_free_k2 = fee_free_reserve_0 * fee_free_reserve_1
-        current_k2 = current_reserve_0 * current_reserve_1
-        if fee_free_k2 <= Decimal('0') or current_k2 <= fee_free_k2:
-            return Decimal('0')
-        fee_free_k = fee_free_k2.sqrt()
-        current_k = current_k2.sqrt()
-        if current_k <= fee_free_k:
-            return Decimal('0')
-        fee_free_total_supply = self._to_decimal(pool_snapshot.fee_free_total_supply())
-        if fee_free_total_supply is None or fee_free_total_supply <= Decimal('0'):
-            return Decimal('0')
-        denominator = current_k * Decimal('5') + fee_free_k
-        if denominator <= Decimal('0'):
-            return Decimal('0')
-        return fee_free_total_supply * (current_k - fee_free_k) / denominator
-
     def _position_basis_snapshot(self, snapshot) -> PositionMetricsPositionBasisSnapshot:
         if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):
             return snapshot
@@ -264,45 +226,6 @@ class PositionMetricsReadModel:
         if isinstance(snapshot, PositionMetricsPoolStateSnapshot):
             return snapshot
         return PositionMetricsPoolStateSnapshot(snapshot)
-
-    def _owner_protocol_fee_liquidity(
-        self,
-        *,
-        position: dict,
-        position_basis_snapshot,
-        current_total_supply: Decimal,
-        fee_free_total_supply: Decimal,
-    ) -> Decimal | None:
-        materialized = self._materialized_owner_protocol_fee_liquidity(position_basis_snapshot)
-        if materialized is None or materialized <= Decimal('0'):
-            return None
-        return materialized
-
-    def _materialized_owner_protocol_fee_liquidity(self, position_basis_snapshot) -> Decimal | None:
-        if position_basis_snapshot is None:
-            return None
-        if not isinstance(position_basis_snapshot, PositionMetricsPositionBasisSnapshot):
-            position_basis_snapshot = PositionMetricsPositionBasisSnapshot(position_basis_snapshot)
-        value = self._to_decimal(position_basis_snapshot.full_protocol_fee_liquidity_owned_by_current_owner())
-        if value is None or value <= Decimal('0'):
-            return None
-        return value
-
-    def _owner_receives_pending_protocol_fees(self, *, position: dict, position_basis_snapshot) -> bool:
-        owner = str(position.get('owner') or '')
-        if not owner:
-            return False
-        if position_basis_snapshot is None:
-            return False
-        if not isinstance(position_basis_snapshot, PositionMetricsPositionBasisSnapshot):
-            position_basis_snapshot = PositionMetricsPositionBasisSnapshot(position_basis_snapshot)
-        latest_fee_to = position_basis_snapshot.fee_to_account_latest_known()
-        if latest_fee_to not in (None, ''):
-            return str(latest_fee_to) == owner
-        continuity_owner = position_basis_snapshot.fee_to_continuity_owner()
-        if continuity_owner not in (None, ''):
-            return str(continuity_owner) == owner
-        return False
 
     def _snapshot_inputs(self, snapshot) -> PositionMetricsSnapshotInputs:
         if isinstance(snapshot, PositionMetricsSnapshotInputs):
