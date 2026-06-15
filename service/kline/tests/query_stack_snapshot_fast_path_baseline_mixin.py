@@ -90,6 +90,53 @@ class QueryStackSnapshotFastPathBaselineMixin:
 
         self.assertIsNone(result)
 
+
+    def test_snapshot_fast_path_supports_closed_zero_position_after_fee_free_basis(self):
+        result = self._resolve(
+            position={
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                'pool_id': 5,
+                'opened_at': 900,
+                'status': 'closed',
+                'current_liquidity': '0',
+            },
+            payload={
+                'data': {
+                    'pool': {'fee_to': None},
+                    'totalSupply': '10',
+                    'virtualInitialLiquidity': False,
+                    'liquidity': {'liquidity': '0', 'amount0': '0', 'amount1': '0'},
+                }
+            },
+            position_basis_snapshot={
+                'status': 'closed',
+                'basis_type': 'remove_liquidity',
+                'current_liquidity': '0',
+                'basis_transaction_id': 1020,
+                'basis_time_ms': 2000,
+            },
+            pool_state_snapshot={
+                'last_transaction_id': 1517,
+                'last_trade_time_ms': 2500,
+                'last_liquidity_event_time_ms': 1000,
+                'fee_free_basis_transaction_id': 1009,
+                'fee_free_basis_time_ms': 1000,
+                'fee_free_reserve_0': '14',
+                'fee_free_reserve_1': '21',
+                'fee_free_total_supply': '10',
+            },
+        )
+
+        self.assertIsNotNone(result)
+        metrics = result['projected_metrics']
+        self.assertEqual(metrics['metrics_status'], 'exact_closed_zero_liquidity')
+        self.assertEqual(metrics['computation_blockers'], [])
+        self.assertEqual(metrics['position_liquidity'], '0')
+        self.assertEqual(metrics['principal_amount0'], '0')
+        self.assertEqual(metrics['fee_amount0'], '0')
+        self.assertEqual(result['snapshot_shadow']['snapshot_shadow']['exact_case'], 'closed_zero_liquidity')
+
     def test_snapshot_fast_path_supports_latest_remove_liquidity_basis_without_later_transactions(self):
         result = self._resolve(
             position={

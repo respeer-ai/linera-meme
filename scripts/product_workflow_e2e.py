@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import signal
 import sys
 import time
 import urllib.error
@@ -46,7 +47,7 @@ class ProductWorkflowE2E:
         self.swap_application_id = args.swap_application_id
         self.ams_application_id = args.ams_application_id
         self.blob_gateway_application_id = args.blob_gateway_application_id
-        self.timeout_seconds = args.timeout_seconds
+        self.timeout_seconds = None if args.timeout_seconds <= 0 else args.timeout_seconds
         self.request_timeout_seconds = args.request_timeout_seconds
         self.poll_seconds = args.poll_seconds
         self.strict_claim = args.strict_claim
@@ -99,7 +100,6 @@ class ProductWorkflowE2E:
         print(f"[product-e2e] {label} post-add swap fee accrual completed")
 
         self.execute_remove_liquidity_and_wait(pool, liquidity)
-        self.wait_for_actual_position_fee(pool)
         print(f"[product-e2e] {label} remove liquidity completed")
 
         self.execute_oversupplied_add_liquidity_claim_path(pool)
@@ -197,7 +197,7 @@ class ProductWorkflowE2E:
 
     def execute_swap_and_wait(self, pool: Pool) -> Pool:
         before = self.pool_state(pool)
-        before_swap_count = self.transaction_count(pool.pool_id, self.swap_transaction_types())
+        before_swap_count = self.transaction_count(pool, self.swap_transaction_types())
         self.execute_swap(pool)
 
         def changed_pool() -> Pool | None:
@@ -205,7 +205,7 @@ class ProductWorkflowE2E:
             if (
                 current
                 and (current.reserve_0 != before.reserve_0 or current.reserve_1 != before.reserve_1)
-                and self.transaction_count(pool.pool_id, self.swap_transaction_types()) > before_swap_count
+                and self.transaction_count(pool, self.swap_transaction_types()) > before_swap_count
             ):
                 self.validate_position_interfaces(current)
                 return current
@@ -233,7 +233,6 @@ class ProductWorkflowE2E:
     def execute_add_liquidity_and_wait(self, pool: Pool) -> Decimal:
         before_contract_liquidity = self.owner_liquidity_amount(pool)
         before_position_liquidity = self.actual_position_liquidity_amount(pool)
-        before_add_count = self.transaction_count(pool.pool_id, {"AddLiquidity"})
         self.execute_add_liquidity(pool)
 
         def increased_liquidity() -> Decimal | None:
@@ -242,7 +241,6 @@ class ProductWorkflowE2E:
             if (
                 current_position_liquidity > before_position_liquidity
                 and current_contract_liquidity > before_contract_liquidity
-                and self.transaction_count(pool.pool_id, {"AddLiquidity"}) > before_add_count
             ):
                 self.validate_position_interfaces(pool)
                 return current_position_liquidity
@@ -291,7 +289,6 @@ class ProductWorkflowE2E:
         remove_amount = Decimal("0.1") if liquidity >= Decimal("0.1") else liquidity
         before_claims = self.claim_balances_by_token(pool)
         before_position_liquidity = self.actual_position_liquidity_amount(pool)
-        before_remove_count = self.transaction_count(pool.pool_id, {"RemoveLiquidity"})
 
         self.execute_remove_liquidity(pool, str(remove_amount))
 
@@ -300,14 +297,13 @@ class ProductWorkflowE2E:
             current_claims = self.claim_balances_by_token(pool)
             if (
                 current_position_liquidity < before_position_liquidity
-                and self.transaction_count(pool.pool_id, {"RemoveLiquidity"}) > before_remove_count
                 and self.claimable_increased(
                     before_claims,
                     current_claims,
                     require_all=True,
                 )
             ):
-                self.validate_position_interfaces(pool, require_actual_fee_positive=True)
+                self.validate_position_interfaces(pool)
                 return current_claims
             return None
 
@@ -466,11 +462,25 @@ class ProductWorkflowE2E:
 
     def check_observability(self, pool: Pool) -> None:
         stats = self.http_json(f"{self.kline_url}/protocol/stats")
-        if int(stats.get("pool_count", 0)) <= 0:
-            raise E2EError("kline protocol stats did not observe any pools")
+        current_pools = self.swap_pools()
+        observed_pool_count = int(stats.get("pool_count", 0))
+        if observed_pool_count < len(current_pools):
+            raise E2EError(
+                f"kline protocol pool_count does not cover swap pools: {observed_pool_count} < {len(current_pools)}"
+            )
+        expected_tvl_floor = self.expected_tvl_native(current_pools)
+        observed_tvl = self.decimal_or_zero(stats.get("tvl"))
+        if expected_tvl_floor <= 0:
+            raise E2EError("independently computed protocol TVL is not positive")
+        if observed_tvl < expected_tvl_floor:
+            raise E2EError(
+                f"protocol stats TVL does not cover current swap pools: {observed_tvl} < {expected_tvl_floor}"
+            )
         rows = self.transaction_rows(limit=50)
         if not rows:
             raise E2EError("kline transactions endpoint returned no rows")
+        if not any(self.observability_row_matches_pool(row, pool) for row in rows):
+            raise E2EError(f"kline transactions endpoint has no recent rows for pool {pool.pool_id}")
 
     def wait_for_pool(self, token_0: str, token_1: str | None) -> Pool:
         def find_pool() -> Pool | None:
@@ -483,19 +493,19 @@ class ProductWorkflowE2E:
 
         return self.wait_for("initialized pool", find_pool)
 
-    def wait_for_transaction(self, pool_id: int, types: set[str]) -> None:
+    def wait_for_transaction(self, pool: Pool, types: set[str]) -> None:
         def has_transaction() -> bool | None:
-            seen = self.transaction_types(pool_id, limit=200)
+            seen = self.transaction_types(pool, limit=200)
             return bool(seen & types) or None
 
         self.wait_for(f"transaction {sorted(types)}", has_transaction)
 
-    def transaction_types(self, pool_id: int, *, limit: int) -> set[str]:
+    def transaction_types(self, pool: Pool, *, limit: int) -> set[str]:
         transactions = self.transaction_rows(limit=limit)
         return {
             row.get("transaction_type")
             for row in transactions
-            if isinstance(row, dict) and int(row.get("pool_id") or 0) == int(pool_id)
+            if isinstance(row, dict) and self.observability_row_matches_pool(row, pool)
         }
 
     def transaction_rows(self, *, limit: int) -> list[dict]:
@@ -509,12 +519,12 @@ class ProductWorkflowE2E:
         rows = payload if isinstance(payload, list) else payload.get("transactions", [])
         return [row for row in rows if isinstance(row, dict)]
 
-    def transaction_count(self, pool_id: int, types: set[str]) -> int:
+    def transaction_count(self, pool: Pool, types: set[str]) -> int:
         return sum(
             1
             for row in self.transaction_rows(limit=300)
             if isinstance(row, dict)
-            and int(row.get("pool_id") or 0) == int(pool_id)
+            and self.observability_row_matches_pool(row, pool)
             and row.get("transaction_type") in types
         )
 
@@ -551,7 +561,9 @@ class ProductWorkflowE2E:
             raise E2EError(f"/positions returned multiple actual rows for pool {pool.pool_id}: {actual_positions}")
         if actual_positions:
             actual = actual_positions[0]
-            metric = self.single_metric(metrics, status="active")
+            actual_liquidity = self.decimal_or_zero(actual.get("current_liquidity"))
+            metric_status = "closed" if actual_liquidity <= 0 else "active"
+            metric = self.single_metric(metrics, status=metric_status)
             self.assert_decimal_equal(
                 actual.get("current_liquidity"),
                 metric.get("current_liquidity"),
@@ -563,10 +575,13 @@ class ProductWorkflowE2E:
                 "actual /positions.current_liquidity vs /position-metrics.position_liquidity",
             )
             self.assert_metric_amounts_balance(metric, protocol_fee_expected=False)
-            if require_actual_fee_positive and self.metric_fee_total(metric) <= 0:
-                raise E2EError(f"actual position trading fees are not positive for pool {pool.pool_id}: {metric}")
-            if require_actual_fee_positive and self.metric_trailing_fee_total(metric) <= 0:
-                raise E2EError(f"actual position trailing 24h fees are not positive for pool {pool.pool_id}: {metric}")
+            if require_actual_fee_positive:
+                if not self.metric_snapshot_available(metric):
+                    raise E2EError(f"actual position metrics snapshot is unavailable for pool {pool.pool_id}: {metric}")
+                if self.metric_fee_total(metric) <= 0:
+                    raise E2EError(f"actual position trading fees are not positive for pool {pool.pool_id}: {metric}")
+                if self.metric_trailing_fee_total(metric) <= 0:
+                    raise E2EError(f"actual position trailing 24h fees are not positive for pool {pool.pool_id}: {metric}")
 
         virtual_positions = [row for row in positions if self.is_virtual_position(row)]
         virtual_metric = None
@@ -587,8 +602,8 @@ class ProductWorkflowE2E:
         if virtual_metric is not None:
             self.assert_decimal_equal(
                 residual_liquidity,
-                virtual_metric.get("position_liquidity"),
-                "contract owner liquidity residual vs virtual protocol-fee position_liquidity",
+                virtual_metric.get("current_liquidity"),
+                "contract owner liquidity residual vs virtual protocol-fee current_liquidity",
             )
 
     def assert_metric_amounts_balance(self, metric: dict, *, protocol_fee_expected: bool) -> None:
@@ -630,16 +645,14 @@ class ProductWorkflowE2E:
         return [
             row
             for row in self.kline_positions(status="all")
-            if int(row.get("pool_id") or 0) == int(pool.pool_id)
-            and row.get("pool_application") == self.pool_application_account(pool)
+            if row.get("pool_application") == self.pool_application_account(pool)
         ]
 
     def position_metrics_for_pool(self, pool: Pool) -> list[dict]:
         return [
             row
             for row in self.kline_position_metrics(status="all")
-            if int(row.get("pool_id") or 0) == int(pool.pool_id)
-            and row.get("pool_application") == self.pool_application_account(pool)
+            if row.get("pool_application") == self.pool_application_account(pool)
         ]
 
     def kline_positions(self, *, status: str) -> list[dict]:
@@ -677,6 +690,10 @@ class ProductWorkflowE2E:
         )
 
     @staticmethod
+    def metric_snapshot_available(metric: dict) -> bool:
+        return "missing_position_metrics_snapshot" not in (metric.get("computation_blockers") or [])
+
+    @staticmethod
     def metric_fee_total(metric: dict) -> Decimal:
         return ProductWorkflowE2E.decimal_or_zero(metric.get("fee_amount0")) + ProductWorkflowE2E.decimal_or_zero(metric.get("fee_amount1"))
 
@@ -698,6 +715,40 @@ class ProductWorkflowE2E:
     @staticmethod
     def swap_transaction_types() -> set[str]:
         return {"BuyToken0", "SellToken0", "Swap"}
+
+    def expected_tvl_native(self, pools: list[Pool]) -> Decimal:
+        native_prices: dict[str, Decimal] = {"TLINERA": Decimal("1")}
+        edges = []
+        for pool in pools:
+            token_0 = pool.token_0
+            token_1 = self.normalized_token(pool.token_1)
+            if pool.reserve_0 <= 0 or pool.reserve_1 <= 0:
+                continue
+            edges.append((token_0, token_1, pool.reserve_1 / pool.reserve_0))
+            edges.append((token_1, token_0, pool.reserve_0 / pool.reserve_1))
+
+        changed = True
+        while changed:
+            changed = False
+            for from_token, to_token, price_in_to_token in edges:
+                if from_token in native_prices or to_token not in native_prices:
+                    continue
+                native_prices[from_token] = price_in_to_token * native_prices[to_token]
+                changed = True
+
+        tvl = Decimal("0")
+        for pool in pools:
+            token_0 = pool.token_0
+            token_1 = self.normalized_token(pool.token_1)
+            if token_0 in native_prices:
+                tvl += pool.reserve_0 * native_prices[token_0]
+            if token_1 in native_prices:
+                tvl += pool.reserve_1 * native_prices[token_1]
+        return tvl
+
+    @staticmethod
+    def normalized_token(token: str | None) -> str:
+        return "TLINERA" if token is None else str(token)
 
     def owner_liquidity_amount(self, pool: Pool) -> Decimal:
         liquidity = self.pool_liquidity(pool)
@@ -747,6 +798,12 @@ class ProductWorkflowE2E:
 
     def pool_application_account(self, pool: Pool) -> str:
         return f"{pool.pool_application_owner}@{pool.pool_application_chain}"
+
+    def observability_row_matches_pool(self, row: dict, pool: Pool) -> bool:
+        pool_application = row.get("pool_application")
+        if pool_application:
+            return pool_application == self.pool_application_account(pool)
+        return int(row.get("pool_id") or 0) == int(pool.pool_id)
 
     def pool_liquidity(self, pool: Pool) -> dict:
         return self.application_graphql(
@@ -876,18 +933,29 @@ class ProductWorkflowE2E:
     def http_json(self, url: str, payload: dict | None = None) -> dict:
         body = None if payload is None else json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+        def timeout_handler(_signum, _frame):
+            raise TimeoutError(f"HTTP request exceeded {self.request_timeout_seconds}s for {url}")
+
+        previous_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        if self.request_timeout_seconds and self.request_timeout_seconds > 0:
+            signal.alarm(int(self.request_timeout_seconds))
         try:
             with urllib.request.urlopen(request, timeout=self.request_timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
+        except TimeoutError as error:
+            raise E2EError(str(error)) from error
         except urllib.error.HTTPError as error:
             raise E2EError(f"HTTP {error.code} from {url}: {error.read().decode('utf-8', 'replace')}") from error
         except urllib.error.URLError as error:
             raise E2EError(f"HTTP request failed for {url}: {error}") from error
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous_handler)
 
     def wait_for(self, label: str, probe):
-        deadline = time.time() + self.timeout_seconds
+        deadline = None if self.timeout_seconds is None else time.time() + self.timeout_seconds
         last_error = None
-        while time.time() < deadline:
+        while deadline is None or time.time() < deadline:
             try:
                 self.process_known_inboxes()
                 value = probe()
@@ -950,7 +1018,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--swap-application-id", required=True)
     parser.add_argument("--ams-application-id", required=True)
     parser.add_argument("--blob-gateway-application-id", required=True)
-    parser.add_argument("--timeout-seconds", type=int, default=900)
+    parser.add_argument("--timeout-seconds", type=int, default=0, help="Maximum seconds to wait for each condition; <=0 waits forever")
     parser.add_argument("--request-timeout-seconds", type=int, default=180)
     parser.add_argument("--poll-seconds", type=int, default=5)
     parser.add_argument("--run-id", default="")

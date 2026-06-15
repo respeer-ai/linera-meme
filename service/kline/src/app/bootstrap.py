@@ -18,6 +18,7 @@ from market.position_metrics_snapshot_builder import PositionMetricsSnapshotBuil
 from market.position_metrics_snapshot_materializer import PositionMetricsSnapshotMaterializer
 from market.settled_market_deriver import SettledMarketDeriver
 from market.settled_market_materializer import SettledMarketMaterializer
+from market.settled_output_batch_factory import SettledOutputBatchFactory
 from normalizer.decode_result_normalizer import DecodeResultNormalizer
 from normalizer.normalized_event_materializer import NormalizedEventMaterializer
 from normalizer.normalization_replay_driver import NormalizationReplayDriver
@@ -140,6 +141,7 @@ class AppBootstrap:
             runner=RustDecoderRunner(),
         )
         settled_market_deriver = SettledMarketDeriver()
+        settled_output_batch_factory = SettledOutputBatchFactory()
         post_ingest_pipeline_bundle = self._build_post_ingest_pipeline_bundle(
             config=config,
             raw_repository=raw_repository,
@@ -185,6 +187,7 @@ class AppBootstrap:
             'normalization_worker': post_ingest_pipeline_bundle['normalization_worker'],
             'normalization_replay_driver': post_ingest_pipeline_bundle['normalization_replay_driver'],
             'settled_market_deriver': settled_market_deriver,
+            'settled_output_batch_factory': settled_output_batch_factory,
             'settled_market_materializer': post_ingest_pipeline_bundle['settled_market_materializer'],
             'market_derivation_worker': post_ingest_pipeline_bundle['market_derivation_worker'],
             'market_derivation_replay_driver': post_ingest_pipeline_bundle['market_derivation_replay_driver'],
@@ -375,6 +378,7 @@ class AppBootstrap:
             normalization_worker=normalization_worker,
             batch_limit=config.normalization_replay_batch_limit,
         )
+        settled_output_batch_factory = SettledOutputBatchFactory()
         settled_market_materializer = SettledMarketMaterializer(
             settled_market_deriver=settled_market_deriver,
             settled_trade_repository=settled_trade_repository,
@@ -383,6 +387,7 @@ class AppBootstrap:
             pool_catalog_repository=pool_catalog_projection_repository,
             normalized_event_repository=normalized_event_repository,
             position_metrics_snapshot_materializer=position_metrics_snapshot_materializer,
+            settled_output_batch_factory=settled_output_batch_factory,
         )
         market_derivation_worker = MarketDerivationWorker(
             settled_market_materializer=settled_market_materializer,
@@ -403,6 +408,7 @@ class AppBootstrap:
             'normalized_event_materializer': normalized_event_materializer,
             'normalization_worker': normalization_worker,
             'normalization_replay_driver': normalization_replay_driver,
+            'settled_output_batch_factory': settled_output_batch_factory,
             'settled_market_materializer': settled_market_materializer,
             'market_derivation_worker': market_derivation_worker,
             'market_derivation_replay_driver': market_derivation_replay_driver,

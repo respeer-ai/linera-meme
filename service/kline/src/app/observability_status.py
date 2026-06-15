@@ -3,6 +3,7 @@ import time
 
 class ObservabilityStatus:
     COMPONENT_SCHEMA = 'schema'
+    COMPONENT_POSITION_METRICS_SNAPSHOT_REPAIR = 'position_metrics_snapshot_repair'
     COMPONENT_REGISTRY = 'registry'
     COMPONENT_STARTUP_CATCH_UP = 'startup_catch_up'
     COMPONENT_LISTENER = 'listener'
@@ -24,6 +25,7 @@ class ObservabilityStatus:
         self.last_transition_at = time.time()
         self.runtime_components = (
             self.COMPONENT_SCHEMA,
+            self.COMPONENT_POSITION_METRICS_SNAPSHOT_REPAIR,
             self.COMPONENT_REGISTRY,
             self.COMPONENT_STARTUP_CATCH_UP,
             self.COMPONENT_LISTENER,
@@ -36,6 +38,7 @@ class ObservabilityStatus:
         )
         self.components = {
             self.COMPONENT_SCHEMA: self._build_component_status('idle'),
+            self.COMPONENT_POSITION_METRICS_SNAPSHOT_REPAIR: self._build_component_status('idle'),
             self.COMPONENT_REGISTRY: self._build_component_status('idle'),
             self.COMPONENT_STARTUP_CATCH_UP: self._build_component_status('idle'),
             self.COMPONENT_LISTENER: self._build_component_status('idle'),

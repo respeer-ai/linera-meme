@@ -105,7 +105,7 @@ class PositionsReadModel:
         merged['protocol_fee_reference_amount1'] = base.get('protocol_fee_reference_amount1')
         merged['current_liquidity'] = position.get('current_liquidity') or '0'
         merged['virtual_current_liquidity'] = base.get('virtual_current_liquidity') or base.get('current_liquidity') or '0'
-        if self._positive_amount(merged.get('current_liquidity')) or self._positive_amount(merged.get('virtual_current_liquidity')):
+        if self._positive_amount(merged.get('current_liquidity')):
             merged['status'] = 'active'
             merged['closed_at'] = None
         return merged
@@ -123,7 +123,7 @@ class PositionsReadModel:
             int(base.get('updated_at') or 0),
             int(position.get('updated_at') or 0),
         ) or base.get('updated_at') or position.get('updated_at')
-        if self._positive_amount(merged.get('current_liquidity')) or self._positive_amount(merged.get('virtual_current_liquidity')):
+        if self._positive_amount(merged.get('current_liquidity')):
             if merged.get('status') != 'virtual':
                 merged['status'] = 'active'
             merged['closed_at'] = None

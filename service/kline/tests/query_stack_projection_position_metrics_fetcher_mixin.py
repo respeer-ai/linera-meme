@@ -848,3 +848,133 @@ class QueryStackProjectionPositionMetricsFetcherMixin:
             self._shadow(payload)['snapshot_shadow']['exact_case'],
             'fee_to_opening_mint_post_basis_liquidity_changes_with_intervening_swaps',
         )
+
+
+    def test_projection_position_metrics_fetcher_uses_snapshot_fast_path_for_closed_remove_basis(self):
+        repository = _build_snapshot_only_repository(
+            _snapshot_inputs(
+                position_basis_snapshot={
+                    'status': 'closed',
+                    'basis_type': 'remove_liquidity',
+                    'current_liquidity': '0',
+                    'basis_transaction_id': 20,
+                    'basis_time_ms': 2_000,
+                    'state_payload_json': {
+                        'trade_count_between_basis_and_fee_free_basis': 0,
+                    },
+                },
+                pool_state_snapshot={
+                    'last_transaction_id': 20,
+                    'last_trade_time_ms': 1_500,
+                    'last_liquidity_event_time_ms': 2_000,
+                    'current_total_supply': '100',
+                    'current_reserve_0': '300',
+                    'current_reserve_1': '400',
+                    'fee_free_basis_transaction_id': 20,
+                    'fee_free_basis_time_ms': 2_000,
+                    'fee_free_reserve_0': '300',
+                    'fee_free_reserve_1': '400',
+                    'fee_free_total_supply': '100',
+                    'state_payload_json': {'virtual_initial_liquidity': False},
+                },
+            )
+        )
+
+        client = _build_payload_builder(
+            _position_metrics_payload(
+                fee_to=None,
+                total_supply='100',
+                virtual_initial_liquidity=False,
+                liquidity='0',
+                amount0='0',
+                amount1='0',
+            )
+        )
+
+        payload = asyncio.run(
+            _build_projection_position_metrics_fetcher(
+                product_state_provider=repository,
+                payload_builder=client,
+                snapshot_fast_path=PositionMetricsSnapshotFastPath(),
+                snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
+            )({
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                'pool_id': 5,
+                'opened_at': 1_000,
+                'status': 'closed',
+                'current_liquidity': '0',
+            })
+        )
+
+        metrics = self._metrics(payload)
+        self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(metrics['position_liquidity'], '0')
+        self.assertEqual(metrics['principal_amount0'], '0')
+        self.assertEqual(metrics['principal_amount1'], '0')
+        self.assertEqual(metrics['fee_amount0'], '0')
+        self.assertEqual(metrics['fee_amount1'], '0')
+        self.assertEqual(metrics['computation_blockers'], [])
+
+
+    def test_projection_position_metrics_fetcher_derives_trailing_fee_when_basis_is_inside_24h_window(self):
+        repository = _build_snapshot_only_repository(
+            _snapshot_inputs(
+                position_basis_snapshot={
+                    'status': 'active',
+                    'basis_type': 'add_liquidity',
+                    'current_liquidity': '10',
+                    'basis_transaction_id': 10,
+                    'basis_time_ms': 1_800_000_001_000,
+                    'state_payload_json': {
+                        'basis_opens_current_round': True,
+                    },
+                },
+                pool_state_snapshot={
+                    'last_transaction_id': 11,
+                    'last_trade_time_ms': 1_800_000_002_000,
+                    'last_liquidity_event_time_ms': 1_800_000_001_000,
+                    'fee_free_basis_transaction_id': 10,
+                    'fee_free_basis_time_ms': 1_800_000_001_000,
+                    'fee_free_reserve_0': '9',
+                    'fee_free_reserve_1': '10',
+                    'fee_free_total_supply': '10',
+                },
+            )
+        )
+
+        client = _build_payload_builder(
+            _position_metrics_payload(
+                fee_to=None,
+                total_supply='10',
+                virtual_initial_liquidity=False,
+                liquidity='10',
+                amount0='10',
+                amount1='12',
+            )
+        )
+
+        payload = asyncio.run(
+            _build_projection_position_metrics_fetcher(
+                product_state_provider=repository,
+                payload_builder=client,
+                snapshot_fast_path=PositionMetricsSnapshotFastPath(),
+                snapshot_shadow_evaluator=PositionMetricsSnapshotShadowEvaluator(),
+            )({
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                'pool_id': 5,
+                'opened_at': 1_800_000_001_000,
+                'status': 'active',
+                'current_liquidity': '10',
+            })
+        )
+
+        metrics = self._metrics(payload)
+        self.assertEqual(metrics['metrics_status'], 'exact_no_swap_history')
+        self.assertEqual(metrics['fee_amount0'], '1')
+        self.assertEqual(metrics['fee_amount1'], '2')
+        self.assertEqual(metrics['trailing_24h_fee_amount0'], '1')
+        self.assertEqual(metrics['trailing_24h_fee_amount1'], '2')
+        self.assertEqual(metrics['trailing_24h_fee_window_end_ms'], 1_800_000_002_000)
+        self.assertEqual(metrics['trailing_24h_fee_window_start_ms'], 1_799_913_602_000)

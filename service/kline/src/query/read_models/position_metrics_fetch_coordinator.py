@@ -105,4 +105,3 @@ class PositionMetricsFetchCoordinator:
             'value_warning_codes': ['snapshot_unavailable'],
             'value_warning_message': 'Position metrics snapshot is not available yet.',
         }
-

@@ -886,6 +886,18 @@ groups:
           - `output/pytest-venv/bin/pytest service/kline/tests/observability_reconciliation_test.py -q`
           - `python3 -m unittest service/kline/tests/claim_balance_projection_repo_test.py service/kline/tests/claim_balances_read_model_test.py service/kline/tests/claim_balances_serializer_test.py`
           - `bash -n service/kline/tests/observability_e2e_test.sh`
+      - id: POS-066
+        status: Todo
+        priority: P1
+        depends_on: [POS-057, POS-061]
+        title: Define continuous K-line behavior after the last trade
+        notes: |
+          Current projection-backed `/points` semantics return candles that have settled trades. This is data-correct when the latest settled trade is old, but a continuous financial chart may need zero-volume flat candles from the last close through server time.
+
+          Decide the product contract before implementation:
+          - Whether continuous flat candles are produced by backend `/points`, frontend rendering, or a separate chart mode.
+          - The flat candle shape should be `open=high=low=close=last_close`, `volume=0`, and server-owned `is_final` semantics.
+          - Tests must cover restart with no new trades: cached/historical candles remain visible, recent empty windows do not blank the chart, and optional continuous candles do not imply real trades.
       - id: POS-024
         status: Done
         priority: P0

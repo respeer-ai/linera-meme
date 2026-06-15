@@ -11,6 +11,7 @@ import {
   resolveBackgroundHistoryStatus,
   resolveStartupCacheGapFetch,
   resolveStartupCatchupFetch,
+  resolveStartupEmptyHistoryFallbackFetch,
   resolveStartupGapBackfillFetch,
   resolveStartupGapBackfillFetches,
   resolveStartupNonFinalRepairFetch,
@@ -650,6 +651,34 @@ describe('resolveNextFetchTimestamp', () => {
         nextPoolApplication: 'chain-b:owner-b',
       }),
     ).toBe(true)
+  })
+
+  test('falls back to an older history window when startup latest window is empty', () => {
+    expect(
+      resolveStartupEmptyHistoryFallbackFetch({
+        latestWindowStart: 10 * 60 * 60 * 1000,
+        poolCreatedAt: 0,
+        interval: Interval.FIVE_MINUTE,
+      }),
+    ).toEqual({
+      reverse: true,
+      startAt: 0,
+      endAt: 10 * 60 * 60 * 1000 - 1,
+    })
+  })
+
+  test('clamps startup empty-history fallback to pool creation time', () => {
+    expect(
+      resolveStartupEmptyHistoryFallbackFetch({
+        latestWindowStart: 100 * 60 * 60 * 1000,
+        poolCreatedAt: 50 * 60 * 60 * 1000,
+        interval: Interval.FIVE_MINUTE,
+      }),
+    ).toEqual({
+      reverse: true,
+      startAt: 50 * 60 * 60 * 1000,
+      endAt: 100 * 60 * 60 * 1000 - 1,
+    })
   })
 
   test('clamps forward edge fetches to now so the chart does not request future empty candles', () => {

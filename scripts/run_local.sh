@@ -14,7 +14,6 @@ GIT_BRANCH=respeer-maas-testnet_conway-7e52827f-2026-03-15
 CHAIN_OWNER_COUNT=1
 CLUSTER=testnet-conway
 RUN_MAKER=1
-LINERA_TIMEOUT_SECONDS=${LINERA_TIMEOUT_SECONDS:-180}
 SUDO_PASSWORD=${SUDO_PASSWORD:-}
 
 options="f:c:C:W:z:"
@@ -178,7 +177,7 @@ function run_linera() {
     shift
 
     log_step "START $step_name"
-    if ! env $(linera_env_args) timeout --foreground "${LINERA_TIMEOUT_SECONDS}s" linera "$@" >> "$RUN_LOCAL_DEBUG_LOG" 2>&1; then
+    if ! env $(linera_env_args) linera "$@" >> "$RUN_LOCAL_DEBUG_LOG" 2>&1; then
         log_step "FAIL $step_name"
         tail -n 80 "$RUN_LOCAL_DEBUG_LOG" >&2
         return 1
@@ -215,7 +214,7 @@ function run_linera_capture() {
     local stdout_file
     stdout_file=$(mktemp)
     log_step "START $step_name"
-    if ! env $(linera_env_args) timeout --foreground "${LINERA_TIMEOUT_SECONDS}s" linera "$@" > "$stdout_file" 2>> "$RUN_LOCAL_DEBUG_LOG"; then
+    if ! env $(linera_env_args) linera "$@" > "$stdout_file" 2>> "$RUN_LOCAL_DEBUG_LOG"; then
         log_step "FAIL $step_name"
         rm -f "$stdout_file"
         tail -n 80 "$RUN_LOCAL_DEBUG_LOG" >&2

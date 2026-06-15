@@ -42,6 +42,7 @@ export type StartupFetchRequest = {
   endAt: number
 }
 
+export type StartupEmptyHistoryFallbackFetchRequest = StartupFetchRequest
 export type StartupCatchupFetchRequest = StartupFetchRequest
 
 export type StartupGapBackfillFetchRequest = StartupFetchRequest & {
@@ -63,6 +64,12 @@ type StartupRequestPlanInput = {
   nowMs: number
   interval: Interval
   poolCreatedAt: number
+}
+
+type StartupEmptyHistoryFallbackInput = {
+  latestWindowStart: number
+  poolCreatedAt: number
+  interval: Interval
 }
 
 export type StartupRequestPlan = {
@@ -317,6 +324,24 @@ export const resolveStartupRequestPlan = ({
       startAt: latestWindowStart,
       endAt: nowMs,
     },
+  }
+}
+
+export const resolveStartupEmptyHistoryFallbackFetch = ({
+  latestWindowStart,
+  poolCreatedAt,
+  interval,
+}: StartupEmptyHistoryFallbackInput): StartupEmptyHistoryFallbackFetchRequest | null => {
+  const fallbackWindowSize = getFirstScreenFetchWindowSize(interval) * 12
+  const endAt = latestWindowStart - 1
+  const startAt = Math.max(poolCreatedAt, latestWindowStart - fallbackWindowSize)
+
+  if (endAt < startAt) return null
+
+  return {
+    reverse: true,
+    startAt,
+    endAt,
   }
 }
 

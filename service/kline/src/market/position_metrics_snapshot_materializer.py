@@ -1,3 +1,6 @@
+import json
+
+
 class PositionMetricsSnapshotMaterializer:
     def __init__(
         self,
@@ -10,11 +13,62 @@ class PositionMetricsSnapshotMaterializer:
         self.position_state_snapshot_repository = position_state_snapshot_repository
         self.pool_state_snapshot_repository = pool_state_snapshot_repository
 
-    def materialize_output_batch(self, output_batch) -> dict[str, object]:
+
+    def repair_position_state_gaps(
+        self,
+        *,
+        settled_liquidity_change_repository,
+        settled_output_batch_factory,
+        batch_limit: int = 500,
+        max_batches: int = 20,
+    ) -> dict[str, object]:
+        total_outputs = 0
+        total_positions = 0
+        batches = 0
+        for _ in range(max(0, int(max_batches))):
+            outputs = settled_liquidity_change_repository.list_position_snapshot_gap_changes(
+                limit=batch_limit,
+            )
+            if not outputs:
+                break
+            batches += 1
+            total_outputs += len(outputs)
+            summary = self.materialize_output_batch(
+                settled_output_batch_factory.build(outputs),
+                update_pool_states=False,
+            )
+            if summary.get('degraded'):
+                return {
+                    'degraded': True,
+                    'error_text': summary.get('error_text'),
+                    'batches': batches,
+                    'repaired_output_count': total_outputs,
+                    'repaired_position_count': total_positions,
+                }
+            total_positions += int(summary.get('persisted_position_state_count') or 0)
+            if len(outputs) < int(batch_limit):
+                break
+        return {
+            'degraded': False,
+            'batches': batches,
+            'repaired_output_count': total_outputs,
+            'repaired_position_count': total_positions,
+        }
+
+    def materialize_output_batch(
+        self,
+        output_batch,
+        *,
+        update_pool_states: bool = True,
+    ) -> dict[str, object]:
         if not output_batch.outputs:
             return self._summary()
         try:
-            pool_states = self._build_pool_states_incremental(output_batch)
+            pool_states = (
+                self._build_pool_states_incremental(output_batch)
+                if update_pool_states
+                else []
+            )
             position_replacements = self._build_position_states_incremental(output_batch)
             for replacement in position_replacements:
                 self.position_state_snapshot_repository.replace_position_states(
@@ -52,7 +106,7 @@ class PositionMetricsSnapshotMaterializer:
                 if str(o.get('pool_application_id')) == pool_application_id
             ]
             events.sort(key=lambda o: (
-                int(o.get('created_at') or o.get('trade_time_ms') or 0),
+                int(o.get('created_at') or o.get('event_time_ms') or o.get('trade_time_ms') or 0),
                 int(o.get('transaction_id') or 0),
             ))
             for event in events:
@@ -75,6 +129,11 @@ class PositionMetricsSnapshotMaterializer:
                 'swap_count': 0,
                 'last_trade_time_ms': 0, 'last_liquidity_event_time_ms': 0,
                 'last_transaction_id': 0,
+                'fee_free_basis_transaction_id': None,
+                'fee_free_basis_time_ms': None,
+                'fee_free_reserve0': 0,
+                'fee_free_reserve1': 0,
+                'fee_free_total_supply': 0,
             }
         return {
             'reserve0': vs.to_attos(row.get('current_reserve_0')) or 0,
@@ -87,6 +146,11 @@ class PositionMetricsSnapshotMaterializer:
             'last_trade_time_ms': int(row.get('last_trade_time_ms') or 0),
             'last_liquidity_event_time_ms': int(row.get('last_liquidity_event_time_ms') or 0),
             'last_transaction_id': int(row.get('last_transaction_id') or 0),
+            'fee_free_basis_transaction_id': row.get('fee_free_basis_transaction_id'),
+            'fee_free_basis_time_ms': row.get('fee_free_basis_time_ms'),
+            'fee_free_reserve0': vs.to_attos(row.get('fee_free_reserve_0')) or 0,
+            'fee_free_reserve1': vs.to_attos(row.get('fee_free_reserve_1')) or 0,
+            'fee_free_total_supply': vs.to_attos(row.get('fee_free_total_supply')) or 0,
         }
 
     def _pool_state_row_from_attos(self, state, pool_application_id, pool_chain_id):
@@ -114,11 +178,11 @@ class PositionMetricsSnapshotMaterializer:
             'pending_protocol_fee': b._serialize_attos(
                 state.get('pending_protocol_fee', 0)
             ),
-            'fee_free_basis_transaction_id': None,
-            'fee_free_basis_time_ms': None,
-            'fee_free_reserve_0': '0',
-            'fee_free_reserve_1': '0',
-            'fee_free_total_supply': '0',
+            'fee_free_basis_transaction_id': state.get('fee_free_basis_transaction_id'),
+            'fee_free_basis_time_ms': state.get('fee_free_basis_time_ms'),
+            'fee_free_reserve_0': b._serialize_attos(state.get('fee_free_reserve0', 0)),
+            'fee_free_reserve_1': b._serialize_attos(state.get('fee_free_reserve1', 0)),
+            'fee_free_total_supply': b._serialize_attos(state.get('fee_free_total_supply', 0)),
             'source_event_key': source_key,
             'state_payload_json': {},
         }
@@ -126,6 +190,8 @@ class PositionMetricsSnapshotMaterializer:
     def _build_position_states_incremental(self, output_batch):
         positions = {}
         for output in output_batch.liquidity_changes():
+            if not self._is_position_liquidity(output):
+                continue
             owner = str(output['owner'])
             pool_app_id = str(output['pool_application_id'])
             key = (owner, pool_app_id)
@@ -162,6 +228,21 @@ class PositionMetricsSnapshotMaterializer:
             for p in positions.values()
         ]
 
+    def _is_position_liquidity(self, output) -> bool:
+        return bool(output.get('is_position_liquidity', True))
+
+    def _decode_json_object(self, value):
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str) and value:
+            try:
+                decoded = json.loads(value)
+            except json.JSONDecodeError:
+                return {}
+            if isinstance(decoded, dict):
+                return decoded
+        return {}
+
     def _position_state_attos_from_row(self, row):
         vs = self.snapshot_builder.value_support
         if row is None:
@@ -174,7 +255,7 @@ class PositionMetricsSnapshotMaterializer:
                 'current_round_started_transaction_id': None,
                 'last_transaction_id': 0,
             }
-        payload = row.get('state_payload_json') or {}
+        payload = self._decode_json_object(row.get('state_payload_json'))
         return {
             'running_liquidity': vs.to_attos(row.get('current_liquidity')) or 0,
             'current_liquidity': vs.to_attos(row.get('current_liquidity')) or 0,

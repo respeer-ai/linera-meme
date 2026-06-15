@@ -167,6 +167,90 @@ class ProjectionPoolCatalogRepositoryTest(unittest.TestCase):
         self.assertEqual(pools[0]['pool_application'], '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a')
         self.assertIsNone(pools[0]['current_reserve_0'])
 
+
+    def test_list_current_pools_includes_registry_metadata_rows_without_catalog(self):
+        class FakePoolCatalogProjectionRepository:
+            def list_pool_catalog(self):
+                return []
+
+        class FakePoolStateProjectionRepository:
+            def list_pool_state_snapshots(self):
+                return [
+                    {
+                        'pool_application_id': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                        'current_reserve_0': '10',
+                        'current_reserve_1': '20',
+                        'current_total_supply': '30',
+                        'current_k_last': '40',
+                        'last_trade_time_ms': 1000,
+                        'last_liquidity_event_time_ms': 900,
+                        'state_payload_json': {},
+                    }
+                ]
+
+        class FakePoolRegistryMetadataRepository:
+            def list_pool_metadata(self):
+                return [
+                    {
+                        'pool_id': 1001,
+                        'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                        'token_0': 'AAA',
+                        'token_1': 'TLINERA',
+                    }
+                ]
+
+        repository = ProjectionPoolCatalogRepository(
+            pool_catalog_projection_repository=FakePoolCatalogProjectionRepository(),
+            pool_state_projection_repository=FakePoolStateProjectionRepository(),
+            pool_registry_metadata_repository=FakePoolRegistryMetadataRepository(),
+        )
+
+        pools = repository.list_current_pools()
+
+        self.assertEqual(len(pools), 1)
+        self.assertEqual(pools[0]['pool_id'], 1001)
+        self.assertEqual(pools[0]['pool_application'], '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a')
+        self.assertEqual(pools[0]['token_0'], 'AAA')
+        self.assertEqual(pools[0]['token_1'], 'TLINERA')
+        self.assertEqual(pools[0]['current_reserve_0'], '10')
+
+    def test_list_current_pools_prefers_registry_protocol_pool_id_over_catalog_autoincrement(self):
+        class FakePoolCatalogProjectionRepository:
+            def list_pool_catalog(self):
+                return [
+                    {
+                        'pool_id': 35,
+                        'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                        'token_0': 'AAA',
+                        'token_1': 'TLINERA',
+                    }
+                ]
+
+        class FakePoolStateProjectionRepository:
+            def list_pool_state_snapshots(self):
+                return []
+
+        class FakePoolRegistryMetadataRepository:
+            def list_pool_metadata(self):
+                return [
+                    {
+                        'pool_id': 1001,
+                        'pool_application': '0x1111111111111111111111111111111111111111111111111111111111111111@chain-a',
+                        'token_0': 'AAA',
+                        'token_1': 'TLINERA',
+                    }
+                ]
+
+        repository = ProjectionPoolCatalogRepository(
+            pool_catalog_projection_repository=FakePoolCatalogProjectionRepository(),
+            pool_state_projection_repository=FakePoolStateProjectionRepository(),
+            pool_registry_metadata_repository=FakePoolRegistryMetadataRepository(),
+        )
+
+        pools = repository.list_current_pools()
+
+        self.assertEqual(pools[0]['pool_id'], 1001)
+
     def test_list_current_pool_views_builds_compat_objects(self):
         class FakePoolCatalogProjectionRepository:
             def list_pool_catalog(self):

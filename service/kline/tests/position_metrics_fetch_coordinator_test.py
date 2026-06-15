@@ -104,5 +104,34 @@ class PositionMetricsFetchCoordinatorTest(unittest.TestCase):
         self.assertEqual(result.projected_metrics['computation_blockers'], ['missing_position_metrics_snapshot'])
 
 
+    def test_fetch_does_not_hide_incomplete_snapshot_payload(self):
+        class FakeLoader:
+            def load_snapshot_inputs(self, **_kwargs):
+                return PositionMetricsSnapshotInputs({
+                    'position_basis_snapshot': {'basis_transaction_id': 11},
+                    'pool_state_snapshot': {'last_transaction_id': 11},
+                })
+
+        def fail_payload_builder(**_kwargs):
+            raise RuntimeError('position_metrics_projection_payload_incomplete')
+
+        coordinator = PositionMetricsFetchCoordinator(
+            payload_builder=fail_payload_builder,
+            query_input_provider=FakeLoader(),
+            fast_path_plan_builder=PositionMetricsFastPathPlanBuilder(),
+            fast_path_executor=PositionMetricsFastPathExecutor(),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, 'position_metrics_projection_payload_incomplete'):
+            self._run(coordinator.fetch(
+                position={
+                    'owner': 'chain:owner-a',
+                    'pool_application': 'chain:pool-app',
+                    'pool_id': 7,
+                    'current_liquidity': '12',
+                },
+            ))
+
+
 if __name__ == '__main__':
     unittest.main()

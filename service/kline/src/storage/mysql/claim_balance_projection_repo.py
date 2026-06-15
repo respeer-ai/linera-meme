@@ -347,16 +347,16 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
                     deltas.execution_chain_id,
                     deltas.token,
                     deltas.owner,
-                    COALESCE(SUM(CASE
+                    GREATEST(COALESCE(SUM(CASE
                         WHEN deltas.balance_kind = 'claimable' AND deltas.delta_direction = 'credit' THEN CAST(deltas.delta_amount AS DECIMAL(65, 0))
                         WHEN deltas.balance_kind = 'claimable' AND deltas.delta_direction = 'debit' THEN -CAST(deltas.delta_amount AS DECIMAL(65, 0))
                         ELSE 0
-                    END), 0) / {self.DISPLAY_AMOUNT_SCALE} AS claimable_amount,
-                    COALESCE(SUM(CASE
+                    END), 0), 0) / {self.DISPLAY_AMOUNT_SCALE} AS claimable_amount,
+                    GREATEST(COALESCE(SUM(CASE
                         WHEN deltas.balance_kind = 'claiming' AND deltas.delta_direction = 'credit' THEN CAST(deltas.delta_amount AS DECIMAL(65, 0))
                         WHEN deltas.balance_kind = 'claiming' AND deltas.delta_direction = 'debit' THEN -CAST(deltas.delta_amount AS DECIMAL(65, 0))
                         ELSE 0
-                    END), 0) / {self.DISPLAY_AMOUNT_SCALE} AS claiming_amount,
+                    END), 0), 0) / {self.DISPLAY_AMOUNT_SCALE} AS claiming_amount,
                     MAX(deltas.block_height) AS latest_block_height,
                     MAX(deltas.transaction_index) AS latest_transaction_index,
                     MAX(deltas.message_index) AS latest_message_index,
@@ -383,7 +383,7 @@ class ClaimBalanceProjectionRepository(MysqlRepositoryConnectionMixin):
                  AND incomplete_diagnostics.execution_chain_id = deltas.execution_chain_id
                 WHERE deltas.owner = %s
                 GROUP BY deltas.pool_application_id, deltas.execution_chain_id, deltas.token, deltas.owner
-                HAVING claimable_amount <> 0 OR claiming_amount <> 0
+                HAVING claimable_amount <> 0 OR claiming_amount <> 0 OR projection_status = 'incomplete'
                 ORDER BY deltas.pool_application_id ASC, deltas.execution_chain_id ASC, deltas.token ASC
                 """,
                 (owner,),

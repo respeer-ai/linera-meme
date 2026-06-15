@@ -685,6 +685,64 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(driver.added_chain_ids, [expected])
         self.assertEqual(listener.added_chain_ids, [expected])
 
+
+    async def test_observability_runtime_runs_position_snapshot_repair_after_schema(self):
+        class RecordingLifecycle(AppLifecycle):
+            def __init__(self):
+                self.calls = []
+
+            def ensure_schema(self, container: dict[str, object]) -> None:
+                self.calls.append('schema')
+
+            def repair_position_metrics_snapshots(self, container: dict[str, object]) -> None:
+                self.calls.append('position_metrics_snapshot_repair')
+
+            def seed_registry(self, container: dict[str, object]) -> None:
+                self.calls.append('seed_registry')
+
+            async def discover_registry(self, container: dict[str, object]) -> None:
+                self.calls.append('discover_registry')
+
+            def sync_discovered_chain_ids(self, container: dict[str, object]) -> tuple[str, ...]:
+                self.calls.append('sync_discovered_chain_ids')
+                return ()
+
+            async def run_startup_catch_up(self, container: dict[str, object]) -> None:
+                self.calls.append('startup_catch_up')
+
+            async def start_listener(self, container: dict[str, object]) -> None:
+                self.calls.append('listener')
+
+        connection = self.FakeConnection()
+        bootstrap = self.TestableBootstrap(
+            factory=self.FakeFactory(connection),
+            repository_type=self.FakeRawRepository,
+            chain_client_type=self.FakeChainClient,
+        )
+        config = KlineAppConfig(
+            database_host='db',
+            database_port='3306',
+            database_name='kline',
+            database_username='user',
+            database_password='pass',
+            chain_graphql_url='https://linera.example/graphql',
+            catch_up_chain_ids=('chain-a',),
+        )
+        lifecycle = RecordingLifecycle()
+        runtime = ObservabilityRuntime(
+            config,
+            bootstrap=bootstrap,
+            lifecycle=lifecycle,
+        )
+
+        stage_results = await runtime.start()
+
+        self.assertEqual(stage_results['position_metrics_snapshot_repair']['status'], 'ready')
+        self.assertEqual(
+            lifecycle.calls[:3],
+            ['schema', 'position_metrics_snapshot_repair', 'seed_registry'],
+        )
+
     async def test_observability_runtime_returns_stage_results_and_keeps_container_when_listener_fails(self):
         class StageFailingLifecycle(AppLifecycle):
             async def start_listener(self, container: dict[str, object]) -> None:
@@ -716,6 +774,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(runtime.container)
         self.assertEqual(stage_results['schema']['status'], 'ready')
+        self.assertEqual(stage_results['position_metrics_snapshot_repair']['status'], 'ready')
         self.assertEqual(stage_results['registry']['status'], 'ready')
         self.assertEqual(stage_results['startup_catch_up']['status'], 'ready')
         self.assertEqual(stage_results['listener']['status'], 'degraded')
@@ -766,6 +825,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 self.started = True
                 return {
                     'schema': {'status': 'ready', 'error': None},
+                    'position_metrics_snapshot_repair': {'status': 'ready', 'error': None},
                     'registry': {'status': 'ready', 'error': None},
                     'startup_catch_up': {'status': 'degraded', 'error': 'catch-up failed'},
                     'listener': {'status': 'ready', 'error': None},
@@ -791,6 +851,10 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             snapshot['components']['startup_catch_up']['last_error'],
             'catch-up failed',
+        )
+        self.assertEqual(
+            snapshot['components']['position_metrics_snapshot_repair']['status'],
+            'ready',
         )
 
     async def test_observability_supervisor_fails_open_when_runtime_startup_raises(self):
@@ -881,6 +945,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 self.started = True
                 return {
                     'schema': {'status': 'ready', 'error': None},
+                    'position_metrics_snapshot_repair': {'status': 'ready', 'error': None},
                     'registry': {'status': 'ready', 'error': None},
                     'startup_catch_up': {'status': 'degraded', 'error': 'catch-up failed'},
                     'listener': {'status': 'ready', 'error': None},
@@ -1229,6 +1294,7 @@ class AppBootstrapTest(unittest.IsolatedAsyncioTestCase):
                 self.started = True
                 return {
                     'schema': {'status': 'ready', 'error': None},
+                    'position_metrics_snapshot_repair': {'status': 'ready', 'error': None},
                     'registry': {'status': 'ready', 'error': None},
                     'startup_catch_up': {'status': 'degraded', 'error': 'catch-up failed'},
                     'listener': {'status': 'ready', 'error': None},

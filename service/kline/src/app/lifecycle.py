@@ -49,6 +49,25 @@ class AppLifecycle:
         ):
             pool_state_snapshot_repository.ensure_schema()
 
+    def repair_position_metrics_snapshots(self, container: dict[str, object]) -> None:
+        materializer = container.get('position_metrics_snapshot_materializer')
+        settled_liquidity_change_repository = container.get('settled_liquidity_change_repository')
+        settled_output_batch_factory = container.get('settled_output_batch_factory')
+        if (
+            materializer is not None
+            and settled_liquidity_change_repository is not None
+            and settled_output_batch_factory is not None
+            and hasattr(materializer, 'repair_position_state_gaps')
+        ):
+            result = materializer.repair_position_state_gaps(
+                settled_liquidity_change_repository=settled_liquidity_change_repository,
+                settled_output_batch_factory=settled_output_batch_factory,
+            )
+            if result and result.get('degraded'):
+                raise RuntimeError(
+                    result.get('error_text') or 'position metrics snapshot repair failed'
+                )
+
     def seed_registry(self, container: dict[str, object]) -> None:
         application_registry = container.get('application_registry')
         config = container.get('config')
@@ -107,6 +126,7 @@ class AppLifecycle:
 
     async def startup(self, container: dict[str, object]) -> None:
         self.ensure_schema(container)
+        self.repair_position_metrics_snapshots(container)
         self.seed_registry(container)
         await self.run_startup_catch_up(container)
         await self.start_listener(container)

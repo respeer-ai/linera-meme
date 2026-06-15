@@ -61,7 +61,12 @@ class PositionMetricsSnapshotFastPath:
             position_basis_snapshot=position_basis_snapshot,
             pool_state_snapshot=pool_state_snapshot,
         ):
-            return None
+            return self._resolve_closed_zero_position(
+                position=position,
+                payload=payload,
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            )
         data = payload.get('data') or {}
         liquidity = data.get('liquidity') or {}
         liquidity_value = self._to_decimal(liquidity.get('liquidity'))
@@ -135,10 +140,26 @@ class PositionMetricsSnapshotFastPath:
             'fee_amount1': self._serialize_decimal(fee_amount1),
             'protocol_fee_amount0': self._serialize_decimal(protocol_fee_amount0),
             'protocol_fee_amount1': self._serialize_decimal(protocol_fee_amount1),
-            'trailing_24h_fee_amount0': position_basis_snapshot.trailing_24h_fee_amount_0() or '0',
-            'trailing_24h_fee_amount1': position_basis_snapshot.trailing_24h_fee_amount_1() or '0',
-            'trailing_24h_fee_window_start_ms': position_basis_snapshot.trailing_24h_fee_window_start_ms(),
-            'trailing_24h_fee_window_end_ms': position_basis_snapshot.trailing_24h_fee_window_end_ms(),
+            'trailing_24h_fee_amount0': self._trailing_24h_fee_amount(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+                fallback_fee_amount=fee_amount0,
+                field_name='trailing_24h_fee_amount_0',
+            ),
+            'trailing_24h_fee_amount1': self._trailing_24h_fee_amount(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+                fallback_fee_amount=fee_amount1,
+                field_name='trailing_24h_fee_amount_1',
+            ),
+            'trailing_24h_fee_window_start_ms': self._trailing_24h_window_start_ms(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            ),
+            'trailing_24h_fee_window_end_ms': self._trailing_24h_window_end_ms(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            ),
             'value_warning_codes': [],
             'value_warning_message': None,
         }
@@ -149,6 +170,145 @@ class PositionMetricsSnapshotFastPath:
             position_basis_snapshot=position_basis_snapshot,
             pool_state_snapshot=pool_state_snapshot,
         )
+
+
+    def _resolve_closed_zero_position(
+        self,
+        *,
+        position: dict,
+        payload: dict,
+        position_basis_snapshot,
+        pool_state_snapshot,
+    ) -> dict | None:
+        position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
+        pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
+        if position_basis_snapshot.raw() is None or pool_state_snapshot.raw() is None:
+            return None
+        if str(position.get('status') or '') != 'closed':
+            return None
+        if str(position_basis_snapshot.status() or '') != 'closed':
+            return None
+        if str(position_basis_snapshot.basis_type() or '') != 'remove_liquidity':
+            return None
+        current_liquidity = self._to_decimal(position.get('current_liquidity'))
+        basis_liquidity = self._to_decimal(position_basis_snapshot.current_liquidity())
+        payload_liquidity = self._to_decimal(
+            ((payload.get('data') or {}).get('liquidity') or {}).get('liquidity')
+        )
+        if current_liquidity != Decimal('0') or basis_liquidity != Decimal('0') or payload_liquidity != Decimal('0'):
+            return None
+        projected_metrics = {
+            'position_liquidity': '0',
+            'current_total_supply': self._serialize_decimal(
+                self._to_decimal((payload.get('data') or {}).get('totalSupply'))
+            ),
+            'exact_share_ratio': '0',
+            'redeemable_amount0': '0',
+            'redeemable_amount1': '0',
+            'virtual_initial_liquidity': bool((payload.get('data') or {}).get('virtualInitialLiquidity')),
+            'metrics_status': 'exact_closed_zero_liquidity',
+            'fee_calculation_complete': True,
+            'principal_calculation_complete': True,
+            'owner_receives_protocol_fees': False,
+            'computation_blockers': [],
+            'principal_amount0': '0',
+            'principal_amount1': '0',
+            'fee_amount0': '0',
+            'fee_amount1': '0',
+            'protocol_fee_amount0': '0',
+            'protocol_fee_amount1': '0',
+            'trailing_24h_fee_amount0': '0',
+            'trailing_24h_fee_amount1': '0',
+            'trailing_24h_fee_window_start_ms': self._trailing_24h_window_start_ms(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            ),
+            'trailing_24h_fee_window_end_ms': self._trailing_24h_window_end_ms(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            ),
+            'value_warning_codes': [],
+            'value_warning_message': None,
+        }
+        return self.result_builder.build(
+            position=position,
+            projected_metrics=projected_metrics,
+            exact_case='closed_zero_liquidity',
+            position_basis_snapshot=position_basis_snapshot,
+            pool_state_snapshot=pool_state_snapshot,
+        )
+
+    def _trailing_24h_fee_amount(
+        self,
+        *,
+        position_basis_snapshot,
+        pool_state_snapshot,
+        fallback_fee_amount: Decimal,
+        field_name: str,
+    ) -> str:
+        facts = self._semantic_facts(position_basis_snapshot)
+        materialized_value = facts.get(field_name)
+        if materialized_value not in (None, ''):
+            return str(materialized_value)
+        if self._basis_is_inside_trailing_24h_window(
+            position_basis_snapshot=position_basis_snapshot,
+            pool_state_snapshot=pool_state_snapshot,
+        ):
+            return self._serialize_decimal(fallback_fee_amount)
+        return '0'
+
+    def _trailing_24h_window_start_ms(
+        self,
+        *,
+        position_basis_snapshot,
+        pool_state_snapshot,
+    ) -> int | None:
+        materialized = self._position_basis_snapshot(
+            position_basis_snapshot
+        ).trailing_24h_fee_window_start_ms()
+        if materialized is not None:
+            return materialized
+        end_ms = self._trailing_24h_window_end_ms(
+            position_basis_snapshot=position_basis_snapshot,
+            pool_state_snapshot=pool_state_snapshot,
+        )
+        if end_ms is None:
+            return None
+        return end_ms - 86400000
+
+    def _trailing_24h_window_end_ms(
+        self,
+        *,
+        position_basis_snapshot,
+        pool_state_snapshot,
+    ) -> int | None:
+        materialized = self._position_basis_snapshot(
+            position_basis_snapshot
+        ).trailing_24h_fee_window_end_ms()
+        if materialized is not None:
+            return materialized
+        pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
+        return (
+            self._int_or_none(pool_state_snapshot.last_trade_time_ms())
+            or self._int_or_none(pool_state_snapshot.last_liquidity_event_time_ms())
+        )
+
+    def _basis_is_inside_trailing_24h_window(
+        self,
+        *,
+        position_basis_snapshot,
+        pool_state_snapshot,
+    ) -> bool:
+        basis_time_ms = self._int_or_none(
+            self._position_basis_snapshot(position_basis_snapshot).basis_time_ms()
+        )
+        end_ms = self._trailing_24h_window_end_ms(
+            position_basis_snapshot=position_basis_snapshot,
+            pool_state_snapshot=pool_state_snapshot,
+        )
+        if basis_time_ms is None or end_ms is None:
+            return False
+        return basis_time_ms >= end_ms - 86400000
 
     def _principal_and_fee(
         self,

@@ -187,6 +187,10 @@ class ObservabilityRuntime:
     async def _run_startup_stages(self, container: dict[str, object]) -> dict[str, dict[str, object]]:
         results = {}
         results['schema'] = self._run_sync_stage(self.lifecycle.ensure_schema, container)
+        results['position_metrics_snapshot_repair'] = self._run_sync_stage(
+            self.lifecycle.repair_position_metrics_snapshots,
+            container,
+        )
         results['registry'] = await self._run_registry_stage(container)
         results['startup_catch_up'] = await self._run_async_stage(self.lifecycle.run_startup_catch_up, container)
         results['listener'] = await self._run_async_stage(self.lifecycle.start_listener, container)

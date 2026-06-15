@@ -44,6 +44,7 @@ import {
   resolveLoadRange,
   resolveNextFetchTimestamp,
   resolveStartupCatchupFetch,
+  resolveStartupEmptyHistoryFallbackFetch,
   resolveStartupNonFinalRepairFetch,
   resolveStartupRequestPlan,
   shouldContinueFetchAfterNoChange,
@@ -468,7 +469,12 @@ const hydrateResolvedPoolIdentity = async () => {
 }
 
 const getStoreKline = () => {
-  if (klineToken0.value && klineToken1.value && klineToken0.value !== klineToken1.value && !loading.value) {
+  if (
+    klineToken0.value &&
+    klineToken1.value &&
+    klineToken0.value !== klineToken1.value &&
+    !loading.value
+  ) {
     console.log('[PriceChartView] getStoreKline called, interval:', selectedInterval.value)
     if (!activePoolId.value || !activePoolApplication.value) return
     emitKlineDebug('get_store_kline_begin', {
@@ -676,10 +682,7 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
   } = payload
   const startupPlan = startupPlanRef.value
   const isStartupCacheLoad = reverse && timestampBegin === undefined && timestampEnd === undefined
-  const _points =
-    isStartupCacheLoad && startupPlan
-      ? payload.points.filter((point) => point.timestamp >= startupPlan.fetchLatest.startAt)
-      : payload.points
+  const _points = payload.points
 
   console.log(
     '[PriceChartView] onLoadedPoints, interval:',
@@ -758,7 +761,6 @@ const onLoadedPoints = (payload: klineWorker.LoadedPointsPayload) => {
         nonFinalRepairFetch.reverse,
       )
     }
-
   }
 
   if (isStartupCacheLoad && _points.length === 0 && startupPlan) {
@@ -959,12 +961,34 @@ const onSortedPoints = (payload: klineWorker.SortedPointsPayload) => {
     }
 
     if (
+      !firstScreenReady.value &&
+      !reverse &&
+      points.length === 0 &&
+      klinePoints.value.length === 0 &&
+      _reason.reason === SortReason.FETCH
+    ) {
+      const fallbackFetch = startupPlanRef.value
+        ? resolveStartupEmptyHistoryFallbackFetch({
+            latestWindowStart: startupPlanRef.value.fetchLatest.startAt,
+            poolCreatedAt: poolCreatedAt.value,
+            interval: selectedInterval.value,
+          })
+        : null
+      if (
+        fallbackFetch &&
+        fetchStartupRepairRange(fallbackFetch.startAt, fallbackFetch.endAt, fallbackFetch.reverse)
+      ) {
+        return
+      }
+    }
+
+    if (
       !shouldContinueStartupFetchAfterEmptyResult({
         firstScreenReady: firstScreenReady.value,
         reverse,
       })
     )
-      return
+      return finishLoading(requestId)
 
     const timestamp = resolveNextFetchTimestamp({
       reverse,
@@ -1070,7 +1094,6 @@ onBeforeUnmount(() => {
     onSortedPoints as klineWorker.ListenerFunc,
   )
 })
-
 </script>
 
 <style scoped lang="sass">

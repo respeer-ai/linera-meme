@@ -1,11 +1,22 @@
+from storage.mysql.pool_registry_metadata_repo import PoolRegistryMetadataRepository
+
+
 class PoolMetadataProjectionResolver:
-    def __init__(self, *, pool_catalog_projection_repository, pool_state_projection_repository):
+    def __init__(
+        self,
+        *,
+        pool_catalog_projection_repository,
+        pool_state_projection_repository,
+        pool_registry_metadata_repository=None,
+    ):
         self.pool_catalog_projection_repository = pool_catalog_projection_repository
         self.pool_state_projection_repository = pool_state_projection_repository
+        self.pool_registry_metadata_repository = pool_registry_metadata_repository
 
     def metadata_by_pool_application(self) -> dict[str, dict]:
         catalog_rows = self.pool_catalog_projection_repository.list_pool_catalog() or []
         state_rows = self.pool_state_projection_repository.list_pool_state_snapshots() or []
+        registry_rows = self._list_registry_pool_metadata()
 
         metadata = {}
         for row in catalog_rows:
@@ -19,6 +30,19 @@ class PoolMetadataProjectionResolver:
                 'creator_account': row.get('creator_account'),
             }
 
+        for row in registry_rows:
+            pool_application = row.get('pool_application')
+            if pool_application in (None, ''):
+                continue
+            current = metadata.get(str(pool_application), {})
+            metadata[str(pool_application)] = {
+                'pool_id': self._int_or_none(row.get('pool_id')),
+                'pool_chain_id': row.get('pool_chain_id') or current.get('pool_chain_id'),
+                'token_0': row.get('token_0') or current.get('token_0'),
+                'token_1': row.get('token_1') or current.get('token_1'),
+                'creator_account': row.get('creator_account') or current.get('creator_account'),
+            }
+
         for row in state_rows:
             pool_application = row.get('pool_application_id')
             if pool_application in (None, ''):
@@ -30,6 +54,7 @@ class PoolMetadataProjectionResolver:
             token_1 = created.get('token_1') or current.get('token_1')
             metadata[key] = {
                 'pool_id': self._int_or_none(current.get('pool_id')),
+                'pool_chain_id': row.get('pool_chain_id') or current.get('pool_chain_id'),
                 'token_0': token_0,
                 'token_1': token_1,
                 'creator_account': current.get('creator_account'),
@@ -48,3 +73,17 @@ class PoolMetadataProjectionResolver:
         if value in (None, ''):
             return None
         return int(value)
+
+    def _list_registry_pool_metadata(self) -> list[dict]:
+        repository = self.pool_registry_metadata_repository
+        if repository is None:
+            catalog_db = getattr(self.pool_catalog_projection_repository, 'db', None)
+            catalog_connection = getattr(self.pool_catalog_projection_repository, 'connection', None)
+            source = catalog_db or catalog_connection
+            if source is None:
+                return []
+            repository = PoolRegistryMetadataRepository(source)
+        list_pool_metadata = getattr(repository, 'list_pool_metadata', None)
+        if list_pool_metadata is None:
+            return []
+        return list_pool_metadata() or []

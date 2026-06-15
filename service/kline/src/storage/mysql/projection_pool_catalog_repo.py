@@ -1,4 +1,5 @@
 from account_codec import AccountCodec
+from storage.mysql.pool_registry_metadata_repo import PoolRegistryMetadataRepository
 
 
 class ProjectionPoolApplicationRef:
@@ -29,13 +30,26 @@ class ProjectionPoolCatalogRepository:
         *,
         pool_catalog_projection_repository,
         pool_state_projection_repository,
+        pool_registry_metadata_repository=None,
     ):
         self.pool_catalog_projection_repository = pool_catalog_projection_repository
         self.pool_state_projection_repository = pool_state_projection_repository
+        self.pool_registry_metadata_repository = (
+            pool_registry_metadata_repository
+            or self._default_pool_registry_metadata_repository()
+        )
         self.account_codec = AccountCodec()
 
+    def _default_pool_registry_metadata_repository(self):
+        catalog_db = getattr(self.pool_catalog_projection_repository, 'db', None)
+        catalog_connection = getattr(self.pool_catalog_projection_repository, 'connection', None)
+        source = catalog_db or catalog_connection
+        if source is None:
+            return None
+        return PoolRegistryMetadataRepository(source)
+
     def list_current_pools(self) -> list[dict]:
-        catalog = self.pool_catalog_projection_repository.list_pool_catalog() or []
+        catalog = self._catalog_rows_by_pool_application()
         state_rows = self.pool_state_projection_repository.list_pool_state_snapshots() or []
         state_by_pool_application = {}
         for row in state_rows:
@@ -49,7 +63,7 @@ class ProjectionPoolCatalogRepository:
             except ValueError:
                 continue
         pools = []
-        for row in catalog:
+        for row in catalog.values():
             pool_application = str(row['pool_application'])
             state = state_by_pool_application.get(pool_application)
             token_0, token_1 = self._resolve_tokens(
@@ -74,6 +88,37 @@ class ProjectionPoolCatalogRepository:
 
     def list_current_pool_views(self) -> list[ProjectionPoolView]:
         return [ProjectionPoolView(row) for row in self.list_current_pools()]
+
+    def _catalog_rows_by_pool_application(self) -> dict[str, dict]:
+        rows = {}
+        for row in self.pool_catalog_projection_repository.list_pool_catalog() or []:
+            pool_application = row.get('pool_application')
+            if pool_application in (None, ''):
+                continue
+            rows[str(pool_application)] = dict(row)
+        for row in self._list_registry_pool_metadata():
+            pool_application = row.get('pool_application')
+            if pool_application in (None, ''):
+                continue
+            current = rows.get(str(pool_application), {})
+            rows[str(pool_application)] = {
+                **current,
+                'pool_id': int(row['pool_id']),
+                'pool_application': str(pool_application),
+                'token_0': row.get('token_0') or current.get('token_0'),
+                'token_1': row.get('token_1') or current.get('token_1'),
+                'creator_account': row.get('creator_account') or current.get('creator_account'),
+            }
+        return rows
+
+    def _list_registry_pool_metadata(self) -> list[dict]:
+        repository = self.pool_registry_metadata_repository
+        if repository is None:
+            return []
+        list_pool_metadata = getattr(repository, 'list_pool_metadata', None)
+        if list_pool_metadata is None:
+            return []
+        return list_pool_metadata() or []
 
     def _resolve_tokens(self, *, catalog_row: dict, state_row: dict) -> tuple[str, str]:
         metadata = (state_row.get('state_payload_json') or {}).get('pool_created_metadata') or {}

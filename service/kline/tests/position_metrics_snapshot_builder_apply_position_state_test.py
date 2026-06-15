@@ -32,6 +32,36 @@ class ApplyPositionStateTest(unittest.TestCase):
         )
         self.builder.value_support = value_support
 
+
+    def test_settled_add_output_creates_position_from_delta_fields(self):
+        state = {
+            'running_liquidity': 0,
+            'added_liquidity': 0,
+            'removed_liquidity': 0,
+            'current_liquidity': 0,
+            'status': None,
+            'current_round_liquidity_event_count': 0,
+            'current_round_started_at': None,
+            'current_round_started_transaction_id': None,
+        }
+        output = {
+            'settled_output_type': 'settled_liquidity_change',
+            'change_type': 'add_liquidity',
+            'liquidity_delta': '10000000000000000000',
+            'amount_0_delta': '100000000000000000000',
+            'amount_1_delta': '100000000000000000000',
+            'event_time_ms': 1000,
+            'transaction_id': 1,
+        }
+        result = self.builder.apply_position_state(state, output)
+
+        self.assertEqual(result['running_liquidity'], self._attos(10))
+        self.assertEqual(result['status'], 'active')
+        self.assertEqual(result['basis_type'], 'add_liquidity')
+        self.assertEqual(result['basis_amount_0'], '100')
+        self.assertEqual(result['basis_amount_1'], '100')
+        self.assertEqual(result['basis_time_ms'], 1000)
+
     def test_first_add_creates_position(self):
         state = {
             'running_liquidity': 0,

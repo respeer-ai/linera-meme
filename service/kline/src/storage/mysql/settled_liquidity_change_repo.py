@@ -1,3 +1,5 @@
+import json
+
 from storage.mysql.canonical_fingerprint import CanonicalFingerprint
 
 
@@ -192,3 +194,102 @@ class SettledLiquidityChangeRepository(MysqlRepositoryConnectionMixin):
             return len(changes)
         finally:
             cursor.close()
+
+
+    def list_position_snapshot_gap_changes(self, *, limit: int = 500) -> list[dict[str, object]]:
+        cursor = self.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                f'''
+                SELECT
+                    change_row.settled_liquidity_change_id,
+                    change_row.normalized_event_id,
+                    change_row.pool_application_id,
+                    change_row.pool_chain_id,
+                    change_row.owner,
+                    change_row.block_hash,
+                    change_row.event_time_ms,
+                    change_row.transaction_index,
+                    change_row.transaction_id,
+                    change_row.change_type,
+                    change_row.liquidity_delta,
+                    change_row.is_position_liquidity,
+                    change_row.liquidity_semantics,
+                    change_row.amount_0_delta,
+                    change_row.amount_1_delta,
+                    change_row.source_event_key,
+                    change_row.event_payload_json
+                FROM {self.settled_liquidity_changes_table} change_row
+                LEFT JOIN position_state_v2 position_state
+                  ON position_state.owner = change_row.owner
+                 AND position_state.pool_application_id = change_row.pool_application_id
+                WHERE change_row.is_position_liquidity = TRUE
+                  AND COALESCE(change_row.transaction_id, 0) > COALESCE(
+                        CAST(JSON_UNQUOTE(JSON_EXTRACT(position_state.state_payload_json, '$.last_transaction_id')) AS UNSIGNED),
+                        0
+                  )
+                GROUP BY
+                    change_row.settled_liquidity_change_id,
+                    change_row.normalized_event_id,
+                    change_row.pool_application_id,
+                    change_row.pool_chain_id,
+                    change_row.owner,
+                    change_row.block_hash,
+                    change_row.event_time_ms,
+                    change_row.transaction_index,
+                    change_row.transaction_id,
+                    change_row.change_type,
+                    change_row.liquidity_delta,
+                    change_row.is_position_liquidity,
+                    change_row.liquidity_semantics,
+                    change_row.amount_0_delta,
+                    change_row.amount_1_delta,
+                    change_row.source_event_key,
+                    change_row.event_payload_json
+                ORDER BY
+                    change_row.event_time_ms ASC,
+                    change_row.transaction_id ASC,
+                    change_row.transaction_index ASC,
+                    change_row.settled_liquidity_change_id ASC
+                LIMIT %s
+                ''',
+                (int(limit),),
+            )
+            return [self._snapshot_gap_change_from_row(row) for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    def _snapshot_gap_change_from_row(self, row: dict[str, object]) -> dict[str, object]:
+        return {
+            'settled_output_type': 'settled_liquidity_change',
+            'settled_liquidity_change_id': row['settled_liquidity_change_id'],
+            'normalized_event_id': row['normalized_event_id'],
+            'pool_application_id': row['pool_application_id'],
+            'pool_chain_id': row.get('pool_chain_id'),
+            'owner': row['owner'],
+            'block_hash': row.get('block_hash'),
+            'event_time_ms': row.get('event_time_ms'),
+            'created_at': row.get('event_time_ms'),
+            'transaction_index': row.get('transaction_index'),
+            'transaction_id': row.get('transaction_id'),
+            'change_type': row['change_type'],
+            'liquidity_delta': row['liquidity_delta'],
+            'is_position_liquidity': bool(row.get('is_position_liquidity', True)),
+            'liquidity_semantics': row.get('liquidity_semantics') or 'position_liquidity',
+            'amount_0_delta': row['amount_0_delta'],
+            'amount_1_delta': row['amount_1_delta'],
+            'source_event_key': row['source_event_key'],
+            'event_payload_json': self._decode_json_object(row.get('event_payload_json')),
+        }
+
+    def _decode_json_object(self, value: object) -> dict[str, object]:
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str) and value:
+            try:
+                decoded = json.loads(value)
+            except json.JSONDecodeError:
+                return {}
+            if isinstance(decoded, dict):
+                return decoded
+        return {}

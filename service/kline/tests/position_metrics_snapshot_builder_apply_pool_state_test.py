@@ -70,6 +70,90 @@ class ApplyPoolStateTest(unittest.TestCase):
         self.assertEqual(result['pending_protocol_fee'], expected_pending)
         self.assertEqual(result['last_trade_time_ms'], 1000)
 
+    def test_apply_trade_advances_fee_free_reserves_with_no_fee_counterfactual(self):
+        state = {
+            'reserve0': self._attos(1000), 'reserve1': self._attos(1000),
+            'total_supply': self._attos(1000), 'k_last': self._attos(1000),
+            'pending_protocol_fee': 0, 'total_minted_protocol_fee': 0,
+            'swap_count': 0, 'last_trade_time_ms': 0, 'last_transaction_id': 0,
+            'fee_free_basis_transaction_id': 7, 'fee_free_basis_time_ms': 7000,
+            'fee_free_reserve0': self._attos(1000),
+            'fee_free_reserve1': self._attos(1000),
+            'fee_free_total_supply': self._attos(1000),
+        }
+        output = {
+            'settled_output_type': 'settled_trade',
+            'transaction_type': 'BuyToken0',
+            'amount_0_in': '0', 'amount_0_out': '9.871580343970612989',
+            'amount_1_in': '10', 'amount_1_out': '0',
+            'trade_time_ms': 1000, 'transaction_id': 8,
+        }
+        expected_fee_free_amount0_out = self.builder._fee_free_swap_expected_out_attos(
+            'BuyToken0',
+            self._attos(1000),
+            self._attos(1000),
+            0,
+            self._attos(10),
+        )
+
+        result = self.builder.apply_pool_state(state, output)
+
+        self.assertEqual(result['fee_free_basis_transaction_id'], 7)
+        self.assertEqual(result['fee_free_basis_time_ms'], 7000)
+        self.assertEqual(result['fee_free_reserve0'], self._attos(1000) - expected_fee_free_amount0_out)
+        self.assertEqual(result['fee_free_reserve1'], self._attos(1010))
+        self.assertEqual(result['fee_free_total_supply'], self._attos(1000))
+        self.assertLess(result['fee_free_reserve0'], result['reserve0'])
+
+    def test_apply_settled_trade_output_uses_side(self):
+        state = {
+            'reserve0': self._attos(1000), 'reserve1': self._attos(1000),
+            'total_supply': self._attos(1000), 'k_last': self._attos(1000),
+            'pending_protocol_fee': 0, 'total_minted_protocol_fee': 0,
+            'swap_count': 0, 'last_trade_time_ms': 0, 'last_transaction_id': 0,
+        }
+        output = {
+            'settled_output_type': 'settled_trade',
+            'side': 'buy_token_0',
+            'amount_0_in': '0', 'amount_0_out': '9872000000000000000',
+            'amount_1_in': '10000000000000000000', 'amount_1_out': '0',
+            'trade_time_ms': 1000, 'transaction_id': 1,
+        }
+        result = self.builder.apply_pool_state(state, output)
+
+        self.assertLess(result['reserve0'], self._attos(1000))
+        self.assertGreater(result['reserve1'], self._attos(1000))
+        self.assertGreater(result['pending_protocol_fee'], 0)
+
+    def test_apply_settled_liquidity_change_output_uses_delta_fields(self):
+        state = {
+            'reserve0': self._attos(1005), 'reserve1': self._attos(1010),
+            'total_supply': self._attos(1000), 'k_last': self._attos(1000),
+            'pending_protocol_fee': 50, 'total_minted_protocol_fee': 950,
+            'swap_count': 3, 'last_transaction_id': 0,
+        }
+        output = {
+            'settled_output_type': 'settled_liquidity_change',
+            'change_type': 'add_liquidity',
+            'liquidity_delta': '5000000000000000000',
+            'amount_0_delta': '5000000000000000000',
+            'amount_1_delta': '5000000000000000000',
+            'event_time_ms': 2000,
+            'transaction_id': 4,
+        }
+        result = self.builder.apply_pool_state(state, output)
+
+        self.assertEqual(result['total_minted_protocol_fee'], 1000)
+        self.assertEqual(result['total_supply'], self._attos(1000) + 50 + self._attos(5))
+        self.assertEqual(result['reserve0'], self._attos(1010))
+        self.assertEqual(result['reserve1'], self._attos(1015))
+        self.assertEqual(result['last_liquidity_event_time_ms'], 2000)
+        self.assertEqual(result['fee_free_basis_transaction_id'], 4)
+        self.assertEqual(result['fee_free_basis_time_ms'], 2000)
+        self.assertEqual(result['fee_free_reserve0'], self._attos(1010))
+        self.assertEqual(result['fee_free_reserve1'], self._attos(1015))
+        self.assertEqual(result['fee_free_total_supply'], self._attos(1000) + 50 + self._attos(5))
+
     def test_apply_add_liquidity(self):
         state = {
             'reserve0': self._attos(1005), 'reserve1': self._attos(1010),

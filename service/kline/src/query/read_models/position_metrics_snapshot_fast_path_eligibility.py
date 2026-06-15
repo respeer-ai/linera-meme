@@ -43,9 +43,11 @@ class PositionMetricsSnapshotFastPathEligibility:
         pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
         if position_basis_snapshot.raw() is None or pool_state_snapshot.raw() is None:
             return False
-        if str(position.get('status') or 'active') != 'active':
+        position_status = str(position.get('status') or 'active')
+        basis_status = str(position_basis_snapshot.status() or '')
+        if position_status not in {'active', 'closed'}:
             return False
-        if str(position_basis_snapshot.status() or '') != 'active':
+        if basis_status != position_status:
             return False
         basis_type = str(position_basis_snapshot.basis_type() or '')
         if basis_type not in {'add_liquidity', 'remove_liquidity'}:

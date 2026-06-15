@@ -49,7 +49,7 @@ class PositionMetricsSnapshotBuilder:
         self.account_codec = AccountCodec()
 
     def apply_pool_state(self, state, output):
-        created_at = int(output.get('created_at') or output.get('trade_time_ms') or 0)
+        created_at = int(output.get('created_at') or output.get('event_time_ms') or output.get('trade_time_ms') or 0)
         tx_id = int(output.get('transaction_id') or 0)
 
         if output.get('settled_output_type') == 'settled_trade':
@@ -59,11 +59,12 @@ class PositionMetricsSnapshotBuilder:
         return state
 
     def _apply_trade(self, state, output, created_at, tx_id):
-        tx_type = output.get('transaction_type')
-        amount0_in = self.value_support.to_attos(output.get('amount_0_in')) or 0
-        amount0_out = self.value_support.to_attos(output.get('amount_0_out')) or 0
-        amount1_in = self.value_support.to_attos(output.get('amount_1_in')) or 0
-        amount1_out = self.value_support.to_attos(output.get('amount_1_out')) or 0
+        tx_type = self._trade_transaction_type(output)
+        raw_amounts = self._uses_raw_settled_trade_amounts(output)
+        amount0_in = self._amount_attos(output.get('amount_0_in'), raw=raw_amounts)
+        amount0_out = self._amount_attos(output.get('amount_0_out'), raw=raw_amounts)
+        amount1_in = self._amount_attos(output.get('amount_1_in'), raw=raw_amounts)
+        amount1_out = self._amount_attos(output.get('amount_1_out'), raw=raw_amounts)
 
         reserve0, reserve1 = self.swap_math_support.apply_recorded_swap_attos(
             tx_type, state['reserve0'], state['reserve1'],
@@ -72,6 +73,12 @@ class PositionMetricsSnapshotBuilder:
         )
         state['reserve0'] = max(reserve0, 0)
         state['reserve1'] = max(reserve1, 0)
+        self._apply_fee_free_trade_state(
+            state,
+            tx_type=tx_type,
+            amount0_in=amount0_in,
+            amount1_in=amount1_in,
+        )
         state['pending_protocol_fee'] = self.swap_math_support.mint_fee_attos(
             state['total_supply'], state['reserve0'], state['reserve1'], state['k_last'],
         )
@@ -80,13 +87,58 @@ class PositionMetricsSnapshotBuilder:
         state['last_transaction_id'] = max(state.get('last_transaction_id') or 0, tx_id)
         return state
 
+    def _apply_fee_free_trade_state(
+        self,
+        state,
+        *,
+        tx_type: str,
+        amount0_in: int,
+        amount1_in: int,
+    ) -> None:
+        fee_free_reserve0 = state.get('fee_free_reserve0')
+        fee_free_reserve1 = state.get('fee_free_reserve1')
+        if fee_free_reserve0 is None or fee_free_reserve1 is None:
+            return
+        if fee_free_reserve0 <= 0 or fee_free_reserve1 <= 0:
+            return
+        expected_out = self._fee_free_swap_expected_out_attos(
+            tx_type,
+            fee_free_reserve0,
+            fee_free_reserve1,
+            amount0_in,
+            amount1_in,
+        )
+        if expected_out is None:
+            return
+        if tx_type == 'BuyToken0':
+            state['fee_free_reserve0'] = max(fee_free_reserve0 - expected_out, 0)
+            state['fee_free_reserve1'] = fee_free_reserve1 + amount1_in
+            return
+        if tx_type == 'SellToken0':
+            state['fee_free_reserve0'] = fee_free_reserve0 + amount0_in
+            state['fee_free_reserve1'] = max(fee_free_reserve1 - expected_out, 0)
+
     def _apply_liquidity(self, state, output, created_at, tx_id):
-        tx_type = output.get('transaction_type')
-        liquidity = self.value_support.to_attos(output.get('liquidity')) or 0
-        amount0_in = self.value_support.to_attos(output.get('amount_0_in')) or 0
-        amount0_out = self.value_support.to_attos(output.get('amount_0_out')) or 0
-        amount1_in = self.value_support.to_attos(output.get('amount_1_in')) or 0
-        amount1_out = self.value_support.to_attos(output.get('amount_1_out')) or 0
+        tx_type = self._liquidity_transaction_type(output)
+        liquidity = self._liquidity_attos(output)
+        amount0_delta = output.get('amount_0_delta')
+        amount1_delta = output.get('amount_1_delta')
+        amount0_in = self._liquidity_amount_attos(
+            output, display_key='amount_0_in', delta_value=amount0_delta,
+            use_delta=tx_type == 'AddLiquidity',
+        )
+        amount0_out = self._liquidity_amount_attos(
+            output, display_key='amount_0_out', delta_value=amount0_delta,
+            use_delta=tx_type == 'RemoveLiquidity',
+        )
+        amount1_in = self._liquidity_amount_attos(
+            output, display_key='amount_1_in', delta_value=amount1_delta,
+            use_delta=tx_type == 'AddLiquidity',
+        )
+        amount1_out = self._liquidity_amount_attos(
+            output, display_key='amount_1_out', delta_value=amount1_delta,
+            use_delta=tx_type == 'RemoveLiquidity',
+        )
         is_add = tx_type == 'AddLiquidity'
         is_virtual_init = (
             is_add and state['reserve0'] == 0 and state['reserve1'] == 0
@@ -115,14 +167,21 @@ class PositionMetricsSnapshotBuilder:
         )
         state['last_liquidity_event_time_ms'] = created_at
         state['last_transaction_id'] = max(state.get('last_transaction_id') or 0, tx_id)
+        state['fee_free_basis_transaction_id'] = tx_id
+        state['fee_free_basis_time_ms'] = created_at
+        state['fee_free_reserve0'] = state['reserve0']
+        state['fee_free_reserve1'] = state['reserve1']
+        state['fee_free_total_supply'] = state['total_supply']
         return state
 
     def apply_position_state(self, state, output):
-        tx_type = output.get('transaction_type')
-        liquidity = self.value_support.to_attos(output.get('liquidity')) or 0
-        created_at = int(output.get('created_at') or 0)
+        tx_type = self._liquidity_transaction_type(output)
+        liquidity = self._liquidity_attos(output)
+        created_at = int(output.get('created_at') or output.get('event_time_ms') or 0)
         tx_id = int(output.get('transaction_id') or 0)
         is_add = tx_type == 'AddLiquidity'
+        amount0_delta = output.get('amount_0_delta')
+        amount1_delta = output.get('amount_1_delta')
 
         if state.get('running_liquidity', 0) <= 0:
             state['current_round_liquidity_event_count'] = 0
@@ -132,13 +191,21 @@ class PositionMetricsSnapshotBuilder:
         if is_add:
             state['running_liquidity'] = state.get('running_liquidity', 0) + liquidity
             state['added_liquidity'] = state.get('added_liquidity', 0) + liquidity
-            state['basis_amount_0'] = output.get('amount_0_in', '0')
-            state['basis_amount_1'] = output.get('amount_1_in', '0')
+            state['basis_amount_0'] = self._position_basis_amount(
+                output, display_key='amount_0_in', delta_value=amount0_delta,
+            )
+            state['basis_amount_1'] = self._position_basis_amount(
+                output, display_key='amount_1_in', delta_value=amount1_delta,
+            )
         else:
             state['running_liquidity'] = state.get('running_liquidity', 0) - liquidity
             state['removed_liquidity'] = state.get('removed_liquidity', 0) + liquidity
-            state['basis_amount_0'] = output.get('amount_0_out', '0')
-            state['basis_amount_1'] = output.get('amount_1_out', '0')
+            state['basis_amount_0'] = self._position_basis_amount(
+                output, display_key='amount_0_out', delta_value=amount0_delta,
+            )
+            state['basis_amount_1'] = self._position_basis_amount(
+                output, display_key='amount_1_out', delta_value=amount1_delta,
+            )
 
         state['current_liquidity'] = max(state.get('running_liquidity', 0), 0)
         state['status'] = 'active' if state.get('running_liquidity', 0) > 0 else 'closed'
@@ -152,6 +219,75 @@ class PositionMetricsSnapshotBuilder:
             state.get('last_transaction_id', 0), tx_id
         )
         return state
+
+    def _trade_transaction_type(self, output):
+        transaction_type = output.get('transaction_type')
+        if transaction_type is not None:
+            return transaction_type
+        side = output.get('side')
+        if side == 'buy_token_0':
+            return 'BuyToken0'
+        if side == 'sell_token_0':
+            return 'SellToken0'
+        return None
+
+    def _liquidity_transaction_type(self, output):
+        transaction_type = output.get('transaction_type')
+        if transaction_type is not None:
+            return transaction_type
+        change_type = output.get('change_type')
+        if change_type == 'add_liquidity':
+            return 'AddLiquidity'
+        if change_type == 'remove_liquidity':
+            return 'RemoveLiquidity'
+        return None
+
+    def _uses_raw_settled_trade_amounts(self, output) -> bool:
+        return (
+            output.get('settled_output_type') == 'settled_trade'
+            and output.get('side') is not None
+            and output.get('transaction_type') is None
+        )
+
+    def _liquidity_attos(self, output) -> int:
+        if output.get('liquidity_delta') is not None:
+            return self._amount_attos(output.get('liquidity_delta'), raw=True)
+        return self._amount_attos(output.get('liquidity'), raw=False)
+
+    def _liquidity_amount_attos(
+        self,
+        output,
+        *,
+        display_key: str,
+        delta_value,
+        use_delta: bool,
+    ) -> int:
+        if output.get(display_key) is not None:
+            return self._amount_attos(output.get(display_key), raw=False)
+        if use_delta:
+            return self._amount_attos(delta_value, raw=True)
+        return 0
+
+    def _position_basis_amount(
+        self,
+        output,
+        *,
+        display_key: str,
+        delta_value,
+    ) -> str:
+        if output.get(display_key) is not None:
+            return str(output.get(display_key))
+        if delta_value is None:
+            return '0'
+        return self._serialize_attos(self._amount_attos(delta_value, raw=True))
+
+    def _amount_attos(self, value, *, raw: bool) -> int:
+        if raw:
+            decimal_value = self.value_support.to_decimal(value)
+            if decimal_value is None:
+                return 0
+            return int(decimal_value.to_integral_value())
+        return self.value_support.to_attos(value) or 0
 
     def _build_pool_state(
         self,
@@ -174,6 +310,11 @@ class PositionMetricsSnapshotBuilder:
             'swap_count': 0,
             'last_trade_time_ms': 0, 'last_liquidity_event_time_ms': 0,
             'last_transaction_id': 0,
+            'fee_free_basis_transaction_id': None,
+            'fee_free_basis_time_ms': None,
+            'fee_free_reserve0': 0,
+            'fee_free_reserve1': 0,
+            'fee_free_total_supply': 0,
         }
 
         for row in history:
@@ -220,11 +361,11 @@ class PositionMetricsSnapshotBuilder:
             'pending_protocol_fee': self._serialize_attos(
                 state.get('pending_protocol_fee', 0)
             ),
-            'fee_free_basis_transaction_id': None,
-            'fee_free_basis_time_ms': None,
-            'fee_free_reserve_0': '0',
-            'fee_free_reserve_1': '0',
-            'fee_free_total_supply': '0',
+            'fee_free_basis_transaction_id': state.get('fee_free_basis_transaction_id'),
+            'fee_free_basis_time_ms': state.get('fee_free_basis_time_ms'),
+            'fee_free_reserve_0': self._serialize_attos(state.get('fee_free_reserve0', 0)),
+            'fee_free_reserve_1': self._serialize_attos(state.get('fee_free_reserve1', 0)),
+            'fee_free_total_supply': self._serialize_attos(state.get('fee_free_total_supply', 0)),
             'source_event_key': self._pool_source_event_key(
                 pool_application_id=pool_application_id,
                 last_transaction_id=tx_id,

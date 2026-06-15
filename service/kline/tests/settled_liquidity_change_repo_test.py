@@ -25,6 +25,9 @@ class FakeCursor:
     def fetchone(self):
         return None
 
+    def fetchall(self):
+        return []
+
     def close(self):
         self.closed = True
 
@@ -97,3 +100,53 @@ class SettledLiquidityChangeRepositoryTest(unittest.TestCase):
         self.assertEqual(params[11], True)
         self.assertEqual(params[12], 'position_liquidity')
         self.assertEqual(connection.commit_count, 1)
+
+
+    def test_list_position_snapshot_gap_changes_queries_settled_events_after_snapshot_cursor(self):
+        connection = FakeConnection()
+        repository = SettledLiquidityChangeRepository(connection)
+
+        rows = repository.list_position_snapshot_gap_changes(limit=25)
+
+        self.assertEqual(rows, [])
+        executed_sql, params = connection.cursor_instances[0].executed[0]
+        self.assertIn('FROM settled_liquidity_changes change_row', executed_sql)
+        self.assertIn('LEFT JOIN position_state_v2 position_state', executed_sql)
+        self.assertIn('JSON_EXTRACT(position_state.state_payload_json', executed_sql)
+        self.assertIn('change_row.transaction_id', executed_sql)
+        self.assertEqual(params, (25,))
+
+    def test_list_position_snapshot_gap_changes_decodes_payload_json(self):
+        class GapCursor(FakeCursor):
+            def fetchall(self):
+                return [{
+                    'settled_liquidity_change_id': 'change-1',
+                    'normalized_event_id': 'event-1',
+                    'pool_application_id': 'pool-app',
+                    'pool_chain_id': 'pool-chain',
+                    'owner': 'owner@chain',
+                    'block_hash': 'block-1',
+                    'event_time_ms': 1000,
+                    'transaction_index': 1,
+                    'transaction_id': 2,
+                    'change_type': 'remove_liquidity',
+                    'liquidity_delta': '10',
+                    'is_position_liquidity': True,
+                    'liquidity_semantics': 'position_liquidity',
+                    'amount_0_delta': '100',
+                    'amount_1_delta': '200',
+                    'source_event_key': 'event-1',
+                    'event_payload_json': '{\"transaction\":{\"transaction_type\":\"RemoveLiquidity\"}}',
+                }]
+
+        class GapConnection(FakeConnection):
+            def cursor(self, **_kwargs):
+                cursor = GapCursor(self)
+                self.cursor_instances.append(cursor)
+                return cursor
+
+        repository = SettledLiquidityChangeRepository(GapConnection())
+
+        rows = repository.list_position_snapshot_gap_changes(limit=1)
+
+        self.assertEqual(rows[0]['event_payload_json'], {'transaction': {'transaction_type': 'RemoveLiquidity'}})

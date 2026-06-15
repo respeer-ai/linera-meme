@@ -156,6 +156,7 @@ class ObservabilitySupervisor:
     def _apply_stage_results(self, stage_results: dict[str, dict[str, object]]) -> None:
         component_map = {
             'schema': self.status.COMPONENT_SCHEMA,
+            'position_metrics_snapshot_repair': self.status.COMPONENT_POSITION_METRICS_SNAPSHOT_REPAIR,
             'registry': self.status.COMPONENT_REGISTRY,
             'startup_catch_up': self.status.COMPONENT_STARTUP_CATCH_UP,
             'listener': self.status.COMPONENT_LISTENER,
