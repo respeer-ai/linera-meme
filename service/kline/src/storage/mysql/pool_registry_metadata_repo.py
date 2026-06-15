@@ -17,13 +17,26 @@ class PoolRegistryMetadataRepository:
             cursor.execute(
                 '''
                 SELECT
-                    application_id,
-                    chain_id,
-                    metadata_json
-                FROM application_registry
-                WHERE app_type = 'pool'
-                  AND status = 'active'
-                  AND metadata_json IS NOT NULL
+                    pool_app.application_id,
+                    pool_app.chain_id,
+                    pool_app.metadata_json
+                FROM application_registry pool_app
+                LEFT JOIN (
+                    SELECT current_swap.application_id
+                    FROM application_registry current_swap
+                    WHERE current_swap.app_type = 'swap'
+                      AND current_swap.discovered_from = 'static_config'
+                      AND current_swap.status = 'active'
+                    ORDER BY current_swap.first_seen_at DESC, current_swap.updated_at DESC, current_swap.application_id ASC
+                    LIMIT 1
+                ) current_swap ON 1 = 1
+                WHERE pool_app.app_type = 'pool'
+                  AND pool_app.status = 'active'
+                  AND pool_app.metadata_json IS NOT NULL
+                  AND (
+                    current_swap.application_id IS NULL
+                    OR pool_app.parent_application_id = current_swap.application_id
+                  )
                 '''
             )
             return [

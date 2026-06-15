@@ -139,14 +139,17 @@ class MarketStatsProjectionRepository:
     def get_protocol_stats(self, *, pools: list[dict]) -> dict:
         current_start_at, end_at = self._interval_bounds('1d')
         previous_start_at = current_start_at - (end_at - current_start_at)
+        pool_applications = self._pool_applications(pools)
 
         current_trades = self._load_settled_trade_rows(
             start_at=current_start_at,
             end_at=end_at,
+            pool_applications=pool_applications,
         )
         previous_trades = self._load_settled_trade_rows(
             start_at=previous_start_at,
             end_at=current_start_at - 1,
+            pool_applications=pool_applications,
         )
         current_volume = sum((self._quote_volume(trade) for trade in current_trades), Decimal('0'))
         previous_volume = sum((self._quote_volume(trade) for trade in previous_trades), Decimal('0'))
@@ -197,6 +200,7 @@ class MarketStatsProjectionRepository:
         *,
         start_at: int | None = None,
         end_at: int | None = None,
+        pool_applications: list[str] | None = None,
     ) -> list[dict]:
         cursor = self.db.fresh_cursor(dictionary=True)
         where_clauses = []
@@ -207,6 +211,14 @@ class MarketStatsProjectionRepository:
         if end_at is not None:
             where_clauses.append('st.trade_time_ms <= %s')
             params.append(int(end_at))
+        if pool_applications is not None:
+            normalized_pool_applications = [str(value) for value in pool_applications if value not in (None, '')]
+            if not normalized_pool_applications:
+                cursor.close()
+                return []
+            placeholders = ', '.join(['%s'] * len(normalized_pool_applications))
+            where_clauses.append(f'st.pool_application_id IN ({placeholders})')
+            params.extend(normalized_pool_applications)
         where_sql = ''
         if where_clauses:
             where_sql = 'WHERE ' + ' AND '.join(where_clauses)
@@ -229,6 +241,20 @@ class MarketStatsProjectionRepository:
             return self._attach_pool_metadata(list(cursor.fetchall() or []))
         finally:
             cursor.close()
+
+    def _pool_applications(self, pools: list[dict]) -> list[str]:
+        seen = set()
+        pool_applications = []
+        for pool in pools or []:
+            value = pool.get('pool_application')
+            if value in (None, ''):
+                continue
+            pool_application = str(value)
+            if pool_application in seen:
+                continue
+            seen.add(pool_application)
+            pool_applications.append(pool_application)
+        return pool_applications
 
     def _attach_pool_metadata(self, rows: list[dict]) -> list[dict]:
         metadata_by_pool_application = self.metadata_resolver.metadata_by_pool_application()
