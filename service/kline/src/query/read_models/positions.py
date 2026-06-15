@@ -51,7 +51,16 @@ class PositionsReadModel:
                 position.get('token_1'),
             )
             if position.get('is_virtual_position'):
-                base = merged.get(key) or self._synthetic_display_position(position)
+                base = merged.get(key)
+                if (
+                    status == 'active'
+                    and base is not None
+                    and base.get('status') == 'closed'
+                    and self._positive_amount(position.get('current_liquidity'))
+                ):
+                    base = self._synthetic_display_position(position)
+                else:
+                    base = base or self._synthetic_display_position(position)
                 merged[key] = self._merge_virtual_position(base, position)
                 continue
             if key in merged:
@@ -85,7 +94,7 @@ class PositionsReadModel:
     def _synthetic_display_position(self, position: dict) -> dict:
         return {
             **position,
-            'status': position.get('status') or 'active',
+            'status': 'active',
             'position_kind': position.get('position_kind'),
             'is_virtual_position': position.get('is_virtual_position'),
             'closed_at': None,
@@ -126,6 +135,9 @@ class PositionsReadModel:
         if self._positive_amount(merged.get('current_liquidity')):
             if merged.get('status') != 'virtual':
                 merged['status'] = 'active'
+            merged['closed_at'] = None
+        elif merged.get('is_virtual_position') and self._positive_amount(merged.get('virtual_current_liquidity')):
+            merged['status'] = 'active'
             merged['closed_at'] = None
         return merged
 

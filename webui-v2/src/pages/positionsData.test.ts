@@ -151,8 +151,12 @@ describe('positionsData', () => {
     expect(virtualLiquidity).toBe('73.853756302460584155')
   })
 
-  test('hides virtual positions from the card list', () => {
+  test('hides standalone virtual positions from the card list', () => {
     expect(selectDisplayPositions([activePosition, virtualPosition])).toEqual([activePosition])
+  })
+
+  test('shows active synthetic virtual-initial display positions in the card list', () => {
+    expect(selectDisplayPositions([mergedVirtualOnlyPosition])).toEqual([mergedVirtualOnlyPosition])
   })
 
   test('counts merged virtual protocol-fee liquidity in the top LMM summary', () => {

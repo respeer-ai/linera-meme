@@ -44,7 +44,7 @@ export const virtualPositionMetricsFor = (
 ) => snapshots[`${position.pool_application}:${position.pool_id}:virtual:virtual_initial_liquidity`]
 
 export const selectDisplayPositions = (positions: Position[]) => (
-  positions.filter((position) => !isVirtualPosition(position))
+  positions.filter((position) => position.status === 'active' || !isVirtualPosition(position))
 )
 
 export const selectRewardPositions = (positions: Position[], owner: string) => (

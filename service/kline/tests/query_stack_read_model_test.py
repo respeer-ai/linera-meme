@@ -992,7 +992,7 @@ class ReadModelBridgeTest(
         self.assertEqual(position['virtual_initial_amount0'], '100')
         self.assertEqual(position['protocol_fee_receiver_account'], owner)
 
-    def test_positions_read_model_does_not_return_closed_actual_position_for_active_filter_when_virtual_lmm_exists(self):
+    def test_positions_read_model_returns_active_virtual_initial_display_position_when_no_actual_liquidity_exists(self):
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
 
         class FakeRepository:
@@ -1028,6 +1028,9 @@ class ReadModelBridgeTest(
                     'is_virtual_position': True,
                     'updated_at': 3000,
                     'closed_at': None,
+                    'virtual_initial_amount0': '100',
+                    'virtual_initial_amount1': '1',
+                    'protocol_fee_receiver_account': owner,
                 }]
 
         read_model = PositionsReadModel(
@@ -1037,7 +1040,16 @@ class ReadModelBridgeTest(
 
         result = asyncio.run(read_model.get_positions(owner=owner, status='active'))
 
-        self.assertEqual(result['positions'], [])
+        self.assertEqual(len(result['positions']), 1)
+        position = result['positions'][0]
+        self.assertEqual(position['status'], 'active')
+        self.assertEqual(position['current_liquidity'], '0')
+        self.assertEqual(position['virtual_current_liquidity'], '5')
+        self.assertEqual(position['position_kind'], 'virtual_initial_liquidity')
+        self.assertTrue(position['is_virtual_position'])
+        self.assertIsNone(position['closed_at'])
+        self.assertEqual(position['virtual_initial_amount0'], '100')
+        self.assertEqual(position['protocol_fee_receiver_account'], owner)
 
     def test_positions_read_model_queries_all_before_virtual_filter(self):
         class FakeRepository:
