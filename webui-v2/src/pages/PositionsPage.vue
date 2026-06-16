@@ -64,7 +64,8 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div class='position-summary-row' :style='{ "--position-summary-columns": "4" }'>
+              <div class='position-summary-row' :style='{ "--position-summary-columns": "5" }'>
+                <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
@@ -89,11 +90,12 @@
                   </div>
                 </div>
                 <div class='position-header-actions'>
-                  <button v-if='positionActionLabel(position)' class='position-menu-btn' aria-label='Position actions'>
+                  <button class='position-menu-btn' aria-label='Position actions'>
                     ⋮
                     <q-menu class='status-menu position-actions-menu' anchor='bottom right' self='top right' :offset='[0, 10]'>
                       <q-list dense class='status-menu-list'>
                         <q-item
+                          v-if='positionActionLabel(position)'
                           clickable
                           v-close-popup
                           class='status-menu-item'
@@ -101,6 +103,13 @@
                           @click='onManagePositionClick(position)'
                         >
                           <q-item-section>{{ positionActionLabel(position) }}</q-item-section>
+                        </q-item>
+                        <q-item
+                          clickable
+                          v-close-popup
+                          class='status-menu-item'
+                        >
+                          <q-item-section>Claim</q-item-section>
                         </q-item>
                       </q-list>
                     </q-menu>
@@ -113,7 +122,7 @@
 
               <div
                 class='position-summary-row'
-                :style='{ "--position-summary-columns": "4" }'
+                :style='{ "--position-summary-columns": "5" }'
               >
                 <div class='position-metric'>
                   <span class='metric-label'>Pool share</span>
@@ -183,6 +192,13 @@
                   <span class='metric-label'>APR</span>
                   <span class='metric-value'>{{ positionAprLabel(position) }}</span>
                 </div>
+                <div class='position-metric position-claimable-metric'>
+                  <span class='metric-label'>Claimable</span>
+                  <span class='metric-value metric-value-stack'>
+                    <span>619.5398 {{ tokenTicker(position.token_0) }}</span>
+                    <span>0.6087 {{ tokenTicker(position.token_1) }}</span>
+                  </span>
+                </div>
               </div>
 
               <div class='position-actions'>
@@ -235,6 +251,7 @@ import {
   isVirtualPosition,
   positionActionLabel as resolvePositionActionLabel,
   positionKey,
+  positionCollectableLiquidityAmounts,
   positionDisplayLiquidityAmounts,
   positionDisplayShareRatio,
   positionHasVirtualReference,
@@ -654,8 +671,16 @@ const onNewPositionClick = () => {
   void router.push('/pools/add-liquidity')
 }
 const onManagePositionClick = (position: Position) => {
+  const hasActualLiquidity = Number.parseFloat(position.current_liquidity || '0') > 0
+  const positionAmounts = positionCollectableLiquidityAmounts(
+    position,
+    positionMetrics(position) || summaryPositionMetrics(position),
+    positionVirtualMetrics(position),
+    owner.value,
+  )
   const context = {
-    mode: Number.parseFloat(position.current_liquidity || '0') > 0 ? 'liquidity' as const : 'fees' as const,
+    mode: hasActualLiquidity ? 'liquidity' as const : 'fees' as const,
+    ...positionAmounts,
   }
   void router.push(buildRemoveLiquidityRoute({
     token0: position.token_0,
@@ -761,7 +786,7 @@ usePageSeo(() => ({
 
 .main-column
   width: 100%
-  max-width: 760px
+  max-width: 1040px
   margin: 0 auto
 
 .reward-card,
@@ -1357,6 +1382,9 @@ usePageSeo(() => ({
   margin-top: 2px
   font-size: 13px
   color: #9aa0ab
+
+.position-claimable-metric
+  align-content: start
 
 @media (max-width: 720px)
   .positions-page

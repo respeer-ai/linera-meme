@@ -5,6 +5,7 @@ import { type PositionMetricsEntry } from 'src/stores/kline'
 import {
   canUsePositionAction,
   positionActionLabel,
+  positionCollectableLiquidityAmounts,
   positionDisplayLiquidityAmounts,
   positionDisplayShareRatio,
   positionHasVirtualReference,
@@ -191,6 +192,22 @@ describe('positionsData', () => {
     expect(liquidity.amount1).toBe('0')
   })
 
+  test('collectable liquidity includes active LP plus protocol fees for the creator', () => {
+    const liquidity = positionCollectableLiquidityAmounts(activePosition, activeMetrics, virtualMetrics, owner)
+
+    expect(Number(liquidity.liquidity).toFixed(6)).toBe('75.053989')
+    expect(Number(liquidity.amount0).toFixed(6)).toBe('2509.349100')
+    expect(Number(liquidity.amount1).toFixed(6)).toBe('2.299436')
+  })
+
+  test('collectable liquidity excludes protocol fees for non-creator owners', () => {
+    const liquidity = positionCollectableLiquidityAmounts(activePosition, activeMetrics, virtualMetrics, '0xother@owner-chain')
+
+    expect(liquidity.liquidity).toBe('1.200232328779602238')
+    expect(liquidity.amount0).toBe('40.128472432178798483')
+    expect(liquidity.amount1).toBe('0.036771630990749769')
+  })
+
   test('looks up virtual metrics by pool for a merged display position', () => {
     const snapshots = {
       [positionMetricsKey(virtualMetrics)]: virtualMetrics,
@@ -207,7 +224,7 @@ describe('positionsData', () => {
   test('uses only one withdraw action per pool when actual liquidity exists', () => {
     const positions = [activePosition, virtualPosition]
 
-    expect(positionActionLabel(activePosition, activeMetrics, owner, positions)).toBe('Remove liquidity')
+    expect(positionActionLabel(activePosition, activeMetrics, owner, positions)).toBe('Remove')
     expect(canUsePositionAction(activePosition, activeMetrics, owner, positions)).toBe(true)
     expect(positionActionLabel(virtualPosition, virtualMetrics, owner, positions)).toBe(undefined)
     expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, positions)).toBe(false)

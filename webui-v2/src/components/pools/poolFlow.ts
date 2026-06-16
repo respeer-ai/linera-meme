@@ -34,6 +34,8 @@ export interface PoolFlowRoute {
   }
 }
 
+export type RouteLiquidityContext = Required<Pick<RemoveLiquidityContext, 'liquidity' | 'amount0' | 'amount1'>>
+
 export type LiquiditySubmissionMode = 'create-pool' | 'add-liquidity'
 
 const readQueryValue = (value: unknown) => {
@@ -146,6 +148,37 @@ export const resolveRoutePoolPair = ({ token0, token1 }: { token0: unknown; toke
     token0: requestedToken0,
     token1: requestedToken1,
   })
+}
+
+const validRouteAmount = (value: string | undefined) => {
+  if (value === undefined || value.trim() === '') return undefined
+  const numeric = Number.parseFloat(value)
+  if (!Number.isFinite(numeric) || numeric < 0) return undefined
+  return value
+}
+
+export const resolveRouteLiquidityContext = ({
+  liquidity,
+  amount0,
+  amount1,
+}: {
+  liquidity: unknown
+  amount0: unknown
+  amount1: unknown
+}): RouteLiquidityContext | undefined => {
+  const routeLiquidity = validRouteAmount(readQueryValue(liquidity))
+  const routeAmount0 = validRouteAmount(readQueryValue(amount0))
+  const routeAmount1 = validRouteAmount(readQueryValue(amount1))
+
+  if (routeLiquidity === undefined || routeAmount0 === undefined || routeAmount1 === undefined) {
+    return undefined
+  }
+
+  return {
+    liquidity: routeLiquidity,
+    amount0: routeAmount0,
+    amount1: routeAmount1,
+  }
 }
 
 export const resolveLiquiditySubmissionMode = (

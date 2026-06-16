@@ -690,3 +690,133 @@ class QueryStackSnapshotFastPathMaterializedMixin:
             'current_owner_protocol_fee_component_proven',
         )
 
+
+
+    def test_snapshot_fast_path_ignores_stale_materialized_current_principal_after_pool_advances(self):
+        result = self._resolve(
+            position={
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                'pool_id': 5,
+                'opened_at': 1000,
+                'status': 'active',
+                'current_liquidity': '10',
+            },
+            payload={
+                'data': {
+                    'pool': {'fee_to': {'chain_id': 'chain', 'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}},
+                    'totalSupply': '100',
+                    'virtualInitialLiquidity': False,
+                    'liquidity': {'liquidity': '10', 'amount0': '40', 'amount1': '20'},
+                }
+            },
+            position_basis_snapshot={
+                'status': 'active',
+                'basis_type': 'add_liquidity',
+                'current_liquidity': '10',
+                'basis_transaction_id': 10,
+                'basis_time_ms': 1000,
+                'state_payload_json': {
+                    'prior_liquidity_before_basis': '0',
+                    'basis_opens_current_round': True,
+                    'current_round_trade_count_before_basis': 0,
+                    'trade_count_between_basis_and_fee_free_basis': 1,
+                    'fee_to_continuity': {
+                        'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                        'continuity_case': 'continuous_no_changes_after_basis',
+                        'change_count_after_basis': 0,
+                        'known_before_basis': True,
+                        'fee_to_account_at_basis': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                        'fee_to_account_latest_known': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                    },
+                    'exact_current_principal': {
+                        'principal_amount_0_current': '45',
+                        'principal_amount_1_current': '10',
+                        'exact_current_principal_case': 'post_basis_liquidity_changes_with_intervening_swaps',
+                        'post_basis_add_count': 0,
+                        'post_basis_remove_count': 1,
+                        'trailing_24h_fee_amount_0': '99',
+                        'trailing_24h_fee_amount_1': '99',
+                        'trailing_24h_fee_window_start_ms': 0,
+                        'trailing_24h_fee_window_end_ms': 1500,
+                    },
+                },
+            },
+            pool_state_snapshot={
+                'last_transaction_id': 20,
+                'last_trade_time_ms': 2000,
+                'last_liquidity_event_time_ms': 1500,
+                'fee_free_basis_transaction_id': 20,
+                'fee_free_basis_time_ms': 2000,
+                'fee_free_reserve_0': '300',
+                'fee_free_reserve_1': '150',
+                'fee_free_total_supply': '100',
+            },
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result['projected_metrics']['principal_amount0'], '30')
+        self.assertEqual(result['projected_metrics']['principal_amount1'], '15')
+        self.assertEqual(result['projected_metrics']['fee_amount0'], '10')
+        self.assertEqual(result['projected_metrics']['fee_amount1'], '5')
+        self.assertEqual(result['projected_metrics']['trailing_24h_fee_amount0'], '10')
+        self.assertEqual(result['projected_metrics']['trailing_24h_fee_amount1'], '5')
+        self.assertEqual(result['projected_metrics']['trailing_24h_fee_window_end_ms'], 2000)
+
+    def test_snapshot_fast_path_rejects_materialized_current_principal_above_redeemable(self):
+        result = self._resolve(
+            position={
+                'owner': '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain',
+                'pool_application': '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@chain',
+                'pool_id': 5,
+                'opened_at': 1000,
+                'status': 'active',
+                'current_liquidity': '10',
+            },
+            payload={
+                'data': {
+                    'pool': {'fee_to': None},
+                    'totalSupply': '10',
+                    'virtualInitialLiquidity': False,
+                    'liquidity': {
+                        'liquidity': '10',
+                        'amount0': '1.000000000000000001',
+                        'amount1': '2',
+                    },
+                }
+            },
+            position_basis_snapshot={
+                'status': 'active',
+                'basis_type': 'add_liquidity',
+                'current_liquidity': '10',
+                'basis_transaction_id': 10,
+                'basis_time_ms': 1000,
+                'state_payload_json': {
+                    'prior_liquidity_before_basis': '0',
+                    'basis_opens_current_round': True,
+                    'current_round_trade_count_before_basis': 0,
+                    'trade_count_between_basis_and_fee_free_basis': 1,
+                    'exact_current_principal': {
+                        'principal_amount_0_current': '1.000000000000000002',
+                        'principal_amount_1_current': '2',
+                        'exact_current_principal_case': 'post_basis_liquidity_changes_with_intervening_swaps',
+                        'post_basis_add_count': 0,
+                        'post_basis_remove_count': 1,
+                        'trailing_24h_fee_window_end_ms': 2000,
+                    },
+                },
+            },
+            pool_state_snapshot={
+                'last_transaction_id': 10,
+                'last_trade_time_ms': 1000,
+                'last_liquidity_event_time_ms': 2000,
+                'fee_free_basis_transaction_id': 10,
+                'fee_free_basis_time_ms': 2000,
+                'fee_free_reserve_0': '1',
+                'fee_free_reserve_1': '2',
+                'fee_free_total_supply': '10',
+            },
+        )
+
+        self.assertIsNone(result)
+

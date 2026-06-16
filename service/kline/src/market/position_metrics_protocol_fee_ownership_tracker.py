@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 class PositionMetricsProtocolFeeOwnershipTracker:
     def __init__(self, *, serialize_attos):
         self.serialize_attos = serialize_attos
@@ -70,6 +72,26 @@ class PositionMetricsProtocolFeeOwnershipTracker:
                     full_owned_by_other_accounts_attos += protocol_fee_minted_attos
                     if index >= basis_index:
                         owned_by_other_accounts_attos += protocol_fee_minted_attos
+            if row.get('transaction_type') == 'RemoveLiquidity' and str(row.get('from_account') or '') == owner:
+                removed_attos = self._attos(row.get('liquidity'))
+                full_removed_attos = min(removed_attos, full_owned_by_current_owner_attos)
+                full_owned_by_current_owner_attos -= full_removed_attos
+                if index >= basis_index:
+                    scoped_removed_attos = min(
+                        full_removed_attos,
+                        basis_owned_by_current_owner_attos + post_basis_owned_by_current_owner_attos,
+                    )
+                    basis_removed_attos = min(scoped_removed_attos, basis_owned_by_current_owner_attos)
+                    basis_owned_by_current_owner_attos -= basis_removed_attos
+                    scoped_removed_attos -= basis_removed_attos
+                    post_basis_owned_by_current_owner_attos -= min(
+                        scoped_removed_attos,
+                        post_basis_owned_by_current_owner_attos,
+                    )
+                    post_basis_owned_by_current_owner_before_first_add_attos = min(
+                        post_basis_owned_by_current_owner_before_first_add_attos,
+                        post_basis_owned_by_current_owner_attos,
+                    )
             if index > basis_index and row.get('transaction_type') == 'AddLiquidity':
                 saw_add_after_basis = True
 
@@ -111,6 +133,13 @@ class PositionMetricsProtocolFeeOwnershipTracker:
                 owner_unknown_attos=full_owner_unknown_attos,
             ),
         }
+
+    def _attos(self, value: object) -> int:
+        if value in (None, ''):
+            return 0
+        if isinstance(value, int):
+            return value
+        return int(Decimal(str(value)) * Decimal('1000000000000000000'))
 
     def _basis_index(
         self,

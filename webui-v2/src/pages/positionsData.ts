@@ -194,7 +194,7 @@ export const positionActionLabel = (
   owner: string,
   positions: Position[] = [],
 ) => {
-  if (positionHasActualLiquidity(position)) return 'Remove liquidity'
+  if (positionHasActualLiquidity(position)) return 'Remove'
   if (hasActivePositionForPool(positions, position)) return undefined
   if (
     isPositionProtocolFeeReceiver(position, owner) ||
@@ -235,5 +235,28 @@ export const positionLiquidityAmounts = (
     liquidity: metrics?.position_liquidity || position.current_liquidity || '0',
     amount0: metrics?.redeemable_amount0 || '0',
     amount1: metrics?.redeemable_amount1 || '0',
+  }
+}
+
+export const positionCollectableLiquidityAmounts = (
+  position: Position,
+  actualMetrics: PositionMetricsEntry | undefined,
+  virtualMetrics: PositionMetricsEntry | undefined,
+  owner: string,
+): PositionLiquidityDisplayAmounts => {
+  const actual = positionLiquidityAmounts(position, actualMetrics)
+  const hasOwnerVirtualMetrics = Boolean(owner && virtualMetrics?.owner === owner)
+  if (
+    !hasOwnerVirtualMetrics &&
+    !isPositionProtocolFeeReceiver(position, owner) &&
+    !positionHasVirtualReference(position, owner)
+  ) {
+    return actual
+  }
+
+  return {
+    liquidity: amountString(numericAmount(actual.liquidity) + numericAmount(virtualMetrics?.position_liquidity)),
+    amount0: amountString(numericAmount(actual.amount0) + numericAmount(virtualMetrics?.protocol_fee_amount0)),
+    amount1: amountString(numericAmount(actual.amount1) + numericAmount(virtualMetrics?.protocol_fee_amount1)),
   }
 }

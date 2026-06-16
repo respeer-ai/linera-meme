@@ -170,9 +170,11 @@ class PositionMetricsReadModel:
         if current_reserve_0 is None or current_reserve_1 is None:
             return None
 
-        minted_fee = self._to_decimal(pool_snapshot.total_minted_protocol_fee()) or Decimal('0')
         pending_fee = self._to_decimal(pool_snapshot.pending_protocol_fee()) or Decimal('0')
-        protocol_fee_liquidity = minted_fee + pending_fee
+        owned_protocol_fee = self._to_decimal(
+            position_basis_snapshot.full_protocol_fee_liquidity_owned_by_current_owner()
+        )
+        protocol_fee_liquidity = (owned_protocol_fee or Decimal('0')) + pending_fee
         if protocol_fee_liquidity <= Decimal('0'):
             return None
 

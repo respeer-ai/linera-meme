@@ -3,6 +3,7 @@ import { constants } from 'src/constant'
 import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import {
   buildAddLiquidityRoute,
+  buildRemoveLiquidityRoute,
   canAddLiquidityForPair,
   canCreatePoolForPair,
   isFinalizedPool,
@@ -10,6 +11,7 @@ import {
   normalizePoolPair,
   pairExists,
   resolveLiquiditySubmissionMode,
+  resolveRouteLiquidityContext,
   resolveRoutePoolPair,
   visiblePools,
 } from './poolFlow'
@@ -152,6 +154,53 @@ describe('poolFlow', () => {
       token0: 'meme-1',
       token1: constants.LINERA_NATIVE_ID,
     })
+  })
+
+  test('build remove liquidity route carries actual removable position amounts', () => {
+    expect(
+      buildRemoveLiquidityRoute(
+        {
+          token0: constants.LINERA_NATIVE_ID,
+          token1: 'meme-1',
+        },
+        {
+          mode: 'liquidity',
+          liquidity: '1.2',
+          amount0: '40.1',
+          amount1: '0.03',
+        },
+      ),
+    ).toEqual({
+      path: '/pools/remove-liquidity',
+      query: {
+        token0: 'meme-1',
+        token1: constants.LINERA_NATIVE_ID,
+        mode: 'liquidity',
+        liquidity: '1.2',
+        amount0: '40.1',
+        amount1: '0.03',
+      },
+    })
+  })
+
+  test('resolveRouteLiquidityContext accepts complete non-negative amount context', () => {
+    expect(
+      resolveRouteLiquidityContext({
+        liquidity: ['1.2'],
+        amount0: '40.1',
+        amount1: '0.03',
+      }),
+    ).toEqual({
+      liquidity: '1.2',
+      amount0: '40.1',
+      amount1: '0.03',
+    })
+  })
+
+  test('resolveRouteLiquidityContext rejects missing or invalid amount context', () => {
+    expect(resolveRouteLiquidityContext({ liquidity: '1', amount0: '2', amount1: undefined })).toBe(undefined)
+    expect(resolveRouteLiquidityContext({ liquidity: '-1', amount0: '2', amount1: '3' })).toBe(undefined)
+    expect(resolveRouteLiquidityContext({ liquidity: 'abc', amount0: '2', amount1: '3' })).toBe(undefined)
   })
 
   test('mapPairAmountsToPoolOrder aligns user input to canonical pool order', () => {

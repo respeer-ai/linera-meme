@@ -209,6 +209,11 @@ class PositionMetricsSnapshotMaterializer:
             tx_id = int(output.get('transaction_id') or 0)
             if tx_id <= positions[key]['state'].get('last_transaction_id', 0):
                 continue
+            if self._is_over_remove(positions[key]['state'], output):
+                positions[key]['state'] = self._record_skipped_position_remove(
+                    positions[key]['state'], output,
+                )
+                continue
             positions[key]['state'] = (
                 self.snapshot_builder.apply_position_state(
                     positions[key]['state'], output,
@@ -230,6 +235,36 @@ class PositionMetricsSnapshotMaterializer:
 
     def _is_position_liquidity(self, output) -> bool:
         return bool(output.get('is_position_liquidity', True))
+
+    def _is_over_remove(self, state, output) -> bool:
+        if self.snapshot_builder._liquidity_transaction_type(output) != 'RemoveLiquidity':
+            return False
+        liquidity = self.snapshot_builder._liquidity_attos(output)
+        current = int(state.get('running_liquidity') or 0)
+        return current <= 0 or liquidity - current > self._position_epsilon_attos()
+
+    def _record_skipped_position_remove(self, state, output):
+        state = dict(state)
+        tx_id = int(output.get('transaction_id') or 0)
+        skipped = list(state.get('skipped_position_removes') or [])
+        skipped.append({
+            'transaction_id': tx_id,
+            'liquidity': self.snapshot_builder._serialize_attos(
+                self.snapshot_builder._liquidity_attos(output)
+            ),
+            'reason': 'over_removed_position_liquidity',
+            'liquidity_semantics': output.get('liquidity_semantics'),
+        })
+        state['skipped_position_removes'] = skipped[-10:]
+        state['last_transaction_id'] = max(state.get('last_transaction_id', 0), tx_id)
+        return state
+
+    def _position_epsilon_attos(self) -> int:
+        value_support = self.snapshot_builder.value_support
+        epsilon = getattr(value_support, 'epsilon', None)
+        if epsilon is None:
+            return 0
+        return value_support.to_attos(epsilon) or 0
 
     def _decode_json_object(self, value):
         if isinstance(value, dict):
@@ -270,6 +305,9 @@ class PositionMetricsSnapshotMaterializer:
                 payload.get('current_round_started_transaction_id')
             ),
             'last_transaction_id': int(payload.get('last_transaction_id') or 0),
+            'skipped_position_removes': list(
+                payload.get('skipped_position_removes') or []
+            ),
         }
 
     def _position_state_row_from_attos(
@@ -318,6 +356,7 @@ class PositionMetricsSnapshotMaterializer:
                 'latest_liquidity_transaction': {},
                 'exact_current_principal': {},
                 'fee_to_continuity': {},
+                'skipped_position_removes': state.get('skipped_position_removes') or [],
             },
         }
 

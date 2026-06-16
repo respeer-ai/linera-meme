@@ -248,7 +248,13 @@ class PositionMetricsSnapshotFastPath:
     ) -> str:
         facts = self._semantic_facts(position_basis_snapshot)
         materialized_value = facts.get(field_name)
-        if materialized_value not in (None, ''):
+        if (
+            materialized_value not in (None, '')
+            and self._materialized_current_principal_fresh(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            )
+        ):
             return str(materialized_value)
         if self._basis_is_inside_trailing_24h_window(
             position_basis_snapshot=position_basis_snapshot,
@@ -266,7 +272,13 @@ class PositionMetricsSnapshotFastPath:
         materialized = self._position_basis_snapshot(
             position_basis_snapshot
         ).trailing_24h_fee_window_start_ms()
-        if materialized is not None:
+        if (
+            materialized is not None
+            and self._materialized_current_principal_fresh(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            )
+        ):
             return materialized
         end_ms = self._trailing_24h_window_end_ms(
             position_basis_snapshot=position_basis_snapshot,
@@ -285,7 +297,13 @@ class PositionMetricsSnapshotFastPath:
         materialized = self._position_basis_snapshot(
             position_basis_snapshot
         ).trailing_24h_fee_window_end_ms()
-        if materialized is not None:
+        if (
+            materialized is not None
+            and self._materialized_current_principal_fresh(
+                position_basis_snapshot=position_basis_snapshot,
+                pool_state_snapshot=pool_state_snapshot,
+            )
+        ):
             return materialized
         pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
         return (
@@ -323,83 +341,165 @@ class PositionMetricsSnapshotFastPath:
         owner_receives_protocol_fees: bool,
         pool_has_fee_to: bool,
     ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
+        liquidity_attos = self._to_attos(liquidity_value)
+        tracked_liquidity_attos = self._to_attos(tracked_liquidity_value)
+        total_supply_attos = self._to_attos(total_supply_value)
+        redeemable_amount0_attos = self._to_attos(redeemable_amount0)
+        redeemable_amount1_attos = self._to_attos(redeemable_amount1)
         if (
-            liquidity_value is None
-            or tracked_liquidity_value is None
-            or total_supply_value is None
-            or total_supply_value <= Decimal('0')
-            or redeemable_amount0 is None
-            or redeemable_amount1 is None
+            liquidity_attos is None
+            or tracked_liquidity_attos is None
+            or total_supply_attos is None
+            or total_supply_attos <= 0
+            or redeemable_amount0_attos is None
+            or redeemable_amount1_attos is None
         ):
             return None, None, None, None, None, None
-        protocol_fee_amount0, protocol_fee_amount1, liquidity_basis = self._protocol_fee_split(
+        protocol_fee_amount0_attos, protocol_fee_amount1_attos, liquidity_basis_attos = self._protocol_fee_split_attos(
             owner_receives_protocol_fees=owner_receives_protocol_fees,
             position_basis_snapshot=position_basis_snapshot,
-            current_liquidity=liquidity_value,
-            tracked_liquidity=tracked_liquidity_value,
-            redeemable_amount0=redeemable_amount0,
-            redeemable_amount1=redeemable_amount1,
+            current_liquidity_attos=liquidity_attos,
+            tracked_liquidity_attos=tracked_liquidity_attos,
+            redeemable_amount0_attos=redeemable_amount0_attos,
+            redeemable_amount1_attos=redeemable_amount1_attos,
         )
-        if protocol_fee_amount0 is None or protocol_fee_amount1 is None or liquidity_basis is None:
+        if protocol_fee_amount0_attos is None or protocol_fee_amount1_attos is None or liquidity_basis_attos is None:
             return None, None, None, None, None, None
-        materialized_principal_amount0 = None
-        materialized_principal_amount1 = None
+        materialized_principal_amount0_attos = None
+        materialized_principal_amount1_attos = None
         if self._materialized_current_principal_allowed(
             position_basis_snapshot=position_basis_snapshot,
+            pool_state_snapshot=pool_state_snapshot,
             pool_has_fee_to=pool_has_fee_to,
             owner_receives_protocol_fees=owner_receives_protocol_fees,
             current_liquidity=liquidity_value,
             tracked_liquidity=tracked_liquidity_value,
         ):
-            materialized_principal_amount0 = self._materialized_principal_amount_current(
-                position_basis_snapshot,
-                'principal_amount_0_current',
+            materialized_principal_amount0_attos = self._to_attos(
+                self._materialized_principal_amount_current(
+                    position_basis_snapshot,
+                    'principal_amount_0_current',
+                )
             )
-            materialized_principal_amount1 = self._materialized_principal_amount_current(
-                position_basis_snapshot,
-                'principal_amount_1_current',
+            materialized_principal_amount1_attos = self._to_attos(
+                self._materialized_principal_amount_current(
+                    position_basis_snapshot,
+                    'principal_amount_1_current',
+                )
             )
-        if materialized_principal_amount0 is not None and materialized_principal_amount1 is not None:
-            fee_amount0 = self._normalize_non_negative(
-                redeemable_amount0 - protocol_fee_amount0 - materialized_principal_amount0
+        if materialized_principal_amount0_attos is not None and materialized_principal_amount1_attos is not None:
+            split0 = self._principal_fee_display_split_attos(
+                redeemable_amount_attos=redeemable_amount0_attos,
+                protocol_fee_amount_attos=protocol_fee_amount0_attos,
+                principal_amount_attos=materialized_principal_amount0_attos,
             )
-            fee_amount1 = self._normalize_non_negative(
-                redeemable_amount1 - protocol_fee_amount1 - materialized_principal_amount1
+            split1 = self._principal_fee_display_split_attos(
+                redeemable_amount_attos=redeemable_amount1_attos,
+                protocol_fee_amount_attos=protocol_fee_amount1_attos,
+                principal_amount_attos=materialized_principal_amount1_attos,
             )
-            if fee_amount0 < 0 or fee_amount1 < 0:
+            if split0 is None or split1 is None:
                 return None, None, None, None, None, None
-            return (
-                materialized_principal_amount0,
-                materialized_principal_amount1,
-                fee_amount0,
-                fee_amount1,
-                protocol_fee_amount0,
-                protocol_fee_amount1,
+            principal_amount0_attos, fee_amount0_attos = split0
+            principal_amount1_attos, fee_amount1_attos = split1
+            return self._amount_tuple_from_attos(
+                principal_amount0_attos,
+                principal_amount1_attos,
+                fee_amount0_attos,
+                fee_amount1_attos,
+                protocol_fee_amount0_attos,
+                protocol_fee_amount1_attos,
             )
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
         last_transaction_id = self._int_or_none(pool_state_snapshot.last_transaction_id())
         basis_transaction_id = self._int_or_none(position_basis_snapshot.basis_transaction_id())
         if last_transaction_id == basis_transaction_id:
-            return (
-                self._normalize_non_negative(redeemable_amount0 - protocol_fee_amount0),
-                self._normalize_non_negative(redeemable_amount1 - protocol_fee_amount1),
-                Decimal('0'),
-                Decimal('0'),
-                protocol_fee_amount0,
-                protocol_fee_amount1,
+            split0 = self._principal_fee_display_split_attos(
+                redeemable_amount_attos=redeemable_amount0_attos,
+                protocol_fee_amount_attos=protocol_fee_amount0_attos,
+                principal_amount_attos=redeemable_amount0_attos - protocol_fee_amount0_attos,
             )
-        fee_free_reserve_0 = self._to_decimal(pool_state_snapshot.fee_free_reserve_0())
-        fee_free_reserve_1 = self._to_decimal(pool_state_snapshot.fee_free_reserve_1())
-        if fee_free_reserve_0 is None or fee_free_reserve_1 is None:
+            split1 = self._principal_fee_display_split_attos(
+                redeemable_amount_attos=redeemable_amount1_attos,
+                protocol_fee_amount_attos=protocol_fee_amount1_attos,
+                principal_amount_attos=redeemable_amount1_attos - protocol_fee_amount1_attos,
+            )
+            if split0 is None or split1 is None:
+                return None, None, None, None, None, None
+            principal_amount0_attos, fee_amount0_attos = split0
+            principal_amount1_attos, fee_amount1_attos = split1
+            return self._amount_tuple_from_attos(
+                principal_amount0_attos,
+                principal_amount1_attos,
+                fee_amount0_attos,
+                fee_amount1_attos,
+                protocol_fee_amount0_attos,
+                protocol_fee_amount1_attos,
+            )
+        fee_free_reserve_0_attos = self._to_attos(pool_state_snapshot.fee_free_reserve_0())
+        fee_free_reserve_1_attos = self._to_attos(pool_state_snapshot.fee_free_reserve_1())
+        if fee_free_reserve_0_attos is None or fee_free_reserve_1_attos is None:
             return None, None, None, None, None, None
-        principal_amount0 = self._normalize_non_negative(liquidity_basis * fee_free_reserve_0 / total_supply_value)
-        principal_amount1 = self._normalize_non_negative(liquidity_basis * fee_free_reserve_1 / total_supply_value)
-        fee_amount0 = self._normalize_non_negative(redeemable_amount0 - protocol_fee_amount0 - principal_amount0)
-        fee_amount1 = self._normalize_non_negative(redeemable_amount1 - protocol_fee_amount1 - principal_amount1)
-        if fee_amount0 < 0 or fee_amount1 < 0:
+        principal_amount0_attos = self._mul_div_floor(liquidity_basis_attos, fee_free_reserve_0_attos, total_supply_attos)
+        principal_amount1_attos = self._mul_div_floor(liquidity_basis_attos, fee_free_reserve_1_attos, total_supply_attos)
+        split0 = self._principal_fee_display_split_attos(
+            redeemable_amount_attos=redeemable_amount0_attos,
+            protocol_fee_amount_attos=protocol_fee_amount0_attos,
+            principal_amount_attos=principal_amount0_attos,
+        )
+        split1 = self._principal_fee_display_split_attos(
+            redeemable_amount_attos=redeemable_amount1_attos,
+            protocol_fee_amount_attos=protocol_fee_amount1_attos,
+            principal_amount_attos=principal_amount1_attos,
+        )
+        if split0 is None or split1 is None:
             return None, None, None, None, None, None
-        return principal_amount0, principal_amount1, fee_amount0, fee_amount1, protocol_fee_amount0, protocol_fee_amount1
+        principal_amount0_attos, fee_amount0_attos = split0
+        principal_amount1_attos, fee_amount1_attos = split1
+        return self._amount_tuple_from_attos(
+            principal_amount0_attos,
+            principal_amount1_attos,
+            fee_amount0_attos,
+            fee_amount1_attos,
+            protocol_fee_amount0_attos,
+            protocol_fee_amount1_attos,
+        )
+
+    def _amount_tuple_from_attos(
+        self,
+        principal_amount0_attos: int,
+        principal_amount1_attos: int,
+        fee_amount0_attos: int,
+        fee_amount1_attos: int,
+        protocol_fee_amount0_attos: int,
+        protocol_fee_amount1_attos: int,
+    ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
+        return (
+            self._from_attos(principal_amount0_attos),
+            self._from_attos(principal_amount1_attos),
+            self._from_attos(fee_amount0_attos),
+            self._from_attos(fee_amount1_attos),
+            self._from_attos(protocol_fee_amount0_attos),
+            self._from_attos(protocol_fee_amount1_attos),
+        )
+
+    def _principal_fee_display_split_attos(
+        self,
+        *,
+        redeemable_amount_attos: int,
+        protocol_fee_amount_attos: int,
+        principal_amount_attos: int,
+    ) -> tuple[int, int] | None:
+        available_amount_attos = redeemable_amount_attos - protocol_fee_amount_attos
+        if available_amount_attos < 0:
+            return None
+        if principal_amount_attos < 0 or principal_amount_attos > available_amount_attos:
+            return None
+        fee_amount_attos = available_amount_attos - principal_amount_attos
+        if fee_amount_attos < 0:
+            return None
+        return principal_amount_attos, fee_amount_attos
 
     def _eligible_fee_to_opening_mint_case(
         self,
@@ -423,31 +523,36 @@ class PositionMetricsSnapshotFastPath:
             return False
         return True
 
-    def _protocol_fee_split(
+    def _protocol_fee_split_attos(
         self,
         *,
         owner_receives_protocol_fees: bool,
         position_basis_snapshot,
-        current_liquidity: Decimal,
-        tracked_liquidity: Decimal,
-        redeemable_amount0: Decimal,
-        redeemable_amount1: Decimal,
-    ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
-        if current_liquidity <= tracked_liquidity:
-            return Decimal('0'), Decimal('0'), tracked_liquidity
+        current_liquidity_attos: int,
+        tracked_liquidity_attos: int,
+        redeemable_amount0_attos: int,
+        redeemable_amount1_attos: int,
+    ) -> tuple[int | None, int | None, int | None]:
+        if current_liquidity_attos <= tracked_liquidity_attos:
+            return 0, 0, tracked_liquidity_attos
+        current_liquidity = self._from_attos(current_liquidity_attos)
+        tracked_liquidity = self._from_attos(tracked_liquidity_attos)
         if self._safe_current_owner_protocol_fee_component_proven(
             position_basis_snapshot=position_basis_snapshot,
             current_liquidity=current_liquidity,
             tracked_liquidity=tracked_liquidity,
         ):
             facts = self._semantic_facts(position_basis_snapshot)
-            protocol_fee_liquidity = self._to_decimal(facts.protocol_fee_liquidity_owned_by_current_owner_current())
-            if protocol_fee_liquidity is None:
+            protocol_fee_liquidity_attos = self._to_attos(
+                facts.protocol_fee_liquidity_owned_by_current_owner_current()
+            )
+            if protocol_fee_liquidity_attos is None:
                 return None, None, None
-            protocol_fee_ratio = protocol_fee_liquidity / current_liquidity
-            protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
-            protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
-            return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
+            return (
+                self._mul_div_floor(redeemable_amount0_attos, protocol_fee_liquidity_attos, current_liquidity_attos),
+                self._mul_div_floor(redeemable_amount1_attos, protocol_fee_liquidity_attos, current_liquidity_attos),
+                tracked_liquidity_attos,
+            )
         if not owner_receives_protocol_fees:
             return None, None, None
         materialized_protocol_fee_split_case = self._materialized_protocol_fee_split_case(
@@ -465,26 +570,31 @@ class PositionMetricsSnapshotFastPath:
                 'fee_to_continuous_nonzero_prior_add_basis',
             }
         ):
-            protocol_fee_liquidity = self._protocol_fee_liquidity_current(
-                position_basis_snapshot=position_basis_snapshot,
-                current_liquidity=current_liquidity,
-                tracked_liquidity=tracked_liquidity,
+            protocol_fee_liquidity_attos = self._to_attos(
+                self._protocol_fee_liquidity_current(
+                    position_basis_snapshot=position_basis_snapshot,
+                    current_liquidity=current_liquidity,
+                    tracked_liquidity=tracked_liquidity,
+                )
             )
-            if protocol_fee_liquidity is None:
+            if protocol_fee_liquidity_attos is None:
                 return None, None, None
-            protocol_fee_ratio = protocol_fee_liquidity / current_liquidity
-            protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
-            protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
-            return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
+            return (
+                self._mul_div_floor(redeemable_amount0_attos, protocol_fee_liquidity_attos, current_liquidity_attos),
+                self._mul_div_floor(redeemable_amount1_attos, protocol_fee_liquidity_attos, current_liquidity_attos),
+                tracked_liquidity_attos,
+            )
         position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
         if str(position_basis_snapshot.basis_type() or '') != 'add_liquidity':
             return None, None, None
         if self._prior_liquidity_before_basis(position_basis_snapshot) != Decimal('0'):
             return None, None, None
-        protocol_fee_ratio = (current_liquidity - tracked_liquidity) / current_liquidity
-        protocol_fee_amount0 = self._normalize_non_negative(redeemable_amount0 * protocol_fee_ratio)
-        protocol_fee_amount1 = self._normalize_non_negative(redeemable_amount1 * protocol_fee_ratio)
-        return protocol_fee_amount0, protocol_fee_amount1, tracked_liquidity
+        protocol_fee_liquidity_attos = current_liquidity_attos - tracked_liquidity_attos
+        return (
+            self._mul_div_floor(redeemable_amount0_attos, protocol_fee_liquidity_attos, current_liquidity_attos),
+            self._mul_div_floor(redeemable_amount1_attos, protocol_fee_liquidity_attos, current_liquidity_attos),
+            tracked_liquidity_attos,
+        )
 
     def _payload_tracked_liquidity_value(
         self,
@@ -682,6 +792,7 @@ class PositionMetricsSnapshotFastPath:
         self,
         *,
         position_basis_snapshot,
+        pool_state_snapshot,
         pool_has_fee_to: bool,
         owner_receives_protocol_fees: bool,
         current_liquidity: Decimal | None,
@@ -689,6 +800,11 @@ class PositionMetricsSnapshotFastPath:
     ) -> bool:
         exact_case = self._materialized_exact_current_principal_case(position_basis_snapshot)
         if exact_case is None:
+            return False
+        if not self._materialized_current_principal_fresh(
+            position_basis_snapshot=position_basis_snapshot,
+            pool_state_snapshot=pool_state_snapshot,
+        ):
             return False
         if not pool_has_fee_to:
             return True
@@ -721,6 +837,32 @@ class PositionMetricsSnapshotFastPath:
 
     def _protocol_fee_split_supported_for_materialized_remove(self, position_basis_snapshot: dict) -> bool:
         return True
+
+    def _materialized_current_principal_fresh(
+        self,
+        *,
+        position_basis_snapshot,
+        pool_state_snapshot,
+    ) -> bool:
+        position_basis_snapshot = self._position_basis_snapshot(position_basis_snapshot)
+        materialized_end_ms = position_basis_snapshot.trailing_24h_fee_window_end_ms()
+        if materialized_end_ms is None:
+            return True
+        pool_latest_ms = self._pool_latest_time_ms(pool_state_snapshot)
+        if pool_latest_ms is None:
+            return True
+        return int(materialized_end_ms) >= int(pool_latest_ms)
+
+    def _pool_latest_time_ms(self, pool_state_snapshot) -> int | None:
+        pool_state_snapshot = self._pool_state_snapshot(pool_state_snapshot)
+        values = [
+            self._int_or_none(pool_state_snapshot.last_trade_time_ms()),
+            self._int_or_none(pool_state_snapshot.last_liquidity_event_time_ms()),
+        ]
+        values = [value for value in values if value is not None]
+        if not values:
+            return None
+        return max(values)
 
     def _materialized_protocol_fee_split_case(
         self,
@@ -860,6 +1002,24 @@ class PositionMetricsSnapshotFastPath:
         if value is None:
             return None
         return Decimal(str(value))
+
+    def _to_attos(self, value: object) -> int | None:
+        if value in (None, ''):
+            return None
+        return int(Decimal(str(value)) * self._attos_scale())
+
+    def _from_attos(self, value: int | None) -> Decimal | None:
+        if value is None:
+            return None
+        return Decimal(value) / self._attos_scale()
+
+    def _attos_scale(self) -> Decimal:
+        return Decimal(10) ** 18
+
+    def _mul_div_floor(self, left: int, right: int, denominator: int) -> int:
+        if denominator <= 0:
+            return 0
+        return left * right // denominator
 
     def _serialize_decimal(self, value: Decimal | None) -> str | None:
         if value is None:

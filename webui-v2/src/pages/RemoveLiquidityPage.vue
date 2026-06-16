@@ -124,13 +124,13 @@
 <script setup lang='ts'>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { account, ams, notify, pool, swap, user, type meme } from 'src/stores/export'
+import { account, ams, kline, notify, pool, swap, user, type meme } from 'src/stores/export'
 import { constants } from 'src/constant'
 import { type LiquidityAmount } from 'src/stores/pool'
 import { NotifyType } from 'src/stores/notify'
 import { Wallet } from 'src/wallet'
 import ConnectWalletView from 'src/components/wallet/ConnectWalletView.vue'
-import { resolveRoutePoolPair, type RemoveLiquidityMode } from 'src/components/pools/poolFlow'
+import { resolveRouteLiquidityContext, resolveRoutePoolPair, type RemoveLiquidityMode } from 'src/components/pools/poolFlow'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 
 const route = useRoute()
@@ -159,6 +159,11 @@ const queryValue = (value: unknown) => {
 const removeMode = computed<RemoveLiquidityMode>(() => (
   queryValue(route.query.mode) === 'fees' ? 'fees' : 'liquidity'
 ))
+const routeLiquidityContext = computed(() => resolveRouteLiquidityContext({
+  liquidity: route.query.liquidity,
+  amount0: route.query.amount0,
+  amount1: route.query.amount1,
+}))
 const selectedPair = computed(() => {
   if (selectedPool.value) {
     return {
@@ -245,12 +250,54 @@ const queryOwnerLiquidity = async (): Promise<LiquidityAmount | undefined> => {
   })
 }
 
+const routeLiquidity = (): LiquidityAmount | undefined => {
+  const context = routeLiquidityContext.value
+  return context
+    ? {
+        liquidity: context.liquidity,
+        amount0: context.amount0,
+        amount1: context.amount1,
+      }
+    : undefined
+}
+
+const amountValue = (value: string | null | undefined) => {
+  const numeric = Number.parseFloat(value || '0')
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+const amountString = (value: number) => (
+  Number.isFinite(value) && value > 0 ? String(value) : '0'
+)
+
+const metricsLiquidity = async (): Promise<LiquidityAmount | undefined> => {
+  if (!selectedPool.value) return undefined
+  const currentAccount = await user.User.account()
+  const owner = currentAccount.owner
+  if (!owner) return undefined
+
+  const response = await kline.Kline.getPositionMetrics(owner, 'all')
+  const metrics = (response?.metrics || []).filter((entry) => (
+    entry.pool_application === selectedPool.value?.poolApplication
+  ))
+  const activeMetrics = metrics.find((entry) => entry.status === 'active')
+  const virtualMetrics = metrics.find((entry) => entry.status === 'virtual')
+  const liquidity = amountValue(activeMetrics?.position_liquidity) + amountValue(virtualMetrics?.position_liquidity)
+
+  if (liquidity <= 0) return undefined
+  return {
+    liquidity: amountString(liquidity),
+    amount0: amountString(amountValue(activeMetrics?.redeemable_amount0) + amountValue(virtualMetrics?.protocol_fee_amount0)),
+    amount1: amountString(amountValue(activeMetrics?.redeemable_amount1) + amountValue(virtualMetrics?.protocol_fee_amount1)),
+  }
+}
+
 const loadLiquidity = async () => {
   if (!walletConnected.value || !selectedPool.value) return
 
   liquidityLoading.value = true
   try {
-    currentLiquidity.value = await queryOwnerLiquidity() || zeroLiquidity()
+    currentLiquidity.value = routeLiquidity() || await metricsLiquidity() || await queryOwnerLiquidity() || zeroLiquidity()
     removeAmount.value = ''
   } finally {
     liquidityLoading.value = false
@@ -302,10 +349,25 @@ onMounted(async () => {
 })
 
 watch(
-  () => [walletConnected.value, selectedPool.value?.poolApplication],
-  async ([connected, poolApplication], [previousConnected, previousPoolApplication]) => {
+  () => [
+    walletConnected.value,
+    selectedPool.value?.poolApplication,
+    routeLiquidityContext.value?.liquidity,
+    routeLiquidityContext.value?.amount0,
+    routeLiquidityContext.value?.amount1,
+  ],
+  async (
+    [connected, poolApplication, liquidity, amount0, amount1],
+    [previousConnected, previousPoolApplication, previousLiquidity, previousAmount0, previousAmount1],
+  ) => {
     if (!connected || !poolApplication) return
-    if (connected === previousConnected && poolApplication === previousPoolApplication) return
+    if (
+      connected === previousConnected &&
+      poolApplication === previousPoolApplication &&
+      liquidity === previousLiquidity &&
+      amount0 === previousAmount0 &&
+      amount1 === previousAmount1
+    ) return
     await loadLiquidity()
   },
 )

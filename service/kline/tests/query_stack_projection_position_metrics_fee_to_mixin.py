@@ -711,6 +711,6 @@ class QueryStackProjectionPositionMetricsFeeToMixin:
         )
 
         self.assertEqual(self._metrics(payload)['metrics_status'], 'exact_no_swap_history')
-        self.assertEqual(self._metrics(payload)['principal_amount0'], '6.666666666666666667')
+        self.assertEqual(self._metrics(payload)['principal_amount0'], '6.666666666666666666')
         self.assertEqual(self._metrics(payload)['principal_amount1'], '10')
         self.assertEqual(self._shadow(payload)['snapshot_shadow']['readiness'], 'candidate')

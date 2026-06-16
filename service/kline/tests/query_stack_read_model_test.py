@@ -520,7 +520,6 @@ class ReadModelBridgeTest(
         self.assertEqual(changed_metric['protocol_fee_amount0'], base_metric['protocol_fee_amount0'])
         self.assertEqual(changed_metric['protocol_fee_amount1'], base_metric['protocol_fee_amount1'])
 
-
     def test_position_metrics_read_model_uses_full_history_protocol_fee_liquidity_for_virtual_position(self):
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
 
@@ -539,6 +538,26 @@ class ReadModelBridgeTest(
         self.assertEqual(metric['position_liquidity'], '37')
         self.assertEqual(metric['protocol_fee_amount0'], '74')
         self.assertEqual(metric['protocol_fee_amount1'], '111')
+
+    def test_position_metrics_read_model_does_not_use_pool_total_minted_fee_after_owner_remove(self):
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
+
+        payload = self._virtual_protocol_fee_metrics_payload(
+            owner=owner,
+            materialized_protocol_fee_liquidity='19',
+            full_materialized_protocol_fee_liquidity='19',
+            latest_fee_to_account=owner,
+            current_total_supply='130',
+            fee_free_total_supply='100',
+            current_reserve_0='260',
+            current_reserve_1='390',
+            total_minted_protocol_fee='37',
+        )
+
+        metric = payload.public_payload()['metrics'][0]
+        self.assertEqual(metric['position_liquidity'], '19')
+        self.assertEqual(metric['protocol_fee_amount0'], '38')
+        self.assertEqual(metric['protocol_fee_amount1'], '57')
 
     def test_position_metrics_read_model_exposes_protocol_fee_trailing_24h_for_virtual_position(self):
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
@@ -606,6 +625,7 @@ class ReadModelBridgeTest(
         trailing_24h_fee_amount_1=None,
         trailing_24h_fee_window_start_ms=None,
         trailing_24h_fee_window_end_ms=None,
+        total_minted_protocol_fee=None,
     ):
         repository = QueryStackTestSupport.FakeRepository()
 
@@ -646,7 +666,11 @@ class ReadModelBridgeTest(
                     'current_reserve_1': current_reserve_1,
                     'current_total_supply': current_total_supply,
                     'fee_free_total_supply': fee_free_total_supply,
-                    'total_minted_protocol_fee': full_materialized_protocol_fee_liquidity or '0',
+                    'total_minted_protocol_fee': (
+                        total_minted_protocol_fee
+                        if total_minted_protocol_fee is not None
+                        else full_materialized_protocol_fee_liquidity or '0'
+                    ),
                     'pending_protocol_fee': '0',
                     'state_payload_json': state_payload_json,
                 }

@@ -39,7 +39,7 @@ class PositionMetricsValueSupport:
         if value is None:
             return None
         try:
-            return int((Decimal(str(value)) * self.attos_scale).to_integral_value())
+            return int(Decimal(str(value)) * self.attos_scale)
         except (InvalidOperation, ValueError):
             return None
 

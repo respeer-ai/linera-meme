@@ -80,6 +80,46 @@ class PositionMetricsProtocolFeeOwnershipTrackerTest(unittest.TestCase):
         self.assertEqual(result['protocol_fee_liquidity_owner_unknown'], '0')
         self.assertEqual(result['protocol_fee_current_owner_provenance_case'], 'owner_and_non_owner_mints')
 
+
+    def test_summarize_subtracts_fee_to_remove_from_current_owner_protocol_fee_liquidity(self):
+        result = self._tracker().summarize(
+            owner='chain-fee:0xfee-owner',
+            effective_history=[
+                {
+                    'transaction_id': 10,
+                    'created_at': 1000,
+                    'transaction_type': 'AddLiquidity',
+                    'from_account': 'chain-fee:0xfee-owner',
+                    'liquidity': 1,
+                },
+                {
+                    'transaction_id': 11,
+                    'created_at': 1100,
+                    'transaction_type': 'RemoveLiquidity',
+                    'from_account': 'chain-fee:0xfee-owner',
+                    'liquidity': 18,
+                },
+            ],
+            states=[
+                {'protocol_fee_minted_after': 5},
+                {'protocol_fee_minted_after': 30},
+            ],
+            latest_position_tx={
+                'transaction_id': 10,
+                'created_at': 1000,
+                'transaction_type': 'AddLiquidity',
+            },
+            fee_to_history=[
+                {'transaction_id': 9, 'created_at': 900, 'fee_to_account': 'chain-fee:0xfee-owner'},
+            ],
+        )
+
+        self.assertEqual(result['basis_protocol_fee_liquidity_owned_by_current_owner'], '0')
+        self.assertEqual(result['post_basis_protocol_fee_liquidity_owned_by_current_owner'], '17')
+        self.assertEqual(result['protocol_fee_liquidity_owned_by_current_owner_current'], '17')
+        self.assertEqual(result['full_protocol_fee_liquidity_owned_by_current_owner'], '17')
+        self.assertEqual(result['full_protocol_fee_current_owner_provenance_case'], 'all_mints_owned_by_current_owner')
+
     def test_summarize_keeps_full_owner_protocol_fee_liquidity_before_remove_basis(self):
         result = self._tracker().summarize(
             owner='chain-fee:0xfee-owner',
