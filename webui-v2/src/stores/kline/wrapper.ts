@@ -76,5 +76,9 @@ export class Kline {
     return await kline.getPositionMetrics(owner, status)
   }
 
+  static getClaimBalances = async (owner: string) => {
+    return await kline.getClaimBalances(owner)
+  }
+
   static protocolStat = () => kline.protocolStat
 }

@@ -11,6 +11,7 @@ import {
   type PoolStat,
   type ProtocolStat,
   type PositionMetricsResponse,
+  type ClaimBalancesResponse,
   type PositionsInvalidationPayload,
 } from './types'
 import { _WebSocket, type Notification } from 'src/websocket'
@@ -249,6 +250,17 @@ export const useKlineStore = defineStore('kline', {
         return res.data as PositionMetricsResponse
       } catch (e) {
         console.log('Failed get position metrics', e)
+      }
+    },
+    async getClaimBalances(owner: string) {
+      const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/claim-balances`)
+      try {
+        const res = await axios.get(url, {
+          params: { owner },
+        })
+        return res.data as ClaimBalancesResponse
+      } catch (e) {
+        console.log('Failed get claim balances', e)
       }
     },
   },

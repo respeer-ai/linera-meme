@@ -108,6 +108,7 @@
                           clickable
                           v-close-popup
                           class='status-menu-item'
+                          disable
                         >
                           <q-item-section>Claim</q-item-section>
                         </q-item>
@@ -194,10 +195,10 @@
                 </div>
                 <div class='position-metric position-claimable-metric'>
                   <span class='metric-label'>Claimable</span>
-                  <span class='metric-value metric-value-stack'>
-                    <span>619.5398 {{ tokenTicker(position.token_0) }}</span>
-                    <span>0.6087 {{ tokenTicker(position.token_1) }}</span>
+                  <span v-if='positionClaimableLines(position).length' class='metric-value metric-value-stack'>
+                    <span v-for='item in positionClaimableLines(position)' :key='item.token'>{{ formatLiquidity(item.amount) }} {{ tokenTicker(item.token) }}</span>
                   </span>
+                  <span v-else class='metric-value'>--</span>
                 </div>
               </div>
 
@@ -242,7 +243,7 @@ import { constants } from 'src/constant'
 import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
 import { useUserStore } from 'src/stores/user'
 import { usePositionsStore, type Position, type PositionStatusFilter, type PositionsResponse } from 'src/stores/positions'
-import { type PositionMetricsEntry, type PositionsInvalidationPayload } from 'src/stores/kline'
+import { type ClaimBalanceEntry, type PositionMetricsEntry, type PositionsInvalidationPayload } from 'src/stores/kline'
 import { account, ams, kline, swap, type meme } from 'src/stores/export'
 import { protocol } from 'src/utils'
 import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
@@ -292,6 +293,8 @@ const pools = computed(() => swap.Swap.pools())
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 const positionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
 const positionMetricsRequestSerial = ref(0)
+const claimBalanceSnapshots = ref<Record<string, ClaimBalanceEntry>>({})
+const claimBalancesRequestSerial = ref(0)
 const showClosedHint = computed(() => (
   walletConnected.value &&
   positionsStore.loaded &&
@@ -326,6 +329,7 @@ const refreshPositions = async () => {
     summaryPositions.value = []
     summaryPositionMetricsSnapshots.value = {}
     positionMetricsSnapshots.value = {}
+    claimBalanceSnapshots.value = {}
     positionsStore.clear()
     return
   }
@@ -337,12 +341,14 @@ const refreshPositions = async () => {
     summaryPositions.value = []
     summaryPositionMetricsSnapshots.value = {}
     positionMetricsSnapshots.value = {}
+    claimBalanceSnapshots.value = {}
     positionsStore.clear()
     return
   }
 
   void kline.Kline.getPoolStats(kline.TickerInterval.OneDay)
   void refreshSummaryPositions(nextOwner)
+  void refreshClaimBalanceSnapshots(nextOwner)
   await positionsStore.fetchPositions(nextOwner, selectedStatus.value)
   void refreshPositionMetricsSnapshots(nextOwner, selectedStatus.value)
 }
@@ -465,6 +471,24 @@ const virtualBootstrapDisplayFor = (position: Position) => (
 const tokenAmountFor = (position: Position, token: string, amount0: string | null | undefined, amount1: string | null | undefined) => (
   token === position.token_0 ? amount0 : amount1
 )
+const normalizeClaimToken = (token: string) => (
+  token === 'native' ? constants.LINERA_NATIVE_ID : token
+)
+const claimBalanceKey = (poolApplication: string, token: string) => (
+  `${poolApplication}:${normalizeClaimToken(token)}`
+)
+const positionClaimableBalance = (position: Position, token: string) => (
+  claimBalanceSnapshots.value[claimBalanceKey(position.pool_application, token)]?.claimable_amount || '0'
+)
+const positionClaimableLines = (position: Position) => {
+  const tokens = Array.from(new Set([position.token_0, position.token_1].map(normalizeClaimToken)))
+  return tokens
+    .map((token) => ({
+      token,
+      amount: positionClaimableBalance(position, token),
+    }))
+    .filter((item) => Number.parseFloat(item.amount || '0') > 0)
+}
 const sumAmount = (...values: Array<string | null | undefined>) => {
   const total = values.reduce((sum, value) => {
     const numeric = Number.parseFloat(value || '0')
@@ -686,6 +710,25 @@ const onManagePositionClick = (position: Position) => {
     token0: position.token_0,
     token1: position.token_1,
   }, context))
+}
+
+const refreshClaimBalanceSnapshots = async (nextOwner: string) => {
+  const requestSerial = ++claimBalancesRequestSerial.value
+
+  if (!walletConnected.value || !nextOwner) {
+    claimBalanceSnapshots.value = {}
+    return
+  }
+
+  const response = await kline.Kline.getClaimBalances(nextOwner)
+  if (requestSerial !== claimBalancesRequestSerial.value) return
+
+  claimBalanceSnapshots.value = Object.fromEntries(
+    (response?.balances || []).map((entry) => [
+      claimBalanceKey(entry.pool_application_id, entry.token),
+      entry,
+    ]),
+  )
 }
 
 const refreshPositionMetricsSnapshots = async (
@@ -1113,6 +1156,10 @@ usePageSeo(() => ({
   border-radius: 16px
   background: rgba(16, 18, 24, 0.98)
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28)
+
+:global(.position-actions-menu.q-menu)
+  min-width: 92px
+  width: max-content
 
 :global(.status-menu-list)
   padding: 0

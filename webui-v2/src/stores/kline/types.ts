@@ -137,6 +137,29 @@ export interface PositionMetricsResponse {
   metrics: PositionMetricsEntry[]
 }
 
+export interface ClaimBalanceDiagnostics {
+  incomplete_count: number
+}
+
+export interface ClaimBalanceEntry {
+  pool_application_id: string
+  execution_chain_id: string
+  token: string
+  owner: string
+  claimable_amount: string
+  claiming_amount: string
+  projection_status: 'complete' | 'incomplete'
+  diagnostics: ClaimBalanceDiagnostics
+  latest_block_height: number | null
+  latest_transaction_index: number | null
+  latest_message_index: number | null
+}
+
+export interface ClaimBalancesResponse {
+  owner: string
+  balances: ClaimBalanceEntry[]
+}
+
 export interface PositionsInvalidationEvent {
   pool_application?: string
   pool_id?: number
