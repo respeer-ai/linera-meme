@@ -216,8 +216,8 @@ describe('positionsData', () => {
     expect(virtualPositionMetricsFor(mergedVirtualOnlyPosition, snapshots)?.protocol_fee_amount0).toBe('2469.220627317689461086')
   })
 
-  test('uses collect-fees action for merged virtual-only display position', () => {
-    expect(positionActionLabel(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe('Collect fees')
+  test('uses remove action for merged virtual-only display position', () => {
+    expect(positionActionLabel(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe('Remove')
     expect(canUsePositionAction(mergedVirtualOnlyPosition, virtualMetrics, owner, [mergedVirtualOnlyPosition])).toBe(true)
   })
 
@@ -230,12 +230,12 @@ describe('positionsData', () => {
     expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, positions)).toBe(false)
   })
 
-  test('keeps collect-fees action on virtual position when no actual liquidity exists', () => {
-    expect(positionActionLabel(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe('Collect fees')
+  test('keeps remove action on virtual position when no actual liquidity exists', () => {
+    expect(positionActionLabel(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe('Remove')
     expect(canUsePositionAction(virtualPosition, virtualMetrics, owner, [virtualPosition])).toBe(true)
   })
 
-  test('keeps collect-fees label disabled when no protocol-fee liquidity is available', () => {
+  test('keeps remove label disabled when no protocol-fee liquidity is available', () => {
     const emptyVirtualMetrics = {
       ...virtualMetrics,
       position_liquidity: '0',
@@ -243,7 +243,7 @@ describe('positionsData', () => {
       protocol_fee_amount1: '0',
     }
 
-    expect(positionActionLabel(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe('Collect fees')
+    expect(positionActionLabel(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe('Remove')
     expect(canUsePositionAction(virtualPosition, emptyVirtualMetrics, owner, [virtualPosition])).toBe(false)
   })
 })

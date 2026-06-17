@@ -193,7 +193,7 @@
                   <span class='metric-label'>APR</span>
                   <span class='metric-value'>{{ positionAprLabel(position) }}</span>
                 </div>
-                <div class='position-metric position-claimable-metric'>
+                <div class='position-metric position-claimable-metric' :class='{ "position-claimable-metric-empty": !positionClaimableLines(position).length }'>
                   <span class='metric-label'>Claimable</span>
                   <span v-if='positionClaimableLines(position).length' class='metric-value metric-value-stack'>
                     <span v-for='item in positionClaimableLines(position)' :key='item.token'>{{ formatLiquidity(item.amount) }} {{ tokenTicker(item.token) }}</span>
@@ -695,7 +695,6 @@ const onNewPositionClick = () => {
   void router.push('/pools/add-liquidity')
 }
 const onManagePositionClick = (position: Position) => {
-  const hasActualLiquidity = Number.parseFloat(position.current_liquidity || '0') > 0
   const positionAmounts = positionCollectableLiquidityAmounts(
     position,
     positionMetrics(position) || summaryPositionMetrics(position),
@@ -703,7 +702,7 @@ const onManagePositionClick = (position: Position) => {
     owner.value,
   )
   const context = {
-    mode: hasActualLiquidity ? 'liquidity' as const : 'fees' as const,
+    mode: 'liquidity' as const,
     ...positionAmounts,
   }
   void router.push(buildRemoveLiquidityRoute({
@@ -1432,6 +1431,9 @@ usePageSeo(() => ({
 
 .position-claimable-metric
   align-content: start
+
+.position-claimable-metric-empty
+  align-content: center
 
 @media (max-width: 720px)
   .positions-page

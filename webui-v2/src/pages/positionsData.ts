@@ -200,7 +200,7 @@ export const positionActionLabel = (
     isPositionProtocolFeeReceiver(position, owner) ||
     positionHasVirtualReference(position, owner) ||
     positiveAmount(metrics?.position_liquidity)
-  ) return 'Collect fees'
+  ) return 'Remove'
   return undefined
 }
 
