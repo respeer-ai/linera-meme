@@ -31,9 +31,11 @@ class ProjectionPoolCatalogRepository:
         pool_catalog_projection_repository,
         pool_state_projection_repository,
         pool_registry_metadata_repository=None,
+        current_swap_application_id: str | None = None,
     ):
         self.pool_catalog_projection_repository = pool_catalog_projection_repository
         self.pool_state_projection_repository = pool_state_projection_repository
+        self.current_swap_application_id = current_swap_application_id
         self.pool_registry_metadata_repository = (
             pool_registry_metadata_repository
             or self._default_pool_registry_metadata_repository()
@@ -46,7 +48,10 @@ class ProjectionPoolCatalogRepository:
         source = catalog_db or catalog_connection
         if source is None:
             return None
-        return PoolRegistryMetadataRepository(source)
+        return PoolRegistryMetadataRepository(
+            source,
+            current_swap_application_id=self.current_swap_application_id,
+        )
 
     def list_current_pools(self) -> list[dict]:
         catalog = self._catalog_rows_by_pool_application()

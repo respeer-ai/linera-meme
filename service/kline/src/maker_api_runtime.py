@@ -30,6 +30,12 @@ class MakerApiRuntime:
         owner = str(self._config.get('wallet_owner') or '').strip()
         return owner if owner != '' else None
 
+    def current_swap_application_id(self) -> str | None:
+        value = self._config.get('swap_application_id')
+        if value in (None, ''):
+            return None
+        return str(value)
+
     async def fetch_wallet_chain(self):
         payload = {
             'query': 'query { chains { default list } }'
@@ -381,16 +387,23 @@ class MakerApiRuntime:
         return MakerEventsQueryRepository(self._db)
 
     def pool_catalog_projection_repository_for_read(self):
-        return PoolCatalogProjectionRepository(self._db)
+        return PoolCatalogProjectionRepository(
+            self._db,
+            current_swap_application_id=self.current_swap_application_id(),
+        )
 
     def projection_pool_catalog_repository(self):
         return ProjectionPoolCatalogRepository(
             pool_catalog_projection_repository=self.pool_catalog_projection_repository_for_read(),
             pool_state_projection_repository=PoolStateProjectionRepository(self._db),
+            current_swap_application_id=self.current_swap_application_id(),
         )
 
     def transaction_watermarks_query_repository(self):
-        return TransactionWatermarksQueryRepository(self._db)
+        return TransactionWatermarksQueryRepository(
+            self._db,
+            current_swap_application_id=self.current_swap_application_id(),
+        )
 
     def get_maker_events(self, token0: str, token1: str, start_at: int, end_at: int):
         return self.maker_events_query_repository().get_maker_events(

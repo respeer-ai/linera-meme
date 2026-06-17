@@ -8,10 +8,12 @@ class PoolMetadataProjectionResolver:
         pool_catalog_projection_repository,
         pool_state_projection_repository,
         pool_registry_metadata_repository=None,
+        current_swap_application_id: str | None = None,
     ):
         self.pool_catalog_projection_repository = pool_catalog_projection_repository
         self.pool_state_projection_repository = pool_state_projection_repository
         self.pool_registry_metadata_repository = pool_registry_metadata_repository
+        self.current_swap_application_id = current_swap_application_id
 
     def metadata_by_pool_application(self) -> dict[str, dict]:
         catalog_rows = self.pool_catalog_projection_repository.list_pool_catalog() or []
@@ -82,7 +84,10 @@ class PoolMetadataProjectionResolver:
             source = catalog_db or catalog_connection
             if source is None:
                 return []
-            repository = PoolRegistryMetadataRepository(source)
+            repository = PoolRegistryMetadataRepository(
+                source,
+                current_swap_application_id=self.current_swap_application_id,
+            )
         list_pool_metadata = getattr(repository, 'list_pool_metadata', None)
         if list_pool_metadata is None:
             return []

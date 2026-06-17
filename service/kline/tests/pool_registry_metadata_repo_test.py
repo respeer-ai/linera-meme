@@ -14,7 +14,7 @@ from storage.mysql.pool_registry_metadata_repo import PoolRegistryMetadataReposi
 
 
 class PoolRegistryMetadataRepositoryTest(unittest.TestCase):
-    def test_list_pool_metadata_filters_to_latest_static_config_swap_parent(self):
+    def test_list_pool_metadata_filters_to_configured_swap_parent(self):
         class FakeConnection:
             def __init__(self):
                 self.cursor_obj = FakeCursor()
@@ -46,15 +46,16 @@ class PoolRegistryMetadataRepositoryTest(unittest.TestCase):
                 return None
 
         connection = FakeConnection()
-        repository = PoolRegistryMetadataRepository(connection)
+        repository = PoolRegistryMetadataRepository(connection, current_swap_application_id='configured-swap')
 
         rows = repository.list_pool_metadata()
 
         self.assertEqual(len(rows), 1)
         sql = connection.cursor_obj.executed[0][0]
-        self.assertIn("current_swap.app_type = 'swap'", sql)
-        self.assertIn("current_swap.discovered_from = 'static_config'", sql)
-        self.assertIn('pool_app.parent_application_id = current_swap.application_id', sql)
+        self.assertNotIn('current_swap', sql)
+        self.assertNotIn('static_config', sql)
+        self.assertIn('pool_app.parent_application_id = %s', sql)
+        self.assertEqual(connection.cursor_obj.executed[0][1], ('configured-swap',))
 
 
 if __name__ == '__main__':

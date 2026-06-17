@@ -76,9 +76,18 @@ class KlineRuntime:
     def position_metrics_public_api(self):
         return self._position_metrics_public_api
 
+    def current_swap_application_id(self) -> str | None:
+        value = getattr(self._swap, 'application', None)
+        if value in (None, ''):
+            return None
+        return str(value)
+
     def settled_trade_projection_repository(self):
         self.require_db()
-        return SettledTradeProjectionRepository(self._db)
+        return SettledTradeProjectionRepository(
+            self._db,
+            current_swap_application_id=self.current_swap_application_id(),
+        )
 
     def raw_repository(self):
         self.require_db()
@@ -102,7 +111,10 @@ class KlineRuntime:
 
     def settled_liquidity_projection_repository(self):
         self.require_db()
-        return SettledLiquidityProjectionRepository(self._db)
+        return SettledLiquidityProjectionRepository(
+            self._db,
+            current_swap_application_id=self.current_swap_application_id(),
+        )
 
     def claim_balance_projection_repository(self):
         self.require_db()
@@ -135,13 +147,20 @@ class KlineRuntime:
 
     def market_stats_projection_repository(self):
         self.require_db()
-        return MarketStatsProjectionRepository(self._db)
+        return MarketStatsProjectionRepository(
+            self._db,
+            current_swap_application_id=self.current_swap_application_id(),
+        )
 
     def projection_pool_catalog_repository(self):
         self.require_db()
         return ProjectionPoolCatalogRepository(
-            pool_catalog_projection_repository=PoolCatalogProjectionRepository(self._db),
+            pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                self._db,
+                current_swap_application_id=self.current_swap_application_id(),
+            ),
             pool_state_projection_repository=PoolStateProjectionRepository(self._db),
+            current_swap_application_id=self.current_swap_application_id(),
         )
 
     def get_ticker_stats(self, *, interval: str) -> list[dict]:
@@ -324,15 +343,22 @@ class KlineRuntime:
             queue=self.build_market_data_event_queue(),
             pool_catalog_repository=self._build_projection_pool_catalog_repository_for_db(realtime_db),
             pool_catalog_repository_factory=self._build_scheduler_pool_catalog_repository_factory(realtime_db),
-            market_watermark_repository=SettledTradeProjectionRepository(realtime_db),
+            market_watermark_repository=SettledTradeProjectionRepository(
+                realtime_db,
+                current_swap_application_id=self.current_swap_application_id(),
+            ),
             market_watermark_repository_factory=self._build_scheduler_market_watermark_repository_factory(realtime_db),
             account_codec=AccountCodec(),
         )
 
     def _build_projection_pool_catalog_repository_for_db(self, db):
         return ProjectionPoolCatalogRepository(
-            pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
+            pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                db,
+                current_swap_application_id=self.current_swap_application_id(),
+            ),
             pool_state_projection_repository=PoolStateProjectionRepository(db),
+            current_swap_application_id=self.current_swap_application_id(),
         )
 
     def _build_scheduler_pool_catalog_repository_factory(self, realtime_db):
@@ -370,7 +396,10 @@ class KlineRuntime:
             )
             return _OwnedDbMarketWatermarkRepository(
                 db=scheduler_db,
-                repository=SettledTradeProjectionRepository(scheduler_db),
+                repository=SettledTradeProjectionRepository(
+                    scheduler_db,
+                    current_swap_application_id=self.current_swap_application_id(),
+                ),
             )
 
         return factory

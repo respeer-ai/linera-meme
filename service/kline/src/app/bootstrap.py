@@ -102,7 +102,10 @@ class AppBootstrap:
         raw_repository = RawRepository(connection)
         application_registry_repository = ApplicationRegistryRepository(connection)
         normalized_event_repository = NormalizedEventRepository(connection)
-        pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
+        pool_catalog_projection_repository = PoolCatalogProjectionRepository(
+            connection,
+            current_swap_application_id=config.swap_application_id,
+        )
         pool_fee_to_history_projection_repository = PoolFeeToHistoryProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)
@@ -284,7 +287,10 @@ class AppBootstrap:
         connection = MysqlConnectionFactory().connect_from_app_config(config)
         raw_repository = RawRepository(connection)
         normalized_event_repository = NormalizedEventRepository(connection)
-        pool_catalog_projection_repository = PoolCatalogProjectionRepository(connection)
+        pool_catalog_projection_repository = PoolCatalogProjectionRepository(
+            connection,
+            current_swap_application_id=config.swap_application_id,
+        )
         pool_fee_to_history_projection_repository = PoolFeeToHistoryProjectionRepository(connection)
         settled_trade_repository = SettledTradeRepository(connection)
         settled_liquidity_change_repository = SettledLiquidityChangeRepository(connection)

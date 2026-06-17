@@ -8,14 +8,19 @@ from storage.mysql.settled_product_transaction_adapter import SettledProductTran
 
 
 class SettledLiquidityProjectionRepository:
-    def __init__(self, db, *, transaction_adapter=None, metadata_resolver=None):
+    def __init__(self, db, *, transaction_adapter=None, metadata_resolver=None, current_swap_application_id: str | None = None):
         self.db = db
+        self.current_swap_application_id = current_swap_application_id
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()
         self.metadata_resolver = (
             metadata_resolver
             or PoolMetadataProjectionResolver(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    db,
+                    current_swap_application_id=current_swap_application_id,
+                ),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
+                current_swap_application_id=current_swap_application_id,
             )
         )
 

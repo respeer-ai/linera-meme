@@ -22,17 +22,26 @@ class SettledTradeProjectionRepository:
         transaction_adapter=None,
         transaction_family_codec=None,
         metadata_resolver=None,
+        current_swap_application_id: str | None = None,
     ):
         self.db = db
+        self.current_swap_application_id = current_swap_application_id
         self.pool_identity_projection_repo = (
             pool_identity_projection_repo
-            or PoolIdentityProjectionRepository(db)
+            or PoolIdentityProjectionRepository(
+                db,
+                current_swap_application_id=current_swap_application_id,
+            )
         )
         self.metadata_resolver = (
             metadata_resolver
             or PoolMetadataProjectionResolver(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    db,
+                    current_swap_application_id=current_swap_application_id,
+                ),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
+                current_swap_application_id=current_swap_application_id,
             )
         )
         self.transaction_adapter = transaction_adapter or SettledProductTransactionAdapter()

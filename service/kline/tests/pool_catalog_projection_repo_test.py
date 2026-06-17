@@ -132,7 +132,7 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
         )
 
 
-    def test_list_pool_catalog_filters_to_latest_static_swap_lineage(self):
+    def test_list_pool_catalog_filters_to_configured_swap_lineage(self):
         class FakeCursor:
             def __init__(self):
                 self.executed = []
@@ -155,7 +155,7 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
                 return self.cursor_obj
 
         connection = FakeConnection()
-        repo = PoolCatalogProjectionRepository(connection)
+        repo = PoolCatalogProjectionRepository(connection, current_swap_application_id='configured-swap')
 
         self.assertEqual(repo.list_pool_catalog(), [])
 
@@ -165,11 +165,10 @@ class PoolCatalogProjectionRepositoryTest(unittest.TestCase):
         self.assertIn("LEFT JOIN application_registry pool_app", normalized_sql)
         self.assertIn("pool_app.application_id = pc.pool_application_id", normalized_sql)
         self.assertIn("pool_app.app_type = 'pool'", normalized_sql)
-        self.assertIn("LEFT JOIN ( SELECT current_swap.application_id", normalized_sql)
-        self.assertIn("current_swap.app_type = 'swap'", normalized_sql)
-        self.assertIn("current_swap.discovered_from = 'static_config'", normalized_sql)
-        self.assertIn("current_swap.status = 'active'", normalized_sql)
-        self.assertIn("WHERE current_swap.application_id IS NULL OR pool_app.parent_application_id = current_swap.application_id", normalized_sql)
+        self.assertNotIn("current_swap", normalized_sql)
+        self.assertNotIn("static_config", normalized_sql)
+        self.assertIn("WHERE pool_app.parent_application_id = %s", normalized_sql)
+        self.assertEqual(connection.cursor_obj.executed[0][1], ('configured-swap',))
 
 
 if __name__ == '__main__':

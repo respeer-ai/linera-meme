@@ -7,13 +7,18 @@ class PoolIdentityProjectionRepository:
     NATIVE_TOKEN_SENTINEL = 'TLINERA'
     ZERO_TOKEN_ID = '0000000000000000000000000000000000000000000000000000000000000000'
 
-    def __init__(self, db, *, projection_pool_catalog_repository=None):
+    def __init__(self, db, *, projection_pool_catalog_repository=None, current_swap_application_id: str | None = None):
         self.db = db
+        self.current_swap_application_id = current_swap_application_id
         self.projection_pool_catalog_repository = (
             projection_pool_catalog_repository
             or ProjectionPoolCatalogRepository(
-                pool_catalog_projection_repository=PoolCatalogProjectionRepository(db),
+                pool_catalog_projection_repository=PoolCatalogProjectionRepository(
+                    db,
+                    current_swap_application_id=current_swap_application_id,
+                ),
                 pool_state_projection_repository=PoolStateProjectionRepository(db),
+                current_swap_application_id=current_swap_application_id,
             )
         )
 
