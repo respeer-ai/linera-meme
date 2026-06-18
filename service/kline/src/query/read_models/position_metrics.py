@@ -243,7 +243,30 @@ class PositionMetricsReadModel:
             pool_snapshot=pool_snapshot,
         ):
             return pending_fee
-        return total_minted_protocol_fee + pending_fee
+        skipped_remove_liquidity = self._skipped_position_remove_liquidity(
+            position_basis_snapshot
+        )
+        return max(total_minted_protocol_fee - skipped_remove_liquidity, Decimal('0')) + pending_fee
+
+    def _skipped_position_remove_liquidity(
+        self,
+        position_basis_snapshot: PositionMetricsPositionBasisSnapshot,
+    ) -> Decimal:
+        payload = position_basis_snapshot.raw() or {}
+        state_payload = payload.get('state_payload_json')
+        if not isinstance(state_payload, dict):
+            return Decimal('0')
+        explicit_total = self._to_decimal(state_payload.get('skipped_position_remove_liquidity'))
+        if explicit_total is not None:
+            return explicit_total
+        total = Decimal('0')
+        for skipped in state_payload.get('skipped_position_removes') or []:
+            if not isinstance(skipped, dict):
+                continue
+            liquidity = self._to_decimal(skipped.get('liquidity'))
+            if liquidity is not None and liquidity > Decimal('0'):
+                total += liquidity
+        return total
 
     def _current_protocol_fee_receiver_matches_position(
         self,

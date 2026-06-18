@@ -748,7 +748,10 @@ const onClaimPositionClick = (position: Position) => {
   void router.push(buildClaimRoute({
     token0: position.token_0,
     token1: position.token_1,
-  }, claimableToken ? { token: claimableToken } : {}))
+  }, {
+    poolApplication: position.pool_application,
+    ...(claimableToken ? { token: claimableToken } : {}),
+  }))
 }
 
 const refreshClaimBalanceSnapshots = async (nextOwner: string) => {

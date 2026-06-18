@@ -2,7 +2,7 @@ use abi::swap::pool::PoolOperation;
 use async_graphql::{Error, Object};
 use linera_base::{
     data_types::{Amount, Timestamp},
-    identifiers::Account,
+    identifiers::{Account, ApplicationId},
 };
 
 pub struct QueryRoot;
@@ -72,5 +72,9 @@ impl MutationRoot {
             to,
             block_timestamp,
         })?)
+    }
+
+    async fn claim(&self, token: Option<ApplicationId>, amount: Amount) -> Result<Vec<u8>, Error> {
+        Ok(bcs::to_bytes(&PoolOperation::Claim { token, amount })?)
     }
 }

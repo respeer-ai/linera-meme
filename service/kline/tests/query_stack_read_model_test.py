@@ -580,6 +580,26 @@ class ReadModelBridgeTest(
         self.assertEqual(metric['protocol_fee_amount0'], '38')
         self.assertEqual(metric['protocol_fee_amount1'], '57')
 
+    def test_position_metrics_read_model_subtracts_skipped_remove_from_total_minted_fee_fallback(self):
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
+
+        payload = self._virtual_protocol_fee_metrics_payload(
+            owner=owner,
+            materialized_protocol_fee_liquidity='0',
+            latest_fee_to_account=owner,
+            current_total_supply='130',
+            fee_free_total_supply='100',
+            current_reserve_0='260',
+            current_reserve_1='390',
+            total_minted_protocol_fee='37',
+            skipped_position_remove_liquidity='25',
+        )
+
+        metric = payload.public_payload()['metrics'][0]
+        self.assertEqual(metric['position_liquidity'], '12')
+        self.assertEqual(metric['protocol_fee_amount0'], '24')
+        self.assertEqual(metric['protocol_fee_amount1'], '36')
+
     def test_position_metrics_read_model_exposes_protocol_fee_trailing_24h_for_virtual_position(self):
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
 
@@ -648,6 +668,7 @@ class ReadModelBridgeTest(
         trailing_24h_fee_window_end_ms=None,
         total_minted_protocol_fee=None,
         pending_protocol_fee='0',
+        skipped_position_remove_liquidity=None,
     ):
         repository = QueryStackTestSupport.FakeRepository()
 
@@ -661,6 +682,11 @@ class ReadModelBridgeTest(
                         materialized_protocol_fee_liquidity
                     ),
                 }
+                state_payload_json = {}
+                if skipped_position_remove_liquidity is not None:
+                    state_payload_json['skipped_position_remove_liquidity'] = (
+                        skipped_position_remove_liquidity
+                    )
                 if full_materialized_protocol_fee_liquidity is not None:
                     semantic_facts['full_protocol_fee_liquidity_owned_by_current_owner'] = (
                         full_materialized_protocol_fee_liquidity
@@ -675,7 +701,10 @@ class ReadModelBridgeTest(
                     semantic_facts['trailing_24h_fee_window_start_ms'] = trailing_24h_fee_window_start_ms
                 if trailing_24h_fee_window_end_ms is not None:
                     semantic_facts['trailing_24h_fee_window_end_ms'] = trailing_24h_fee_window_end_ms
-                return {'semantic_facts': semantic_facts}
+                return {
+                    'semantic_facts': semantic_facts,
+                    'state_payload_json': state_payload_json,
+                }
 
             def pool_state_snapshot(self):
                 state_payload_json = {'virtual_initial_liquidity': True}

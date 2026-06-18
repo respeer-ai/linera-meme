@@ -194,6 +194,7 @@ describe('poolFlow', () => {
         },
         {
           token: constants.LINERA_NATIVE_ID,
+          poolApplication: '0xpool@chain-a',
         },
       ),
     ).toEqual({
@@ -202,6 +203,7 @@ describe('poolFlow', () => {
         token0: 'meme-1',
         token1: constants.LINERA_NATIVE_ID,
         token: constants.LINERA_NATIVE_ID,
+        poolApplication: '0xpool@chain-a',
       },
     })
   })

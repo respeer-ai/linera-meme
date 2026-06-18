@@ -246,18 +246,43 @@ class PositionMetricsSnapshotMaterializer:
     def _record_skipped_position_remove(self, state, output):
         state = dict(state)
         tx_id = int(output.get('transaction_id') or 0)
+        removed_attos = self.snapshot_builder._liquidity_attos(output)
         skipped = list(state.get('skipped_position_removes') or [])
         skipped.append({
             'transaction_id': tx_id,
             'liquidity': self.snapshot_builder._serialize_attos(
-                self.snapshot_builder._liquidity_attos(output)
+                removed_attos
             ),
             'reason': 'over_removed_position_liquidity',
             'liquidity_semantics': output.get('liquidity_semantics'),
         })
         state['skipped_position_removes'] = skipped[-10:]
+        state['skipped_position_remove_liquidity'] = (
+            int(state.get('skipped_position_remove_liquidity') or 0) + removed_attos
+        )
+        self._subtract_protocol_fee_ownership_for_skipped_remove(state, removed_attos)
         state['last_transaction_id'] = max(state.get('last_transaction_id', 0), tx_id)
         return state
+
+    def _subtract_protocol_fee_ownership_for_skipped_remove(self, state, removed_attos) -> None:
+        exact_current_principal = dict(state.get('exact_current_principal') or {})
+        full_owned = self.snapshot_builder.value_support.to_attos(
+            exact_current_principal.get('full_protocol_fee_liquidity_owned_by_current_owner')
+        )
+        if full_owned is None:
+            return
+        next_full_owned = max(full_owned - removed_attos, 0)
+        exact_current_principal['full_protocol_fee_liquidity_owned_by_current_owner'] = (
+            self.snapshot_builder._serialize_attos(next_full_owned)
+        )
+        scoped_owned = self.snapshot_builder.value_support.to_attos(
+            exact_current_principal.get('protocol_fee_liquidity_owned_by_current_owner_current')
+        )
+        if scoped_owned is not None:
+            exact_current_principal['protocol_fee_liquidity_owned_by_current_owner_current'] = (
+                self.snapshot_builder._serialize_attos(max(scoped_owned - removed_attos, 0))
+            )
+        state['exact_current_principal'] = exact_current_principal
 
     def _position_epsilon_attos(self) -> int:
         value_support = self.snapshot_builder.value_support
@@ -301,12 +326,18 @@ class PositionMetricsSnapshotMaterializer:
             'current_liquidity': vs.to_attos(row.get('current_liquidity')) or 0,
             'added_liquidity': vs.to_attos(payload.get('added_liquidity')) or 0,
             'removed_liquidity': vs.to_attos(payload.get('removed_liquidity')) or 0,
+            'skipped_position_remove_liquidity': (
+                self._skipped_position_remove_liquidity_attos(payload)
+            ),
             'status': row.get('status'),
             'basis_type': row.get('basis_type'),
             'basis_amount_0': row.get('basis_amount_0', '0'),
             'basis_amount_1': row.get('basis_amount_1', '0'),
             'basis_time_ms': row.get('basis_time_ms'),
             'basis_transaction_id': row.get('basis_transaction_id'),
+            'exact_current_principal': self._decode_json_object(
+                payload.get('exact_current_principal')
+            ),
             'current_round_liquidity_event_count': int(
                 payload.get('current_round_liquidity_event_count') or 0
             ),
@@ -319,6 +350,18 @@ class PositionMetricsSnapshotMaterializer:
                 payload.get('skipped_position_removes') or []
             ),
         }
+
+    def _skipped_position_remove_liquidity_attos(self, payload):
+        vs = self.snapshot_builder.value_support
+        explicit_total = vs.to_attos(payload.get('skipped_position_remove_liquidity'))
+        if explicit_total is not None:
+            return explicit_total
+        total = 0
+        for skipped in payload.get('skipped_position_removes') or []:
+            if not isinstance(skipped, dict):
+                continue
+            total += vs.to_attos(skipped.get('liquidity')) or 0
+        return total
 
     def _position_state_row_from_attos(
         self, state, owner, pool_app_id, pool_chain_id,
@@ -364,9 +407,12 @@ class PositionMetricsSnapshotMaterializer:
                 'current_round_trade_count_before_basis': 0,
                 'trade_count_between_basis_and_fee_free_basis': 0,
                 'latest_liquidity_transaction': {},
-                'exact_current_principal': {},
+                'exact_current_principal': state.get('exact_current_principal') or {},
                 'fee_to_continuity': {},
                 'skipped_position_removes': state.get('skipped_position_removes') or [],
+                'skipped_position_remove_liquidity': b._serialize_attos(
+                    state.get('skipped_position_remove_liquidity', 0)
+                ),
             },
         }
 

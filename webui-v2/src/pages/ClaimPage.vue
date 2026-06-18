@@ -24,7 +24,6 @@
             </div>
 
             <div v-if='selectedPool && walletConnected' class='claim-section claim-primary-section'>
-              <div class='claim-label'>Token</div>
               <div class='claim-token-list'>
                 <button
                   v-for='entry in claimTokenEntries'
@@ -49,17 +48,6 @@
                   <div class='claim-label'>Claimable</div>
                   <div class='claim-balance'>{{ formatAmount(selectedClaimableAmount) }} <span class='claim-balance-unit'>{{ selectedTokenTicker }}</span></div>
                 </div>
-                <q-btn
-                  outline
-                  rounded
-                  dense
-                  no-caps
-                  color='grey-5'
-                  class='claim-max-btn'
-                  label='Max'
-                  :disable='loading || submitting || selectedClaimableNumber <= 0'
-                  @click='setMaxAmount'
-                />
               </div>
 
               <q-input
@@ -73,26 +61,21 @@
                 class='q-mt-md claim-amount-field'
                 :disable='submitting || loading'
               />
-            </div>
 
-            <div v-if='selectedPool && walletConnected' class='claim-section'>
-              <div class='claim-estimate-title'>Status</div>
-              <div class='claim-estimate-list'>
-                <div class='claim-estimate-row'>
-                  <span>Pending</span>
-                  <span class='claim-estimate-token'>
-                    <q-avatar size='20px'>
-                      <q-img :src='tokenLogo(selectedToken)' fit='contain' />
-                    </q-avatar>
-                    <span>{{ formatAmount(selectedClaimingAmount) }} {{ selectedTokenTicker }}</span>
-                  </span>
-                </div>
-                <div class='claim-estimate-row'>
-                  <span>Projection</span>
-                  <span :class='["claim-projection", selectedBalance?.projection_status === "incomplete" ? "claim-projection-warning" : ""]'>
-                    {{ selectedBalance?.projection_status || 'complete' }}
-                  </span>
-                </div>
+              <div class='claim-chips'>
+                <q-btn
+                  v-for='ratio in [10, 25, 50, 75, 100]'
+                  :key='ratio'
+                  outline
+                  rounded
+                  dense
+                  no-caps
+                  color='grey-5'
+                  class='claim-chip'
+                  :label='`${ratio}%`'
+                  :disable='submitting || loading || !hasClaimableAmount'
+                  @click='setRatio(ratio)'
+                />
               </div>
             </div>
 
@@ -150,7 +133,6 @@ import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 interface ClaimTokenEntry {
   token: string
   claimableAmount: string
-  claimingAmount: string
   balance: ClaimBalanceEntry | undefined
 }
 
@@ -181,6 +163,7 @@ const routeToken = computed(() => {
   const token = queryValue(route.query.token)
   return token ? normalizeClaimToken(token) : undefined
 })
+const routePoolApplication = computed(() => queryValue(route.query.poolApplication))
 const selectedPool = computed(() => {
   if (!routePair.value) return undefined
   return swap.Swap.getVisiblePool(routePair.value.token0, routePair.value.token1)
@@ -199,7 +182,12 @@ const selectedPair = computed(() => {
   }
 })
 const poolApplication = (pool: Pool | undefined) => pool?.poolApplication as account.Account | undefined
-const poolApplicationId = computed(() => selectedPool.value ? account._Account.accountApplication(poolApplication(selectedPool.value) as account.Account) : undefined)
+const selectedPoolApplicationId = computed(() => (
+  selectedPool.value
+    ? account._Account.poolApplicationDescription(poolApplication(selectedPool.value))
+    : undefined
+))
+const poolApplicationId = computed(() => routePoolApplication.value || selectedPoolApplicationId.value)
 const tokenTicker = (token: string) => {
   if (!token || token === constants.LINERA_NATIVE_ID) return constants.LINERA_TICKER
   const application = ams.Ams.application(token)
@@ -214,9 +202,13 @@ const tokenLogo = (token: string) => {
 const pairLabel = computed(() => selectedPair.value
   ? `${tokenTicker(selectedPair.value.token0)} / ${tokenTicker(selectedPair.value.token1)}`
   : 'Pool')
-const balanceForToken = (token: string) => claimBalances.value.find((entry) => (
-  entry.pool_application_id === poolApplicationId.value && normalizeClaimToken(entry.token) === token
-))
+const balanceForToken = (token: string) => {
+  const normalizedToken = normalizeClaimToken(token)
+  return claimBalances.value.find((entry) => (
+    entry.pool_application_id === poolApplicationId.value &&
+    normalizeClaimToken(entry.token) === normalizedToken
+  ))
+}
 const claimTokenEntries = computed<ClaimTokenEntry[]>(() => {
   if (!selectedPair.value) return []
   const tokens = Array.from(new Set([selectedPair.value.token0, selectedPair.value.token1].map(normalizeClaimToken)))
@@ -225,7 +217,6 @@ const claimTokenEntries = computed<ClaimTokenEntry[]>(() => {
     return {
       token,
       claimableAmount: balance?.claimable_amount || '0',
-      claimingAmount: balance?.claiming_amount || '0',
       balance,
     }
   })
@@ -233,8 +224,8 @@ const claimTokenEntries = computed<ClaimTokenEntry[]>(() => {
 const selectedEntry = computed(() => claimTokenEntries.value.find((entry) => entry.token === selectedToken.value))
 const selectedBalance = computed(() => selectedEntry.value?.balance)
 const selectedClaimableAmount = computed(() => selectedEntry.value?.claimableAmount || '0')
-const selectedClaimingAmount = computed(() => selectedEntry.value?.claimingAmount || '0')
 const selectedClaimableNumber = computed(() => amountValue(selectedClaimableAmount.value))
+const hasClaimableAmount = computed(() => selectedClaimableNumber.value > 0)
 const claimAmountNumber = computed(() => amountValue(claimAmount.value))
 const selectedTokenTicker = computed(() => tokenTicker(selectedToken.value))
 const primaryActionLabel = computed(() => walletConnected.value ? 'CLAIM' : 'CONNECT WALLET')
@@ -263,8 +254,14 @@ const formatAmount = (value: string | number) => {
   if (numeric >= 1) return numeric.toFixed(6).replace(/\.?0+$/, '')
   return numeric.toFixed(8).replace(/\.?0+$/, '')
 }
-const setMaxAmount = () => {
-  claimAmount.value = selectedClaimableAmount.value
+const formatClaimInputAmount = (value: number) => {
+  if (!Number.isFinite(value) || value <= 0) return '0'
+  const scaled = Math.floor(value * 10000) / 10000
+  return scaled.toFixed(4).replace(/\.?0+$/, '')
+}
+const setRatio = (ratio: number) => {
+  if (!selectedClaimableNumber.value) return
+  claimAmount.value = formatClaimInputAmount(selectedClaimableNumber.value * ratio / 100)
 }
 const selectDefaultToken = () => {
   const routeEntry = routeToken.value
@@ -272,6 +269,11 @@ const selectDefaultToken = () => {
     : undefined
   const claimableEntry = claimTokenEntries.value.find((entry) => amountValue(entry.claimableAmount) > 0)
   selectedToken.value = routeEntry?.token || claimableEntry?.token || claimTokenEntries.value[0]?.token || ''
+}
+const buildOwnerParam = async () => {
+  const currentAccount = await user.User.account()
+  if (!currentAccount.owner || !account._Account.chainId(currentAccount)) return ''
+  return account._Account.accountDescription(currentAccount)
 }
 const loadClaimBalances = async () => {
   if (!walletConnected.value || !selectedPool.value) {
@@ -281,8 +283,7 @@ const loadClaimBalances = async () => {
 
   loading.value = true
   try {
-    const currentAccount = await user.User.account()
-    const owner = currentAccount.owner
+    const owner = await buildOwnerParam()
     if (!owner) {
       claimBalances.value = []
       return
@@ -309,31 +310,33 @@ const onPrimaryAction = async () => {
   if (submitDisabled.value || !selectedPool.value) return
 
   submitting.value = true
-  await Wallet.claim(
-    selectedPool.value,
-    selectedToken.value,
-    claimAmount.value,
-    async () => {
-      await refreshAfterClaim()
-      notify.Notify.pushNotification({
-        Title: 'Claim',
-        Message: 'Claim submitted successfully.',
-        Popup: true,
-        Type: NotifyType.Success,
-      })
-      submitting.value = false
-      void router.push('/positions')
-    },
-    (e: string) => {
-      notify.Notify.pushNotification({
-        Title: 'Claim',
-        Message: `Failed claim: ${e}`,
-        Popup: true,
-        Type: NotifyType.Error,
-      })
-      submitting.value = false
-    },
-  )
+  try {
+    await Wallet.claim(
+      selectedPool.value,
+      selectedToken.value,
+      claimAmount.value,
+      async () => {
+        await refreshAfterClaim()
+        notify.Notify.pushNotification({
+          Title: 'Claim',
+          Message: 'Claim submitted successfully.',
+          Popup: true,
+          Type: NotifyType.Success,
+        })
+        void router.push('/positions')
+      },
+      (e: string) => {
+        notify.Notify.pushNotification({
+          Title: 'Claim',
+          Message: `Failed claim: ${e}`,
+          Popup: true,
+          Type: NotifyType.Error,
+        })
+      },
+    )
+  } finally {
+    submitting.value = false
+  }
 }
 
 onMounted(async () => {
@@ -345,7 +348,7 @@ onMounted(async () => {
 watch(
   () => [
     walletConnected.value,
-    selectedPool.value?.poolApplication,
+    poolApplicationId.value,
     route.query.token,
   ],
   async ([connected, poolApplication, token], [previousConnected, previousPoolApplication, previousToken]) => {
@@ -402,8 +405,7 @@ watch(
   padding-top: 18px
 
 .claim-pair-wrap,
-.claim-token-main,
-.claim-estimate-token
+.claim-token-main
   display: flex
   align-items: center
   gap: 14px
@@ -470,11 +472,6 @@ watch(
   font-weight: 400
   color: #9aa0ab
 
-.claim-max-btn
-  min-width: 74px
-  min-height: 30px
-  border-color: rgba(255, 255, 255, 0.16) !important
-
 .claim-amount-field
   margin-top: 8px
   padding: 14px 16px
@@ -499,36 +496,29 @@ watch(
 .claim-amount-field :deep(.q-field__native::placeholder)
   color: rgba(255, 255, 255, 0.28)
 
-.claim-estimate-title,
+.claim-chips
+  display: grid
+  grid-template-columns: repeat(5, minmax(0, 1fr))
+  gap: 10px
+  margin-top: 16px
+
+.claim-chip
+  min-width: 0
+  min-height: 30px
+  padding-top: 0
+  padding-bottom: 0
+  border-color: rgba(255, 255, 255, 0.16) !important
+
+.claim-chip :deep(.q-btn__content)
+  font-size: 12px
+  line-height: 1
+  padding-top: 4px
+  padding-bottom: 4px
+
 .claim-empty-title
   font-size: 14px
   font-weight: 700
   color: #9aa0ab
-
-.claim-estimate-list
-  margin-top: 10px
-  border: 1px solid rgba(255, 255, 255, 0.08)
-  border-radius: 8px
-  background: rgba(0, 0, 0, 0.12)
-  overflow: hidden
-
-.claim-estimate-row
-  display: flex
-  justify-content: space-between
-  align-items: center
-  gap: 12px
-  padding: 13px 14px
-  font-size: 15px
-  color: #d7dde7
-
-.claim-estimate-row + .claim-estimate-row
-  border-top: 1px solid rgba(255, 255, 255, 0.08)
-
-.claim-projection
-  color: #d7dde7
-
-.claim-projection-warning
-  color: #f3cf7a
 
 .claim-empty
   padding: 20px

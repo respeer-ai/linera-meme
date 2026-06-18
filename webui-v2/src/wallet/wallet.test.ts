@@ -18,4 +18,15 @@ describe('Wallet claim helpers', () => {
 
     expect(Wallet.claimTokenVariable('meme-application-id')).toBe('meme-application-id')
   })
+  test('rejects claim when wallet connection type is not an executable wallet', async () => {
+    setActivePinia(createPinia())
+    const { Wallet } = await import('./wallet')
+
+    try {
+      await Wallet._claim({ poolApplication: 'pool-app' } as never, constants.LINERA_NATIVE_ID, '1')
+      throw new Error('Expected claim to reject')
+    } catch (e) {
+      expect(String(e).includes('Unsupported wallet type for claim')).toBe(true)
+    }
+  })
 })

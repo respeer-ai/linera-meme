@@ -374,6 +374,8 @@ export class Wallet {
         return await CheCko.claim(poolApplicationId, variables)
       case user.WalletType.Metamask:
         return await LineraWebClient.claim(poolApplicationId, variables)
+      default:
+        throw new Error(`Unsupported wallet type for claim: ${walletType}`)
     }
   }
 

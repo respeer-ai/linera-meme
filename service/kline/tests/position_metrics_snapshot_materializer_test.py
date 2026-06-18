@@ -384,6 +384,65 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
             'over_removed_position_liquidity',
         )
 
+    def test_incremental_position_state_over_remove_subtracts_protocol_fee_ownership(self):
+        stored = {
+            'current_liquidity': '1',
+            'status': 'active',
+            'basis_type': 'add_liquidity',
+            'basis_amount_0': '10',
+            'basis_amount_1': '10',
+            'basis_time_ms': 1000,
+            'basis_transaction_id': 1,
+            'state_payload_json': {
+                'added_liquidity': '1',
+                'removed_liquidity': '0',
+                'current_round_liquidity_event_count': 1,
+                'current_round_started_at': 1000,
+                'current_round_started_transaction_id': 1,
+                'last_transaction_id': 1,
+                'exact_current_principal': {
+                    'full_protocol_fee_liquidity_owned_by_current_owner': '37',
+                    'protocol_fee_liquidity_owned_by_current_owner_current': '37',
+                },
+            },
+        }
+        pos_repo = self.FakePositionStateSnapshotRepository(stored_state=stored)
+        pool_repo = self.FakePoolStateSnapshotRepository()
+        materializer = PositionMetricsSnapshotMaterializer(
+            snapshot_builder=self._real_snapshot_builder(),
+            position_state_snapshot_repository=pos_repo,
+            pool_state_snapshot_repository=pool_repo,
+        )
+        outputs = [{
+            'settled_output_type': 'settled_liquidity_change',
+            'pool_application_id': 'pool-app',
+            'pool_chain_id': 'pool-chain',
+            'change_type': 'remove_liquidity',
+            'owner': 'user-a',
+            'liquidity_delta': '25000000000000000000',
+            'amount_0_delta': '250000000000000000000',
+            'amount_1_delta': '250000000000000000000',
+            'is_position_liquidity': True,
+            'liquidity_semantics': 'position_liquidity',
+            'event_time_ms': 2000,
+            'transaction_id': 2,
+        }]
+        batch = SettledOutputBatchFactory().build(outputs)
+        result = materializer.materialize_output_batch(batch)
+
+        self.assertFalse(result['degraded'])
+        payload = pos_repo.calls[0]['states'][0]['state_payload_json']
+        self.assertEqual(payload['removed_liquidity'], '0')
+        self.assertEqual(payload['skipped_position_remove_liquidity'], '25')
+        self.assertEqual(
+            payload['exact_current_principal']['full_protocol_fee_liquidity_owned_by_current_owner'],
+            '12',
+        )
+        self.assertEqual(
+            payload['exact_current_principal']['protocol_fee_liquidity_owned_by_current_owner_current'],
+            '12',
+        )
+
     def test_repair_position_state_gaps_materializes_only_repository_gap_batches(self):
         class FakeGapRepository:
             def __init__(self):

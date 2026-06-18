@@ -24,6 +24,7 @@ export interface RemoveLiquidityContext {
 
 export interface ClaimContext {
   token?: string
+  poolApplication?: string
 }
 
 export interface PoolFlowRoute {
@@ -36,6 +37,7 @@ export interface PoolFlowRoute {
     amount0?: string
     amount1?: string
     token?: string
+    poolApplication?: string
   }
 }
 
