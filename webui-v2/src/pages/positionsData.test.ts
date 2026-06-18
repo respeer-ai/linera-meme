@@ -4,6 +4,7 @@ import { type Position } from 'src/stores/positions'
 import { type PositionMetricsEntry } from 'src/stores/kline'
 import {
   canUsePositionAction,
+  mergePositionMetricsSnapshots,
   positionActionLabel,
   positionCollectableLiquidityAmounts,
   positionDisplayFeeAmounts,
@@ -127,6 +128,38 @@ describe('positionsData', () => {
   test('keys active metrics as recorded even on a virtual-initial-liquidity pool', () => {
     expect(positionMetricsKey(activeMetrics)).toBe(`${poolApplication}:11:active:recorded`)
     expect(positionMetricsKey(virtualMetrics)).toBe(`${poolApplication}:11:virtual:virtual_initial_liquidity`)
+  })
+
+
+  test('keeps previous ready metrics when a refresh returns snapshot unavailable', () => {
+    const unavailableMetrics: PositionMetricsEntry = {
+      ...activeMetrics,
+      metrics_status: 'snapshot_unavailable',
+      computation_blockers: ['missing_position_metrics_snapshot'],
+      value_warning_codes: ['snapshot_unavailable'],
+      value_warning_message: 'Position metrics snapshot is not available yet.',
+      redeemable_amount0: '0',
+      redeemable_amount1: '0',
+    }
+    const previous = { [positionMetricsKey(activeMetrics)]: activeMetrics }
+    const merged = mergePositionMetricsSnapshots(previous, [unavailableMetrics])
+
+    expect(merged[positionMetricsKey(activeMetrics)]).toBe(activeMetrics)
+  })
+
+  test('does not publish snapshot-unavailable metrics without a previous ready value', () => {
+    const unavailableMetrics: PositionMetricsEntry = {
+      ...activeMetrics,
+      metrics_status: 'snapshot_unavailable',
+      computation_blockers: ['missing_position_metrics_snapshot'],
+      value_warning_codes: ['snapshot_unavailable'],
+      value_warning_message: 'Position metrics snapshot is not available yet.',
+      redeemable_amount0: '0',
+      redeemable_amount1: '0',
+    }
+    const merged = mergePositionMetricsSnapshots({}, [unavailableMetrics])
+
+    expect(merged[positionMetricsKey(activeMetrics)]).toBe(undefined)
   })
 
   test('matches active metrics so pooled tokens and trading fees use API values', () => {

@@ -35,6 +35,30 @@ export const positionMetricsKey = (entry: MetricsIdentity) => {
   return `${entry.pool_application}:${entry.pool_id}:${entry.status}:${positionKind}`
 }
 
+export const isPositionMetricsReady = (entry: PositionMetricsEntry) => (
+  entry.metrics_status !== 'snapshot_unavailable' &&
+  !(entry.value_warning_codes || []).includes('snapshot_unavailable') &&
+  !(entry.computation_blockers || []).includes('missing_position_metrics_snapshot')
+)
+
+export const mergePositionMetricsSnapshots = (
+  previous: PositionMetricsSnapshots,
+  entries: PositionMetricsEntry[],
+): PositionMetricsSnapshots => {
+  const next = { ...previous }
+  entries.forEach((entry) => {
+    const key = positionMetricsKey(entry)
+    if (isPositionMetricsReady(entry)) {
+      next[key] = entry
+      return
+    }
+    if (!next[key]) {
+      delete next[key]
+    }
+  })
+  return next
+}
+
 export const positionMetricsFor = (
   position: PositionIdentity,
   snapshots: PositionMetricsSnapshots,

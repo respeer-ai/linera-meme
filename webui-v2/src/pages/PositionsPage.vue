@@ -128,7 +128,7 @@
                   <span class='metric-value metric-value-stack'>
                     <span>{{ positionPoolShareLabel(position) }}</span>
                     <span class='pooled-token-line'>
-                      <span>{{ formatLiquidity(positionDisplayLiquidity(position).liquidity) }} LMM</span>
+                      <span>{{ positionDisplayLiquidityLabel(position) }}</span>
                       <span v-if='poolShareComposition(position).length > 1' class='metric-info'>i
                         <q-tooltip class='reward-tooltip' anchor='top middle' self='bottom middle'>
                           <table class='tooltip-table'>
@@ -248,6 +248,7 @@ import PoolPairLogo from 'src/components/pools/PoolPairLogo.vue'
 import {
   canUsePositionAction as resolveCanUsePositionAction,
   isVirtualPosition,
+  mergePositionMetricsSnapshots,
   positionActionLabel as resolvePositionActionLabel,
   positionKey,
   positionCollectableLiquidityAmounts,
@@ -256,7 +257,6 @@ import {
   positionDisplayShareRatio,
   positionHasVirtualReference,
   positionMetricsFor,
-  positionMetricsKey,
   selectDisplayPositions,
   selectRewardPositions,
   virtualInitialLiquidity,
@@ -274,6 +274,7 @@ const owner = ref('')
 const summaryPositions = ref<Position[]>([])
 const summaryPositionsRequestSerial = ref(0)
 const summaryPositionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
+const summaryPositionMetricsOwner = ref('')
 const positionsRefreshTimer = ref<number | undefined>(undefined)
 
 const statusOptions: Array<{ value: PositionStatusFilter; label: string }> = [
@@ -291,6 +292,7 @@ const visiblePositions = computed(() => selectDisplayPositions(allPositions.valu
 const pools = computed(() => swap.Swap.pools())
 const nativePriceMap = computed(() => protocol.buildNativePriceMap(pools.value))
 const positionMetricsSnapshots = ref<Record<string, PositionMetricsEntry>>({})
+const positionMetricsOwner = ref('')
 const positionMetricsRequestSerial = ref(0)
 const claimBalanceSnapshots = ref<Record<string, ClaimBalanceEntry>>({})
 const claimBalancesRequestSerial = ref(0)
@@ -327,7 +329,9 @@ const refreshPositions = async () => {
     owner.value = ''
     summaryPositions.value = []
     summaryPositionMetricsSnapshots.value = {}
+    summaryPositionMetricsOwner.value = ''
     positionMetricsSnapshots.value = {}
+    positionMetricsOwner.value = ''
     claimBalanceSnapshots.value = {}
     positionsStore.clear()
     return
@@ -339,7 +343,9 @@ const refreshPositions = async () => {
   if (!nextOwner) {
     summaryPositions.value = []
     summaryPositionMetricsSnapshots.value = {}
+    summaryPositionMetricsOwner.value = ''
     positionMetricsSnapshots.value = {}
+    positionMetricsOwner.value = ''
     claimBalanceSnapshots.value = {}
     positionsStore.clear()
     return
@@ -400,6 +406,7 @@ const summaryVirtualPositionMetrics = (position: Pick<Position, 'pool_applicatio
 )
 const rewardPositions = computed(() => selectRewardPositions(summaryPositions.value, owner.value))
 const positionRewardLiquidity = (position: Position) => {
+  if (virtualBootstrapDisplayFor(position) && !summaryVirtualPositionMetrics(position)) return '0'
   const display = positionDisplayLiquidityAmounts(
     position,
     summaryPositionMetrics(position),
@@ -501,10 +508,18 @@ const positionVirtualMetrics = (position: Position) => (
     ? currentVirtualPositionMetrics(position) || summaryVirtualPositionMetrics(position)
     : undefined
 )
+const isPositionMetricsPending = (position: Position) => (
+  Boolean(virtualBootstrapDisplayFor(position)) && !positionVirtualMetrics(position)
+)
 const positionDisplayLiquidity = (position: Position) => positionDisplayLiquidityAmounts(
   position,
   positionMetrics(position),
   positionVirtualMetrics(position),
+)
+const positionDisplayLiquidityLabel = (position: Position) => (
+  isPositionMetricsPending(position)
+    ? '--'
+    : `${formatLiquidity(positionDisplayLiquidity(position).liquidity)} LMM`
 )
 interface CompositionItem {
   label: string
@@ -525,6 +540,7 @@ const poolHasVirtualInitialLiquidity = (position: Position): boolean => {
 }
 
 const poolShareComposition = (position: Position): CompositionItem[] => {
+  if (isPositionMetricsPending(position)) return []
   const metrics = positionMetrics(position)
   const virtualMetrics = positionVirtualMetrics(position)
   const items: CompositionItem[] = []
@@ -546,6 +562,7 @@ const poolShareComposition = (position: Position): CompositionItem[] => {
 }
 
 const pooledTokenComposition = (position: Position, token: string): CompositionItem[] => {
+  if (isPositionMetricsPending(position)) return []
   const metrics = positionMetrics(position)
   const virtualMetrics = positionVirtualMetrics(position)
   const ticker = tokenTicker(token)
@@ -579,6 +596,7 @@ const pooledTokenComposition = (position: Position, token: string): CompositionI
 }
 
 const pooledTokenLabel = (position: Position, token: string) => {
+  if (isPositionMetricsPending(position)) return '--'
   const liquidity = positionDisplayLiquidity(position)
   const amount = tokenAmountFor(position, token, liquidity.amount0, liquidity.amount1)
   return `${formatLiquidity(amount || '0')} ${tokenTicker(token)}`
@@ -590,6 +608,7 @@ const positionShareRatio = (position: Position) => {
   return ratio
 }
 const positionPoolShareLabel = (position: Position) => {
+  if (isPositionMetricsPending(position)) return '--'
   const ratio = positionShareRatio(position)
   if (ratio <= 0) return '0%'
   return `${(ratio * 100).toFixed(ratio >= 0.01 ? 2 : 4).replace(/\.?0+$/, '')}%`
@@ -599,6 +618,12 @@ const formatPercentLabel = (value: number, fractionDigits = 2) => {
   return `${value.toFixed(fractionDigits).replace(/\.?0+$/, '')}%`
 }
 const positionFeesLabel = (position: Position) => {
+  if (isPositionMetricsPending(position)) {
+    return {
+      token0: '--',
+      token1: '--',
+    }
+  }
   const feeAmounts = positionDisplayFeeAmounts(positionMetrics(position), positionVirtualMetrics(position))
   if (!feeAmounts) {
     return {
@@ -623,6 +648,7 @@ const metricsWarningMessage = (position: Position) => {
   return 'Current fee values are still updating.'
 }
 const positionAprLabel = (position: Position) => {
+  if (isPositionMetricsPending(position)) return '--'
   const metrics = positionMetrics(position)
   const virtualMetrics = positionVirtualMetrics(position)
   if (!metrics && !virtualMetrics) return '--'
@@ -647,6 +673,11 @@ const refreshSummaryPositions = async (nextOwner: string) => {
     return
   }
 
+  if (summaryPositionMetricsOwner.value !== nextOwner) {
+    summaryPositionMetricsSnapshots.value = {}
+    summaryPositionMetricsOwner.value = nextOwner
+  }
+
   const url = constants.formalizeSchema(`${constants.KLINE_HTTP_URL}/positions`)
   const response = await axios.get<PositionsResponse>(url, {
     params: { owner: nextOwner, status: 'all' },
@@ -655,11 +686,9 @@ const refreshSummaryPositions = async (nextOwner: string) => {
 
   if (requestSerial !== summaryPositionsRequestSerial.value) return
   summaryPositions.value = response.data.positions
-  summaryPositionMetricsSnapshots.value = Object.fromEntries(
-    (metricsResponse?.metrics || []).map((entry) => [
-      positionMetricsKey(entry),
-      entry,
-    ]),
+  summaryPositionMetricsSnapshots.value = mergePositionMetricsSnapshots(
+    summaryPositionMetricsSnapshots.value,
+    metricsResponse?.metrics || [],
   )
 }
 const actionMetrics = (position: Position) => (
@@ -752,6 +781,11 @@ const refreshPositionMetricsSnapshots = async (
     return
   }
 
+  if (positionMetricsOwner.value !== nextOwner) {
+    positionMetricsSnapshots.value = {}
+    positionMetricsOwner.value = nextOwner
+  }
+
   const response = await kline.Kline.getPositionMetrics(nextOwner, status)
   const virtualResponse = status === 'all'
     ? undefined
@@ -760,11 +794,9 @@ const refreshPositionMetricsSnapshots = async (
 
   const metrics = response?.metrics || []
   const virtualMetrics = (virtualResponse?.metrics || []).filter((entry) => entry.status === 'virtual')
-  positionMetricsSnapshots.value = Object.fromEntries(
-    [...metrics, ...virtualMetrics].map((entry) => [
-      positionMetricsKey(entry),
-      entry,
-    ]),
+  positionMetricsSnapshots.value = mergePositionMetricsSnapshots(
+    positionMetricsSnapshots.value,
+    [...metrics, ...virtualMetrics],
   )
 }
 

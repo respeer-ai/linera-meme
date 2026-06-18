@@ -92,6 +92,8 @@ export type PositionMetricsStatus =
   | 'estimated_projected_redeemable_with_history'
   | 'exact_no_swap_history'
   | 'exact_swap_history_no_post_open_liquidity_changes'
+  | 'projection_protocol_fee_receiver_virtual'
+  | 'snapshot_unavailable'
 
 export type PositionMetricsBlocker =
   | 'missing_liquidity_history'
@@ -102,6 +104,7 @@ export type PositionMetricsBlocker =
   | 'pool_history_has_internal_gaps'
   | 'uniswap_v2_fee_split_not_supported_yet'
   | 'missing_projected_redeemable_amounts'
+  | 'missing_position_metrics_snapshot'
 
 export interface PositionMetricsEntry {
   pool_application: string
@@ -117,6 +120,7 @@ export interface PositionMetricsEntry {
   redeemable_amount0: string | null
   redeemable_amount1: string | null
   virtual_initial_liquidity: boolean
+  metrics_status?: PositionMetricsStatus | null
   computation_blockers: PositionMetricsBlocker[]
   principal_amount0: string | null
   principal_amount1: string | null
