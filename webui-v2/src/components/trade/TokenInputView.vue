@@ -6,6 +6,7 @@
       <q-select
         :options='_tokens'
         v-model='token'
+        :disable='disable'
         class='bg-primary-25 radius-16'
         style='overflow: hidden;'
       >
@@ -85,6 +86,9 @@ const label = toRef(props, 'label')
 const autoFocus = toRef(props, 'autoFocus')
 const tokens = toRef(props, 'tokens')
 const disable = toRef(props, 'disable')
+const emit = defineEmits<{
+  (e: 'balance', payload: { balance: string; updating: boolean }): void
+}>()
 const displayLabel = computed(() => label.value ?? action.value)
 const showLabel = computed(() => displayLabel.value !== '')
 
@@ -125,8 +129,13 @@ watch(nativeBalance, () => {
 })
 
 const walletConnected = computed(() => user.User.walletConnected())
-const updatingBalance = ref(false)
+const updatingBalance = ref(true)
 const balanceRequestId = ref(0)
+
+
+watch([balance, updatingBalance], ([value, updating]) => {
+  emit('balance', { balance: value, updating })
+}, { immediate: true })
 
 const subscription = ref(undefined as unknown as Subscription)
 

@@ -7,6 +7,7 @@ import {
   canAddLiquidityForPair,
   canCreatePoolForPair,
   isFinalizedPool,
+  linkedAddLiquidityAmount,
   mapPairAmountsToPoolOrder,
   normalizePoolPair,
   pairExists,
@@ -201,6 +202,58 @@ describe('poolFlow', () => {
     expect(resolveRouteLiquidityContext({ liquidity: '1', amount0: '2', amount1: undefined })).toBe(undefined)
     expect(resolveRouteLiquidityContext({ liquidity: '-1', amount0: '2', amount1: '3' })).toBe(undefined)
     expect(resolveRouteLiquidityContext({ liquidity: 'abc', amount0: '2', amount1: '3' })).toBe(undefined)
+  })
+
+  test('linkedAddLiquidityAmount derives the opposite side from pool reserves with buffer', () => {
+    expect(
+      linkedAddLiquidityAmount({
+        pool: pool('1000', '10'),
+        sourceToken: 'meme-1',
+        targetToken: constants.LINERA_NATIVE_ID,
+        sourceAmount: '100',
+      }),
+    ).toBe('1.1')
+
+    expect(
+      linkedAddLiquidityAmount({
+        pool: pool('1000', '10'),
+        sourceToken: constants.LINERA_NATIVE_ID,
+        targetToken: 'meme-1',
+        sourceAmount: '1',
+      }),
+    ).toBe('110')
+  })
+
+  test('linkedAddLiquidityAmount caps the calculated side by available balance', () => {
+    expect(
+      linkedAddLiquidityAmount({
+        pool: pool('1000', '10'),
+        sourceToken: 'meme-1',
+        targetToken: constants.LINERA_NATIVE_ID,
+        sourceAmount: '100',
+        maxTargetAmount: '1',
+      }),
+    ).toBe('1')
+  })
+
+  test('linkedAddLiquidityAmount ignores create-pool or incomplete reserve inputs', () => {
+    expect(
+      linkedAddLiquidityAmount({
+        pool: pool(null, '10'),
+        sourceToken: 'meme-1',
+        targetToken: constants.LINERA_NATIVE_ID,
+        sourceAmount: '100',
+      }),
+    ).toBe('')
+
+    expect(
+      linkedAddLiquidityAmount({
+        pool: pool('1000', '10'),
+        sourceToken: 'meme-1',
+        targetToken: constants.LINERA_NATIVE_ID,
+        sourceAmount: '',
+      }),
+    ).toBe('')
   })
 
   test('mapPairAmountsToPoolOrder aligns user input to canonical pool order', () => {
