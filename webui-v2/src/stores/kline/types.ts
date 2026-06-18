@@ -49,6 +49,7 @@ export interface TickerStat {
   high: string
   low: string
   volume: string
+  volume_change?: number
   tx_count: number
   price_now: string
   price_start: string

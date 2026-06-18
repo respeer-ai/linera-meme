@@ -21,6 +21,49 @@ class MarketStatsProjectionRepositoryTest(unittest.TestCase):
         def metadata_by_pool_application(self):
             return dict(self.metadata)
 
+    def test_get_ticker_exposes_volume_change_against_previous_interval(self):
+        class FakeDb:
+            def now_ms(self):
+                return 200_000_000
+
+            def ensure_fresh_read_connection(self):
+                return None
+
+        repo = MarketStatsProjectionRepository(
+            FakeDb(),
+            metadata_resolver=self.FakeMetadataResolver({}),
+        )
+        current_start, current_end = repo._interval_bounds('1d')
+        previous_start = current_start - (current_end - current_start)
+
+        def trade(trade_time_ms, amount_in):
+            return {
+                'pool_id': 7,
+                'pool_application': 'chain-a:pool-aaa-native',
+                'token_0': 'AAA',
+                'token_1': 'TLINERA',
+                'trade_time_ms': trade_time_ms,
+                'side': 'buy_token_0',
+                'amount_in': str(amount_in),
+                'amount_out': '1000000000000000000',
+            }
+
+        def fake_load_settled_trade_rows(start_at=None, end_at=None, pool_applications=None):
+            if start_at == current_start and end_at == current_end:
+                return [trade(current_start + 1, 3000000000000000000)]
+            if start_at == previous_start and end_at == current_start - 1:
+                return [trade(previous_start + 1, 2000000000000000000)]
+            return []
+
+        repo._load_settled_trade_rows = fake_load_settled_trade_rows
+        repo._load_native_price_map = lambda: {}
+
+        stats = repo.get_ticker(interval='1d')
+
+        self.assertEqual(stats[0]['token'], 'AAA')
+        self.assertEqual(stats[0]['volume'], 3.0)
+        self.assertEqual(stats[0]['volume_change'], 0.5)
+
     def test_get_protocol_stats_uses_projection_pool_rows(self):
         class FakeDb:
             def now_ms(self):

@@ -35,11 +35,13 @@ const tickerStat = (
   priceNow: string,
   priceStart: string,
   volume: string,
+  volumeChange = 0,
 ): TickerStat => ({
   token,
   high: priceNow,
   low: priceStart,
   volume,
+  volume_change: volumeChange,
   tx_count: 10,
   price_now: priceNow,
   price_start: priceStart,
@@ -69,9 +71,9 @@ describe('buildTrendingBulletins', () => {
   const firstApplication = applications[0] as Application
 
   const tickersByToken = new Map<string, TickerStat>([
-    ['token-a', tickerStat('token-a', '1.50', '1.00', '200.25')],
-    ['token-b', tickerStat('token-b', '0.80', '1.00', '900.00')],
-    ['token-c', tickerStat('token-c', '1.10', '1.00', '500.50')],
+    ['token-a', tickerStat('token-a', '1.50', '1.00', '200.25', -0.1)],
+    ['token-b', tickerStat('token-b', '0.80', '1.00', '900.00', 0.25)],
+    ['token-c', tickerStat('token-c', '1.10', '1.00', '500.50', 0)],
   ])
 
   const poolsByToken = new Map<string, Pool>([
@@ -112,9 +114,9 @@ describe('buildTrendingBulletins', () => {
     })
 
     expect(items.map((item) => item.label)).toEqual(['BBB', 'CCC'])
-    expect(items[0]?.caption).toBe('900.0000 TLINERA')
+    expect(items[0]?.caption).toBe('900.0000 TLINERA +25.00%')
     expect(items[0]?.imageBorderColor).toBe('secondary-twenty-five')
-    expect(items[0]?.captionColor).toBe('volume')
+    expect(items[0]?.captionColor).toBe('secondary')
   })
 
   test('ranks new tokens by creation time and formats token age caption', () => {
@@ -131,6 +133,19 @@ describe('buildTrendingBulletins', () => {
     expect(items[0]?.caption).toBe('5m ago')
     expect(items[0]?.imageBorderColor).toBe('neutral-twenty-five')
     expect(items[0]?.captionColor).toBe('warning')
+  })
+
+  test('formats new token age from microsecond AMS creation timestamps', () => {
+    const items = buildTrendingBulletins('new', {
+      applications: [application('token-d', 'DDD', 'Delta', 1_710_001_200_000_000)],
+      tickersByToken: new Map(),
+      poolsByToken: new Map(),
+      applicationLogo: () => '/logo.png',
+      limit: 1,
+      nowMs: 1_710_001_500_000,
+    })
+
+    expect(items[0]?.caption).toBe('5m ago')
   })
 
   test('keeps tokens without stats renderable with deterministic zeroed captions', () => {

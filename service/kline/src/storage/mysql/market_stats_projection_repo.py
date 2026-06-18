@@ -26,11 +26,21 @@ class MarketStatsProjectionRepository:
 
     def get_ticker(self, *, interval: str) -> list[dict]:
         start_at, end_at = self._interval_bounds(interval)
+        interval_width = end_at - start_at
+        previous_start_at = start_at - interval_width
         trades = self._load_settled_trade_rows(
             start_at=start_at,
             end_at=end_at,
         )
+        previous_trades = self._load_settled_trade_rows(
+            start_at=previous_start_at,
+            end_at=start_at - 1,
+        )
         latest_native_prices = self._load_native_price_map()
+        previous_volume_by_token = self._token_volumes_native(
+            previous_trades,
+            latest_native_prices=latest_native_prices,
+        )
 
         stats_by_token = {}
         for trade in trades:
@@ -71,11 +81,17 @@ class MarketStatsProjectionRepository:
 
         rows = []
         for entry in stats_by_token.values():
+            previous_volume = previous_volume_by_token.get(entry['token'], Decimal('0'))
+            if previous_volume > 0:
+                volume_change = (entry['volume'] - previous_volume) / previous_volume
+            else:
+                volume_change = Decimal('0')
             rows.append({
                 'token': entry['token'],
                 'high': float(entry['high']),
                 'low': float(entry['low']),
                 'volume': float(entry['volume']),
+                'volume_change': float(volume_change),
                 'tx_count': int(entry['tx_count']),
                 'price_now': float(entry['price_now']),
                 'price_start': float(entry['price_start']),
@@ -386,6 +402,26 @@ class MarketStatsProjectionRepository:
             (trade['token_0'], token_0_price),
             (trade['token_1'], token_1_price),
         ]
+
+    def _token_volumes_native(
+        self,
+        trades: list[dict],
+        *,
+        latest_native_prices: dict[str, Decimal],
+    ) -> dict[str, Decimal]:
+        volumes_by_token = {}
+        for trade in trades:
+            turnover = self._market_turnover_native(
+                trade,
+                latest_native_prices=latest_native_prices,
+            )
+            if turnover is None:
+                continue
+            for token, _price in self._expanded_token_price_rows(trade):
+                if token == 'TLINERA':
+                    continue
+                volumes_by_token[token] = volumes_by_token.get(token, Decimal('0')) + turnover
+        return volumes_by_token
 
     def _market_turnover_native(
         self,

@@ -23,6 +23,7 @@ interface TrendingTokenEntry {
   price: number
   changePercent: number
   volume: number
+  volumeChange: number
 }
 
 const DEFAULT_LIMIT = 5
@@ -69,6 +70,7 @@ const buildEntries = ({
       price: calculatePrice(application, pool),
       changePercent: calculateChangePercent(ticker),
       volume: parseNumber(ticker?.volume),
+      volumeChange: parseNumber(ticker?.volume_change),
     }
   })
 }
@@ -79,8 +81,16 @@ const formatPercent = (value: number): string => `${value >= 0 ? '+' : ''}${valu
 
 const formatVolume = (value: number): string => `${value.toFixed(4)} ${constants.LINERA_TICKER}`
 
+const timestampMs = (timestamp: number): number => {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 0
+  if (timestamp > 100_000_000_000_000) return Math.floor(timestamp / 1000)
+  if (timestamp < 100_000_000_000) return timestamp * 1000
+  return timestamp
+}
+
 const formatAge = (createdAt: number, nowMs: number): string => {
-  const deltaMs = Math.max(0, nowMs - createdAt)
+  const createdAtMs = timestampMs(createdAt)
+  const deltaMs = Math.max(0, nowMs - createdAtMs)
   const minuteMs = 60 * 1000
   const hourMs = 60 * minuteMs
   const dayMs = 24 * hourMs
@@ -146,8 +156,8 @@ const toBulletinItem = (
     return {
       ...common,
       imageBorderColor: 'secondary-twenty-five',
-      caption: formatVolume(entry.volume),
-      captionColor: 'volume',
+      caption: `${formatVolume(entry.volume)} ${formatPercent(entry.volumeChange * 100)}`,
+      captionColor: entry.volumeChange >= 0 ? 'secondary' : 'negative',
     }
   }
 
