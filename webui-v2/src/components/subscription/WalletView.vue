@@ -45,42 +45,46 @@ const subscriptionHandler = (walletType: user.WalletType, msg: unknown) => {
 }
 
 const getWalletsState = async () => {
-  await Wallet.waitOnReady()
-  await nextTick()
-
   const lastWalletType = Cookies.get(user.WalletCookie.WalletConnectType) as user.WalletType
   if (!lastWalletType) return
 
-  const walletTypes = lastWalletType ? [lastWalletType] : []
-  walletTypes.push(...user.WalletTypes.filter((el) => !lastWalletType || el !== lastWalletType))
+  user.User.setWalletConnecting(true)
 
   let connected = false
 
-  for (const walletType of walletTypes) {
-    try {
-      user.User.setWalletConnecting(true)
-      await Wallet.getProviderState(walletType)
+  try {
+    await Wallet.waitOnReady()
+    await nextTick()
 
-      connected = true
+    const walletTypes = [lastWalletType]
+    walletTypes.push(...user.WalletTypes.filter((el) => el !== lastWalletType))
 
-      break
-    } catch (e) {
-      console.log(`Failed get ${walletType} wallet state: `, e)
+    for (const walletType of walletTypes) {
+      try {
+        await Wallet.getProviderState(walletType)
+
+        connected = true
+
+        break
+      } catch (e) {
+        console.log(`Failed get ${walletType} wallet state: `, e)
+      }
     }
+  } finally {
+    user.User.setWalletConnecting(false)
   }
 
-  user.User.setWalletConnecting(false)
-
   if (!connected) return
-  
+
   user.User.setBalanceUpdating(true)
 
   try {
     await Wallet.getBalance()
   } catch (e) {
     console.log(`Failed get ${user.User.walletConnectedType()} wallet balance: `, e)
+  } finally {
+    user.User.setBalanceUpdating(false)
   }
-  user.User.setBalanceUpdating(false)
 }
 
 onMounted(async () => {

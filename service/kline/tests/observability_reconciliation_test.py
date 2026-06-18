@@ -667,16 +667,40 @@ class ObservabilityReconciliationTest(unittest.TestCase):
         self.assertAlmostEqual(protocol_stats['tvl'], float(expected_tvl))
 
     def _assert_virtual_positions_and_protocol_fee_metrics_match_projection_facts(self):
+        self._assert_virtual_protocol_fee_metrics_case(
+            semantic_facts={
+                'full_protocol_fee_liquidity_owned_by_current_owner': '10',
+                'full_protocol_fee_current_owner_provenance_case': 'all_mints_owned_by_current_owner',
+            },
+            total_minted_protocol_fee='10',
+            pending_protocol_fee='0',
+            expected_position_liquidity='10',
+            expected_total_supply='110',
+        )
+        self._assert_virtual_protocol_fee_metrics_case(
+            semantic_facts={},
+            total_minted_protocol_fee='10',
+            pending_protocol_fee='0.5',
+            expected_position_liquidity='10.5',
+            expected_total_supply='110.5',
+        )
+
+    def _assert_virtual_protocol_fee_metrics_case(
+        self,
+        *,
+        semantic_facts,
+        total_minted_protocol_fee,
+        pending_protocol_fee,
+        expected_position_liquidity,
+        expected_total_supply,
+    ):
         position_basis_snapshot = {
             'status': 'active',
             'basis_type': 'virtual_initial_liquidity',
             'current_liquidity': '0',
             'basis_amount_0': '105',
             'basis_amount_1': '0',
-            'semantic_facts': {
-                'full_protocol_fee_liquidity_owned_by_current_owner': '10',
-                'full_protocol_fee_current_owner_provenance_case': 'all_mints_owned_by_current_owner',
-            },
+            'semantic_facts': dict(semantic_facts),
         }
         pool_state_snapshot = {
             'pool_application_id': self.POOL_APPLICATION,
@@ -686,8 +710,8 @@ class ObservabilityReconciliationTest(unittest.TestCase):
             'current_reserve_1': '90',
             'current_total_supply': '110',
             'fee_free_total_supply': '100',
-            'total_minted_protocol_fee': '10',
-            'pending_protocol_fee': '0',
+            'total_minted_protocol_fee': total_minted_protocol_fee,
+            'pending_protocol_fee': pending_protocol_fee,
             'state_payload_json': {
                 'virtual_initial_liquidity': True,
                 'fee_to_account_latest_known': self.OWNER,
@@ -740,7 +764,8 @@ class ObservabilityReconciliationTest(unittest.TestCase):
 
         self.assertEqual(len(positions), 1)
         position = positions[0]
-        self.assertEqual(position['status'], 'virtual')
+        self.assertEqual(position['status'], 'active')
+        self.assertTrue(position['is_virtual_position'])
         self.assertEqual(position['position_kind'], 'virtual_initial_liquidity')
         self.assertEqual(position['virtual_initial_amount0'], '105')
         self.assertEqual(position['virtual_initial_amount1'], '0')
@@ -748,10 +773,10 @@ class ObservabilityReconciliationTest(unittest.TestCase):
 
         self.assertEqual(len(metrics), 1)
         metric = metrics[0]
-        expected_protocol_fee_ratio = Decimal('10') / Decimal('110')
-        self.assertEqual(metric['position_liquidity'], '10')
-        self.assertEqual(metric['total_supply'], '110')
-        self.assertEqual(metric['share_ratio'], '0.090909090909090909')
+        expected_protocol_fee_ratio = Decimal(expected_position_liquidity) / Decimal(expected_total_supply)
+        self.assertEqual(metric['position_liquidity'], expected_position_liquidity)
+        self.assertEqual(metric['total_supply'], expected_total_supply)
+        self.assertEqual(metric['share_ratio'], self._serialize_decimal(expected_protocol_fee_ratio))
         self.assertEqual(metric['protocol_fee_amount0'], self._serialize_decimal(Decimal('120') * expected_protocol_fee_ratio))
         self.assertEqual(metric['protocol_fee_amount1'], self._serialize_decimal(Decimal('90') * expected_protocol_fee_ratio))
         self.assertNotIn('owner_receives_protocol_fees', metric)

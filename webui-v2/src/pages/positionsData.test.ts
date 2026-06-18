@@ -6,6 +6,7 @@ import {
   canUsePositionAction,
   positionActionLabel,
   positionCollectableLiquidityAmounts,
+  positionDisplayFeeAmounts,
   positionDisplayLiquidityAmounts,
   positionDisplayShareRatio,
   positionHasVirtualReference,
@@ -170,26 +171,37 @@ describe('positionsData', () => {
     expect(positionRewardShareRatio(activeMetrics, virtualMetrics).toFixed(18)).toBe('0.000247447953485837')
   })
 
-  test('uses virtual initial plus protocol fee liquidity for displayed pool share', () => {
+  test('uses protocol fee liquidity for displayed pool share', () => {
     const displayRatio = positionDisplayShareRatio(mergedVirtualOnlyPosition, undefined, virtualMetrics)
 
-    expect(displayRatio.toFixed(18)).toBe('0.997853764906781460')
+    expect(displayRatio.toFixed(18)).toBe('0.000243490868207888')
   })
 
-  test('uses virtual initial plus protocol fee amounts for displayed pooled tokens', () => {
+  test('adds creator protocol fees to displayed trading fees', () => {
+    const fees = positionDisplayFeeAmounts(activeMetrics, virtualMetrics)
+
+    expect(Number(fees?.amount0).toFixed(6)).toBe('2469.279377')
+    expect(Number(fees?.amount1).toFixed(6)).toBe('2.262718')
+  })
+
+  test('uses protocol fee amounts for displayed pooled tokens', () => {
     const liquidity = positionDisplayLiquidityAmounts(mergedVirtualOnlyPosition, undefined, virtualMetrics)
 
-    expect(liquidity.liquidity).toBe('302661.24278631475')
-    expect(Number(liquidity.amount0).toFixed(6)).toBe('10119151.972676')
-    expect(Number(liquidity.amount1).toFixed(6)).toBe('9272.661024')
+    expect(liquidity.liquidity).toBe('73.85375630246058')
+    expect(Number(liquidity.amount0).toFixed(6)).toBe('2469.220627')
+    expect(Number(liquidity.amount1).toFixed(6)).toBe('2.262664')
   })
 
   test('does not use virtual bootstrap amounts as actual pooled tokens', () => {
     const liquidity = positionLiquidityAmounts(mergedVirtualOnlyPosition, undefined)
+    const pureVirtualLiquidity = positionLiquidityAmounts(virtualPosition, undefined)
 
     expect(liquidity.liquidity).toBe('0')
     expect(liquidity.amount0).toBe('0')
     expect(liquidity.amount1).toBe('0')
+    expect(pureVirtualLiquidity.liquidity).toBe('0')
+    expect(pureVirtualLiquidity.amount0).toBe('0')
+    expect(pureVirtualLiquidity.amount1).toBe('0')
   })
 
   test('collectable liquidity includes active LP plus protocol fees for the creator', () => {

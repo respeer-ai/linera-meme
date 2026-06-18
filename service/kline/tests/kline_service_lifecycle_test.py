@@ -69,16 +69,16 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
         def candle_finality_scheduler_task(self):
             return self._candle_finality_scheduler_task
 
-    async def test_startup_waits_for_observability_before_starting_realtime_services(self):
+    async def test_startup_schedules_observability_without_blocking_realtime_services(self):
         realtime_db = self.FakeRealtimeDb()
         publisher = self.FakeBackgroundService()
         scheduler = self.FakeBackgroundService()
         events = []
 
         class Supervisor:
-            async def start_if_configured(self):
-                events.append('observability_started')
-                return True
+            def start_in_background(self):
+                events.append('observability_scheduled')
+                return None
 
             async def shutdown(self):
                 events.append('observability_shutdown')
@@ -112,7 +112,7 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
             sys.modules['kline_service_lifecycle'].Db = original_db_type
 
         self.assertEqual(events, [
-            'observability_started',
+            'observability_scheduled',
             'publisher_built',
             'scheduler_built',
             'observability_shutdown',
@@ -127,7 +127,7 @@ class KlineServiceLifecycleTest(unittest.IsolatedAsyncioTestCase):
         scheduler = self.FakeBackgroundService()
 
         class FailingSupervisor:
-            async def start_if_configured(self):
+            def start_in_background(self):
                 raise RuntimeError('startup failed')
 
             async def shutdown(self):

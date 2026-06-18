@@ -77,3 +77,9 @@ export const REMOVE_LIQUIDITY = gql`
     )
   }
 `
+
+export const CLAIM = gql`
+  mutation claim($token: ApplicationId, $amount: Amount!) {
+    claim(token: $token, amount: $amount)
+  }
+`

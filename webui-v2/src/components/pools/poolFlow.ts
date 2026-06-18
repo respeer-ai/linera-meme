@@ -22,6 +22,10 @@ export interface RemoveLiquidityContext {
   amount1?: string
 }
 
+export interface ClaimContext {
+  token?: string
+}
+
 export interface PoolFlowRoute {
   path: string
   query?: {
@@ -31,6 +35,7 @@ export interface PoolFlowRoute {
     liquidity?: string
     amount0?: string
     amount1?: string
+    token?: string
   }
 }
 
@@ -136,6 +141,22 @@ export const buildRemoveLiquidityRoute = (pair?: PoolPairLike, context: RemoveLi
   }
 }
 
+export const buildClaimRoute = (pair?: PoolPairLike, context: ClaimContext = {}): PoolFlowRoute => {
+  if (!pair) {
+    return {
+      path: '/pools/claim',
+    }
+  }
+
+  return {
+    path: '/pools/claim',
+    query: {
+      ...normalizePoolPair(pair),
+      ...context,
+    },
+  }
+}
+
 export const resolveRoutePoolPair = ({ token0, token1 }: { token0: unknown; token1: unknown }) => {
   const requestedToken0 = readQueryValue(token0)
   const requestedToken1 = readQueryValue(token1)
@@ -187,6 +208,7 @@ export const resolveLiquiditySubmissionMode = (
 ): LiquiditySubmissionMode => {
   return pairExists(pools, pair) ? 'add-liquidity' : 'create-pool'
 }
+
 
 const validPositiveNumber = (value: string | null | undefined) => {
   const number = Number(value)

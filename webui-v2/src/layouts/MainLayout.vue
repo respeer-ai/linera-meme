@@ -7,12 +7,12 @@
     </q-header>
 
     <q-page-container class='bg-glass bg-dark'>
-      <div class='flex items-center justify-center'>
-        <div v-if='!walletConnected' class='q-mt-lg page-width'>
+      <router-view />
+      <div v-if='!walletConnected' class='wallet-tip-footer-band'>
+        <div class='page-width'>
           <wallet-tip-view />
         </div>
       </div>
-      <router-view />
     </q-page-container>
 
     <q-footer class='bg-dark'>
@@ -43,3 +43,10 @@ onMounted(async () => {
 const walletConnected = computed(() => user.User.walletConnected())
 
 </script>
+
+<style scoped lang='sass'>
+.wallet-tip-footer-band
+  display: flex
+  justify-content: center
+  padding-top: 28px
+</style>

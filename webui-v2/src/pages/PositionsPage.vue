@@ -64,7 +64,7 @@
             <div v-for='index in 2' :key='index' class='position-card position-card-loading'>
               <q-skeleton dark type='text' width='32%' />
               <q-skeleton dark type='text' width='18%' />
-              <div class='position-summary-row' :style='{ "--position-summary-columns": "5" }'>
+              <div class='position-summary-row'>
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
                 <q-skeleton dark type='text' width='100%' />
@@ -108,7 +108,8 @@
                           clickable
                           v-close-popup
                           class='status-menu-item'
-                          disable
+                          :disable='!canClaimPosition(position)'
+                          @click='onClaimPositionClick(position)'
                         >
                           <q-item-section>Claim</q-item-section>
                         </q-item>
@@ -121,10 +122,7 @@
                 </div>
               </div>
 
-              <div
-                class='position-summary-row'
-                :style='{ "--position-summary-columns": "5" }'
-              >
+              <div class='position-summary-row'>
                 <div class='position-metric'>
                   <span class='metric-label'>Pool share</span>
                   <span class='metric-value metric-value-stack'>
@@ -143,6 +141,10 @@
                       </span>
                     </span>
                   </span>
+                </div>
+                <div class='position-metric'>
+                  <span class='metric-label'>APR</span>
+                  <span class='metric-value'>{{ positionAprLabel(position) }}</span>
                 </div>
                 <div class='position-metric'>
                   <span class='metric-label'>Pooled tokens</span>
@@ -189,16 +191,12 @@
                     <span>{{ positionFeesLabel(position).token1 }}</span>
                   </span>
                 </div>
-                <div class='position-metric'>
-                  <span class='metric-label'>APR</span>
-                  <span class='metric-value'>{{ positionAprLabel(position) }}</span>
-                </div>
-                <div class='position-metric position-claimable-metric' :class='{ "position-claimable-metric-empty": !positionClaimableLines(position).length }'>
+                <div class='position-metric position-claimable-metric'>
                   <span class='metric-label'>Claimable</span>
                   <span v-if='positionClaimableLines(position).length' class='metric-value metric-value-stack'>
                     <span v-for='item in positionClaimableLines(position)' :key='item.token'>{{ formatLiquidity(item.amount) }} {{ tokenTicker(item.token) }}</span>
                   </span>
-                  <span v-else class='metric-value'>--</span>
+                  <span v-else class='metric-value metric-value-empty'>--</span>
                 </div>
               </div>
 
@@ -240,7 +238,7 @@ import { useMeta } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { usePageSeo } from 'src/utils/seo'
 import { constants } from 'src/constant'
-import { buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
+import { buildClaimRoute, buildRemoveLiquidityRoute } from 'src/components/pools/poolFlow'
 import { useUserStore } from 'src/stores/user'
 import { usePositionsStore, type Position, type PositionStatusFilter, type PositionsResponse } from 'src/stores/positions'
 import { type ClaimBalanceEntry, type PositionMetricsEntry, type PositionsInvalidationPayload } from 'src/stores/kline'
@@ -253,6 +251,7 @@ import {
   positionActionLabel as resolvePositionActionLabel,
   positionKey,
   positionCollectableLiquidityAmounts,
+  positionDisplayFeeAmounts,
   positionDisplayLiquidityAmounts,
   positionDisplayShareRatio,
   positionHasVirtualReference,
@@ -393,6 +392,9 @@ const tokenLogo = (token: string) => {
 }
 const positionMetrics = (position: Position) => positionMetricsFor(position, positionMetricsSnapshots.value)
 const summaryPositionMetrics = (position: Position) => positionMetricsFor(position, summaryPositionMetricsSnapshots.value)
+const currentVirtualPositionMetrics = (position: Pick<Position, 'pool_application' | 'pool_id'>) => (
+  virtualPositionMetricsFor(position, positionMetricsSnapshots.value)
+)
 const summaryVirtualPositionMetrics = (position: Pick<Position, 'pool_application' | 'pool_id'>) => (
   virtualPositionMetricsFor(position, summaryPositionMetricsSnapshots.value)
 )
@@ -403,9 +405,7 @@ const positionRewardLiquidity = (position: Position) => {
     summaryPositionMetrics(position),
     summaryVirtualPositionMetrics(position),
   )
-  const virtualInitial = parseFloat(position.virtual_current_liquidity || '0')
-  const total = parseFloat(display.liquidity) - virtualInitial
-  return String(Number.isFinite(total) && total > 0 ? total : 0)
+  return display.liquidity
 }
 const formattedLiquidityShare = computed(() => {
   const total = rewardPositions.value.reduce((sum, position) => (
@@ -497,7 +497,9 @@ const sumAmount = (...values: Array<string | null | undefined>) => {
   return Number.isFinite(total) ? String(total) : '0'
 }
 const positionVirtualMetrics = (position: Position) => (
-  virtualBootstrapDisplayFor(position) ? summaryVirtualPositionMetrics(position) : undefined
+  virtualBootstrapDisplayFor(position)
+    ? currentVirtualPositionMetrics(position) || summaryVirtualPositionMetrics(position)
+    : undefined
 )
 const positionDisplayLiquidity = (position: Position) => positionDisplayLiquidityAmounts(
   position,
@@ -567,7 +569,7 @@ const pooledTokenComposition = (position: Position, token: string): CompositionI
   )
   if (poolVirtual && parseFloat(virtualTokenAmount) > 0) {
     if (isToken0) {
-      items.push({ label: 'Initial', value: formatLiquidity(virtualTokenAmount), unit: ticker, collectable: true })
+      items.push({ label: 'Virtual initial', value: formatLiquidity(virtualTokenAmount), unit: ticker, collectable: false })
     } else {
       items.push({ label: 'Virtual initial', value: formatLiquidity(virtualTokenAmount), unit: ticker, collectable: false })
     }
@@ -597,9 +599,8 @@ const formatPercentLabel = (value: number, fractionDigits = 2) => {
   return `${value.toFixed(fractionDigits).replace(/\.?0+$/, '')}%`
 }
 const positionFeesLabel = (position: Position) => {
-  const metrics = positionMetrics(position)
-  const virtualMetrics = positionVirtualMetrics(position)
-  if (!metrics && !virtualMetrics) {
+  const feeAmounts = positionDisplayFeeAmounts(positionMetrics(position), positionVirtualMetrics(position))
+  if (!feeAmounts) {
     return {
       token0: '--',
       token1: '--',
@@ -607,8 +608,8 @@ const positionFeesLabel = (position: Position) => {
   }
 
   return {
-    token0: `${formatLiquidity(sumAmount(metrics?.fee_amount0, virtualMetrics?.protocol_fee_amount0))} ${tokenTicker(position.token_0)}`,
-    token1: `${formatLiquidity(sumAmount(metrics?.fee_amount1, virtualMetrics?.protocol_fee_amount1))} ${tokenTicker(position.token_1)}`,
+    token0: `${formatLiquidity(feeAmounts.amount0)} ${tokenTicker(position.token_0)}`,
+    token1: `${formatLiquidity(feeAmounts.amount1)} ${tokenTicker(position.token_1)}`,
   }
 }
 const hasMetricsWarning = (position: Position) => {
@@ -670,6 +671,9 @@ const positionActionLabel = (position: Position) => (
 const canUsePositionAction = (position: Position) => (
   resolveCanUsePositionAction(position, actionMetrics(position), owner.value, allPositions.value)
 )
+const canClaimPosition = (position: Position) => (
+  positionClaimableLines(position).length > 0
+)
 const formatLiquidity = (value: string | number) => {
   const numeric = typeof value === 'number' ? value : Number.parseFloat(value || '0')
   if (!Number.isFinite(numeric)) return '0'
@@ -710,6 +714,13 @@ const onManagePositionClick = (position: Position) => {
     token1: position.token_1,
   }, context))
 }
+const onClaimPositionClick = (position: Position) => {
+  const claimableToken = positionClaimableLines(position)[0]?.token
+  void router.push(buildClaimRoute({
+    token0: position.token_0,
+    token1: position.token_1,
+  }, claimableToken ? { token: claimableToken } : {}))
+}
 
 const refreshClaimBalanceSnapshots = async (nextOwner: string) => {
   const requestSerial = ++claimBalancesRequestSerial.value
@@ -742,11 +753,15 @@ const refreshPositionMetricsSnapshots = async (
   }
 
   const response = await kline.Kline.getPositionMetrics(nextOwner, status)
+  const virtualResponse = status === 'all'
+    ? undefined
+    : await kline.Kline.getPositionMetrics(nextOwner, 'all')
   if (requestSerial !== positionMetricsRequestSerial.value) return
 
   const metrics = response?.metrics || []
+  const virtualMetrics = (virtualResponse?.metrics || []).filter((entry) => entry.status === 'virtual')
   positionMetricsSnapshots.value = Object.fromEntries(
-    metrics.map((entry) => [
+    [...metrics, ...virtualMetrics].map((entry) => [
       positionMetricsKey(entry),
       entry,
     ]),
@@ -828,7 +843,7 @@ usePageSeo(() => ({
 
 .main-column
   width: 100%
-  max-width: 1040px
+  max-width: 780px
   margin: 0 auto
 
 .reward-card,
@@ -1280,8 +1295,8 @@ usePageSeo(() => ({
   padding-top: 16px
   border-top: 1px solid rgba(255, 255, 255, 0.06)
   display: grid
-  grid-template-columns: repeat(var(--position-summary-columns, 4), minmax(0, 1fr))
-  gap: 12px
+  grid-template-columns: minmax(104px, 0.82fr) minmax(48px, 0.3fr) minmax(132px, 0.98fr) minmax(124px, 0.9fr) minmax(122px, 0.9fr)
+  gap: 10px
 
 .position-menu-btn
   border: 0
@@ -1432,8 +1447,14 @@ usePageSeo(() => ({
 .position-claimable-metric
   align-content: start
 
-.position-claimable-metric-empty
-  align-content: center
+  .metric-value-stack
+    white-space: nowrap
+    word-break: normal
+
+.metric-value-empty
+  display: inline-flex
+  align-items: center
+  min-height: 34px
 
 @media (max-width: 720px)
   .positions-page

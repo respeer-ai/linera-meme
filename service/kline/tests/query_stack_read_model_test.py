@@ -460,7 +460,7 @@ class ReadModelBridgeTest(
                     'current_liquidity': '0',
                     'position_liquidity': '0',
                     'total_supply': None,
-                    'redeemable_amount0': '25',
+                    'redeemable_amount0': '0',
                     'redeemable_amount1': '0',
                     'virtual_initial_liquidity': True,
                     'computation_blockers': [],
@@ -468,7 +468,7 @@ class ReadModelBridgeTest(
                     'principal_amount1': '0',
                     'fee_amount0': '0',
                     'fee_amount1': '0',
-                    'protocol_fee_amount0': '25',
+                    'protocol_fee_amount0': '0',
                     'protocol_fee_amount1': '0',
                     'trailing_24h_fee_amount0': '0',
                     'trailing_24h_fee_amount1': '0',
@@ -477,8 +477,8 @@ class ReadModelBridgeTest(
                     'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
                     'value_warning_message': (
                         'Virtual initial liquidity is pool-level, not owner-held LP. '
-                        'This synthetic position marks the protocol fee receiver and uses the '
-                        'virtual bootstrap amounts as reference values.'
+                        'This synthetic position marks the protocol fee receiver while '
+                        'projection state is not available.'
                     ),
                     'share_ratio': None,
                 }],
@@ -538,6 +538,27 @@ class ReadModelBridgeTest(
         self.assertEqual(metric['position_liquidity'], '37')
         self.assertEqual(metric['protocol_fee_amount0'], '74')
         self.assertEqual(metric['protocol_fee_amount1'], '111')
+
+    def test_position_metrics_read_model_uses_pool_total_minted_fee_when_receiver_facts_are_missing(self):
+        owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
+
+        payload = self._virtual_protocol_fee_metrics_payload(
+            owner=owner,
+            materialized_protocol_fee_liquidity='0',
+            latest_fee_to_account=owner,
+            current_total_supply='130',
+            fee_free_total_supply='100',
+            current_reserve_0='260',
+            current_reserve_1='390',
+            total_minted_protocol_fee='83',
+            pending_protocol_fee='0.25',
+        )
+
+        metric = payload.public_payload()['metrics'][0]
+        self.assertEqual(metric['position_liquidity'], '83.25')
+        self.assertEqual(metric['total_supply'], '130.25')
+        self.assertEqual(metric['protocol_fee_amount0'], '166.180422264875239923')
+        self.assertEqual(metric['protocol_fee_amount1'], '249.270633397312859885')
 
     def test_position_metrics_read_model_does_not_use_pool_total_minted_fee_after_owner_remove(self):
         owner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain'
@@ -604,8 +625,8 @@ class ReadModelBridgeTest(
             metric['value_warning_message'],
             (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
-                'This synthetic position marks the protocol fee receiver and uses the '
-                'virtual bootstrap amounts as reference values.'
+                'This synthetic position marks the protocol fee receiver while '
+                'projection state is not available.'
             ),
         )
 
@@ -626,6 +647,7 @@ class ReadModelBridgeTest(
         trailing_24h_fee_window_start_ms=None,
         trailing_24h_fee_window_end_ms=None,
         total_minted_protocol_fee=None,
+        pending_protocol_fee='0',
     ):
         repository = QueryStackTestSupport.FakeRepository()
 
@@ -671,7 +693,7 @@ class ReadModelBridgeTest(
                         if total_minted_protocol_fee is not None
                         else full_materialized_protocol_fee_liquidity or '0'
                     ),
-                    'pending_protocol_fee': '0',
+                    'pending_protocol_fee': pending_protocol_fee,
                     'state_payload_json': state_payload_json,
                 }
 

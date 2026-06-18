@@ -8,6 +8,11 @@ export interface PositionLiquidityDisplayAmounts {
   amount1: string
 }
 
+export interface PositionFeeDisplayAmounts {
+  amount0: string
+  amount1: string
+}
+
 type PositionIdentity = Pick<Position, 'pool_application' | 'pool_id' | 'status' | 'position_kind'>
 type MetricsIdentity = Pick<PositionMetricsEntry, 'pool_application' | 'pool_id' | 'status'>
 
@@ -111,52 +116,44 @@ export const positionDisplayLiquidityAmounts = (
   virtualMetrics: PositionMetricsEntry | undefined,
 ): PositionLiquidityDisplayAmounts => {
   const actual = positionLiquidityAmounts(position, actualMetrics)
-  const virtualLiquidity = virtualInitialLiquidity(position)
-  const virtualInitialAmount0 = virtualInitialTokenAmount(
-    virtualLiquidity,
-    virtualMetrics?.position_liquidity,
-    virtualMetrics?.protocol_fee_amount0,
-    position.virtual_initial_amount0,
-  )
-  const virtualInitialAmount1 = virtualInitialTokenAmount(
-    virtualLiquidity,
-    virtualMetrics?.position_liquidity,
-    virtualMetrics?.protocol_fee_amount1,
-    position.virtual_initial_amount1,
-  )
 
   return {
     liquidity: amountString(
       numericAmount(actual.liquidity) +
-      numericAmount(virtualLiquidity) +
       numericAmount(virtualMetrics?.position_liquidity),
     ),
     amount0: amountString(
       numericAmount(actual.amount0) +
-      numericAmount(virtualInitialAmount0) +
       numericAmount(virtualMetrics?.protocol_fee_amount0),
     ),
     amount1: amountString(
       numericAmount(actual.amount1) +
-      numericAmount(virtualInitialAmount1) +
       numericAmount(virtualMetrics?.protocol_fee_amount1),
     ),
   }
 }
 
 export const positionDisplayShareRatio = (
-  position: Position,
+  _position: Position,
   actualMetrics: PositionMetricsEntry | undefined,
   virtualMetrics: PositionMetricsEntry | undefined,
 ) => {
   const actualRatio = numericAmount(actualMetrics?.share_ratio)
   const virtualProtocolRatio = numericAmount(virtualMetrics?.share_ratio)
-  const totalSupply = numericAmount(virtualMetrics?.total_supply || actualMetrics?.total_supply)
-  const virtualInitialRatio = totalSupply > 0
-    ? numericAmount(virtualInitialLiquidity(position)) / totalSupply
-    : 0
-  const total = actualRatio + virtualInitialRatio + virtualProtocolRatio
+  const total = actualRatio + virtualProtocolRatio
   return Number.isFinite(total) ? total : 0
+}
+
+export const positionDisplayFeeAmounts = (
+  actualMetrics: PositionMetricsEntry | undefined,
+  virtualMetrics: PositionMetricsEntry | undefined,
+): PositionFeeDisplayAmounts | undefined => {
+  if (!actualMetrics && !virtualMetrics) return undefined
+
+  return {
+    amount0: amountString(numericAmount(actualMetrics?.fee_amount0) + numericAmount(virtualMetrics?.protocol_fee_amount0)),
+    amount1: amountString(numericAmount(actualMetrics?.fee_amount1) + numericAmount(virtualMetrics?.protocol_fee_amount1)),
+  }
 }
 
 export const positiveAmount = (value: string | number | null | undefined) => {
@@ -225,9 +222,9 @@ export const positionLiquidityAmounts = (
 ) => {
   if (isVirtualPosition(position)) {
     return {
-      liquidity: position.current_liquidity || '0',
-      amount0: position.virtual_initial_amount0 || '0',
-      amount1: position.virtual_initial_amount1 || '0',
+      liquidity: '0',
+      amount0: '0',
+      amount1: '0',
     }
   }
 

@@ -48,9 +48,9 @@ class KlineServiceLifecycle:
 
         if self._observability_supervisor is not None:
             try:
-                await self._observability_supervisor.start_if_configured()
+                self._observability_supervisor.start_in_background()
             except Exception as exc:
-                print(f'Observability startup failed open: {exc}')
+                print(f'Observability startup scheduling failed open: {exc}')
                 traceback.print_exc()
 
         realtime_db = Db(

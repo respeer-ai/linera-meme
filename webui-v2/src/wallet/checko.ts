@@ -4,6 +4,7 @@ import { dbModel, rpcModel } from 'src/model'
 import {
   ADD_LIQUIDITY,
   BALANCES,
+  CLAIM,
   BLOCK_MATERIAL_WITH_DEFAULT_CHAIN,
   CREATE_POOL,
   CREATE_MEME,
@@ -245,6 +246,42 @@ export class CheCko {
     variables: Record<string, unknown>,
   ) => {
     const operationParams = await CheCko.removeLiquidityOperation(poolApplicationId, variables)
+
+    return new Promise((resolve, reject) => {
+      window.linera
+        .request({
+          method: 'linera_graphqlMutation',
+          params: operationParams,
+        })
+        .then((hash) => {
+          resolve(hash as string)
+        })
+        .catch((e) => {
+          reject(new Error(e))
+        })
+    })
+  }
+
+  static claimOperation = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const publicKey = user.User.publicKey()
+    const queryBytes = await lineraWasm.graphql_deserialize_pool_operation(
+      CLAIM.loc?.source?.body as string,
+      stringify(variables) as string,
+    )
+    return {
+      applicationId: poolApplicationId,
+      publicKey,
+      query: {
+        query: CLAIM.loc?.source?.body,
+        variables,
+        applicationOperationBytes: queryBytes,
+      },
+      operationName: 'claim',
+    }
+  }
+
+  static claim = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const operationParams = await CheCko.claimOperation(poolApplicationId, variables)
 
     return new Promise((resolve, reject) => {
       window.linera

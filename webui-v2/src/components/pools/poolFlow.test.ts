@@ -3,6 +3,7 @@ import { constants } from 'src/constant'
 import { type Pool } from 'src/__generated__/graphql/swap/graphql'
 import {
   buildAddLiquidityRoute,
+  buildClaimRoute,
   buildRemoveLiquidityRoute,
   canAddLiquidityForPair,
   canCreatePoolForPair,
@@ -184,6 +185,27 @@ describe('poolFlow', () => {
     })
   })
 
+  test('build claim route carries canonical pair and selected token', () => {
+    expect(
+      buildClaimRoute(
+        {
+          token0: constants.LINERA_NATIVE_ID,
+          token1: 'meme-1',
+        },
+        {
+          token: constants.LINERA_NATIVE_ID,
+        },
+      ),
+    ).toEqual({
+      path: '/pools/claim',
+      query: {
+        token0: 'meme-1',
+        token1: constants.LINERA_NATIVE_ID,
+        token: constants.LINERA_NATIVE_ID,
+      },
+    })
+  })
+
   test('resolveRouteLiquidityContext accepts complete non-negative amount context', () => {
     expect(
       resolveRouteLiquidityContext({
@@ -204,6 +226,7 @@ describe('poolFlow', () => {
     expect(resolveRouteLiquidityContext({ liquidity: 'abc', amount0: '2', amount1: '3' })).toBe(undefined)
   })
 
+
   test('linkedAddLiquidityAmount derives the opposite side from pool reserves with buffer', () => {
     expect(
       linkedAddLiquidityAmount({
@@ -223,6 +246,7 @@ describe('poolFlow', () => {
       }),
     ).toBe('110')
   })
+
 
   test('linkedAddLiquidityAmount caps the calculated side by available balance', () => {
     expect(

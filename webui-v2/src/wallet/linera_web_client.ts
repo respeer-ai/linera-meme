@@ -3,7 +3,7 @@ import * as linera from '@linera/client'
 import * as metamask from '@linera/metamask'
 import { Provider } from './provider'
 import { stringify } from 'lossless-json'
-import { ADD_LIQUIDITY, CREATE_POOL, REMOVE_LIQUIDITY, SWAP } from 'src/graphql'
+import { ADD_LIQUIDITY, CLAIM, CREATE_POOL, REMOVE_LIQUIDITY, SWAP } from 'src/graphql'
 import { print } from 'graphql'
 
 export class LineraWebClient {
@@ -108,6 +108,15 @@ export class LineraWebClient {
     const application = await LineraWebClient.chain.application(poolApplicationId)
     const gqlStr = stringify({
       query: print(REMOVE_LIQUIDITY),
+      variables,
+    }) as string
+    await application.query(gqlStr)
+  }
+
+  static claim = async (poolApplicationId: string, variables: Record<string, unknown>) => {
+    const application = await LineraWebClient.chain.application(poolApplicationId)
+    const gqlStr = stringify({
+      query: print(CLAIM),
       variables,
     }) as string
     await application.query(gqlStr)

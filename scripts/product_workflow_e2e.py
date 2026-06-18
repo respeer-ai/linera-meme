@@ -60,6 +60,8 @@ class ProductWorkflowE2E:
         self.user_owner = ""
         self.meme_chains: dict[str, str] = {}
         self.pool_chain_id = ""
+        self.skipped_inbox_routes: set[tuple[str, str]] = set()
+        self.max_inbox_drain_rounds = 5
 
     def run(self) -> None:
         self.user_chain_id = self.default_chain_id()
@@ -72,6 +74,10 @@ class ProductWorkflowE2E:
         print(f"[product-e2e] meme/native token: {token_0}")
 
         native_pool = self.wait_for_pool(token_0=token_0, token_1=NATIVE_TOKEN)
+        self.wait_for(
+            "initial virtual position metrics projection",
+            lambda: self.validate_initial_virtual_position_interfaces(native_pool) or True,
+        )
         self.run_pool_funds_workflow(native_pool, "meme/native")
 
         before_tokens = self.proxy_meme_tokens()
@@ -197,7 +203,7 @@ class ProductWorkflowE2E:
 
     def execute_swap_and_wait(self, pool: Pool) -> Pool:
         before = self.pool_state(pool)
-        before_swap_count = self.transaction_count(pool, self.swap_transaction_types())
+        before_swap_transaction_id = self.latest_transaction_id(pool, self.swap_transaction_types())
         self.execute_swap(pool)
 
         def changed_pool() -> Pool | None:
@@ -205,7 +211,7 @@ class ProductWorkflowE2E:
             if (
                 current
                 and (current.reserve_0 != before.reserve_0 or current.reserve_1 != before.reserve_1)
-                and self.transaction_count(pool, self.swap_transaction_types()) > before_swap_count
+                and self.latest_transaction_id(pool, self.swap_transaction_types()) > before_swap_transaction_id
             ):
                 self.validate_position_interfaces(current)
                 return current
@@ -472,15 +478,40 @@ class ProductWorkflowE2E:
         observed_tvl = self.decimal_or_zero(stats.get("tvl"))
         if expected_tvl_floor <= 0:
             raise E2EError("independently computed protocol TVL is not positive")
-        if observed_tvl < expected_tvl_floor:
+        if observed_tvl <= 0:
+            raise E2EError(f"protocol stats TVL is not positive: {observed_tvl}")
+        minimum_tvl = expected_tvl_floor * Decimal("0.99")
+        if observed_tvl < minimum_tvl:
             raise E2EError(
-                f"protocol stats TVL does not cover current swap pools: {observed_tvl} < {expected_tvl_floor}"
+                f"protocol stats TVL is too far below current swap pools: {observed_tvl} < {minimum_tvl}"
             )
-        rows = self.transaction_rows(limit=50)
+        rows = self.transaction_rows(limit=500)
         if not rows:
             raise E2EError("kline transactions endpoint returned no rows")
-        if not any(self.observability_row_matches_pool(row, pool) for row in rows):
+        pool_rows = [row for row in rows if self.observability_row_matches_pool(row, pool)]
+        if not pool_rows:
             raise E2EError(f"kline transactions endpoint has no recent rows for pool {pool.pool_id}")
+        self.assert_observability_trade_transactions(pool_rows, pool)
+        self.validate_position_interfaces(pool)
+
+    def assert_observability_trade_transactions(self, rows: list[dict], pool: Pool) -> None:
+        observed_types = {str(row.get("transaction_type") or "") for row in rows}
+        if not observed_types & self.swap_transaction_types():
+            raise E2EError(f"kline transactions for pool {pool.pool_id} did not include a swap: {observed_types}")
+        for row in rows:
+            if self.decimal_or_zero(row.get("timestamp")) <= 0 and self.decimal_or_zero(row.get("created_at")) <= 0:
+                raise E2EError(f"kline transaction has no positive timestamp: {row}")
+            tx_type = row.get("transaction_type")
+            if tx_type not in self.swap_transaction_types():
+                raise E2EError(f"kline transactions endpoint returned non-trade row: {row}")
+            if (
+                self.decimal_or_zero(row.get("amount_0_in"))
+                + self.decimal_or_zero(row.get("amount_0_out"))
+                + self.decimal_or_zero(row.get("amount_1_in"))
+                + self.decimal_or_zero(row.get("amount_1_out"))
+                <= 0
+            ):
+                raise E2EError(f"kline swap transaction has no positive token movement: {row}")
 
     def wait_for_pool(self, token_0: str, token_1: str | None) -> Pool:
         def find_pool() -> Pool | None:
@@ -528,6 +559,17 @@ class ProductWorkflowE2E:
             and row.get("transaction_type") in types
         )
 
+    def latest_transaction_id(self, pool: Pool, types: set[str]) -> int:
+        latest = 0
+        for row in self.transaction_rows(limit=300):
+            if (
+                isinstance(row, dict)
+                and self.observability_row_matches_pool(row, pool)
+                and row.get("transaction_type") in types
+            ):
+                latest = max(latest, int(self.decimal_or_zero(row.get("transaction_id"))))
+        return latest
+
     def wait_for_actual_position_fee(self, pool: Pool) -> None:
         def has_fee() -> bool | None:
             self.validate_position_interfaces(pool, require_actual_fee_positive=True)
@@ -541,6 +583,38 @@ class ProductWorkflowE2E:
             return True
 
         self.wait_for("virtual protocol-fee projection", has_fee)
+
+
+    def validate_initial_virtual_position_interfaces(self, pool: Pool) -> None:
+        positions = self.position_rows_for_pool(pool)
+        metrics = self.position_metrics_for_pool(pool)
+        if not positions:
+            raise E2EError(f"initial /positions has no rows for pool {pool.pool_id}")
+        if not metrics:
+            raise E2EError(f"initial /position-metrics has no rows for pool {pool.pool_id}")
+
+        actual_positions = [row for row in positions if self.is_actual_position(row)]
+        if actual_positions:
+            raise E2EError(f"initial virtual-liquidity pool should not expose actual LP rows: {actual_positions}")
+
+        virtual_positions = [row for row in positions if self.is_virtual_position(row)]
+        if len(virtual_positions) != 1:
+            raise E2EError(f"expected exactly one initial virtual position for pool {pool.pool_id}, got {virtual_positions}")
+        virtual_position = virtual_positions[0]
+        virtual_amount0 = self.decimal_or_zero(virtual_position.get("virtual_initial_amount0"))
+        virtual_amount1 = self.decimal_or_zero(virtual_position.get("virtual_initial_amount1"))
+        if virtual_amount0 <= 0 or virtual_amount1 < 0:
+            raise E2EError(f"initial virtual position has invalid bootstrap amounts: {virtual_position}")
+
+        virtual_metric = self.single_metric(metrics, status="virtual")
+        self.assert_metric_amounts_balance(virtual_metric, protocol_fee_expected=True)
+        protocol_fee_total = self.metric_protocol_fee_total(virtual_metric)
+        if protocol_fee_total < 0:
+            raise E2EError(f"initial virtual protocol fee metric cannot be negative: {virtual_metric}")
+        if self.decimal_or_zero(virtual_metric.get("redeemable_amount0")) == virtual_amount0:
+            raise E2EError(f"initial virtual metric leaked bootstrap token0 as redeemable amount: {virtual_metric}")
+        if virtual_amount1 > 0 and self.decimal_or_zero(virtual_metric.get("redeemable_amount1")) == virtual_amount1:
+            raise E2EError(f"initial virtual metric leaked bootstrap token1 as redeemable amount: {virtual_metric}")
 
     def validate_position_interfaces(
         self,
@@ -588,6 +662,7 @@ class ProductWorkflowE2E:
         if virtual_positions:
             virtual_metric = self.single_metric(metrics, status="virtual")
             self.assert_metric_amounts_balance(virtual_metric, protocol_fee_expected=True)
+            self.assert_virtual_protocol_fee_liquidity_matches_pool_snapshot(pool, virtual_metric)
             if require_virtual_protocol_fee_positive and self.metric_protocol_fee_total(virtual_metric) <= 0:
                 raise E2EError(f"virtual protocol fees are not positive for pool {pool.pool_id}: {virtual_metric}")
 
@@ -628,6 +703,38 @@ class ProductWorkflowE2E:
             raise E2EError(f"protocol fee metric cannot be negative: {metric}")
         if not protocol_fee_expected and protocol_total != 0:
             raise E2EError(f"actual LP metric should not include protocol fee amounts: {metric}")
+
+    def assert_virtual_protocol_fee_liquidity_matches_pool_snapshot(self, pool: Pool, metric: dict) -> None:
+        pool_state_snapshot = self.debug_pool_state_snapshot(pool)
+        total_minted = self.decimal_or_zero(pool_state_snapshot.get("total_minted_protocol_fee"))
+        pending = self.decimal_or_zero(pool_state_snapshot.get("pending_protocol_fee"))
+        expected_liquidity = total_minted + pending
+        if expected_liquidity <= 0:
+            return
+        self.assert_decimal_equal(
+            metric.get("position_liquidity"),
+            expected_liquidity,
+            "virtual protocol-fee position_liquidity vs pool minted+pending protocol fee",
+        )
+        self.assert_decimal_equal(
+            metric.get("total_supply"),
+            self.decimal_or_zero(pool_state_snapshot.get("current_total_supply")) + pending,
+            "virtual protocol-fee total_supply vs pool total supply plus pending protocol fee",
+        )
+
+    def debug_pool_state_snapshot(self, pool: Pool) -> dict:
+        params = urllib.parse.urlencode({
+            "pool_application": self.pool_application_account(pool),
+            "pool_id": pool.pool_id,
+            "owner": self.owner_account_string(),
+            "transaction_limit": 1,
+            "diagnostics_limit": 1,
+        })
+        payload = self.http_json(f"{self.kline_url}/debug/pool?{params}")
+        snapshot = payload.get("pool_state_snapshot") if isinstance(payload, dict) else None
+        if not isinstance(snapshot, dict):
+            raise E2EError(f"debug pool state snapshot is unavailable for pool {pool.pool_id}: {payload}")
+        return snapshot
 
     def actual_position_liquidity_amount(self, pool: Pool) -> Decimal:
         row = self.actual_position_row(pool)
@@ -907,15 +1014,38 @@ class ProductWorkflowE2E:
         ]
         routes.extend((self.proxy_wallet_url, chain_id) for chain_id in self.meme_chains.values())
         for wallet_url, chain_id in dict.fromkeys(routes):
-            if chain_id:
-                self.process_inbox(wallet_url, chain_id)
+            route = (wallet_url, chain_id)
+            if not chain_id or route in self.skipped_inbox_routes:
+                continue
+            try:
+                self.drain_inbox(wallet_url, chain_id)
+            except E2EError as error:
+                if self.is_non_proposable_chain_error(error):
+                    self.skipped_inbox_routes.add(route)
+                    print(f"[product-e2e] skipping inbox pump for non-proposable chain: {wallet_url} {chain_id}")
+                    continue
+                raise
 
-    def process_inbox(self, wallet_url: str, chain_id: str) -> None:
-        self.graphql(
+    @staticmethod
+    def is_non_proposable_chain_error(error: Exception) -> bool:
+        message = str(error)
+        return (
+            "client is not configured to propose on chain" in message
+            or "ChainClient was not configured to propose new blocks" in message
+        )
+    def drain_inbox(self, wallet_url: str, chain_id: str) -> None:
+        for _ in range(self.max_inbox_drain_rounds):
+            processed = self.process_inbox(wallet_url, chain_id)
+            if not processed:
+                return
+
+    def process_inbox(self, wallet_url: str, chain_id: str) -> list[str]:
+        data = self.graphql(
             wallet_url,
             "mutation ProcessInbox($chainId: ChainId!) { processInbox(chainId: $chainId) }",
             {"chainId": chain_id},
         )
+        return data.get("processInbox") or []
 
     def application_graphql(self, base_url: str, chain_id: str, application_id: str, query: str, variables: dict) -> dict:
         return self.graphql(f"{base_url}/chains/{chain_id}/applications/{application_id}", query, variables)

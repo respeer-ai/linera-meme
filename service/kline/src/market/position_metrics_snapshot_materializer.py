@@ -285,6 +285,11 @@ class PositionMetricsSnapshotMaterializer:
                 'running_liquidity': 0, 'current_liquidity': 0,
                 'added_liquidity': 0, 'removed_liquidity': 0,
                 'status': None,
+                'basis_type': None,
+                'basis_amount_0': '0',
+                'basis_amount_1': '0',
+                'basis_time_ms': None,
+                'basis_transaction_id': None,
                 'current_round_liquidity_event_count': 0,
                 'current_round_started_at': None,
                 'current_round_started_transaction_id': None,
@@ -297,6 +302,11 @@ class PositionMetricsSnapshotMaterializer:
             'added_liquidity': vs.to_attos(payload.get('added_liquidity')) or 0,
             'removed_liquidity': vs.to_attos(payload.get('removed_liquidity')) or 0,
             'status': row.get('status'),
+            'basis_type': row.get('basis_type'),
+            'basis_amount_0': row.get('basis_amount_0', '0'),
+            'basis_amount_1': row.get('basis_amount_1', '0'),
+            'basis_time_ms': row.get('basis_time_ms'),
+            'basis_transaction_id': row.get('basis_transaction_id'),
             'current_round_liquidity_event_count': int(
                 payload.get('current_round_liquidity_event_count') or 0
             ),

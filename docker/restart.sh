@@ -90,6 +90,30 @@ SWAP_HOST=${SUB_DOMAIN}lineraswap.fun
 PROXY_HOST=${SUB_DOMAIN}linerameme.fun
 
 export PATH=$BIN_DIR:$PATH
+function ensure_mysql() {
+    local local_no_proxy no_proxy_value
+    local_no_proxy=localhost,127.0.0.1,::1,query-service,rpc,maker-wallet,maker,funder,kline,docker-mysql-1,api.lineraswap.fun,api.linerameme.fun,api.testnet-conway.lineraswap.fun,api.testnet-conway.linerameme.fun
+    no_proxy_value=${no_proxy:-${NO_PROXY:-}}
+    if [ -n "$no_proxy_value" ]; then
+        no_proxy_value="$no_proxy_value,$local_no_proxy"
+    else
+        no_proxy_value="$local_no_proxy"
+    fi
+
+    docker stop docker-mysql-1 > /dev/null 2>&1 || true
+    docker rm docker-mysql-1 > /dev/null 2>&1 || true
+
+    MYSQL_ROOT_PASSWORD=$DATABASE_PASSWORD \
+    MYSQL_DATABASE=$DATABASE_NAME \
+    MYSQL_USER=$DATABASE_USER \
+    MYSQL_PASSWORD=$DATABASE_PASSWORD \
+    MYSQL_PORT=$DATABASE_PORT \
+    LAN_IP=$LAN_IP \
+    NO_PROXY="$no_proxy_value" \
+    no_proxy="$no_proxy_value" \
+      docker compose -f $ROOT_DIR/docker/docker-compose-mysql.yml up --wait
+}
+
 
 function wallet_owner() {
     wallet_name=$1
@@ -149,6 +173,23 @@ if [ "x$COMPILE" = "x1" ]; then
     build_kline
     build_funder
 fi
+
+function wait_kline_ready() {
+    local endpoint=http://localhost:25080/positions?owner=health&status=all
+
+    for attempt in $(seq 1 120); do
+        if curl --noproxy '*' -fsS --max-time 2 "$endpoint" > /dev/null 2>&1; then
+            echo "kline HTTP is ready"
+            return 0
+        fi
+        echo "waiting for kline HTTP readiness: attempt $attempt/120"
+        sleep 2
+    done
+
+    echo "kline HTTP readiness check failed"
+    curl --noproxy '*' -si --max-time 5 "$endpoint" || true
+    exit 1
+}
 
 function restart_kline() {
     local local_no_proxy no_proxy_value
@@ -256,6 +297,8 @@ function restart_kline() {
       CATCH_UP_MAX_BLOCKS_PER_CHAIN=100 \
       docker compose -f $ROOT_DIR/docker/docker-compose-kline.yml up --wait
 
+    wait_kline_ready
+
     NO_PROXY=$no_proxy_value no_proxy=$no_proxy_value \
     LAN_IP=$LAN_IP DATABASE_HOST=$DATABASE_HOST DATABASE_USER=$DATABASE_USER DATABASE_PASSWORD=$DATABASE_PASSWORD DATABASE_PORT=$DATABASE_PORT DATABASE_NAME=$DATABASE_NAME \
       SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
@@ -266,6 +309,39 @@ function restart_kline() {
       SWAP_CHAIN_ID=$SWAP_CHAIN_ID SWAP_APPLICATION_ID=$SWAP_APPLICATION_ID WALLET_HOST=$LAN_IP:40082 WALLET_METRICS_URL=http://$LAN_IP:40084/metrics WALLET_OWNER=$MAKER_OWNER WALLET_CHAIN=$MAKER_CHAIN_ID \
       SWAP_HOST=$SWAP_HOST PROXY_CHAIN_ID=$PROXY_CHAIN_ID PROXY_APPLICATION_ID=$PROXY_APPLICATION_ID PROXY_HOST=$PROXY_HOST \
       docker compose -f $ROOT_DIR/docker/docker-compose-maker.yml up --wait
+}
+
+function restart_webui() {
+    docker compose -f $ROOT_DIR/docker/docker-compose-webui.yml down
+    docker compose -f $ROOT_DIR/docker/docker-compose-webui.yml up -d --wait
+
+    local nginx_template_file=$ROOT_DIR/configuration/template/nginx.conf.j2
+    local webui_sub_domain
+    webui_sub_domain=$(echo "${CLUSTER}." | sed "s/\.\./\./g")
+
+    function generate_webui_nginx_conf() {
+        local endpoint=$1
+        local domain=$2
+
+        echo "{
+      \"service\": {
+      \"mutation_endpoint\": \"$endpoint\",
+      \"mutation_servers\": [\"localhost:18080\"],
+      \"domain\": \"$domain\",
+      \"sub_domain\": \"$webui_sub_domain\",
+      \"api_endpoint\": \"$endpoint\"
+    }
+  }" > $CONFIG_DIR/$endpoint.nginx.json
+
+        jinja -d $CONFIG_DIR/$endpoint.nginx.json $nginx_template_file > $CONFIG_DIR/$endpoint.nginx.conf
+        sudo_run cp -v $CONFIG_DIR/$endpoint.nginx.conf /etc/nginx/sites-enabled/
+    }
+
+    generate_webui_nginx_conf linera-meme-webui linerameme.fun
+    generate_webui_nginx_conf linera-swap-webui lineraswap.fun
+    generate_webui_nginx_conf linera-blobgateway-webui blobgateway.com
+
+    sudo_run nginx -s reload
 }
 
 function restart_funder() {
@@ -291,5 +367,7 @@ function restart_funder() {
 
 cd $OUTPUT_DIR
 stop_chains
+ensure_mysql
 restart_kline
 restart_funder
+restart_webui

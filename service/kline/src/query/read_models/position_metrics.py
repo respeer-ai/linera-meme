@@ -115,8 +115,8 @@ class PositionMetricsReadModel:
             'position_liquidity': '0',
             'current_total_supply': None,
             'exact_share_ratio': None,
-            'redeemable_amount0': position.get('protocol_fee_reference_amount0', '0'),
-            'redeemable_amount1': position.get('protocol_fee_reference_amount1', '0'),
+            'redeemable_amount0': '0',
+            'redeemable_amount1': '0',
             'virtual_initial_liquidity': True,
             'metrics_status': 'partial_projected_redeemable_only',
             'fee_calculation_complete': False,
@@ -126,8 +126,8 @@ class PositionMetricsReadModel:
             'principal_amount1': '0',
             'fee_amount0': '0',
             'fee_amount1': '0',
-            'protocol_fee_amount0': position.get('protocol_fee_reference_amount0', '0'),
-            'protocol_fee_amount1': position.get('protocol_fee_reference_amount1', '0'),
+            'protocol_fee_amount0': '0',
+            'protocol_fee_amount1': '0',
             'trailing_24h_fee_amount0': '0',
             'trailing_24h_fee_amount1': '0',
             'trailing_24h_fee_window_start_ms': None,
@@ -135,8 +135,8 @@ class PositionMetricsReadModel:
             'value_warning_codes': ['virtual_initial_liquidity_protocol_fee_receiver_position'],
             'value_warning_message': (
                 'Virtual initial liquidity is pool-level, not owner-held LP. '
-                'This synthetic position marks the protocol fee receiver and uses the '
-                'virtual bootstrap amounts as reference values.'
+                'This synthetic position marks the protocol fee receiver while '
+                'projection state is not available.'
             ),
         }
 
@@ -170,11 +170,12 @@ class PositionMetricsReadModel:
         if current_reserve_0 is None or current_reserve_1 is None:
             return None
 
-        pending_fee = self._to_decimal(pool_snapshot.pending_protocol_fee()) or Decimal('0')
-        owned_protocol_fee = self._to_decimal(
-            position_basis_snapshot.full_protocol_fee_liquidity_owned_by_current_owner()
+        protocol_fee_liquidity = self._protocol_fee_liquidity_for_receiver_virtual_position(
+            position=position,
+            position_basis_snapshot=position_basis_snapshot,
+            pool_snapshot=pool_snapshot,
         )
-        protocol_fee_liquidity = (owned_protocol_fee or Decimal('0')) + pending_fee
+        pending_fee = self._to_decimal(pool_snapshot.pending_protocol_fee()) or Decimal('0')
         if protocol_fee_liquidity <= Decimal('0'):
             return None
 
@@ -218,6 +219,48 @@ class PositionMetricsReadModel:
                 'Protocol yield is projected from parsed pool state.'
             ),
         }
+
+    def _protocol_fee_liquidity_for_receiver_virtual_position(
+        self,
+        *,
+        position: dict,
+        position_basis_snapshot: PositionMetricsPositionBasisSnapshot,
+        pool_snapshot: PositionMetricsPoolStateSnapshot,
+    ) -> Decimal:
+        pending_fee = self._to_decimal(pool_snapshot.pending_protocol_fee()) or Decimal('0')
+        owned_protocol_fee = self._to_decimal(
+            position_basis_snapshot.full_protocol_fee_liquidity_owned_by_current_owner()
+        )
+        if owned_protocol_fee is not None:
+            return owned_protocol_fee + pending_fee
+
+        total_minted_protocol_fee = self._to_decimal(pool_snapshot.total_minted_protocol_fee())
+        if total_minted_protocol_fee is None or total_minted_protocol_fee <= Decimal('0'):
+            return pending_fee
+        if not self._current_protocol_fee_receiver_matches_position(
+            position=position,
+            position_basis_snapshot=position_basis_snapshot,
+            pool_snapshot=pool_snapshot,
+        ):
+            return pending_fee
+        return total_minted_protocol_fee + pending_fee
+
+    def _current_protocol_fee_receiver_matches_position(
+        self,
+        *,
+        position: dict,
+        position_basis_snapshot: PositionMetricsPositionBasisSnapshot,
+        pool_snapshot: PositionMetricsPoolStateSnapshot,
+    ) -> bool:
+        owner = str(position.get('owner') or '')
+        if owner == '':
+            return False
+        candidate_receivers = (
+            position_basis_snapshot.fee_to_account_latest_known(),
+            pool_snapshot.fee_to_account_latest_known(),
+            position.get('protocol_fee_receiver_account'),
+        )
+        return any(str(receiver) == owner for receiver in candidate_receivers if receiver not in (None, ''))
 
     def _position_basis_snapshot(self, snapshot) -> PositionMetricsPositionBasisSnapshot:
         if isinstance(snapshot, PositionMetricsPositionBasisSnapshot):

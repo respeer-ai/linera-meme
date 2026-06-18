@@ -241,48 +241,128 @@ echo "=== [6/6] Verifying product API endpoints ==="
 
 OWNER_ACCOUNT="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@chain-e2e"
 
-# /transactions (with no filters returns empty or data)
+validate_json_payload() {
+    local label="$1"
+    local payload="$2"
+    if [ -z "$payload" ]; then
+        fail "$label returned empty"
+        return 1
+    fi
+    if echo "$payload" | python3 -m json.tool > /dev/null 2>&1; then
+        pass "$label returns valid JSON"
+        return 0
+    fi
+    fail "$label returned invalid JSON"
+    return 1
+}
+
+assert_json_shape() {
+    local label="$1"
+    local payload="$2"
+    local script="$3"
+    if echo "$payload" | python3 -c "$script"; then
+        pass "$label data shape is valid"
+    else
+        fail "$label data shape is invalid"
+    fi
+}
+
 TRANSACTIONS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/transactions/start_at/0/end_at/9999999999999?limit=25" 2>/dev/null || echo "")
-if [ -n "$TRANSACTIONS_JSON" ]; then
-    echo "$TRANSACTIONS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /transactions returns valid JSON"
-else
-    fail "GET /transactions returned empty"
+if validate_json_payload "GET /transactions" "$TRANSACTIONS_JSON"; then
+    assert_json_shape "GET /transactions" "$TRANSACTIONS_JSON" '''
+import json, sys
+from decimal import Decimal
+d = json.load(sys.stdin)
+rows = d.get("data", d) if isinstance(d, dict) else d
+if isinstance(rows, dict):
+    rows = rows.get("transactions", [])
+assert isinstance(rows, list), rows
+assert rows, "transactions endpoint has no projected business rows"
+allowed = {"BuyToken0", "SellToken0", "Swap"}
+for row in rows:
+    assert isinstance(row, dict), row
+    tx_type = row.get("transaction_type")
+    assert tx_type in allowed, row
+    assert row.get("pool_id") is not None or row.get("pool_application") is not None, row
+    assert int(row.get("timestamp") or row.get("created_at") or 0) > 0, row
+    movement = sum(Decimal(str(row.get(k) or 0)) for k in ("amount_0_in", "amount_0_out", "amount_1_in", "amount_1_out"))
+    assert movement > 0, row
+'''
 fi
 
-# /points (with no filters returns empty or data)
 POINTS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/points/token0/test/token1/test/start_at/0/end_at/9999999999999/interval/1m" 2>/dev/null || echo "")
-if [ -n "$POINTS_JSON" ]; then
-    echo "$POINTS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /points returns valid JSON"
-else
-    fail "GET /points returned empty"
+if validate_json_payload "GET /points" "$POINTS_JSON"; then
+    assert_json_shape "GET /points" "$POINTS_JSON" '''
+import json, sys
+d = json.load(sys.stdin)
+points = d.get("data", d.get("points", d)) if isinstance(d, dict) else d
+assert isinstance(points, list), points
+for point in points:
+    assert isinstance(point, dict), point
+    assert any(k in point for k in ("time", "timestamp", "bucket_start_ms", "start_at")), point
+'''
 fi
 
 POSITIONS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/positions?owner=$OWNER_ACCOUNT&status=all" 2>/dev/null || echo "")
-if [ -n "$POSITIONS_JSON" ]; then
-    echo "$POSITIONS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /positions returns valid JSON"
-else
-    fail "GET /positions returned empty"
+if validate_json_payload "GET /positions" "$POSITIONS_JSON"; then
+    assert_json_shape "GET /positions" "$POSITIONS_JSON" '''
+import json, sys
+d = json.load(sys.stdin)
+assert isinstance(d, dict), d
+rows = d.get("positions")
+assert isinstance(rows, list), d
+for row in rows:
+    assert isinstance(row, dict), row
+    assert row.get("status") in {"active", "closed", "virtual"}, row
+    assert row.get("pool_application") or row.get("pool_id") is not None, row
+'''
 fi
 
 POSITION_METRICS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/position-metrics?owner=$OWNER_ACCOUNT&status=all" 2>/dev/null || echo "")
-if [ -n "$POSITION_METRICS_JSON" ]; then
-    echo "$POSITION_METRICS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /position-metrics returns valid JSON"
-else
-    fail "GET /position-metrics returned empty"
+if validate_json_payload "GET /position-metrics" "$POSITION_METRICS_JSON"; then
+    assert_json_shape "GET /position-metrics" "$POSITION_METRICS_JSON" '''
+import json, sys
+d = json.load(sys.stdin)
+assert isinstance(d, dict), d
+rows = d.get("metrics")
+assert isinstance(rows, list), d
+for row in rows:
+    assert isinstance(row, dict), row
+    assert row.get("status") in {"active", "closed", "virtual"}, row
+    for key in ("redeemable_amount0", "redeemable_amount1", "fee_amount0", "fee_amount1", "protocol_fee_amount0", "protocol_fee_amount1"):
+        assert key in row, row
+'''
 fi
 
 POOL_STATS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/poolstats/interval/1d" 2>/dev/null || echo "")
-if [ -n "$POOL_STATS_JSON" ]; then
-    echo "$POOL_STATS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /poolstats/interval/1d returns valid JSON"
-else
-    fail "GET /poolstats/interval/1d returned empty"
+if validate_json_payload "GET /poolstats/interval/1d" "$POOL_STATS_JSON"; then
+    assert_json_shape "GET /poolstats/interval/1d" "$POOL_STATS_JSON" '''
+import json, sys
+d = json.load(sys.stdin)
+assert isinstance(d, dict), d
+assert d.get("interval") == "1d", d
+stats = d.get("stats")
+assert isinstance(stats, list), d
+for row in stats:
+    assert isinstance(row, dict), row
+    assert row.get("pool_id") is not None or row.get("pool_application") is not None, row
+'''
 fi
 
 PROTOCOL_STATS_JSON=$(curl -sf "http://localhost:$SERVICE_PORT/protocol/stats" 2>/dev/null || echo "")
-if [ -n "$PROTOCOL_STATS_JSON" ]; then
-    echo "$PROTOCOL_STATS_JSON" | python3 -m json.tool > /dev/null 2>&1 && pass "GET /protocol/stats returns valid JSON"
-else
-    fail "GET /protocol/stats returned empty"
+if validate_json_payload "GET /protocol/stats" "$PROTOCOL_STATS_JSON"; then
+    assert_json_shape "GET /protocol/stats" "$PROTOCOL_STATS_JSON" '''
+import json, sys
+from decimal import Decimal
+d = json.load(sys.stdin)
+assert isinstance(d, dict), d
+pool_count = int(d.get("pool_count", 0))
+assert pool_count > 0, d
+for key in ("tvl", "tvl_change", "volume", "fees"):
+    assert key in d, d
+    value = Decimal(str(d.get(key)))
+    assert value >= 0 or key == "tvl_change", d
+'''
 fi
 
 # Service log health check

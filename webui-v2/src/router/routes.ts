@@ -104,6 +104,13 @@ const routes: RouteRecordRaw[] = [
           NeedLogined: false,
         },
       },
+      {
+        path: 'pools/claim',
+        component: () => import('pages/ClaimPage.vue'),
+        meta: {
+          NeedLogined: false,
+        },
+      },
     ],
   },
 

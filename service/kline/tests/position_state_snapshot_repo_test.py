@@ -22,6 +22,8 @@ class FakeCursor:
 
     def execute(self, sql: str, params=None):
         self.executed.append((sql, params))
+        if self.connection.fail_on_insert and 'INSERT INTO position_state_v2' in sql:
+            raise RuntimeError('insert failed')
 
     def fetchone(self):
         return self.fetchone_result
@@ -34,7 +36,10 @@ class FakeConnection:
     def __init__(self):
         self.cursor_instances = []
         self.commit_count = 0
+        self.rollback_count = 0
+        self.start_transaction_count = 0
         self.fetchone_result = None
+        self.fail_on_insert = False
 
     def cursor(self, **_kwargs):
         cursor = FakeCursor(self)
@@ -44,6 +49,12 @@ class FakeConnection:
 
     def commit(self):
         self.commit_count += 1
+
+    def rollback(self):
+        self.rollback_count += 1
+
+    def start_transaction(self):
+        self.start_transaction_count += 1
 
 
 class PositionStateSnapshotRepositoryTest(unittest.TestCase):
@@ -141,6 +152,41 @@ class PositionStateSnapshotRepositoryTest(unittest.TestCase):
         self.assertEqual(delete_params, ('chain:owner-a', 'pool-app'))
         self.assertIn('INSERT INTO position_state_v2', insert_sql)
         self.assertEqual(connection.commit_count, 1)
+        self.assertEqual(connection.start_transaction_count, 1)
+        self.assertEqual(connection.rollback_count, 0)
+
+    def test_replace_position_states_rolls_back_when_upsert_fails(self):
+        connection = FakeConnection()
+        connection.fail_on_insert = True
+        repository = PositionStateSnapshotRepository(connection)
+
+        with self.assertRaisesRegex(RuntimeError, 'insert failed'):
+            repository.replace_position_states(
+                owner='chain:owner-a',
+                pool_application_id='pool-app',
+                states=[
+                    {
+                        'position_state_id': 'pos-active',
+                        'owner': 'chain:owner-a',
+                        'pool_application_id': 'pool-app',
+                        'pool_chain_id': 'pool-chain',
+                        'status': 'active',
+                        'basis_type': 'add_liquidity',
+                        'current_liquidity': '10',
+                        'basis_liquidity': '10',
+                        'basis_amount_0': '3',
+                        'basis_amount_1': '4',
+                        'basis_time_ms': 2234,
+                        'basis_transaction_id': 10,
+                        'source_event_key': 'evt-active',
+                        'state_payload_json': {},
+                    }
+                ],
+            )
+
+        self.assertEqual(connection.start_transaction_count, 1)
+        self.assertEqual(connection.commit_count, 0)
+        self.assertEqual(connection.rollback_count, 1)
 
 
 if __name__ == '__main__':

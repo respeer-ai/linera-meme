@@ -352,4 +352,43 @@ export class Wallet {
       error?.(JSON.stringify(e))
     }
   }
+
+  static claimTokenVariable = (token: string | undefined) => {
+    if (!token || token === constants.LINERA_NATIVE_ID || token === 'native') return undefined
+    return token
+  }
+
+  static _claim = async (pool: Pool, token: string | undefined, amount: string) => {
+    const variables = {
+      token: Wallet.claimTokenVariable(token),
+      amount,
+    }
+
+    const walletType = user.User.walletConnectedType()
+    const poolApplicationId = account._Account.accountApplication(
+      pool.poolApplication as account.Account,
+    ) as string
+
+    switch (walletType) {
+      case user.WalletType.CheCko:
+        return await CheCko.claim(poolApplicationId, variables)
+      case user.WalletType.Metamask:
+        return await LineraWebClient.claim(poolApplicationId, variables)
+    }
+  }
+
+  static claim = async (
+    pool: Pool,
+    token: string | undefined,
+    amount: string,
+    done?: () => void,
+    error?: (e: string) => void,
+  ) => {
+    try {
+      await Wallet._claim(pool, token, amount)
+      done?.()
+    } catch (e) {
+      error?.(JSON.stringify(e))
+    }
+  }
 }

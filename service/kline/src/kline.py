@@ -104,6 +104,11 @@ def _business_freshness_service():
     return _runtime().business_freshness_service()
 
 
+@app.get('/health')
+async def on_health():
+    return {'status': 'ok'}
+
+
 def _build_position_metrics_handler():
     dependencies = _position_metrics_dependencies()
     runtime = _runtime()

@@ -327,6 +327,11 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
         stored = {
             'current_liquidity': '1.18290546156792038',
             'status': 'active',
+            'basis_type': 'add_liquidity',
+            'basis_amount_0': '40',
+            'basis_amount_1': '0.035034615014873596',
+            'basis_time_ms': 1781572350615,
+            'basis_transaction_id': 3203,
             'state_payload_json': {
                 'added_liquidity': '1.18290546156792038',
                 'removed_liquidity': '0',
@@ -365,7 +370,11 @@ class PositionMetricsSnapshotMaterializerTest(unittest.TestCase):
         state = call['states'][0]
         self.assertEqual(state['status'], 'active')
         self.assertEqual(state['current_liquidity'], '1.18290546156792038')
-        self.assertEqual(state['basis_transaction_id'], None)
+        self.assertEqual(state['basis_type'], 'add_liquidity')
+        self.assertEqual(state['basis_amount_0'], '40')
+        self.assertEqual(state['basis_amount_1'], '0.035034615014873596')
+        self.assertEqual(state['basis_time_ms'], 1781572350615)
+        self.assertEqual(state['basis_transaction_id'], 3203)
         payload = state['state_payload_json']
         self.assertEqual(payload['removed_liquidity'], '0')
         self.assertEqual(payload['last_transaction_id'], 3700)

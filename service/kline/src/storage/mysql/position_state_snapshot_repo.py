@@ -71,6 +71,7 @@ class PositionStateSnapshotRepository:
         states: list[dict[str, object]],
     ) -> int:
         cursor = self.connection.cursor()
+        self._begin_transaction()
         try:
             cursor.execute(
                 f'''
@@ -84,8 +85,19 @@ class PositionStateSnapshotRepository:
                 self._execute_upsert(cursor, state)
             self.connection.commit()
             return len(states)
+        except Exception:
+            self._rollback()
+            raise
         finally:
             cursor.close()
+
+    def _begin_transaction(self) -> None:
+        if hasattr(self.connection, 'start_transaction'):
+            self.connection.start_transaction()
+
+    def _rollback(self) -> None:
+        if hasattr(self.connection, 'rollback'):
+            self.connection.rollback()
 
     def get_position_state(
         self,
