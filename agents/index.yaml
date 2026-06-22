@@ -150,6 +150,15 @@ navigation:
         - debugging claim/redeem/ownership issues
         - reviewing actor identity usage
         - verifying transaction actor persistence
+    - path: agents/primitives/generic-state-application.md
+      canonical_for:
+        - generic_state_application_split
+        - upgradeable_business_application_handoff
+        - state_business_application_boundary
+      when_to_read:
+        - designing contract upgrade mechanics
+        - separating state applications from business applications
+        - reviewing business app upgrade authorization
     - path: agents/primitives/liquidity-and-funds.md
       canonical_for:
         - lp_share_semantics
