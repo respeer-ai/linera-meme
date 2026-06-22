@@ -175,7 +175,7 @@ if [ "x$COMPILE" = "x1" ]; then
 fi
 
 function wait_kline_ready() {
-    local endpoint=http://localhost:25080/positions?owner=health&status=all
+    local endpoint=http://localhost:25080/health
 
     for attempt in $(seq 1 120); do
         if curl --noproxy '*' -fsS --max-time 2 "$endpoint" > /dev/null 2>&1; then

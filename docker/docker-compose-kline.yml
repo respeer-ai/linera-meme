@@ -6,7 +6,7 @@ services:
       - "25080:25080"
     command: [ "./kline-entrypoint.sh" ]
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:25080/positions?owner=health&status=all', timeout=2).read()"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:25080/health', timeout=2).read()"]
       interval: 5s
       timeout: 3s
       retries: 30
