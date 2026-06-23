@@ -34,6 +34,15 @@ for (const size of [0, 32, 128, 512, 2048]) {
     cases.push({ name: `call_application_echo_${size}_x${iterations}`, args: ['call-echo', calleeApp, String(size), String(iterations)], iterations, family: 'call_application_echo', size })
   }
 }
+
+for (const size of [32, 512, 2048]) {
+  for (const iterations of [1, 10]) {
+    cases.push({ name: `direct_state_read_${size}_x${iterations}`, args: ['direct-state-read', String(size), String(iterations)], iterations, family: 'direct_state_read', size })
+    cases.push({ name: `direct_state_write_${size}_x${iterations}`, args: ['direct-state-write', String(size), String(iterations)], iterations, family: 'direct_state_write', size })
+    cases.push({ name: `call_application_state_read_${size}_x${iterations}`, args: ['call-state-read', calleeApp, String(size), String(iterations)], iterations, family: 'call_application_state_read', size })
+    cases.push({ name: `call_application_state_write_${size}_x${iterations}`, args: ['call-state-write', calleeApp, String(size), String(iterations)], iterations, family: 'call_application_state_write', size })
+  }
+}
 for (const kind of ['amount', 'account-amount', 'pool-like-small', 'bytes512', 'bytes2048']) {
   for (const iterations of [1, 10]) {
     cases.push({ name: `call_application_decode_${kind}_x${iterations}`, args: ['call-decode', calleeApp, kind, String(iterations)], iterations, family: 'call_application_decode', kind })
@@ -121,6 +130,32 @@ const enriched = rows.map(row => {
   }
 })
 
+const byName = new Map(enriched.map(row => [row.name, row]))
+const stateComparisons = []
+for (const size of [32, 512, 2048]) {
+  const bcsEncode = byName.get(`bcs_encode_bytes${size}_x100`)
+  for (const iterations of [1, 10]) {
+    const directRead = byName.get(`direct_state_read_${size}_x${iterations}`)
+    const directWrite = byName.get(`direct_state_write_${size}_x${iterations}`)
+    const callRead = byName.get(`call_application_state_read_${size}_x${iterations}`)
+    const callWrite = byName.get(`call_application_state_write_${size}_x${iterations}`)
+    stateComparisons.push({
+      size,
+      iterations,
+      directReadPerIter: directRead?.perIter || '',
+      callApplicationReadPerIter: callRead?.perIter || '',
+      directWritePerIter: directWrite?.perIter || '',
+      callApplicationWritePerIter: callWrite?.perIter || '',
+      bcsEncodePerIter: bcsEncode?.perIter || '',
+      directReadDeltaUnits: directRead?.deltaUnits || '',
+      callApplicationReadDeltaUnits: callRead?.deltaUnits || '',
+      directWriteDeltaUnits: directWrite?.deltaUnits || '',
+      callApplicationWriteDeltaUnits: callWrite?.deltaUnits || '',
+      bcsEncodeDeltaUnits: bcsEncode?.deltaUnits || '',
+    })
+  }
+}
+
 console.table(enriched.map(({ name, gas, delta, perIter, iterations, operationBytes }) => ({
   name,
   gas,
@@ -129,4 +164,21 @@ console.table(enriched.map(({ name, gas, delta, perIter, iterations, operationBy
   iterations,
   operationBytes,
 })))
-console.log(JSON.stringify({ rpcUrl, chainId, callerApp, calleeApp, baseline: baseline.gas, rows: enriched }, null, 2))
+console.table(stateComparisons.map(({
+  size,
+  iterations,
+  directReadPerIter,
+  callApplicationReadPerIter,
+  directWritePerIter,
+  callApplicationWritePerIter,
+  bcsEncodePerIter,
+}) => ({
+  size,
+  iterations,
+  directReadPerIter,
+  callApplicationReadPerIter,
+  directWritePerIter,
+  callApplicationWritePerIter,
+  bcsEncodePerIter,
+})))
+console.log(JSON.stringify({ rpcUrl, chainId, callerApp, calleeApp, baseline: baseline.gas, rows: enriched, stateComparisons }, null, 2))

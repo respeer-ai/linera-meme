@@ -39,8 +39,12 @@ pub enum GasProbeCallerOperation {
         payload: Vec<u8>,
         iterations: u32,
     },
-    BcsRoundtrip {
-        payload_kind: PayloadKind,
+    DirectStateRead {
+        payload_size: u32,
+        iterations: u32,
+    },
+    DirectStateWrite {
+        payload_size: u32,
         iterations: u32,
     },
     CallApplicationNoop {
@@ -57,15 +61,35 @@ pub enum GasProbeCallerOperation {
         payload_kind: PayloadKind,
         iterations: u32,
     },
+    CallApplicationStateRead {
+        callee: ApplicationId<GasProbeCalleeAbi>,
+        payload_size: u32,
+        iterations: u32,
+    },
+    CallApplicationStateWrite {
+        callee: ApplicationId<GasProbeCalleeAbi>,
+        payload_size: u32,
+        iterations: u32,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum GasProbeCalleeOperation {
     Noop,
-    EchoBytes { payload: Vec<u8> },
+    EchoBytes {
+        payload: Vec<u8>,
+    },
     DecodeBytes {
         payload_kind: PayloadKind,
         payload: Vec<u8>,
+    },
+    StateRead {
+        payload_size: u32,
+        iteration: u32,
+    },
+    StateWrite {
+        payload_size: u32,
+        iteration: u32,
     },
 }
 

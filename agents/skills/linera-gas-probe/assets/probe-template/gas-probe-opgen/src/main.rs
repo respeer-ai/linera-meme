@@ -20,9 +20,13 @@ fn main() {
                 payload: encode_payload(payload_kind),
                 iterations: parse_u32(&args[3]),
             }
+        }
+        "direct-state-read" => GasProbeCallerOperation::DirectStateRead {
+            payload_size: parse_u32(&args[2]),
+            iterations: parse_u32(&args[3]),
         },
-        "bcs-roundtrip" => GasProbeCallerOperation::BcsRoundtrip {
-            payload_kind: parse_kind(&args[2]),
+        "direct-state-write" => GasProbeCallerOperation::DirectStateWrite {
+            payload_size: parse_u32(&args[2]),
             iterations: parse_u32(&args[3]),
         },
         "call-noop" => GasProbeCallerOperation::CallApplicationNoop {
@@ -39,6 +43,16 @@ fn main() {
             payload_kind: parse_kind(&args[3]),
             iterations: parse_u32(&args[4]),
         },
+        "call-state-read" => GasProbeCallerOperation::CallApplicationStateRead {
+            callee: parse_app(&args[2]),
+            payload_size: parse_u32(&args[3]),
+            iterations: parse_u32(&args[4]),
+        },
+        "call-state-write" => GasProbeCallerOperation::CallApplicationStateWrite {
+            callee: parse_app(&args[2]),
+            payload_size: parse_u32(&args[3]),
+            iterations: parse_u32(&args[4]),
+        },
         other => panic!("unknown case {other}"),
     };
     let bytes = bcs::to_bytes(&op).unwrap();
@@ -50,7 +64,9 @@ fn parse_u32(value: &str) -> u32 {
 }
 
 fn parse_app(value: &str) -> ApplicationId<GasProbeCalleeAbi> {
-    ApplicationId::from_str(value).unwrap().with_abi::<GasProbeCalleeAbi>()
+    ApplicationId::from_str(value)
+        .unwrap()
+        .with_abi::<GasProbeCalleeAbi>()
 }
 
 fn parse_kind(value: &str) -> PayloadKind {

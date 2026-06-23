@@ -55,6 +55,8 @@ Load this skill when the user writes `@skill:linera-gas-probe`, names `linera-ga
    - `call_application` noop fixed cost
    - `call_application` echo payload size slope
    - `call_application` plus callee decode
+   - direct state read/write versus `call_application` state read/write
+   - direct state read/write versus BCS encode for the same payload sizes
 11. Stop the local GraphQL service.
 12. Delete temporary probe directories unless the user asks to keep them.
 
@@ -66,7 +68,23 @@ Load this skill when the user writes `@skill:linera-gas-probe`, names `linera-ga
 - `call_application` cases: noop x1/x10/x100
 - Echo sizes: 0, 32, 128, 512, 2048 bytes with x1/x10
 - `call_application` decode cases: `amount`, `account-amount`, `pool-like-small`, `bytes512`, `bytes2048` with x1/x10
+- Direct state cases: `direct_state_read_<bytes>_xN` and `direct_state_write_<bytes>_xN` for 32, 512, and 2048 bytes with x1/x10
+- `call_application` state cases: `call_application_state_read_<bytes>_xN` and `call_application_state_write_<bytes>_xN` for 32, 512, and 2048 bytes with x1/x10
+- State read/write x10 cases must use distinct storage keys per iteration; read keys must be seeded during application instantiation, not written inside the measured operation.
 
+
+
+## State Read/Write Comparisons
+
+Use these rows together for read/write decisions:
+
+- Direct read cost: `direct_state_read_<bytes>_xN`
+- Direct write cost: `direct_state_write_<bytes>_xN`
+- Cross-application read cost: `call_application_state_read_<bytes>_xN`
+- Cross-application write cost: `call_application_state_write_<bytes>_xN`
+- Pure serialization cost: `bcs_encode_bytes<bytes>_x100`
+
+Compare rows by `per_iter` after subtracting `noop`. The direct state rows execute inside the caller application. The `call_application` state rows execute the read or write inside the callee application and include the cross-application call overhead.
 
 ## Iteration Suffixes
 

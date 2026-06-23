@@ -4,10 +4,19 @@ use gas_probe_abi::{
     decode_payload, encode_payload, GasProbeCalleeOperation, GasProbeCallerAbi,
     GasProbeCallerOperation, GasProbeResponse,
 };
-use linera_sdk::{linera_base_types::WithContractAbi, Contract, ContractRuntime};
+use linera_sdk::{
+    linera_base_types::WithContractAbi,
+    views::{RootView, View},
+    Contract, ContractRuntime,
+};
+
+mod state;
+
+use state::GasProbeCallerState;
 
 pub struct GasProbeCallerContract {
     runtime: ContractRuntime<Self>,
+    state: GasProbeCallerState,
 }
 
 linera_sdk::contract!(GasProbeCallerContract);
@@ -23,10 +32,15 @@ impl Contract for GasProbeCallerContract {
     type EventValue = ();
 
     async fn load(runtime: ContractRuntime<Self>) -> Self {
-        Self { runtime }
+        let state = GasProbeCallerState::load(runtime.root_view_storage_context())
+            .await
+            .expect("failed to load caller state");
+        Self { runtime, state }
     }
 
-    async fn instantiate(&mut self, _argument: Self::InstantiationArgument) {}
+    async fn instantiate(&mut self, _argument: Self::InstantiationArgument) {
+        seed_state(&mut self.state).expect("failed to seed caller state");
+    }
 
     async fn execute_operation(&mut self, operation: GasProbeCallerOperation) -> Self::Response {
         match operation {
@@ -50,13 +64,31 @@ impl Contract for GasProbeCallerContract {
                 }
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::BcsRoundtrip {
-                payload_kind,
+            GasProbeCallerOperation::DirectStateRead {
+                payload_size,
                 iterations,
             } => {
-                for _ in 0..iterations {
-                    let payload = encode_payload(payload_kind);
-                    decode_payload(payload_kind, &payload);
+                for iteration in 0..iterations {
+                    let _bytes = self
+                        .state
+                        .bytes_by_size
+                        .get(&read_key(payload_size, iteration))
+                        .await
+                        .expect("failed to read caller state")
+                        .expect("missing seeded caller state");
+                }
+                GasProbeResponse::Ok
+            }
+            GasProbeCallerOperation::DirectStateWrite {
+                payload_size,
+                iterations,
+            } => {
+                let payload = vec![7; payload_size as usize];
+                for iteration in 0..iterations {
+                    self.state
+                        .bytes_by_size
+                        .insert(&write_key(payload_size, iteration), payload.clone())
+                        .expect("failed to write caller state");
                 }
                 GasProbeResponse::Ok
             }
@@ -103,10 +135,68 @@ impl Contract for GasProbeCallerContract {
                 }
                 GasProbeResponse::Ok
             }
+            GasProbeCallerOperation::CallApplicationStateRead {
+                callee,
+                payload_size,
+                iterations,
+            } => {
+                for iteration in 0..iterations {
+                    let _response = self.runtime.call_application(
+                        true,
+                        callee,
+                        &GasProbeCalleeOperation::StateRead {
+                            payload_size,
+                            iteration,
+                        },
+                    );
+                }
+                GasProbeResponse::Ok
+            }
+            GasProbeCallerOperation::CallApplicationStateWrite {
+                callee,
+                payload_size,
+                iterations,
+            } => {
+                for iteration in 0..iterations {
+                    let _response = self.runtime.call_application(
+                        true,
+                        callee,
+                        &GasProbeCalleeOperation::StateWrite {
+                            payload_size,
+                            iteration,
+                        },
+                    );
+                }
+                GasProbeResponse::Ok
+            }
         }
     }
 
     async fn execute_message(&mut self, _message: Self::Message) {}
 
-    async fn store(self) {}
+    async fn store(mut self) {
+        self.state
+            .save()
+            .await
+            .expect("failed to save caller state");
+    }
+}
+
+fn seed_state(state: &mut GasProbeCallerState) -> Result<(), linera_sdk::views::ViewError> {
+    for size in [32, 512, 2048] {
+        for iteration in 0..10 {
+            state
+                .bytes_by_size
+                .insert(&read_key(size, iteration), vec![7; size as usize])?;
+        }
+    }
+    Ok(())
+}
+
+fn read_key(payload_size: u32, iteration: u32) -> u32 {
+    payload_size * 1_000 + iteration
+}
+
+fn write_key(payload_size: u32, iteration: u32) -> u32 {
+    payload_size * 1_000 + 100 + iteration
 }
