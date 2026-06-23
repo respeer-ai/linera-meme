@@ -21,12 +21,28 @@ fn main() {
                 iterations: parse_u32(&args[3]),
             }
         }
-        "direct-state-read" => GasProbeCallerOperation::DirectStateRead {
+        "raw-state-read" => GasProbeCallerOperation::RawStateRead {
             payload_size: parse_u32(&args[2]),
             iterations: parse_u32(&args[3]),
         },
-        "direct-state-write" => GasProbeCallerOperation::DirectStateWrite {
+        "raw-state-write" => GasProbeCallerOperation::RawStateWrite {
             payload_size: parse_u32(&args[2]),
+            iterations: parse_u32(&args[3]),
+        },
+        "typed-state-read" => GasProbeCallerOperation::TypedStateRead {
+            payload_kind: parse_kind(&args[2]),
+            iterations: parse_u32(&args[3]),
+        },
+        "typed-state-write" => GasProbeCallerOperation::TypedStateWrite {
+            payload_kind: parse_kind(&args[2]),
+            iterations: parse_u32(&args[3]),
+        },
+        "generic-state-bcs-encode-write" => GasProbeCallerOperation::GenericStateBcsEncodeWrite {
+            payload_kind: parse_kind(&args[2]),
+            iterations: parse_u32(&args[3]),
+        },
+        "generic-state-read-bcs-decode" => GasProbeCallerOperation::GenericStateReadBcsDecode {
+            payload_kind: parse_kind(&args[2]),
             iterations: parse_u32(&args[3]),
         },
         "call-noop" => GasProbeCallerOperation::CallApplicationNoop {
@@ -43,16 +59,20 @@ fn main() {
             payload_kind: parse_kind(&args[3]),
             iterations: parse_u32(&args[4]),
         },
-        "call-state-read" => GasProbeCallerOperation::CallApplicationStateRead {
-            callee: parse_app(&args[2]),
-            payload_size: parse_u32(&args[3]),
-            iterations: parse_u32(&args[4]),
-        },
-        "call-state-write" => GasProbeCallerOperation::CallApplicationStateWrite {
-            callee: parse_app(&args[2]),
-            payload_size: parse_u32(&args[3]),
-            iterations: parse_u32(&args[4]),
-        },
+        "call-generic-state-bcs-encode-write" => {
+            GasProbeCallerOperation::CallApplicationGenericStateBcsEncodeWrite {
+                callee: parse_app(&args[2]),
+                payload_kind: parse_kind(&args[3]),
+                iterations: parse_u32(&args[4]),
+            }
+        }
+        "call-generic-state-read-bcs-decode" => {
+            GasProbeCallerOperation::CallApplicationGenericStateReadBcsDecode {
+                callee: parse_app(&args[2]),
+                payload_kind: parse_kind(&args[3]),
+                iterations: parse_u32(&args[4]),
+            }
+        }
         other => panic!("unknown case {other}"),
     };
     let bytes = bcs::to_bytes(&op).unwrap();

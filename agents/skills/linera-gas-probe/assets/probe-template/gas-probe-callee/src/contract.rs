@@ -49,30 +49,29 @@ impl Contract for GasProbeCalleeContract {
                 decode_payload(payload_kind, &payload);
                 GasProbeResponse::Ok
             }
-            GasProbeCalleeOperation::StateRead {
-                payload_size,
+            GasProbeCalleeOperation::GenericStateReadBytes {
+                payload_kind,
                 iteration,
             } => {
-                let _bytes = self
+                let bytes = self
                     .state
                     .bytes_by_size
-                    .get(&read_key(payload_size, iteration))
+                    .get(&generic_key(payload_kind, iteration))
                     .await
-                    .expect("failed to read callee state")
-                    .expect("missing seeded callee state");
+                    .expect("failed to read callee generic state")
+                    .expect("missing seeded callee generic state");
+                decode_payload(payload_kind, &bytes);
                 GasProbeResponse::Ok
             }
-            GasProbeCalleeOperation::StateWrite {
-                payload_size,
+            GasProbeCalleeOperation::GenericStateWriteBytes {
+                payload_kind,
                 iteration,
+                payload,
             } => {
                 self.state
                     .bytes_by_size
-                    .insert(
-                        &write_key(payload_size, iteration),
-                        vec![7; payload_size as usize],
-                    )
-                    .expect("failed to write callee state");
+                    .insert(&generic_key(payload_kind, iteration), payload)
+                    .expect("failed to write callee generic state");
                 GasProbeResponse::Ok
             }
         }
@@ -89,20 +88,36 @@ impl Contract for GasProbeCalleeContract {
 }
 
 fn seed_state(state: &mut GasProbeCalleeState) -> Result<(), linera_sdk::views::ViewError> {
-    for size in [32, 512, 2048] {
+    for kind in [
+        gas_probe_abi::PayloadKind::Amount,
+        gas_probe_abi::PayloadKind::AccountAmount,
+        gas_probe_abi::PayloadKind::PoolLikeSmall,
+        gas_probe_abi::PayloadKind::Bytes512,
+        gas_probe_abi::PayloadKind::Bytes2048,
+    ] {
         for iteration in 0..10 {
-            state
-                .bytes_by_size
-                .insert(&read_key(size, iteration), vec![7; size as usize])?;
+            state.bytes_by_size.insert(
+                &generic_key(kind, iteration),
+                gas_probe_abi::encode_payload(kind),
+            )?;
         }
     }
     Ok(())
 }
 
-fn read_key(payload_size: u32, iteration: u32) -> u32 {
-    payload_size * 1_000 + iteration
+fn generic_key(payload_kind: gas_probe_abi::PayloadKind, iteration: u32) -> u32 {
+    1_000_000 + payload_kind_index(payload_kind) * 100 + iteration
 }
 
-fn write_key(payload_size: u32, iteration: u32) -> u32 {
-    payload_size * 1_000 + 100 + iteration
+fn payload_kind_index(payload_kind: gas_probe_abi::PayloadKind) -> u32 {
+    match payload_kind {
+        gas_probe_abi::PayloadKind::Amount => 1,
+        gas_probe_abi::PayloadKind::Account => 2,
+        gas_probe_abi::PayloadKind::AccountAmount => 3,
+        gas_probe_abi::PayloadKind::PoolLikeSmall => 4,
+        gas_probe_abi::PayloadKind::Bytes32 => 5,
+        gas_probe_abi::PayloadKind::Bytes128 => 6,
+        gas_probe_abi::PayloadKind::Bytes512 => 7,
+        gas_probe_abi::PayloadKind::Bytes2048 => 8,
+    }
 }

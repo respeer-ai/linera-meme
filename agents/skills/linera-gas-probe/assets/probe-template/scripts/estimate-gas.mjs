@@ -35,12 +35,28 @@ for (const size of [0, 32, 128, 512, 2048]) {
   }
 }
 
+const genericPayloadKinds = [
+  { kind: 'amount', size: 8 },
+  { kind: 'account-amount', size: 48 },
+  { kind: 'pool-like-small', size: 212 },
+  { kind: 'bytes512', size: 512 },
+  { kind: 'bytes2048', size: 2048 },
+]
+
 for (const size of [32, 512, 2048]) {
   for (const iterations of [1, 10]) {
-    cases.push({ name: `direct_state_read_${size}_x${iterations}`, args: ['direct-state-read', String(size), String(iterations)], iterations, family: 'direct_state_read', size })
-    cases.push({ name: `direct_state_write_${size}_x${iterations}`, args: ['direct-state-write', String(size), String(iterations)], iterations, family: 'direct_state_write', size })
-    cases.push({ name: `call_application_state_read_${size}_x${iterations}`, args: ['call-state-read', calleeApp, String(size), String(iterations)], iterations, family: 'call_application_state_read', size })
-    cases.push({ name: `call_application_state_write_${size}_x${iterations}`, args: ['call-state-write', calleeApp, String(size), String(iterations)], iterations, family: 'call_application_state_write', size })
+    cases.push({ name: `raw_state_read_bytes${size}_x${iterations}`, args: ['raw-state-read', String(size), String(iterations)], iterations, family: 'raw_state_read', size })
+    cases.push({ name: `raw_state_write_bytes${size}_x${iterations}`, args: ['raw-state-write', String(size), String(iterations)], iterations, family: 'raw_state_write', size })
+  }
+}
+for (const { kind, size } of genericPayloadKinds) {
+  for (const iterations of [1, 10]) {
+    cases.push({ name: `typed_state_read_${kind}_x${iterations}`, args: ['typed-state-read', kind, String(iterations)], iterations, family: 'typed_state_read', kind, size })
+    cases.push({ name: `typed_state_write_${kind}_x${iterations}`, args: ['typed-state-write', kind, String(iterations)], iterations, family: 'typed_state_write', kind, size })
+    cases.push({ name: `generic_state_bcs_encode_write_${kind}_x${iterations}`, args: ['generic-state-bcs-encode-write', kind, String(iterations)], iterations, family: 'generic_state_bcs_encode_write', kind, size })
+    cases.push({ name: `generic_state_read_bcs_decode_${kind}_x${iterations}`, args: ['generic-state-read-bcs-decode', kind, String(iterations)], iterations, family: 'generic_state_read_bcs_decode', kind, size })
+    cases.push({ name: `call_application_generic_state_bcs_encode_write_${kind}_x${iterations}`, args: ['call-generic-state-bcs-encode-write', calleeApp, kind, String(iterations)], iterations, family: 'call_application_generic_state_bcs_encode_write', kind, size })
+    cases.push({ name: `call_application_generic_state_read_bcs_decode_${kind}_x${iterations}`, args: ['call-generic-state-read-bcs-decode', calleeApp, kind, String(iterations)], iterations, family: 'call_application_generic_state_read_bcs_decode', kind, size })
   }
 }
 for (const kind of ['amount', 'account-amount', 'pool-like-small', 'bytes512', 'bytes2048']) {
@@ -77,8 +93,8 @@ function unitsToDecimal(units) {
   const sign = units < 0n ? '-' : ''
   const abs = units < 0n ? -units : units
   const whole = abs / 1000000000000000000n
-  const frac = String(abs % 1000000000000000000n).padStart(18, '0').replace(/0+$/, '')
-  return sign + String(whole) + (frac ? `.${frac}` : '')
+  const frac = String(abs % 1000000000000000000n).padStart(18, '0')
+  return `${sign}${whole}.${frac}`
 }
 
 const materialQuery = `query blockMaterialWithDefaultChain($chainId: ChainId, $maxPendingMessages: Int!) {
@@ -131,27 +147,56 @@ const enriched = rows.map(row => {
 })
 
 const byName = new Map(enriched.map(row => [row.name, row]))
-const stateComparisons = []
+const rawStateComparisons = []
 for (const size of [32, 512, 2048]) {
-  const bcsEncode = byName.get(`bcs_encode_bytes${size}_x100`)
   for (const iterations of [1, 10]) {
-    const directRead = byName.get(`direct_state_read_${size}_x${iterations}`)
-    const directWrite = byName.get(`direct_state_write_${size}_x${iterations}`)
-    const callRead = byName.get(`call_application_state_read_${size}_x${iterations}`)
-    const callWrite = byName.get(`call_application_state_write_${size}_x${iterations}`)
-    stateComparisons.push({
+    const rawRead = byName.get(`raw_state_read_bytes${size}_x${iterations}`)
+    const rawWrite = byName.get(`raw_state_write_bytes${size}_x${iterations}`)
+    rawStateComparisons.push({
       size,
       iterations,
-      directReadPerIter: directRead?.perIter || '',
-      callApplicationReadPerIter: callRead?.perIter || '',
-      directWritePerIter: directWrite?.perIter || '',
-      callApplicationWritePerIter: callWrite?.perIter || '',
+      rawReadPerIter: rawRead?.perIter || '',
+      rawWritePerIter: rawWrite?.perIter || '',
+      rawReadDeltaUnits: rawRead?.deltaUnits || '',
+      rawWriteDeltaUnits: rawWrite?.deltaUnits || '',
+    })
+  }
+}
+
+const genericComparisons = []
+for (const { kind, size } of genericPayloadKinds) {
+  const bcsEncode = byName.get(`bcs_encode_${kind}_x100`)
+  const bcsDecode = byName.get(`bcs_decode_${kind}_x100`)
+  const rawSize = [32, 512, 2048].includes(size) ? size : ''
+  for (const iterations of [1, 10]) {
+    const rawRead = rawSize ? byName.get(`raw_state_read_bytes${rawSize}_x${iterations}`) : undefined
+    const rawWrite = rawSize ? byName.get(`raw_state_write_bytes${rawSize}_x${iterations}`) : undefined
+    const typedRead = byName.get(`typed_state_read_${kind}_x${iterations}`)
+    const typedWrite = byName.get(`typed_state_write_${kind}_x${iterations}`)
+    const genericWrite = byName.get(`generic_state_bcs_encode_write_${kind}_x${iterations}`)
+    const genericRead = byName.get(`generic_state_read_bcs_decode_${kind}_x${iterations}`)
+    const callGenericWrite = byName.get(`call_application_generic_state_bcs_encode_write_${kind}_x${iterations}`)
+    const callGenericRead = byName.get(`call_application_generic_state_read_bcs_decode_${kind}_x${iterations}`)
+    genericComparisons.push({
+      kind,
+      size,
+      iterations,
+      rawReadPerIter: rawRead?.perIter || '',
+      rawWritePerIter: rawWrite?.perIter || '',
+      typedReadPerIter: typedRead?.perIter || '',
+      typedWritePerIter: typedWrite?.perIter || '',
       bcsEncodePerIter: bcsEncode?.perIter || '',
-      directReadDeltaUnits: directRead?.deltaUnits || '',
-      callApplicationReadDeltaUnits: callRead?.deltaUnits || '',
-      directWriteDeltaUnits: directWrite?.deltaUnits || '',
-      callApplicationWriteDeltaUnits: callWrite?.deltaUnits || '',
-      bcsEncodeDeltaUnits: bcsEncode?.deltaUnits || '',
+      bcsDecodePerIter: bcsDecode?.perIter || '',
+      genericWritePerIter: genericWrite?.perIter || '',
+      genericReadPerIter: genericRead?.perIter || '',
+      callGenericWritePerIter: callGenericWrite?.perIter || '',
+      callGenericReadPerIter: callGenericRead?.perIter || '',
+      typedReadDeltaUnits: typedRead?.deltaUnits || '',
+      typedWriteDeltaUnits: typedWrite?.deltaUnits || '',
+      genericWriteDeltaUnits: genericWrite?.deltaUnits || '',
+      genericReadDeltaUnits: genericRead?.deltaUnits || '',
+      callGenericWriteDeltaUnits: callGenericWrite?.deltaUnits || '',
+      callGenericReadDeltaUnits: callGenericRead?.deltaUnits || '',
     })
   }
 }
@@ -164,21 +209,44 @@ console.table(enriched.map(({ name, gas, delta, perIter, iterations, operationBy
   iterations,
   operationBytes,
 })))
-console.table(stateComparisons.map(({
+console.table(rawStateComparisons.map(({
   size,
   iterations,
-  directReadPerIter,
-  callApplicationReadPerIter,
-  directWritePerIter,
-  callApplicationWritePerIter,
-  bcsEncodePerIter,
+  rawReadPerIter,
+  rawWritePerIter,
 }) => ({
   size,
   iterations,
-  directReadPerIter,
-  callApplicationReadPerIter,
-  directWritePerIter,
-  callApplicationWritePerIter,
-  bcsEncodePerIter,
+  rawReadPerIter,
+  rawWritePerIter,
 })))
-console.log(JSON.stringify({ rpcUrl, chainId, callerApp, calleeApp, baseline: baseline.gas, rows: enriched, stateComparisons }, null, 2))
+console.table(genericComparisons.map(({
+  kind,
+  size,
+  iterations,
+  rawReadPerIter,
+  rawWritePerIter,
+  typedReadPerIter,
+  typedWritePerIter,
+  bcsEncodePerIter,
+  bcsDecodePerIter,
+  genericWritePerIter,
+  genericReadPerIter,
+  callGenericWritePerIter,
+  callGenericReadPerIter,
+}) => ({
+  kind,
+  size,
+  iterations,
+  rawReadPerIter,
+  rawWritePerIter,
+  typedReadPerIter,
+  typedWritePerIter,
+  bcsEncodePerIter,
+  bcsDecodePerIter,
+  genericWritePerIter,
+  genericReadPerIter,
+  callGenericWritePerIter,
+  callGenericReadPerIter,
+})))
+console.log(JSON.stringify({ rpcUrl, chainId, callerApp, calleeApp, baseline: baseline.gas, rows: enriched, rawStateComparisons, genericComparisons }, null, 2))
