@@ -181,4 +181,4 @@ Canonical DDL-adjacent operational schema and write rules for Layer 1 ingestion.
 - `agents/primitives/observability-schema.md`
 - `agents/primitives/observability-storage.md`
 - `agents/primitives/observability-interfaces.md`
-- `agents/runbooks/observability-deliverables.md`
+- `agents/skills/observability-deliverables/SKILL.md`

@@ -1,0 +1,21 @@
+[package]
+name = "gas-probe-caller"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait.workspace = true
+linera-sdk.workspace = true
+linera-views.workspace = true
+serde.workspace = true
+bcs.workspace = true
+gas-probe-abi = { path = "../gas-probe-abi" }
+
+[[bin]]
+name = "gas_probe_caller_contract"
+path = "src/contract.rs"
+
+
+[[bin]]
+name = "gas_probe_caller_service"
+path = "src/service.rs"

@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "gas-probe-opgen",
+    "gas-probe-abi",
+    "gas-probe-caller",
+    "gas-probe-callee",
+]
+resolver = "2"
+
+[workspace.dependencies]
+async-trait = "0.1.77"
+linera-sdk = { version = "0.15.8" }
+linera-views = { version = "0.15.8", default-features = false }
+serde = { version = "1.0.152", features = ["derive"] }
+bcs = "0.1.3"
+
+[patch.crates-io.linera-sdk]
+git = "https://github.com/respeer-ai/linera-protocol.git"
+rev = "e53042bf"

@@ -1,0 +1,37 @@
+version: 1
+rule: Load `agents/skills/<name>/SKILL.md` when the user writes `@skill:<name>`, names the skill, or when `agents/index.yaml` routes the task to that skill. `$` is reserved for Codex global skills and does not discover project-local skills.
+skills:
+  - name: bug-investigation
+    path: agents/skills/bug-investigation/SKILL.md
+  - name: full-product-e2e
+    path: agents/skills/full-product-e2e/SKILL.md
+  - name: kline-capability-mapping
+    path: agents/skills/kline-capability-mapping/SKILL.md
+  - name: kline-phase1-checklists
+    path: agents/skills/kline-phase1-checklists/SKILL.md
+  - name: kline-phase1-plan
+    path: agents/skills/kline-phase1-plan/SKILL.md
+  - name: kline-phase1-rollout
+    path: agents/skills/kline-phase1-rollout/SKILL.md
+  - name: kline-phase1-workbreakdown
+    path: agents/skills/kline-phase1-workbreakdown/SKILL.md
+  - name: kline-service-migration
+    path: agents/skills/kline-service-migration/SKILL.md
+  - name: linera-gas-probe
+    path: agents/skills/linera-gas-probe/SKILL.md
+  - name: local-deployment
+    path: agents/skills/local-deployment/SKILL.md
+  - name: observability-deliverables
+    path: agents/skills/observability-deliverables/SKILL.md
+  - name: observability-fail-open-operations
+    path: agents/skills/observability-fail-open-operations/SKILL.md
+  - name: observability-implementation
+    path: agents/skills/observability-implementation/SKILL.md
+  - name: observability-layer1-rollout
+    path: agents/skills/observability-layer1-rollout/SKILL.md
+  - name: observability-migration
+    path: agents/skills/observability-migration/SKILL.md
+  - name: observability-product-mapping
+    path: agents/skills/observability-product-mapping/SKILL.md
+  - name: testing
+    path: agents/skills/testing/SKILL.md

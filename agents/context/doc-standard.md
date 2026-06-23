@@ -31,7 +31,7 @@ Authority: High
 - Do not keep default prompt-routing state in prose docs
 - Do not duplicate `prompt-state.yaml` summaries into broad prose files unless they are canonical semantics
 - In YAML task files, use block scalars for long notes and keep notes machine-safe
-- If a runbook or context file mentions a task, reference its task id only
+- If a skill or context file mentions a task, reference its task id only
 
 ## Checklist
 
@@ -39,7 +39,7 @@ Authority: High
    ```md
    # <doc title>
 
-   Type: <Rules|Context|Primitive|Runbook|Standard>
+   Type: <Rules|Context|Primitive|Skill|Standard>
    Audience: Coding assistants
    Authority: <High|Medium|Low>
    ```

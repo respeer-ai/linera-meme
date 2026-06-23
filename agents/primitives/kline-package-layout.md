@@ -208,5 +208,5 @@ flowchart LR
 ## Sources
 
 - `agents/context/kline-service-architecture.md`
-- `agents/runbooks/kline-service-migration.md`
-- `agents/runbooks/kline-capability-mapping.md`
+- `agents/skills/kline-service-migration/SKILL.md`
+- `agents/skills/kline-capability-mapping/SKILL.md`

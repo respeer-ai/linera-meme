@@ -1,0 +1,9 @@
+[package]
+name = "gas-probe-abi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+linera-sdk.workspace = true
+serde.workspace = true
+bcs.workspace = true

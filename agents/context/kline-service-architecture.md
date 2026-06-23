@@ -163,5 +163,5 @@ flowchart LR
 - `agents/context/system-map.md`
 - `agents/context/current-capabilities.md`
 - `agents/context/observability-architecture.md`
-- `agents/runbooks/observability-product-mapping.md`
-- `agents/runbooks/observability-fail-open-operations.md`
+- `agents/skills/observability-product-mapping/SKILL.md`
+- `agents/skills/observability-fail-open-operations/SKILL.md`

@@ -254,5 +254,5 @@ Canonical mapping from existing kline APIs to target read models, serializers, a
 ## Sources
 
 - `agents/primitives/kline-package-layout.md`
-- `agents/runbooks/kline-capability-mapping.md`
-- `agents/runbooks/observability-product-mapping.md`
+- `agents/skills/kline-capability-mapping/SKILL.md`
+- `agents/skills/observability-product-mapping/SKILL.md`

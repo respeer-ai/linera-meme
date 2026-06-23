@@ -25,22 +25,22 @@ decision_map:
     read_first:
       - agents/primitives/identity-and-origin.md
       - agents/primitives/cross-chain.md
-      - agents/runbooks/bug-investigation.md
+      - agents/skills/bug-investigation/SKILL.md
   chart_discrepancy:
     read_first:
       - agents/primitives/data-sources.md
       - agents/context/current-capabilities.md
-      - agents/runbooks/bug-investigation.md
+      - agents/skills/bug-investigation/SKILL.md
   positions_bug:
     read_first:
       - agents/primitives/liquidity-and-funds.md
       - agents/primitives/identity-and-origin.md
       - agents/context/current-capabilities.md
-      - agents/runbooks/bug-investigation.md
+      - agents/skills/bug-investigation/SKILL.md
   deployment_issue:
     read_first:
       - agents/primitives/service-routing.md
-      - agents/runbooks/local-deployment.md
+      - agents/skills/local-deployment/SKILL.md
       - docker/AGENTS.md
   funds_consistency_issue:
     read_first:
@@ -50,15 +50,15 @@ decision_map:
       - agents/primitives/funding/open-issues.md
       - agents/primitives/liquidity-and-funds.md
       - agents/primitives/cross-chain.md
-      - agents/runbooks/bug-investigation.md
+      - agents/skills/bug-investigation/SKILL.md
   async_contract_issue:
     read_first:
       - agents/primitives/cross-chain.md
       - agents/primitives/identity-and-origin.md
-      - agents/runbooks/bug-investigation.md
+      - agents/skills/bug-investigation/SKILL.md
   testing_task:
     read_first:
-      - agents/runbooks/testing.md
+      - agents/skills/testing/SKILL.md
       - agents/context/project-rules.md
       - agents/tasks/prompt-state.yaml
 navigation:
@@ -327,8 +327,8 @@ navigation:
         - defining kline semantics
         - designing application payload decoding
         - mapping normalized events into transactions positions or candles
-  runbooks:
-    - path: agents/runbooks/bug-investigation.md
+  skills:
+    - path: agents/skills/bug-investigation/SKILL.md
       canonical_for:
         - bug_investigation_flow
       when_to_read:
@@ -344,7 +344,7 @@ navigation:
       stop_conditions:
         - root cause proven and fixed
         - unresolved external blocker identified
-    - path: agents/runbooks/local-deployment.md
+    - path: agents/skills/local-deployment/SKILL.md
       canonical_for:
         - local_deployment_flow
       when_to_read:
@@ -360,7 +360,7 @@ navigation:
       stop_conditions:
         - startup path corrected and validated
         - unresolved external environment blocker identified
-    - path: agents/runbooks/full-product-e2e.md
+    - path: agents/skills/full-product-e2e/SKILL.md
       canonical_for:
         - full_product_e2e
         - run_local_product_validation
@@ -379,7 +379,7 @@ navigation:
       stop_conditions:
         - product workflow E2E completed
         - explicit environment or protocol blocker identified
-    - path: agents/runbooks/testing.md
+    - path: agents/skills/testing/SKILL.md
       canonical_for:
         - testing_expectations
       when_to_read:
@@ -394,7 +394,7 @@ navigation:
       stop_conditions:
         - required tests executed
         - verification blocker identified explicitly
-    - path: agents/runbooks/observability-implementation.md
+    - path: agents/skills/observability-implementation/SKILL.md
       canonical_for:
         - observability_implementation_order
         - latest_transactions_migration_sequence
@@ -411,7 +411,7 @@ navigation:
       stop_conditions:
         - raw ingestion is replay-safe
         - kline is sourced from Layer 3 instead of latestTransactions
-    - path: agents/runbooks/kline-service-migration.md
+    - path: agents/skills/kline-service-migration/SKILL.md
       canonical_for:
         - kline_whole_service_migration
         - monolith_to_modular_kline_sequence
@@ -430,7 +430,7 @@ navigation:
       stop_conditions:
         - all current kline responsibilities are rehomed into the new architecture
         - public APIs remain covered
-    - path: agents/runbooks/kline-capability-mapping.md
+    - path: agents/skills/kline-capability-mapping/SKILL.md
       canonical_for:
         - current_kline_capability_inventory
         - endpoint_to_module_mapping
@@ -450,7 +450,7 @@ navigation:
       stop_conditions:
         - all current kline capabilities are assigned to target modules
         - non-query operator flows are explicitly separated
-    - path: agents/runbooks/kline-phase1-plan.md
+    - path: agents/skills/kline-phase1-plan/SKILL.md
       canonical_for:
         - kline_first_implementation_phase
         - kline_migration_priority_order
@@ -470,7 +470,7 @@ navigation:
       stop_conditions:
         - phase-1 implementation scope is explicit
         - phase-2 handoff is explicit
-    - path: agents/runbooks/kline-phase1-workbreakdown.md
+    - path: agents/skills/kline-phase1-workbreakdown/SKILL.md
       canonical_for:
         - kline_phase1_task_breakdown
         - kline_phase1_work_packages
@@ -489,7 +489,7 @@ navigation:
       stop_conditions:
         - phase-1 work is split into executable packages
         - priority-1 endpoint migration has an explicit path
-    - path: agents/runbooks/kline-phase1-checklists.md
+    - path: agents/skills/kline-phase1-checklists/SKILL.md
       canonical_for:
         - kline_phase1_task_checklists
         - pos_036_to_pos_041_checklists
@@ -507,7 +507,7 @@ navigation:
       stop_conditions:
         - each phase-1 task has an explicit checklist
         - completion criteria are reviewable
-    - path: agents/runbooks/observability-migration.md
+    - path: agents/skills/observability-migration/SKILL.md
       canonical_for:
         - observability_product_migration
         - existing_table_cutover_plan
@@ -523,7 +523,7 @@ navigation:
       stop_conditions:
         - latestTransactions is no longer a truth source
         - product-facing tables are fed by Layer 3
-    - path: agents/runbooks/observability-product-mapping.md
+    - path: agents/skills/observability-product-mapping/SKILL.md
       canonical_for:
         - observability_existing_table_mapping
         - layer3_to_product_contract_mapping
@@ -542,7 +542,7 @@ navigation:
       stop_conditions:
         - each existing product surface has a Layer 3 upstream mapping
         - cutover preserves public query contract
-    - path: agents/runbooks/observability-layer1-rollout.md
+    - path: agents/skills/observability-layer1-rollout/SKILL.md
       canonical_for:
         - layer1_schema_rollout_sequence
         - pos_031_migration_order
@@ -561,7 +561,7 @@ navigation:
       stop_conditions:
         - Layer 1 rollout order is implementation-ready
         - POS-032 has a clean handoff point
-    - path: agents/runbooks/observability-deliverables.md
+    - path: agents/skills/observability-deliverables/SKILL.md
       canonical_for:
         - observability_task_deliverables
         - pos_031_to_pos_035_execution_contract
@@ -579,6 +579,27 @@ navigation:
       stop_conditions:
         - each observability layer has explicit deliverables
         - implementation slices are non-overlapping
+
+    - path: agents/skills/linera-gas-probe/SKILL.md
+      canonical_for:
+        - linera_gas_probe
+        - bcs_gas_validation
+        - call_application_gas_validation
+      when_to_read:
+        - validating BCS serialization gas on Conway
+        - validating call_application gas on Conway
+        - comparing generic state application gas options
+      inputs:
+        - Conway RPC and faucet availability
+        - isolated disposable wallet paths
+        - probe contract template
+      outputs:
+        - BCS gas matrix with noop deltas
+        - call_application gas matrix with noop deltas
+        - cleanup status
+      stop_conditions:
+        - gas matrix completed and summarized
+        - explicit network or faucet blocker identified
   tasks:
     - path: agents/tasks/prompt-state.yaml
       canonical_for:

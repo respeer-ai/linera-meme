@@ -448,7 +448,7 @@ A1 regression matrix:
 - Initialization split: already covered by instantiate/initialize tests and integration create-pool tests; A4 should add virtual-liquidity non-claimable regression.
 - Real message path integration: partially covered by meme/native, meme/meme, create-pool, swap, add-liquidity, remove-liquidity, and claim tests; A5 should add a single explicit full-flow regression that performs swap output claim, over-add-liquidity excess claim, remove-liquidity owed claim, and verifies final balances.
 - Projection consistency: partially covered by FUND-014 service tests; A6 should add smoke tests only if a contract regression produces a new projection fixture need.
-- Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to the operations backlog or environment runbook, not FUND-004.
+- Operations visibility, stuck chain, gas, funder, and docker wallet capability mismatch: deferred to the operations backlog or environment skill, not FUND-004.
 
 Validation:
 

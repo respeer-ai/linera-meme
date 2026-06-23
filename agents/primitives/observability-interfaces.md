@@ -261,5 +261,5 @@ flowchart LR
 - `agents/primitives/application-decoding.md`
 - `agents/primitives/normalized-event-model.md`
 - `agents/primitives/derived-market-state.md`
-- `agents/runbooks/observability-deliverables.md`
-- `agents/runbooks/observability-fail-open-operations.md`
+- `agents/skills/observability-deliverables/SKILL.md`
+- `agents/skills/observability-fail-open-operations/SKILL.md`
