@@ -1487,6 +1487,21 @@ groups:
         notes: |
           Define the product documentation direction separately from WebUI FAQ work.
           The eventual Docs navigation may link to a dedicated external documentation site or to a future in-app documentation area; this remains undecided.
+  - name: Protocol Research
+    tasks:
+      - id: PROTO-001
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: Confirm Linera gas estimation semantics
+        notes: |
+          Research and confirm the correct gas estimation method with Linera maintainers before changing the estimate_gas implementation.
+          Current local findings:
+          - Linera gas unit prices are fixed by the current committee ResourceControlPolicy and do not fluctuate with time, congestion, or market state.
+          - The existing estimate_gas path stages local block execution and currently returns only ResourceTracker.wasm_fuel.
+          - ResourceTracker plus Resources::total_price is not a complete exact-fee model because Resources is a grant/budget structure and does not cover every ResourceController::track_* charge.
+          - Full exactness depends on execution-time fee semantics including free app message handling, grants, refunds, rejected/bouncing messages, and blob fee waivers.
+          Next step: resume after the official discussion clarifies whether estimate_gas should return resource-fuel, full execution fee, upper-bound fee, or another protocol-defined value.
   - name: WebUI
     tasks:
       - id: WEBUI-001
@@ -1767,3 +1782,81 @@ groups:
           - Existing test suite passes without modification
           - No remaining callers of deleted code
           - No remaining fee_free references outside test files
+  - name: Generic State
+    tasks:
+      - id: GSTATE-001
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: Implement base generic state application
+        notes: |
+          Phase 1. Implement the base generic state app from `agents/primitives/generic-state-application.md`.
+          This phase must be completed as a whole before business integration starts.
+
+          Scope:
+          - State shape: operator, frozen_namespaces, namespace_apps, records.
+          - Operations: InitializeOperator, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, BatchRead, BatchWrite, SetOperator.
+          - Slot-based record keying: [namespace][slot][business_key...].
+          - Permission rules for operator, namespace management freeze, authenticated caller binding, and handoff.
+          - Unit tests for duplicate binding, frozen namespace management, handoff, operator initialization, operator rotation, and record isolation by namespace slot.
+      - id: GSTATE-002
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-001]
+        title: Implement business state wrappers
+        notes: |
+          Phase 2. Implement reusable business-side wrappers over the generic state app.
+          Phase 1 and Phase 2 must be completed together before module-by-module business integration starts.
+
+          Scope:
+          - Minimal local binding helpers for state_app_id and state_namespace.
+          - Typed key/value encoding helpers for business apps.
+          - Read/write wrapper APIs that call BatchRead and BatchWrite.
+          - Initialization helper sequence: InitializeOperator -> CreateNamespace -> initial BatchWrite.
+          - Upgrade helper sequence for old business app handoff.
+          - Tests proving wrappers cannot write outside the authenticated app namespace slot.
+      - id: GSTATE-003
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-001, GSTATE-002]
+        title: Integrate generic state into business modules
+        notes: |
+          Phase 3. Integrate business modules one by one after base state app and wrappers are complete.
+          This phase may interleave with deployment and upgrade work in GSTATE-004 by module.
+
+          Module order is not fixed in this task. For each module:
+          - Keep the existing creation message flow unless a module-specific task explicitly changes it.
+          - Do not add PostInitialize only for generic state.
+          - Move business state reads/writes through the wrapper.
+          - Keep business invariants in the business app, not generic state.
+          - Add module-specific tests for initialization, normal writes, and state read/query behavior.
+      - id: GSTATE-004
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-001, GSTATE-002]
+        title: Implement deployment and upgrade flows
+        notes: |
+          Phase 4. Implement deployment and upgrade workflows.
+          This phase may interleave with GSTATE-003 by module.
+
+          Scope:
+          - Deploy one reusable state app id.
+          - Pass or persist state_app_id through business deployment without relying on immutable parameters for mutable routing.
+          - Ensure business initialization calls InitializeOperator, CreateNamespace, and initial BatchWrite.
+          - For mining or untrusted proposer chains, run FreezeNamespace before opening runtime access.
+          - Implement upgrade maintenance window: pause business writes, tighten application_permissions to operator maintenance mode, UnfreezeNamespace, old app Handoff, replace permissions to new app, FreezeNamespace, restore runtime permissions.
+          - Update deployment config service/interface with active root app ids after deploy or upgrade.
+      - id: GSTATE-005
+        status: Todo
+        priority: P1
+        depends_on: [GSTATE-003, GSTATE-004]
+        title: Implement generic-state observability
+        notes: |
+          Phase 5. Implement observability after business integration and deployment/upgrade flows are complete.
+
+          Scope:
+          - Parse and project generic-state-backed business facts from finalized blocks.
+          - Track active business app ids across handoff.
+          - Preserve stable dynamic object identity outside raw application ids.
+          - Do not make observability the authoritative frontend routing source.
+          - Keep deployment config service/interface as the source for active root app ids.

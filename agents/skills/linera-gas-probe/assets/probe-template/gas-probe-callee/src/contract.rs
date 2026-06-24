@@ -11,6 +11,9 @@ mod state;
 
 use state::GasProbeCalleeState;
 
+const READ_SLOT: u32 = 0;
+const WRITE_SLOT: u32 = 1;
+
 pub struct GasProbeCalleeContract {
     state: GasProbeCalleeState,
 }
@@ -49,14 +52,11 @@ impl Contract for GasProbeCalleeContract {
                 decode_payload(payload_kind, &payload);
                 GasProbeResponse::Ok
             }
-            GasProbeCalleeOperation::GenericStateReadBytes {
-                payload_kind,
-                iteration,
-            } => {
+            GasProbeCalleeOperation::GenericStateReadBytes { payload_kind } => {
                 let bytes = self
                     .state
                     .bytes_by_size
-                    .get(&generic_key(payload_kind, iteration))
+                    .get(&generic_read_key(payload_kind))
                     .await
                     .expect("failed to read callee generic state")
                     .expect("missing seeded callee generic state");
@@ -65,12 +65,11 @@ impl Contract for GasProbeCalleeContract {
             }
             GasProbeCalleeOperation::GenericStateWriteBytes {
                 payload_kind,
-                iteration,
                 payload,
             } => {
                 self.state
                     .bytes_by_size
-                    .insert(&generic_key(payload_kind, iteration), payload)
+                    .insert(&generic_write_key(payload_kind), payload)
                     .expect("failed to write callee generic state");
                 GasProbeResponse::Ok
             }
@@ -95,18 +94,19 @@ fn seed_state(state: &mut GasProbeCalleeState) -> Result<(), linera_sdk::views::
         gas_probe_abi::PayloadKind::Bytes512,
         gas_probe_abi::PayloadKind::Bytes2048,
     ] {
-        for iteration in 0..10 {
-            state.bytes_by_size.insert(
-                &generic_key(kind, iteration),
-                gas_probe_abi::encode_payload(kind),
-            )?;
-        }
+        state
+            .bytes_by_size
+            .insert(&generic_read_key(kind), gas_probe_abi::encode_payload(kind))?;
     }
     Ok(())
 }
 
-fn generic_key(payload_kind: gas_probe_abi::PayloadKind, iteration: u32) -> u32 {
-    1_000_000 + payload_kind_index(payload_kind) * 100 + iteration
+fn generic_read_key(payload_kind: gas_probe_abi::PayloadKind) -> u32 {
+    1_000_000 + payload_kind_index(payload_kind) * 100 + READ_SLOT
+}
+
+fn generic_write_key(payload_kind: gas_probe_abi::PayloadKind) -> u32 {
+    1_000_000 + payload_kind_index(payload_kind) * 100 + WRITE_SLOT
 }
 
 fn payload_kind_index(payload_kind: gas_probe_abi::PayloadKind) -> u32 {

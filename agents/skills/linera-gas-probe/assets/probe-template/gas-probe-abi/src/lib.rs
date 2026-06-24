@@ -32,60 +32,47 @@ pub enum GasProbeCallerOperation {
     Noop,
     BcsEncode {
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     BcsDecode {
         payload_kind: PayloadKind,
         payload: Vec<u8>,
-        iterations: u32,
     },
     RawStateRead {
         payload_size: u32,
-        iterations: u32,
     },
     RawStateWrite {
         payload_size: u32,
-        iterations: u32,
     },
     TypedStateRead {
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     TypedStateWrite {
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     GenericStateBcsEncodeWrite {
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     GenericStateReadBcsDecode {
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     CallApplicationNoop {
         callee: ApplicationId<GasProbeCalleeAbi>,
-        iterations: u32,
     },
     CallApplicationEcho {
         callee: ApplicationId<GasProbeCalleeAbi>,
         payload_size: u32,
-        iterations: u32,
     },
     CallApplicationDecode {
         callee: ApplicationId<GasProbeCalleeAbi>,
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     CallApplicationGenericStateBcsEncodeWrite {
         callee: ApplicationId<GasProbeCalleeAbi>,
         payload_kind: PayloadKind,
-        iterations: u32,
     },
     CallApplicationGenericStateReadBcsDecode {
         callee: ApplicationId<GasProbeCalleeAbi>,
         payload_kind: PayloadKind,
-        iterations: u32,
     },
 }
 
@@ -101,11 +88,9 @@ pub enum GasProbeCalleeOperation {
     },
     GenericStateReadBytes {
         payload_kind: PayloadKind,
-        iteration: u32,
     },
     GenericStateWriteBytes {
         payload_kind: PayloadKind,
-        iteration: u32,
         payload: Vec<u8>,
     },
 }

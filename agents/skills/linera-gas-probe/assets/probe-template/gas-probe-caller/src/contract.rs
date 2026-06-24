@@ -15,6 +15,9 @@ mod state;
 
 use state::GasProbeCallerState;
 
+const READ_SLOT: u32 = 0;
+const WRITE_SLOT: u32 = 1;
+
 pub struct GasProbeCallerContract {
     runtime: ContractRuntime<Self>,
     state: GasProbeCallerState,
@@ -46,178 +49,120 @@ impl Contract for GasProbeCallerContract {
     async fn execute_operation(&mut self, operation: GasProbeCallerOperation) -> Self::Response {
         match operation {
             GasProbeCallerOperation::Noop => GasProbeResponse::Ok,
-            GasProbeCallerOperation::BcsEncode {
-                payload_kind,
-                iterations,
-            } => {
-                for _ in 0..iterations {
-                    let _bytes = encode_payload(payload_kind);
-                }
+            GasProbeCallerOperation::BcsEncode { payload_kind } => {
+                let _bytes = encode_payload(payload_kind);
                 GasProbeResponse::Ok
             }
             GasProbeCallerOperation::BcsDecode {
                 payload_kind,
                 payload,
-                iterations,
             } => {
-                for _ in 0..iterations {
-                    decode_payload(payload_kind, &payload);
-                }
+                decode_payload(payload_kind, &payload);
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::RawStateRead {
-                payload_size,
-                iterations,
-            } => {
-                for iteration in 0..iterations {
-                    let _bytes = self
-                        .state
-                        .bytes_by_size
-                        .get(&raw_read_key(payload_size, iteration))
-                        .await
-                        .expect("failed to read caller raw state")
-                        .expect("missing seeded caller raw state");
-                }
+            GasProbeCallerOperation::RawStateRead { payload_size } => {
+                let _bytes = self
+                    .state
+                    .bytes_by_size
+                    .get(&raw_read_key(payload_size))
+                    .await
+                    .expect("failed to read caller raw state")
+                    .expect("missing seeded caller raw state");
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::RawStateWrite {
-                payload_size,
-                iterations,
-            } => {
-                let payload = vec![7; payload_size as usize];
-                for iteration in 0..iterations {
-                    self.state
-                        .bytes_by_size
-                        .insert(&raw_write_key(payload_size, iteration), payload.clone())
-                        .expect("failed to write caller raw state");
-                }
+            GasProbeCallerOperation::RawStateWrite { payload_size } => {
+                self.state
+                    .bytes_by_size
+                    .insert(&raw_write_key(payload_size), vec![7; payload_size as usize])
+                    .expect("failed to write caller raw state");
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::TypedStateRead {
-                payload_kind,
-                iterations,
-            } => {
-                for iteration in 0..iterations {
-                    read_typed_state(&self.state, payload_kind, iteration).await;
-                }
+            GasProbeCallerOperation::TypedStateRead { payload_kind } => {
+                read_typed_state(&self.state, payload_kind).await;
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::TypedStateWrite {
-                payload_kind,
-                iterations,
-            } => {
-                for iteration in 0..iterations {
-                    write_typed_state(&mut self.state, payload_kind, iteration)
-                        .expect("failed to write caller typed state");
-                }
+            GasProbeCallerOperation::TypedStateWrite { payload_kind } => {
+                write_typed_state(&mut self.state, payload_kind)
+                    .expect("failed to write caller typed state");
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::GenericStateBcsEncodeWrite {
-                payload_kind,
-                iterations,
-            } => {
-                for iteration in 0..iterations {
-                    let payload = encode_payload(payload_kind);
-                    self.state
-                        .bytes_by_size
-                        .insert(&generic_key(payload_kind, iteration), payload)
-                        .expect("failed to write caller generic state");
-                }
+            GasProbeCallerOperation::GenericStateBcsEncodeWrite { payload_kind } => {
+                let payload = encode_payload(payload_kind);
+                self.state
+                    .bytes_by_size
+                    .insert(&generic_write_key(payload_kind), payload)
+                    .expect("failed to write caller generic state");
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::GenericStateReadBcsDecode {
-                payload_kind,
-                iterations,
-            } => {
-                for iteration in 0..iterations {
-                    let bytes = self
-                        .state
-                        .bytes_by_size
-                        .get(&generic_key(payload_kind, iteration))
-                        .await
-                        .expect("failed to read caller generic state")
-                        .expect("missing seeded caller generic state");
-                    decode_payload(payload_kind, &bytes);
-                }
+            GasProbeCallerOperation::GenericStateReadBcsDecode { payload_kind } => {
+                let bytes = self
+                    .state
+                    .bytes_by_size
+                    .get(&generic_read_key(payload_kind))
+                    .await
+                    .expect("failed to read caller generic state")
+                    .expect("missing seeded caller generic state");
+                decode_payload(payload_kind, &bytes);
                 GasProbeResponse::Ok
             }
-            GasProbeCallerOperation::CallApplicationNoop { callee, iterations } => {
-                for _ in 0..iterations {
-                    let _response =
-                        self.runtime
-                            .call_application(true, callee, &GasProbeCalleeOperation::Noop);
-                }
+            GasProbeCallerOperation::CallApplicationNoop { callee } => {
+                let _response =
+                    self.runtime
+                        .call_application(true, callee, &GasProbeCalleeOperation::Noop);
                 GasProbeResponse::Ok
             }
             GasProbeCallerOperation::CallApplicationEcho {
                 callee,
                 payload_size,
-                iterations,
             } => {
-                let payload = vec![7; payload_size as usize];
-                for _ in 0..iterations {
-                    let _response = self.runtime.call_application(
-                        true,
-                        callee,
-                        &GasProbeCalleeOperation::EchoBytes {
-                            payload: payload.clone(),
-                        },
-                    );
-                }
+                let _response = self.runtime.call_application(
+                    true,
+                    callee,
+                    &GasProbeCalleeOperation::EchoBytes {
+                        payload: vec![7; payload_size as usize],
+                    },
+                );
                 GasProbeResponse::Ok
             }
             GasProbeCallerOperation::CallApplicationDecode {
                 callee,
                 payload_kind,
-                iterations,
             } => {
                 let payload = encode_payload(payload_kind);
-                for _ in 0..iterations {
-                    let _response = self.runtime.call_application(
-                        true,
-                        callee,
-                        &GasProbeCalleeOperation::DecodeBytes {
-                            payload_kind,
-                            payload: payload.clone(),
-                        },
-                    );
-                }
+                let _response = self.runtime.call_application(
+                    true,
+                    callee,
+                    &GasProbeCalleeOperation::DecodeBytes {
+                        payload_kind,
+                        payload,
+                    },
+                );
                 GasProbeResponse::Ok
             }
             GasProbeCallerOperation::CallApplicationGenericStateBcsEncodeWrite {
                 callee,
                 payload_kind,
-                iterations,
             } => {
-                for iteration in 0..iterations {
-                    let payload = encode_payload(payload_kind);
-                    let _response = self.runtime.call_application(
-                        true,
-                        callee,
-                        &GasProbeCalleeOperation::GenericStateWriteBytes {
-                            payload_kind,
-                            iteration,
-                            payload,
-                        },
-                    );
-                }
+                let payload = encode_payload(payload_kind);
+                let _response = self.runtime.call_application(
+                    true,
+                    callee,
+                    &GasProbeCalleeOperation::GenericStateWriteBytes {
+                        payload_kind,
+                        payload,
+                    },
+                );
                 GasProbeResponse::Ok
             }
             GasProbeCallerOperation::CallApplicationGenericStateReadBcsDecode {
                 callee,
                 payload_kind,
-                iterations,
             } => {
-                for iteration in 0..iterations {
-                    let _response = self.runtime.call_application(
-                        true,
-                        callee,
-                        &GasProbeCalleeOperation::GenericStateReadBytes {
-                            payload_kind,
-                            iteration,
-                        },
-                    );
-                }
+                let _response = self.runtime.call_application(
+                    true,
+                    callee,
+                    &GasProbeCalleeOperation::GenericStateReadBytes { payload_kind },
+                );
                 GasProbeResponse::Ok
             }
         }
@@ -234,47 +179,28 @@ impl Contract for GasProbeCallerContract {
 }
 
 fn seed_state(state: &mut GasProbeCallerState) -> Result<(), linera_sdk::views::ViewError> {
-    for payload_kind in [
-        PayloadKind::Amount,
-        PayloadKind::AccountAmount,
-        PayloadKind::PoolLikeSmall,
-        PayloadKind::Bytes512,
-        PayloadKind::Bytes2048,
-    ] {
-        for iteration in 0..10 {
-            seed_typed_state(state, payload_kind, iteration)?;
-        }
+    for payload_kind in generic_payload_kinds() {
+        seed_typed_state(state, payload_kind)?;
+        state.bytes_by_size.insert(
+            &generic_read_key(payload_kind),
+            encode_payload(payload_kind),
+        )?;
     }
 
     for size in [32, 512, 2048] {
-        for iteration in 0..10 {
-            state
-                .bytes_by_size
-                .insert(&raw_read_key(size, iteration), vec![7; size as usize])?;
-        }
-    }
-    for kind in [
-        PayloadKind::Amount,
-        PayloadKind::AccountAmount,
-        PayloadKind::PoolLikeSmall,
-        PayloadKind::Bytes512,
-        PayloadKind::Bytes2048,
-    ] {
-        for iteration in 0..10 {
-            state
-                .bytes_by_size
-                .insert(&generic_key(kind, iteration), encode_payload(kind))?;
-        }
+        state
+            .bytes_by_size
+            .insert(&raw_read_key(size), vec![7; size as usize])?;
     }
     Ok(())
 }
 
-async fn read_typed_state(state: &GasProbeCallerState, payload_kind: PayloadKind, iteration: u32) {
+async fn read_typed_state(state: &GasProbeCallerState, payload_kind: PayloadKind) {
     match payload_kind {
         PayloadKind::Amount => {
             let _value = state
                 .amounts
-                .get(&typed_read_key(payload_kind, iteration))
+                .get(&typed_read_key(payload_kind))
                 .await
                 .expect("failed to read caller typed amount")
                 .expect("missing seeded caller typed amount");
@@ -282,7 +208,7 @@ async fn read_typed_state(state: &GasProbeCallerState, payload_kind: PayloadKind
         PayloadKind::AccountAmount => {
             let _value = state
                 .account_amounts
-                .get(&typed_read_key(payload_kind, iteration))
+                .get(&typed_read_key(payload_kind))
                 .await
                 .expect("failed to read caller typed account amount")
                 .expect("missing seeded caller typed account amount");
@@ -290,7 +216,7 @@ async fn read_typed_state(state: &GasProbeCallerState, payload_kind: PayloadKind
         PayloadKind::PoolLikeSmall => {
             let _value = state
                 .pool_like_smalls
-                .get(&typed_read_key(payload_kind, iteration))
+                .get(&typed_read_key(payload_kind))
                 .await
                 .expect("failed to read caller typed pool-like payload")
                 .expect("missing seeded caller typed pool-like payload");
@@ -298,7 +224,7 @@ async fn read_typed_state(state: &GasProbeCallerState, payload_kind: PayloadKind
         PayloadKind::Bytes512 | PayloadKind::Bytes2048 => {
             let _value = state
                 .bytes_by_size
-                .get(&typed_read_key(payload_kind, iteration))
+                .get(&typed_read_key(payload_kind))
                 .await
                 .expect("failed to read caller typed bytes")
                 .expect("missing seeded caller typed bytes");
@@ -312,21 +238,15 @@ async fn read_typed_state(state: &GasProbeCallerState, payload_kind: PayloadKind
 fn seed_typed_state(
     state: &mut GasProbeCallerState,
     payload_kind: PayloadKind,
-    iteration: u32,
 ) -> Result<(), linera_sdk::views::ViewError> {
-    insert_typed_state(state, payload_kind, typed_read_key(payload_kind, iteration))
+    insert_typed_state(state, payload_kind, typed_read_key(payload_kind))
 }
 
 fn write_typed_state(
     state: &mut GasProbeCallerState,
     payload_kind: PayloadKind,
-    iteration: u32,
 ) -> Result<(), linera_sdk::views::ViewError> {
-    insert_typed_state(
-        state,
-        payload_kind,
-        typed_write_key(payload_kind, iteration),
-    )
+    insert_typed_state(state, payload_kind, typed_write_key(payload_kind))
 }
 
 fn insert_typed_state(
@@ -351,24 +271,38 @@ fn insert_typed_state(
     }
 }
 
-fn typed_read_key(payload_kind: PayloadKind, iteration: u32) -> u32 {
-    2_000_000 + payload_kind_index(payload_kind) * 100 + iteration
+fn generic_payload_kinds() -> [PayloadKind; 5] {
+    [
+        PayloadKind::Amount,
+        PayloadKind::AccountAmount,
+        PayloadKind::PoolLikeSmall,
+        PayloadKind::Bytes512,
+        PayloadKind::Bytes2048,
+    ]
 }
 
-fn typed_write_key(payload_kind: PayloadKind, iteration: u32) -> u32 {
-    2_000_000 + payload_kind_index(payload_kind) * 100 + 50 + iteration
+fn typed_read_key(payload_kind: PayloadKind) -> u32 {
+    2_000_000 + payload_kind_index(payload_kind) * 100 + READ_SLOT
 }
 
-fn raw_read_key(payload_size: u32, iteration: u32) -> u32 {
-    payload_size * 10_000 + iteration
+fn typed_write_key(payload_kind: PayloadKind) -> u32 {
+    2_000_000 + payload_kind_index(payload_kind) * 100 + WRITE_SLOT
 }
 
-fn raw_write_key(payload_size: u32, iteration: u32) -> u32 {
-    payload_size * 10_000 + 100 + iteration
+fn raw_read_key(payload_size: u32) -> u32 {
+    payload_size * 10_000 + READ_SLOT
 }
 
-fn generic_key(payload_kind: PayloadKind, iteration: u32) -> u32 {
-    1_000_000 + payload_kind_index(payload_kind) * 100 + iteration
+fn raw_write_key(payload_size: u32) -> u32 {
+    payload_size * 10_000 + WRITE_SLOT
+}
+
+fn generic_read_key(payload_kind: PayloadKind) -> u32 {
+    1_000_000 + payload_kind_index(payload_kind) * 100 + READ_SLOT
+}
+
+fn generic_write_key(payload_kind: PayloadKind) -> u32 {
+    1_000_000 + payload_kind_index(payload_kind) * 100 + WRITE_SLOT
 }
 
 fn payload_kind_index(payload_kind: PayloadKind) -> u32 {
