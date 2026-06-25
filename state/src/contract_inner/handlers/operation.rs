@@ -1,3 +1,4 @@
+pub mod batch_delete;
 pub mod batch_read;
 pub mod batch_write;
 pub mod create_namespace;

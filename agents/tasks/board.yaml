@@ -2046,11 +2046,19 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004D8
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004D7]
         title: Phase 1D-D8 - Implement BatchDelete operation handler
-        notes: Implement only the BatchDelete operation handler.
+        notes: |
+          Implemented only the BatchDelete operation handler.
+          The handler enforces AccessControl::only_caller_creator, resolves the caller application slot once, builds StateKey values for all raw keys, deletes them through StateInterface::batch_delete, and returns StateResponse::Ok.
+
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004E1
         status: Todo
         priority: P0
