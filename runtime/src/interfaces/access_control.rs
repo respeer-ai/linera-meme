@@ -3,4 +3,5 @@ pub trait AccessControl {
 
     fn only_application_creator(&mut self) -> Result<(), Self::Error>;
     fn not_application_creator(&mut self) -> Result<(), Self::Error>;
+    fn only_caller_creator(&mut self) -> Result<(), Self::Error>;
 }

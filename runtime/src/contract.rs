@@ -46,6 +46,13 @@ impl<T: Contract<Message = M>, M> BaseRuntimeContext for ContractRuntimeAdapter<
         self.runtime.borrow_mut().application_creator_chain_id()
     }
 
+    fn creator_chain_id(&mut self, application_id: ApplicationId) -> ChainId {
+        self.runtime
+            .borrow_mut()
+            .read_application_description(application_id)
+            .creator_chain_id
+    }
+
     fn application_creation_account(&mut self) -> Account {
         let mut runtime = self.runtime.borrow_mut();
 
@@ -319,6 +326,26 @@ impl<T: Contract<Message = M>, M> AccessControl for ContractRuntimeAdapter<T, M>
             .then_some(())
             .ok_or(RuntimeError::PermissionDenied(
                 "Do not allow application creator".to_string(),
+            ))
+    }
+
+    fn only_caller_creator(&mut self) -> Result<(), RuntimeError> {
+        let caller = self
+            .runtime
+            .borrow_mut()
+            .authenticated_caller_id()
+            .ok_or(RuntimeError::InvalidAuthenticatedCaller)?;
+        let chain_id = self.runtime.borrow_mut().chain_id();
+        let caller_creator_chain_id = self
+            .runtime
+            .borrow_mut()
+            .read_application_description(caller)
+            .creator_chain_id;
+
+        (chain_id == caller_creator_chain_id)
+            .then_some(())
+            .ok_or(RuntimeError::PermissionDenied(
+                "Only allow caller creator".to_string(),
             ))
     }
 }

@@ -1947,11 +1947,20 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004D1
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004C]
         title: Phase 1D-D1 - Implement InitializeOperator operation handler
-        notes: Implement only the InitializeOperator operation handler.
+        notes: |
+          Implemented only the InitializeOperator operation handler.
+          The handler delegates caller-creator-chain permission checks to AccessControl::only_caller_creator and initializes the state app operator through StateInterface.
+
+          Validation:
+          - `cargo fmt -p state -p runtime --check`
+          - `cargo check -p runtime` with `ulimit -v 6000000`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004D2
         status: Todo
         priority: P0

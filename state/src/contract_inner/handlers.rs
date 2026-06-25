@@ -4,22 +4,28 @@ pub mod operation;
 use crate::interfaces::state::StateInterface;
 use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
-use runtime::interfaces::contract::ContractRuntimeContext;
+use operation::initialize_operator::InitializeOperatorHandler;
+use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct HandlerFactory;
 
 impl HandlerFactory {
     fn new_operation_handler(
-        _runtime: Rc<RefCell<impl ContractRuntimeContext + 'static>>,
-        _state: impl StateInterface + 'static,
-        _operation: &StateOperation,
+        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
+        state: impl StateInterface + 'static,
+        operation: &StateOperation,
     ) -> Result<Box<dyn Handler<StateMessage, StateResponse>>, HandlerError> {
-        Err(HandlerError::NotImplemented)
+        match operation {
+            StateOperation::InitializeOperator { .. } => Ok(Box::new(
+                InitializeOperatorHandler::new(runtime, state, operation),
+            )),
+            _ => Err(HandlerError::NotImplemented),
+        }
     }
 
     fn new_message_handler(
-        _runtime: Rc<RefCell<impl ContractRuntimeContext + 'static>>,
+        _runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
         _state: impl StateInterface + 'static,
         _message: &StateMessage,
     ) -> Result<Box<dyn Handler<StateMessage, StateResponse>>, HandlerError> {
@@ -27,7 +33,7 @@ impl HandlerFactory {
     }
 
     pub fn new(
-        runtime: Rc<RefCell<impl ContractRuntimeContext + 'static>>,
+        runtime: Rc<RefCell<impl ContractRuntimeContext + AccessControl + 'static>>,
         state: impl StateInterface + 'static,
         operation: Option<&StateOperation>,
         message: Option<&StateMessage>,

@@ -9,6 +9,7 @@ pub trait BaseRuntimeContext {
     fn chain_id(&mut self) -> ChainId;
     fn system_time(&mut self) -> Timestamp;
     fn application_creator_chain_id(&mut self) -> ChainId;
+    fn creator_chain_id(&mut self, application_id: ApplicationId) -> ChainId;
     fn application_creation_account(&mut self) -> Account;
     fn application_account(&mut self) -> Account;
 
