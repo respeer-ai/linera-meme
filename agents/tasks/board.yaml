@@ -1848,24 +1848,139 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004
-        status: Todo
+        status: Doing
         priority: P0
         depends_on: [GSTATE-003]
         title: Phase 1D - Implement state app core behavior
         notes: |
-          Implement the state app internal behavior behind the internal StateInterface.
+          Umbrella task for the state app core behavior implementation.
+
+          Execution rule:
+          - Do not implement this as one large change.
+          - Complete only through GSTATE-004A, GSTATE-004B, GSTATE-004C, GSTATE-004D*, GSTATE-004E*, and GSTATE-004F*.
+          - Each subtask requires user review before the next subtask starts.
+          - Operation handlers and message handlers must be implemented one by one.
+          - Keep service admin queries and business-facing adapters out of this task group.
+      - id: GSTATE-004A
+        status: Done
+        priority: P0
+        depends_on: [GSTATE-003]
+        title: Phase 1D-A - Add state contract handler framework
+        notes: |
+          Add only the contract handler architecture skeleton.
 
           Scope:
-          - Implement state shape: operator, frozen_namespaces, namespace_apps, records.
-          - Implement InitializeOperator { operator }, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, BatchRead, BatchWrite, and SetOperator.
-          - Implement slot-based record keying: [namespace][slot][business_key...].
-          - Implement permission rules for operator, namespace management freeze, authenticated caller binding, and handoff.
-          - Wire contract_inner handlers to `S: state::interfaces::state::StateInterface`.
-          - Do not implement business-facing `StateContract` or `StateService` concrete instances in this task.
+          - Keep `state/src/contract_impl.rs` consistent with existing app patterns such as `ams/src/contract_impl.rs`.
+          - Add `HandlerFactory` dispatch shape under `state/src/contract_inner/handlers.rs`.
+          - Add operation and message module dispatch placeholders.
+          - Do not implement any concrete operation or message handler behavior.
+          - Do not implement state root view behavior.
 
-          Review rule:
-          - This review is state app protocol behavior only.
-          - Keep service admin queries and business-facing adapters out of the review.
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
+      - id: GSTATE-004B
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004A]
+        title: Phase 1D-B - Adjust internal state interface signatures
+        notes: |
+          Update only the internal state app interface and its internal adapter signatures.
+
+          Scope:
+          - Update `state/src/interfaces/state.rs` so handlers can pass resolved operator, caller, and application creator-chain context.
+          - Update `state/src/state/adapter.rs` to match the interface.
+          - Do not implement state behavior.
+          - Do not implement contract handlers.
+      - id: GSTATE-004C
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004B]
+        title: Phase 1D-C - Implement state root view behavior
+        notes: |
+          Implement only the root view behavior behind the internal StateInterface.
+
+          Scope:
+          - Implement operator initialization checks.
+          - Implement namespace binding and freeze checks.
+          - Implement slot-based record keys `[namespace][slot][business_key...]`.
+          - Implement read/write/delete behavior for raw bytes.
+          - Implement handoff and operator rotation state transitions.
+          - Do not implement operation or message handlers.
+      - id: GSTATE-004D1
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004C]
+        title: Phase 1D-D1 - Implement InitializeOperator operation handler
+        notes: Implement only the InitializeOperator operation handler.
+      - id: GSTATE-004D2
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D1]
+        title: Phase 1D-D2 - Implement CreateNamespace operation handler
+        notes: Implement only the CreateNamespace operation handler.
+      - id: GSTATE-004D3
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D2]
+        title: Phase 1D-D3 - Implement BatchRead operation handler
+        notes: Implement only the BatchRead operation handler.
+      - id: GSTATE-004D4
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D3]
+        title: Phase 1D-D4 - Implement BatchWrite operation handler
+        notes: Implement only the BatchWrite operation handler.
+      - id: GSTATE-004E1
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D4]
+        title: Phase 1D-E1 - Implement FreezeNamespace operation handler
+        notes: Implement only the FreezeNamespace operation handler.
+      - id: GSTATE-004E2
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004E1]
+        title: Phase 1D-E2 - Implement UnfreezeNamespace operation handler
+        notes: Implement only the UnfreezeNamespace operation handler.
+      - id: GSTATE-004E3
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004E2]
+        title: Phase 1D-E3 - Implement Handoff operation handler
+        notes: Implement only the Handoff operation handler.
+      - id: GSTATE-004E4
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004E3]
+        title: Phase 1D-E4 - Implement SetOperator operation handler
+        notes: Implement only the SetOperator operation handler.
+      - id: GSTATE-004F1
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004E4]
+        title: Phase 1D-F1 - Implement FreezeNamespace message handler
+        notes: Implement only the FreezeNamespace message handler.
+      - id: GSTATE-004F2
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004F1]
+        title: Phase 1D-F2 - Implement UnfreezeNamespace message handler
+        notes: Implement only the UnfreezeNamespace message handler.
+      - id: GSTATE-004F3
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004F2]
+        title: Phase 1D-F3 - Implement Handoff message handler
+        notes: Implement only the Handoff message handler.
+      - id: GSTATE-004F4
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004F3]
+        title: Phase 1D-F4 - Implement SetOperator message handler
+        notes: Implement only the SetOperator message handler.
       - id: GSTATE-005
         status: Todo
         priority: P0

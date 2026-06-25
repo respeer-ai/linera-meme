@@ -41,10 +41,12 @@ impl Contract for StateContract {
     }
 
     async fn execute_operation(&mut self, operation: StateOperation) -> Self::Response {
-        self.on_operation(operation).await
+        self.on_op(&operation).await
     }
 
-    async fn execute_message(&mut self, _message: StateMessage) {}
+    async fn execute_message(&mut self, message: StateMessage) {
+        self.on_message(&message).await;
+    }
 
     async fn store(self) {
         self.state

@@ -24,6 +24,12 @@ defaults:
     - unresolved_caveat_still_relevant
     - canonical_doc_promotion_incomplete
 active_focus:
+  - id: GSTATE-004
+    why: current state application umbrella; next review-gated subtask is GSTATE-004B
+    summary: Continue state app core behavior through small review-gated subtasks; never implement operation/message handlers in bulk.
+    canonical_refs:
+      - agents/tasks/board.yaml
+      - agents/primitives/state-application.md
   - id: WEBUI-004
     why: current WebUI queue; improve Add Liquidity and Remove Liquidity pages
     summary: Review and implement liquidity page layout, hierarchy, interaction states, and usability after WEBUI-003.
