@@ -1881,6 +1881,27 @@ groups:
           - `cargo check -p state` with `ulimit -v 6000000`
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
+      - id: GSTATE-004A1
+        status: Done
+        priority: P0
+        depends_on: [GSTATE-004A]
+        title: Phase 1D-A1 - Clarify state read write delete ABI
+        notes: |
+          Adjust only the state ABI so read, write, and delete are explicit.
+
+          Scope:
+          - Add single-key Read, Write, and Delete operations.
+          - Change BatchWrite values from `Option<Vec<u8>>` to `Vec<u8>`.
+          - Add BatchDelete for explicit deletion.
+          - Add `StateResponse::Read(Option<Vec<u8>>)` for single-key reads.
+          - Do not implement handlers or state behavior.
+
+          Validation:
+          - `cargo fmt -p abi --check`
+          - `cargo check -p abi` with `ulimit -v 6000000`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004B
         status: Todo
         priority: P0

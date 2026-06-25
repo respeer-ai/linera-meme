@@ -22,13 +22,30 @@ pub enum StateOperation {
     CreateNamespace {
         namespace: u8,
     },
+    Read {
+        namespace: u8,
+        key: Vec<u8>,
+    },
+    Write {
+        namespace: u8,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    },
+    Delete {
+        namespace: u8,
+        key: Vec<u8>,
+    },
     BatchRead {
         namespace: u8,
         keys: Vec<Vec<u8>>,
     },
     BatchWrite {
         namespace: u8,
-        writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+        writes: Vec<(Vec<u8>, Vec<u8>)>,
+    },
+    BatchDelete {
+        namespace: u8,
+        keys: Vec<Vec<u8>>,
     },
     FreezeNamespace {
         application_id: ApplicationId,
@@ -64,5 +81,6 @@ pub enum StateMessage {
 #[derive(Debug, Clone, Deserialize, Eq, PartialEq, Serialize)]
 pub enum StateResponse {
     Ok,
+    Read(Option<Vec<u8>>),
     BatchRead(Vec<Option<Vec<u8>>>),
 }
