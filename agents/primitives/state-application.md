@@ -537,6 +537,10 @@ Rules:
 - A business crate may split a read-only business query interface from its write-capable `StateInterface`
 - Contract code may use the full business `StateInterface`; service GraphQL code uses business read-only methods or wrappers
 
+Open question:
+
+- Existing business services read root views directly instead of using their contract-side state adapters. Before implementing business service integration, verify whether Linera service runtime, `Arc` service state, `Rc<RefCell>` adapters, or `#[async_trait(?Send)]` constraints prevent reusing the same adapter shape. Do not assume service can reuse the contract adapter pattern without a focused compile check.
+
 ## Rc RefCell Borrowing
 
 Business contract adapters must avoid holding a `RefCell` borrow across an async state app call.

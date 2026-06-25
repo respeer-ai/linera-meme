@@ -1825,25 +1825,28 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-003
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-002]
         title: Phase 1C - Add state interfaces only
         notes: |
-          Add trait boundaries without concrete runtime-backed adapter implementations.
+          Complete. Added trait boundaries without concrete runtime-backed adapter implementations.
 
-          Scope:
-          - Add internal `state::interfaces::state::StateInterface` for the state app itself.
-          - Add `state::state::adapter::StateAdapter` wrapping `Rc<RefCell<State>>` and delegating to `StateInterface` implementation.
-          - Add business-facing `state::interfaces::contract::StateContractInterface` trait.
-          - Add business-facing `state::interfaces::service::StateServiceInterface` trait.
-          - Add `StateKey` trait for business ABI key encoding.
-          - Keep concrete `StateContract` and `StateService` instances out of `interfaces`.
-          - Do not implement cross-application calls in this task.
+          Completed scope:
+          - Added internal `state::interfaces::state::StateInterface` for the state app itself.
+          - Added `state::state::adapter::StateAdapter` wrapping `Rc<RefCell<State>>` and delegating to `StateInterface` implementation.
+          - Added business-facing `state::interfaces::contract::StateContractInterface` trait.
+          - Added business-facing `state::interfaces::service::StateServiceInterface` trait.
+          - Added `state::state_key::{StateKey, StateValue}` for BCS-backed generic key/value conversion.
+          - Kept concrete `StateContract` and `StateService` instances out of `interfaces`.
+          - Did not implement cross-application calls.
 
-          Review rule:
-          - This review is trait shape only.
-          - It must not include protocol behavior, service GraphQL behavior, or business app changes.
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo build -p state` with `ulimit -v 6000000`
+          - `cargo test -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004
         status: Todo
         priority: P0
@@ -1984,6 +1987,7 @@ groups:
           Scope:
           - Construct `state::adapters::service::StateService` in the AMS service entry layer.
           - Add an AMS read-only query wrapper or read-only interface for service GraphQL resolvers.
+          - First verify whether service-side runtime/state ownership, `Rc<RefCell>`, or `#[async_trait(?Send)]` constraints prevent reusing contract-side adapter shapes.
           - Replace direct local view reads for migrated AMS records with StateServiceInterface reads.
           - Keep service mutations scheduling AMS operations instead of writing the state app directly.
       - id: GSTATE-013

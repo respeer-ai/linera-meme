@@ -4540,6 +4540,8 @@ dependencies = [
  "abi",
  "assert_matches",
  "async-graphql",
+ "async-trait",
+ "bcs",
  "getrandom 0.2.17",
  "linera-sdk",
  "log",
