@@ -4,7 +4,9 @@ pub mod operation;
 use crate::interfaces::state::StateInterface;
 use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
-use operation::initialize_operator::InitializeOperatorHandler;
+use operation::{
+    create_namespace::CreateNamespaceHandler, initialize_operator::InitializeOperatorHandler,
+};
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
 
@@ -20,6 +22,9 @@ impl HandlerFactory {
             StateOperation::InitializeOperator { .. } => Ok(Box::new(
                 InitializeOperatorHandler::new(runtime, state, operation),
             )),
+            StateOperation::CreateNamespace { .. } => Ok(Box::new(CreateNamespaceHandler::new(
+                runtime, state, operation,
+            ))),
             _ => Err(HandlerError::NotImplemented),
         }
     }
