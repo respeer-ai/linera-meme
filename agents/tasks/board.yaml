@@ -1782,80 +1782,396 @@ groups:
           - Existing test suite passes without modification
           - No remaining callers of deleted code
           - No remaining fee_free references outside test files
-  - name: Generic State
+  - name: State Application
     tasks:
       - id: GSTATE-001
-        status: Todo
+        status: Done
         priority: P0
         depends_on: []
-        title: Implement base generic state application
+        title: Phase 1A - Add state ABI only
         notes: |
-          Phase 1. Implement the base generic state app from `agents/primitives/generic-state-application.md`.
-          This phase must be completed as a whole before business integration starts.
+          Complete. Added only the public ABI boundary for the `state` app.
 
-          Scope:
-          - State shape: operator, frozen_namespaces, namespace_apps, records.
-          - Operations: InitializeOperator, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, BatchRead, BatchWrite, SetOperator.
-          - Slot-based record keying: [namespace][slot][business_key...].
-          - Permission rules for operator, namespace management freeze, authenticated caller binding, and handoff.
-          - Unit tests for duplicate binding, frozen namespace management, handoff, operator initialization, operator rotation, and record isolation by namespace slot.
+          Completed scope:
+          - Added `abi/src/state.rs` and exported it from `abi/src/lib.rs`.
+          - Defined `StateAbi`, `StateOperation`, and `StateResponse`.
+          - Did not add the `state` crate, runtime adapters, service queries, or business app integration.
+
+          Validation:
+          - `cargo fmt -p abi --check`
+          - `cargo check -p abi` with `ulimit -v 6000000`
+          - `git diff --check`
       - id: GSTATE-002
         status: Todo
         priority: P0
         depends_on: [GSTATE-001]
-        title: Implement business state wrappers
+        title: Phase 1B - Add state crate framework only
         notes: |
-          Phase 2. Implement reusable business-side wrappers over the generic state app.
-          Phase 1 and Phase 2 must be completed together before module-by-module business integration starts.
+          Add the empty `state` application crate framework using the existing `ams`-style layout.
 
           Scope:
-          - Minimal local binding helpers for state_app_id and state_namespace.
-          - Typed key/value encoding helpers for business apps.
-          - Read/write wrapper APIs that call BatchRead and BatchWrite.
-          - Initialization helper sequence: InitializeOperator -> CreateNamespace -> initial BatchWrite.
-          - Upgrade helper sequence for old business app handoff.
-          - Tests proving wrappers cannot write outside the authenticated app namespace slot.
+          - Add workspace member `state` and `state/Cargo.toml`.
+          - Add module files for `adapters`, `interfaces`, `state`, `contract_inner`, contract, service, and tests.
+          - Define root view type name `State` with the planned fields, but keep behavior minimal.
+          - Add binary entries `state_contract` and `state_service`.
+          - Add compile-only contract and service entrypoints.
+          - Do not implement state operations beyond stubs required to compile.
+          - Do not add business-facing adapter behavior in this task.
+
+          Review rule:
+          - This review is framework and file shape only.
+          - Keep function bodies minimal; protocol behavior belongs to later tasks.
       - id: GSTATE-003
         status: Todo
         priority: P0
-        depends_on: [GSTATE-001, GSTATE-002]
-        title: Integrate generic state into business modules
+        depends_on: [GSTATE-002]
+        title: Phase 1C - Add state interfaces only
         notes: |
-          Phase 3. Integrate business modules one by one after base state app and wrappers are complete.
-          This phase may interleave with deployment and upgrade work in GSTATE-004 by module.
+          Add trait boundaries without concrete runtime-backed adapter implementations.
 
-          Module order is not fixed in this task. For each module:
-          - Keep the existing creation message flow unless a module-specific task explicitly changes it.
-          - Do not add PostInitialize only for generic state.
-          - Move business state reads/writes through the wrapper.
-          - Keep business invariants in the business app, not generic state.
-          - Add module-specific tests for initialization, normal writes, and state read/query behavior.
+          Scope:
+          - Add internal `state::interfaces::state::StateInterface` for the state app itself.
+          - Add `state::state::adapter::StateAdapter` wrapping `Rc<RefCell<State>>` and delegating to `StateInterface` implementation.
+          - Add business-facing `state::interfaces::contract::StateContractInterface` trait.
+          - Add business-facing `state::interfaces::service::StateServiceInterface` trait.
+          - Add `StateKey` trait for business ABI key encoding.
+          - Keep concrete `StateContract` and `StateService` instances out of `interfaces`.
+          - Do not implement cross-application calls in this task.
+
+          Review rule:
+          - This review is trait shape only.
+          - It must not include protocol behavior, service GraphQL behavior, or business app changes.
       - id: GSTATE-004
         status: Todo
         priority: P0
-        depends_on: [GSTATE-001, GSTATE-002]
-        title: Implement deployment and upgrade flows
+        depends_on: [GSTATE-003]
+        title: Phase 1D - Implement state app core behavior
         notes: |
-          Phase 4. Implement deployment and upgrade workflows.
-          This phase may interleave with GSTATE-003 by module.
+          Implement the state app internal behavior behind the internal StateInterface.
+
+          Scope:
+          - Implement state shape: operator, frozen_namespaces, namespace_apps, records.
+          - Implement InitializeOperator, CreateNamespace, FreezeNamespace, UnfreezeNamespace, Handoff, BatchRead, BatchWrite, and SetOperator.
+          - Implement slot-based record keying: [namespace][slot][business_key...].
+          - Implement permission rules for operator, namespace management freeze, authenticated caller binding, and handoff.
+          - Wire contract_inner handlers to `S: state::interfaces::state::StateInterface`.
+          - Do not implement business-facing `StateContract` or `StateService` concrete instances in this task.
+
+          Review rule:
+          - This review is state app protocol behavior only.
+          - Keep service admin queries and business-facing adapters out of the review.
+      - id: GSTATE-005
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004]
+        title: Phase 1E - Implement state app service admin queries
+        notes: |
+          Implement only raw state app administration and debug reads in `state/src/service.rs`.
+
+          Scope:
+          - Expose operator and frozen namespace status.
+          - Expose namespace app bindings.
+          - Expose raw record lookup by exact encoded key or by namespace, slot, and business key.
+          - Do not decode business records.
+          - Do not expose user-facing business queries from the state app service.
+
+          Review rule:
+          - This review is service admin query behavior only.
+          - It must not include business app integration or business-facing adapter instances.
+      - id: GSTATE-006
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-005]
+        title: Phase 1F - Implement business-facing state adapter instances
+        notes: |
+          Implement concrete runtime-backed instances for the already-defined business-facing interfaces.
+
+          Scope:
+          - Implement `state::adapters::contract::StateContract` for `StateContractInterface`.
+          - Implement `state::adapters::service::StateService` for `StateServiceInterface`.
+          - Store state_app_id and state_namespace in adapter instances at construction time.
+          - Implement typed key/value helpers over `StateKey` and BCS values.
+          - Implement contract read/write/delete/batch APIs over BatchRead and BatchWrite.
+          - Implement service read-only APIs over query_application against the state app service.
+          - Implement initialization helper sequence: InitializeOperator -> CreateNamespace -> initial BatchWrite.
+          - Implement handoff helper for old business app upgrade flow.
+          - Do not change any business app in this task.
+
+          Review rule:
+          - This review is concrete adapter instance behavior only.
+          - Business app wiring and examples belong to later tasks.
+      - id: GSTATE-007
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-006]
+        title: Phase 1G - Add minimal state adapter usage example
+        notes: |
+          Add a minimal usage example that proves how a business app will consume state interfaces without starting AMS integration.
+
+          Scope:
+          - Add a small test-only or doc-test example using a sample key implementing `StateKey`.
+          - Show contract-side code depending on `StateContractInterface`, not concrete `StateContract`.
+          - Show service-side code depending on `StateServiceInterface`, not concrete `StateService`.
+          - Show concrete instances are constructed at the entry layer and injected.
+          - Do not modify AMS, meme, pool, swap, or proxy.
+
+          Review rule:
+          - This review is example usage only.
+          - Keep the example small enough to review without inspecting business app migrations.
+      - id: GSTATE-008
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004, GSTATE-005, GSTATE-006, GSTATE-007]
+        title: Phase 1H - Test base state app and adapter behavior
+        notes: |
+          Complete the state app phase with focused contract, service, and adapter tests.
+
+          Scope:
+          - Repeated InitializeOperator rejects.
+          - Missing signer rejects operator-only operations.
+          - Non-operator signer rejects operator-only operations.
+          - CreateNamespace rejects before operator initialization, without caller, duplicate caller, and wrong creator chain.
+          - frozen_namespaces rejects namespace management and still allows BatchRead and BatchWrite.
+          - BatchRead and BatchWrite reject unbound callers.
+          - BatchWrite Some(bytes) writes and None deletes only the caller slot record.
+          - Separate namespaces and caller slots isolate identical business keys.
+          - Handoff replaces in-place, preserves slot records, rejects new-app caller, and rejects already-bound targets.
+          - SetOperator rejects wrong-chain operators and rotates authorization.
+          - Business-facing adapters cannot write outside the authenticated app namespace slot.
+
+          Review rule:
+          - This review is test coverage only, except for minimal fixes required by tests.
+          - If tests reveal behavior changes larger than small fixes, split them into a separate review.
+      - id: GSTATE-010
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-008]
+        title: Phase 2 - Add AMS state keys and state binding
+        notes: |
+          Use `ams` as the first business app integration target.
+
+          Scope:
+          - Add AMS business state key enum to `abi/src/ams.rs`.
+          - Implement state key encoding for AMS keys.
+          - Add minimal AMS local binding for state_app_id and state_namespace.
+          - Keep AMS business rules in the AMS crate.
+          - Do not add a repository or backend abstraction.
+      - id: GSTATE-011
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-010]
+        title: Phase 2 - Integrate AMS contract state through state app
+        notes: |
+          Move AMS contract-side business state reads and writes through the state app while preserving AMS handler interfaces.
+
+          Scope:
+          - Keep AMS handlers depending on AMS `StateInterface`.
+          - Update AMS StateAdapter to hold `C: state::interfaces::contract::StateContractInterface`.
+          - Construct `state::adapters::contract::StateContract` in the AMS contract entry layer and inject it into AMS StateAdapter.
+          - Replace AMS local business record reads/writes with StateContractInterface calls.
+          - Avoid holding `Rc<RefCell<AmsState>>` borrows across async state app calls.
+      - id: GSTATE-012
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-011]
+        title: Phase 2 - Integrate AMS service reads through state app
+        notes: |
+          Move AMS service read paths through the state app without forcing the full write-capable AMS StateInterface into service code.
+
+          Scope:
+          - Construct `state::adapters::service::StateService` in the AMS service entry layer.
+          - Add an AMS read-only query wrapper or read-only interface for service GraphQL resolvers.
+          - Replace direct local view reads for migrated AMS records with StateServiceInterface reads.
+          - Keep service mutations scheduling AMS operations instead of writing the state app directly.
+      - id: GSTATE-013
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-011, GSTATE-012]
+        title: Phase 2 - Test AMS state-app integration
+        notes: |
+          Validate AMS integration before using the pattern for other apps.
+
+          Scope:
+          - AMS contract tests for initialization and normal writes through the state app.
+          - AMS service tests for read-only queries through the state app.
+          - Tests for missing state binding and namespace binding errors.
+          - Tests proving AMS handlers remain insulated from state_app_id, namespace, and BCS details.
+      - id: GSTATE-020
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-013]
+        title: Phase 3 - Run AMS state-app E2E validation
+        notes: |
+          Validate the full AMS + state app flow in a running Linera environment before touching the remaining business apps.
+
+          Scope:
+          - Deploy or instantiate the reusable state app.
+          - Instantiate AMS with state_app_id and AMS namespace binding.
+          - Execute AMS operations that write state-app-backed records.
+          - Query AMS service and verify reads come through state app-backed storage.
+          - Query raw state app service for admin/debug confirmation only.
+          - Record the exact E2E commands and expected observable outputs in task notes or an assistant-facing runbook.
+      - id: GSTATE-030
+        status: Todo
+        priority: P0
+        depends_on: []
+        title: Phase 4 - Move meme creator-chain capability out of runtime interfaces
+        notes: |
+          Runtime must stay a generic Linera SDK wrapper and generic capability declaration layer.
+          Do not expose raw `read_application_description` through business-facing runtime interfaces yet.
+
+          Scope:
+          - Add a generic runtime capability method that returns an application's creator chain id by wrapping SDK `read_application_description(application_id).creator_chain_id`.
+          - Remove `runtime/src/interfaces/meme.rs`.
+          - Remove `MemeRuntimeContext` from `runtime/src/contract.rs`.
+          - Replace handler bounds that currently require `MemeRuntimeContext` with the generic creator-chain-id capability.
+          - Keep domain-specific state app interfaces inside the `state` crate, not in `runtime`.
+          - Keep business typed state codecs/helpers inside each business crate or state-owned interfaces, not in `runtime`.
+          - Tests that currently mock `MemeOperation::CreatorChainId` must mock application descriptions instead.
+      - id: GSTATE-031
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-020, GSTATE-030]
+        title: Phase 4 - Integrate meme with state app
+        notes: |
+          Apply the AMS-proven state app integration pattern to meme.
+
+          Scope:
+          - Add MemeKey to `abi/src/meme.rs`.
+          - Add meme local state_app_id and namespace binding.
+          - Inject StateContractInterface through meme StateAdapter.
+          - Move meme balances, allowances, metadata, ownership, liquidity, and mining records through the state app where applicable.
+          - Add meme read-only service wrapper over StateServiceInterface.
+          - Preserve meme business invariants in the meme crate.
+      - id: GSTATE-032
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-020]
+        title: Phase 4 - Integrate pool with state app
+        notes: |
+          Apply the AMS-proven state app integration pattern to pool.
+
+          Scope:
+          - Add PoolKey to `abi/src/pool.rs`.
+          - Add pool local state_app_id and namespace binding.
+          - Inject StateContractInterface through pool state adapter.
+          - Move pool business records through the state app where applicable.
+          - Add pool read-only service wrapper over StateServiceInterface.
+          - Preserve AMM and liquidity invariants in the pool crate.
+      - id: GSTATE-033
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-020]
+        title: Phase 4 - Integrate swap with state app
+        notes: |
+          Apply the AMS-proven state app integration pattern to swap.
+
+          Scope:
+          - Add SwapKey to `abi/src/swap.rs`.
+          - Add swap local state_app_id and namespace binding.
+          - Inject StateContractInterface through swap state adapter.
+          - Move swap business records through the state app where applicable.
+          - Add swap read-only service wrapper over StateServiceInterface.
+          - Preserve pool creation and routing business rules in the swap crate.
+      - id: GSTATE-034
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-020]
+        title: Phase 4 - Integrate proxy with state app
+        notes: |
+          Apply the AMS-proven state app integration pattern to proxy.
+
+          Scope:
+          - Add ProxyKey to the proxy ABI module if proxy has migrated protocol records.
+          - Add proxy local state_app_id and namespace binding when needed.
+          - Inject StateContractInterface through proxy state adapter.
+          - Move proxy business records through the state app where applicable.
+          - Preserve app creation and orchestration rules in the proxy crate.
+      - id: GSTATE-040
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-031, GSTATE-032, GSTATE-033, GSTATE-034]
+        title: Phase 5 - Run integrated business validation
+        notes: |
+          Validate the migrated business apps together after module-level integration.
+
+          Scope:
+          - Run targeted contract and service tests for ams, meme, pool, swap, and proxy.
+          - Verify creation flows still avoid a PostInitialize stage only for state app setup.
+          - Verify business handlers do not receive state_app_id, namespace, or raw BCS bytes.
+          - Verify service reads use business wrappers over StateServiceInterface.
+          - Verify namespace and slot isolation across multiple business apps using identical business keys.
+      - id: GSTATE-041
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-040]
+        title: Phase 5 - Run integrated E2E validation
+        notes: |
+          Validate real multi-app behavior in a running Linera environment after all business integrations.
+
+          Scope:
+          - Deploy state app and integrated business apps.
+          - Exercise AMS registration/update flows.
+          - Exercise meme creation, liquidity initialization, transfer, approval, mining or redeem flows as applicable.
+          - Exercise swap and pool creation and liquidity flows as applicable.
+          - Verify business service queries match contract effects.
+          - Verify raw state app service only exposes admin/debug records, not business-facing query semantics.
+      - id: GSTATE-050
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-041]
+        title: Phase 6 - Implement state app deployment flow
+        notes: |
+          Implement deployment workflow after integrated validation proves the model.
 
           Scope:
           - Deploy one reusable state app id.
           - Pass or persist state_app_id through business deployment without relying on immutable parameters for mutable routing.
           - Ensure business initialization calls InitializeOperator, CreateNamespace, and initial BatchWrite.
           - For mining or untrusted proposer chains, run FreezeNamespace before opening runtime access.
-          - Implement upgrade maintenance window: pause business writes, tighten application_permissions to operator maintenance mode, UnfreezeNamespace, old app Handoff, replace permissions to new app, FreezeNamespace, restore runtime permissions.
-          - Update deployment config service/interface with active root app ids after deploy or upgrade.
-      - id: GSTATE-005
+          - Update deployment config service/interface with active root app ids after deploy.
+      - id: GSTATE-051
         status: Todo
-        priority: P1
-        depends_on: [GSTATE-003, GSTATE-004]
-        title: Implement generic-state observability
+        priority: P0
+        depends_on: [GSTATE-050]
+        title: Phase 6 - Implement state app upgrade and handoff flow
         notes: |
-          Phase 5. Implement observability after business integration and deployment/upgrade flows are complete.
+          Implement the upgrade maintenance workflow after deployment flow is stable.
 
           Scope:
-          - Parse and project generic-state-backed business facts from finalized blocks.
+          - Pause business writes before upgrade.
+          - Tighten application_permissions to operator maintenance mode.
+          - Run UnfreezeNamespace.
+          - Deploy new business app and obtain the new application id.
+          - Have the old business app validate governance and call Handoff.
+          - Replace permissions from old app to new app while still in maintenance mode.
+          - Run FreezeNamespace.
+          - Restore runtime permissions and resume business writes.
+          - Update deployment config service/interface with active root app ids after upgrade.
+      - id: GSTATE-052
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-050, GSTATE-051]
+        title: Phase 6 - Validate deployment and upgrade flows
+        notes: |
+          Validate deployment and upgrade operations end to end.
+
+          Scope:
+          - Run deployment flow from a clean environment.
+          - Verify business apps bind to the expected state_app_id and namespace.
+          - Run upgrade maintenance flow and verify Handoff preserves slot-backed records.
+          - Verify application permissions are tightened before UnfreezeNamespace and restored only after FreezeNamespace.
+          - Verify deployment config service/interface points at active root app ids after deploy and upgrade.
+      - id: GSTATE-060
+        status: Todo
+        priority: P1
+        depends_on: [GSTATE-052]
+        title: Phase 7 - Implement state-app observability
+        notes: |
+          Implement observability after business integration, validation, and deployment flows are complete.
+
+          Scope:
+          - Parse and project state-app-backed business facts from finalized blocks.
           - Track active business app ids across handoff.
           - Preserve stable dynamic object identity outside raw application ids.
           - Do not make observability the authoritative frontend routing source.

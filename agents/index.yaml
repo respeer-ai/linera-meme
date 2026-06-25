@@ -150,9 +150,9 @@ navigation:
         - debugging claim/redeem/ownership issues
         - reviewing actor identity usage
         - verifying transaction actor persistence
-    - path: agents/primitives/generic-state-application.md
+    - path: agents/primitives/state-application.md
       canonical_for:
-        - generic_state_application_split
+        - state_application_split
         - upgradeable_business_application_handoff
         - state_business_application_boundary
       when_to_read:
@@ -588,7 +588,7 @@ navigation:
       when_to_read:
         - validating BCS serialization gas on Conway
         - validating call_application gas on Conway
-        - comparing generic state application gas options
+        - comparing state application gas options
       inputs:
         - Conway RPC and faucet availability
         - isolated disposable wallet paths

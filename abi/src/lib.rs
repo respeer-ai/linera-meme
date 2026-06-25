@@ -7,6 +7,7 @@ pub mod meme;
 pub mod meme_token;
 pub mod policy;
 pub mod proxy;
+pub mod state;
 pub mod store_type;
 pub mod swap;
 
