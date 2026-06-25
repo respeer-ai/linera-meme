@@ -4534,6 +4534,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "state"
+version = "0.1.0"
+dependencies = [
+ "abi",
+ "assert_matches",
+ "async-graphql",
+ "getrandom 0.2.17",
+ "linera-sdk",
+ "log",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

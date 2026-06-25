@@ -1802,25 +1802,28 @@ groups:
           - `cargo check -p abi` with `ulimit -v 6000000`
           - `git diff --check`
       - id: GSTATE-002
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-001]
         title: Phase 1B - Add state crate framework only
         notes: |
-          Add the empty `state` application crate framework using the existing `ams`-style layout.
+          Complete. Added the empty `state` application crate framework using the existing `ams`-style layout.
 
-          Scope:
-          - Add workspace member `state` and `state/Cargo.toml`.
-          - Add module files for `adapters`, `interfaces`, `state`, `contract_inner`, contract, service, and tests.
-          - Define root view type name `State` with the planned fields, but keep behavior minimal.
-          - Add binary entries `state_contract` and `state_service`.
-          - Add compile-only contract and service entrypoints.
-          - Do not implement state operations beyond stubs required to compile.
-          - Do not add business-facing adapter behavior in this task.
+          Completed scope:
+          - Added workspace member `state` and `state/Cargo.toml`.
+          - Added module files for `adapters`, `interfaces`, `state`, `contract_inner`, contract, service, and tests.
+          - Defined root view type name `State` with the planned fields.
+          - Added binary entries `state_contract` and `state_service`.
+          - Added compile-only contract and service entrypoints.
+          - Did not implement state operation behavior or business-facing adapter behavior.
 
-          Review rule:
-          - This review is framework and file shape only.
-          - Keep function bodies minimal; protocol behavior belongs to later tasks.
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `cargo build -p state` with `ulimit -v 6000000`
+          - `cargo test -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-003
         status: Todo
         priority: P0

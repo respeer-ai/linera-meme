@@ -6,6 +6,7 @@ members = [
     "pool",
     "blob-gateway",
     "ams",
+    "state",
     "abi",
     "base",
     "runtime",
