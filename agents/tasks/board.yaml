@@ -1976,21 +1976,53 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004D3
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004D2]
-        title: Phase 1D-D3 - Implement BatchRead operation handler
-        notes: Implement only the BatchRead operation handler.
+        title: Phase 1D-D3 - Implement Read operation handler
+        notes: |
+          Implemented only the Read operation handler.
+          The handler enforces AccessControl::only_caller_creator, resolves the caller application slot, builds StateKey, reads the raw value, and returns StateResponse::Read.
+
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004D4
         status: Todo
         priority: P0
         depends_on: [GSTATE-004D3]
-        title: Phase 1D-D4 - Implement BatchWrite operation handler
-        notes: Implement only the BatchWrite operation handler.
-      - id: GSTATE-004E1
+        title: Phase 1D-D4 - Implement Write operation handler
+        notes: Implement only the Write operation handler.
+      - id: GSTATE-004D5
         status: Todo
         priority: P0
         depends_on: [GSTATE-004D4]
+        title: Phase 1D-D5 - Implement Delete operation handler
+        notes: Implement only the Delete operation handler.
+      - id: GSTATE-004D6
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D5]
+        title: Phase 1D-D6 - Implement BatchRead operation handler
+        notes: Implement only the BatchRead operation handler.
+      - id: GSTATE-004D7
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D6]
+        title: Phase 1D-D7 - Implement BatchWrite operation handler
+        notes: Implement only the BatchWrite operation handler.
+      - id: GSTATE-004D8
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D7]
+        title: Phase 1D-D8 - Implement BatchDelete operation handler
+        notes: Implement only the BatchDelete operation handler.
+      - id: GSTATE-004E1
+        status: Todo
+        priority: P0
+        depends_on: [GSTATE-004D8]
         title: Phase 1D-E1 - Implement FreezeNamespace operation handler
         notes: Implement only the FreezeNamespace operation handler.
       - id: GSTATE-004E2

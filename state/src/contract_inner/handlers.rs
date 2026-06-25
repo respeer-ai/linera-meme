@@ -6,6 +6,7 @@ use abi::state::{StateMessage, StateOperation, StateResponse};
 use base::handler::{Handler, HandlerError};
 use operation::{
     create_namespace::CreateNamespaceHandler, initialize_operator::InitializeOperatorHandler,
+    read::ReadHandler,
 };
 use runtime::interfaces::{access_control::AccessControl, contract::ContractRuntimeContext};
 use std::{cell::RefCell, rc::Rc};
@@ -25,6 +26,9 @@ impl HandlerFactory {
             StateOperation::CreateNamespace { .. } => Ok(Box::new(CreateNamespaceHandler::new(
                 runtime, state, operation,
             ))),
+            StateOperation::Read { .. } => {
+                Ok(Box::new(ReadHandler::new(runtime, state, operation)))
+            }
             _ => Err(HandlerError::NotImplemented),
         }
     }
