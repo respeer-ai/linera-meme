@@ -19,12 +19,19 @@ impl StateAdapter {
 impl StateInterface for StateAdapter {
     type Error = <State as StateInterface>::Error;
 
-    async fn initialize_operator(&mut self) -> Result<(), Self::Error> {
-        self.state.borrow_mut().initialize_operator().await
+    async fn initialize_operator(&mut self, operator: Account) -> Result<(), Self::Error> {
+        self.state.borrow_mut().initialize_operator(operator).await
     }
 
-    async fn create_namespace(&mut self, namespace: u8) -> Result<(), Self::Error> {
-        self.state.borrow_mut().create_namespace(namespace).await
+    async fn create_namespace(
+        &mut self,
+        namespace: u8,
+        application_id: ApplicationId,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .create_namespace(namespace, application_id)
+            .await
     }
 
     async fn freeze_namespace(&mut self) -> Result<(), Self::Error> {
@@ -38,11 +45,12 @@ impl StateInterface for StateAdapter {
     async fn handoff(
         &mut self,
         namespace: u8,
+        application_id: ApplicationId,
         new_application_id: ApplicationId,
     ) -> Result<(), Self::Error> {
         self.state
             .borrow_mut()
-            .handoff(namespace, new_application_id)
+            .handoff(namespace, application_id, new_application_id)
             .await
     }
 
@@ -50,19 +58,76 @@ impl StateInterface for StateAdapter {
         self.state.borrow_mut().set_operator(new_operator).await
     }
 
+    async fn read(
+        &mut self,
+        namespace: u8,
+        application_id: ApplicationId,
+        key: Vec<u8>,
+    ) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.state
+            .borrow_mut()
+            .read(namespace, application_id, key)
+            .await
+    }
+
+    async fn write(
+        &mut self,
+        namespace: u8,
+        application_id: ApplicationId,
+        key: Vec<u8>,
+        value: Vec<u8>,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .write(namespace, application_id, key, value)
+            .await
+    }
+
+    async fn delete(
+        &mut self,
+        namespace: u8,
+        application_id: ApplicationId,
+        key: Vec<u8>,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .delete(namespace, application_id, key)
+            .await
+    }
+
     async fn batch_read(
         &mut self,
         namespace: u8,
+        application_id: ApplicationId,
         keys: Vec<Vec<u8>>,
     ) -> Result<Vec<Option<Vec<u8>>>, Self::Error> {
-        self.state.borrow_mut().batch_read(namespace, keys).await
+        self.state
+            .borrow_mut()
+            .batch_read(namespace, application_id, keys)
+            .await
     }
 
     async fn batch_write(
         &mut self,
         namespace: u8,
-        writes: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+        application_id: ApplicationId,
+        writes: Vec<(Vec<u8>, Vec<u8>)>,
     ) -> Result<(), Self::Error> {
-        self.state.borrow_mut().batch_write(namespace, writes).await
+        self.state
+            .borrow_mut()
+            .batch_write(namespace, application_id, writes)
+            .await
+    }
+
+    async fn batch_delete(
+        &mut self,
+        namespace: u8,
+        application_id: ApplicationId,
+        keys: Vec<Vec<u8>>,
+    ) -> Result<(), Self::Error> {
+        self.state
+            .borrow_mut()
+            .batch_delete(namespace, application_id, keys)
+            .await
     }
 }

@@ -1903,7 +1903,7 @@ groups:
           - `python3 scripts/validate_prompt_state.py`
           - `git diff --check`
       - id: GSTATE-004B
-        status: Todo
+        status: Done
         priority: P0
         depends_on: [GSTATE-004A]
         title: Phase 1D-B - Adjust internal state interface signatures
@@ -1911,10 +1911,18 @@ groups:
           Update only the internal state app interface and its internal adapter signatures.
 
           Scope:
-          - Update `state/src/interfaces/state.rs` so handlers can pass resolved operator, caller, and application creator-chain context.
-          - Update `state/src/state/adapter.rs` to match the interface.
+          - Update `state/src/interfaces/state.rs` so handlers can pass resolved operator accounts and application ids.
+          - Add explicit read, write, delete, batch_read, batch_write, and batch_delete methods matching the state ABI.
+          - Update `state/src/state/adapter.rs` and placeholder `state/src/state/state_impl.rs` to match the interface.
+          - Keep runtime permission checks, creator-chain checks, and message-origin checks out of this interface.
           - Do not implement state behavior.
           - Do not implement contract handlers.
+
+          Validation:
+          - `cargo fmt -p state --check`
+          - `cargo check -p state` with `ulimit -v 6000000`
+          - `python3 scripts/validate_prompt_state.py`
+          - `git diff --check`
       - id: GSTATE-004C
         status: Todo
         priority: P0
